@@ -264,7 +264,7 @@ three rows in fourth transaction with deadlock
 2	
 3	
 4	
-errmsg [lock conflict on no wait transaction deadlock %a]
+errmsg [deadlock read conflicts with concurrent update concurrent transaction number is %a]
 ---
 three rows
 --- test5 ---

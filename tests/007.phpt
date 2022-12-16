@@ -59,7 +59,7 @@ InterBase: array handling
 			$v_float[$i]   = rand_number(7);
 			$v_integer[$i] = rand_number(9,0);
 			$v_numeric[$i] = rand_number(9,2);
-			$v_smallint[$i] = rand_number(5) % 32767;
+			$v_smallint[$i] = intval(rand_number(5)) % 32767;
 			$v_varchar[$i] = rand_str(1000);
 		}
 
@@ -89,6 +89,7 @@ InterBase: array handling
 				echo " in:  ".$v_decimal[$i]."\n";
 				echo " out: ".$row->V_DECIMAL[$i]."\n";
 			}
+
 			if(abs($row->V_DOUBLE[$i] - $v_double[$i]) > abs($v_double[$i] / 1E15)) {
 				echo " DOUBLE[$i] fail\n";
 				echo " in:  ".$v_double[$i]."\n";

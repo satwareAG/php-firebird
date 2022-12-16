@@ -37,7 +37,7 @@ array(2) {
   string(32) "test table not created with isql"
 }
 
-Notice: ibase_execute(): Statement expects 2 arguments, 3 given in /usr/src/php-firebird/tests/bug45373.php on line 15
+Notice: ibase_execute(): Statement expects 2 arguments, 3 given in %s/bug45373.php on line %d
 array(2) {
   ["I"]=>
   int(1)

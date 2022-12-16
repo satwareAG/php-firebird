@@ -31,5 +31,5 @@ try {
 --EXPECTF--
 int(2)
 ibase_num_params() expects exactly 1 argument, 0 given
-Warning: ibase_prepare(): Dynamic SQL Error SQL error code = -206 Column unknown X At line 1, column 51  in /usr/src/php-firebird/tests/ibase_num_params_001.php on line 18
+Warning: ibase_prepare(): Dynamic SQL Error SQL error code = -206 Column unknown X At line 1, column 51  in %s/ibase_num_params_001.php on line %d
 ibase_num_params(): Argument #1 ($query) must be of type resource, bool given

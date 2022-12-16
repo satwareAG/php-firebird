@@ -47,7 +47,7 @@ try {
 Wrong parameter count for ibase_set_event_handler()
 Wrong parameter count for ibase_set_event_handler()
 
-Warning: ibase_set_event_handler(): Callback argument foo is not a callable function in /usr/src/php-firebird/tests/bug46247.php on line 30
+Warning: ibase_set_event_handler(): Callback argument foo is not a callable function in %s/bug46247.php on line %d
 
-Warning: ibase_set_event_handler(): Callback argument foo is not a callable function in /usr/src/php-firebird/tests/bug46247.php on line 34
+Warning: ibase_set_event_handler(): Callback argument foo is not a callable function in %s/bug46247.php on line %d
 Wrong parameter count for ibase_set_event_handler()

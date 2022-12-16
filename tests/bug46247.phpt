@@ -11,25 +11,43 @@ $db = ibase_connect($test_base);
 
 function test() { }
 
-ibase_set_event_handler();
+try {
+    ibase_set_event_handler();
+} catch (ArgumentCountError $e) {
+    echo $e->getMessage() . "\n";
+}
 
-ibase_set_event_handler('test', 1);
+try {
+    ibase_set_event_handler('test', 1);
+} catch(TypeError) {
+    echo $e->getMessage() . "\n";
+}
+
 ibase_set_event_handler($db, 'test', 1);
-ibase_set_event_handler(NULL, 'test', 1);
 
+try {
+    ibase_set_event_handler(NULL, 'test', 1);
+} catch(TypeError) {
+    echo $e->getMessage() . "\n";
+}
 
-ibase_set_event_handler('foo', 1);
+try {
+    ibase_set_event_handler('foo', 1);
+ } catch(TypeError) {
+     echo $e->getMessage() . "\n";
+ }
 ibase_set_event_handler($db, 'foo', 1);
-ibase_set_event_handler(NULL, 'foo', 1);
-
+try {
+    ibase_set_event_handler(NULL, 'foo', 1);
+} catch(TypeError) {
+     echo $e->getMessage() . "\n";
+}
 ?>
 --EXPECTF--
-Warning: Wrong parameter count for ibase_set_event_handler() in %s on line %d
+Wrong parameter count for ibase_set_event_handler()
+Wrong parameter count for ibase_set_event_handler()
 
-Warning: ibase_set_event_handler(): supplied argument is not a valid InterBase link resource in %s on line %d
+Warning: ibase_set_event_handler(): Callback argument foo is not a callable function in /usr/src/php-firebird/tests/bug46247.php on line 30
 
-Warning: ibase_set_event_handler(): Callback argument foo is not a callable function in %s on line %d
-
-Warning: ibase_set_event_handler(): Callback argument foo is not a callable function in %s on line %d
-
-Warning: ibase_set_event_handler(): supplied argument is not a valid InterBase link resource in %s on line %d
+Warning: ibase_set_event_handler(): Callback argument foo is not a callable function in /usr/src/php-firebird/tests/bug46247.php on line 34
+Wrong parameter count for ibase_set_event_handler()

@@ -12,21 +12,24 @@ $x = ibase_connect($test_base);
 $rs = ibase_prepare('SELECT * FROM test1 WHERE 1 = ? AND 2 = ?');
 var_dump(ibase_num_params($rs));
 
-$rs = ibase_prepare('SELECT * FROM test1 WHERE 1 = ? AND 2 = ?');
-var_dump(ibase_num_params());
+try {
+    $rs = ibase_prepare('SELECT * FROM test1 WHERE 1 = ? AND 2 = ?');
+    var_dump(ibase_num_params());
+} catch (ArgumentCountError $e) {
+    echo $e->getMessage();
+}
+
 
 $rs = ibase_prepare('SELECT * FROM test1 WHERE 1 = ? AND 2 = ? AND 3 = :x');
-var_dump(ibase_num_params($rs));
-
+try {
+    var_dump(ibase_num_params($rs));
+} catch (TypeError $e) {
+    echo $e->getMessage();
+}
 
 ?>
 --EXPECTF--
 int(2)
-
-Warning: ibase_num_params() expects exactly 1 parameter, 0 given in %s on line %d
-NULL
-
-Warning: ibase_prepare(): Dynamic SQL Error SQL error code = -206 %s in %s on line %d
-
-Warning: ibase_num_params() expects parameter 1 to be resource, bool given in %s on line %d
-NULL
+ibase_num_params() expects exactly 1 argument, 0 given
+Warning: ibase_prepare(): Dynamic SQL Error SQL error code = -206 Column unknown X At line 1, column 51  in /usr/src/php-firebird/tests/ibase_num_params_001.php on line 18
+ibase_num_params(): Argument #1 ($query) must be of type resource, bool given

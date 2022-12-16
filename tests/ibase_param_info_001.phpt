@@ -18,7 +18,13 @@ var_dump(ibase_param_info($rs, 100));
 
 print "---\n";
 
-var_dump(ibase_param_info(100));
+try {
+    var_dump(ibase_param_info(100));
+} catch(ArgumentCountError $error) {
+    echo $error->getMessage();
+}
+
+
 
 
 ?>
@@ -48,6 +54,4 @@ array(10) {
 ---
 bool(false)
 ---
-
-Warning: ibase_param_info() expects exactly 2 parameters, 1 given in %s on line %d
-NULL
+ibase_param_info() expects exactly 2 arguments, 1 given

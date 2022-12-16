@@ -22,8 +22,12 @@ Bug #45373 (php crash on query with errors in params)
 	ibase_free_result($r);
 
 	$r = ibase_execute($q, 1);
-	var_dump(ibase_fetch_assoc($r));
 
+	try {
+        var_dump(ibase_fetch_assoc($r));
+    } catch(TypeError $e) {
+        echo $e->getMessage() . "\n";
+    }
 ?>
 --EXPECTF--
 array(2) {
@@ -33,7 +37,7 @@ array(2) {
   string(32) "test table not created with isql"
 }
 
-Notice: ibase_execute(): Statement expects 2 arguments, 3 given in %s on line %d
+Notice: ibase_execute(): Statement expects 2 arguments, 3 given in /usr/src/php-firebird/tests/bug45373.php on line 15
 array(2) {
   ["I"]=>
   int(1)
@@ -42,6 +46,4 @@ array(2) {
 }
 
 Warning: ibase_execute(): Statement expects 2 arguments, 1 given in %s on line %d
-
-Warning: ibase_fetch_assoc() expects parameter 1 to be resource, bool given in %s on line %d
-NULL
+ibase_fetch_assoc(): Argument #1 ($result) must be of type resource, bool given

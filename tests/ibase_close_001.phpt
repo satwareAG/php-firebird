@@ -11,13 +11,17 @@ $x = ibase_connect($test_base);
 var_dump(ibase_close($x));
 var_dump(ibase_close($x));
 var_dump(ibase_close());
-var_dump(ibase_close('foo'));
+
+try {
+    var_dump(ibase_close('foo'));
+} catch (TypeError $e) {
+    echo $e->getMessage() . "\n";
+}
+
 
 ?>
 --EXPECTF--
 bool(true)
 bool(true)
 bool(true)
-
-Warning: ibase_close() expects parameter 1 to be resource, string given in %s on line %d
-NULL
+ibase_close(): Argument #1 ($link_identifier) must be of type resource, string given

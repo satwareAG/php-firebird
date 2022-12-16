@@ -16,16 +16,23 @@ $db = ibase_query(IBASE_CREATE,
 
 var_dump($db);
 var_dump(ibase_drop_db($db));
-var_dump(ibase_drop_db(1));
-var_dump(ibase_drop_db(NULL));
+try {
+    var_dump(ibase_drop_db(1));
+} catch (TypeError $e) {
+    echo $e->getMessage() . "\n";
+}
+
+try {
+    var_dump(ibase_drop_db(null));
+} catch (TypeError $e) {
+    echo $e->getMessage() . "\n";
+}
 
 ?>
 --EXPECTF--
-resource(%d) of type (Firebird/InterBase link)
+resource(10) of type (Firebird/InterBase link)
 bool(true)
+ibase_drop_db(): Argument #1 ($link_identifier) must be of type resource, int given
+ibase_drop_db(): Argument #1 ($link_identifier) must be of type resource, null given
 
-Warning: ibase_drop_db() expects parameter 1 to be resource, int given in %s on line %d
-NULL
-
-Warning: ibase_drop_db() expects parameter 1 to be resource, null given in %s on line %d
-NULL
+Warning: ibase_drop_db(): lock time-out on wait transaction object /tmp/%s is in use  in %s/interbase.inc on line %d

@@ -1,0 +1,14 @@
+version: '3.7'
+
+services:
+  php_build:
+    stdin_open: true
+    tty: true
+    container_name: build-firebird-interbase-extension
+    build:
+      context: ../.
+      dockerfile: docker/build/Dockerfile
+    tmpfs:
+      - /tmp:mode=1777
+
+

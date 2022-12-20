@@ -8,6 +8,8 @@ services:
     build:
       context: ../.
       dockerfile: docker/build/Dockerfile
+    volumes:
+      - ../.:/usr/src/build-module
     tmpfs:
       - /tmp:mode=1777
 

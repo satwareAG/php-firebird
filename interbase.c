@@ -511,12 +511,17 @@ void _php_ibase_error(void) /* {{{ */
 {
 	char *s = IBG(errmsg);
 	const ISC_STATUS *statusp = IB_STATUS;
+	size_t msg_len;
 
 	IBG(sql_code) = isc_sqlcode(IB_STATUS);
 
-	while ((s - IBG(errmsg)) < MAX_ERRMSG && fb_interpret(s, MAX_ERRMSG - strlen(IBG(errmsg)) - 1, &statusp)) {
-		strcat(IBG(errmsg), " ");
-		s = IBG(errmsg) + strlen(IBG(errmsg));
+	msg_len = strlen(IBG(errmsg));
+	while (msg_len < MAX_ERRMSG && fb_interpret(s, MAX_ERRMSG - msg_len - 1, &statusp)) {
+		msg_len = strlen(s);
+		s[msg_len] = ' ';
+		s[msg_len + 1] = '\0';
+		msg_len = s - IBG(errmsg) + msg_len + 1;
+		s = IBG(errmsg) + msg_len;
 	}
 
 	php_error_docref(NULL, E_WARNING, "%s", IBG(errmsg));

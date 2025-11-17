@@ -1,7 +1,14 @@
 --TEST--
 ibase_close(): Basic test
 --SKIPIF--
-<?php include("skipif.inc"); ?>
+<?php
+
+include("skipif.inc");
+
+// See also: tests/ibase_close_004.phpt
+skip_if_ext_gte(61);
+
+?>
 --FILE--
 <?php
 

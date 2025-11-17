@@ -1,7 +1,15 @@
 --TEST--
 ibase_trans(): Basic test
 --SKIPIF--
-<?php include("skipif.inc"); ?>
+<?php
+
+include("skipif.inc");
+
+// See also tests/ibase_trans_014.phpt
+// See also tests/ibase_trans_015.phpt
+skip_if_ext_gte(61);
+
+?>
 --FILE--
 <?php
 

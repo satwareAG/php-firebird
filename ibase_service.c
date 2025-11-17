@@ -71,7 +71,7 @@ static void _php_ibase_free_service(zend_resource *rsrc) /* {{{ */
 void php_ibase_service_minit(INIT_FUNC_ARGS) /* {{{ */
 {
 	le_service = zend_register_list_destructors_ex(_php_ibase_free_service, NULL,
-	    "interbase service manager handle", module_number);
+		LE_SCVH, module_number);
 
 	/* backup options */
 	REGISTER_LONG_CONSTANT("IBASE_BKP_IGNORE_CHECKSUMS", isc_spb_bkp_ignore_checksums, CONST_PERSISTENT);
@@ -210,46 +210,73 @@ PHP_FUNCTION(ibase_delete_user)
 }
 /* }}} */
 
-/* {{{ proto resource ibase_service_attach(string host, string dba_username, string dba_password)
+/* {{{ proto resource ibase_service_attach([string host [, string dba_username [, string dba_password]]])
    Connect to the service manager */
 PHP_FUNCTION(ibase_service_attach)
 {
-	size_t hlen, ulen, plen, spb_len;
+	size_t hlen = 0, ulen = 0, plen = 0;
 	ibase_service *svm;
-	char buf[128], *host, *user, *pass, *loc;
+	char *host = NULL, *user = NULL, *pass = NULL;
+	char buf[350];
+	char loc[128] = "service_mgr";
 	isc_svc_handle handle = 0;
+	unsigned short p = 0;
 
 	RESET_ERRMSG;
 
-	if (SUCCESS != zend_parse_parameters(ZEND_NUM_ARGS(), "sss",
+	if (SUCCESS != zend_parse_parameters(ZEND_NUM_ARGS(), "|s!s!s!",
 			&host, &hlen, &user, &ulen, &pass, &plen)) {
 
 		RETURN_FALSE;
 	}
 
-	/* construct the spb, hack the service name into it as well */
-	spb_len = slprintf(buf, sizeof(buf), "%c%c%c%c%s%c%c%s" "%s:service_mgr",
-		isc_spb_version, isc_spb_current_version, isc_spb_user_name, (char)ulen,
-		user, isc_spb_password, (char)plen, pass, host);
-
-	if (spb_len > sizeof(buf) || spb_len == -1) {
-		_php_ibase_module_error("Internal error: insufficient buffer space for SPB (%zd)", spb_len);
+	if (ulen > 63) {
+		_php_ibase_module_error("Internal error: dba_username too long");
 		RETURN_FALSE;
 	}
 
-	spb_len -= hlen + 12;
-	loc = buf + spb_len; /* points to %s:service_mgr part */
+	if (plen > 255) {
+		_php_ibase_module_error("Internal error: dba_password too long");
+		RETURN_FALSE;
+	}
+
+	// 13 = strlen(":service_mgr") + \0;
+	if (hlen + 13 > sizeof(loc)) {
+		_php_ibase_module_error("Internal error: insufficient buffer space for name of the service (%zd)", hlen + 13);
+		RETURN_FALSE;
+	}
+
+	buf[p++] = isc_spb_version;
+	buf[p++] = isc_spb_current_version;
+
+	if(ulen > 0){
+		buf[p++] = isc_spb_user_name;
+		buf[p++] = (char)ulen;
+		memcpy(&buf[p], user, ulen);
+		p += ulen;
+	}
+
+	if(plen > 0){
+		buf[p++] = isc_spb_password;
+		buf[p++] = (char)plen;
+		memcpy(&buf[p], pass, plen);
+		p += plen;
+	}
+
+	if(hlen > 0){
+		slprintf(loc, sizeof(loc), "%s:service_mgr", host);
+	}
 
 	/* attach to the service manager */
-	if (isc_service_attach(IB_STATUS, 0, loc, &handle, (unsigned short)spb_len, buf)) {
+	if (isc_service_attach(IB_STATUS, 0, loc, &handle, p, buf)) {
 		_php_ibase_error();
 		RETURN_FALSE;
 	}
 
 	svm = (ibase_service*)emalloc(sizeof(ibase_service));
 	svm->handle = handle;
-	svm->hostname = estrdup(host);
-	svm->username = estrdup(user);
+	svm->hostname = hlen > 0 ? estrdup(host) : NULL;
+	svm->username = ulen > 0 ? estrdup(user) : NULL;
 
 	RETVAL_RES(zend_register_resource(svm, le_service));
 	Z_TRY_ADDREF_P(return_value);

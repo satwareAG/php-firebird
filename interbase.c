@@ -16,6 +16,7 @@
    |          Andrew Avdeev <andy@simgts.mv.ru>                           |
    |          Ard Biesheuvel <a.k.biesheuvel@its.tudelft.nl>              |
    |          Martin Koeditz <martin.koeditz@it-syn.de>                   |
+   |          Martins Lazdans <marrtins@dqdp.net>                         |
    |          others                                                      |
    +----------------------------------------------------------------------+
    | You'll find history on Github                                        |
@@ -29,11 +30,6 @@
 
 #include "php.h"
 
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
-
-
 #if HAVE_IBASE
 
 #include "php_ini.h"
@@ -44,6 +40,7 @@
 #include "SAPI.h"
 #include <stdbool.h>
 #include <time.h>
+#include "firebird_utils.h"
 
 #define ROLLBACK    0
 #define COMMIT      1
@@ -167,12 +164,6 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_ibase_affected_rows, 0, 0, 0)
 	ZEND_ARG_INFO(0, link_identifier)
 ZEND_END_ARG_INFO()
 
-#if abies_0
-ZEND_BEGIN_ARG_INFO_EX(arginfo_ibase_num_rows, 0, 0, 1)
-	ZEND_ARG_INFO(0, result_identifier)
-ZEND_END_ARG_INFO()
-#endif
-
 ZEND_BEGIN_ARG_INFO_EX(arginfo_ibase_fetch_row, 0, 0, 1)
 	ZEND_ARG_INFO(0, result)
 	ZEND_ARG_INFO(0, fetch_flags)
@@ -256,7 +247,7 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_ibase_delete_user, 0, 0, 3)
 	ZEND_ARG_INFO(0, last_name)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_ibase_service_attach, 0, 0, 3)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_ibase_service_attach, 0, 0, 0)
 	ZEND_ARG_INFO(0, host)
 	ZEND_ARG_INFO(0, dba_username)
 	ZEND_ARG_INFO(0, dba_password)
@@ -317,6 +308,15 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_INFO_EX(arginfo_ibase_free_event_handler, 0, 0, 1)
 	ZEND_ARG_INFO(0, event)
 ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO(arginfo_ibase_get_client_version, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO(arginfo_ibase_get_client_major_version, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO(arginfo_ibase_get_client_minor_version, 0)
+ZEND_END_ARG_INFO()
 /* }}} */
 
 /* {{{ extension definition structures */
@@ -337,9 +337,6 @@ static const zend_function_entry ibase_functions[] = {
 	PHP_FE(ibase_gen_id, 		arginfo_ibase_gen_id)
 	PHP_FE(ibase_num_fields, 	arginfo_ibase_num_fields)
 	PHP_FE(ibase_num_params, 	arginfo_ibase_num_params)
-#if abies_0
-	PHP_FE(ibase_num_rows, 		arginfo_ibase_num_rows)
-#endif
 	PHP_FE(ibase_affected_rows, arginfo_ibase_affected_rows)
 	PHP_FE(ibase_field_info, 	arginfo_ibase_field_info)
 	PHP_FE(ibase_param_info, 	arginfo_ibase_param_info)
@@ -378,6 +375,10 @@ static const zend_function_entry ibase_functions[] = {
 	PHP_FE(ibase_set_event_handler, 	arginfo_ibase_set_event_handler)
 	PHP_FE(ibase_free_event_handler, 	arginfo_ibase_free_event_handler)
 
+	PHP_FE(ibase_get_client_version, arginfo_ibase_get_client_version)
+	PHP_FE(ibase_get_client_major_version, arginfo_ibase_get_client_major_version)
+	PHP_FE(ibase_get_client_minor_version, arginfo_ibase_get_client_minor_version)
+
 	/**
 	* These aliases are provided in order to maintain forward compatibility. As Firebird
 	* and InterBase are developed independently, functionality might be different between
@@ -401,9 +402,6 @@ static const zend_function_entry ibase_functions[] = {
 	PHP_FALIAS(fbird_gen_id,		ibase_gen_id, 		arginfo_ibase_gen_id)
 	PHP_FALIAS(fbird_num_fields,	ibase_num_fields, 	arginfo_ibase_num_fields)
 	PHP_FALIAS(fbird_num_params,	ibase_num_params, 	arginfo_ibase_num_params)
-#if abies_0
-	PHP_FALIAS(fbird_num_rows,		ibase_num_rows, 	arginfo_ibase_num_rows)
-#endif
 	PHP_FALIAS(fbird_affected_rows,	ibase_affected_rows, arginfo_ibase_affected_rows)
 	PHP_FALIAS(fbird_field_info,	ibase_field_info, 	arginfo_ibase_field_info)
 	PHP_FALIAS(fbird_param_info,	ibase_param_info, 	arginfo_ibase_param_info)
@@ -441,6 +439,10 @@ static const zend_function_entry ibase_functions[] = {
 	PHP_FALIAS(fbird_wait_event,	ibase_wait_event, 	arginfo_ibase_wait_event)
 	PHP_FALIAS(fbird_set_event_handler,	ibase_set_event_handler, 	arginfo_ibase_set_event_handler)
 	PHP_FALIAS(fbird_free_event_handler,	ibase_free_event_handler, arginfo_ibase_free_event_handler)
+
+	PHP_FALIAS(fbird_get_client_version, ibase_get_client_version, arginfo_ibase_get_client_version)
+	PHP_FALIAS(fbird_get_client_major_version, ibase_get_client_major_version, arginfo_ibase_get_client_major_version)
+	PHP_FALIAS(fbird_get_client_minor_version, ibase_get_client_minor_version, arginfo_ibase_get_client_minor_version)
 	PHP_FE_END
 };
 
@@ -453,7 +455,7 @@ zend_module_entry ibase_module_entry = {
 	NULL,
 	PHP_RSHUTDOWN(ibase),
 	PHP_MINFO(ibase),
-	PHP_INTERBASE_VERSION,
+	PHP_INTERBASE_VER_STR,
 	PHP_MODULE_GLOBALS(ibase),
 	PHP_GINIT(ibase),
 	NULL,
@@ -491,6 +493,30 @@ PHP_FUNCTION(ibase_errmsg)
 }
 /* }}} */
 
+/* {{{ proto float ibase_get_client_version(void)
+   Return client version in form major.minor */
+PHP_FUNCTION(ibase_get_client_version)
+{
+	RETURN_DOUBLE((double)IBG(client_major_version) + (double)IBG(client_minor_version) / 10);
+}
+/* }}} */
+
+/* {{{ proto int ibase_get_client_major_version(void)
+   Return client major version */
+PHP_FUNCTION(ibase_get_client_major_version)
+{
+	RETURN_LONG(IBG(client_major_version));
+}
+/* }}} */
+
+/* {{{ proto int ibase_get_client_minor_version(void)
+   Return client minor version */
+PHP_FUNCTION(ibase_get_client_minor_version)
+{
+	RETURN_LONG(IBG(client_minor_version));
+}
+/* }}} */
+
 /* {{{ proto int ibase_errcode(void)
    Return error code */
 PHP_FUNCTION(ibase_errcode)
@@ -524,7 +550,7 @@ void _php_ibase_error(void) /* {{{ */
 /* }}} */
 
 /* print php interbase module error and save it for ibase_errmsg() */
-void _php_ibase_module_error(char *msg, ...) /* {{{ */
+void _php_ibase_module_error(const char *msg, ...) /* {{{ */
 {
 	va_list ap;
 
@@ -711,12 +737,12 @@ static PHP_INI_DISP(php_ibase_password_displayer_cb)
 		PUTS(" | ");            \
 	}                           \
 	PUTS(str);                  \
-	has_puts = true;            \
+	has_puts = 1;               \
 } while (0)
 
 static PHP_INI_DISP(php_ibase_trans_displayer)
 {
-	bool has_puts = false;
+	int has_puts = 0;
 	char *value;
 
 	if (type == ZEND_INI_DISPLAY_ORIG && ini_entry->modified) {
@@ -783,6 +809,26 @@ PHP_INI_BEGIN()
 	STD_PHP_INI_ENTRY_EX("ibase.default_lock_timeout", "0", PHP_INI_ALL, OnUpdateLongGEZero, default_lock_timeout, zend_ibase_globals, ibase_globals, display_link_numbers)
 PHP_INI_END()
 
+#ifdef __GNUC__
+void* _php_ibase_get_fbclient_symbol(const char* sym)
+{
+	return dlsym(RTLD_DEFAULT, sym);
+}
+#elif defined(PHP_WIN32)
+void* _php_ibase_get_fbclient_symbol(const char* sym)
+{
+	HMODULE l = GetModuleHandle("fbclient");
+
+	if (!l && !(l = GetModuleHandle("gds32"))) {
+		return NULL;
+	}
+
+	return GetProcAddress(l, sym);
+}
+#else
+	static_assert(false, "TODO: implement dynamic symbol name lookup for your platform");
+#endif
+
 static PHP_GINIT_FUNCTION(ibase)
 {
 #if defined(COMPILE_DL_INTERBASE) && defined(ZTS)
@@ -791,6 +837,24 @@ static PHP_GINIT_FUNCTION(ibase)
 	ibase_globals->num_persistent = ibase_globals->num_links = 0;
 	ibase_globals->sql_code = *ibase_globals->errmsg = 0;
 	ibase_globals->default_link = NULL;
+	ibase_globals->get_master_interface = _php_ibase_get_fbclient_symbol("fb_get_master_interface");
+	ibase_globals->get_statement_interface = _php_ibase_get_fbclient_symbol("fb_get_statement_interface");
+
+#if FB_API_VER >= 30
+	if (ibase_globals->get_master_interface) {
+		ibase_globals->master_instance = ((fb_get_master_interface_t)(ibase_globals->get_master_interface))();
+		ibase_globals->client_version = fbu_get_client_version(ibase_globals->master_instance);
+		ibase_globals->client_major_version = (ibase_globals->client_version >> 8) & 0xFF;
+		ibase_globals->client_minor_version = ibase_globals->client_version & 0xFF;
+	} else {
+#endif
+		ibase_globals->master_instance = NULL;
+		ibase_globals->client_version = -1;
+		ibase_globals->client_major_version = -1;
+		ibase_globals->client_minor_version = -1;
+#if FB_API_VER >= 30
+	}
+#endif
 }
 
 PHP_MINIT_FUNCTION(ibase)
@@ -807,6 +871,7 @@ PHP_MINIT_FUNCTION(ibase)
 	REGISTER_LONG_CONSTANT("IBASE_FETCH_BLOBS", PHP_IBASE_FETCH_BLOBS, CONST_PERSISTENT);
 	REGISTER_LONG_CONSTANT("IBASE_FETCH_ARRAYS", PHP_IBASE_FETCH_ARRAYS, CONST_PERSISTENT);
 	REGISTER_LONG_CONSTANT("IBASE_UNIXTIME", PHP_IBASE_UNIXTIME, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("IBASE_VER", PHP_INTERBASE_VER, CONST_PERSISTENT);
 
 	/* transactions */
 	REGISTER_LONG_CONSTANT("IBASE_WRITE", PHP_IBASE_WRITE, CONST_PERSISTENT);
@@ -880,7 +945,7 @@ PHP_MINFO_FUNCTION(ibase)
 		"static");
 #endif
 
-	php_info_print_table_row(2, "Interbase extension version", PHP_INTERBASE_VERSION);
+	php_info_print_table_row(2, "Interbase extension version", PHP_INTERBASE_VER_STR);
 
 #ifdef FB_API_VER
 	snprintf( (s = tmp), sizeof(tmp), "Firebird API version %d", FB_API_VER);
@@ -948,9 +1013,23 @@ int _php_ibase_attach_db(char **args, size_t *len, zend_long *largs, isc_db_hand
 	}
 
 #if FB_API_VER >= 40
-	// Do not handle directly INT128 or DECFLOAT, convert to VARCHAR at server instead
-	const char *compat = "int128 to varchar;decfloat to varchar";
-	dpb_len = slprintf(dpb, buf_len, "%c%c%s", isc_dpb_set_bind, strlen(compat), compat);
+	const char *compat_buf;
+	char compat_buf_size;
+
+	// ibase_query(): Data type unknown
+	// If fbclient >= 4 then convert to VARCHAR at server only INT128 and DECFLOAT
+	// If we have older client, convert also timezone types
+	if(IBG(client_major_version) >= 4) {
+		const char compat[] = "INT128 TO VARCHAR;DECFLOAT TO VARCHAR";
+		compat_buf = compat;
+		compat_buf_size = sizeof(compat) - 1;
+	} else {
+		const char compat[] = "INT128 TO VARCHAR;DECFLOAT TO VARCHAR;TIME ZONE TO LEGACY";
+		compat_buf = compat;
+		compat_buf_size = sizeof(compat) - 1;
+	}
+
+	dpb_len = slprintf(dpb, buf_len, "%c%c%s", isc_dpb_set_bind, compat_buf_size, compat_buf);
 	dpb += dpb_len;
 	buf_len -= dpb_len;
 #endif
@@ -1144,12 +1223,21 @@ PHP_FUNCTION(ibase_close)
 		link_res = Z_RES_P(link_arg);
 	}
 
-	/* we have at least 3 additional references to this resource ??? */
-	if (GC_REFCOUNT(link_res) < 4) {
-		zend_list_close(link_res);
-	} else {
-		zend_list_delete(link_res);
+	if (!zend_fetch_resource2(link_res, LE_LINK, le_link, le_plink)) {
+		RETURN_FALSE;
 	}
+
+	/* we have at least 3 additional references to this resource ??? */
+	// Keep this code for now. In case we decide to put it under a some kind of
+	// legacy flag
+	// if (GC_REFCOUNT(link_res) < 4) {
+	// 	zend_list_close(link_res);
+	// } else {
+	// 	zend_list_delete(link_res);
+	// }
+
+	zend_list_close(link_res);
+
 	RETURN_TRUE;
 }
 /* }}} */
@@ -1587,6 +1675,45 @@ PHP_FUNCTION(ibase_gen_id)
 	}
 #endif
 	RETURN_LONG((zend_long)result);
+}
+
+#if PHP_DEBUG
+void fbp_dump_buffer(int len, const unsigned char *buffer)
+{
+	int i;
+	for (i = 0; i < len; i++) {
+		if(buffer[i] < 32 || buffer[i] > 126)
+			php_printf("0x%02x ", buffer[i]);
+		else
+			php_printf(" [%c] ", buffer[i]);
+		if(i % 16 == 15)php_printf("\n");
+	}
+	if(i > 0)php_printf("\n");
+}
+
+void fbp_dump_buffer_raw(int len, const unsigned char *buffer)
+{
+	int i;
+	for (i = 0; i < len; i++) {
+		php_printf("%c", buffer[i]);
+	}
+}
+#endif
+
+void fbp_error_ex(long level, const char *msg, ...)
+{
+	va_list ap;
+	char buf[1024] = {0};
+
+	va_start(ap, msg);
+
+	/* vsnprintf NUL terminates the buf and writes at most n-1 chars+NUL */
+	vsnprintf(buf, sizeof(buf), msg, ap);
+	va_end(ap);
+
+	// IBG(sql_code) = -999; /* no SQL error */
+
+	php_error(level, "%s", buf);
 }
 
 /* }}} */

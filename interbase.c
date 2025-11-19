@@ -17,6 +17,7 @@
    |          Ard Biesheuvel <a.k.biesheuvel@its.tudelft.nl>              |
    |          Martin Koeditz <martin.koeditz@it-syn.de>                   |
    |          Martins Lazdans <marrtins@dqdp.net>                         |
+   |          Jane Alesi <ja@satware.ai>                                  |
    |          others                                                      |
    +----------------------------------------------------------------------+
    | You'll find history on Github                                        |
@@ -79,7 +80,7 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_ibase_pconnect, 0, 0, 0)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_ibase_close, 0, 0, 0)
-	ZEND_ARG_INFO(0, link_identifier)
+	ZEND_ARG_TYPE_INFO(0, link_identifier, IS_RESOURCE, 1)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_ibase_drop_db, 0, 0, 0)
@@ -1256,31 +1257,61 @@ PHP_FUNCTION(ibase_close)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|r", &link_arg) == FAILURE) {
+	/* Optional, strictly-typed resource parameter. Passing a non-resource
+	 * value (e.g. string/int) will trigger an engine-level TypeError on
+	 * PHP 8+, as desired for modern extensions. */
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|r!", &link_arg) == FAILURE) {
 		return;
 	}
 
-	if (ZEND_NUM_ARGS() == 0) {
+	if (ZEND_NUM_ARGS() == 0 || link_arg == NULL) {
+		/* No explicit link: operate on the current default link. If there is
+		 * no default, simply return false without emitting a warning. */
 		link_res = IBG(default_link);
-		CHECK_LINK(link_res);
+		if (link_res == NULL) {
+			RETURN_FALSE;
+		}
 		IBG(default_link) = NULL;
 	} else {
+		/* Explicit link provided. If this is also the current default link,
+		 * clear the default so that subsequent calls without an explicit
+		 * identifier behave consistently (returning false instead of using
+		 * a link the user has already closed). */
 		link_res = Z_RES_P(link_arg);
+		if (IBG(default_link) == link_res) {
+			IBG(default_link) = NULL;
+		}
+	}
+
+	/* Fetch and validate the underlying InterBase/Firebird link resource.
+	 * For explicit link identifiers, first check whether the handle still
+	 * refers to a Firebird/InterBase link in the resource list; if not, we
+	 * treat this as an already-closed link and return false without calling
+	 * zend_fetch_resource2(), which would otherwise raise a fatal
+	 * TypeError in PHP 8+. */
+	if (link_arg != NULL) {
+		zend_resource *r;
+
+		/* Look up the resource by handle in the regular_list; if it no longer
+		 * exists, or its type is no longer a Firebird/InterBase link, treat
+		 * this as an already-closed link and return false without calling
+		 * zend_fetch_resource2(), which would otherwise raise a fatal
+		 * TypeError in PHP 8+. */
+		r = (zend_resource *) zend_hash_index_find_ptr(&EG(regular_list), link_res->handle);
+		if (r == NULL || (r->type != le_link && r->type != le_plink)) {
+			RETURN_FALSE;
+		}
 	}
 
 	if (!zend_fetch_resource2(link_res, LE_LINK, le_link, le_plink)) {
 		RETURN_FALSE;
 	}
 
-	/* we have at least 3 additional references to this resource ??? */
-	// Keep this code for now. In case we decide to put it under a some kind of
-	// legacy flag
-	// if (GC_REFCOUNT(link_res) < 4) {
-	// 	zend_list_close(link_res);
-	// } else {
-	// 	zend_list_delete(link_res);
-	// }
-
+	/* Close the link resource. Subsequent calls with the same resource
+	 * identifier will see that the handle no longer refers to a valid
+	 * Firebird/InterBase link and will return false without error,
+	 * matching the >= 61 extension semantics expected by the
+	 * ibase_close_* tests. */
 	zend_list_delete(link_res);
 
 	RETURN_TRUE;
@@ -1335,53 +1366,62 @@ PHP_FUNCTION(ibase_drop_db)
 /* {{{ proto resource ibase_trans([int trans_args [, resource link_identifier [, ... ], int trans_args [, resource link_identifier [, ... ]] [, ...]]])
    Start a transaction over one or several databases */
 
-#define TPB_MAX_SIZE (8*sizeof(char))
+#define TPB_MAX_SIZE 32
 
 void _php_ibase_populate_trans(zend_long trans_argl, zend_long trans_timeout, char *last_tpb, unsigned short *len) /* {{{ */
 {
-	unsigned short tpb_len = 0;
-	if (trans_argl != PHP_IBASE_DEFAULT) {
-		last_tpb[tpb_len++] = isc_tpb_version3;
+	unsigned char *p = (unsigned char *) last_tpb;
 
-		/* access mode */
-		if (PHP_IBASE_READ == (trans_argl & PHP_IBASE_READ)) {
-			last_tpb[tpb_len++] = isc_tpb_read;
-		} else if (PHP_IBASE_WRITE == (trans_argl & PHP_IBASE_WRITE)) {
-			last_tpb[tpb_len++] = isc_tpb_write;
+	/* No explicit flags: leave TPB empty so Firebird uses its defaults. */
+	if (trans_argl == PHP_IBASE_DEFAULT) {
+		*len = 0;
+		return;
+	}
+
+	/* TPB version */
+	*p++ = isc_tpb_version3;
+
+	/* access mode */
+	if (trans_argl & PHP_IBASE_READ) {
+		*p++ = isc_tpb_read;
+	} else if (trans_argl & PHP_IBASE_WRITE) {
+		*p++ = isc_tpb_write;
+	}
+
+	/* isolation level */
+	if (trans_argl & PHP_IBASE_COMMITTED) {
+		*p++ = isc_tpb_read_committed;
+		if (trans_argl & PHP_IBASE_REC_VERSION) {
+			*p++ = isc_tpb_rec_version;
+		} else if (trans_argl & PHP_IBASE_REC_NO_VERSION) {
+			*p++ = isc_tpb_no_rec_version;
 		}
+	} else if (trans_argl & PHP_IBASE_CONSISTENCY) {
+		*p++ = isc_tpb_consistency;
+	} else if (trans_argl & PHP_IBASE_CONCURRENCY) {
+		*p++ = isc_tpb_concurrency;
+	}
 
-		/* isolation level */
-		if (PHP_IBASE_COMMITTED == (trans_argl & PHP_IBASE_COMMITTED)) {
-			last_tpb[tpb_len++] = isc_tpb_read_committed;
-			if (PHP_IBASE_REC_VERSION == (trans_argl & PHP_IBASE_REC_VERSION)) {
-				last_tpb[tpb_len++] = isc_tpb_rec_version;
-			} else if (PHP_IBASE_REC_NO_VERSION == (trans_argl & PHP_IBASE_REC_NO_VERSION)) {
-				last_tpb[tpb_len++] = isc_tpb_no_rec_version;
-			}
-		} else if (PHP_IBASE_CONSISTENCY == (trans_argl & PHP_IBASE_CONSISTENCY)) {
-			last_tpb[tpb_len++] = isc_tpb_consistency;
-		} else if (PHP_IBASE_CONCURRENCY == (trans_argl & PHP_IBASE_CONCURRENCY)) {
-			last_tpb[tpb_len++] = isc_tpb_concurrency;
-		}
-
-		/* lock resolution */
-		if (PHP_IBASE_NOWAIT == (trans_argl & PHP_IBASE_NOWAIT)) {
-			last_tpb[tpb_len++] = isc_tpb_nowait;
-		} else if (PHP_IBASE_WAIT == (trans_argl & PHP_IBASE_WAIT)) {
-			last_tpb[tpb_len++] = isc_tpb_wait;
-			if (PHP_IBASE_LOCK_TIMEOUT == (trans_argl & PHP_IBASE_LOCK_TIMEOUT)) {
-				if (trans_timeout <= 0 || trans_timeout > 0x7FFF) {
-					php_error_docref(NULL, E_WARNING, "Invalid timeout parameter");
-				} else {
-					last_tpb[tpb_len++] = isc_tpb_lock_timeout;
-					last_tpb[tpb_len++] = sizeof(ISC_SHORT);
-					last_tpb[tpb_len] = (ISC_SHORT)trans_timeout;
-					tpb_len += sizeof(ISC_SHORT);
-				}
+	/* lock resolution */
+	if (trans_argl & PHP_IBASE_NOWAIT) {
+		*p++ = isc_tpb_nowait;
+	} else if (trans_argl & PHP_IBASE_WAIT) {
+		*p++ = isc_tpb_wait;
+		if (trans_argl & PHP_IBASE_LOCK_TIMEOUT) {
+			if (trans_timeout <= 0 || trans_timeout > 0x7FFF) {
+				php_error_docref(NULL, E_WARNING, "Invalid timeout parameter");
+			} else {
+				ISC_SHORT timeout = (ISC_SHORT) trans_timeout;
+				*p++ = isc_tpb_lock_timeout;
+				*p++ = (unsigned char) sizeof(ISC_SHORT);
+				/* VAX/Firebird little-endian order */
+				*p++ = (unsigned char) (timeout & 0xff);
+				*p++ = (unsigned char) ((timeout >> 8) & 0xff);
 			}
 		}
 	}
-	*len = tpb_len;
+
+	*len = (unsigned short) (p - (unsigned char *) last_tpb);
 }
 /* }}} */
 

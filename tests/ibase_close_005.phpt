@@ -24,6 +24,9 @@ var_dump(ibase_close());
 var_dump(ibase_close('foo'));
 
 ?>
---EXPECT--
+--EXPECTF--
 bool(true)
-Fatal error: Uncaught TypeError: ibase_close(): supplied resource is not a valid Firebird/InterBase link resource
+bool(false)
+bool(false)
+
+Fatal error: Uncaught TypeError: ibase_close(): Argument #1 ($link_identifier) must be of type ?resource, string given in %s

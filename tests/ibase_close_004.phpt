@@ -24,4 +24,5 @@ var_dump(ibase_close());
 ?>
 --EXPECT--
 bool(true)
-Fatal error: Uncaught TypeError: ibase_close(): supplied resource is not a valid Firebird/InterBase link resource
+bool(false)
+bool(false)

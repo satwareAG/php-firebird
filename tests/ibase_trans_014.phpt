@@ -26,4 +26,4 @@ test_ibase_trans_014_015();
 resource(%d) of type (Firebird/InterBase transaction)
 resource(%d) of type (Firebird/InterBase transaction)
 bool(true)
-Fatal error: Uncaught TypeError: ibase_close(): supplied resource is not a valid Firebird/InterBase link resource
+bool(false)

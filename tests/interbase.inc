@@ -55,8 +55,16 @@ function cleanup_db()
 {
 	global $test_base;
 
-	if($r = ibase_connect($test_base)){
-		ibase_drop_db($r);
+	/*
+	 * During SKIPIF and normal shutdown, the test harness may attempt to drop
+	 * the test database while other transactions are still active. That can
+	 * lead to lock time-out warnings, which in SKIPIF context cause tests to
+	 * be BORKed ("invalid output from SKIPIF"). We ignore failures here to
+	 * keep the test output clean; any leftover database will be cleaned up on
+	 * subsequent runs once no transactions are holding locks.
+	 */
+	if ($r = @ibase_connect($test_base)) {
+		@ibase_drop_db($r);
 	}
 }
 

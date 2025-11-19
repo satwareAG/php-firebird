@@ -64,10 +64,34 @@ services:
       dockerfile: Dockerfile-8.4
     volumes:
       - ..:/ext
+      - fb40-data:/firebird
     working_dir: /ext
     environment:
       - PHP_IDE_CONFIG=serverName=php-firebird-dev
       - XDEBUG_CONFIG=client_host=host.docker.internal
+      - FIREBIRD_HOST=firebird40
+      - FIREBIRD_DB_DIR=/firebird
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - firebird25
+      - firebird30
+      - firebird40
+      - firebird50
+
+  php85-dev:
+    build:
+      context: environments/docker/php
+      dockerfile: Dockerfile-8.5
+    volumes:
+      - ..:/ext
+      - fb40-data:/firebird
+    working_dir: /ext
+    environment:
+      - PHP_IDE_CONFIG=serverName=php-firebird-dev
+      - XDEBUG_CONFIG=client_host=host.docker.internal
+      - FIREBIRD_HOST=firebird40
+      - FIREBIRD_DB_DIR=/firebird
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

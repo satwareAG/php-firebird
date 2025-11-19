@@ -988,57 +988,102 @@ static char const dpb_args[] = {
 
 int _php_ibase_attach_db(char **args, size_t *len, zend_long *largs, isc_db_handle *db) /* {{{ */
 {
-	short i, dpb_len, buf_len = 257-2;  /* version byte at the front, and a null at the end */
-	char dpb_buffer[257] = { isc_dpb_version1, 0 }, *dpb;
+    /*
+     * Build the DPB (database parameter buffer) using binary-safe writes instead
+     * of slprintf(). The previous implementation used slprintf() and then
+     * decremented buf_len by the *requested* length even when the write was
+     * truncated, which could produce a DPB length that was longer than the
+     * actual data and led fbclient to report
+     *
+     *   "Invalid clumplet buffer structure: buffer end before end of clumplet"
+     *
+     * when parsing the DPB.
+     */
+    unsigned char dpb_buffer[257];
+    unsigned char *p = dpb_buffer;
+    unsigned char *end = dpb_buffer + sizeof(dpb_buffer);
+    short dpb_len;
+    short i;
 
-	dpb = dpb_buffer + 1;
+    /* DPB version */
+    if (p >= end) {
+        _php_ibase_module_error("DPB buffer too small");
+        return FAILURE;
+    }
+    *p++ = isc_dpb_version1;
 
-	for (i = 0; i < sizeof(dpb_args); ++i) {
-		if (dpb_args[i] && args[i] && len[i] && buf_len > 0) {
-			dpb_len = slprintf(dpb, buf_len, "%c%c%s", dpb_args[i],(unsigned char)len[i],args[i]);
-			dpb += dpb_len;
-			buf_len -= dpb_len;
-		}
-	}
-	if (largs[BUF] && buf_len > 0) {
-		dpb_len = slprintf(dpb, buf_len, "%c\2%c%c", isc_dpb_num_buffers,
-			(char)(largs[BUF] >> 8), (char)(largs[BUF] & 0xff));
-		dpb += dpb_len;
-		buf_len -= dpb_len;
-	}
-	if (largs[SYNC] && buf_len > 0) {
-		dpb_len = slprintf(dpb, buf_len, "%c\1%c", isc_dpb_force_write, largs[SYNC] == isc_spb_prp_wm_sync);
-		dpb += dpb_len;
-		buf_len -= dpb_len;
-	}
+    /* Textual arguments: user, password, charset, role */
+    for (i = 0; i < (short)sizeof(dpb_args); ++i) {
+        if (dpb_args[i] && args[i] && len[i]) {
+            size_t needed = 2 + len[i]; /* tag + length + payload */
+            if ((size_t)(end - p) < needed) {
+                /* Not enough space, stop appending further items. */
+                break;
+            }
+            *p++ = (unsigned char)dpb_args[i];
+            *p++ = (unsigned char)len[i];
+            memcpy(p, args[i], len[i]);
+            p += len[i];
+        }
+    }
+
+    /* Numeric options: buffers */
+    if (largs[BUF]) {
+        if ((end - p) >= 4) {
+            *p++ = isc_dpb_num_buffers;
+            *p++ = 2; /* length */
+            *p++ = (unsigned char)((largs[BUF] >> 8) & 0xff);
+            *p++ = (unsigned char)(largs[BUF] & 0xff);
+        }
+    }
+
+    /* Numeric options: force write sync/async */
+    if (largs[SYNC]) {
+        if ((end - p) >= 3) {
+            *p++ = isc_dpb_force_write;
+            *p++ = 1; /* length */
+            *p++ = (unsigned char)(largs[SYNC] == isc_spb_prp_wm_sync);
+        }
+    }
 
 #if FB_API_VER >= 40
-	const char *compat_buf;
-	char compat_buf_size;
+    /*
+     * Bind compatibility settings for newer clients. Only append this clumplet
+     * if there is enough space for the full payload so that the length always
+     * matches the actual number of bytes that follow.
+     */
+    const char *compat_buf;
+    unsigned char compat_buf_size;
 
-	// ibase_query(): Data type unknown
-	// If fbclient >= 4 then convert to VARCHAR at server only INT128 and DECFLOAT
-	// If we have older client, convert also timezone types
-	if(IBG(client_major_version) >= 4) {
-		const char compat[] = "INT128 TO VARCHAR;DECFLOAT TO VARCHAR";
-		compat_buf = compat;
-		compat_buf_size = sizeof(compat) - 1;
-	} else {
-		const char compat[] = "INT128 TO VARCHAR;DECFLOAT TO VARCHAR;TIME ZONE TO LEGACY";
-		compat_buf = compat;
-		compat_buf_size = sizeof(compat) - 1;
-	}
+    /* ibase_query(): Data type unknown
+     * If fbclient >= 4 then convert to VARCHAR at server only INT128 and DECFLOAT
+     * If we have older client, convert also timezone types
+     */
+    if (IBG(client_major_version) >= 4) {
+        static const char compat[] = "INT128 TO VARCHAR;DECFLOAT TO VARCHAR";
+        compat_buf = compat;
+        compat_buf_size = (unsigned char)(sizeof(compat) - 1);
+    } else {
+        static const char compat[] = "INT128 TO VARCHAR;DECFLOAT TO VARCHAR;TIME ZONE TO LEGACY";
+        compat_buf = compat;
+        compat_buf_size = (unsigned char)(sizeof(compat) - 1);
+    }
 
-	dpb_len = slprintf(dpb, buf_len, "%c%c%s", isc_dpb_set_bind, compat_buf_size, compat_buf);
-	dpb += dpb_len;
-	buf_len -= dpb_len;
+    if ((end - p) >= (2 + (ptrdiff_t)compat_buf_size)) {
+        *p++ = isc_dpb_set_bind;
+        *p++ = compat_buf_size;
+        memcpy(p, compat_buf, compat_buf_size);
+        p += compat_buf_size;
+    }
 #endif
 
-	if (isc_attach_database(IB_STATUS, (short)len[DB], args[DB], db, (short)(dpb-dpb_buffer), dpb_buffer)) {
-		_php_ibase_error();
-		return FAILURE;
-	}
-	return SUCCESS;
+    dpb_len = (short)(p - dpb_buffer);
+
+    if (isc_attach_database(IB_STATUS, (short)len[DB], args[DB], db, dpb_len, (char *)dpb_buffer)) {
+        _php_ibase_error();
+        return FAILURE;
+    }
+    return SUCCESS;
 }
 /* }}} */
 

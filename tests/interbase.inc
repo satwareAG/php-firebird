@@ -4,8 +4,33 @@ require_once('config.inc');
 require_once('functions.inc');
 
 /* we need just the generated name, not the file itself */
-unlink($test_base = tempnam(sys_get_temp_dir(),"php_ibase_test"));
-if(!empty($host))$test_base = "$host:$test_base";
+/*
+ * Docker-aware database location strategy:
+ * - If FIREBIRD_DB_DIR is set, create a unique database file name inside that
+ *   directory. This is intended for setups where the PHP container and the
+ *   Firebird container share a volume (e.g. mounted at /firebird).
+ * - Else if FIREBIRD_DB_PATH is set, use it as-is (legacy behaviour).
+ * - Else fall back to a temp file in sys_get_temp_dir() as originally.
+ */
+$fbDbDirEnv  = getenv('FIREBIRD_DB_DIR');
+$fbDbPathEnv = getenv('FIREBIRD_DB_PATH');
+
+if ($fbDbDirEnv !== false && $fbDbDirEnv !== '') {
+	$dbDir = rtrim($fbDbDirEnv, '/');
+	$tmp   = @tempnam($dbDir, 'php_ibase_test_');
+	if ($tmp === false) {
+		die('skip: cannot create temporary database file in FIREBIRD_DB_DIR');
+	}
+	@unlink($tmp);
+	$test_base = !empty($host) ? $host . ':' . $tmp : $tmp;
+} elseif ($fbDbPathEnv !== false && $fbDbPathEnv !== '') {
+	$test_base = !empty($host) ? $host . ':' . $fbDbPathEnv : $fbDbPathEnv;
+} else {
+	unlink($test_base = tempnam(sys_get_temp_dir(), "php_ibase_test"));
+	if (!empty($host)) {
+		$test_base = $host . ':' . $test_base;
+	}
+}
 
 function init_db()
 {

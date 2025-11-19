@@ -1,0 +1,38 @@
+FROM php:8.5-rc-cli AS base
+
+# Install development dependencies
+RUN apt-get update && apt-get install -y \
+    autoconf \
+    build-essential \
+    gcc \
+    g++ \
+    make \
+    libtool \
+    bison \
+    re2c \
+    libxml2-dev \
+    git \
+    unzip \
+    wget \
+    vim \
+    firebird-dev \
+    gdb \
+    valgrind \
+    lcov \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install PHP development tools
+RUN pecl channel-update pecl.php.net \
+    && pecl install xdebug \
+    && docker-php-ext-enable xdebug
+
+# Copy XDebug configuration
+COPY xdebug.ini /usr/local/etc/php/conf.d/xdebug.ini
+
+# Set up entrypoint
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["php", "-a"]

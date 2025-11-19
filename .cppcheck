@@ -1,0 +1,27 @@
+# Cppcheck configuration for C++17 modernization
+[cppcheck]
+project=php-firebird.cppcheck
+
+# Language standard
+std=c++17
+
+# Include paths
+includePath=/usr/include/php/20210902
+includePath=/usr/include/firebird
+includePath=.
+
+# Defines for conditional compilation
+define=FB_API_VER=40
+define=PHP_VERSION_8_1_PLUS
+
+# Rules
+enable=warning,performance,portability,information,missingInclude
+disable=unusedFunction,missingIncludeSystem
+
+# Severity levels
+error-exitcode=2
+inline-suppr=true
+
+# File patterns
+checks-max-time=300
+check-config=true

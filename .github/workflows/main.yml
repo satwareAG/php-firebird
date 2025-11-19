@@ -1,5 +1,26 @@
-# This file has been replaced by cross-platform-validation.yml
-# The old workflow supported PHP 7.4-8.2, which are now deprecated.
-# New workflow supports PHP 8.3-8.5 with comprehensive cross-platform validation.
-#
-# To use the new workflow, see: .github/workflows/cross-platform-validation.yml
+name: Legacy Workflow (Deprecated)
+
+on:
+  workflow_dispatch:  # Manual trigger only
+
+jobs:
+  deprecated-notice:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deprecation Notice
+        run: |
+          echo "⚠️ This workflow is DEPRECATED"
+          echo ""
+          echo "The old main.yml workflow supported PHP 7.4-8.2, which are now deprecated."
+          echo "Please use the modern cross-platform-validation.yml workflow instead."
+          echo ""
+          echo "New workflow features:"
+          echo "✅ PHP 8.3, 8.4, 8.5 support"
+          echo "✅ Cross-platform module building"
+          echo "✅ Universal binary macOS support"
+          echo "✅ Thread-safe and non-thread-safe Windows builds"
+          echo "✅ Comprehensive testing matrix (30 configurations)"
+          echo ""
+          echo "Migration: Use .github/workflows/cross-platform-validation.yml"
+
+          exit 1  # Fail to discourage usage

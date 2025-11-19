@@ -1,6 +1,6 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 7, 8                                                     |
+   | PHP Version 8.1+                                                     |
    +----------------------------------------------------------------------+
    | Copyright (c) The PHP Group                                          |
    +----------------------------------------------------------------------+
@@ -26,14 +26,10 @@
 /*
 * Since PHP 8 we have troubles building sources on Windows,
 * because of missing TSRMLS_FETCH_FROM_CTX and TSRMLS_SET_CTX symbols.
+* Since we now target PHP 8.1+ only, these macros are always empty.
 */
-#if PHP_VERSION_ID >= 80000
-# define FBIRD_TSRMLS_FETCH_FROM_CTX(user_data)
-# define FBIRD_TSRMLS_SET_CTX(user_data)
-#else
-# define FBIRD_TSRMLS_FETCH_FROM_CTX(user_data) TSRMLS_FETCH_FROM_CTX(user_data)
-# define FBIRD_TSRMLS_SET_CTX(user_data) TSRMLS_SET_CTX(user_data)
-#endif
+#define FBIRD_TSRMLS_FETCH_FROM_CTX(user_data)
+#define FBIRD_TSRMLS_SET_CTX(user_data)
 
 #if HAVE_IBASE
 
@@ -215,7 +211,7 @@ static isc_callback  _php_ibase_callback(ibase_event *event, /* {{{ */
 {
 	/* this function is called asynchronously by the Interbase client library. */
 	FBIRD_TSRMLS_FETCH_FROM_CTX(event->thread_ctx);
-	
+
 	/**
 	 * The callback function is called when the event is first registered and when the event
 	 * is cancelled. I consider this is a bug. By clearing event->callback first and setting
@@ -224,12 +220,12 @@ static isc_callback  _php_ibase_callback(ibase_event *event, /* {{{ */
 	/* Add counter to track callback invocations */
 	static volatile int total_callback_count = 0;
 	total_callback_count++;
-	
+
 	/* Emergency exit after too many callbacks globally */
 	if (total_callback_count > 50) {
 		return 0;
 	}
-	
+
 	switch (event->state) {
 		unsigned short i;
 		ISC_ULONG occurred_event[15];
@@ -273,7 +269,7 @@ static isc_callback  _php_ibase_callback(ibase_event *event, /* {{{ */
 				break;
 			}
 			event->needs_reregistration = 1;
-			
+
 			/* Initial registration only */
 			if (isc_que_events(IB_STATUS, &event->link->handle, &event->event_id, buffer_size,
 				event->event_buffer,(PHP_ISC_CALLBACK)_php_ibase_callback, (void *)event)) {
@@ -286,7 +282,7 @@ static isc_callback  _php_ibase_callback(ibase_event *event, /* {{{ */
 			/* State for future deferred re-registration implementation */
 			break;
 	}
-	
+
 	return 0;
 }
 /* }}} */

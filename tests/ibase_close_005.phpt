@@ -4,7 +4,7 @@ ibase_close(): Make sure passing a string to the function throws an error.
 <?php
 
 include("skipif.inc");
-include("skipif-php7-or-older.inc");
+include("skipif-php80-or-older.inc");
 
 // See also: tests/ibase_close_003.phpt
 skip_if_ext_lt(61);

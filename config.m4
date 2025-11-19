@@ -6,6 +6,19 @@ PHP_ARG_WITH([interbase],
 
 if test "$PHP_INTERBASE" != "no"; then
 
+  dnl Check for minimum PHP version (8.1+)
+  AC_MSG_CHECKING([for minimum PHP version 8.1])
+  old_IFS=$IFS
+  IFS=.
+  set -- $PHP_VERSION
+  IFS=$old_IFS
+  php_major=$1
+  php_minor=$2
+  if test "$php_major" -lt 8 -o \( "$php_major" -eq 8 -a "$php_minor" -lt 1 \); then
+    AC_MSG_ERROR([PHP Firebird extension requires PHP 8.1 or later. Current version: $PHP_VERSION])
+  fi
+  AC_MSG_RESULT([yes (PHP $PHP_VERSION)])
+
   AC_PATH_PROG(FB_CONFIG, fb_config, no)
 
   if test -x "$FB_CONFIG" && test "$PHP_INTERBASE" = "yes"; then
@@ -58,7 +71,7 @@ if test "$PHP_INTERBASE" != "no"; then
   PHP_SUBST(INTERBASE_SHARED_LIBADD)
 
   PHP_REQUIRE_CXX()
-  PHP_CXX_COMPILE_STDCXX([11], [mandatory], [PHP_INTERBASE_STDCXX])
+  PHP_CXX_COMPILE_STDCXX([17], [mandatory], [PHP_INTERBASE_STDCXX])
 
   PHP_INTERBASE_CXX_SOURCES="firebird_utils.cpp"
 

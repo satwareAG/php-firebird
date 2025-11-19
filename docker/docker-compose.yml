@@ -5,9 +5,8 @@ services:
   # PHP Development Containers
   php81-dev:
     build:
-      context: environments/docker/php
+      context: php
       dockerfile: Dockerfile-8.1
-      target: dev
     volumes:
       - ..:/ext
     working_dir: /ext
@@ -24,7 +23,7 @@ services:
 
   php82-dev:
     build:
-      context: environments/docker/php
+      context: php
       dockerfile: Dockerfile-8.2
     volumes:
       - ..:/ext
@@ -42,7 +41,7 @@ services:
 
   php83-dev:
     build:
-      context: environments/docker/php
+      context: php
       dockerfile: Dockerfile-8.3
     volumes:
       - ..:/ext
@@ -60,7 +59,7 @@ services:
 
   php84-dev:
     build:
-      context: environments/docker/php
+      context: php
       dockerfile: Dockerfile-8.4
     volumes:
       - ..:/ext
@@ -88,7 +87,7 @@ services:
 
   php85-dev:
     build:
-      context: environments/docker/php
+      context: php
       dockerfile: Dockerfile-8.5
     volumes:
       - ..:/ext

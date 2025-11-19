@@ -1,6 +1,6 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 7, 8                                                     |
+   | PHP Version 8.1+                                                     |
    +----------------------------------------------------------------------+
    | Copyright (c) The PHP Group                                          |
    +----------------------------------------------------------------------+
@@ -211,12 +211,8 @@ ZEND_TSRMLS_CACHE_EXTERN()
 #define BLOB_OUTPUT     2
 
 #ifdef PHP_WIN32
-// Case switch, because of troubles on Windows and PHP 8.0
-#if PHP_VERSION_ID < 80000
-   #define LL_MASK "I64"
-#else
-   #define LL_MASK "ll"
-#endif
+// Since we target PHP 8.1+ only, always use modern format
+#define LL_MASK "ll"
 #define LL_LIT(lit) lit ## I64
 typedef void (__stdcall *info_func_t)(char*);
 #else

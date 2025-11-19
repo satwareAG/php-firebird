@@ -3,7 +3,7 @@ ibase_num_fields(): Make sure passing an integer to the function throws an error
 --SKIPIF--
 <?php
 include("skipif.inc");
-include("skipif-php7-or-older.inc");
+include("skipif-php80-or-older.inc");
 ?>
 --FILE--
 <?php

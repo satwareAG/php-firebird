@@ -22,7 +22,10 @@ php -d extension=$(pwd)/modules/interbase.so -r "
 # Run tests if available
 if [ -d "tests" ]; then
     echo "Running tests..."
-    TEST_PHP_EXECUTABLE=/usr/local/bin/php php run-tests.php -d extension=$(pwd)/modules/interbase.so tests/
+    # Allow an optional argument to restrict the test set (e.g. a single .phpt file
+    # or subdirectory). Defaults to running the entire tests/ tree.
+    TARGET=${1:-tests/}
+    TEST_PHP_EXECUTABLE=/usr/local/bin/php php run-tests.php -d extension=$(pwd)/modules/interbase.so "$TARGET"
 else
     echo "No test directory found. Skipping tests."
 fi

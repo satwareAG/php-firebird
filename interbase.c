@@ -1311,8 +1311,11 @@ PHP_FUNCTION(ibase_close)
 	 * identifier will see that the handle no longer refers to a valid
 	 * Firebird/InterBase link and will return false without error,
 	 * matching the >= 61 extension semantics expected by the
-	 * ibase_close_* tests. */
-	zend_list_delete(link_res);
+	 * ibase_close_* tests. We use zend_list_close() here so that the
+	 * underlying InterBase/Firebird link is fully closed even if there
+	 * are additional references, and the resource handle is removed
+	 * from EG(regular_list). */
+	zend_list_close(link_res);
 
 	RETURN_TRUE;
 }

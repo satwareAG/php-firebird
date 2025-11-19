@@ -1,130 +1,362 @@
-# PHP Firebird extension
+# PHP Firebird Extension (Modernized)
 
-## Using the driver on Windows
-In order for this extension to work, there are DLL files that must be available to the Windows system PATH. For information on how to do this, see the FAQ entitled "How do I add my PHP directory to the PATH on Windows" (https://www.php.net/manual/en/faq.installation.php#faq.installation.addtopath). Although copying DLL files from the PHP folder into the Windows system directory also works (because the system directory is by default in the system's PATH), this is not recommended. This extension requires the following files to be in the PATH: fbclient.dll,gds32.dll
+A high-performance PHP extension providing native connectivity to Firebird and InterBase databases. This modernized version targets PHP 8.1+ with C++17 standards and comprehensive development tooling.
 
-If you installed the Firebird/InterBase database server on the same machine PHP is running on, you will have this DLL already and fbclient.dll, gds32.dll (gds32.dll is generated from the installer for legacy applications) will already be in the PATH.
+## Features
 
-## Building the driver
+- **Native Performance**: Direct fbclient library integration
+- **Full Firebird Support**: Compatible with Firebird 2.5, 3.0, 4.0, 5.0+
+- **Modern PHP**: Optimized for PHP 8.1+ with typed properties and attributes
+- **Memory Safety**: Built with AddressSanitizer and comprehensive static analysis
+- **Cross-Platform**: Linux, Windows, macOS support
 
-### Build the driver on Linux
-First of all, we have to meet some requirements. This means we need to install the `phpize` command. The `phpize` command is used to prepare the build environment for a PHP extension.
-Install the `phpize` command. This is usually done by installing the `php7-devel` or `php8-devel` package using the system's package manager. Also install the fbclient library and developer packages.
+## Requirements
 
-For OpenSuse 15.1 and PHP 7 use
+### System Requirements
+- **PHP**: 8.1+ with development headers
+- **C++ Compiler**: GCC 7+ or Clang 5+ (C++17 support)
+- **Firebird**: Client libraries (fbclient) and headers (ibase.h)
+- **Build Tools**: autotools, make, pkg-config
+
+### Supported Platforms
+- Linux (Ubuntu 20.04+, CentOS 8+, openSUSE 15.3+)
+- Windows 10/11 (Visual Studio 2019+)
+- macOS 10.15+ (Xcode 11+)
+
+## Quick Start
+
+### Docker Development (Recommended)
+```bash
+# Clone and setup
+git clone https://github.com/FirebirdSQL/php-firebird.git
+cd php-firebird
+
+# Start development environment
+cd docker/
+docker-compose up -d php81
+
+# Build extension
+docker exec -it php-firebird-dev /docker/scripts/build-extension.sh
+
+# Run tests
+docker exec -it php-firebird-dev /docker/scripts/test-extension.sh
 ```
-$ zypper in php7-devel libfbclient2 libfbclient-devel
+
+### Native Installation
+
+#### Linux (Ubuntu/Debian)
+```bash
+# Install dependencies (PHP 8.1+)
+sudo apt-get update
+sudo apt-get install php8.1-dev firebird-dev firebird3.0-server
+
+# Build extension
+git clone https://github.com/FirebirdSQL/php-firebird.git
+cd php-firebird
+phpize
+CPPFLAGS=-I/usr/include/firebird ./configure --with-interbase
+make all test
+
+# Install
+sudo make install
+echo "extension=interbase.so" | sudo tee -a /etc/php/8.1/mods-available/interbase.ini
+sudo phpenmod interbase
 ```
 
-The command in Linux Mint 20 / Ubuntu is
-```
-sudo apt-get install php-dev firebird-dev firebird3.0 firebird3.0-common firebird3.0-server
+#### Linux (openSUSE)
+```bash
+# Install dependencies (PHP 8.1+)
+sudo zypper install php8-devel libfbclient2 libfbclient-devel
+
+# Build extension
+git clone https://github.com/FirebirdSQL/php-firebird.git
+cd php-firebird
+phpize
+CPPFLAGS=-I/usr/include/firebird ./configure --with-interbase
+make all test
+
+# Install
+sudo make install
+echo "extension=interbase.so" | sudo tee -a /etc/php8/conf.d/interbase.ini
 ```
 
-Now make sure you provide the fbclient.so and the header files (ibase.h). These are needed to compile. You can specify the include path for the ibase.h file with CPPFLAGS as you can see in the following listing.
-```
-$ git clone https://github.com/FirebirdSQL/php-firebird.git
-$ cd php-firebird
-$ phpize
-$ CPPFLAGS=-I/usr/include/firebird ./configure
-$ make
-```
+#### Windows
+```batch
+REM Prerequisites: Visual Studio 2019+ with C++ tools, Git for Windows
 
-Note: If you use different PHP versions in parallel don't forget to make the correct settings. Linux Mint 20 / Ubuntu uses this syntax:
-```
-$ git clone https://github.com/FirebirdSQL/php-firebird.git
-$ cd php-firebird
-$ phpize7.4
-$ CPPFLAGS=-I/usr/include/firebird ./configure --with-php-config=/usr/bin/php-config7.4
-$ make
-```
-
-If the configure process passes you will get following message:
-```
-$ Build complete.
-$ Don't forget to run 'make test'.
-```
-You can find the `interbase.so` file in directory `php-firebird/modules`. Copy the file to your php extension dir and restart your webserver.
-
-#### Clean up your working directory
-After you've created the binary data, many temporary files will be created in your working directory. These can be removed with the command `phpize --clean`. Then you have a tidy directory again.
-
-### Build the driver on Windows
-First of all, we have to meet some requirements. This means we need to install the Git for Windows and Visual Studio 2017 with following components:
-Visual C++ 2017 (vc15) or Visual C++ 2019 (vs16) must be installed prior SDK usage. Required components
-- C++ dev
-- Windows SDK
-- .NET dev
-
-Also make sure you are using a 64-bit build host with Windows 7 or later.
-Of course we need some Firebird related stuff. The easiest way is to install the related Firebird version on your build host including the development files.
-
-To start the build process open a command line. We assume that the build is done in the directory `c:\php-sdk`. So make sure you have the permission to create that folder on Drive C:.
-```
+REM Download PHP SDK
 git clone https://github.com/Microsoft/php-sdk-binary-tools.git c:\php-sdk
 cd c:\php-sdk
-git checkout php-sdk-2.2.0
-```
-With the above we downloaded the PHP SDK and entered our working directory. 
 
-Next we will prepare our build environment.
-For Win32 do:
-```
-phpsdk-vc15-x86.bat
-```
-Use following command for Win64:
-```
-phpsdk-vc15-x64.bat
-```
-If you use VS 2019, replace vc15 by vs16.
+REM Prepare build environment (x64)
+phpsdk-vs16-x64.bat
 
-Now let's create the build structure, download the PHP sources and checkout the desired development branch:
-```
-phpsdk_buildtree phpmaster
-git clone https://github.com/php/php-src.git && cd php-src && git checkout PHP-7.4.0
-```
+REM Setup build tree for PHP 8.1+
+phpsdk_buildtree php81
+git clone https://github.com/php/php-src.git
+cd php-src
+git checkout PHP-8.1
 
-Since we have our PHP sources now, we're on to get the depending libraries.
-```
-phpsdk_deps --update --branch 7.4
-```
+REM Get dependencies
+phpsdk_deps --update --branch 8.1
 
-In the next step we will download our Firebird extension sources.
-```
+REM Download extension source
 mkdir ..\pecl
 git clone https://github.com/FirebirdSQL/php-firebird.git ..\pecl\interbase
+
+REM Build (adjust Firebird path as needed)
+buildconf --force
+configure --disable-all --enable-cli --with-interbase="shared,C:\Program Files\Firebird\4_0"
+nmake
 ```
 
-If everything is ok, we can now compile our PHP extension. Please specify the the correct path to your Firebird installation.
+### macOS (Homebrew)
+```bash
+# Install dependencies
+brew install php@8.1 firebird
 
-#### Build TS extension
-Usually you will build thread safe extensions.
-For Win32 thread safe (TS) do:
-```
-buildconf --force && configure --disable-all --enable-cli --with-interbase="shared,C:\Program Files (x86)\Firebird\3_0" && nmake
-```
-For Win64thread safe (TS) do:
-```
-buildconf --force && configure --disable-all --enable-cli --with-interbase="shared,C:\Program Files\Firebird\3_0\lib" && nmake
-```
-After the compilation you can find your extension called `php_interbase.dll` e.g. in `C:\php-sdk\phpmaster\vc15\x64\php-src\x64\Release_TS\php_interbase.dll`
-Replace x64 with x86 for Win32.
+# Build extension
+git clone https://github.com/FirebirdSQL/php-firebird.git
+cd php-firebird
+phpize
+./configure --with-interbase=$(brew --prefix firebird)
+make all test
 
-#### Build NTS extension
-For Win32 non-thread safe (NTS) run:
+# Install
+sudo make install
+echo "extension=interbase.so" >> $(php --ini | grep "Scan for" | cut -d: -f2 | tr -d ' ')/interbase.ini
 ```
-buildconf --force && configure --disable-zts --disable-all --enable-cli --with-interbase="shared,C:\Program Files (x86)\Firebird\3_0" && nmake
-```
-For Win64 non-thread safe (NTS) run:
-```
-buildconf --force && configure --disable-zts --disable-all --enable-cli --with-interbase="shared,C:\Program Files\Firebird\3_0\lib" && nmake
-```
-After the compilation you can find your extension called `php_interbase.dll` e.g. in `C:\php-sdk\phpmaster\vc15\x86\php-src\Release`
-Replace x86 with x64 for Win64.
 
-#### Clean up your working directory
-After you've created the binary data, many temporary files will be created in your working directory. These can be removed with the command `nmake clean`. Then you have a tidy directory again.
+## Development Setup
 
+### Prerequisites Verification
+```bash
+# Verify PHP 8.1+ with development headers
+php -v  # Should show 8.1 or higher
+php-config --version  # Should show 8.1 or higher
 
+# Verify Firebird client
+pkg-config --exists fbclient && echo "Firebird client found"
+
+# Verify C++17 compiler
+g++ --version  # GCC 7+ required
+clang++ --version  # Clang 5+ required
+```
+
+### Build with Development Tools
+```bash
+# Build with debugging symbols and sanitizers
+export CXXFLAGS="-g -O0 -fsanitize=address,undefined -std=c++17"
+export CFLAGS="-g -O0 -fsanitize=address"
+phpize
+./configure --with-interbase --enable-debug
+make clean && make
+
+# Run tests with memory checking
+make test
+```
+
+### Static Analysis Integration
+```bash
+# Install analysis tools
+# Ubuntu/Debian: sudo apt-get install clang-tidy cppcheck valgrind
+# macOS: brew install clang-tidy cppcheck valgrind
+# openSUSE: sudo zypper install clang-tools cppcheck valgrind
+
+# Run static analysis
+clang-tidy *.cpp *.h --checks='*,-fuchsia-*' -- -I$(php-config --include-dir)
+cppcheck --enable=all --std=c++17 *.cpp *.h
+
+# Memory analysis (Linux)
+valgrind --tool=memcheck --track-origins=yes php -dextension=./modules/interbase.so -r "echo 'Extension loaded';"
+```
+
+## Usage Example
+
+```php
+<?php
+// Connect to Firebird database
+$db = ibase_connect('/path/to/database.fdb', 'username', 'password');
+
+// Modern PHP 8.1+ with null coalescing and match expressions
+$result = ibase_query($db, 'SELECT * FROM users WHERE active = ?', 1) 
+    ?? throw new Exception('Query failed');
+
+// Fetch data with modern patterns
+$users = [];
+while ($row = ibase_fetch_assoc($result)) {
+    $users[] = $row;
+}
+
+// Clean up
+ibase_free_result($result);
+ibase_close($db);
+?>
+```
+
+## Configuration
+
+### Runtime Configuration
+```ini
+; php.ini settings
+extension=interbase.so
+
+; Optional: Connection defaults
+ibase.default_charset = UTF8
+ibase.default_user = SYSDBA
+ibase.dateformat = %Y-%m-%d %H:%M:%S
+ibase.timeformat = %H:%M:%S
+```
+
+### Environment Variables
+```bash
+# Firebird client library path (if not in standard location)
+export LD_LIBRARY_PATH=/opt/firebird/lib:$LD_LIBRARY_PATH
+
+# Windows: Ensure fbclient.dll is in PATH
+set PATH=%PATH%;C:\Program Files\Firebird\4_0\bin
+```
+
+## Testing
+
+### Running Tests
+```bash
+# All tests
+make test
+
+# Specific tests
+php run-tests.php tests/ibase_connect_001.phpt
+
+# With specific Firebird version
+FB_VERSION=4.0 make test
+```
+
+### Test Environment Setup
+```bash
+# Create test database (requires SYSDBA access)
+isql -user SYSDBA -password masterkey
+CREATE DATABASE '/tmp/test.fdb';
+EXIT;
+
+# Run extension tests
+export TEST_DB_PATH=/tmp/test.fdb
+export TEST_DB_USER=SYSDBA  
+export TEST_DB_PASS=masterkey
+make test
+```
+
+## Troubleshooting
+
+### Common Build Issues
+
+**Missing fbclient library:**
+```bash
+# Verify library presence
+pkg-config --exists fbclient || echo "Install firebird-dev package"
+
+# Manual library path
+export PKG_CONFIG_PATH=/usr/lib/pkgconfig:/opt/firebird/lib/pkgconfig
+```
+
+**PHP version conflicts:**
+```bash
+# Use specific PHP version
+phpize8.1  # Ubuntu/Debian versioned phpize
+./configure --with-php-config=/usr/bin/php-config8.1
+```
+
+**Windows Visual Studio version:**
+- Use Visual Studio 2019+ (vs16) for PHP 8.1+
+- Ensure Windows SDK 10.0.20348.0+ is installed
+- For compatibility, use same compiler as your PHP build
+
+### Performance Optimization
+
+**Connection Pooling:**
+```php
+<?php
+// Use persistent connections for better performance
+$db = ibase_pconnect('/path/to/database.fdb', 'user', 'pass');
+?>
+```
+
+**Prepared Statements:**
+```php
+<?php
+// Optimize repeated queries
+$stmt = ibase_prepare($db, 'SELECT * FROM users WHERE id = ?');
+for ($i = 1; $i <= 1000; $i++) {
+    $result = ibase_execute($stmt, $i);
+    // Process result
+    ibase_free_result($result);
+}
+ibase_free_query($stmt);
+?>
+```
+
+## Development
+
+### Contributing
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development guidelines including:
+- Modern C++17 development standards
+- Static analysis tool integration
+- Cross-platform testing procedures
+- Docker development environment
+
+### Development Tools
+- **Static Analysis**: clang-tidy, Cppcheck
+- **Memory Safety**: AddressSanitizer, Valgrind
+- **Debugging**: GDB/LLDB with PHP symbols
+- **IDE Support**: CLion, VS Code, Visual Studio
+
+### Architecture
+- **Language**: C (main extension) + C++ (utilities) with C++17 standard
+- **API**: Zend Extension API with modern PHP 8.1+ features
+- **Thread Safety**: Support for both ZTS and NTS builds
+- **Memory Model**: RAII principles with automatic resource cleanup
+
+## Version Compatibility
+
+### Current Version: 6.1.1-RC2
+
+**Supported PHP Versions:**
+- PHP 8.1 (minimum required)
+- PHP 8.2 (fully supported)
+- PHP 8.3 (fully supported)
+- PHP 8.4 (planned support)
+
+**Supported Firebird Versions:**
+- Firebird 2.5 (legacy support)
+- Firebird 3.0 (full support)
+- Firebird 4.0 (full support)
+- Firebird 5.0+ (planned)
+
+**Dropped Support:**
+- ❌ PHP 7.x (legacy, security issues)
+- ❌ PHP 5.x (legacy, no longer maintained)
+
+## Security
+
+### Security Features
+- **Input Validation**: Comprehensive parameter checking
+- **Memory Safety**: AddressSanitizer integration
+- **SQL Injection Protection**: Prepared statement support
+- **Resource Management**: Automatic cleanup prevents leaks
+
+### Reporting Security Issues
+For security-related issues, please email the maintainers directly rather than creating public issues.
+
+## License
+
+This extension is licensed under the PHP License v3.01. See [LICENSE](LICENSE) for details.
+
+## Links
+
+- **Source Repository**: https://github.com/FirebirdSQL/php-firebird
+- **Firebird Documentation**: https://firebirdsql.org/en/documentation/
+- **PHP Extensions Guide**: https://www.php.net/manual/en/internals2.php
+- **Issue Tracker**: https://github.com/FirebirdSQL/php-firebird/issues
+
+---
 
 

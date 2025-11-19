@@ -1,20 +1,35 @@
-.vscode
-.deps
-.libs
-.php-version
-.rbenv-version
+# Build artifacts
+*.o
+*.lo
+*.la
+*.so
+*.dylib
+*.dll
+*.a
+*.slo
+*.mk
+*.ncb
+*.opt
+*.plg
+
+# Autotools generated files
+autom4te.cache/
+build/
+.deps/
+.libs/
+modules/
 acinclude.m4
 aclocal.m4
-autom4te.cache
-build
 config.guess
 config.h
 config.h.in
+config.h.in~
 config.log
 config.nice
 config.status
 config.sub
 configure
+configure~
 configure.in
 configure.ac
 extras
@@ -29,48 +44,57 @@ Makefile.global
 Makefile.objects
 missing
 mkinstalldirs
-modules
 run-tests.php
 tmp-php.ini
-yaml.loT
 
-# General Ignores
+# Development and debug files
+*_debug.php
+*_manual.php
+debug_*
+test_*_manual.*
+refcount_debug.php
+php_test_results_*.txt
+
+# IDE and Editor files
+.vscode/
+.vscode-win/
+.idea/
+*.swp
+*.swo
 *~
 .#*
-*.
-*.slo
-*.mk
-*.mem
-*.gcda
-*.gcno
-*.la
-*.lo
-*.o
-*.a
-*.ncb
-*.opt
-*.plg
-*swp
-*.patch
-*.tgz
-*.tar.gz
-*.tar.bz2
 .FBCIndex
 .FBCLockFolder
-core
-*.dep
 
-# Test specific Ignores
+# Version management
+.php-version
+.rbenv-version
+
+# Test artifacts
 tests/*.diff
 tests/*.exp
 tests/*.log
 tests/*.out
 tests/*.php
 tests/*.sh
+*.dep
 
-# coverage
+# Coverage and analysis
+*.gcda
+*.gcno
+*.mem
+coverage.info
 /coverage.info
 /reports
-win_build_scripts
-.vscode-win
+yaml.loT
+
+# Temporary files
+core
+*.patch
+*.tgz
+*.tar.gz
+*.tar.bz2
+
+# Build configuration (keep template)
 build_scripts/php-fb-config.bat
+

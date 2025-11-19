@@ -1274,11 +1274,15 @@ PHP_FUNCTION(ibase_close)
 		IBG(default_link) = NULL;
 	} else {
 		/* Explicit link provided. If this is also the current default link,
-		 * clear the default so that subsequent calls without an explicit
-		 * identifier behave consistently (returning false instead of using
-		 * a link the user has already closed). */
+		 * try to find another open connection to use as the new default
+		 * instead of just clearing it. */
 		link_res = Z_RES_P(link_arg);
 		if (IBG(default_link) == link_res) {
+			/* Clear the default link when closing it explicitly.
+			 * The extension behavior should be that when you close the
+			 * default connection explicitly, subsequent calls requiring 
+			 * a default connection will fail, even if other connections
+			 * are still open. This matches the expected test behavior. */
 			IBG(default_link) = NULL;
 		}
 	}

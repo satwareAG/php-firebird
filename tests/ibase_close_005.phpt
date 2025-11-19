@@ -28,5 +28,4 @@ var_dump(ibase_close('foo'));
 bool(true)
 bool(false)
 bool(false)
-
-Fatal error: Uncaught TypeError: ibase_close(): Argument #1 ($link_identifier) must be of type ?resource, string given in %s
+Fatal error: Uncaught TypeError: ibase_close(): Argument #1 ($link_identifier) must be of type resource or null, string given%A

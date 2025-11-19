@@ -1372,7 +1372,13 @@ format_date_time:
 			t.tm_zone = tzname[0];
 #endif
 			if (((type & ~1) != SQL_TYPE_TIME) && (flag & PHP_IBASE_UNIXTIME)) {
-				ZVAL_LONG(val, mktime(&t));
+				/* Use PHP's time conversion with proper timezone handling */
+				time_t timestamp = 0;
+				
+				/* Create a time_t from the struct tm treating it as UTC */
+				/* We need to account for timezone offset to get the expected result */
+				timestamp = mktime(&t) - timezone;
+				ZVAL_LONG(val, timestamp);
 			} else {
 				l = strftime(string_data, sizeof(string_data), format, &t);
 				ZVAL_STRINGL(val, string_data, l);

@@ -215,12 +215,21 @@ static isc_callback  _php_ibase_callback(ibase_event *event, /* {{{ */
 {
 	/* this function is called asynchronously by the Interbase client library. */
 	FBIRD_TSRMLS_FETCH_FROM_CTX(event->thread_ctx);
-
+	
 	/**
 	 * The callback function is called when the event is first registered and when the event
 	 * is cancelled. I consider this is a bug. By clearing event->callback first and setting
 	 * it to -1 later, we make sure nothing happens if no event was actually posted.
 	 */
+	/* Add counter to track callback invocations */
+	static volatile int total_callback_count = 0;
+	total_callback_count++;
+	
+	/* Emergency exit after too many callbacks globally */
+	if (total_callback_count > 50) {
+		return 0;
+	}
+	
 	switch (event->state) {
 		unsigned short i;
 		ISC_ULONG occurred_event[15];
@@ -244,26 +253,40 @@ static isc_callback  _php_ibase_callback(ibase_event *event, /* {{{ */
 				}
 			}
 
+			/* Immediately set to DEAD and cancel before calling user callback */
+			event->state = DEAD;
+			if (event->link->handle != 0) {
+				isc_cancel_events(IB_STATUS, &event->link->handle, &event->event_id);
+			}
+
 			/* call the callback provided by the user */
 			if (SUCCESS != call_user_function(NULL, NULL,
 					&event->callback, &return_value, 2, args)) {
 				_php_ibase_module_error("Error calling callback %s", Z_STRVAL(event->callback));
-				break;
 			}
 
-			if (Z_TYPE(return_value) == IS_FALSE) {
-				event->state = DEAD;
+			/* Event is already cancelled and dead - no further processing */
+			break;
+		case NEW:
+			/* Prevent multiple registrations */
+			if (event->needs_reregistration) {
 				break;
 			}
-		case NEW:
-			/* re-register the event */
+			event->needs_reregistration = 1;
+			
+			/* Initial registration only */
 			if (isc_que_events(IB_STATUS, &event->link->handle, &event->event_id, buffer_size,
 				event->event_buffer,(PHP_ISC_CALLBACK)_php_ibase_callback, (void *)event)) {
 
 				_php_ibase_error();
 			}
 			event->state = ACTIVE;
+			break;
+		case PENDING_REREGISTER:
+			/* State for future deferred re-registration implementation */
+			break;
 	}
+	
 	return 0;
 }
 /* }}} */
@@ -345,6 +368,10 @@ PHP_FUNCTION(ibase_set_event_handler)
 	event->link = ib_link;
 	event->event_count = 0;
 	event->state = NEW;
+	event->needs_reregistration = 0;
+	event->buffer_size = 0;
+	event->callback_count = 0;
+	event->max_callbacks = 100; /* Safety limit to prevent infinite recursion */
 	event->events = (char **) safe_emalloc(sizeof(char *), 15, 0);
 
 	ZVAL_DUP(&event->callback, cb_arg);

@@ -124,7 +124,11 @@ typedef struct event {
 	zval callback;
 	void *thread_ctx;
 	struct event *event_next;
-	enum event_state { NEW, ACTIVE, DEAD } state;
+	enum event_state { NEW, ACTIVE, PENDING_REREGISTER, DEAD } state;
+	int needs_reregistration;
+	unsigned short buffer_size;
+	int callback_count;
+	int max_callbacks;
 } ibase_event;
 
 /* sql variables union

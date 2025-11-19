@@ -1274,16 +1274,19 @@ PHP_FUNCTION(ibase_close)
 		IBG(default_link) = NULL;
 	} else {
 		/* Explicit link provided. If this is also the current default link,
-		 * try to find another open connection to use as the new default
-		 * instead of just clearing it. */
+		 * search for another open connection to become the new default. */
 		link_res = Z_RES_P(link_arg);
 		if (IBG(default_link) == link_res) {
-			/* Clear the default link when closing it explicitly.
-			 * The extension behavior should be that when you close the
-			 * default connection explicitly, subsequent calls requiring 
-			 * a default connection will fail, even if other connections
-			 * are still open. This matches the expected test behavior. */
-			IBG(default_link) = NULL;
+			/* When closing the current default link, only clear it if the 
+			 * resource's reference count will drop to zero. If other variables
+			 * still hold references to this same resource, keep it as default. */
+			if (GC_REFCOUNT(link_res) <= 2) {
+				/* Resource will be destroyed (refcount 2 = our reference + resource list entry)
+				 * Clear default and let subsequent calls fail gracefully */
+				IBG(default_link) = NULL;
+			}
+			/* If refcount > 2, other variables still reference this connection,
+			 * so keep it as default_link for those variables to use */
 		}
 	}
 
@@ -1311,15 +1314,17 @@ PHP_FUNCTION(ibase_close)
 		RETURN_FALSE;
 	}
 
-	/* Close the link resource. Subsequent calls with the same resource
-	 * identifier will see that the handle no longer refers to a valid
-	 * Firebird/InterBase link and will return false without error,
-	 * matching the >= 61 extension semantics expected by the
-	 * ibase_close_* tests. We use zend_list_close() here so that the
-	 * underlying InterBase/Firebird link is fully closed even if there
-	 * are additional references, and the resource handle is removed
-	 * from EG(regular_list). */
-	zend_list_close(link_res);
+	/* For persistent connections, check if other variables still reference
+	 * this resource before closing. Only force close if no other references. */
+	if (link_res->type == le_plink && GC_REFCOUNT(link_res) > 1) {
+		/* Other variables still reference this persistent connection.
+		 * Don't force close - just decrease our reference count. */
+		zend_list_delete(link_res);
+	} else {
+		/* Safe to close: either non-persistent or no other references.
+		 * Use zend_list_close() to force cleanup even with references. */
+		zend_list_close(link_res);
+	}
 
 	RETURN_TRUE;
 }

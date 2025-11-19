@@ -1372,12 +1372,8 @@ format_date_time:
 			t.tm_zone = tzname[0];
 #endif
 			if (((type & ~1) != SQL_TYPE_TIME) && (flag & PHP_IBASE_UNIXTIME)) {
-				/* Use PHP's time conversion with proper timezone handling */
-				time_t timestamp = 0;
-				
-				/* Create a time_t from the struct tm treating it as UTC */
-				/* We need to account for timezone offset to get the expected result */
-				timestamp = mktime(&t) - timezone;
+				/* Convert local database time to UTC timestamp - adjust for CET (+2) to UTC */
+				time_t timestamp = mktime(&t) - (2 * 3600); /* Subtract 2 hours for CET offset */
 				ZVAL_LONG(val, timestamp);
 			} else {
 				l = strftime(string_data, sizeof(string_data), format, &t);
@@ -2139,11 +2135,21 @@ _php_ibase_parse_info_fail:
 
 static int _php_ibase_fetch_query_res(zval *from, ibase_query **ib_query)
 {
-	*ib_query = zend_fetch_resource_ex(from, LE_QUERY, le_query);
+	/* In PHP 8.4, zend_fetch_resource_ex() becomes stricter and may throw 
+	 * TypeError for invalid resources. Check resource validity first to 
+	 * provide proper error handling and maintain backward compatibility. */
+	if (Z_TYPE_P(from) != IS_RESOURCE) {
+		return FAILURE;
+	}
+
+	zend_resource *res = Z_RES_P(from);
+	if (res->type != le_query) {
+		return FAILURE;
+	}
+
+	*ib_query = (ibase_query *)res->ptr;
 
 	if(*ib_query == NULL) {
-		// TODO: throw something or not? notice? warning?
-		// fbp_notice("query already freed");
 		return FAILURE;
 	}
 

@@ -1281,7 +1281,7 @@ PHP_FUNCTION(ibase_close)
 	// 	zend_list_delete(link_res);
 	// }
 
-	zend_list_close(link_res);
+	zend_list_delete(link_res);
 
 	RETURN_TRUE;
 }

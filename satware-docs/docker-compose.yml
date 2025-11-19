@@ -109,7 +109,7 @@ services:
       FIREBIRD_USER: SYSDBA
       FIREBIRD_PASSWORD: masterkey
     volumes:
-      - fb25-data:/firebird
+      - fb25-data:/firebird/data
     ports:
       - "3050:3050"
 
@@ -121,7 +121,7 @@ services:
       FIREBIRD_USER: SYSDBA
       FIREBIRD_PASSWORD: masterkey
     volumes:
-      - fb30-data:/firebird
+      - fb30-data:/firebird/data
     ports:
       - "3051:3050"
 
@@ -133,7 +133,7 @@ services:
       FIREBIRD_USER: SYSDBA
       FIREBIRD_PASSWORD: masterkey
     volumes:
-      - fb40-data:/firebird
+      - fb40-data:/firebird/data
     ports:
       - "3052:3050"
 
@@ -145,7 +145,7 @@ services:
       FIREBIRD_USER: SYSDBA
       FIREBIRD_PASSWORD: masterkey
     volumes:
-      - fb50-data:/firebird
+      - fb50-data:/firebird/data
     ports:
       - "3053:3050"
 

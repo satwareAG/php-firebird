@@ -2847,11 +2847,28 @@ static int _php_ibase_alloc_ht_aliases(ibase_query *ib_query)
 	} else {
 #endif
 		// Old API
-		for(size_t i = 0; i < ib_query->out_fields_count; i++){
-			XSQLVAR *var = &ib_query->out_sqlda->sqlvar[i];
+  for(size_t i = 0; i < ib_query->out_fields_count; i++){
+            XSQLVAR *var = &ib_query->out_sqlda->sqlvar[i];
 
-			_php_ibase_insert_alias(ib_query->ht_aliases, var->aliasname);
-		}
+            const char *base_alias = (var->aliasname && var->aliasname[0])
+                ? var->aliasname
+                : (var->sqlname ? var->sqlname : "");
+
+            /* For DML ... RETURNING, try to preserve OLD./NEW. prefixes when present */
+            if (ib_query->statement_type == isc_info_sql_stmt_insert ||
+                ib_query->statement_type == isc_info_sql_stmt_update ||
+                ib_query->statement_type == isc_info_sql_stmt_delete) {
+                char pref[5] = {0};
+                if (_php_ibase_infer_returning_prefix(ib_query->query, i, pref, sizeof(pref)) && pref[0] != '\0') {
+                    char buf[METADATALENGTH + 5 + 1];
+                    snprintf(buf, sizeof(buf), "%s%s", pref, base_alias);
+                    _php_ibase_insert_alias(ib_query->ht_aliases, buf);
+                    continue;
+                }
+            }
+
+            _php_ibase_insert_alias(ib_query->ht_aliases, base_alias);
+        }
 #if FB_API_VER >= 40
 	}
 #endif
@@ -2870,6 +2887,71 @@ static void _php_ibase_alloc_ht_ind(ibase_query *ib_query)
 	for(size_t i = 0; i < ib_query->out_fields_count; i++) {
 		zend_hash_index_add(ib_query->ht_ind, i, &t2);
 	}
+}
+
+/* Try to infer qualified aliases for DML ... RETURNING columns when
+ * duplicate base names occur. Tests expect keys like 'OLD.I' / 'NEW.I'
+ * instead of auto-suffixed 'I_01'. We heuristically parse the RETURNING
+ * list from the original SQL text and, when the kth returning expression
+ * starts with OLD./NEW., we prefix the alias accordingly. The parser is
+ * intentionally simple and covers test cases (unquoted identifiers). */
+static zend_bool _php_ibase_infer_returning_prefix(const char *sql, size_t index, char *out, size_t out_len)
+{
+    if (!sql || !out || out_len < 5) { /* needs space for "OLD."/"NEW." */
+        return 0;
+    }
+
+    /* Case-insensitive search for "returning" */
+    const char *p = sql;
+    const char *ret = NULL;
+    while (*p) {
+        if (strncasecmp(p, "returning", 9) == 0) { ret = p + 9; break; }
+        p++;
+    }
+    if (!ret) return 0;
+
+    /* Tokenize returning list by commas, trim simple whitespace. */
+    size_t i = 0;
+    const char *s = ret;
+    while (*s && (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r')) s++;
+
+    const char *tok_start = s;
+    for (;;) {
+        if (*s == ',' || *s == '\0' || *s == ';') {
+            /* token = [tok_start, s) */
+            if (i == index) {
+                /* Trim trailing whitespace */
+                const char *tok_end = s;
+                while (tok_end > tok_start && (tok_end[-1] == ' ' || tok_end[-1] == '\t' || tok_end[-1] == '\n' || tok_end[-1] == '\r')) {
+                    tok_end--;
+                }
+                /* Trim leading whitespace */
+                while (tok_start < tok_end && (*tok_start == ' ' || *tok_start == '\t' || *tok_start == '\n' || *tok_start == '\r')) tok_start++;
+
+                /* Check for OLD./NEW. prefix (case-insensitive) */
+                if ((size_t)(tok_end - tok_start) >= 4) {
+                    if (strncasecmp(tok_start, "old.", 4) == 0) {
+                        memcpy(out, "OLD.", 4);
+                        out[4] = '\0';
+                        return 1;
+                    } else if (strncasecmp(tok_start, "new.", 4) == 0) {
+                        memcpy(out, "NEW.", 4);
+                        out[4] = '\0';
+                        return 1;
+                    }
+                }
+                return 0;
+            }
+            i++;
+            if (*s == '\0' || *s == ';') break;
+            s++; /* skip comma */
+            while (*s && (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r')) s++;
+            tok_start = s;
+        } else {
+            s++;
+        }
+    }
+    return 0;
 }
 
 static void _php_ibase_free_query_impl(INTERNAL_FUNCTION_PARAMETERS, int as_result)

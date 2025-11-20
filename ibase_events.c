@@ -47,37 +47,49 @@ static void _php_ibase_event_free(unsigned char *event_buf, unsigned char *resul
 
 void _php_ibase_free_event(ibase_event *event) /* {{{ */
 {
-	unsigned short i;
+    unsigned short i;
 
-	event->state = DEAD;
+    event->state = DEAD;
 
-	if (event->link != NULL) {
-		ibase_event **node;
+    if (event->link != NULL) {
+        ibase_event **node;
 
-		zend_list_delete(event->link_res);
-		if (event->link->handle != 0 &&
-				isc_cancel_events(IB_STATUS, &event->link->handle, &event->event_id)) {
-			_php_ibase_error();
-		}
+        /* First, cancel events while the link is still valid to avoid UAF */
+        if (event->link->handle != 0 &&
+                isc_cancel_events(IB_STATUS, &event->link->handle, &event->event_id)) {
+            _php_ibase_error();
+        }
 
-		/* delete this event from the link struct */
-		for (node = &event->link->event_head; *node != event; node = &(*node)->event_next);
-		*node = event->event_next;
-	}
+        /* delete this event from the link struct */
+        for (node = &event->link->event_head; *node != event; node = &(*node)->event_next);
+        *node = event->event_next;
 
-	if (Z_TYPE(event->callback) != IS_UNDEF) {
-		zval_ptr_dtor(&event->callback);
-		ZVAL_UNDEF(&event->callback);
+        /* Then drop our reference to the DB link resource */
+        if (event->link_res) {
+            zend_list_delete(event->link_res);
+            event->link_res = NULL;
+        }
 
-		_php_ibase_event_free(event->event_buffer,event->result_buffer);
+        event->link = NULL;
+    }
 
-		for (i = 0; i < event->event_count; ++i) {
-			if (event->events[i]) {
-				efree(event->events[i]);
-			}
-		}
-		efree(event->events);
-	}
+    if (Z_TYPE(event->callback) != IS_UNDEF) {
+        zval_ptr_dtor(&event->callback);
+        ZVAL_UNDEF(&event->callback);
+
+        if (event->event_buffer || event->result_buffer) {
+            _php_ibase_event_free(event->event_buffer, event->result_buffer);
+            event->event_buffer = NULL;
+            event->result_buffer = NULL;
+        }
+
+        for (i = 0; i < event->event_count; ++i) {
+            if (event->events[i]) {
+                efree(event->events[i]);
+            }
+        }
+        efree(event->events);
+    }
 }
 /* }}} */
 
@@ -134,12 +146,12 @@ static void _php_ibase_event_block(ibase_db_link *ib_link, unsigned short count,
    Waits for any one of the passed Interbase events to be posted by the database, and returns its name */
 PHP_FUNCTION(ibase_wait_event)
 {
-	zval *args;
-	ibase_db_link *ib_link;
-	int num_args;
-	unsigned char *event_buffer, *result_buffer;
-	char *events[15];
-	unsigned short i = 0, event_count = 0, buffer_size;
+ zval *args;
+ ibase_db_link *ib_link;
+ int num_args;
+ unsigned char *event_buffer, *result_buffer;
+ char *events[15];
+ unsigned short i = 0, event_count = 0, buffer_size;
 	ISC_ULONG occurred_event[15];
 
 	RESET_ERRMSG;
@@ -167,10 +179,15 @@ PHP_FUNCTION(ibase_wait_event)
 		}
 	}
 
-	for (; i < ZEND_NUM_ARGS(); ++i) {
-		convert_to_string_ex(&args[i]);
-		events[event_count++] = Z_STRVAL(args[i]);
-	}
+ /* Initialize the events array to NULL to avoid passing garbage to varargs */
+    for (unsigned short j = 0; j < 15; ++j) {
+        events[j] = NULL;
+    }
+
+    for (; i < ZEND_NUM_ARGS(); ++i) {
+        convert_to_string_ex(&args[i]);
+        events[event_count++] = Z_STRVAL(args[i]);
+    }
 
 	/* fills the required data structure with information about the events */
 	_php_ibase_event_block(ib_link, event_count, events, &buffer_size, &event_buffer, &result_buffer);
@@ -201,12 +218,12 @@ PHP_FUNCTION(ibase_wait_event)
 
 #if FB_API_VER >= 20
 #define PHP_ISC_CALLBACK ISC_EVENT_CALLBACK
-static ISC_EVENT_CALLBACK _php_ibase_callback(ibase_event *event, /* {{{ */
-	ISC_USHORT buffer_size, ISC_UCHAR *result_buf)
+static void _php_ibase_callback(ibase_event *event, /* {{{ */
+    ISC_USHORT buffer_size, ISC_UCHAR *result_buf)
 #else
 #define PHP_ISC_CALLBACK isc_callback
-static isc_callback  _php_ibase_callback(ibase_event *event, /* {{{ */
-	unsigned short buffer_size, unsigned char *result_buf)
+static void  _php_ibase_callback(ibase_event *event, /* {{{ */
+    unsigned short buffer_size, unsigned char *result_buf)
 #endif
 {
 	/* this function is called asynchronously by the Interbase client library. */
@@ -223,16 +240,16 @@ static isc_callback  _php_ibase_callback(ibase_event *event, /* {{{ */
 	 */
 
 	/* Prevent callback recursion and validate state */
-	if (!event || event->state == DEAD || event->link->handle == 0) {
-		return 0;
-	}
+ if (!event || event->state == DEAD || !event->link || event->link->handle == 0) {
+        return;
+    }
 
 	/* Safety limit to prevent infinite callback loops */
 	if (event->callback_count >= event->max_callbacks) {
 		event->state = DEAD;
 		_php_ibase_module_error("Event callback limit exceeded, marking as DEAD");
-		return 0;
-	}
+        return;
+    }
 
 	event->callback_count++;
 
@@ -270,17 +287,18 @@ static isc_callback  _php_ibase_callback(ibase_event *event, /* {{{ */
 	}
 
 	/* Step 4: Re-queue for future events (CANONICAL PATTERN - essential for continuous monitoring) */
-	if (event->state == ACTIVE && event->link->handle != 0) {
-		if (isc_que_events(IB_STATUS, &event->link->handle, &event->event_id, buffer_size,
-			event->event_buffer, (PHP_ISC_CALLBACK)_php_ibase_callback, (void *)event)) {
+    if (event->state == ACTIVE && event->link && event->link->handle != 0) {
+        unsigned short requeue_len = event->buffer_size ? event->buffer_size : buffer_size;
+        if (isc_que_events(IB_STATUS, &event->link->handle, &event->event_id, requeue_len,
+            event->event_buffer, (PHP_ISC_CALLBACK)_php_ibase_callback, (void *)event)) {
 
-			_php_ibase_error();
-			/* On re-queue failure, mark as DEAD to prevent further callback attempts */
-			event->state = DEAD;
-		}
-	}
+            _php_ibase_error();
+            /* On re-queue failure, mark as DEAD to prevent further callback attempts */
+            event->state = DEAD;
+        }
+    }
 
-	return 0;
+    return;
 }
 /* }}} */
 

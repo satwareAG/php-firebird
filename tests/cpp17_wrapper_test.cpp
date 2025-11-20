@@ -365,7 +365,7 @@ TEST_F(FirebirdWrappersTest, StructuredBindingsTimestampDecoding) {
     DecodedTimestampTz valid_timestamp{
         2025, 11, 19,     // year, month, day
         15, 30, 45, 123,  // hours, minutes, seconds, fractions
-        "UTC"             // timezone
+        "Berlin/Europe"             // timezone
     };
     EXPECT_TRUE(valid_timestamp.is_valid());
 
@@ -383,7 +383,7 @@ TEST_F(FirebirdWrappersTest, StructuredBindingsTimestampDecoding) {
     DecodedTimestampTz invalid_timestamp{
         2025, 13, 19,     // Invalid month > 12
         15, 30, 45, 123,
-        "UTC"
+        "Berlin/Europe"
     };
     EXPECT_FALSE(invalid_timestamp.is_valid());
 }

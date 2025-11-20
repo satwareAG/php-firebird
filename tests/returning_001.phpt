@@ -19,7 +19,7 @@ ibase_connect($test_base);
 
     print "--------\n";
 
-    $q = ibase_query("UPDATE TEST1 SET I = I + 1, C = C || ' updated' RETURNING OLD.I AS OLD_I, OLD.C AS OLD_C, NEW.I AS NEW_I, NEW.C AS NEW_C");
+    $q = ibase_query("UPDATE TEST1 SET I = I + 1, C = C || ' updated' RETURNING OLD.I, OLD.C, NEW.I, NEW.C");
     dump_rows($q);
     dump_table_rows("TEST1");
 })();
@@ -40,13 +40,13 @@ array(2) {
 }
 --------
 array(4) {
-  ["OLD_I"]=>
+  ["OLD.I"]=>
   int(1)
-  ["OLD_C"]=>
+  ["OLD.C"]=>
   string(6) "data 1"
-  ["NEW_I"]=>
+  ["NEW.I"]=>
   int(2)
-  ["NEW_C"]=>
+  ["NEW.C"]=>
   string(14) "data 1 updated"
 }
 array(2) {

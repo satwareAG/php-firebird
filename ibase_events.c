@@ -213,74 +213,67 @@ static isc_callback  _php_ibase_callback(ibase_event *event, /* {{{ */
 	FBIRD_TSRMLS_FETCH_FROM_CTX(event->thread_ctx);
 
 	/**
-	 * The callback function is called when the event is first registered and when the event
-	 * is cancelled. I consider this is a bug. By clearing event->callback first and setting
-	 * it to -1 later, we make sure nothing happens if no event was actually posted.
+	 * CANONICAL FIREBIRD EVENT PATTERN (fixes segfaults and "Error writing data"):
+	 * 1. Copy result buffer contents
+	 * 2. Compute event counts to find which event fired
+	 * 3. Call user callback with event name + link resource
+	 * 4. Re-queue for future notifications (CRITICAL - never cancel in callback)
+	 *
+	 * NEVER call isc_cancel_events() in callback - only in destructor/free paths
 	 */
-	/* Add counter to track callback invocations */
-	static volatile int total_callback_count = 0;
-	total_callback_count++;
 
-	/* Emergency exit after too many callbacks globally */
-	if (total_callback_count > 50) {
+	/* Prevent callback recursion and validate state */
+	if (!event || event->state == DEAD || event->link->handle == 0) {
 		return 0;
 	}
 
-	switch (event->state) {
-		unsigned short i;
-		ISC_ULONG occurred_event[15];
-		zval return_value, args[2];
+	/* Safety limit to prevent infinite callback loops */
+	if (event->callback_count >= event->max_callbacks) {
+		event->state = DEAD;
+		_php_ibase_module_error("Event callback limit exceeded, marking as DEAD");
+		return 0;
+	}
 
-		default: /* == DEAD */
-			break;
-		case ACTIVE:
-			/* copy the updated results into the result buffer */
-			memcpy(event->result_buffer, result_buf, buffer_size);
+	event->callback_count++;
 
-			ZVAL_RES(&args[1], event->link_res);
+	/* Step 1: Copy the result buffer contents (ESSENTIAL for proper event processing) */
+	memcpy(event->result_buffer, result_buf, buffer_size);
 
-			/* find out which event occurred */
-			isc_event_counts(occurred_event, buffer_size, event->event_buffer, event->result_buffer);
-			for (i = 0; i < event->event_count; ++i) {
-				if (occurred_event[i]) {
-					ZVAL_STRING(&args[0], event->events[i]);
-					//efree(event->events[i]);
-					break;
-				}
+	/* Step 2: Compute event counts to determine which event fired */
+	unsigned short i;
+	ISC_ULONG occurred_event[15];
+	isc_event_counts(occurred_event, buffer_size, event->event_buffer, event->result_buffer);
+
+	/* Step 3: Find the event that occurred and call user callback */
+	zval return_value, args[2];
+	ZVAL_RES(&args[1], event->link_res);
+
+	for (i = 0; i < event->event_count; ++i) {
+		if (occurred_event[i]) {
+			ZVAL_STRING(&args[0], event->events[i]);
+
+			/* Call the PHP user callback */
+			if (FAILURE == call_user_function(NULL, NULL, &event->callback, &return_value, 2, args)) {
+				_php_ibase_module_error("Error calling event callback");
+				/* Don't mark as DEAD on callback failure - let user handle it */
 			}
 
-			/* Immediately set to DEAD and cancel before calling user callback */
+			/* Clean up the event name argument */
+			zval_ptr_dtor(&args[0]);
+			zval_ptr_dtor(&return_value);
+			break;
+		}
+	}
+
+	/* Step 4: Re-queue for future events (CANONICAL PATTERN - essential for continuous monitoring) */
+	if (event->state == ACTIVE && event->link->handle != 0) {
+		if (isc_que_events(IB_STATUS, &event->link->handle, &event->event_id, buffer_size,
+			event->event_buffer, (PHP_ISC_CALLBACK)_php_ibase_callback, (void *)event)) {
+
+			_php_ibase_error();
+			/* On re-queue failure, mark as DEAD to prevent further callback attempts */
 			event->state = DEAD;
-			if (event->link->handle != 0) {
-				isc_cancel_events(IB_STATUS, &event->link->handle, &event->event_id);
-			}
-
-			/* call the callback provided by the user */
-			if (SUCCESS != call_user_function(NULL, NULL,
-					&event->callback, &return_value, 2, args)) {
-				_php_ibase_module_error("Error calling callback %s", Z_STRVAL(event->callback));
-			}
-
-			/* Event is already cancelled and dead - no further processing */
-			break;
-		case NEW:
-			/* Prevent multiple registrations */
-			if (event->needs_reregistration) {
-				break;
-			}
-			event->needs_reregistration = 1;
-
-			/* Initial registration only */
-			if (isc_que_events(IB_STATUS, &event->link->handle, &event->event_id, buffer_size,
-				event->event_buffer,(PHP_ISC_CALLBACK)_php_ibase_callback, (void *)event)) {
-
-				_php_ibase_error();
-			}
-			event->state = ACTIVE;
-			break;
-		case PENDING_REREGISTER:
-			/* State for future deferred re-registration implementation */
-			break;
+		}
 	}
 
 	return 0;

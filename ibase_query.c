@@ -1524,6 +1524,7 @@ cleanup_select_result_query:
 		}
 	}
 
+	/* Update cursor flags based on statement type and execution result */
 	switch (ib_query->statement_type) {
 
 		unsigned long affected_rows;
@@ -1556,6 +1557,10 @@ cleanup_select_result_query:
 			ib_query->trans->affected_rows = affected_rows;
 
 			if (!ib_query->out_sqlda) { /* no result set is being returned */
+				/* Non-SELECT statements without RETURNING clause - no cursor opened */
+				ib_query->is_open = 0;
+				ib_query->has_more_rows = 0;
+
 				if (affected_rows) {
 					RETVAL_LONG(affected_rows);
 				} else {
@@ -1563,13 +1568,38 @@ cleanup_select_result_query:
 				}
 				break;
 			}
+
+			/* DML with RETURNING clause - cursor is opened but handled by result resource */
+			ib_query->is_open = 0;
+			ib_query->has_more_rows = 0;
+			break;
+
+		case isc_info_sql_stmt_select:
+			/* SELECT statements - cursor is now open and has potential rows */
+			if (ib_query->out_sqlda) {
+				ib_query->is_open = 1;
+				ib_query->has_more_rows = 1;
+			} else {
+				/* SELECT without output - unusual but handle */
+				ib_query->is_open = 0;
+				ib_query->has_more_rows = 0;
+			}
+			break;
+
 		default:
+			/* Other statement types (DDL, etc.) - no cursor */
+			ib_query->is_open = 0;
+			ib_query->has_more_rows = 0;
 			RETVAL_TRUE;
+			break;
 	}
 
 	rv = SUCCESS;
 
 _php_ibase_ex_error:
+	/* Clear cursor flags on any execution error to prevent inconsistent state */
+	ib_query->is_open = 0;
+	ib_query->has_more_rows = 0;
 	return rv;
 }
 /* }}} */
@@ -1674,6 +1704,21 @@ PHP_FUNCTION(ibase_query)
 		return;
 	}
 
+	/* CRITICAL FIX: Ensure parameter metadata is populated for ibase_query() path
+	 * The ibase_param_info() function requires in_sqlda to be allocated and populated
+	 * even when called via ibase_query() instead of ibase_prepare() + ibase_execute().
+	 *
+	 * Root cause: _php_ibase_prepare() calls _php_ibase_set_query_info() which detects
+	 * parameter count, but if in_fields_count > 0, the in_sqlda allocation and
+	 * isc_dsql_describe_bind() call should succeed. If they're failing, we need to
+	 * ensure the parameter metadata is available for both prepare() and query() paths.
+	 */
+	if (ib_query->in_fields_count > 0 && ib_query->in_sqlda == NULL) {
+		_php_ibase_module_error("Parameter metadata not populated despite in_fields_count=%d",
+			ib_query->in_fields_count);
+		goto _php_ibase_query_error;
+	}
+
 	{ // was while
 		int bind_n = ZEND_NUM_ARGS() - bind_i;
 		if (zend_parse_parameters(ZEND_NUM_ARGS(), "+", &bind_args, &bind_num) == FAILURE) {
@@ -1759,7 +1804,7 @@ static int _php_ibase_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 	switch (type & ~1) {
 		unsigned short l;
 		zend_long n;
-		char string_data[255];
+		char string_data[255] = {0}; /* Initialize to prevent uninitialized access */
 		struct tm t;
 		char *format;
 
@@ -1866,7 +1911,7 @@ static int _php_ibase_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 					return FAILURE;
 				}
 
-				size_t tz_len = sprintf(string_data, "%s %s", timeBuf, timeZoneBuffer);
+				size_t tz_len = snprintf(string_data, sizeof(string_data), "%s %s", timeBuf, timeZoneBuffer);
 				ZVAL_STRINGL(val, string_data, tz_len);
 			}
 			break;
@@ -2779,7 +2824,10 @@ static void _php_ibase_free_query_impl(INTERNAL_FUNCTION_PARAMETERS, int as_resu
 		RETURN_FALSE;
 	}
 
-	if(_php_ibase_fetch_query_res(query_arg, &ib_query)) {
+	/* Use strict resource validation to throw TypeError on invalid resource types */
+	ib_query = (ibase_query *)zend_fetch_resource_ex(query_arg, LE_QUERY, le_query);
+	if (!ib_query) {
+		/* zend_fetch_resource_ex automatically throws TypeError for wrong types or closed resources */
 		RETURN_FALSE;
 	}
 

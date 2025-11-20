@@ -1801,12 +1801,14 @@ static int _php_ibase_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 		LL_LIT(1000000000000000000)
 	};
 
+	/* Move variable declarations to function scope to fix "unreachable code" warning */
+	unsigned short l;
+	zend_long n;
+	char string_data[255] = {0}; /* Initialize to prevent uninitialized access */
+	struct tm t;
+	char *format;
+
 	switch (type & ~1) {
-		unsigned short l;
-		zend_long n;
-		char string_data[255] = {0}; /* Initialize to prevent uninitialized access */
-		struct tm t;
-		char *format;
 
 		case SQL_VARYING:
 			len = ((IBVARY *) data)->vary_length;

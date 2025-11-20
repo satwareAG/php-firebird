@@ -245,20 +245,24 @@ static isc_callback  _php_ibase_callback(ibase_event *event, /* {{{ */
 	isc_event_counts(occurred_event, buffer_size, event->event_buffer, event->result_buffer);
 
 	/* Step 3: Find the event that occurred and call user callback */
-	zval return_value, args[2];
-	ZVAL_RES(&args[1], event->link_res);
+	zval return_value, args[1];
 
 	for (i = 0; i < event->event_count; ++i) {
 		if (occurred_event[i]) {
 			ZVAL_STRING(&args[0], event->events[i]);
 
-			/* Call the PHP user callback */
-			if (FAILURE == call_user_function(NULL, NULL, &event->callback, &return_value, 2, args)) {
+			/* Call the PHP user callback with just the event name */
+			if (FAILURE == call_user_function(NULL, NULL, &event->callback, &return_value, 1, args)) {
 				_php_ibase_module_error("Error calling event callback");
 				/* Don't mark as DEAD on callback failure - let user handle it */
 			}
 
-			/* Clean up the event name argument */
+			/* Check callback return value to determine if event should continue */
+			if (Z_TYPE(return_value) != IS_UNDEF && !zend_is_true(&return_value)) {
+				event->state = DEAD;  /* Callback returned false - cancel events */
+			}
+
+			/* Clean up arguments and return value */
 			zval_ptr_dtor(&args[0]);
 			zval_ptr_dtor(&return_value);
 			break;
@@ -390,6 +394,7 @@ PHP_FUNCTION(ibase_set_event_handler)
 	}
 
 	/* Only register event resource AFTER successful queue operation */
+	event->state = ACTIVE; /* Mark as ACTIVE for callback processing */
 	event->event_next = ib_link->event_head;
 	ib_link->event_head = event;
 

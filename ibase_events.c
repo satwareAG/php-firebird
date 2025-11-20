@@ -275,17 +275,18 @@ static void  _php_ibase_callback(ibase_event *event, /* {{{ */
 	/* Step 1: Copy the result buffer contents (ESSENTIAL for proper event processing) */
 	memcpy(event->result_buffer, result_buf, buffer_size);
 
-	/* Step 2: Compute event counts to determine which event fired */
-	unsigned short i;
-	ISC_ULONG occurred_event[15];
-	isc_event_counts(occurred_event, buffer_size, event->event_buffer, event->result_buffer);
+ /* Step 2: Compute event counts to determine which event fired */
+ unsigned short i;
+ ISC_ULONG occurred_event[15];
+ isc_event_counts(occurred_event, buffer_size, event->event_buffer, event->result_buffer);
 
-	/* Step 3: Find the event that occurred and call user callback */
-	zval return_value, args[1];
+ /* Step 3: Find the event that occurred and call user callback */
+ zval return_value, args[1];
+ ZVAL_UNDEF(&return_value);
 
-	for (i = 0; i < event->event_count; ++i) {
-		if (occurred_event[i]) {
-			ZVAL_STRING(&args[0], event->events[i]);
+ for (i = 0; i < event->event_count; ++i) {
+     if (occurred_event[i]) {
+         ZVAL_STRING(&args[0], event->events[i]);
 
 			/* Call the PHP user callback with just the event name */
 			if (FAILURE == call_user_function(NULL, NULL, &event->callback, &return_value, 1, args)) {
@@ -293,21 +294,25 @@ static void  _php_ibase_callback(ibase_event *event, /* {{{ */
 				/* Don't mark as DEAD on callback failure - let user handle it */
 			}
 
-			/* Check callback return value to determine if event should continue */
-			if (Z_TYPE(return_value) != IS_UNDEF && !zend_is_true(&return_value)) {
-				event->state = DEAD;  /* Callback returned false - cancel events */
-			}
+            /* Check callback return value to determine if event should continue */
+            if (Z_TYPE(return_value) != IS_UNDEF && !zend_is_true(&return_value)) {
+                event->state = DEAD;  /* Callback returned false - cancel events */
+            }
 
-			/* Clean up arguments and return value */
-			zval_ptr_dtor(&args[0]);
-			zval_ptr_dtor(&return_value);
-			break;
-		}
-	}
+            /* Clean up arguments and return value */
+            zval_ptr_dtor(&args[0]);
+            zval_ptr_dtor(&return_value);
+            break;
+        }
+    }
 
-	/* Step 4: Re-queue for future events (CANONICAL PATTERN - essential for continuous monitoring) */
+    /* Step 4: Update baseline and re-queue for future events.
+     * IMPORTANT: Copy the latest result buffer into the event buffer BEFORE
+     * re-queuing to avoid immediate re-entrant callbacks on the same stack
+     * (infinite recursion) when the library detects pending events. */
     if (event->state == ACTIVE && event->link && event->link->handle != 0) {
         unsigned short requeue_len = event->buffer_size ? event->buffer_size : buffer_size;
+        memcpy(event->event_buffer, event->result_buffer, requeue_len);
         if (isc_que_events(IB_STATUS, &event->link->handle, &event->event_id, requeue_len,
             event->event_buffer, (PHP_ISC_CALLBACK)_php_ibase_callback, (void *)event)) {
 

@@ -998,13 +998,134 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 
 	// TODO: test INSERT / UPDATE / UPDATE OR INSERT with  ... RETURNING
 	if (ib_query->out_sqlda) { /* output variables in select, select for update */
-		ib_query->has_more_rows = 1;
-		ib_query->is_open = 1;
 
-		RETVAL_RES(ib_query->res);
-		Z_TRY_ADDREF_P(return_value);
+		/* For EXECUTE PROCEDURE, create independent result resources to avoid
+		 * shared state issues where each execution overwrites the previous result */
+		if (ib_query->statement_type == isc_info_sql_stmt_exec_procedure) {
+			/* Create a new query structure for this specific result */
+			ibase_query *result_query = ecalloc(1, sizeof(ibase_query));
 
-		return SUCCESS;
+			/* Copy essential fields from the original query */
+			result_query->link = ib_query->link;
+			result_query->trans = ib_query->trans;
+			result_query->trans_res = ib_query->trans_res;
+			result_query->dialect = ib_query->dialect;
+			result_query->statement_type = ib_query->statement_type;
+			result_query->out_fields_count = ib_query->out_fields_count;
+			result_query->was_result_once = 1;
+
+			/* Create independent copy of output SQLDA with current values */
+			if (ib_query->out_sqlda) {
+				result_query->out_sqlda = (XSQLDA *) emalloc(XSQLDA_LENGTH(ib_query->out_fields_count));
+				memcpy(result_query->out_sqlda, ib_query->out_sqlda, XSQLDA_LENGTH(ib_query->out_fields_count));
+
+				/* Allocate and copy data for each field */
+				for (int i = 0; i < ib_query->out_fields_count; i++) {
+					XSQLVAR *orig_var = &ib_query->out_sqlda->sqlvar[i];
+					XSQLVAR *result_var = &result_query->out_sqlda->sqlvar[i];
+
+					/* Allocate new memory for this result's data */
+					switch (result_var->sqltype & ~1) {
+						case SQL_TEXT:
+							result_var->sqldata = safe_emalloc(sizeof(char), result_var->sqllen, 0);
+							memcpy(result_var->sqldata, orig_var->sqldata, result_var->sqllen);
+							break;
+						case SQL_VARYING:
+							result_var->sqldata = safe_emalloc(sizeof(char), result_var->sqllen + sizeof(short), 0);
+							memcpy(result_var->sqldata, orig_var->sqldata, result_var->sqllen + sizeof(short));
+							break;
+#ifdef SQL_BOOLEAN
+						case SQL_BOOLEAN:
+							result_var->sqldata = emalloc(sizeof(FB_BOOLEAN));
+							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(FB_BOOLEAN));
+							break;
+#endif
+						case SQL_SHORT:
+							result_var->sqldata = emalloc(sizeof(short));
+							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(short));
+							break;
+						case SQL_LONG:
+							result_var->sqldata = emalloc(sizeof(ISC_LONG));
+							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_LONG));
+							break;
+						case SQL_FLOAT:
+							result_var->sqldata = emalloc(sizeof(float));
+							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(float));
+							break;
+						case SQL_DOUBLE:
+							result_var->sqldata = emalloc(sizeof(double));
+							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(double));
+							break;
+						case SQL_INT64:
+							result_var->sqldata = emalloc(sizeof(ISC_INT64));
+							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_INT64));
+							break;
+						case SQL_TIMESTAMP:
+							result_var->sqldata = emalloc(sizeof(ISC_TIMESTAMP));
+							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_TIMESTAMP));
+							break;
+						case SQL_TYPE_DATE:
+							result_var->sqldata = emalloc(sizeof(ISC_DATE));
+							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_DATE));
+							break;
+						case SQL_TYPE_TIME:
+							result_var->sqldata = emalloc(sizeof(ISC_TIME));
+							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_TIME));
+							break;
+						case SQL_BLOB:
+						case SQL_ARRAY:
+							result_var->sqldata = emalloc(sizeof(ISC_QUAD));
+							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_QUAD));
+							break;
+#if FB_API_VER >= 40
+						case SQL_TIMESTAMP_TZ:
+							result_var->sqldata = emalloc(sizeof(ISC_TIMESTAMP_TZ));
+							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_TIMESTAMP_TZ));
+							break;
+						case SQL_TIME_TZ:
+							result_var->sqldata = emalloc(sizeof(ISC_TIME_TZ));
+							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_TIME_TZ));
+							break;
+#endif
+						default:
+							fbp_fatal("Unhandled sqltype for EXECUTE PROCEDURE result copy: %d", result_var->sqltype);
+							break;
+					}
+				}
+
+				/* Copy null indicators */
+				result_query->out_nullind = safe_emalloc(sizeof(*result_query->out_nullind), ib_query->out_fields_count, 0);
+				memcpy(result_query->out_nullind, ib_query->out_nullind, sizeof(*result_query->out_nullind) * ib_query->out_fields_count);
+
+				/* Update sqlind pointers to point to the new null indicators */
+				for (int i = 0; i < ib_query->out_fields_count; i++) {
+					if (result_query->out_sqlda->sqlvar[i].sqltype & 1) {
+						result_query->out_sqlda->sqlvar[i].sqlind = &result_query->out_nullind[i];
+					}
+				}
+			}
+
+			/* Set result flags - EXECUTE PROCEDURE results are immediately available */
+			result_query->has_more_rows = 1; /* Data is available for fetching */
+			result_query->is_open = 1; /* Result can be fetched once */
+
+			/* Register the result as a new resource */
+			result_query->res = zend_register_resource(result_query, le_query);
+
+			RETVAL_RES(result_query->res);
+			Z_TRY_ADDREF_P(return_value);
+
+			return SUCCESS;
+		} else {
+			/* Normal SELECT/cursor behavior */
+			ib_query->has_more_rows = 1;
+			ib_query->is_open = 1;
+
+			RETVAL_RES(ib_query->res);
+			Z_TRY_ADDREF_P(return_value);
+
+			return SUCCESS;
+		}
 	}
 
 	switch (ib_query->statement_type) {
@@ -2135,8 +2256,8 @@ _php_ibase_parse_info_fail:
 
 static int _php_ibase_fetch_query_res(zval *from, ibase_query **ib_query)
 {
-	/* In PHP 8.4, zend_fetch_resource_ex() becomes stricter and may throw 
-	 * TypeError for invalid resources. Check resource validity first to 
+	/* In PHP 8.4, zend_fetch_resource_ex() becomes stricter and may throw
+	 * TypeError for invalid resources. Check resource validity first to
 	 * provide proper error handling and maintain backward compatibility. */
 	if (Z_TYPE_P(from) != IS_RESOURCE) {
 		return FAILURE;
@@ -2221,7 +2342,14 @@ static void _php_ibase_free_query_impl(INTERNAL_FUNCTION_PARAMETERS, int as_resu
 	}
 
 	if(!as_result || ib_query->was_result_once) {
-		zend_list_close(Z_RES_P(query_arg));
+		if (as_result) {
+			/* Freeing a result handle: actively close the underlying query */
+			zend_list_close(Z_RES_P(query_arg));
+		} else {
+			/* Freeing a prepared query: drop one reference, but only destroy
+			 * when no other handles (e.g. ibase_execute results) remain. */
+			zend_list_delete(Z_RES_P(query_arg));
+		}
 	}
 
 	RETURN_TRUE;

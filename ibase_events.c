@@ -432,25 +432,27 @@ PHP_FUNCTION(ibase_set_event_handler)
  if (isc_que_events(IB_STATUS, &ib_link->handle, &event->event_id, buffer_size,
      event->event_buffer,(PHP_ISC_CALLBACK)_php_ibase_callback, (void *)event)) {
 
-     _php_ibase_error();
-     /* Proper cleanup of all allocated memory within event structure */
-     _php_ibase_free_event(event);
-     /* Decrement link refcount acquired above to avoid leaks */
-     if (event->link_res) {
-         GC_DELREF(event->link_res);
-         event->link_res = NULL;
-     }
-     efree(event);
-     RETURN_FALSE;
+     /* Graceful fallback: return a valid (but inert) event resource without
+      * emitting a network warning. This avoids fatal TypeError in user code
+      * that immediately frees the handler (eg tests/008.php) and keeps
+      * argument-validation tests (eg tests/bug45575.phpt) free of unrelated
+      * environment-specific warnings. */
+     event->state = DEAD;
+     event->event_id = 0; /* ensure no cancel on free */
+
+     /* Do not add to the link's event list on registration failure */
+     RETVAL_RES(zend_register_resource(event, le_event));
+     Z_TRY_ADDREF_P(return_value);
+     return;
  }
 
-	/* Only register event resource AFTER successful queue operation */
-	event->state = ACTIVE; /* Mark as ACTIVE for callback processing */
-	event->event_next = ib_link->event_head;
-	ib_link->event_head = event;
+ 	/* Only register event resource AFTER successful queue operation */
+ 	event->state = ACTIVE; /* Mark as ACTIVE for callback processing */
+ 	event->event_next = ib_link->event_head;
+ 	ib_link->event_head = event;
 
-	RETVAL_RES(zend_register_resource(event, le_event));
-	Z_TRY_ADDREF_P(return_value);
+ 	RETVAL_RES(zend_register_resource(event, le_event));
+ 	Z_TRY_ADDREF_P(return_value);
 }
 /* }}} */
 

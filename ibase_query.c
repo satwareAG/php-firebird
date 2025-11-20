@@ -2829,6 +2829,9 @@ static int _php_ibase_fetch_query_res(zval *from, ibase_query **ib_query)
 // and large amounts of fields. So I added wrapper to use newer API but that
 // also require runtime fbclient > 40 hence the runtime checks. Ideally rewrite
 // everything using newer API but that's a bit of work.
+/* Forward declaration for helper used in alias allocation */
+static zend_bool _php_ibase_infer_returning_prefix(const char *sql, size_t index, char *out, size_t out_len);
+
 static int _php_ibase_alloc_ht_aliases(ibase_query *ib_query)
 {
 	ALLOC_HASHTABLE(ib_query->ht_aliases);

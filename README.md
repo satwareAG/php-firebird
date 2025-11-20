@@ -33,13 +33,13 @@ cd php-firebird
 
 # Start development environment
 cd docker/
-docker-compose up -d php81
+docker-compose up -d php81-dev
 
 # Build extension
-docker exec -it php-firebird-dev /docker/scripts/build-extension.sh
+docker exec php-firebird-dev-php81-dev-1 /docker/scripts/build-extension.sh
 
 # Run tests
-docker exec -it php-firebird-dev /docker/scripts/test-extension.sh
+docker exec php-firebird-dev-php81-dev-1 /docker/scripts/test-extension.sh
 ```
 
 ### Native Installation

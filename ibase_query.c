@@ -1000,10 +1000,20 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 	if (ib_query->out_sqlda) { /* output variables in select, select for update */
 
 		/* For EXECUTE PROCEDURE, create independent result resources to avoid
-		 * shared state issues where each execution overwrites the previous result */
+		 * shared state issues where each execution overwrites the previous result.
+		 *
+		 * CRITICAL IMPLEMENTATION NOTES:
+		 * - This creates independent result resources instead of shared resources
+		 * - Each execution gets its own copy of SQLDA and field data
+		 * - Memory management requires proper cleanup on error paths
+		 * - Backward compatibility: Applications should not rely on shared state
+		 */
 		if (ib_query->statement_type == isc_info_sql_stmt_exec_procedure) {
 			/* Create a new query structure for this specific result */
 			ibase_query *result_query = ecalloc(1, sizeof(ibase_query));
+
+			/* Initialize error cleanup flag */
+			int cleanup_needed = 1;
 
 			/* Copy essential fields from the original query */
 			result_query->link = ib_query->link;
@@ -1014,26 +1024,81 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 			result_query->out_fields_count = ib_query->out_fields_count;
 			result_query->was_result_once = 1;
 
-			/* Create independent copy of output SQLDA with current values */
-			if (ib_query->out_sqlda) {
-				result_query->out_sqlda = (XSQLDA *) emalloc(XSQLDA_LENGTH(ib_query->out_fields_count));
-				memcpy(result_query->out_sqlda, ib_query->out_sqlda, XSQLDA_LENGTH(ib_query->out_fields_count));
+			/* Validate source SQLDA before processing */
+			if (ib_query->out_sqlda && ib_query->out_fields_count > 0) {
+				/* Validate SQLDA structure integrity */
+				if (ib_query->out_sqlda->sqln != ib_query->out_fields_count ||
+				    ib_query->out_sqlda->sqld != ib_query->out_fields_count) {
+					_php_ibase_module_error("EXECUTE PROCEDURE: Invalid SQLDA structure - sqln=%d, sqld=%d, expected=%d",
+						ib_query->out_sqlda->sqln, ib_query->out_sqlda->sqld, ib_query->out_fields_count);
+					goto cleanup_result_query;
+				}
 
-				/* Allocate and copy data for each field */
+				/* Allocate SQLDA structure with bounds checking */
+				size_t sqlda_size = XSQLDA_LENGTH(ib_query->out_fields_count);
+				if (sqlda_size < sizeof(XSQLDA) || ib_query->out_fields_count > 32767) {
+					_php_ibase_module_error("EXECUTE PROCEDURE: Invalid field count %d for SQLDA allocation",
+						ib_query->out_fields_count);
+					goto cleanup_result_query;
+				}
+
+				result_query->out_sqlda = (XSQLDA *) emalloc(sqlda_size);
+				if (!result_query->out_sqlda) {
+					_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate SQLDA memory");
+					goto cleanup_result_query;
+				}
+
+				/* Safe copy of SQLDA header and variable array */
+				memcpy(result_query->out_sqlda, ib_query->out_sqlda, sqlda_size);
+
+				/* Allocate null indicator array with validation */
+				result_query->out_nullind = safe_emalloc(sizeof(*result_query->out_nullind),
+					ib_query->out_fields_count, 0);
+				if (!result_query->out_nullind) {
+					_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate null indicator array");
+					goto cleanup_result_query;
+				}
+
+				/* Safe copy of null indicators */
+				memcpy(result_query->out_nullind, ib_query->out_nullind,
+					sizeof(*result_query->out_nullind) * ib_query->out_fields_count);
+
+				/* Deep copy data for each field with type validation and bounds checking */
 				for (int i = 0; i < ib_query->out_fields_count; i++) {
 					XSQLVAR *orig_var = &ib_query->out_sqlda->sqlvar[i];
 					XSQLVAR *result_var = &result_query->out_sqlda->sqlvar[i];
 
-					/* Allocate new memory for this result's data */
+					/* Validate source data pointer */
+					if (!orig_var->sqldata) {
+						_php_ibase_module_error("EXECUTE PROCEDURE: NULL sqldata for field %d", i);
+						goto cleanup_result_query;
+					}
+
+					/* Reset sqldata pointer - will be set after allocation */
+					result_var->sqldata = NULL;
+
+					/* Allocate and copy data based on SQL type with size validation */
 					switch (result_var->sqltype & ~1) {
 						case SQL_TEXT:
+							if (result_var->sqllen < 0 || result_var->sqllen > 65535) {
+								_php_ibase_module_error("EXECUTE PROCEDURE: Invalid TEXT length %d for field %d",
+									result_var->sqllen, i);
+								goto cleanup_result_query;
+							}
 							result_var->sqldata = safe_emalloc(sizeof(char), result_var->sqllen, 0);
 							memcpy(result_var->sqldata, orig_var->sqldata, result_var->sqllen);
 							break;
+
 						case SQL_VARYING:
+							if (result_var->sqllen < 0 || result_var->sqllen > 65535) {
+								_php_ibase_module_error("EXECUTE PROCEDURE: Invalid VARCHAR length %d for field %d",
+									result_var->sqllen, i);
+								goto cleanup_result_query;
+							}
 							result_var->sqldata = safe_emalloc(sizeof(char), result_var->sqllen + sizeof(short), 0);
 							memcpy(result_var->sqldata, orig_var->sqldata, result_var->sqllen + sizeof(short));
 							break;
+
 #ifdef SQL_BOOLEAN
 						case SQL_BOOLEAN:
 							result_var->sqldata = emalloc(sizeof(FB_BOOLEAN));
@@ -1044,63 +1109,72 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 							result_var->sqldata = emalloc(sizeof(short));
 							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(short));
 							break;
+
 						case SQL_LONG:
 							result_var->sqldata = emalloc(sizeof(ISC_LONG));
 							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_LONG));
 							break;
+
 						case SQL_FLOAT:
 							result_var->sqldata = emalloc(sizeof(float));
 							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(float));
 							break;
+
 						case SQL_DOUBLE:
 							result_var->sqldata = emalloc(sizeof(double));
 							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(double));
 							break;
+
 						case SQL_INT64:
 							result_var->sqldata = emalloc(sizeof(ISC_INT64));
 							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_INT64));
 							break;
+
 						case SQL_TIMESTAMP:
 							result_var->sqldata = emalloc(sizeof(ISC_TIMESTAMP));
 							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_TIMESTAMP));
 							break;
+
 						case SQL_TYPE_DATE:
 							result_var->sqldata = emalloc(sizeof(ISC_DATE));
 							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_DATE));
 							break;
+
 						case SQL_TYPE_TIME:
 							result_var->sqldata = emalloc(sizeof(ISC_TIME));
 							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_TIME));
 							break;
+
 						case SQL_BLOB:
 						case SQL_ARRAY:
 							result_var->sqldata = emalloc(sizeof(ISC_QUAD));
 							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_QUAD));
 							break;
+
 #if FB_API_VER >= 40
 						case SQL_TIMESTAMP_TZ:
 							result_var->sqldata = emalloc(sizeof(ISC_TIMESTAMP_TZ));
 							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_TIMESTAMP_TZ));
 							break;
+
 						case SQL_TIME_TZ:
 							result_var->sqldata = emalloc(sizeof(ISC_TIME_TZ));
 							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_TIME_TZ));
 							break;
 #endif
 						default:
-							fbp_fatal("Unhandled sqltype for EXECUTE PROCEDURE result copy: %d", result_var->sqltype);
-							break;
+							_php_ibase_module_error("EXECUTE PROCEDURE: Unhandled sqltype %d for field %d",
+								result_var->sqltype, i);
+							goto cleanup_result_query;
 					}
 				}
-
-				/* Copy null indicators */
-				result_query->out_nullind = safe_emalloc(sizeof(*result_query->out_nullind), ib_query->out_fields_count, 0);
-				memcpy(result_query->out_nullind, ib_query->out_nullind, sizeof(*result_query->out_nullind) * ib_query->out_fields_count);
 
 				/* Update sqlind pointers to point to the new null indicators */
 				for (int i = 0; i < ib_query->out_fields_count; i++) {
 					if (result_query->out_sqlda->sqlvar[i].sqltype & 1) {
 						result_query->out_sqlda->sqlvar[i].sqlind = &result_query->out_nullind[i];
+					} else {
+						result_query->out_sqlda->sqlvar[i].sqlind = NULL;
 					}
 				}
 			}
@@ -1109,13 +1183,50 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 			result_query->has_more_rows = 1; /* Data is available for fetching */
 			result_query->is_open = 1; /* Result can be fetched once */
 
-			/* Register the result as a new resource */
+			/* Register the result as a new resource - this transfers ownership */
 			result_query->res = zend_register_resource(result_query, le_query);
+			if (!result_query->res) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to register result resource");
+				goto cleanup_result_query;
+			}
+
+			/* Success - disable cleanup since resource system now owns the memory */
+			cleanup_needed = 0;
 
 			RETVAL_RES(result_query->res);
 			Z_TRY_ADDREF_P(return_value);
 
 			return SUCCESS;
+
+cleanup_result_query:
+			/* Clean up partially allocated result_query on error path
+			 * This prevents memory leaks when initialization fails */
+			if (cleanup_needed && result_query) {
+				/* Free field data if partially allocated */
+				if (result_query->out_sqlda && result_query->out_fields_count > 0) {
+					for (int i = 0; i < result_query->out_fields_count; i++) {
+						if (result_query->out_sqlda->sqlvar[i].sqldata) {
+							efree(result_query->out_sqlda->sqlvar[i].sqldata);
+						}
+					}
+				}
+
+				/* Free SQLDA structure */
+				if (result_query->out_sqlda) {
+					efree(result_query->out_sqlda);
+				}
+
+				/* Free null indicator array */
+				if (result_query->out_nullind) {
+					efree(result_query->out_nullind);
+				}
+
+				/* Free the result query structure itself */
+				efree(result_query);
+			}
+
+			/* Propagate error to caller */
+			goto _php_ibase_ex_error;
 		} else {
 			/* Normal SELECT/cursor behavior */
 			ib_query->has_more_rows = 1;

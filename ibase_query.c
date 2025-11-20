@@ -306,8 +306,11 @@ static void php_ibase_free_query_rsrc(zend_resource *rsrc) /* {{{ */
                 (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_close);
                 ib_query->is_open = 0;
             }
-            /* Drop the statement handle to fully release server resources */
-            (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_drop);
+            /* Drop the statement handle only if this resource OWNS it.
+             * Result clones created for SELECT reuse parent's handle and must NOT drop it. */
+            if (ib_query->owns_stmt_handle) {
+                (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_drop);
+            }
         }
         _php_ibase_free_query(ib_query);
     }
@@ -1350,8 +1353,10 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
    result_query->has_more_rows = 1; /* Data is available for fetching */
    result_query->is_open = 1; /* Result can be fetched once */
 
-			/* Register the result as a new resource - this transfers ownership */
-			result_query->res = zend_register_resource(result_query, le_query);
+   /* Register the result as a new resource - this transfers ownership
+    * IMPORTANT: This result does NOT own the statement handle. */
+   result_query->owns_stmt_handle = 0;
+   result_query->res = zend_register_resource(result_query, le_query);
 			if (!result_query->res) {
 				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to register result resource");
 				goto cleanup_result_query;
@@ -1513,8 +1518,10 @@ cleanup_result_query:
 			result_query->has_more_rows = 1; /* Data is available for fetching */
 			result_query->is_open = 1; /* Result can be fetched */
 
-			/* Register the result as a new resource - this transfers ownership */
-			result_query->res = zend_register_resource(result_query, le_query);
+   /* Register the result as a new resource - this transfers ownership
+    * IMPORTANT: This result does NOT own the statement handle. */
+   result_query->owns_stmt_handle = 0;
+   result_query->res = zend_register_resource(result_query, le_query);
 			if (!result_query->res) {
 				_php_ibase_module_error("SELECT: Failed to register result resource");
 				goto cleanup_select_result_query;

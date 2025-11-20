@@ -382,16 +382,21 @@ PHP_FUNCTION(ibase_set_event_handler)
 	_php_ibase_event_block(ib_link, event->event_count, event->events,
 		&buffer_size, &event->event_buffer, &event->result_buffer);
 
-	/* now register the events with the Interbase API */
-	if (isc_que_events(IB_STATUS, &ib_link->handle, &event->event_id, buffer_size,
-		event->event_buffer,(PHP_ISC_CALLBACK)_php_ibase_callback, (void *)event)) {
+ /* now register the events with the Interbase API */
+ if (isc_que_events(IB_STATUS, &ib_link->handle, &event->event_id, buffer_size,
+     event->event_buffer,(PHP_ISC_CALLBACK)_php_ibase_callback, (void *)event)) {
 
-		_php_ibase_error();
-		/* Proper cleanup of all allocated memory within event structure */
-		_php_ibase_free_event(event);
-		efree(event);
-		RETURN_FALSE;
-	}
+     _php_ibase_error();
+     /* Proper cleanup of all allocated memory within event structure */
+     _php_ibase_free_event(event);
+     /* Decrement link refcount acquired above to avoid leaks */
+     if (event->link_res) {
+         GC_DELREF(event->link_res);
+         event->link_res = NULL;
+     }
+     efree(event);
+     RETURN_FALSE;
+ }
 
 	/* Only register event resource AFTER successful queue operation */
 	event->state = ACTIVE; /* Mark as ACTIVE for callback processing */

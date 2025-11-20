@@ -1254,10 +1254,10 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 		 * - Backward compatibility: Applications should not rely on shared state
 		 * - RETURNING support: INSERT/UPDATE/DELETE...RETURNING now creates proper result resources
 		 */
-		if (ib_query->statement_type == isc_info_sql_stmt_exec_procedure ||
-		    ib_query->statement_type == isc_info_sql_stmt_insert ||
-		    ib_query->statement_type == isc_info_sql_stmt_update ||
-		    ib_query->statement_type == isc_info_sql_stmt_delete) {
+  if (ib_query->statement_type == isc_info_sql_stmt_exec_procedure ||
+      ib_query->statement_type == isc_info_sql_stmt_insert ||
+      ib_query->statement_type == isc_info_sql_stmt_update ||
+      ib_query->statement_type == isc_info_sql_stmt_delete) {
 			/* Create a new query structure for this specific result */
 			ibase_query *result_query = ecalloc(1, sizeof(ibase_query));
 
@@ -1268,10 +1268,22 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 			result_query->link = ib_query->link;
 			result_query->trans = ib_query->trans;
 			result_query->trans_res = ib_query->trans_res;
-			result_query->dialect = ib_query->dialect;
-			result_query->statement_type = ib_query->statement_type;
-			result_query->out_fields_count = ib_query->out_fields_count;
-			result_query->was_result_once = 1;
+   result_query->dialect = ib_query->dialect;
+   result_query->statement_type = ib_query->statement_type;
+   result_query->out_fields_count = ib_query->out_fields_count;
+   result_query->was_result_once = 1;
+
+   /* Reuse the original statement handle for metadata operations.
+    * This is safe for EXECUTE PROCEDURE and DML RETURNING because
+    * there is no open cursor to conflict with, and it enables
+    * alias resolution via the newer Firebird API which requires
+    * a valid statement handle. */
+   result_query->stmt = ib_query->stmt;
+   /* Keep a copy of SQL text for symmetry with SELECT path and
+    * potential debug/logging uses in helper routines. */
+   if (ib_query->query) {
+       result_query->query = estrdup(ib_query->query);
+   }
 
 			/* Validate source SQLDA before processing */
 			if (ib_query->out_sqlda && ib_query->out_fields_count > 0) {

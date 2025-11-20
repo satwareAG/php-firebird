@@ -4,7 +4,9 @@ set -e
 echo "Building PHP Firebird extension..."
 
 # Change to extension root directory
-cd /ext
+if [ -d /ext ]; then
+  cd /ext
+fi
 
 # Clean previous builds
 if [ -f Makefile ]; then

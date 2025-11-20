@@ -1271,13 +1271,26 @@ PHP_FUNCTION(ibase_close)
 		if (link_res == NULL) {
 			RETURN_FALSE;
 		}
+
+		/* Check if the default link resource is still valid in the resource list.
+		 * This mirrors the validation done for explicit links below to prevent
+		 * Fatal TypeError when attempting to close an already-closed connection. */
+		{
+			zend_resource *r;
+			r = (zend_resource *) zend_hash_index_find_ptr(&EG(regular_list), link_res->handle);
+			if (r == NULL || (r->type != le_link && r->type != le_plink)) {
+				IBG(default_link) = NULL;
+				RETURN_FALSE;
+			}
+		}
+
 		IBG(default_link) = NULL;
 	} else {
 		/* Explicit link provided. If this is also the current default link,
 		 * search for another open connection to become the new default. */
 		link_res = Z_RES_P(link_arg);
 		if (IBG(default_link) == link_res) {
-			/* When closing the current default link, only clear it if the 
+			/* When closing the current default link, only clear it if the
 			 * resource's reference count will drop to zero. If other variables
 			 * still hold references to this same resource, keep it as default. */
 			if (GC_REFCOUNT(link_res) <= 2) {

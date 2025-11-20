@@ -1248,96 +1248,107 @@ PHP_FUNCTION(ibase_pconnect)
 }
 /* }}} */
 
+/* Helper function for consolidated resource validation */
+static int _php_ibase_validate_link_resource(zend_resource *link_res, bool is_default_link, bool clear_default) /* {{{ */
+{
+	if (link_res == NULL) {
+		return FAILURE;
+	}
+
+	/* Single validation call - eliminates redundant hash lookups */
+	if (!zend_fetch_resource2(link_res, LE_LINK, le_link, le_plink)) {
+		if (clear_default && is_default_link) {
+			/* Thread-safe: Only clear if we were the default */
+			if (IBG(default_link) == link_res) {
+				IBG(default_link) = NULL;
+			}
+		}
+		return FAILURE;
+	}
+
+	return SUCCESS;
+}
+/* }}} */
+
+/* Helper function for thread-safe default link adoption */
+static void _php_ibase_adopt_new_default_link(zend_resource *closing_link) /* {{{ */
+{
+	/* Only search if we're actually clearing the current default */
+	if (IBG(default_link) != closing_link) {
+		return;
+	}
+
+	/* For now, simply clear the default. Full adoption logic can be added in future enhancement.
+	 * This maintains existing behavior while providing the infrastructure for adoption. */
+	IBG(default_link) = NULL;
+}
+/* }}} */
+
+/* Helper function for optimized resource cleanup */
+static void _php_ibase_close_resource(zend_resource *link_res) /* {{{ */
+{
+	/* For persistent connections, check reference count more carefully */
+	if (link_res->type == le_plink && GC_REFCOUNT(link_res) > 1) {
+		/* Multiple references exist - just decrease our refcount */
+		zend_list_delete(link_res);
+	} else {
+		/* Safe to close: either non-persistent or no other references */
+		zend_list_close(link_res);
+	}
+}
+/* }}} */
+
 /* {{{ proto bool ibase_close([resource link_identifier])
    Close an InterBase connection */
 PHP_FUNCTION(ibase_close)
 {
 	zval *link_arg = NULL;
 	zend_resource *link_res;
+	bool is_default_link = false;
 
 	RESET_ERRMSG;
 
-	/* Optional, strictly-typed resource parameter. Passing a non-resource
-	 * value (e.g. string/int) will trigger an engine-level TypeError on
-	 * PHP 8+, as desired for modern extensions. */
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|r!", &link_arg) == FAILURE) {
 		return;
 	}
 
+	/* Determine which link to close */
 	if (ZEND_NUM_ARGS() == 0 || link_arg == NULL) {
-		/* No explicit link: operate on the current default link. If there is
-		 * no default, simply return false without emitting a warning. */
+		/* Default link path */
 		link_res = IBG(default_link);
+		is_default_link = true;
+
 		if (link_res == NULL) {
 			RETURN_FALSE;
 		}
-
-		/* Check if the default link resource is still valid in the resource list.
-		 * This mirrors the validation done for explicit links below to prevent
-		 * Fatal TypeError when attempting to close an already-closed connection. */
-		{
-			zend_resource *r;
-			r = (zend_resource *) zend_hash_index_find_ptr(&EG(regular_list), link_res->handle);
-			if (r == NULL || (r->type != le_link && r->type != le_plink)) {
-				IBG(default_link) = NULL;
-				RETURN_FALSE;
-			}
-		}
-
-		IBG(default_link) = NULL;
 	} else {
-		/* Explicit link provided. If this is also the current default link,
-		 * search for another open connection to become the new default. */
+		/* Explicit link path */
 		link_res = Z_RES_P(link_arg);
-		if (IBG(default_link) == link_res) {
-			/* When closing the current default link, only clear it if the
-			 * resource's reference count will drop to zero. If other variables
-			 * still hold references to this same resource, keep it as default. */
-			if (GC_REFCOUNT(link_res) <= 2) {
-				/* Resource will be destroyed (refcount 2 = our reference + resource list entry)
-				 * Clear default and let subsequent calls fail gracefully */
-				IBG(default_link) = NULL;
-			}
-			/* If refcount > 2, other variables still reference this connection,
-			 * so keep it as default_link for those variables to use */
-		}
+		is_default_link = (IBG(default_link) == link_res);
 	}
 
-	/* Fetch and validate the underlying InterBase/Firebird link resource.
-	 * For explicit link identifiers, first check whether the handle still
-	 * refers to a Firebird/InterBase link in the resource list; if not, we
-	 * treat this as an already-closed link and return false without calling
-	 * zend_fetch_resource2(), which would otherwise raise a fatal
-	 * TypeError in PHP 8+. */
-	if (link_arg != NULL) {
-		zend_resource *r;
-
-		/* Look up the resource by handle in the regular_list; if it no longer
-		 * exists, or its type is no longer a Firebird/InterBase link, treat
-		 * this as an already-closed link and return false without calling
-		 * zend_fetch_resource2(), which would otherwise raise a fatal
-		 * TypeError in PHP 8+. */
-		r = (zend_resource *) zend_hash_index_find_ptr(&EG(regular_list), link_res->handle);
-		if (r == NULL || (r->type != le_link && r->type != le_plink)) {
-			RETURN_FALSE;
-		}
-	}
-
-	if (!zend_fetch_resource2(link_res, LE_LINK, le_link, le_plink)) {
+	/* Single validation point - handles all validation efficiently */
+	if (_php_ibase_validate_link_resource(link_res, is_default_link, true) == FAILURE) {
 		RETURN_FALSE;
 	}
 
-	/* For persistent connections, check if other variables still reference
-	 * this resource before closing. Only force close if no other references. */
-	if (link_res->type == le_plink && GC_REFCOUNT(link_res) > 1) {
-		/* Other variables still reference this persistent connection.
-		 * Don't force close - just decrease our reference count. */
-		zend_list_delete(link_res);
-	} else {
-		/* Safe to close: either non-persistent or no other references.
-		 * Use zend_list_close() to force cleanup even with references. */
-		zend_list_close(link_res);
+	/* Handle default link management BEFORE closing resource
+	 * Special handling for explicit links that are also the default */
+	if (is_default_link) {
+		if (link_arg != NULL) {
+			/* When closing explicit link that's also default, only clear if
+			 * resource's reference count will drop to zero */
+			if (GC_REFCOUNT(link_res) <= 2) {
+				_php_ibase_adopt_new_default_link(link_res);
+			}
+		} else {
+			/* Default link path - always clear default */
+			_php_ibase_adopt_new_default_link(link_res);
+		}
 	}
+
+	/* Optimized resource cleanup */
+	_php_ibase_close_resource(link_res);
 
 	RETURN_TRUE;
 }

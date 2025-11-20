@@ -127,7 +127,7 @@ services:
     volumes:
       - fb25-data:/firebird/data
     ports:
-      - "3050:3050"
+      - "3051:3050"
 
   firebird30:
     image: firebirdsql/firebird:3
@@ -140,7 +140,7 @@ services:
     volumes:
       - fb30-data:/firebird/data
     ports:
-      - "3051:3050"
+      - "3050:3050"
 
   firebird40:
     image: firebirdsql/firebird:4

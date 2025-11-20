@@ -157,23 +157,28 @@ typedef struct {
 } ibase_array;
 
 typedef struct _ib_query {
-	ibase_db_link *link;
-	ibase_trans *trans;
-	zend_resource *trans_res;
-	zend_resource *res;
-	isc_stmt_handle stmt;
-	XSQLDA *in_sqlda, *out_sqlda;
-	ibase_array *in_array, *out_array;
-	unsigned short type, has_more_rows, is_open;
-	unsigned short in_array_cnt, out_array_cnt;
-	unsigned short dialect;
-	char *query;
-	ISC_UCHAR statement_type;
-	BIND_BUF *bind_buf;
-	ISC_SHORT *in_nullind, *out_nullind;
-	ISC_USHORT in_fields_count, out_fields_count;
-	HashTable *ht_aliases, *ht_ind; // Precomputed for ibase_fetch_*()
-	int was_result_once;
+    ibase_db_link *link;
+    ibase_trans *trans;
+    zend_resource *trans_res;
+    zend_resource *res;
+    isc_stmt_handle stmt;
+    XSQLDA *in_sqlda, *out_sqlda;
+    ibase_array *in_array, *out_array;
+    unsigned short type, has_more_rows, is_open;
+    unsigned short in_array_cnt, out_array_cnt;
+    unsigned short dialect;
+    char *query;
+    ISC_UCHAR statement_type;
+    BIND_BUF *bind_buf;
+    ISC_SHORT *in_nullind, *out_nullind;
+    ISC_USHORT in_fields_count, out_fields_count;
+    HashTable *ht_aliases, *ht_ind; // Precomputed for ibase_fetch_*()
+    int was_result_once;
+    /* Whether this query instance owns the statement handle and must DSQL_drop it
+     * in the destructor. Result resources created for SELECT reuse the parent's
+     * statement handle and must NOT drop it to avoid invalidating the prepared
+     * statement (fixes: tests/006.phpt, tests/bug45373.phpt, etc.). */
+    zend_bool owns_stmt_handle;
 } ibase_query;
 
 enum php_interbase_option {

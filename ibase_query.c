@@ -456,7 +456,7 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 
 /* allocate and prepare query */
 static int _php_ibase_prepare(ibase_query **new_query, ibase_db_link *link, /* {{{ */
-	ibase_trans *trans, zend_resource *trans_res, char *query)
+    ibase_trans *trans, zend_resource *trans_res, char *query)
 {
 	/* Return FAILURE, if querystring is empty */
 	if (*query == '\0') {
@@ -464,14 +464,17 @@ static int _php_ibase_prepare(ibase_query **new_query, ibase_db_link *link, /* {
 		return FAILURE;
 	}
 
-	ibase_query *ib_query = ecalloc(1, sizeof(ibase_query));
+ ibase_query *ib_query = ecalloc(1, sizeof(ibase_query));
 
 	ib_query->res = zend_register_resource(ib_query, le_query);
 	ib_query->link = link;
 	ib_query->trans = trans;
 	ib_query->trans_res = trans_res;
-	ib_query->dialect = link->dialect;
-	ib_query->query = estrdup(query);
+ ib_query->dialect = link->dialect;
+ ib_query->query = estrdup(query);
+ /* This prepared query owns the statement handle and is responsible for
+  * dropping it in the resource destructor. */
+ ib_query->owns_stmt_handle = 1;
 
 	if (isc_dsql_allocate_statement(IB_STATUS, &link->handle, &ib_query->stmt)) {
 		_php_ibase_error();
@@ -494,7 +497,7 @@ static int _php_ibase_prepare(ibase_query **new_query, ibase_db_link *link, /* {
 		ib_query->out_sqlda->sqln = ib_query->out_fields_count;
 		ib_query->out_sqlda->version = SQLDA_CURRENT_VERSION;
 
-		if (isc_dsql_describe(IB_STATUS, &ib_query->stmt, SQLDA_CURRENT_VERSION, ib_query->out_sqlda)) {
+  if (isc_dsql_describe(IB_STATUS, &ib_query->stmt, SQLDA_CURRENT_VERSION, ib_query->out_sqlda)) {
 			IBDEBUG("isc_dsql_describe() failed\n");
 			_php_ibase_error();
 			goto _php_ibase_alloc_query_error;
@@ -533,7 +536,7 @@ static int _php_ibase_prepare(ibase_query **new_query, ibase_db_link *link, /* {
 		}
 	}
 
-	*new_query = ib_query;
+ *new_query = ib_query;
 
 	return SUCCESS;
 

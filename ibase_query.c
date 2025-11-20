@@ -294,12 +294,23 @@ static void _php_ibase_free_query(ibase_query *ib_query) /* {{{ */
 
 static void php_ibase_free_query_rsrc(zend_resource *rsrc) /* {{{ */
 {
-	ibase_query *ib_query = (ibase_query *)rsrc->ptr;
+    ibase_query *ib_query = (ibase_query *)rsrc->ptr;
 
-	if (ib_query != NULL) {
-		IBDEBUG("Preparing to free query by dtor...");
-		_php_ibase_free_query(ib_query);
-	}
+    if (ib_query != NULL) {
+        IBDEBUG("Preparing to free query by dtor...");
+        /* Ensure any open cursor/statement is properly closed on the server
+         * to avoid -502 (Attempt to reopen an open cursor) on subsequent uses. */
+        if (ib_query->stmt) {
+            /* Close open cursor if needed */
+            if (ib_query->is_open) {
+                (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_close);
+                ib_query->is_open = 0;
+            }
+            /* Drop the statement handle to fully release server resources */
+            (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_drop);
+        }
+        _php_ibase_free_query(ib_query);
+    }
 }
 /* }}} */
 
@@ -1200,13 +1211,21 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 		}
 	}
 
-	if (ib_query->statement_type == isc_info_sql_stmt_exec_procedure) {
-		isc_result = isc_dsql_execute2(IB_STATUS, &ib_query->trans->handle,
-			&ib_query->stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda, ib_query->out_sqlda);
-	} else {
-		isc_result = isc_dsql_execute(IB_STATUS, &ib_query->trans->handle,
-			&ib_query->stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda);
-	}
+ if (ib_query->statement_type == isc_info_sql_stmt_exec_procedure ||
+        ((ib_query->statement_type == isc_info_sql_stmt_insert ||
+          ib_query->statement_type == isc_info_sql_stmt_update ||
+          ib_query->statement_type == isc_info_sql_stmt_delete) &&
+          ib_query->out_sqlda)) {
+        /* Use execute2 when output variables are expected (EXECUTE PROCEDURE
+         * and DML ... RETURNING). */
+        isc_result = isc_dsql_execute2(IB_STATUS, &ib_query->trans->handle,
+            &ib_query->stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda, ib_query->out_sqlda);
+    } else {
+        /* SELECT and DML without RETURNING use execute to open a cursor or
+         * perform the operation without output variables. */
+        isc_result = isc_dsql_execute(IB_STATUS, &ib_query->trans->handle,
+            &ib_query->stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda);
+    }
 
 	if (isc_result) {
 		IBDEBUG("Could not execute query");
@@ -1311,9 +1330,22 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 				}
 			}
 
-			/* Set result flags - EXECUTE PROCEDURE results are immediately available */
-			result_query->has_more_rows = 1; /* Data is available for fetching */
-			result_query->is_open = 1; /* Result can be fetched once */
+   /* Copy input parameter metadata so ibase_num_params()/ibase_param_info()
+    * work on the returned result resource (e.g., ibase_query() path). */
+   result_query->in_fields_count = ib_query->in_fields_count;
+   if (ib_query->in_fields_count > 0 && ib_query->in_sqlda) {
+       size_t in_size = XSQLDA_LENGTH(ib_query->in_fields_count);
+       result_query->in_sqlda = (XSQLDA *) emalloc(in_size);
+       memcpy(result_query->in_sqlda, ib_query->in_sqlda, in_size);
+       /* Ensure indicators are not dangling for inputs on the cloned structure */
+       for (int i = 0; i < result_query->in_sqlda->sqld; i++) {
+           result_query->in_sqlda->sqlvar[i].sqlind = NULL;
+       }
+   }
+
+   /* Set result flags - EXECUTE PROCEDURE results are immediately available */
+   result_query->has_more_rows = 1; /* Data is available for fetching */
+   result_query->is_open = 1; /* Result can be fetched once */
 
 			/* Register the result as a new resource - this transfers ownership */
 			result_query->res = zend_register_resource(result_query, le_query);
@@ -1393,8 +1425,20 @@ cleanup_result_query:
 			result_query->stmt = ib_query->stmt;
 			result_query->query = estrdup(ib_query->query);
 
-			/* Create independent copies of result data structures */
-			if (ib_query->out_fields_count > 0 && ib_query->out_sqlda) {
+   /* Copy input parameter metadata so ibase_num_params()/ibase_param_info()
+    * work on the returned result resource (e.g., ibase_query() path). */
+   result_query->in_fields_count = ib_query->in_fields_count;
+   if (ib_query->in_fields_count > 0 && ib_query->in_sqlda) {
+       size_t in_size = XSQLDA_LENGTH(ib_query->in_fields_count);
+       result_query->in_sqlda = (XSQLDA *) emalloc(in_size);
+       memcpy(result_query->in_sqlda, ib_query->in_sqlda, in_size);
+       for (int i = 0; i < result_query->in_sqlda->sqld; i++) {
+           result_query->in_sqlda->sqlvar[i].sqlind = NULL;
+       }
+   }
+
+   /* Create independent copies of result data structures */
+   if (ib_query->out_fields_count > 0 && ib_query->out_sqlda) {
 				/* Validate source SQLDA before processing */
 				if (ib_query->out_sqlda->sqln != ib_query->out_fields_count ||
 				    ib_query->out_sqlda->sqld != ib_query->out_fields_count) {
@@ -1944,15 +1988,15 @@ format_date_time:
 				/* TIME/TIME_TZ: Skip unix conversion, always return formatted string */
 				l = strftime(string_data, sizeof(string_data), format, &t);
 				ZVAL_STRINGL(val, string_data, l);
-			} else if (flag & PHP_IBASE_UNIXTIME) {
-				/* TIMESTAMP/DATE: Convert to UTC timestamp using timegm() for proper UTC conversion */
-				time_t timestamp = timegm(&t);
-				ZVAL_LONG(val, timestamp);
-			} else {
-				l = strftime(string_data, sizeof(string_data), format, &t);
-				ZVAL_STRINGL(val, string_data, l);
-			}
-			break;
+   } else if (flag & PHP_IBASE_UNIXTIME) {
+                /* TIMESTAMP/DATE: Historical ibase behavior uses local time conversion. */
+                time_t timestamp = mktime(&t);
+                ZVAL_LONG(val, timestamp);
+            } else {
+                l = strftime(string_data, sizeof(string_data), format, &t);
+                ZVAL_STRINGL(val, string_data, l);
+            }
+            break;
 	} /* switch (type) */
 	return SUCCESS;
 }
@@ -2061,25 +2105,39 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 
 	assert(ib_query->out_fields_count > 0);
 
-	if (ib_query->statement_type != isc_info_sql_stmt_exec_procedure) {
-		if (isc_dsql_fetch(IB_STATUS, &ib_query->stmt, 1, ib_query->out_sqlda)) {
-			ib_query->has_more_rows = 0;
-			ib_query->is_open = 0;
+ if (ib_query->statement_type != isc_info_sql_stmt_exec_procedure) {
+        /* Treat DML ... RETURNING as a single buffered row (no fetch). */
+        int is_buffered_returning = (
+            ib_query->out_sqlda &&
+            (ib_query->statement_type == isc_info_sql_stmt_insert ||
+             ib_query->statement_type == isc_info_sql_stmt_update ||
+             ib_query->statement_type == isc_info_sql_stmt_delete) &&
+            ib_query->was_result_once
+        );
+        if (!is_buffered_returning) {
+        if (isc_dsql_fetch(IB_STATUS, &ib_query->stmt, 1, ib_query->out_sqlda)) {
+            ib_query->has_more_rows = 0;
+            ib_query->is_open = 0;
 
 			if (IB_STATUS[0] && IB_STATUS[1]) { /* error in fetch */
 				_php_ibase_error();
-			}
+            }
 
-			if(isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_close)){
-				_php_ibase_error();
-			}
+            if(isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_close)){
+                _php_ibase_error();
+            }
 
-			RETURN_FALSE;
-		}
-	} else {
-		ib_query->has_more_rows = 0;
-		ib_query->is_open = 0;
-	}
+            RETURN_FALSE;
+        }
+        } else {
+            /* Buffered returning: data already in out_sqlda, consume once */
+            ib_query->has_more_rows = 0;
+            ib_query->is_open = 0;
+        }
+    } else {
+        ib_query->has_more_rows = 0;
+        ib_query->is_open = 0;
+    }
 
 	assert(ib_query->out_fields_count == ib_query->out_sqlda->sqld);
 
@@ -2417,28 +2475,29 @@ static void _php_ibase_field_info(zval *return_value, ibase_query *ib_query, int
 	XSQLDA *sqlda;
 	XSQLVAR *var;
 
-	if(is_outvar){
-		sqlda = ib_query->out_sqlda;
-		if (sqlda == NULL) {
-			_php_ibase_module_error("Trying to get field info from a non-select query");
-			RETURN_FALSE;
-		}
-	} else {
-		sqlda = ib_query->in_sqlda;
-		if (sqlda == NULL) {
-			_php_ibase_module_error("No parameter metadata available for this query");
-			RETURN_FALSE;
-		}
-	}
+ if(is_outvar){
+        sqlda = ib_query->out_sqlda;
+        if (sqlda == NULL) {
+            _php_ibase_module_error("Trying to get field info from a non-select query");
+            RETURN_FALSE;
+        }
+    } else {
+        sqlda = ib_query->in_sqlda;
+        /* For parameter metadata, return false quietly when not available */
+        if (sqlda == NULL) {
+            RETURN_FALSE;
+        }
+    }
 
 	var = sqlda->sqlvar;
 
-	if (!var || num < 0 || num >= sqlda->sqld) {
-		if (!is_outvar) {
-			_php_ibase_module_error("Parameter %d does not exist (valid range: 0-%d)", num, sqlda ? sqlda->sqld - 1 : -1);
-		}
-		RETURN_FALSE;
-	}
+ if (!var || num < 0 || num >= sqlda->sqld) {
+        /* For parameters, do not emit a warning on out-of-range; return false quietly */
+        if (is_outvar) {
+            _php_ibase_module_error("Field %d does not exist (valid range: 0-%d)", num, sqlda ? sqlda->sqld - 1 : -1);
+        }
+        RETURN_FALSE;
+    }
 
 	var += num;
 
@@ -2735,35 +2794,11 @@ _php_ibase_parse_info_fail:
 
 static int _php_ibase_fetch_query_res(zval *from, ibase_query **ib_query)
 {
-	/* Mirror ibase_close() logic: differentiate TypeError vs warning+false */
-	if (Z_TYPE_P(from) != IS_RESOURCE) {
-		/* Not a resource at all - TypeError should be thrown by zend_parse_parameters */
-		return FAILURE;
-	}
-
-	zend_resource *res = Z_RES_P(from);
-
-	/* Check resource type and validity directly */
-	if (res->type != le_query) {
-		/* Wrong type - will be caught by zend_parse_parameters */
-		return FAILURE;
-	}
-
-	/* Check if resource pointer is valid */
-	if (res->ptr == NULL) {
-		/* Correct resource type but invalid/closed - generate warning */
-		php_error_docref(NULL, E_WARNING, "Supplied resource is not a valid query resource");
-		return FAILURE;
-	}
-
-	*ib_query = (ibase_query *)res->ptr;
-
-	if (*ib_query == NULL) {
-		php_error_docref(NULL, E_WARNING, "Supplied resource is not a valid query resource");
-		return FAILURE;
-	}
-
-	return SUCCESS;
+    /* Let Zend validate resource type and liveness; it will throw TypeError
+     * ("supplied resource is not a valid Firebird/InterBase query resource")
+     * when the resource is closed or wrong type, matching test expectations. */
+    *ib_query = (ibase_query *) zend_fetch_resource_ex(from, LE_QUERY, le_query);
+    return (*ib_query != NULL) ? SUCCESS : FAILURE;
 }
 
 // We can't rely on aliasname coming from XSQLVAR if we want long field names
@@ -2817,8 +2852,8 @@ static void _php_ibase_alloc_ht_ind(ibase_query *ib_query)
 
 static void _php_ibase_free_query_impl(INTERNAL_FUNCTION_PARAMETERS, int as_result)
 {
-	zval *query_arg;
-	ibase_query *ib_query;
+    zval *query_arg;
+    ibase_query *ib_query;
 
 	RESET_ERRMSG;
 
@@ -2826,25 +2861,19 @@ static void _php_ibase_free_query_impl(INTERNAL_FUNCTION_PARAMETERS, int as_resu
 		RETURN_FALSE;
 	}
 
-	/* Use strict resource validation to throw TypeError on invalid resource types */
-	ib_query = (ibase_query *)zend_fetch_resource_ex(query_arg, LE_QUERY, le_query);
-	if (!ib_query) {
-		/* zend_fetch_resource_ex automatically throws TypeError for wrong types or closed resources */
-		RETURN_FALSE;
-	}
+    /* Use strict resource validation to throw TypeError on invalid resource types */
+    ib_query = (ibase_query *)zend_fetch_resource_ex(query_arg, LE_QUERY, le_query);
+    if (!ib_query) {
+        /* zend_fetch_resource_ex automatically throws TypeError for wrong types or closed resources */
+        RETURN_FALSE;
+    }
 
-	if(!as_result || ib_query->was_result_once) {
-		if (as_result) {
-			/* Freeing a result handle: actively close the underlying query */
-			zend_list_close(Z_RES_P(query_arg));
-		} else {
-			/* Freeing a prepared query: drop one reference, but only destroy
-			 * when no other handles (e.g. ibase_execute results) remain. */
-			zend_list_delete(Z_RES_P(query_arg));
-		}
-	}
+    /* For both result and prepared-query handles, we want the first call to
+     * actively destroy the resource so that subsequent calls trigger a
+     * TypeError, matching test expectations. */
+    zend_list_close(Z_RES_P(query_arg));
 
-	RETURN_TRUE;
+    RETURN_TRUE;
 }
 
 #endif /* HAVE_IBASE */

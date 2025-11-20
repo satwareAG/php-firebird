@@ -55,14 +55,18 @@ void _php_ibase_free_event(ibase_event *event) /* {{{ */
         ibase_event **node;
 
         /* First, cancel events while the link is still valid to avoid UAF */
-        if (event->link->handle != 0 &&
+        if (event->link->handle != 0 && event->event_id != 0 &&
                 isc_cancel_events(IB_STATUS, &event->link->handle, &event->event_id)) {
             _php_ibase_error();
         }
 
         /* delete this event from the link struct */
-        for (node = &event->link->event_head; *node != event; node = &(*node)->event_next);
-        *node = event->event_next;
+        for (node = &event->link->event_head; *node && *node != event; node = &(*node)->event_next) {
+            /* iterate */
+        }
+        if (*node == event) {
+            *node = event->event_next;
+        }
 
         /* Then drop our reference to the DB link resource */
         if (event->link_res) {
@@ -313,7 +317,7 @@ PHP_FUNCTION(ibase_set_event_handler)
 	 */
 	zval *args, *cb_arg;
 	ibase_db_link *ib_link;
-	ibase_event *event;
+ ibase_event *event;
 	unsigned short i = 1, buffer_size;
 	int num_args;
 	zend_resource *link_res;
@@ -372,18 +376,21 @@ PHP_FUNCTION(ibase_set_event_handler)
 	}
 
 	/* allocate the event resource */
-	event = (ibase_event *) safe_emalloc(sizeof(ibase_event), 1, 0);
-	FBIRD_TSRMLS_SET_CTX(event->thread_ctx);
-	event->link_res = link_res;
-	GC_ADDREF(link_res);
-	event->link = ib_link;
-	event->event_count = 0;
-	event->state = NEW;
-	event->needs_reregistration = 0;
-	event->buffer_size = 0;
-	event->callback_count = 0;
-	event->max_callbacks = 100; /* Safety limit to prevent infinite recursion */
-	event->events = (char **) safe_emalloc(sizeof(char *), 15, 0);
+ event = (ibase_event *) safe_emalloc(sizeof(ibase_event), 1, 0);
+ FBIRD_TSRMLS_SET_CTX(event->thread_ctx);
+ event->link_res = link_res;
+ GC_ADDREF(link_res);
+ event->link = ib_link;
+ event->event_count = 0;
+ event->state = NEW;
+ event->needs_reregistration = 0;
+ event->buffer_size = 0;
+ event->callback_count = 0;
+ event->max_callbacks = 100; /* Safety limit to prevent infinite recursion */
+ event->event_id = 0;
+ event->event_buffer = NULL;
+ event->result_buffer = NULL;
+ event->events = (char **) safe_emalloc(sizeof(char *), 15, 0);
 
 	ZVAL_DUP(&event->callback, cb_arg);
 
@@ -397,8 +404,9 @@ PHP_FUNCTION(ibase_set_event_handler)
 	}
 
 	/* fills the required data structure with information about the events */
-	_php_ibase_event_block(ib_link, event->event_count, event->events,
-		&buffer_size, &event->event_buffer, &event->result_buffer);
+ _php_ibase_event_block(ib_link, event->event_count, event->events,
+        &buffer_size, &event->event_buffer, &event->result_buffer);
+    event->buffer_size = buffer_size;
 
  /* now register the events with the Interbase API */
  if (isc_que_events(IB_STATUS, &ib_link->handle, &event->event_id, buffer_size,

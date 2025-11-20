@@ -65,6 +65,196 @@ static int _php_ibase_alloc_ht_aliases(ibase_query *ib_query);
 static void _php_ibase_alloc_ht_ind(ibase_query *ib_query);
 static void _php_ibase_free_query_impl(INTERNAL_FUNCTION_PARAMETERS, int as_result);
 
+/* Helper function for safer SQLVAR data copying */
+static int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, int field_index) /* {{{ */
+{
+	/* Validate input parameters */
+	if (!dest_var || !src_var) {
+		_php_ibase_module_error("EXECUTE PROCEDURE: Invalid XSQLVAR pointers for field %d", field_index);
+		return FAILURE;
+	}
+
+	if (!src_var->sqldata) {
+		_php_ibase_module_error("EXECUTE PROCEDURE: Source sqldata is NULL for field %d", field_index);
+		return FAILURE;
+	}
+
+	/* Verify sqltype consistency between source and destination */
+	if (dest_var->sqltype != src_var->sqltype) {
+		_php_ibase_module_error("EXECUTE PROCEDURE: sqltype mismatch for field %d (dest=%d, src=%d)",
+			field_index, dest_var->sqltype, src_var->sqltype);
+		return FAILURE;
+	}
+
+	/* Allocate and copy data based on SQL type with comprehensive bounds checking */
+	switch (dest_var->sqltype & ~1) {
+		case SQL_TEXT:
+			/* Validate field length for TEXT fields */
+			if (dest_var->sqllen != src_var->sqllen) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: TEXT sqllen mismatch for field %d (dest=%d, src=%d)",
+					field_index, dest_var->sqllen, src_var->sqllen);
+				return FAILURE;
+			}
+			if (dest_var->sqllen < 0 || dest_var->sqllen > 65535) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid TEXT length %d for field %d",
+					dest_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = safe_emalloc(sizeof(char), dest_var->sqllen, 0);
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate TEXT data for field %d", field_index);
+				return FAILURE;
+			}
+			/* Use safer copy with explicit size limit */
+			memcpy(dest_var->sqldata, src_var->sqldata, dest_var->sqllen);
+			break;
+
+		case SQL_VARYING:
+			/* Validate field length for VARCHAR fields */
+			if (dest_var->sqllen != src_var->sqllen) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: VARCHAR sqllen mismatch for field %d (dest=%d, src=%d)",
+					field_index, dest_var->sqllen, src_var->sqllen);
+				return FAILURE;
+			}
+			if (dest_var->sqllen < 0 || dest_var->sqllen > 65535) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid VARCHAR length %d for field %d",
+					dest_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = safe_emalloc(sizeof(char), dest_var->sqllen + sizeof(short), 0);
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate VARCHAR data for field %d", field_index);
+				return FAILURE;
+			}
+			/* Copy length prefix + data with bounds checking */
+			size_t varchar_copy_size = dest_var->sqllen + sizeof(short);
+			memcpy(dest_var->sqldata, src_var->sqldata, varchar_copy_size);
+			break;
+
+#ifdef SQL_BOOLEAN
+		case SQL_BOOLEAN:
+			dest_var->sqldata = emalloc(sizeof(FB_BOOLEAN));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate BOOLEAN data for field %d", field_index);
+				return FAILURE;
+			}
+			/* Direct assignment for simple types (safer than memcpy for single values) */
+			*(FB_BOOLEAN *)dest_var->sqldata = *(FB_BOOLEAN *)src_var->sqldata;
+			break;
+#endif
+
+		case SQL_SHORT:
+			dest_var->sqldata = emalloc(sizeof(short));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate SHORT data for field %d", field_index);
+				return FAILURE;
+			}
+			*(short *)dest_var->sqldata = *(short *)src_var->sqldata;
+			break;
+
+		case SQL_LONG:
+			dest_var->sqldata = emalloc(sizeof(ISC_LONG));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate LONG data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_LONG *)dest_var->sqldata = *(ISC_LONG *)src_var->sqldata;
+			break;
+
+		case SQL_FLOAT:
+			dest_var->sqldata = emalloc(sizeof(float));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate FLOAT data for field %d", field_index);
+				return FAILURE;
+			}
+			*(float *)dest_var->sqldata = *(float *)src_var->sqldata;
+			break;
+
+		case SQL_DOUBLE:
+			dest_var->sqldata = emalloc(sizeof(double));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate DOUBLE data for field %d", field_index);
+				return FAILURE;
+			}
+			*(double *)dest_var->sqldata = *(double *)src_var->sqldata;
+			break;
+
+		case SQL_INT64:
+			dest_var->sqldata = emalloc(sizeof(ISC_INT64));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate INT64 data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_INT64 *)dest_var->sqldata = *(ISC_INT64 *)src_var->sqldata;
+			break;
+
+		case SQL_TIMESTAMP:
+			dest_var->sqldata = emalloc(sizeof(ISC_TIMESTAMP));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate TIMESTAMP data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_TIMESTAMP *)dest_var->sqldata = *(ISC_TIMESTAMP *)src_var->sqldata;
+			break;
+
+		case SQL_TYPE_DATE:
+			dest_var->sqldata = emalloc(sizeof(ISC_DATE));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate DATE data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_DATE *)dest_var->sqldata = *(ISC_DATE *)src_var->sqldata;
+			break;
+
+		case SQL_TYPE_TIME:
+			dest_var->sqldata = emalloc(sizeof(ISC_TIME));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate TIME data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_TIME *)dest_var->sqldata = *(ISC_TIME *)src_var->sqldata;
+			break;
+
+		case SQL_BLOB:
+		case SQL_ARRAY:
+			dest_var->sqldata = emalloc(sizeof(ISC_QUAD));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate QUAD data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_QUAD *)dest_var->sqldata = *(ISC_QUAD *)src_var->sqldata;
+			break;
+
+#if FB_API_VER >= 40
+		case SQL_TIMESTAMP_TZ:
+			dest_var->sqldata = emalloc(sizeof(ISC_TIMESTAMP_TZ));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate TIMESTAMP_TZ data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_TIMESTAMP_TZ *)dest_var->sqldata = *(ISC_TIMESTAMP_TZ *)src_var->sqldata;
+			break;
+
+		case SQL_TIME_TZ:
+			dest_var->sqldata = emalloc(sizeof(ISC_TIME_TZ));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate TIME_TZ data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_TIME_TZ *)dest_var->sqldata = *(ISC_TIME_TZ *)src_var->sqldata;
+			break;
+#endif
+
+		default:
+			_php_ibase_module_error("EXECUTE PROCEDURE: Unhandled sqltype %d for field %d",
+				dest_var->sqltype & ~1, field_index);
+			return FAILURE;
+	}
+
+	return SUCCESS;
+}
+/* }}} */
+
 static void _php_ibase_free_xsqlda(XSQLDA *sqlda) /* {{{ */
 {
 	int i;
@@ -1063,109 +1253,17 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 				memcpy(result_query->out_nullind, ib_query->out_nullind,
 					sizeof(*result_query->out_nullind) * ib_query->out_fields_count);
 
-				/* Deep copy data for each field with type validation and bounds checking */
+				/* Deep copy data for each field using safer copying mechanism */
 				for (int i = 0; i < ib_query->out_fields_count; i++) {
 					XSQLVAR *orig_var = &ib_query->out_sqlda->sqlvar[i];
 					XSQLVAR *result_var = &result_query->out_sqlda->sqlvar[i];
 
-					/* Validate source data pointer */
-					if (!orig_var->sqldata) {
-						_php_ibase_module_error("EXECUTE PROCEDURE: NULL sqldata for field %d", i);
-						goto cleanup_result_query;
-					}
-
-					/* Reset sqldata pointer - will be set after allocation */
+					/* Reset sqldata pointer - will be set by safe copy function */
 					result_var->sqldata = NULL;
 
-					/* Allocate and copy data based on SQL type with size validation */
-					switch (result_var->sqltype & ~1) {
-						case SQL_TEXT:
-							if (result_var->sqllen < 0 || result_var->sqllen > 65535) {
-								_php_ibase_module_error("EXECUTE PROCEDURE: Invalid TEXT length %d for field %d",
-									result_var->sqllen, i);
-								goto cleanup_result_query;
-							}
-							result_var->sqldata = safe_emalloc(sizeof(char), result_var->sqllen, 0);
-							memcpy(result_var->sqldata, orig_var->sqldata, result_var->sqllen);
-							break;
-
-						case SQL_VARYING:
-							if (result_var->sqllen < 0 || result_var->sqllen > 65535) {
-								_php_ibase_module_error("EXECUTE PROCEDURE: Invalid VARCHAR length %d for field %d",
-									result_var->sqllen, i);
-								goto cleanup_result_query;
-							}
-							result_var->sqldata = safe_emalloc(sizeof(char), result_var->sqllen + sizeof(short), 0);
-							memcpy(result_var->sqldata, orig_var->sqldata, result_var->sqllen + sizeof(short));
-							break;
-
-#ifdef SQL_BOOLEAN
-						case SQL_BOOLEAN:
-							result_var->sqldata = emalloc(sizeof(FB_BOOLEAN));
-							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(FB_BOOLEAN));
-							break;
-#endif
-						case SQL_SHORT:
-							result_var->sqldata = emalloc(sizeof(short));
-							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(short));
-							break;
-
-						case SQL_LONG:
-							result_var->sqldata = emalloc(sizeof(ISC_LONG));
-							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_LONG));
-							break;
-
-						case SQL_FLOAT:
-							result_var->sqldata = emalloc(sizeof(float));
-							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(float));
-							break;
-
-						case SQL_DOUBLE:
-							result_var->sqldata = emalloc(sizeof(double));
-							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(double));
-							break;
-
-						case SQL_INT64:
-							result_var->sqldata = emalloc(sizeof(ISC_INT64));
-							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_INT64));
-							break;
-
-						case SQL_TIMESTAMP:
-							result_var->sqldata = emalloc(sizeof(ISC_TIMESTAMP));
-							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_TIMESTAMP));
-							break;
-
-						case SQL_TYPE_DATE:
-							result_var->sqldata = emalloc(sizeof(ISC_DATE));
-							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_DATE));
-							break;
-
-						case SQL_TYPE_TIME:
-							result_var->sqldata = emalloc(sizeof(ISC_TIME));
-							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_TIME));
-							break;
-
-						case SQL_BLOB:
-						case SQL_ARRAY:
-							result_var->sqldata = emalloc(sizeof(ISC_QUAD));
-							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_QUAD));
-							break;
-
-#if FB_API_VER >= 40
-						case SQL_TIMESTAMP_TZ:
-							result_var->sqldata = emalloc(sizeof(ISC_TIMESTAMP_TZ));
-							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_TIMESTAMP_TZ));
-							break;
-
-						case SQL_TIME_TZ:
-							result_var->sqldata = emalloc(sizeof(ISC_TIME_TZ));
-							memcpy(result_var->sqldata, orig_var->sqldata, sizeof(ISC_TIME_TZ));
-							break;
-#endif
-						default:
-							_php_ibase_module_error("EXECUTE PROCEDURE: Unhandled sqltype %d for field %d",
-								result_var->sqltype, i);
-							goto cleanup_result_query;
+					/* Use safer copying function with comprehensive validation */
+					if (FAILURE == _php_ibase_safe_copy_sqlvar_data(result_var, orig_var, i)) {
+						goto cleanup_result_query;
 					}
 				}
 

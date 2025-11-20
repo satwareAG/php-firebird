@@ -113,6 +113,9 @@ void php_ibase_events_minit(INIT_FUNC_ARGS) /* {{{ */
 }
 /* }}} */
 
+/* Build event buffers for synchronous wait use-case (pre-initialized with a dummy wait).
+ * This helper MUST NOT be used for async registration (isc_que_events), see
+ * _php_ibase_event_block_async below. */
 static void _php_ibase_event_block(ibase_db_link *ib_link, unsigned short count,
     char **events, unsigned short *l, unsigned char **event_buf, unsigned char **result_buf)
 {
@@ -143,6 +146,18 @@ static void _php_ibase_event_block(ibase_db_link *ib_link, unsigned short count,
 
     isc_wait_for_event(dummy_result, &ib_link->handle, *l, *event_buf, *result_buf);
     isc_event_counts(dummy_count, *l, *event_buf, *result_buf);
+}
+/* }}} */
+
+/* Build event buffers for async registration. Unlike the synchronous version, this
+ * does NOT do the dummy wait/count pre-initialization which can cause "Error writing
+ * data to the connection." when followed by isc_que_events for callbacks. */
+static void _php_ibase_event_block_async(unsigned short count, char **events,
+    unsigned short *l, unsigned char **event_buf, unsigned char **result_buf)
+{
+    *l = (unsigned short) isc_event_block(event_buf, result_buf, count, events[0],
+        events[1], events[2], events[3], events[4], events[5], events[6], events[7],
+        events[8], events[9], events[10], events[11], events[12], events[13], events[14]);
 }
 /* }}} */
 
@@ -403,8 +418,8 @@ PHP_FUNCTION(ibase_set_event_handler)
 		}
 	}
 
-	/* fills the required data structure with information about the events */
- _php_ibase_event_block(ib_link, event->event_count, event->events,
+ /* Build buffers for ASYNC registration (no dummy pre-wait) */
+    _php_ibase_event_block_async(event->event_count, event->events,
         &buffer_size, &event->event_buffer, &event->result_buffer);
     event->buffer_size = buffer_size;
 

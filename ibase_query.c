@@ -1338,14 +1338,167 @@ cleanup_result_query:
 			/* Propagate error to caller */
 			goto _php_ibase_ex_error;
 		} else {
-			/* Normal SELECT/cursor behavior */
-			ib_query->has_more_rows = 1;
-			ib_query->is_open = 1;
+			/* SELECT queries: Create independent result data to prevent use-after-free vulnerability
+			 * SECURITY FIX: Creates independent result data structures while reusing the prepared statement.
+			 * This prevents shared state issues where freeing the parent query would access dangling
+			 * pointers when fetching from result resources, while avoiding cursor conflicts that occur
+			 * when creating new statement handles for the same prepared query.
+			 *
+			 * APPROACH: Reuse prepared statement (no cursor conflicts) + independent result data (security)
+			 *
+			 * BACKWARD COMPATIBILITY: Applications should not rely on shared state between query
+			 * and result resources. The PHP resource API makes no guarantees about internal sharing.
+			 */
 
-			RETVAL_RES(ib_query->res);
+			/* Create a new query structure for this specific result */
+			ibase_query *result_query = ecalloc(1, sizeof(ibase_query));
+
+			/* Initialize error cleanup flag */
+			int cleanup_needed = 1;
+
+			/* Copy essential fields from the original query */
+			result_query->link = ib_query->link;
+			result_query->trans = ib_query->trans;
+			result_query->trans_res = ib_query->trans_res;
+			result_query->dialect = ib_query->dialect;
+			result_query->statement_type = ib_query->statement_type;
+			result_query->out_fields_count = ib_query->out_fields_count;
+			result_query->was_result_once = 1;
+
+			/* CRITICAL: Reuse the original statement handle to avoid cursor conflicts
+			 * This prevents SQL error -502 "Attempt to reopen an open cursor" that occurs
+			 * when multiple statement handles prepare the same SQL text concurrently. */
+			result_query->stmt = ib_query->stmt;
+			result_query->query = estrdup(ib_query->query);
+
+			/* Create independent copies of result data structures */
+			if (ib_query->out_fields_count > 0 && ib_query->out_sqlda) {
+				/* Validate source SQLDA before processing */
+				if (ib_query->out_sqlda->sqln != ib_query->out_fields_count ||
+				    ib_query->out_sqlda->sqld != ib_query->out_fields_count) {
+					_php_ibase_module_error("SELECT: Invalid SQLDA structure - sqln=%d, sqld=%d, expected=%d",
+						ib_query->out_sqlda->sqln, ib_query->out_sqlda->sqld, ib_query->out_fields_count);
+					goto cleanup_select_result_query;
+				}
+
+				/* Allocate independent SQLDA structure */
+				size_t sqlda_size = XSQLDA_LENGTH(ib_query->out_fields_count);
+				result_query->out_sqlda = (XSQLDA *) emalloc(sqlda_size);
+				if (!result_query->out_sqlda) {
+					_php_ibase_module_error("SELECT: Failed to allocate SQLDA memory");
+					goto cleanup_select_result_query;
+				}
+
+				/* Safe copy of SQLDA header and variable array */
+				memcpy(result_query->out_sqlda, ib_query->out_sqlda, sqlda_size);
+
+				/* Allocate independent null indicator array */
+				result_query->out_nullind = safe_emalloc(sizeof(*result_query->out_nullind),
+					ib_query->out_fields_count, 0);
+				if (!result_query->out_nullind) {
+					_php_ibase_module_error("SELECT: Failed to allocate null indicator array");
+					goto cleanup_select_result_query;
+				}
+
+				/* Safe copy of null indicators */
+				memcpy(result_query->out_nullind, ib_query->out_nullind,
+					sizeof(*result_query->out_nullind) * ib_query->out_fields_count);
+
+				/* Deep copy data for each field using safer copying mechanism */
+				for (int i = 0; i < ib_query->out_fields_count; i++) {
+					XSQLVAR *orig_var = &ib_query->out_sqlda->sqlvar[i];
+					XSQLVAR *result_var = &result_query->out_sqlda->sqlvar[i];
+
+					/* Reset sqldata pointer - will be set by safe copy function */
+					result_var->sqldata = NULL;
+
+					/* Use safer copying function with comprehensive validation */
+					if (FAILURE == _php_ibase_safe_copy_sqlvar_data(result_var, orig_var, i)) {
+						goto cleanup_select_result_query;
+					}
+				}
+
+				/* Update sqlind pointers to point to the new null indicators */
+				for (int i = 0; i < ib_query->out_fields_count; i++) {
+					if (result_query->out_sqlda->sqlvar[i].sqltype & 1) {
+						result_query->out_sqlda->sqlvar[i].sqlind = &result_query->out_nullind[i];
+					} else {
+						result_query->out_sqlda->sqlvar[i].sqlind = NULL;
+					}
+				}
+
+				/* Copy array metadata if present */
+				if (ib_query->out_array_cnt > 0 && ib_query->out_array) {
+					result_query->out_array_cnt = ib_query->out_array_cnt;
+					result_query->out_array = safe_emalloc(sizeof(ibase_array), ib_query->out_array_cnt, 0);
+					if (!result_query->out_array) {
+						_php_ibase_module_error("SELECT: Failed to allocate array metadata");
+						goto cleanup_select_result_query;
+					}
+					memcpy(result_query->out_array, ib_query->out_array,
+						sizeof(ibase_array) * ib_query->out_array_cnt);
+				}
+			}
+
+			/* Set result flags - parent query remains open, result has independent data */
+			result_query->has_more_rows = 1; /* Data is available for fetching */
+			result_query->is_open = 1; /* Result can be fetched */
+
+			/* Register the result as a new resource - this transfers ownership */
+			result_query->res = zend_register_resource(result_query, le_query);
+			if (!result_query->res) {
+				_php_ibase_module_error("SELECT: Failed to register result resource");
+				goto cleanup_select_result_query;
+			}
+
+			/* Success - disable cleanup since resource system now owns the memory */
+			cleanup_needed = 0;
+
+			RETVAL_RES(result_query->res);
 			Z_TRY_ADDREF_P(return_value);
 
 			return SUCCESS;
+
+cleanup_select_result_query:
+			/* Clean up partially allocated result_query on error path */
+			if (cleanup_needed && result_query) {
+				/* Free field data if partially allocated */
+				if (result_query->out_sqlda && result_query->out_fields_count > 0) {
+					for (int i = 0; i < result_query->out_fields_count; i++) {
+						if (result_query->out_sqlda->sqlvar[i].sqldata) {
+							efree(result_query->out_sqlda->sqlvar[i].sqldata);
+						}
+					}
+				}
+
+				/* Free SQLDA structure */
+				if (result_query->out_sqlda) {
+					efree(result_query->out_sqlda);
+				}
+
+				/* Free null indicator array */
+				if (result_query->out_nullind) {
+					efree(result_query->out_nullind);
+				}
+
+				/* Free array metadata */
+				if (result_query->out_array) {
+					efree(result_query->out_array);
+				}
+
+				/* Free query string */
+				if (result_query->query) {
+					efree(result_query->query);
+				}
+
+				/* NOTE: Do NOT free result_query->stmt as it's shared with parent */
+
+				/* Free the result query structure itself */
+				efree(result_query);
+			}
+
+			/* Propagate error to caller */
+			goto _php_ibase_ex_error;
 		}
 	}
 

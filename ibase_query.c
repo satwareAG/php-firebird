@@ -1,6 +1,6 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 7, 8                                                     |
+   | PHP Version 8                                                     |
    +----------------------------------------------------------------------+
    | Copyright (c) The PHP Group                                          |
    +----------------------------------------------------------------------+
@@ -16,7 +16,8 @@
    |          Andrew Avdeev <andy@simgts.mv.ru>                           |
    |          Ard Biesheuvel <a.k.biesheuvel@its.tudelft.nl>              |
    |          Martin Koeditz <martin.koeditz@it-syn.de>                   |
-   |          Martins Lazdans <marrtins@dqdp.net>                         |
+   |          Martins Lazdans <marrtins@dqdp.net>
+   |          Michael Wegener <mw@satware.com>
    |          others                                                      |
    +----------------------------------------------------------------------+
    | You'll find history on Github                                        |
@@ -1088,6 +1089,12 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 	RESET_ERRMSG;
 	RETVAL_FALSE;
 
+	/* Enhanced parameter validation BEFORE Firebird API calls */
+	if (bind_n < 0 || argc < 0) {
+		php_error_docref(NULL, E_WARNING, "Invalid parameter count: bind_n=%d, argc=%d", bind_n, argc);
+		return FAILURE;
+	}
+
 	if (bind_n != argc) {
 		php_error_docref(NULL, (bind_n < argc) ? E_WARNING : E_NOTICE,
 			"Statement expects %d arguments, %d given", argc, bind_n);
@@ -1097,14 +1104,25 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 		}
 	}
 
-	/* Have we used this cursor before and it's still open (exec proc has no cursor) ? */
-	if (ib_query->is_open && ib_query->statement_type != isc_info_sql_stmt_exec_procedure) {
-		IBDEBUG("Implicitly closing a cursor");
-		if (isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_close)) {
-			_php_ibase_error();
+	/* Enhanced cursor lifecycle management to prevent -502 errors */
+	if (ib_query->statement_type != isc_info_sql_stmt_exec_procedure) {
+		/* For SELECT statements, check if cursor is open and has unfetched results */
+		if (ib_query->is_open && ib_query->has_more_rows) {
+			php_error_docref(NULL, E_WARNING,
+				"Cannot re-execute query while result set has unfetched rows. "
+				"Call ibase_fetch_row() until exhausted or ibase_free_result() first");
 			return FAILURE;
 		}
-		ib_query->is_open = 0;
+
+		/* If cursor is open but no more rows, close it properly */
+		if (ib_query->is_open) {
+			IBDEBUG("Closing completed cursor before re-execution");
+			if (isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_close)) {
+				_php_ibase_error();
+				return FAILURE;
+			}
+			ib_query->is_open = 0;
+		}
 	}
 
 	for (i = 0; i < argc; ++i) {
@@ -1198,10 +1216,10 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 
 	ib_query->trans->affected_rows = 0;
 
-	// TODO: test INSERT / UPDATE / UPDATE OR INSERT with  ... RETURNING
-	if (ib_query->out_sqlda) { /* output variables in select, select for update */
+	/* Handle result sets for SELECT, EXECUTE PROCEDURE, and DML with RETURNING clauses */
+	if (ib_query->out_sqlda) { /* output variables in select, select for update, or RETURNING */
 
-		/* For EXECUTE PROCEDURE, create independent result resources to avoid
+		/* For EXECUTE PROCEDURE and INSERT/UPDATE/DELETE...RETURNING, create independent result resources to avoid
 		 * shared state issues where each execution overwrites the previous result.
 		 *
 		 * CRITICAL IMPLEMENTATION NOTES:
@@ -1209,8 +1227,12 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 		 * - Each execution gets its own copy of SQLDA and field data
 		 * - Memory management requires proper cleanup on error paths
 		 * - Backward compatibility: Applications should not rely on shared state
+		 * - RETURNING support: INSERT/UPDATE/DELETE...RETURNING now creates proper result resources
 		 */
-		if (ib_query->statement_type == isc_info_sql_stmt_exec_procedure) {
+		if (ib_query->statement_type == isc_info_sql_stmt_exec_procedure ||
+		    ib_query->statement_type == isc_info_sql_stmt_insert ||
+		    ib_query->statement_type == isc_info_sql_stmt_update ||
+		    ib_query->statement_type == isc_info_sql_stmt_delete) {
 			/* Create a new query structure for this specific result */
 			ibase_query *result_query = ecalloc(1, sizeof(ibase_query));
 
@@ -1870,15 +1892,20 @@ format_date_time:
 #if HAVE_STRUCT_TM_TM_ZONE
 			t.tm_zone = tzname[0];
 #endif
-			if (((type & ~1) != SQL_TYPE_TIME) && (flag & PHP_IBASE_UNIXTIME)) {
-				/* Convert local database time to UTC timestamp - adjust for CET (+2) to UTC */
-				time_t timestamp = mktime(&t) - (2 * 3600); /* Subtract 2 hours for CET offset */
+			/* Skip unix-time conversion entirely for TIME/TIME_TZ types as they have no date component */
+			if (((type & ~1) == SQL_TYPE_TIME) || ((type & ~1) == SQL_TIME_TZ)) {
+				/* TIME/TIME_TZ: Skip unix conversion, always return formatted string */
+				l = strftime(string_data, sizeof(string_data), format, &t);
+				ZVAL_STRINGL(val, string_data, l);
+			} else if (flag & PHP_IBASE_UNIXTIME) {
+				/* TIMESTAMP/DATE: Convert to UTC timestamp using timegm() for proper UTC conversion */
+				time_t timestamp = timegm(&t);
 				ZVAL_LONG(val, timestamp);
 			} else {
 				l = strftime(string_data, sizeof(string_data), format, &t);
 				ZVAL_STRINGL(val, string_data, l);
-				break;
 			}
+			break;
 	} /* switch (type) */
 	return SUCCESS;
 }
@@ -2352,23 +2379,25 @@ static void _php_ibase_field_info(zval *return_value, ibase_query *ib_query, int
 	} else {
 		sqlda = ib_query->in_sqlda;
 		if (sqlda == NULL) {
-			// TODO: Add warning? Remove above warning?
+			_php_ibase_module_error("No parameter metadata available for this query");
 			RETURN_FALSE;
 		}
 	}
 
 	var = sqlda->sqlvar;
 
-	if (!var || num < 0 || num >= sqlda->sqld)RETURN_FALSE;
+	if (!var || num < 0 || num >= sqlda->sqld) {
+		if (!is_outvar) {
+			_php_ibase_module_error("Parameter %d does not exist (valid range: 0-%d)", num, sqlda ? sqlda->sqld - 1 : -1);
+		}
+		RETURN_FALSE;
+	}
 
 	var += num;
 
 	array_init(return_value);
 
-	// AFAIK describe bind does not set sqlname, aliasname, relname?
-	// Confirmation needed so I leave this as is. After that we can check
-	// is_outvar
-
+	/* Enhanced parameter metadata building with fallbacks for missing bind description data */
 #if FB_API_VER >= 40
 	if(IBG(master_instance) && IBG(get_statement_interface)) {
 		void *statement = NULL;
@@ -2383,15 +2412,26 @@ static void _php_ibase_field_info(zval *return_value, ibase_query *ib_query, int
 		}
 	} else {
 #endif
-		// Old API
-		add_index_stringl(return_value, 0, var->sqlname, strlen(var->sqlname));
-		add_assoc_stringl(return_value, "name", var->sqlname, strlen(var->sqlname));
+		// Old API with enhanced parameter support
+		/* Handle name - provide fallback for parameters where sqlname might be empty */
+		const char *field_name = (var->sqlname && strlen(var->sqlname) > 0) ? var->sqlname : "";
+		if (!is_outvar && strlen(field_name) == 0) {
+			/* For parameters, generate a meaningful fallback name */
+			snprintf(buf, sizeof(buf), "PARAM_%d", num);
+			field_name = buf;
+		}
+		add_index_stringl(return_value, 0, field_name, strlen(field_name));
+		add_assoc_stringl(return_value, "name", field_name, strlen(field_name));
 
-		add_index_stringl(return_value, 1, var->aliasname, strlen(var->aliasname));
-		add_assoc_stringl(return_value, "alias", var->aliasname, strlen(var->aliasname));
+		/* Handle alias - for parameters, alias typically same as name */
+		const char *alias_name = (var->aliasname && strlen(var->aliasname) > 0) ? var->aliasname : field_name;
+		add_index_stringl(return_value, 1, alias_name, strlen(alias_name));
+		add_assoc_stringl(return_value, "alias", alias_name, strlen(alias_name));
 
-		add_index_stringl(return_value, 2, var->relname, strlen(var->relname));
-		add_assoc_stringl(return_value, "relation", var->relname, strlen(var->relname));
+		/* Handle relation - typically empty for parameters */
+		const char *relation_name = (var->relname && strlen(var->relname) > 0) ? var->relname : "";
+		add_index_stringl(return_value, 2, relation_name, strlen(relation_name));
+		add_assoc_stringl(return_value, "relation", relation_name, strlen(relation_name));
 #if FB_API_VER >= 40
 	}
 #endif
@@ -2648,21 +2688,31 @@ _php_ibase_parse_info_fail:
 
 static int _php_ibase_fetch_query_res(zval *from, ibase_query **ib_query)
 {
-	/* In PHP 8.4, zend_fetch_resource_ex() becomes stricter and may throw
-	 * TypeError for invalid resources. Check resource validity first to
-	 * provide proper error handling and maintain backward compatibility. */
+	/* Mirror ibase_close() logic: differentiate TypeError vs warning+false */
 	if (Z_TYPE_P(from) != IS_RESOURCE) {
+		/* Not a resource at all - TypeError should be thrown by zend_parse_parameters */
 		return FAILURE;
 	}
 
 	zend_resource *res = Z_RES_P(from);
+
+	/* Check resource type and validity directly */
 	if (res->type != le_query) {
+		/* Wrong type - will be caught by zend_parse_parameters */
+		return FAILURE;
+	}
+
+	/* Check if resource pointer is valid */
+	if (res->ptr == NULL) {
+		/* Correct resource type but invalid/closed - generate warning */
+		php_error_docref(NULL, E_WARNING, "Supplied resource is not a valid query resource");
 		return FAILURE;
 	}
 
 	*ib_query = (ibase_query *)res->ptr;
 
-	if(*ib_query == NULL) {
+	if (*ib_query == NULL) {
+		php_error_docref(NULL, E_WARNING, "Supplied resource is not a valid query resource");
 		return FAILURE;
 	}
 

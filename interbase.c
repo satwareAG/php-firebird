@@ -1248,15 +1248,23 @@ PHP_FUNCTION(ibase_pconnect)
 }
 /* }}} */
 
-/* Helper function for consolidated resource validation */
+/* Helper function for consolidated resource validation with proper error differentiation */
 static int _php_ibase_validate_link_resource(zend_resource *link_res, bool is_default_link, bool clear_default) /* {{{ */
 {
 	if (link_res == NULL) {
 		return FAILURE;
 	}
 
-	/* Single validation call - eliminates redundant hash lookups */
-	if (!zend_fetch_resource2(link_res, LE_LINK, le_link, le_plink)) {
+	/* Check resource type and validity directly */
+	if (link_res->type != le_link && link_res->type != le_plink) {
+		/* Wrong type - will be caught by zend_parse_parameters */
+		return FAILURE;
+	}
+
+	/* Check if resource pointer is valid */
+	if (link_res->ptr == NULL) {
+		/* Correct resource type but invalid/closed - generate warning */
+		php_error_docref(NULL, E_WARNING, "Supplied resource is not a valid database link resource");
 		if (clear_default && is_default_link) {
 			/* Thread-safe: Only clear if we were the default */
 			if (IBG(default_link) == link_res) {

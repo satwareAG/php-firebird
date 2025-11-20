@@ -390,10 +390,13 @@ PHP_FUNCTION(ibase_set_event_handler)
 		event->event_buffer,(PHP_ISC_CALLBACK)_php_ibase_callback, (void *)event)) {
 
 		_php_ibase_error();
+		/* Proper cleanup of all allocated memory within event structure */
+		_php_ibase_free_event(event);
 		efree(event);
 		RETURN_FALSE;
 	}
 
+	/* Only register event resource AFTER successful queue operation */
 	event->event_next = ib_link->event_head;
 	ib_link->event_head = event;
 

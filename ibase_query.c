@@ -1054,9 +1054,21 @@ static void _php_ibase_alloc_xsqlda_vars(XSQLDA *sqlda, ISC_SHORT *nullinds) /* 
 				break;
 		} /* switch */
 
+		/* Enhanced validation for NULL indicator consistency */
 		if (var->sqltype & 1) { /* sql NULL flag */
+			if (nullinds == NULL) {
+				fbp_fatal("NULL indicators required for nullable field %d (sqltype=%d)", i, var->sqltype);
+				return;
+			}
 			var->sqlind = &nullinds[i];
+
+			/* Validate that nullable field has proper null indicator setup */
+			if (var->sqlind == NULL) {
+				fbp_fatal("Nullable field %d missing null indicator after assignment", i);
+				return;
+			}
 		} else {
+			/* NOT NULL field - should not have null indicator access */
 			var->sqlind = NULL;
 		}
 	} /* for */
@@ -1502,7 +1514,10 @@ PHP_FUNCTION(ibase_query)
 		return;
 	}
 
-	assert(false && "UNREACHABLE");
+	/* This code path should not be reachable under normal circumstances.
+	 * If we reach here, it indicates a logic error in the parameter parsing above. */
+	_php_ibase_module_error("Internal error: unexpected code path in ibase_query");
+	goto _php_ibase_query_error;
 
 _php_ibase_query_error:
 	zend_list_delete(ib_query->res);
@@ -1646,7 +1661,8 @@ static int _php_ibase_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 			// connect if fbclient does not have fb_get_master_instance().
 			// Assert this just in case.
 			if(!IBG(master_instance)) {
-				assert(false && "UNREACHABLE");
+				_php_ibase_module_error("Timezone fields require Firebird 4.0+ master instance");
+				return FAILURE;
 			}
 
 			char timeZoneBuffer[40] = {0};
@@ -1857,8 +1873,22 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 	for(i = 0; i < ib_query->out_fields_count; ++i) {
 		XSQLVAR *var = &ib_query->out_sqlda->sqlvar[i];
 
-		// NULLs are already set
-		if (!(((var->sqltype & 1) == 0) || *var->sqlind != -1)) {
+		// Check if field is NULL using defensive programming
+		bool is_null_field = false;
+
+		if (var->sqltype & 1) {
+			// Nullable field - check null indicator safely
+			if (var->sqlind == NULL) {
+				_php_ibase_module_error("NULL indicator missing for nullable field %ld", i);
+				goto _php_ibase_fetch_error;
+			}
+			is_null_field = (*var->sqlind == -1);
+		} else {
+			// NOT NULL field - should not have null indicator access
+			is_null_field = false;
+		}
+
+		if (is_null_field) {
 			zend_hash_move_forward(ht_ret);
 			continue;
 		}

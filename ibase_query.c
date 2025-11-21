@@ -1153,10 +1153,9 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
   * unconditionally to match legacy semantics and avoid -502 reopen errors. */
  if (ib_query->statement_type != isc_info_sql_stmt_exec_procedure && ib_query->is_open) {
      IBDEBUG("Closing open cursor before re-execution");
-     if (isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_close)) {
-         _php_ibase_error();
-         return FAILURE;
-     }
+     /* Be tolerant: ignore errors when attempting to close an already-closed
+      * cursor to avoid spurious warnings (e.g., after EOF). */
+     (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_close);
      ib_query->is_open = 0;
      ib_query->has_more_rows = 0;
  }

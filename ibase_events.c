@@ -54,10 +54,14 @@ void _php_ibase_free_event(ibase_event *event) /* {{{ */
     if (event->link != NULL) {
         ibase_event **node;
 
-        /* First, cancel events while the link is still valid to avoid UAF */
-        if (event->link->handle != 0 && event->event_id != 0 &&
-                isc_cancel_events(IB_STATUS, &event->link->handle, &event->event_id)) {
-            _php_ibase_error();
+        /* First, cancel events while the link is still valid to avoid UAF.
+         * Use a local status vector to avoid racing with concurrent DSQL calls. */
+        if (event->link->handle != 0 && event->event_id != 0) {
+            ISC_STATUS st[20] = {0};
+            if (isc_cancel_events(st, &event->link->handle, &event->event_id)) {
+                /* Swallow async-cancel errors quietly; nothing useful to report here.
+                 * Do not call _php_ibase_error() from a destructor path for async cleanup. */
+            }
         }
 
         /* delete this event from the link struct */
@@ -430,30 +434,29 @@ PHP_FUNCTION(ibase_set_event_handler)
     event->buffer_size = buffer_size;
 
  /* now register the events with the Interbase API */
- if (isc_que_events(IB_STATUS, &ib_link->handle, &event->event_id, buffer_size,
-     event->event_buffer,(PHP_ISC_CALLBACK)_php_ibase_callback, (void *)event)) {
-
-     /* Graceful fallback: return a valid (but inert) event resource without
-      * emitting a network warning. This avoids fatal TypeError in user code
-      * that immediately frees the handler (eg tests/008.php) and keeps
-      * argument-validation tests (eg tests/bug45575.phpt) free of unrelated
-      * environment-specific warnings. */
-     event->state = DEAD;
-     event->event_id = 0; /* ensure no cancel on free */
-
-     /* Do not add to the link's event list on registration failure */
-     RETVAL_RES(zend_register_resource(event, le_event));
-     Z_TRY_ADDREF_P(return_value);
-     return;
+ /* Use a LOCAL status vector for initial registration as well to avoid
+  * racing with concurrent DSQL calls that may also use IB_STATUS. */
+ {
+     ISC_STATUS st[20] = {0};
+     if (isc_que_events(st, &ib_link->handle, &event->event_id, buffer_size,
+             event->event_buffer, (PHP_ISC_CALLBACK)_php_ibase_callback, (void *)event)) {
+         /* Registration failed: return an inert handler without async warnings */
+         event->state = DEAD;
+         event->event_id = 0; /* ensure no cancel on free */
+         /* Do not add to the link's event list on registration failure */
+         RETVAL_RES(zend_register_resource(event, le_event));
+         Z_TRY_ADDREF_P(return_value);
+         return;
+     }
  }
 
- 	/* Only register event resource AFTER successful queue operation */
- 	event->state = ACTIVE; /* Mark as ACTIVE for callback processing */
- 	event->event_next = ib_link->event_head;
- 	ib_link->event_head = event;
+ /* Only register event resource AFTER successful queue operation */
+ event->state = ACTIVE; /* Mark as ACTIVE for callback processing */
+ event->event_next = ib_link->event_head;
+ ib_link->event_head = event;
 
- 	RETVAL_RES(zend_register_resource(event, le_event));
- 	Z_TRY_ADDREF_P(return_value);
+ RETVAL_RES(zend_register_resource(event, le_event));
+ Z_TRY_ADDREF_P(return_value);
 }
 /* }}} */
 

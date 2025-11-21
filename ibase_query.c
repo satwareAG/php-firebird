@@ -1235,27 +1235,34 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 		}
 	}
 
- if (ib_query->statement_type == isc_info_sql_stmt_exec_procedure ||
-        ((ib_query->statement_type == isc_info_sql_stmt_insert ||
-          ib_query->statement_type == isc_info_sql_stmt_update ||
-          ib_query->statement_type == isc_info_sql_stmt_delete) &&
-          ib_query->out_sqlda)) {
+    /*
+     * Execute the statement depending on its type. For SELECT we defer
+     * execution to the result path where a dedicated statement handle is
+     * allocated per result to avoid cursor reuse conflicts (-502).
+     */
+    if (ib_query->statement_type == isc_info_sql_stmt_select) {
+        /* Defer execute for SELECT */
+        isc_result = 0;
+    } else if (ib_query->statement_type == isc_info_sql_stmt_exec_procedure ||
+               ((ib_query->statement_type == isc_info_sql_stmt_insert ||
+                 ib_query->statement_type == isc_info_sql_stmt_update ||
+                 ib_query->statement_type == isc_info_sql_stmt_delete) &&
+                 ib_query->out_sqlda)) {
         /* Use execute2 when output variables are expected (EXECUTE PROCEDURE
          * and DML ... RETURNING). */
         isc_result = isc_dsql_execute2(IB_STATUS, &ib_query->trans->handle,
             &ib_query->stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda, ib_query->out_sqlda);
     } else {
-        /* SELECT and DML without RETURNING use execute to open a cursor or
-         * perform the operation without output variables. */
+        /* DML without RETURNING */
         isc_result = isc_dsql_execute(IB_STATUS, &ib_query->trans->handle,
             &ib_query->stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda);
     }
 
-	if (isc_result) {
-		IBDEBUG("Could not execute query");
-		_php_ibase_error();
-		goto _php_ibase_ex_error;
-	}
+    if (isc_result) {
+        IBDEBUG("Could not execute query");
+        _php_ibase_error();
+        goto _php_ibase_ex_error;
+    }
 
 	ib_query->trans->affected_rows = 0;
 
@@ -1437,21 +1444,21 @@ cleanup_result_query:
 
 			/* Propagate error to caller */
 			goto _php_ibase_ex_error;
-		} else {
-			/* SELECT queries: Create independent result data to prevent use-after-free vulnerability
-			 * SECURITY FIX: Creates independent result data structures while reusing the prepared statement.
-			 * This prevents shared state issues where freeing the parent query would access dangling
-			 * pointers when fetching from result resources, while avoiding cursor conflicts that occur
-			 * when creating new statement handles for the same prepared query.
-			 *
-			 * APPROACH: Reuse prepared statement (no cursor conflicts) + independent result data (security)
-			 *
-			 * BACKWARD COMPATIBILITY: Applications should not rely on shared state between query
-			 * and result resources. The PHP resource API makes no guarantees about internal sharing.
-			 */
+  } else {
+            /* SELECT queries: Create independent result data to prevent use-after-free vulnerability
+             * SECURITY FIX: Creates independent result data structures while reusing the prepared statement.
+             * This prevents shared state issues where freeing the parent query would access dangling
+             * pointers when fetching from result resources.
+             *
+             * APPROACH: Allocate a dedicated statement handle per result and prepare/execute it using
+             * the same SQL text. This allows multiple concurrent result cursors without -502 warnings.
+             *
+             * BACKWARD COMPATIBILITY: Applications should not rely on shared state between query
+             * and result resources. The PHP resource API makes no guarantees about internal sharing.
+             */
 
-			/* Create a new query structure for this specific result */
-			ibase_query *result_query = ecalloc(1, sizeof(ibase_query));
+            /* Create a new query structure for this specific result */
+            ibase_query *result_query = ecalloc(1, sizeof(ibase_query));
 
 			/* Initialize error cleanup flag */
 			int cleanup_needed = 1;
@@ -1465,11 +1472,18 @@ cleanup_result_query:
 			result_query->out_fields_count = ib_query->out_fields_count;
 			result_query->was_result_once = 1;
 
-			/* CRITICAL: Reuse the original statement handle to avoid cursor conflicts
-			 * This prevents SQL error -502 "Attempt to reopen an open cursor" that occurs
-			 * when multiple statement handles prepare the same SQL text concurrently. */
-			result_query->stmt = ib_query->stmt;
-			result_query->query = estrdup(ib_query->query);
+   /* Allocate and prepare a dedicated statement handle for this result */
+   if (isc_dsql_allocate_statement(IB_STATUS, &result_query->link->handle, &result_query->stmt)) {
+       _php_ibase_error();
+       goto cleanup_select_result_query;
+   }
+   if (isc_dsql_prepare(IB_STATUS, &result_query->trans->handle, &result_query->stmt, 0,
+                        ib_query->query, ib_query->dialect, NULL)) {
+       _php_ibase_error();
+       goto cleanup_select_result_query;
+   }
+   result_query->owns_stmt_handle = 1;
+   result_query->query = estrdup(ib_query->query);
 
    /* Copy input parameter metadata so ibase_num_params()/ibase_param_info()
     * work on the returned result resource (e.g., ibase_query() path). */
@@ -1485,13 +1499,13 @@ cleanup_result_query:
 
    /* Create independent copies of result data structures */
    if (ib_query->out_fields_count > 0 && ib_query->out_sqlda) {
-				/* Validate source SQLDA before processing */
-				if (ib_query->out_sqlda->sqln != ib_query->out_fields_count ||
-				    ib_query->out_sqlda->sqld != ib_query->out_fields_count) {
-					_php_ibase_module_error("SELECT: Invalid SQLDA structure - sqln=%d, sqld=%d, expected=%d",
-						ib_query->out_sqlda->sqln, ib_query->out_sqlda->sqld, ib_query->out_fields_count);
-					goto cleanup_select_result_query;
-				}
+                /* Validate source SQLDA before processing */
+                if (ib_query->out_sqlda->sqln != ib_query->out_fields_count ||
+                    ib_query->out_sqlda->sqld != ib_query->out_fields_count) {
+                    _php_ibase_module_error("SELECT: Invalid SQLDA structure - sqln=%d, sqld=%d, expected=%d",
+                        ib_query->out_sqlda->sqln, ib_query->out_sqlda->sqld, ib_query->out_fields_count);
+                    goto cleanup_select_result_query;
+                }
 
 				/* Allocate independent SQLDA structure */
 				size_t sqlda_size = XSQLDA_LENGTH(ib_query->out_fields_count);
@@ -1573,13 +1587,23 @@ cleanup_result_query:
             result_query->child_next = ib_query->child_head;
             ib_query->child_head = result_query;
 
-			/* Success - disable cleanup since resource system now owns the memory */
-			cleanup_needed = 0;
+   /* Open cursor on the dedicated statement handle now */
+   if (isc_dsql_execute(IB_STATUS, &result_query->trans->handle, &result_query->stmt,
+                        SQLDA_CURRENT_VERSION, result_query->in_sqlda)) {
+       _php_ibase_error();
+       goto cleanup_select_result_query;
+   }
 
-			RETVAL_RES(result_query->res);
-			Z_TRY_ADDREF_P(return_value);
+   result_query->is_open = 1;
+   result_query->has_more_rows = 1;
 
-			return SUCCESS;
+   /* Success - disable cleanup since resource system now owns the memory */
+   cleanup_needed = 0;
+
+   RETVAL_RES(result_query->res);
+   Z_TRY_ADDREF_P(return_value);
+
+   return SUCCESS;
 
 cleanup_select_result_query:
 			/* Clean up partially allocated result_query on error path */

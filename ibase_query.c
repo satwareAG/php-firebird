@@ -319,6 +319,14 @@ static void php_ibase_free_query_rsrc(zend_resource *rsrc) /* {{{ */
             if (ib_query->is_open) {
                 (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_close);
                 ib_query->is_open = 0;
+                ib_query->has_more_rows = 0;
+                /* If this is a child result that reused the parent's statement handle,
+                 * mirror the cursor state reset to the parent to avoid double-close
+                 * warnings on the next ibase_execute(). */
+                if (ib_query->parent) {
+                    ib_query->parent->is_open = 0;
+                    ib_query->parent->has_more_rows = 0;
+                }
             }
             /* Drop the statement handle only if this resource OWNS it.
              * Result clones created for SELECT reuse parent's handle and must NOT drop it. */
@@ -1139,26 +1147,17 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 		}
 	}
 
-	/* Enhanced cursor lifecycle management to prevent -502 errors */
-	if (ib_query->statement_type != isc_info_sql_stmt_exec_procedure) {
-		/* For SELECT statements, check if cursor is open and has unfetched results */
-		if (ib_query->is_open && ib_query->has_more_rows) {
-			php_error_docref(NULL, E_WARNING,
-				"Cannot re-execute query while result set has unfetched rows. "
-				"Call ibase_fetch_row() until exhausted or ibase_free_result() first");
-			return FAILURE;
-		}
-
-		/* If cursor is open but no more rows, close it properly */
-		if (ib_query->is_open) {
-			IBDEBUG("Closing completed cursor before re-execution");
-			if (isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_close)) {
-				_php_ibase_error();
-				return FAILURE;
-			}
-			ib_query->is_open = 0;
-		}
-	}
+ /* Cursor lifecycle management: before any re-execution, close an open cursor
+  * unconditionally to match legacy semantics and avoid -502 reopen errors. */
+ if (ib_query->statement_type != isc_info_sql_stmt_exec_procedure && ib_query->is_open) {
+     IBDEBUG("Closing open cursor before re-execution");
+     if (isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_close)) {
+         _php_ibase_error();
+         return FAILURE;
+     }
+     ib_query->is_open = 0;
+     ib_query->has_more_rows = 0;
+ }
 
 	for (i = 0; i < argc; ++i) {
 		SEPARATE_ZVAL(&args[i]);
@@ -1235,15 +1234,8 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 		}
 	}
 
-    /*
-     * Execute the statement depending on its type. For SELECT we defer
-     * execution to the result path where a dedicated statement handle is
-     * allocated per result to avoid cursor reuse conflicts (-502).
-     */
-    if (ib_query->statement_type == isc_info_sql_stmt_select) {
-        /* Defer execute for SELECT */
-        isc_result = 0;
-    } else if (ib_query->statement_type == isc_info_sql_stmt_exec_procedure ||
+    /* Execute the statement. For SELECT, this opens the cursor on ib_query->stmt. */
+    if (ib_query->statement_type == isc_info_sql_stmt_exec_procedure ||
                ((ib_query->statement_type == isc_info_sql_stmt_insert ||
                  ib_query->statement_type == isc_info_sql_stmt_update ||
                  ib_query->statement_type == isc_info_sql_stmt_delete) &&
@@ -1253,7 +1245,7 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
         isc_result = isc_dsql_execute2(IB_STATUS, &ib_query->trans->handle,
             &ib_query->stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda, ib_query->out_sqlda);
     } else {
-        /* DML without RETURNING */
+        /* SELECT and DML without RETURNING */
         isc_result = isc_dsql_execute(IB_STATUS, &ib_query->trans->handle,
             &ib_query->stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda);
     }
@@ -1264,7 +1256,13 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
         goto _php_ibase_ex_error;
     }
 
-	ib_query->trans->affected_rows = 0;
+    ib_query->trans->affected_rows = 0;
+
+    /* For SELECT statements, mark cursor state as open with rows pending. */
+    if (ib_query->statement_type == isc_info_sql_stmt_select && ib_query->out_sqlda) {
+        ib_query->is_open = 1;
+        ib_query->has_more_rows = 1;
+    }
 
 	/* Handle result sets for SELECT, EXECUTE PROCEDURE, and DML with RETURNING clauses */
 	if (ib_query->out_sqlda) { /* output variables in select, select for update, or RETURNING */
@@ -1448,10 +1446,11 @@ cleanup_result_query:
             /* SELECT queries: Create independent result data to prevent use-after-free vulnerability
              * SECURITY FIX: Creates independent result data structures while reusing the prepared statement.
              * This prevents shared state issues where freeing the parent query would access dangling
-             * pointers when fetching from result resources.
+             * pointers when fetching from result resources, while avoiding changes to cursor semantics.
              *
-             * APPROACH: Allocate a dedicated statement handle per result and prepare/execute it using
-             * the same SQL text. This allows multiple concurrent result cursors without -502 warnings.
+             * APPROACH: Reuse the original prepared statement handle and its open cursor. Independent
+             * copies of output buffers are created for safety. Re-execution safeguards exist in
+             * _php_ibase_exec() to close completed cursors before re-executing to avoid -502.
              *
              * BACKWARD COMPATIBILITY: Applications should not rely on shared state between query
              * and result resources. The PHP resource API makes no guarantees about internal sharing.
@@ -1472,17 +1471,8 @@ cleanup_result_query:
 			result_query->out_fields_count = ib_query->out_fields_count;
 			result_query->was_result_once = 1;
 
-   /* Allocate and prepare a dedicated statement handle for this result */
-   if (isc_dsql_allocate_statement(IB_STATUS, &result_query->link->handle, &result_query->stmt)) {
-       _php_ibase_error();
-       goto cleanup_select_result_query;
-   }
-   if (isc_dsql_prepare(IB_STATUS, &result_query->trans->handle, &result_query->stmt, 0,
-                        ib_query->query, ib_query->dialect, NULL)) {
-       _php_ibase_error();
-       goto cleanup_select_result_query;
-   }
-   result_query->owns_stmt_handle = 1;
+   /* Reuse parent's prepared statement and already-open cursor */
+   result_query->stmt = ib_query->stmt;
    result_query->query = estrdup(ib_query->query);
 
    /* Copy input parameter metadata so ibase_num_params()/ibase_param_info()
@@ -1492,8 +1482,11 @@ cleanup_result_query:
        size_t in_size = XSQLDA_LENGTH(ib_query->in_fields_count);
        result_query->in_sqlda = (XSQLDA *) emalloc(in_size);
        memcpy(result_query->in_sqlda, ib_query->in_sqlda, in_size);
+       /* Input buffer pointers are not needed on the result copy when
+        * reusing the same open cursor; keep them NULL to avoid misuse. */
        for (int i = 0; i < result_query->in_sqlda->sqld; i++) {
            result_query->in_sqlda->sqlvar[i].sqlind = NULL;
+           result_query->in_sqlda->sqlvar[i].sqldata = NULL;
        }
    }
 
@@ -1587,13 +1580,7 @@ cleanup_result_query:
             result_query->child_next = ib_query->child_head;
             ib_query->child_head = result_query;
 
-   /* Open cursor on the dedicated statement handle now */
-   if (isc_dsql_execute(IB_STATUS, &result_query->trans->handle, &result_query->stmt,
-                        SQLDA_CURRENT_VERSION, result_query->in_sqlda)) {
-       _php_ibase_error();
-       goto cleanup_select_result_query;
-   }
-
+   /* Mark cursor state inherited from parent execute */
    result_query->is_open = 1;
    result_query->has_more_rows = 1;
 

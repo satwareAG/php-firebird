@@ -179,6 +179,12 @@ typedef struct _ib_query {
      * statement handle and must NOT drop it to avoid invalidating the prepared
      * statement (fixes: tests/006.phpt, tests/bug45373.phpt, etc.). */
     zend_bool owns_stmt_handle;
+    /* Parent/children linkage to allow invalidating dependent results when the
+     * prepared statement is freed (ensures TypeError on use-after-free, as
+     * expected by tests/use_after_free-002.phpt). */
+    struct _ib_query *parent;
+    struct _ib_query *child_head;
+    struct _ib_query *child_next;
 } ibase_query;
 
 enum php_interbase_option {

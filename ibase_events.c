@@ -313,11 +313,12 @@ static void  _php_ibase_callback(ibase_event *event, /* {{{ */
     if (event->state == ACTIVE && event->link && event->link->handle != 0) {
         unsigned short requeue_len = event->buffer_size ? event->buffer_size : buffer_size;
         memcpy(event->event_buffer, event->result_buffer, requeue_len);
-        if (isc_que_events(IB_STATUS, &event->link->handle, &event->event_id, requeue_len,
-            event->event_buffer, (PHP_ISC_CALLBACK)_php_ibase_callback, (void *)event)) {
-
-            _php_ibase_error();
-            /* On re-queue failure, mark as DEAD to prevent further callback attempts */
+            /* Use a local status vector in async context to avoid races on IB_STATUS */
+        ISC_STATUS st[20] = {0};
+        if (isc_que_events(st, &event->link->handle, &event->event_id, requeue_len,
+                event->event_buffer, (PHP_ISC_CALLBACK)_php_ibase_callback, (void *)event)) {
+            /* On re-queue failure, mark as DEAD to prevent further callback attempts.
+             * Avoid emitting warnings from async context. */
             event->state = DEAD;
         }
     }

@@ -1049,32 +1049,34 @@ int _php_ibase_attach_db(char **args, size_t *len, zend_long *largs, isc_db_hand
 
 #if FB_API_VER >= 40
     /*
-     * Bind compatibility settings for newer clients. Only append this clumplet
-     * if there is enough space for the full payload so that the length always
-     * matches the actual number of bytes that follow.
+     * Bind compatibility settings for newer clients. Only send isc_dpb_set_bind
+     * when fbclient exposes the master instance API (runtime capability check).
+     * This avoids sending unknown DPB items to older servers (e.g. Firebird 3),
+     * which can cause "Invalid clumplet buffer structure" during attach.
      */
-    const char *compat_buf;
-    unsigned char compat_buf_size;
+    if (IBG(master_instance)) {
+        const char *compat_buf;
+        unsigned char compat_buf_size;
 
-    /* ibase_query(): Data type unknown
-     * If fbclient >= 4 then convert to VARCHAR at server only INT128 and DECFLOAT
-     * If we have older client, convert also timezone types
-     */
-    if (IBG(client_major_version) >= 4) {
-        static const char compat[] = "INT128 TO VARCHAR;DECFLOAT TO VARCHAR";
-        compat_buf = compat;
-        compat_buf_size = (unsigned char)(sizeof(compat) - 1);
-    } else {
-        static const char compat[] = "INT128 TO VARCHAR;DECFLOAT TO VARCHAR;TIME ZONE TO LEGACY";
-        compat_buf = compat;
-        compat_buf_size = (unsigned char)(sizeof(compat) - 1);
-    }
+        /* If fbclient >= 4 then convert INT128/DECFLOAT to VARCHAR
+         * Else (paranoia) include TIME ZONE to legacy mapping, though this
+         * branch should not normally be taken if master_instance is absent. */
+        if (IBG(client_major_version) >= 4) {
+            static const char compat[] = "INT128 TO VARCHAR;DECFLOAT TO VARCHAR";
+            compat_buf = compat;
+            compat_buf_size = (unsigned char)(sizeof(compat) - 1);
+        } else {
+            static const char compat[] = "INT128 TO VARCHAR;DECFLOAT TO VARCHAR;TIME ZONE TO LEGACY";
+            compat_buf = compat;
+            compat_buf_size = (unsigned char)(sizeof(compat) - 1);
+        }
 
-    if ((end - p) >= (2 + (ptrdiff_t)compat_buf_size)) {
-        *p++ = isc_dpb_set_bind;
-        *p++ = compat_buf_size;
-        memcpy(p, compat_buf, compat_buf_size);
-        p += compat_buf_size;
+        if ((end - p) >= (2 + (ptrdiff_t)compat_buf_size)) {
+            *p++ = isc_dpb_set_bind;
+            *p++ = compat_buf_size;
+            memcpy(p, compat_buf, compat_buf_size);
+            p += compat_buf_size;
+        }
     }
 #endif
 

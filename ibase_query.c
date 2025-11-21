@@ -468,6 +468,10 @@ static int _php_ibase_prepare(ibase_query **new_query, ibase_db_link *link, /* {
 	}
 
  ibase_query *ib_query = ecalloc(1, sizeof(ibase_query));
+ /* Ensure linkage fields are initialized explicitly for clarity */
+ ib_query->parent = NULL;
+ ib_query->child_head = NULL;
+ ib_query->child_next = NULL;
 
 	ib_query->res = zend_register_resource(ib_query, le_query);
 	ib_query->link = link;
@@ -1369,10 +1373,18 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
     * IMPORTANT: This result does NOT own the statement handle. */
    result_query->owns_stmt_handle = 0;
    result_query->res = zend_register_resource(result_query, le_query);
-			if (!result_query->res) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to register result resource");
-				goto cleanup_result_query;
-			}
+           if (!result_query->res) {
+               _php_ibase_module_error("EXECUTE PROCEDURE: Failed to register result resource");
+               goto cleanup_result_query;
+           }
+
+            /* Link this result as a child of the parent prepared query so that
+             * freeing the parent can invalidate dependent results (required for
+             * use-after-free tests). */
+            result_query->parent = ib_query;
+            result_query->child_head = NULL;
+            result_query->child_next = ib_query->child_head;
+            ib_query->child_head = result_query;
 
 			/* Success - disable cleanup since resource system now owns the memory */
 			cleanup_needed = 0;
@@ -1534,10 +1546,18 @@ cleanup_result_query:
     * IMPORTANT: This result does NOT own the statement handle. */
    result_query->owns_stmt_handle = 0;
    result_query->res = zend_register_resource(result_query, le_query);
-			if (!result_query->res) {
-				_php_ibase_module_error("SELECT: Failed to register result resource");
-				goto cleanup_select_result_query;
-			}
+            if (!result_query->res) {
+                _php_ibase_module_error("SELECT: Failed to register result resource");
+                goto cleanup_select_result_query;
+            }
+
+            /* Link this result as a child of the parent prepared query so that
+             * freeing the parent can invalidate dependent results (required for
+             * use-after-free tests). */
+            result_query->parent = ib_query;
+            result_query->child_head = NULL;
+            result_query->child_next = ib_query->child_head;
+            ib_query->child_head = result_query;
 
 			/* Success - disable cleanup since resource system now owns the memory */
 			cleanup_needed = 0;
@@ -2117,9 +2137,10 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 		RETURN_FALSE;
 	}
 
-	if(_php_ibase_fetch_query_res(res_arg, &ib_query)) {
-		RETURN_FALSE;
-	}
+ if(_php_ibase_fetch_query_res(res_arg, &ib_query)) {
+        /* Let Zend throw a TypeError for invalid/closed resources */
+        return;
+    }
 
 	if (ib_query->out_sqlda == NULL || !ib_query->has_more_rows || !ib_query->is_open) {
 		RETURN_FALSE;
@@ -2838,19 +2859,48 @@ static int _php_ibase_alloc_ht_aliases(ibase_query *ib_query)
 	zend_hash_init(ib_query->ht_aliases, ib_query->out_fields_count, NULL, ZVAL_PTR_DTOR, 0);
 
 #if FB_API_VER >= 40
-	if(IBG(master_instance) && IBG(get_statement_interface)) {
-		void *statement = NULL;
-		if(((fb_get_statement_interface_t)IBG(get_statement_interface))(IB_STATUS, &statement, &ib_query->stmt)){
-			return FAILURE;
-		}
+    if(IBG(master_instance) && IBG(get_statement_interface)) {
+        void *statement = NULL;
+        if(((fb_get_statement_interface_t)IBG(get_statement_interface))(IB_STATUS, &statement, &ib_query->stmt)){
+            return FAILURE;
+        }
 
-		if(fbu_insert_aliases(IBG(master_instance), IB_STATUS, ib_query, statement)){
-			return FAILURE;
-		}
-	} else {
+        if(fbu_insert_aliases(IBG(master_instance), IB_STATUS, ib_query, statement)){
+            return FAILURE;
+        }
+        /* If this is a DML ... RETURNING statement, preserve OLD./NEW. prefixes
+         * by rebuilding the alias table with inferred prefixes when present. */
+        if (ib_query->statement_type == isc_info_sql_stmt_insert ||
+            ib_query->statement_type == isc_info_sql_stmt_update ||
+            ib_query->statement_type == isc_info_sql_stmt_delete) {
+            HashTable *ht2;
+            ALLOC_HASHTABLE(ht2);
+            zend_hash_init(ht2, ib_query->out_fields_count, NULL, ZVAL_PTR_DTOR, 0);
+
+            for (size_t i = 0; i < ib_query->out_fields_count; i++) {
+                XSQLVAR *var = &ib_query->out_sqlda->sqlvar[i];
+                const char *base_alias = (var->aliasname && var->aliasname[0])
+                    ? var->aliasname
+                    : (var->sqlname ? var->sqlname : "");
+
+                char pref[5] = {0};
+                if (_php_ibase_infer_returning_prefix(ib_query->query, i, pref, sizeof(pref)) && pref[0] != '\0') {
+                    char buf[METADATALENGTH + 5 + 1];
+                    snprintf(buf, sizeof(buf), "%s%s", pref, base_alias);
+                    _php_ibase_insert_alias(ht2, buf);
+                } else {
+                    _php_ibase_insert_alias(ht2, base_alias);
+                }
+            }
+
+            /* Replace the original alias table */
+            zend_array_destroy(ib_query->ht_aliases);
+            ib_query->ht_aliases = ht2;
+        }
+    } else {
 #endif
-		// Old API
-  for(size_t i = 0; i < ib_query->out_fields_count; i++){
+        // Old API
+        for(size_t i = 0; i < ib_query->out_fields_count; i++){
             XSQLVAR *var = &ib_query->out_sqlda->sqlvar[i];
 
             const char *base_alias = (var->aliasname && var->aliasname[0])

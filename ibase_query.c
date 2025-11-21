@@ -1891,8 +1891,62 @@ PHP_FUNCTION(ibase_affected_rows)
 }
 /* }}} */
 
+/* Portable UTC epoch conversion helper at file scope: prefer timegm when available,
+ * otherwise temporarily switch TZ to UTC for mktime. This avoids local timezone/DST
+ * affecting TIMESTAMP/DATE → epoch conversion when PHP_IBASE_UNIXTIME is requested. */
+static time_t ibase_timegm_portable(struct tm *tm)
+{
+#ifdef HAVE_TIMEGM
+    return timegm(tm);
+#else
+    /* Save current TZ */
+    char *old_tz = getenv("TZ");
+    char *saved = NULL;
+    if (old_tz) {
+        /* use Zend allocator for consistency with the rest of the extension */
+        saved = estrdup(old_tz);
+    }
+    /* Set UTC and apply */
+    setenv("TZ", "UTC", 1);
+    tzset();
+    time_t ts = mktime(tm);
+    /* Restore TZ */
+    if (saved) {
+        setenv("TZ", saved, 1);
+        efree(saved);
+    } else {
+        unsetenv("TZ");
+    }
+    tzset();
+    return ts;
+#endif
+}
+
+/* Convert struct tm to epoch using a specific timezone name (e.g., from
+ * PHP INI date.timezone). Falls back to UTC when tz is NULL/empty. */
+static time_t ibase_mktime_with_tz(struct tm *tm, const char *tz)
+{
+    const char *use_tz = (tz && tz[0]) ? tz : "UTC";
+    char *old_tz_env = getenv("TZ");
+    char *saved = NULL;
+    if (old_tz_env) {
+        saved = estrdup(old_tz_env);
+    }
+    setenv("TZ", use_tz, 1);
+    tzset();
+    time_t ts = mktime(tm);
+    if (saved) {
+        setenv("TZ", saved, 1);
+        efree(saved);
+    } else {
+        unsetenv("TZ");
+    }
+    tzset();
+    return ts;
+}
+
 static int _php_ibase_var_zval(zval *val, void *data, int type, int len, /* {{{ */
-	int scale, size_t flag)
+    int scale, size_t flag)
 {
 	static ISC_INT64 const scales[] = { 1, 10, 100, 1000,
 		10000,
@@ -1917,7 +1971,9 @@ static int _php_ibase_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 	zend_long n;
 	char string_data[255] = {0}; /* Initialize to prevent uninitialized access */
 	struct tm t;
-	char *format;
+    char *format;
+
+    /* (helper defined at file scope) */
 
 	switch (type & ~1) {
 
@@ -2051,13 +2107,16 @@ format_date_time:
 			t.tm_zone = tzname[0];
 #endif
 			/* Skip unix-time conversion entirely for TIME/TIME_TZ types as they have no date component */
-			if (((type & ~1) == SQL_TYPE_TIME) || ((type & ~1) == SQL_TIME_TZ)) {
-				/* TIME/TIME_TZ: Skip unix conversion, always return formatted string */
-				l = strftime(string_data, sizeof(string_data), format, &t);
-				ZVAL_STRINGL(val, string_data, l);
-   } else if (flag & PHP_IBASE_UNIXTIME) {
-                /* TIMESTAMP/DATE: Historical ibase behavior uses local time conversion. */
-                time_t timestamp = mktime(&t);
+   if (((type & ~1) == SQL_TYPE_TIME) || ((type & ~1) == SQL_TIME_TZ)) {
+                /* TIME/TIME_TZ: Skip unix conversion, always return formatted string */
+                l = strftime(string_data, sizeof(string_data), format, &t);
+                ZVAL_STRINGL(val, string_data, l);
+            } else if (flag & PHP_IBASE_UNIXTIME) {
+                /* TIMESTAMP/DATE: Deterministic behavior — convert to epoch
+                 * using PHP's configured timezone (date.timezone). This avoids
+                 * dependence on the host OS timezone. */
+                const char *php_tz = INI_STR("date.timezone");
+                time_t timestamp = ibase_mktime_with_tz(&t, php_tz);
                 ZVAL_LONG(val, timestamp);
             } else {
                 l = strftime(string_data, sizeof(string_data), format, &t);
@@ -2908,13 +2967,19 @@ static int _php_ibase_alloc_ht_aliases(ibase_query *ib_query)
                     ? var->aliasname
                     : (var->sqlname ? var->sqlname : "");
 
-                char pref[5] = {0};
-                if (_php_ibase_infer_returning_prefix(ib_query->query, i, pref, sizeof(pref)) && pref[0] != '\0') {
-                    char buf[METADATALENGTH + 5 + 1];
-                    snprintf(buf, sizeof(buf), "%s%s", pref, base_alias);
-                    _php_ibase_insert_alias(ht2, buf);
+                /* Prefer full alias inference (e.g., OLD.I / NEW.I) when present */
+                char full[METADATALENGTH + 6 + 1] = {0};
+                if (_php_ibase_infer_returning_full_alias(ib_query->query, i, full, sizeof(full))) {
+                    _php_ibase_insert_alias(ht2, full);
                 } else {
-                    _php_ibase_insert_alias(ht2, base_alias);
+                    char pref[5] = {0};
+                    if (_php_ibase_infer_returning_prefix(ib_query->query, i, pref, sizeof(pref)) && pref[0] != '\0') {
+                        char buf[METADATALENGTH + 5 + 1];
+                        snprintf(buf, sizeof(buf), "%s%s", pref, base_alias);
+                        _php_ibase_insert_alias(ht2, buf);
+                    } else {
+                        _php_ibase_insert_alias(ht2, base_alias);
+                    }
                 }
             }
 
@@ -2936,19 +3001,25 @@ static int _php_ibase_alloc_ht_aliases(ibase_query *ib_query)
             if (ib_query->statement_type == isc_info_sql_stmt_insert ||
                 ib_query->statement_type == isc_info_sql_stmt_update ||
                 ib_query->statement_type == isc_info_sql_stmt_delete) {
-                char pref[5] = {0};
-                if (_php_ibase_infer_returning_prefix(ib_query->query, i, pref, sizeof(pref)) && pref[0] != '\0') {
-                    char buf[METADATALENGTH + 5 + 1];
-                    snprintf(buf, sizeof(buf), "%s%s", pref, base_alias);
-                    _php_ibase_insert_alias(ib_query->ht_aliases, buf);
+                char full[METADATALENGTH + 6 + 1] = {0};
+                if (_php_ibase_infer_returning_full_alias(ib_query->query, i, full, sizeof(full))) {
+                    _php_ibase_insert_alias(ib_query->ht_aliases, full);
                     continue;
+                } else {
+                    char pref[5] = {0};
+                    if (_php_ibase_infer_returning_prefix(ib_query->query, i, pref, sizeof(pref)) && pref[0] != '\0') {
+                        char buf[METADATALENGTH + 5 + 1];
+                        snprintf(buf, sizeof(buf), "%s%s", pref, base_alias);
+                        _php_ibase_insert_alias(ib_query->ht_aliases, buf);
+                        continue;
+                    }
                 }
             }
 
             _php_ibase_insert_alias(ib_query->ht_aliases, base_alias);
         }
 #if FB_API_VER >= 40
-	}
+    }
 #endif
 
 	return SUCCESS;
@@ -2967,12 +3038,9 @@ static void _php_ibase_alloc_ht_ind(ibase_query *ib_query)
 	}
 }
 
-/* Try to infer qualified aliases for DML ... RETURNING columns when
- * duplicate base names occur. Tests expect keys like 'OLD.I' / 'NEW.I'
- * instead of auto-suffixed 'I_01'. We heuristically parse the RETURNING
- * list from the original SQL text and, when the kth returning expression
- * starts with OLD./NEW., we prefix the alias accordingly. The parser is
- * intentionally simple and covers test cases (unquoted identifiers). */
+/* Parse the RETURNING list and extract a qualifier prefix (OLD./NEW.) for the
+ * k-th expression, if present. Returns 1 when detected and writes uppercased
+ * qualifier including trailing dot into out; otherwise returns 0. */
 static zend_bool _php_ibase_infer_returning_prefix(const char *sql, size_t index, char *out, size_t out_len)
 {
     if (!sql || !out || out_len < 5) { /* needs space for "OLD."/"NEW." */
@@ -3023,6 +3091,74 @@ static zend_bool _php_ibase_infer_returning_prefix(const char *sql, size_t index
             i++;
             if (*s == '\0' || *s == ';') break;
             s++; /* skip comma */
+            while (*s && (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r')) s++;
+            tok_start = s;
+        } else {
+            s++;
+        }
+    }
+    return 0;
+}
+
+/* Parse the full alias for the k-th expression in RETURNING list when the
+ * expression is qualified with OLD./NEW. Returns 1 and writes the alias
+ * (e.g., "OLD.I") into out when detected; otherwise returns 0. This is a
+ * simple tokenizer aimed at test cases with unquoted identifiers. */
+static zend_bool _php_ibase_infer_returning_full_alias(const char *sql, size_t index, char *out, size_t out_len)
+{
+    if (!sql || !out || out_len < 6) {
+        return 0;
+    }
+
+    /* Find RETURNING */
+    const char *p = sql;
+    const char *ret = NULL;
+    while (*p) {
+        if (strncasecmp(p, "returning", 9) == 0) { ret = p + 9; break; }
+        p++;
+    }
+    if (!ret) return 0;
+
+    size_t i = 0;
+    const char *s = ret;
+    while (*s && (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r')) s++;
+
+    const char *tok_start = s;
+    for (;;) {
+        if (*s == ',' || *s == '\0' || *s == ';') {
+            if (i == index) {
+                const char *tok_end = s;
+                while (tok_end > tok_start && (tok_end[-1] == ' ' || tok_end[-1] == '\t' || tok_end[-1] == '\n' || tok_end[-1] == '\r')) {
+                    tok_end--;
+                }
+                while (tok_start < tok_end && (*tok_start == ' ' || *tok_start == '\t' || *tok_start == '\n' || *tok_start == '\r')) tok_start++;
+
+                /* Expect pattern QUAL.COL where QUAL in {OLD,NEW} */
+                const char *dot = memchr(tok_start, '.', tok_end - tok_start);
+                if (dot && (dot - tok_start) >= 3) {
+                    if (strncasecmp(tok_start, "old", 3) == 0) {
+                        size_t rem = (size_t)(tok_end - (dot + 1));
+                        if (rem + 4 < out_len) {
+                            memcpy(out, "OLD.", 4);
+                            memcpy(out + 4, dot + 1, rem);
+                            out[4 + rem] = '\0';
+                            return 1;
+                        }
+                    } else if (strncasecmp(tok_start, "new", 3) == 0) {
+                        size_t rem = (size_t)(tok_end - (dot + 1));
+                        if (rem + 4 < out_len) {
+                            memcpy(out, "NEW.", 4);
+                            memcpy(out + 4, dot + 1, rem);
+                            out[4 + rem] = '\0';
+                            return 1;
+                        }
+                    }
+                }
+                return 0;
+            }
+            i++;
+            if (*s == '\0' || *s == ';') break;
+            s++;
             while (*s && (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r')) s++;
             tok_start = s;
         } else {

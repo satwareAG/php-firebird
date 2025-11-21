@@ -298,6 +298,20 @@ static void php_ibase_free_query_rsrc(zend_resource *rsrc) /* {{{ */
 
     if (ib_query != NULL) {
         IBDEBUG("Preparing to free query by dtor...");
+        /* Invalidate and free any dependent child result resources first so that
+         * further use of those results triggers a TypeError as expected by tests. */
+        ibase_query *child = ib_query->child_head;
+        while (child) {
+            ibase_query *next = child->child_next;
+            /* Break the back-link to avoid cascading frees */
+            child->parent = NULL;
+            if (child->res) {
+                /* Close child resource which marks it invalid for Zend */
+                zend_list_close(child->res);
+                child->res = NULL;
+            }
+            child = next;
+        }
         /* Ensure any open cursor/statement is properly closed on the server
          * to avoid -502 (Attempt to reopen an open cursor) on subsequent uses. */
         if (ib_query->stmt) {

@@ -74,7 +74,8 @@ jobs:
     - name: Run Tests (PHPT)
       env:
         # Connection string for the tests
-        FIREBIRD_HOST: "127.0.0.1/3050:test.fdb"
+        # No database path here; tests/interbase.inc appends a unique temp path
+        FIREBIRD_HOST: "127.0.0.1/3050"
         ISC_USER: SYSDBA
         ISC_PASSWORD: masterkey
         NO_INTERACTION: 1

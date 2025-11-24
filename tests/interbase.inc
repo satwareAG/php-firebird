@@ -15,6 +15,19 @@ require_once('functions.inc');
 $fbDbDirEnv  = getenv('FIREBIRD_DB_DIR');
 $fbDbPathEnv = getenv('FIREBIRD_DB_PATH');
 
+/*
+ * Ensure Firebird client environment variables are set for authentication.
+ * This provides a robust fallback if credentials in the connection string
+ * (e.g. in CREATE DATABASE) are not parsed correctly by the client library,
+ * which has been observed in some environment variations (e.g. PHP 8.5).
+ */
+if ($user) {
+    putenv("ISC_USER=$user");
+}
+if ($password) {
+    putenv("ISC_PASSWORD=$password");
+}
+
 if ($fbDbDirEnv !== false && $fbDbDirEnv !== '') {
 	$dbDir = rtrim($fbDbDirEnv, '/');
 	$tmp   = @tempnam($dbDir, 'php_ibase_test_');

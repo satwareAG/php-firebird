@@ -10,6 +10,19 @@ jobs:
   linux-matrix-build:
     runs-on: ubuntu-latest
     container: node:20-slim
+    env:
+      # Optional: URLs of official Firebird client tarballs (Linux x86_64)
+      # If set, these are used to install matching client libraries for
+      # Firebird 3.0/4.0/5.0 matrix entries.
+      FB3_TARBALL_URL: ""
+      FB4_TARBALL_URL: ""
+      FB5_TARBALL_URL: ""
+      # Optional: SHA256 checksums for the corresponding Firebird client tarballs.
+      # When set, the workflow will verify the integrity of the downloaded
+      # archives before extracting them.
+      FB3_TARBALL_SHA256: ""
+      FB4_TARBALL_SHA256: ""
+      FB5_TARBALL_SHA256: ""
     services:
       firebird:
         image: ${{ matrix.firebird-image }}
@@ -19,7 +32,7 @@ jobs:
           FIREBIRD_PASSWORD: masterkey
           FIREBIRD_ROOT_PASSWORD: masterkey
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         php-version: ['8.1', '8.2', '8.3', '8.4', '8.5']
         firebird-version: ['2.5', '3.0', '4.0', '5.0']
@@ -38,17 +51,202 @@ jobs:
 
     - name: Install System Dependencies
       run: |
-        apt-get update
-        apt-get install -y \
+        # Use strict error handling compatible with /bin/sh in containers and act
+        set -eu
+
+        # Use non-interactive, fail-fast apt with a simple retry on update
+        export DEBIAN_FRONTEND=noninteractive
+
+        for attempt in 1 2 3; do
+          if apt-get update; then
+            break
+          fi
+          echo "apt-get update failed (attempt ${attempt}/3), retrying in 5s..." >&2
+          sleep 5
+        done
+
+        apt-get install -y --no-install-recommends \
           curl \
           ca-certificates \
           gnupg \
           git \
           unzip \
-          firebird-dev \
           autoconf \
           build-essential \
           netcat-openbsd
+
+    - name: Install Firebird 3 client from tarball (for Firebird 2.5/3.0)
+      if: matrix.firebird-version == '2.5' || matrix.firebird-version == '3.0'
+      run: |
+        # Install Firebird 3 client libraries/headers from a tarball and make
+        # them available system-wide. This is used for both Firebird 2.5 and
+        # 3.0 servers (2.5 is supported by the 3.0 client).
+        set -eu
+
+        if [ -z "${FB3_TARBALL_URL:-}" ]; then
+          echo "FB3_TARBALL_URL must be set to a https URL for Firebird 3 client tarball" >&2
+          exit 1
+        fi
+
+        if ! printf '%s' "$FB3_TARBALL_URL" | grep -Eq '^https://'; then
+          echo "FB3_TARBALL_URL must be a https URL" >&2
+          exit 1
+        fi
+
+        mkdir -p /tmp/fb3
+        if ! curl --fail --show-error --location --retry 3 --retry-delay 3 \
+          "$FB3_TARBALL_URL" -o /tmp/fb3/firebird3.tar; then
+          echo "Failed to download Firebird 3 client tarball from FB3_TARBALL_URL" >&2
+          exit 1
+        fi
+
+        # Optional checksum verification when FB3_TARBALL_SHA256 is provided
+        if [ -n "${FB3_TARBALL_SHA256:-}" ]; then
+          echo "${FB3_TARBALL_SHA256}  /tmp/fb3/firebird3.tar" | sha256sum -c -
+        else
+          echo "Warning: FB3_TARBALL_SHA256 is empty, skipping checksum verification" >&2
+        fi
+
+        # Use auto-compression (-a) to support .tar.gz, .tar.xz, etc.
+        tar -xaf /tmp/fb3/firebird3.tar -C /tmp/fb3 --strip-components=1
+
+        # Install client library (libfbclient) to a standard system directory.
+        if [ -d /tmp/fb3/lib ]; then
+          cp /tmp/fb3/lib/libfbclient.so* /usr/lib/
+        elif [ -d /tmp/fb3/opt/firebird/lib ]; then
+          cp /tmp/fb3/opt/firebird/lib/libfbclient.so* /usr/lib/
+        else
+          echo "Could not locate libfbclient.so in Firebird 3 tarball" >&2
+          exit 1
+        fi
+
+        # Install headers for compilation.
+        if [ -d /tmp/fb3/include ]; then
+          mkdir -p /usr/include/firebird
+          cp -r /tmp/fb3/include/* /usr/include/firebird/
+        elif [ -d /tmp/fb3/opt/firebird/include ]; then
+          mkdir -p /usr/include/firebird
+          cp -r /tmp/fb3/opt/firebird/include/* /usr/include/firebird/
+        else
+          echo "Could not locate Firebird 3 headers in tarball" >&2
+          exit 1
+        fi
+
+        ldconfig
+
+    - name: Install Firebird 4 client from tarball
+      if: matrix.firebird-version == '4.0'
+      run: |
+        # Use strict error handling compatible with /bin/sh in containers and act
+        set -eu
+
+        if [ -z "${FB4_TARBALL_URL:-}" ]; then
+          echo "FB4_TARBALL_URL must be set to a https URL for Firebird 4 client tarball" >&2
+          exit 1
+        fi
+
+        if ! printf '%s' "$FB4_TARBALL_URL" | grep -Eq '^https://'; then
+          echo "FB4_TARBALL_URL must be a https URL" >&2
+          exit 1
+        fi
+
+        mkdir -p /tmp/fb4
+        if ! curl --fail --show-error --location --retry 3 --retry-delay 3 \
+          "$FB4_TARBALL_URL" -o /tmp/fb4/firebird4.tar; then
+          echo "Failed to download Firebird 4 client tarball from FB4_TARBALL_URL" >&2
+          exit 1
+        fi
+
+        # Optional checksum verification when FB4_TARBALL_SHA256 is provided
+        if [ -n "${FB4_TARBALL_SHA256:-}" ]; then
+          echo "${FB4_TARBALL_SHA256}  /tmp/fb4/firebird4.tar" | sha256sum -c -
+        else
+          echo "Warning: FB4_TARBALL_SHA256 is empty, skipping checksum verification" >&2
+        fi
+
+        # Use auto-compression (-a) to support .tar.gz, .tar.xz, etc.
+        tar -xaf /tmp/fb4/firebird4.tar -C /tmp/fb4 --strip-components=1
+
+        # Install client library (libfbclient) to a standard system directory.
+        if [ -d /tmp/fb4/lib ]; then
+          cp /tmp/fb4/lib/libfbclient.so* /usr/lib/
+        elif [ -d /tmp/fb4/opt/firebird/lib ]; then
+          cp /tmp/fb4/opt/firebird/lib/libfbclient.so* /usr/lib/
+        else
+          echo "Could not locate libfbclient.so in Firebird 4 tarball" >&2
+          exit 1
+        fi
+
+        # Install headers for compilation.
+        if [ -d /tmp/fb4/include ]; then
+          mkdir -p /usr/include/firebird
+          cp -r /tmp/fb4/include/* /usr/include/firebird/
+        elif [ -d /tmp/fb4/opt/firebird/include ]; then
+          mkdir -p /usr/include/firebird
+          cp -r /tmp/fb4/opt/firebird/include/* /usr/include/firebird/
+        else
+          echo "Could not locate Firebird 4 headers in tarball" >&2
+          exit 1
+        fi
+
+        ldconfig
+
+    - name: Install Firebird 5 client from tarball
+      if: matrix.firebird-version == '5.0'
+      run: |
+        # Use strict error handling compatible with /bin/sh in containers and act
+        set -eu
+
+        if [ -z "${FB5_TARBALL_URL:-}" ]; then
+          echo "FB5_TARBALL_URL must be set to a https URL for Firebird 5 client tarball" >&2
+          exit 1
+        fi
+
+        if ! printf '%s' "$FB5_TARBALL_URL" | grep -Eq '^https://'; then
+          echo "FB5_TARBALL_URL must be a https URL" >&2
+          exit 1
+        fi
+
+        mkdir -p /tmp/fb5
+        if ! curl --fail --show-error --location --retry 3 --retry-delay 3 \
+          "$FB5_TARBALL_URL" -o /tmp/fb5/firebird5.tar; then
+          echo "Failed to download Firebird 5 client tarball from FB5_TARBALL_URL" >&2
+          exit 1
+        fi
+
+        # Optional checksum verification when FB5_TARBALL_SHA256 is provided
+        if [ -n "${FB5_TARBALL_SHA256:-}" ]; then
+          echo "${FB5_TARBALL_SHA256}  /tmp/fb5/firebird5.tar" | sha256sum -c -
+        else
+          echo "Warning: FB5_TARBALL_SHA256 is empty, skipping checksum verification" >&2
+        fi
+
+        # Use auto-compression (-a) to support .tar.gz, .tar.xz, etc.
+        tar -xaf /tmp/fb5/firebird5.tar -C /tmp/fb5 --strip-components=1
+
+        # Install client library (libfbclient) to a standard system directory.
+        if [ -d /tmp/fb5/lib ]; then
+          cp /tmp/fb5/lib/libfbclient.so* /usr/lib/
+        elif [ -d /tmp/fb5/opt/firebird/lib ]; then
+          cp /tmp/fb5/opt/firebird/lib/libfbclient.so* /usr/lib/
+        else
+          echo "Could not locate libfbclient.so in Firebird 5 tarball" >&2
+          exit 1
+        fi
+
+        # Install headers for compilation.
+        if [ -d /tmp/fb5/include ]; then
+          mkdir -p /usr/include/firebird
+          cp -r /tmp/fb5/include/* /usr/include/firebird/
+        elif [ -d /tmp/fb5/opt/firebird/include ]; then
+          mkdir -p /usr/include/firebird
+          cp -r /tmp/fb5/opt/firebird/include/* /usr/include/firebird/
+        else
+          echo "Could not locate Firebird 5 headers in tarball" >&2
+          exit 1
+        fi
+
+        ldconfig
 
     - name: Setup PHP
       uses: shivammathur/setup-php@v2
@@ -70,11 +268,42 @@ jobs:
           sleep 1
         done
 
-    - name: Build Extension
+    # Build the PHP extension. For Firebird 4.0/5.0 we explicitly disable
+    # fb_config usage so the build relies on the headers/libs we installed
+    # from tarballs instead of any system fb_config from older clients.
+
+    - name: Build Extension (Firebird 2.5/3.0)
+      if: matrix.firebird-version == '2.5' || matrix.firebird-version == '3.0'
       run: |
         phpize
         ./configure
-        make -j$(nproc)
+        make -j"$(nproc)"
+
+    - name: Build Extension (Firebird 4.0/5.0)
+      if: matrix.firebird-version == '4.0' || matrix.firebird-version == '5.0'
+      env:
+        # Force config.m4 to skip fb_config detection and instead use
+        # the Firebird headers/libs that were installed into the system
+        # (from the Firebird 4/5 tarballs).
+        FB_CONFIG: "no"
+      run: |
+        phpize
+        ./configure
+        make -j"$(nproc)"
+
+    # Optional diagnostic: show which fb_config (if any) is present and what
+    # version/lib it reports. This helps verify which client version would be
+    # used if fb_config were consulted.
+    - name: Diagnose Firebird client tooling
+      run: |
+        set -eu
+        if command -v fb_config >/dev/null 2>&1; then
+          echo "fb_config path: $(command -v fb_config)"
+          echo "fb_config --version: $(fb_config --version || echo 'N/A')"
+          echo "fb_config --libs: $(fb_config --libs || echo 'N/A')"
+        else
+          echo "fb_config not found in PATH"
+        fi
 
     - name: Run Tests (PHPT)
       env:

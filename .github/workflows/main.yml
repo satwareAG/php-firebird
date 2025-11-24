@@ -1,4 +1,4 @@
-name: Linux Matrix Build
+name: Linux PHP + Firebird (IBSurgeon)
 
 on:
   push:
@@ -8,283 +8,181 @@ on:
 
 jobs:
   linux-matrix-build:
+    name: PHP ${{ matrix.php-version }} / Firebird ${{ matrix.firebird-version }}
     runs-on: ubuntu-latest
-    container: node:20-slim
-    env:
-      # Pinned Firebird client tags from official GitHub releases.
-      # Mapping requirement:
-      #   - Firebird server 2.5/3.0 → 3.x client
-      #   - Firebird server 4.0     → 4.x client
-      #   - Firebird server 5.0     → 5.x client
-      # The tags below are the current latest stable for each major.
-      # Update these when you want to move to a newer Firebird client.
-      FB3_TAG: v3.0.13
-      FB4_TAG: v4.0.6
-      FB5_TAG: v5.0.3
-    services:
-      firebird:
-        image: ${{ matrix.firebird-image }}
-        env:
-          ISC_PASSWORD: masterkey
-          FIREBIRD_DATABASE: test.fdb
-          FIREBIRD_PASSWORD: masterkey
-          FIREBIRD_ROOT_PASSWORD: masterkey
+
+    # Single container per job: one PHP CLI image which will also host
+    # the Firebird server installed via IBSurgeon firebirdlinuxinstall.
+    #
+    # We pin the Debian variant to "bookworm" (Debian 12) because the
+    # firebirdlinuxinstall scripts currently support Debian up to 12 and
+    # explicitly fail on 13 (trixie), which is the default for generic
+    # php:<version>-cli images at the time of writing.
+    container:
+      image: php:${{ matrix.php-version }}-cli-bookworm
+
     strategy:
       fail-fast: true
       matrix:
         php-version: ['8.1', '8.2', '8.3', '8.4', '8.5']
         firebird-version: ['2.5', '3.0', '4.0', '5.0']
-        include:
-          - firebird-version: '2.5'
-            firebird-image: 'jacobalberty/firebird:v2.5.9-ss'
-          - firebird-version: '3.0'
-            firebird-image: 'firebirdsql/firebird:3'
-          - firebird-version: '4.0'
-            firebird-image: 'firebirdsql/firebird:4'
-          - firebird-version: '5.0'
-            firebird-image: 'firebirdsql/firebird:5'
+
+    env:
+      # Default Firebird credentials expected by tests/interbase.inc.
+      ISC_USER: SYSDBA
+      ISC_PASSWORD: masterkey
 
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Install System Dependencies
-      run: |
-        # Use strict error handling compatible with /bin/sh in containers and act
-        set -eu
+      - name: Install system dependencies (PHP build tools, netcat, curl, wget)
+        run: |
+          set -eu
 
-        # Use non-interactive, fail-fast apt with a simple retry on update
-        export DEBIAN_FRONTEND=noninteractive
-        for attempt in 1 2 3; do
-          if apt-get update; then
-            break
+          # Enable pipefail where supported (bash, some modern shells). When running
+          # under POSIX sh (e.g. act's default shell), this will fail but is safely
+          # ignored because it's wrapped in an if-condition.
+          if (set -o pipefail) 2>/dev/null; then :; fi
+
+          export DEBIAN_FRONTEND=noninteractive
+          for attempt in 1 2 3; do
+            if apt-get update; then
+              break
+            fi
+            echo "apt-get update failed (attempt ${attempt}/3), retrying in 5s..." >&2
+            sleep 5
+          done
+
+          apt-get install -y --no-install-recommends \
+            autoconf \
+            build-essential \
+            ca-certificates \
+            g++ \
+            git \
+            libicu-dev \
+            libreadline-dev \
+            libssl-dev \
+            libtool \
+            netbase \
+            netcat-openbsd \
+            pkg-config \
+            wget \
+            curl \
+            unzip \
+            bison \
+            flex \
+            cmake \
+            jq \
+            python3 \
+            zlib1g-dev
+
+          rm -rf /var/lib/apt/lists/*
+
+      - name: Install Firebird server via IBSurgeon script
+        env:
+          # Map matrix.firebird-version to firebirdlinuxinstall script suffix.
+          MATRIX_FIREBIRD_VERSION: ${{ matrix.firebird-version }}
+        run: |
+          set -eu
+
+          # Enable pipefail where supported without breaking plain /bin/sh.
+          if (set -o pipefail) 2>/dev/null; then :; fi
+
+          case "${MATRIX_FIREBIRD_VERSION}" in
+            '2.5')
+              FB_SCRIPT_SUFFIX='25'
+              ;;
+            '3.0')
+              FB_SCRIPT_SUFFIX='30'
+              ;;
+            '4.0')
+              FB_SCRIPT_SUFFIX='40'
+              ;;
+            '5.0')
+              FB_SCRIPT_SUFFIX='50'
+              ;;
+            *)
+              echo "Unsupported Firebird version in matrix: ${MATRIX_FIREBIRD_VERSION}" >&2
+              exit 1
+              ;;
+          esac
+
+          FB_SCRIPT_URL="https://raw.githubusercontent.com/IBSurgeon/firebirdlinuxinstall/refs/heads/main/fb_vanilla-${FB_SCRIPT_SUFFIX}.sh"
+
+          echo "Downloading Firebird install script from ${FB_SCRIPT_URL}"
+          curl -fsSL "${FB_SCRIPT_URL}" -o /tmp/fb_install.sh
+          chmod +x /tmp/fb_install.sh
+
+          # Run IBSurgeon installer in non-interactive mode by feeding
+          # default answers. The script installs Firebird under /opt/firebird
+          # and configures it to listen on the default port 3050.
+          printf '\n' | /tmp/fb_install.sh
+
+          # In container environments systemd may not be available, so we
+          # make a best-effort attempt to start Firebird directly if the
+          # installer did not already start it.
+          if ! nc -z 127.0.0.1 3050; then
+            if [ -x /opt/firebird/bin/fbguard ]; then
+              /opt/firebird/bin/fbguard -daemon || true
+            elif [ -x /opt/firebird/bin/fbserver ]; then
+              /opt/firebird/bin/fbserver -daemon || true
+            fi
           fi
-          echo "apt-get update failed (attempt ${attempt}/3), retrying in 5s..." >&2
-          sleep 5
-        done
 
-        apt-get install -y --no-install-recommends \
-          curl \
-          ca-certificates \
-          gnupg \
-          git \
-          unzip \
-          autoconf \
-          build-essential \
-          netcat-openbsd \
-          cmake \
-          pkg-config \
-          jq \
-          python3 \
-          g++ \
-          libssl-dev \
-          libicu-dev \
-          zlib1g-dev \
-          libreadline-dev \
-          bison \
-          flex \
-          gperf \
-          automake \
-          libtool
+          # Wait for Firebird to be ready on localhost:3050.
+          for i in $(seq 1 60); do
+            if nc -z 127.0.0.1 3050; then
+              echo "Firebird is ready on localhost:3050"
+              break
+            fi
+            echo "Waiting for Firebird to start (attempt ${i}/60)..."
+            sleep 1
+          done
 
-    - name: Install Firebird client (resilient)
-      shell: bash
-      run: |
-        set -euxo pipefail
-
-        # Map Firebird server version to pinned client tag and Linux x64
-        # archive URL from the official SourceForge mirror. This avoids
-        # building Firebird from source inside CI while still matching the
-        # exact released client version per major.
-        case "${{ matrix.firebird-version }}" in
-          2.5|3.0)
-            TAG="${FB3_TAG:-}"
-            CLIENT_URL="https://sourceforge.net/projects/firebird.mirror/files/${TAG}/Firebird-3.0.13.33818-0.amd64.tar.gz/download"
-            ;;
-          4.0)
-            TAG="${FB4_TAG:-}"
-            CLIENT_URL="https://sourceforge.net/projects/firebird.mirror/files/${TAG}/Firebird-4.0.6.3221-0.amd64.tar.gz/download"
-            ;;
-          5.0)
-            TAG="${FB5_TAG:-}"
-            CLIENT_URL="https://sourceforge.net/projects/firebird.mirror/files/${TAG}/Firebird-5.0.3.1683-0-linux-x64.tar.gz/download"
-            ;;
-          *)
-            echo "Unsupported matrix.firebird-version: ${{ matrix.firebird-version }}" >&2
+          if ! nc -z 127.0.0.1 3050; then
+            echo "ERROR: Firebird did not start on localhost:3050" >&2
             exit 1
-            ;;
-        esac
-
-        if [ -z "${TAG:-}" ]; then
-          echo "No Firebird tag configured for matrix.firebird-version ${{ matrix.firebird-version }}" >&2
-          exit 1
-        fi
-
-        echo "Downloading client archive for tag ${TAG} from ${CLIENT_URL}"
-        mkdir -p /tmp/firebird-client
-        curl --fail --location --retry 3 --retry-delay 3 "${CLIENT_URL}" -o /tmp/firebird-client/firebird.tar
-
-        # Extract everything (support nested archives)
-        mkdir -p /tmp/firebird-client/extracted
-        tar -xaf /tmp/firebird-client/firebird.tar -C /tmp/firebird-client/extracted || true
-
-        # If a nested buildroot or inner tar exists, extract it too
-        find /tmp/firebird-client/extracted -type f \( -name '*.tar.gz' -o -name '*.tar.xz' -o -name '*.tar' \) | while read -r inner; do
-          innerdir="$(dirname "${inner}")/inner"
-          mkdir -p "${innerdir}"
-          tar -xaf "${inner}" -C "${innerdir}" || true
-        done || true
-
-        # Search for library files and headers anywhere under the extracted tree
-        LIB_FILES=$(find /tmp/firebird-client/extracted -type f \( -name 'libfbclient.so*' -o -name 'libgds.so*' \) || true)
-        HEADER_DIRS=$(find /tmp/firebird-client/extracted -type f -name 'fbclient.h' -printf '%h\n' || true)
-
-        # If libs were not found under extracted, also try /tmp/firebird-client (some archives extract to top-level)
-        if [ -z "${LIB_FILES:-}" ]; then
-          LIB_FILES=$(find /tmp/firebird-client -type f \( -name 'libfbclient.so*' -o -name 'libgds.so*' \) || true)
-        fi
-        if [ -z "${HEADER_DIRS:-}" ]; then
-          HEADER_DIRS=$(find /tmp/firebird-client -type f -name 'fbclient.h' -printf '%h\n' || true)
-        fi
-
-        echo "Found libraries:"
-        printf '%s\n' "${LIB_FILES:-}" || true
-        echo "Found header directories:"
-        printf '%s\n' "${HEADER_DIRS:-}" || true
-
-        # Determine whether sudo is available (GitHub-hosted containers often run as root)
-        if command -v sudo >/dev/null 2>&1; then
-          SUDO="sudo"
-        else
-          SUDO=""
-        fi
-
-        # Ensure destination dirs exist and are writable (use sudo when available)
-        ${SUDO:-} mkdir -p /usr/local/lib
-        ${SUDO:-} mkdir -p /usr/local/include/firebird
-
-        # Copy libs
-        if [ -n "${LIB_FILES:-}" ]; then
-          echo "${LIB_FILES}" | while read -r lf; do
-            [ -n "${lf}" ] || continue
-            ${SUDO:-} cp -v "${lf}" /usr/local/lib/ || true
-          done
-        else
-          echo "ERROR: libfbclient not found in extracted archive" >&2
-          ls -R /tmp/firebird-client || true
-          exit 1
-        fi
-
-        # Copy headers (copy the directory containing fbclient.h if found)
-        if [ -n "${HEADER_DIRS:-}" ]; then
-          echo "${HEADER_DIRS}" | sort -u | while read -r hd; do
-            [ -n "${hd}" ] || continue
-            ${SUDO:-} cp -rv "${hd}"/* /usr/local/include/firebird/ || true
-          done
-        else
-          # Attempt to locate any 'include' directories and copy them
-          INC_DIRS=$(find /tmp/firebird-client/extracted -type d -name include || true)
-          if [ -n "${INC_DIRS:-}" ]; then
-            echo "${INC_DIRS}" | while read -r id; do
-              [ -n "${id}" ] || continue
-              ${SUDO:-} cp -rv "${id}"/* /usr/local/include/firebird/ || true
-            done
-          else
-            echo "Warning: no Firebird headers found; configure may still fail" >&2
           fi
-        fi
 
-        # Make sure linker can find the libs
-        echo "/usr/local/lib" | ${SUDO:-} tee /etc/ld.so.conf.d/firebird.conf
-        ${SUDO:-} ldconfig
+      - name: Build PHP extension (interbase)
+        env:
+          # Force config.m4 to use the Firebird installation at /opt/firebird
+          # instead of probing a system fb_config.
+          FB_CONFIG: "no"
+        run: |
+          set -eu
 
-        # Verify
-        if ls /usr/local/lib/libfbclient.so* >/dev/null 2>&1 || ls /usr/local/lib/libgds.so* >/dev/null 2>&1; then
-          echo "libfbclient (or libgds) present in /usr/local/lib"
-        else
-          echo "libfbclient not installed; contents of /usr/local/lib:" >&2
-          ls -la /usr/local/lib || true
-          exit 1
-        fi
+          # Enable pipefail where supported without breaking plain /bin/sh.
+          if (set -o pipefail) 2>/dev/null; then :; fi
 
-    - name: Setup PHP
-      uses: shivammathur/setup-php@v2
-      with:
-        php-version: ${{ matrix.php-version }}
-        tools: phpize, php-config
-        extensions: none
+          export PATH="/opt/firebird/bin:${PATH}"
+          export LD_LIBRARY_PATH="/opt/firebird/lib:${LD_LIBRARY_PATH:-}"
+          export CFLAGS="-I/opt/firebird/include ${CFLAGS:-}"
+          export LDFLAGS="-L/opt/firebird/lib ${LDFLAGS:-}"
 
-    - name: Prepare Database
-      run: |
-        # Wait for Firebird to be ready
-        # Simple check using nc (netcat)
-        for i in {1..30}; do
-          if nc -z firebird 3050; then
-            echo "Firebird is ready!"
-            break
-          fi
-          echo "Waiting for Firebird..."
-          sleep 1
-        done
+          php -v
+          phpize
+          ./configure --with-interbase=/opt/firebird
+          make -j"$(nproc)"
 
-    # Build the PHP extension. For Firebird 4.0/5.0 we explicitly disable
-    # fb_config usage so the build relies on the headers/libs we installed
-    # into /usr/local instead of any system fb_config from older clients.
+      - name: Run PHPT tests
+        env:
+          # tests/config.inc reads FIREBIRD_HOST and uses it as the host
+          # portion of connection strings; the database path is appended in
+          # tests/interbase.inc. Since the Firebird server runs in the same
+          # container, we connect to localhost on the default port.
+          FIREBIRD_HOST: "localhost"
+          ISC_USER: SYSDBA
+          ISC_PASSWORD: masterkey
+          NO_INTERACTION: 1
+          REPORT_EXIT_STATUS: 1
+          TEST_PHP_EXECUTABLE: php
+        run: |
+          set -eu
 
-    - name: Build Extension (Firebird 2.5/3.0)
-      if: matrix.firebird-version == '2.5' || matrix.firebird-version == '3.0'
-      run: |
-        set -eux
-        export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH:-}
-        export LD_LIBRARY_PATH=/usr/local/lib:${LD_LIBRARY_PATH:-}
-        export CFLAGS="-I/usr/local/include ${CFLAGS:-}"
-        export LDFLAGS="-L/usr/local/lib ${LDFLAGS:-}"
+          # Enable pipefail where supported without breaking plain /bin/sh.
+          if (set -o pipefail) 2>/dev/null; then :; fi
 
-        phpize
-        ./configure --with-interbase=/usr/local
-        make -j"$(nproc)"
-
-    - name: Build Extension (Firebird 4.0/5.0)
-      if: matrix.firebird-version == '4.0' || matrix.firebird-version == '5.0'
-      env:
-        # Force config.m4 to skip fb_config detection and instead use
-        # the Firebird headers/libs that were installed into /usr/local
-        FB_CONFIG: "no"
-      run: |
-        set -eux
-        export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH:-}
-        export LD_LIBRARY_PATH=/usr/local/lib:${LD_LIBRARY_PATH:-}
-        export CFLAGS="-I/usr/local/include ${CFLAGS:-}"
-        export LDFLAGS="-L/usr/local/lib ${LDFLAGS:-}"
-
-        phpize
-        ./configure --with-interbase=/usr/local
-        make -j"$(nproc)"
-
-    # Optional diagnostic: show which fb_config (if any) is present and what
-    # version/lib it reports. This helps verify which client version would be
-    # used if fb_config were consulted.
-    - name: Diagnose Firebird client tooling
-      run: |
-        set -eu
-        if command -v fb_config >/dev/null 2>&1; then
-          echo "fb_config path: $(command -v fb_config)"
-          echo "fb_config --version: $(fb_config --version || echo 'N/A')"
-          echo "fb_config --libs: $(fb_config --libs || echo 'N/A')"
-        else
-          echo "fb_config not found in PATH"
-        fi
-
-    - name: Run Tests (PHPT)
-      env:
-        # Connection string for the tests
-        # No database path here; tests/interbase.inc appends a unique temp path
-        FIREBIRD_HOST: "firebird/3050"
-        ISC_USER: SYSDBA
-        ISC_PASSWORD: masterkey
-        NO_INTERACTION: 1
-        REPORT_EXIT_STATUS: 1
-        TEST_PHP_EXECUTABLE: /usr/bin/php
-      run: |
-        # Run tests using PHP's run-tests.php mechanism via make test
-        # We skip the interactive query
-        make test
+          # Run tests using PHP's run-tests.php mechanism via make test.
+          make test

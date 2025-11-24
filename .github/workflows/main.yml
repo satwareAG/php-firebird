@@ -119,10 +119,26 @@ jobs:
           # and configures it to listen on the default port 3050.
           printf '\n' | /tmp/fb_install.sh
 
-          # In container environments systemd may not be available, so we
-          # make a best-effort attempt to start Firebird directly if the
-          # installer did not already start it.
+          # In container environments systemd may not be available, so we try
+          # several non-systemd startup methods for Firebird. Prefer the
+          # init script that the installer usually installs, then fall back
+          # to starting the engine binaries directly.
+
+          # First try the init script or service(8) interface, if present.
           if ! nc -z 127.0.0.1 3050; then
+            if [ -x /etc/init.d/firebird ]; then
+              echo "Attempting to start Firebird via /etc/init.d/firebird ..."
+              /etc/init.d/firebird restart || /etc/init.d/firebird start || true
+            elif command -v service >/dev/null 2>&1; then
+              echo "Attempting to start Firebird via service firebird ..."
+              service firebird restart || service firebird start || true
+            fi
+          fi
+
+          # If it's still not listening, fall back to starting fbguard/fbserver
+          # directly in the container.
+          if ! nc -z 127.0.0.1 3050; then
+            echo "Attempting to start Firebird via fbguard/fbserver binaries ..."
             if [ -x /opt/firebird/bin/fbguard ]; then
               /opt/firebird/bin/fbguard -daemon || true
             elif [ -x /opt/firebird/bin/fbserver ]; then

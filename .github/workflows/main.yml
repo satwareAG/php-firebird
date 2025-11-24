@@ -16,6 +16,7 @@ jobs:
           ISC_PASSWORD: masterkey
           FIREBIRD_DATABASE: test.fdb
           FIREBIRD_PASSWORD: masterkey
+          FIREBIRD_ROOT_PASSWORD: masterkey
         ports:
           - 3050:3050
     strategy:
@@ -76,6 +77,8 @@ jobs:
         # Connection string for the tests
         # No database path here; tests/interbase.inc appends a unique temp path
         FIREBIRD_HOST: "127.0.0.1/3050"
+        # In act/Docker, we might need to use the service name if localhost mapping fails
+        # FIREBIRD_HOST: "firebird/3050"
         ISC_USER: SYSDBA
         ISC_PASSWORD: masterkey
         NO_INTERACTION: 1

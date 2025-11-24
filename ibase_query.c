@@ -1352,6 +1352,15 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 				/* Safe copy of SQLDA header and variable array */
 				memcpy(result_query->out_sqlda, ib_query->out_sqlda, sqlda_size);
 
+				/* CRITICAL SAFETY FIX: Clear all sqldata pointers in the copy immediately.
+				 * Since memcpy copied the pointers from the parent, if the subsequent allocation
+				 * loop fails halfway, the cleanup routine would see valid-looking pointers
+				 * (pointing to parent's data) for the unvisited fields and try to free them,
+				 * causing double-free or corruption of the parent query. */
+				for (int i = 0; i < ib_query->out_fields_count; i++) {
+					result_query->out_sqlda->sqlvar[i].sqldata = NULL;
+				}
+
 				/* Allocate null indicator array with validation */
 				result_query->out_nullind = safe_emalloc(sizeof(*result_query->out_nullind),
 					ib_query->out_fields_count, 0);
@@ -1526,6 +1535,12 @@ cleanup_result_query:
 
 				/* Safe copy of SQLDA header and variable array */
 				memcpy(result_query->out_sqlda, ib_query->out_sqlda, sqlda_size);
+
+				/* CRITICAL SAFETY FIX: Clear all sqldata pointers immediately to prevent
+				 * double-free of parent data if allocation loop fails. */
+				for (int i = 0; i < ib_query->out_fields_count; i++) {
+					result_query->out_sqlda->sqlvar[i].sqldata = NULL;
+				}
 
 				/* Allocate independent null indicator array */
 				result_query->out_nullind = safe_emalloc(sizeof(*result_query->out_nullind),

@@ -161,6 +161,86 @@ jobs:
         $BREW_PREFIX/bin/php@${{ matrix.php-version }} -d extension=modules/interbase.so -m | grep interbase
         echo "✅ macOS PHP ${{ matrix.php-version }} extension loads successfully"
 
+  # Linux Matrix Build (PHP 8.1-8.5 x Firebird 2.5-5.0)
+  linux-matrix-build:
+    runs-on: ubuntu-latest
+    services:
+      firebird:
+        image: ${{ matrix.firebird-image }}
+        env:
+          ISC_PASSWORD: masterkey
+          FIREBIRD_DATABASE: test.fdb
+          FIREBIRD_USER: SYSDBA
+          FIREBIRD_PASSWORD: masterkey
+        ports:
+          - 3050:3050
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ['8.1', '8.2', '8.3', '8.4', '8.5']
+        firebird-version: ['2.5', '3.0', '4.0', '5.0']
+        include:
+          - firebird-version: '2.5'
+            firebird-image: 'jacobalberty/firebird:2.5-ss'
+          - firebird-version: '3.0'
+            firebird-image: 'firebirdsql/firebird:3'
+          - firebird-version: '4.0'
+            firebird-image: 'firebirdsql/firebird:4'
+          - firebird-version: '5.0'
+            firebird-image: 'firebirdsql/firebird:5'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ matrix.php-version }}
+        tools: phpize, php-config
+        extensions: none
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          firebird-dev \
+          autoconf \
+          build-essential \
+          netcat-openbsd
+
+    - name: Prepare Database
+      run: |
+        # Wait for Firebird to be ready
+        # Simple check using nc (netcat)
+        for i in {1..30}; do
+          if nc -z localhost 3050; then
+            echo "Firebird is ready!"
+            break
+          fi
+          echo "Waiting for Firebird..."
+          sleep 1
+        done
+
+    - name: Build Extension
+      run: |
+        phpize
+        ./configure
+        make -j$(nproc)
+
+    - name: Run Tests (PHPT)
+      env:
+        # Connection string for the tests
+        FIREBIRD_HOST: "127.0.0.1/3050:test.fdb"
+        ISC_USER: SYSDBA
+        ISC_PASSWORD: masterkey
+        NO_INTERACTION: 1
+        REPORT_EXIT_STATUS: 1
+        TEST_PHP_EXECUTABLE: /usr/bin/php
+      run: |
+        # Run tests using PHP's run-tests.php mechanism via make test
+        # We skip the interactive query
+        make test
+
   # C++17 feature validation
   cpp17-feature-validation:
     runs-on: ubuntu-latest
@@ -176,7 +256,7 @@ jobs:
           g++ \
           clang-tools \
           php8.1-dev \
-          libfirebird-dev \
+          firebird-dev \
           autoconf \
           build-essential \
           bear
@@ -242,7 +322,7 @@ jobs:
 
   # Cross-platform summary
   cross-platform-summary:
-    needs: [windows-build, macos-build, cpp17-feature-validation]
+    needs: [windows-build, macos-build, linux-matrix-build, cpp17-feature-validation]
     runs-on: ubuntu-latest
 
     steps:

@@ -2201,7 +2201,11 @@ format_date_time:
 			t.tm_zone = tzname[0];
 #endif
 			/* Skip unix-time conversion entirely for TIME/TIME_TZ types as they have no date component */
+#ifdef SQL_TIME_TZ
    if (((type & ~1) == SQL_TYPE_TIME) || ((type & ~1) == SQL_TIME_TZ)) {
+#else
+   if ((type & ~1) == SQL_TYPE_TIME) {
+#endif
                 /* TIME/TIME_TZ: Skip unix conversion, always return formatted string */
                 l = strftime(string_data, sizeof(string_data), format, &t);
                 ZVAL_STRINGL(val, string_data, l);

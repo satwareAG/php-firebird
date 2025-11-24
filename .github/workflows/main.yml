@@ -9,7 +9,7 @@ on:
 jobs:
   linux-matrix-build:
     runs-on: ubuntu-latest
-    container: ubuntu:22.04
+    container: node:20-slim
     services:
       firebird:
         image: ${{ matrix.firebird-image }}
@@ -36,15 +36,19 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install Runner Prerequisites
+    - name: Install System Dependencies
       run: |
         apt-get update
-        apt-get install -y curl ca-certificates gnupg
-        mkdir -p /etc/apt/keyrings
-        curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
-        echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
-        apt-get update
-        apt-get install -y nodejs
+        apt-get install -y \
+          curl \
+          ca-certificates \
+          gnupg \
+          git \
+          unzip \
+          firebird-dev \
+          autoconf \
+          build-essential \
+          netcat-openbsd
 
     - name: Setup PHP
       uses: shivammathur/setup-php@v2
@@ -52,18 +56,6 @@ jobs:
         php-version: ${{ matrix.php-version }}
         tools: phpize, php-config
         extensions: none
-
-    - name: Install Dependencies
-      run: |
-        apt-get update
-        apt-get install -y \
-          git \
-          unzip \
-          curl \
-          firebird-dev \
-          autoconf \
-          build-essential \
-          netcat-openbsd
 
     - name: Prepare Database
       run: |

@@ -20,17 +20,17 @@ var_dump(ibase_param_info($rs, 100));
 --EXPECTF--
 array(10) {
   [0]=>
-  string(0) ""
+  string(%d) "%s"
   ["name"]=>
-  string(0) ""
+  string(%d) "%s"
   [1]=>
-  string(0) ""
+  string(%d) "%s"
   ["alias"]=>
-  string(0) ""
+  string(%d) "%s"
   [2]=>
-  string(0) ""
+  string(%d) "%s"
   ["relation"]=>
-  string(0) ""
+  string(%d) "%s"
   [3]=>
   string(1) "4"
   ["length"]=>

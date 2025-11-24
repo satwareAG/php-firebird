@@ -1,7 +1,6 @@
-# Base stage with common dependencies
 FROM php:8.1-cli AS base
 
-# Install dependencies in a single layer to reduce image size
+# Install dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     autoconf \
     build-essential \
@@ -11,42 +10,32 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gdb \
     git \
     lcov \
+    libicu-dev \
     libtool \
     libxml2-dev \
     make \
     re2c \
     unzip \
     valgrind \
+    tzdata \
     vim \
     wget \
+    bison \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    # Link Firebird client libraries
-    && if [ ! -f /usr/lib/libfbclient.so ] && [ -f /usr/lib/x86_64-linux-gnu/libfbclient.so ]; then \
-       ln -s /usr/lib/x86_64-linux-gnu/libfbclient.so /usr/lib/libfbclient.so; \
-    fi
+    && rm -rf /var/lib/apt/lists/*
 
-# Development stage
-FROM base AS dev
-
-# Install Xdebug in a separate layer
+# Install Xdebug
 RUN pecl channel-update pecl.php.net \
     && pecl install xdebug \
     && docker-php-ext-enable xdebug
 
-# Configure PHP for development
+# Configure PHP
 COPY php-dev.ini /usr/local/etc/php/conf.d/php-dev.ini
 COPY xdebug.ini /usr/local/etc/php/conf.d/xdebug.ini
 
-# Set working directory
-WORKDIR /ext
+# Set up entrypoint
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-# Use a non-privileged user for better security
-RUN groupadd -g 1000 phpdev && \
-    useradd -u 1000 -g phpdev -s /bin/bash -m phpdev && \
-    chown -R phpdev:phpdev /ext
-
-USER phpdev
-
-# Default command
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["php", "-a"]

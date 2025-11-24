@@ -16,7 +16,7 @@ services:
       - XDEBUG_CONFIG=client_host=host.docker.internal
       - FIREBIRD_HOST=firebird40
       - FIREBIRD_DB_DIR=/firebird
-      - TZ=Berlin/Europe
+      - TZ=Europe/Berlin
       # Full connect string for tests that want to talk directly to the
       # Firebird 4 engine without going through interbase.inc's $test_base.
       # This matches the "localhost/3052:/firebird/data/test.fdb" pattern
@@ -43,7 +43,7 @@ services:
       - XDEBUG_CONFIG=client_host=host.docker.internal
       - FIREBIRD_HOST=firebird40
       - FIREBIRD_DB_DIR=/firebird
-      - TZ=Berlin/Europe
+      - TZ=Europe/Berlin
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -64,7 +64,7 @@ services:
       - XDEBUG_CONFIG=client_host=host.docker.internal
       - FIREBIRD_HOST=firebird40
       - FIREBIRD_DB_DIR=/firebird
-      - TZ=Berlin/Europe
+      - TZ=Europe/Berlin
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -86,7 +86,7 @@ services:
       - XDEBUG_CONFIG=client_host=host.docker.internal
       - FIREBIRD_HOST=firebird40
       - FIREBIRD_DB_DIR=/firebird
-      - TZ=Berlin/Europe
+      - TZ=Europe/Berlin
       # Full connect string for tests that want to talk directly to the
       # Firebird 4 engine without going through interbase.inc's $test_base.
       # This matches the "localhost/3052:/firebird/data/test.fdb" pattern
@@ -130,7 +130,7 @@ services:
       FIREBIRD_DATABASE: test.fdb
       FIREBIRD_USER: SYSDBA
       FIREBIRD_PASSWORD: masterkey
-      TZ: Berlin/Europe
+      TZ: Europe/Berlin
     volumes:
       - fb25-data:/firebird/data
 
@@ -141,7 +141,7 @@ services:
       FIREBIRD_DATABASE: test.fdb
       FIREBIRD_USER: SYSDBA
       FIREBIRD_PASSWORD: masterkey
-      TZ: Berlin/Europe
+      TZ: Europe/Berlin
     volumes:
       - fb30-data:/firebird/data
 
@@ -152,7 +152,7 @@ services:
       FIREBIRD_DATABASE: test.fdb
       FIREBIRD_USER: SYSDBA
       FIREBIRD_PASSWORD: masterkey
-      TZ: Berlin/Europe
+      TZ: Europe/Berlin
     volumes:
       - fb40-data:/firebird/data
 
@@ -163,7 +163,7 @@ services:
       FIREBIRD_DATABASE: test.fdb
       FIREBIRD_USER: SYSDBA
       FIREBIRD_PASSWORD: masterkey
-      TZ: Berlin/Europe
+      TZ: Europe/Berlin
     volumes:
       - fb50-data:/firebird/data
 

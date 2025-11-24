@@ -25,6 +25,11 @@
    +----------------------------------------------------------------------+
  */
 
+/* Enable GNU features (includes X/Open for strptime, BSD for strlcpy/tm_zone) */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 // #pragma GCC diagnostic error "-Wextra"
 // #pragma GCC diagnostic error "-Wall"
 // #pragma GCC diagnostic ignored "-Wimplicit-fallthrough"

@@ -11,18 +11,31 @@ jobs:
     runs-on: ubuntu-latest
     container: node:20-slim
     env:
-      # Optional: URLs of official Firebird client tarballs (Linux x86_64)
-      # If set, these are used to install matching client libraries for
-      # Firebird 3.0/4.0/5.0 matrix entries.
-      FB3_TARBALL_URL: ""
-      FB4_TARBALL_URL: ""
-      FB5_TARBALL_URL: ""
+      # Optional: URLs of official Firebird client tarballs (Linux x86_64).
+      # These are typically copied from the Assets section of
+      # https://github.com/FirebirdSQL/firebird/releases for the desired
+      # Firebird 3.0/4.0/5.0 versions.
+      #
+      # Recommended configuration (no secrets required):
+      #   1. Go to GitHub → Settings → Secrets and variables → Actions → Variables.
+      #   2. Create repository or org-level variables with the names below and
+      #      values taken from the official Firebird release assets (Linux x86_64
+      #      tarballs) and their SHA256 checksums:
+      #         - FB3_TARBALL_URL / FB3_TARBALL_SHA256  (latest 3.0 client)
+      #         - FB4_TARBALL_URL / FB4_TARBALL_SHA256  (latest 4.0 client)
+      #         - FB5_TARBALL_URL / FB5_TARBALL_SHA256  (latest 5.0 client)
+      #   3. The expressions below read those variables; when a variable is not
+      #      defined, GitHub evaluates it as an empty string and the corresponding
+      #      install step is skipped.
+      FB3_TARBALL_URL: ${{ vars.FB3_TARBALL_URL }}
+      FB4_TARBALL_URL: ${{ vars.FB4_TARBALL_URL }}
+      FB5_TARBALL_URL: ${{ vars.FB5_TARBALL_URL }}
       # Optional: SHA256 checksums for the corresponding Firebird client tarballs.
       # When set, the workflow will verify the integrity of the downloaded
       # archives before extracting them.
-      FB3_TARBALL_SHA256: ""
-      FB4_TARBALL_SHA256: ""
-      FB5_TARBALL_SHA256: ""
+      FB3_TARBALL_SHA256: ${{ vars.FB3_TARBALL_SHA256 }}
+      FB4_TARBALL_SHA256: ${{ vars.FB4_TARBALL_SHA256 }}
+      FB5_TARBALL_SHA256: ${{ vars.FB5_TARBALL_SHA256 }}
     services:
       firebird:
         image: ${{ matrix.firebird-image }}
@@ -76,17 +89,17 @@ jobs:
           netcat-openbsd
 
     - name: Install Firebird 3 client from tarball (for Firebird 2.5/3.0)
-      if: matrix.firebird-version == '2.5' || matrix.firebird-version == '3.0'
+      # Only run this step when a Firebird 3 client tarball URL is provided.
+      # When FB3_TARBALL_URL is empty, the step is skipped so the job does not
+      # fail just because an optional optimisation is not configured.
+      if: >-
+        (matrix.firebird-version == '2.5' || matrix.firebird-version == '3.0')
+        && env.FB3_TARBALL_URL != ''
       run: |
         # Install Firebird 3 client libraries/headers from a tarball and make
         # them available system-wide. This is used for both Firebird 2.5 and
         # 3.0 servers (2.5 is supported by the 3.0 client).
         set -eu
-
-        if [ -z "${FB3_TARBALL_URL:-}" ]; then
-          echo "FB3_TARBALL_URL must be set to a https URL for Firebird 3 client tarball" >&2
-          exit 1
-        fi
 
         if ! printf '%s' "$FB3_TARBALL_URL" | grep -Eq '^https://'; then
           echo "FB3_TARBALL_URL must be a https URL" >&2
@@ -135,15 +148,11 @@ jobs:
         ldconfig
 
     - name: Install Firebird 4 client from tarball
-      if: matrix.firebird-version == '4.0'
+      # Only run this step when a Firebird 4 client tarball URL is provided.
+      if: matrix.firebird-version == '4.0' && env.FB4_TARBALL_URL != ''
       run: |
         # Use strict error handling compatible with /bin/sh in containers and act
         set -eu
-
-        if [ -z "${FB4_TARBALL_URL:-}" ]; then
-          echo "FB4_TARBALL_URL must be set to a https URL for Firebird 4 client tarball" >&2
-          exit 1
-        fi
 
         if ! printf '%s' "$FB4_TARBALL_URL" | grep -Eq '^https://'; then
           echo "FB4_TARBALL_URL must be a https URL" >&2
@@ -192,15 +201,11 @@ jobs:
         ldconfig
 
     - name: Install Firebird 5 client from tarball
-      if: matrix.firebird-version == '5.0'
+      # Only run this step when a Firebird 5 client tarball URL is provided.
+      if: matrix.firebird-version == '5.0' && env.FB5_TARBALL_URL != ''
       run: |
         # Use strict error handling compatible with /bin/sh in containers and act
         set -eu
-
-        if [ -z "${FB5_TARBALL_URL:-}" ]; then
-          echo "FB5_TARBALL_URL must be set to a https URL for Firebird 5 client tarball" >&2
-          exit 1
-        fi
 
         if ! printf '%s' "$FB5_TARBALL_URL" | grep -Eq '^https://'; then
           echo "FB5_TARBALL_URL must be a https URL" >&2

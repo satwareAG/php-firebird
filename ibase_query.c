@@ -1414,13 +1414,12 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
                goto cleanup_result_query;
            }
 
-            /* Link this result as a child of the parent prepared query so that
-             * freeing the parent can invalidate dependent results (required for
-             * use-after-free tests). */
-            result_query->parent = ib_query;
-            result_query->child_head = NULL;
-            result_query->child_next = ib_query->child_head;
-            ib_query->child_head = result_query;
+            /* Independent result snapshot: DO NOT link as child of parent query.
+             * EXECUTE PROCEDURE results act as independent snapshots since data is
+             * fully buffered in out_sqlda. Freeing the parent prepared statement
+             * should not invalidate this result set (unlike open cursors). */
+            result_query->parent = NULL;
+            result_query->stmt = 0; /* Do not reference the handle as it may be freed */
 
 			/* Success - disable cleanup since resource system now owns the memory */
 			cleanup_needed = 0;

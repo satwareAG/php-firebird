@@ -86,10 +86,10 @@ jobs:
           automake \
           libtool
 
-    - name: Install Firebird client (matching release binary)
+    - name: Install Firebird client (resilient)
       shell: bash
       run: |
-        set -eux
+        set -euxo pipefail
 
         # Map Firebird server version to pinned client tag and Linux x64
         # archive URL from the official SourceForge mirror. This avoids
@@ -119,59 +119,89 @@ jobs:
           exit 1
         fi
 
-        echo "Selected Firebird tag: ${TAG} with client archive: ${CLIENT_URL}"
-
+        echo "Downloading client archive for tag ${TAG} from ${CLIENT_URL}"
         mkdir -p /tmp/firebird-client
-        curl --fail --location --retry 3 --retry-delay 3 \
-          "${CLIENT_URL}" -o /tmp/firebird-client/firebird.tar
+        curl --fail --location --retry 3 --retry-delay 3 "${CLIENT_URL}" -o /tmp/firebird-client/firebird.tar
 
-        # First extract the top-level archive. Some Firebird Linux
-        # distributions (e.g. 4.0.6 amd64) contain a buildroot.tar.gz that
-        # holds the actual /opt/firebird tree, so we handle both layouts.
-        tar -xaf /tmp/firebird-client/firebird.tar -C /tmp/firebird-client --strip-components=1 || true
+        # Extract everything (support nested archives)
+        mkdir -p /tmp/firebird-client/extracted
+        tar -xaf /tmp/firebird-client/firebird.tar -C /tmp/firebird-client/extracted || true
 
-        BASE="/tmp/firebird-client"
-        if [ -f /tmp/firebird-client/buildroot.tar.gz ]; then
-          mkdir -p /tmp/firebird-client/rootfs
-          # Extract buildroot as-is so we preserve the /opt/firebird tree
-          # layout used by the official Firebird Linux installers.
-          tar -xaf /tmp/firebird-client/buildroot.tar.gz -C /tmp/firebird-client/rootfs || true
-          BASE="/tmp/firebird-client/rootfs"
+        # If a nested buildroot or inner tar exists, extract it too
+        find /tmp/firebird-client/extracted -type f \( -name '*.tar.gz' -o -name '*.tar.xz' -o -name '*.tar' \) | while read -r inner; do
+          innerdir="$(dirname "${inner}")/inner"
+          mkdir -p "${innerdir}"
+          tar -xaf "${inner}" -C "${innerdir}" || true
+        done || true
+
+        # Search for library files and headers anywhere under the extracted tree
+        LIB_FILES=$(find /tmp/firebird-client/extracted -type f \( -name 'libfbclient.so*' -o -name 'libgds.so*' \) || true)
+        HEADER_DIRS=$(find /tmp/firebird-client/extracted -type f -name 'fbclient.h' -printf '%h\n' || true)
+
+        # If libs were not found under extracted, also try /tmp/firebird-client (some archives extract to top-level)
+        if [ -z "${LIB_FILES:-}" ]; then
+          LIB_FILES=$(find /tmp/firebird-client -type f \( -name 'libfbclient.so*' -o -name 'libgds.so*' \) || true)
+        fi
+        if [ -z "${HEADER_DIRS:-}" ]; then
+          HEADER_DIRS=$(find /tmp/firebird-client -type f -name 'fbclient.h' -printf '%h\n' || true)
         fi
 
-        # Install client libraries (libfbclient, optionally libgds) into
-        # /usr/local/lib. Handle both plain and /opt/firebird layouts under
-        # the selected BASE directory.
-        if [ -d "${BASE}/lib" ]; then
-          cp "${BASE}/lib"/libfbclient.so* /usr/local/lib/
-          cp "${BASE}/lib"/libgds.so* /usr/local/lib/ 2>/dev/null || true
-        elif [ -d "${BASE}/opt/firebird/lib" ]; then
-          cp "${BASE}/opt/firebird/lib"/libfbclient.so* /usr/local/lib/
-          cp "${BASE}/opt/firebird/lib"/libgds.so* /usr/local/lib/ 2>/dev/null || true
+        echo "Found libraries:"
+        printf '%s\n' "${LIB_FILES:-}" || true
+        echo "Found header directories:"
+        printf '%s\n' "${HEADER_DIRS:-}" || true
+
+        # Determine whether sudo is available (GitHub-hosted containers often run as root)
+        if command -v sudo >/dev/null 2>&1; then
+          SUDO="sudo"
         else
-          echo "Could not locate Firebird client lib directory under ${BASE}" >&2
+          SUDO=""
+        fi
+
+        # Ensure destination dirs exist and are writable (use sudo when available)
+        ${SUDO:-} mkdir -p /usr/local/lib
+        ${SUDO:-} mkdir -p /usr/local/include/firebird
+
+        # Copy libs
+        if [ -n "${LIB_FILES:-}" ]; then
+          echo "${LIB_FILES}" | while read -r lf; do
+            [ -n "${lf}" ] || continue
+            ${SUDO:-} cp -v "${lf}" /usr/local/lib/ || true
+          done
+        else
+          echo "ERROR: libfbclient not found in extracted archive" >&2
           ls -R /tmp/firebird-client || true
           exit 1
         fi
 
-        # Install headers used by the PHP extension build.
-        if [ -d "${BASE}/include" ]; then
-          mkdir -p /usr/local/include/firebird
-          cp -r "${BASE}/include"/* /usr/local/include/firebird/
-        elif [ -d "${BASE}/opt/firebird/include" ]; then
-          mkdir -p /usr/local/include/firebird
-          cp -r "${BASE}/opt/firebird/include"/* /usr/local/include/firebird/
+        # Copy headers (copy the directory containing fbclient.h if found)
+        if [ -n "${HEADER_DIRS:-}" ]; then
+          echo "${HEADER_DIRS}" | sort -u | while read -r hd; do
+            [ -n "${hd}" ] || continue
+            ${SUDO:-} cp -rv "${hd}"/* /usr/local/include/firebird/ || true
+          done
         else
-          echo "Warning: Firebird include directory not found under ${BASE}; continuing" >&2
+          # Attempt to locate any 'include' directories and copy them
+          INC_DIRS=$(find /tmp/firebird-client/extracted -type d -name include || true)
+          if [ -n "${INC_DIRS:-}" ]; then
+            echo "${INC_DIRS}" | while read -r id; do
+              [ -n "${id}" ] || continue
+              ${SUDO:-} cp -rv "${id}"/* /usr/local/include/firebird/ || true
+            done
+          else
+            echo "Warning: no Firebird headers found; configure may still fail" >&2
+          fi
         fi
 
-        echo "/usr/local/lib" > /etc/ld.so.conf.d/firebird.conf
-        ldconfig
+        # Make sure linker can find the libs
+        echo "/usr/local/lib" | ${SUDO:-} tee /etc/ld.so.conf.d/firebird.conf
+        ${SUDO:-} ldconfig
 
-        if ls /usr/local/lib/libfbclient.so* >/dev/null 2>&1; then
-          echo "libfbclient installed to /usr/local/lib"
+        # Verify
+        if ls /usr/local/lib/libfbclient.so* >/dev/null 2>&1 || ls /usr/local/lib/libgds.so* >/dev/null 2>&1; then
+          echo "libfbclient (or libgds) present in /usr/local/lib"
         else
-          echo "libfbclient not found after archive install; contents of /usr/local/lib:" >&2
+          echo "libfbclient not installed; contents of /usr/local/lib:" >&2
           ls -la /usr/local/lib || true
           exit 1
         fi

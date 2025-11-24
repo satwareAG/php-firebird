@@ -15,7 +15,6 @@ jobs:
         env:
           ISC_PASSWORD: masterkey
           FIREBIRD_DATABASE: test.fdb
-          FIREBIRD_USER: SYSDBA
           FIREBIRD_PASSWORD: masterkey
         ports:
           - 3050:3050
@@ -26,7 +25,7 @@ jobs:
         firebird-version: ['2.5', '3.0', '4.0', '5.0']
         include:
           - firebird-version: '2.5'
-            firebird-image: 'jacobalberty/firebird:2.5-ss'
+            firebird-image: 'jacobalberty/firebird:v2.5.9-ss'
           - firebird-version: '3.0'
             firebird-image: 'firebirdsql/firebird:3'
           - firebird-version: '4.0'

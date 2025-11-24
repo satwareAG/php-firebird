@@ -9,6 +9,7 @@ on:
 jobs:
   linux-matrix-build:
     runs-on: ubuntu-latest
+    container: ubuntu:22.04
     services:
       firebird:
         image: ${{ matrix.firebird-image }}
@@ -17,8 +18,6 @@ jobs:
           FIREBIRD_DATABASE: test.fdb
           FIREBIRD_PASSWORD: masterkey
           FIREBIRD_ROOT_PASSWORD: masterkey
-        ports:
-          - 3050:3050
     strategy:
       fail-fast: false
       matrix:
@@ -46,8 +45,11 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y \
+        apt-get update
+        apt-get install -y \
+          git \
+          unzip \
+          curl \
           firebird-dev \
           autoconf \
           build-essential \
@@ -58,7 +60,7 @@ jobs:
         # Wait for Firebird to be ready
         # Simple check using nc (netcat)
         for i in {1..30}; do
-          if nc -z localhost 3050; then
+          if nc -z firebird 3050; then
             echo "Firebird is ready!"
             break
           fi
@@ -76,9 +78,7 @@ jobs:
       env:
         # Connection string for the tests
         # No database path here; tests/interbase.inc appends a unique temp path
-        FIREBIRD_HOST: "127.0.0.1/3050"
-        # In act/Docker, we might need to use the service name if localhost mapping fails
-        # FIREBIRD_HOST: "firebird/3050"
+        FIREBIRD_HOST: "firebird/3050"
         ISC_USER: SYSDBA
         ISC_PASSWORD: masterkey
         NO_INTERACTION: 1

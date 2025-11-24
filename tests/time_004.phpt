@@ -22,15 +22,15 @@ array(3) {
   ["ID"]=>
   int(1)
   ["T1"]=>
-  string(20) "15:45:59 Europe/Riga"
+  string(%d) "15:45:59 %s"
   ["T2"]=>
-  string(31) "2025-11-06 15:45:59 Europe/Riga"
+  string(%d) "2025-11-06 15:45:59 %s"
 }
 array(3) {
   ["ID"]=>
   int(1)
   ["T1"]=>
-  string(20) "15:45:59 Europe/Riga"
+  string(%d) "15:45:59 %s"
   ["T2"]=>
-  int(1762436759)
+  int(1762443959)
 }

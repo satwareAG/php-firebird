@@ -10,6 +10,7 @@ services:
     volumes:
       - ..:/ext
     working_dir: /ext
+    command: tail -f /dev/null
     environment:
       - PHP_IDE_CONFIG=serverName=php-firebird-dev
       - XDEBUG_CONFIG=client_host=host.docker.internal

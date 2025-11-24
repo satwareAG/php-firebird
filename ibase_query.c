@@ -300,6 +300,22 @@ static void php_ibase_free_query_rsrc(zend_resource *rsrc) /* {{{ */
 
     if (ib_query != NULL) {
         IBDEBUG("Preparing to free query by dtor...");
+
+        /* If this is a child result, unlink it from the parent's list to prevent
+         * use-after-free if the parent is subsequently freed.
+         * Note: If we are being freed BY the parent (in the loop below), parent will
+         * have already set ib_query->parent = NULL, so this block won't run. */
+        if (ib_query->parent) {
+            ibase_query **curr = &ib_query->parent->child_head;
+            while (*curr) {
+                if (*curr == ib_query) {
+                    *curr = ib_query->child_next;
+                    break;
+                }
+                curr = &(*curr)->child_next;
+            }
+        }
+
         /* Invalidate and free any dependent child result resources first so that
          * further use of those results triggers a TypeError as expected by tests. */
         ibase_query *child = ib_query->child_head;
@@ -2073,7 +2089,7 @@ static int _php_ibase_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 			}
 
 			if (((type & ~1) != SQL_TIME_TZ) && (flag & PHP_IBASE_UNIXTIME)) {
-				ZVAL_LONG(val, mktime(&t));
+				ZVAL_LONG(val, ibase_mktime_with_tz(&t, timeZoneBuffer));
 			} else {
 				char timeBuf[80] = {0};
 				l = strftime(timeBuf, sizeof(timeBuf), format, &t);

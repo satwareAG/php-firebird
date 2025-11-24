@@ -9,7 +9,7 @@ cd /ext
 # Ensure extension is built
 if [ ! -f modules/interbase.so ]; then
     echo "Extension not found. Building first..."
-    /ext/satware-docs/environments/docker/scripts/build-extension.sh
+    /ext/docker/scripts/build-extension.sh
 fi
 
 # Print PHP version and extension information

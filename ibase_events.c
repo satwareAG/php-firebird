@@ -74,7 +74,11 @@ void _php_ibase_free_event(ibase_event *event) /* {{{ */
 
         /* Then drop our reference to the DB link resource */
         if (event->link_res) {
-            zend_list_delete(event->link_res);
+            /* Release reference instead of deleting/closing the resource directly.
+             * Only destroy if refcount drops to zero to avoid destroying shared link. */
+            if (GC_DELREF(event->link_res) == 0) {
+                zend_list_delete(event->link_res);
+            }
             event->link_res = NULL;
         }
 

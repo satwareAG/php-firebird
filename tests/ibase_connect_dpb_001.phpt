@@ -9,6 +9,30 @@ if (!extension_loaded('interbase')) {
 <?php
 require __DIR__ . '/config.inc';
 
+// Determine correct database connection string logic (adapted from interbase.inc)
+$fbDbDirEnv  = getenv('FIREBIRD_DB_DIR');
+$fbDbPathEnv = getenv('FIREBIRD_DB_PATH');
+
+if ($fbDbDirEnv !== false && $fbDbDirEnv !== '') {
+    $dbDir = rtrim($fbDbDirEnv, '/');
+    $tmp   = @tempnam($dbDir, 'php_ibase_test_');
+    if ($tmp === false) {
+        die('skip: cannot create temporary database file in FIREBIRD_DB_DIR');
+    }
+    @unlink($tmp);
+    $host = !empty($host) ? $host . ':' . $tmp : $tmp;
+} elseif ($fbDbPathEnv !== false && $fbDbPathEnv !== '') {
+    $host = !empty($host) ? $host . ':' . $fbDbPathEnv : $fbDbPathEnv;
+} else {
+    $tmp = tempnam(sys_get_temp_dir(), "php_ibase_test");
+    unlink($tmp);
+    if (!empty($host)) {
+        $host = $host . ':' . $tmp;
+    } else {
+        $host = $tmp;
+    }
+}
+
 // Allow overriding host/path from the environment to target
 // specific Docker engines (e.g. localhost/3052:/firebird/data/test.fdb).
 $host = getenv('FB_HOST') ?: $host;

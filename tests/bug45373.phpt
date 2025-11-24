@@ -1,11 +1,7 @@
 --TEST--
 Bug #45373 (php crash on query with errors in params)
 --SKIPIF--
-<?php
-include("skipif.inc");
-// See GitHub issue 44
-// https://github.com/FirebirdSQL/php-firebird/issues/44
-?>
+<?php include("skipif.inc"); ?>
 --FILE--
 <?php
 
@@ -28,6 +24,11 @@ if($r = ibase_execute($q, 1)) {
   var_dump(ibase_fetch_assoc($r));
 }
 
+echo "Done executing\n";
+ibase_free_query($q);
+ibase_close($db);
+echo "Closed resources\n";
+
 ?>
 --EXPECTF--
 array(2) {
@@ -46,3 +47,5 @@ array(2) {
 }
 
 Warning: ibase_execute(): Statement expects 2 arguments, 1 given in %s on line %d
+Done executing
+Closed resources

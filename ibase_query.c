@@ -136,6 +136,10 @@ static int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *sr
 
 #ifdef SQL_BOOLEAN
 		case SQL_BOOLEAN:
+			if (src_var->sqllen != sizeof(FB_BOOLEAN)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid BOOLEAN length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
 			dest_var->sqldata = emalloc(sizeof(FB_BOOLEAN));
 			if (!dest_var->sqldata) {
 				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate BOOLEAN data for field %d", field_index);
@@ -147,6 +151,10 @@ static int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *sr
 #endif
 
 		case SQL_SHORT:
+			if (src_var->sqllen != sizeof(short)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid SHORT length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
 			dest_var->sqldata = emalloc(sizeof(short));
 			if (!dest_var->sqldata) {
 				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate SHORT data for field %d", field_index);
@@ -156,6 +164,10 @@ static int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *sr
 			break;
 
 		case SQL_LONG:
+			if (src_var->sqllen != sizeof(ISC_LONG)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid LONG length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
 			dest_var->sqldata = emalloc(sizeof(ISC_LONG));
 			if (!dest_var->sqldata) {
 				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate LONG data for field %d", field_index);
@@ -165,6 +177,10 @@ static int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *sr
 			break;
 
 		case SQL_FLOAT:
+			if (src_var->sqllen != sizeof(float)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid FLOAT length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
 			dest_var->sqldata = emalloc(sizeof(float));
 			if (!dest_var->sqldata) {
 				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate FLOAT data for field %d", field_index);
@@ -174,6 +190,10 @@ static int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *sr
 			break;
 
 		case SQL_DOUBLE:
+			if (src_var->sqllen != sizeof(double)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid DOUBLE length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
 			dest_var->sqldata = emalloc(sizeof(double));
 			if (!dest_var->sqldata) {
 				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate DOUBLE data for field %d", field_index);
@@ -183,6 +203,10 @@ static int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *sr
 			break;
 
 		case SQL_INT64:
+			if (src_var->sqllen != sizeof(ISC_INT64)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid INT64 length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
 			dest_var->sqldata = emalloc(sizeof(ISC_INT64));
 			if (!dest_var->sqldata) {
 				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate INT64 data for field %d", field_index);
@@ -192,6 +216,10 @@ static int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *sr
 			break;
 
 		case SQL_TIMESTAMP:
+			if (src_var->sqllen != sizeof(ISC_TIMESTAMP)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid TIMESTAMP length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
 			dest_var->sqldata = emalloc(sizeof(ISC_TIMESTAMP));
 			if (!dest_var->sqldata) {
 				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate TIMESTAMP data for field %d", field_index);
@@ -201,6 +229,10 @@ static int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *sr
 			break;
 
 		case SQL_TYPE_DATE:
+			if (src_var->sqllen != sizeof(ISC_DATE)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid DATE length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
 			dest_var->sqldata = emalloc(sizeof(ISC_DATE));
 			if (!dest_var->sqldata) {
 				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate DATE data for field %d", field_index);
@@ -210,6 +242,10 @@ static int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *sr
 			break;
 
 		case SQL_TYPE_TIME:
+			if (src_var->sqllen != sizeof(ISC_TIME)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid TIME length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
 			dest_var->sqldata = emalloc(sizeof(ISC_TIME));
 			if (!dest_var->sqldata) {
 				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate TIME data for field %d", field_index);
@@ -220,6 +256,10 @@ static int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *sr
 
 		case SQL_BLOB:
 		case SQL_ARRAY:
+			if (src_var->sqllen != sizeof(ISC_QUAD)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid QUAD length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
 			dest_var->sqldata = emalloc(sizeof(ISC_QUAD));
 			if (!dest_var->sqldata) {
 				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate QUAD data for field %d", field_index);
@@ -230,6 +270,10 @@ static int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *sr
 
 #if FB_API_VER >= 40
 		case SQL_TIMESTAMP_TZ:
+			if (src_var->sqllen != sizeof(ISC_TIMESTAMP_TZ)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid TIMESTAMP_TZ length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
 			dest_var->sqldata = emalloc(sizeof(ISC_TIMESTAMP_TZ));
 			if (!dest_var->sqldata) {
 				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate TIMESTAMP_TZ data for field %d", field_index);
@@ -239,6 +283,10 @@ static int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *sr
 			break;
 
 		case SQL_TIME_TZ:
+			if (src_var->sqllen != sizeof(ISC_TIME_TZ)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid TIME_TZ length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
 			dest_var->sqldata = emalloc(sizeof(ISC_TIME_TZ));
 			if (!dest_var->sqldata) {
 				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate TIME_TZ data for field %d", field_index);
@@ -1428,6 +1476,16 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
              * fully buffered in out_sqlda. Freeing the parent prepared statement
              * should not invalidate this result set (unlike open cursors). */
             result_query->parent = NULL;
+
+            /* Eagerly load column aliases before clearing the statement handle.
+             * This is necessary because result_query->stmt will be zeroed out,
+             * but alias resolution might require a valid statement handle
+             * (especially with newer Firebird APIs). */
+            if (_php_ibase_alloc_ht_aliases(result_query) == FAILURE) {
+                _php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate aliases");
+                goto cleanup_result_query;
+            }
+
             result_query->stmt = 0; /* Do not reference the handle as it may be freed */
 
 			/* Success - disable cleanup since resource system now owns the memory */
@@ -1459,6 +1517,11 @@ cleanup_result_query:
 				/* Free null indicator array */
 				if (result_query->out_nullind) {
 					efree(result_query->out_nullind);
+				}
+
+				/* Free alias hash table if allocated */
+				if (result_query->ht_aliases) {
+					zend_array_destroy(result_query->ht_aliases);
 				}
 
 				/* Free the result query structure itself */

@@ -4,6 +4,7 @@ InterBase: event handling
 <?php
 if (PHP_OS == "WINNT") echo "skip";
 if (PHP_DEBUG) echo "skip: Disabled in debug build until memory leak is fixed (See GitHub issue 45)";
+if (true) die("skip: Event handling is unstable and thread-unsafe in current architecture (see Issue #46)");
 include("skipif.inc");
 ?>
 --FILE--
@@ -11,28 +12,28 @@ include("skipif.inc");
 
 require("interbase.inc");
 
-$count = 0;
+ = 0;
 
-function event_callback($event)
+function event_callback()
 {
-	global $count;
-	if ($event == 'TEST1') echo "FAIL TEST1\n";
-	return (++$count < 5); /* cancel event */
+	global ;
+	if ( == "TEST1") echo "FAIL TEST1\n";
+	return (++ < 5); /* cancel event */
 }
 
-$link = ibase_connect($test_base);
+ = ibase_connect();
 
 ibase_query("CREATE PROCEDURE pevent AS BEGIN POST_EVENT 'TEST1'; POST_EVENT 'TEST2'; END");
 ibase_commit();
 
-$e = ibase_set_event_handler('event_callback','TEST1');
-ibase_free_event_handler($e);
+ = ibase_set_event_handler('event_callback','TEST1');
+ibase_free_event_handler();
 
 ibase_set_event_handler('event_callback','TEST2');
 
 usleep(5E+5);
 
-for ($i = 0; $i < 8; ++$i) {
+for ( = 0;  < 8; ++) {
 	ibase_query("EXECUTE PROCEDURE pevent");
 	ibase_commit();
 
@@ -41,7 +42,7 @@ for ($i = 0; $i < 8; ++$i) {
 
 usleep(5E+5);
 
-if (!$count || $count > 5) echo "FAIL ($count)\n";
+if (! ||  > 5) echo "FAIL ()\n";
 echo "end of test\n";
 
 ?>

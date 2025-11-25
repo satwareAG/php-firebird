@@ -1,0 +1,178 @@
+name: Linux Code Coverage
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  coverage:
+    name: Code Coverage (PHP 8.3 / Firebird 5.0)
+    runs-on: ubuntu-latest
+    container:
+      image: php:8.3-cli-bookworm
+
+    env:
+      ISC_USER: SYSDBA
+      ISC_PASSWORD: masterkey
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies (lcov included)
+        run: |
+          set -eu
+
+          if (set -o pipefail) 2>/dev/null; then :; fi
+
+          export DEBIAN_FRONTEND=noninteractive
+          for attempt in 1 2 3; do
+            if apt-get update; then
+              break
+            fi
+            echo "apt-get update failed (attempt ${attempt}/3), retrying in 5s..." >&2
+            sleep 5
+          done
+
+          apt-get install -y --no-install-recommends \
+            autoconf \
+            build-essential \
+            ca-certificates \
+            g++ \
+            git \
+            libicu-dev \
+            libreadline-dev \
+            libssl-dev \
+            libtool \
+            netbase \
+            netcat-openbsd \
+            pkg-config \
+            wget \
+            curl \
+            unzip \
+            bison \
+            flex \
+            cmake \
+            jq \
+            python3 \
+            zlib1g-dev \
+            lcov
+
+          rm -rf /var/lib/apt/lists/*
+
+      - name: Install Firebird server via IBSurgeon script
+        env:
+          MATRIX_FIREBIRD_VERSION: '5.0'
+        run: |
+          set -eu
+
+          if (set -o pipefail) 2>/dev/null; then :; fi
+
+          FB_SCRIPT_SUFFIX='50'
+          FB_SCRIPT_URL="https://raw.githubusercontent.com/IBSurgeon/firebirdlinuxinstall/refs/heads/main/fb_vanilla-${FB_SCRIPT_SUFFIX}.sh"
+
+          echo "Downloading Firebird install script from ${FB_SCRIPT_URL}"
+          curl -fsSL "${FB_SCRIPT_URL}" -o /tmp/fb_install.sh
+          chmod +x /tmp/fb_install.sh
+
+          # Run script non-interactively
+          printf '\n' | /tmp/fb_install.sh
+
+          # Start Firebird
+          if ! nc -z 127.0.0.1 3050; then
+            if [ -x /etc/init.d/firebird ]; then
+              /etc/init.d/firebird restart || /etc/init.d/firebird start || true
+            elif command -v service >/dev/null 2>&1; then
+              service firebird restart || service firebird start || true
+            fi
+          fi
+
+          if ! nc -z 127.0.0.1 3050; then
+            echo "Attempting to start Firebird via fbguard/fbserver binaries ..."
+            if [ -x /opt/firebird/bin/fbguard ]; then
+              /opt/firebird/bin/fbguard -daemon || true
+            elif [ -x /opt/firebird/bin/fbserver ]; then
+              /opt/firebird/bin/fbserver -daemon || true
+            fi
+          fi
+
+          for i in $(seq 1 60); do
+            if nc -z 127.0.0.1 3050; then
+              echo "Firebird is ready on localhost:3050"
+              break
+            fi
+            sleep 1
+          done
+
+          if ! nc -z 127.0.0.1 3050; then
+            echo "ERROR: Firebird did not start on localhost:3050" >&2
+            exit 1
+          fi
+
+      - name: Build PHP extension with Coverage
+        env:
+          FB_CONFIG: "no"
+        run: |
+          set -eu
+
+          export PATH="/opt/firebird/bin:${PATH}"
+          export LD_LIBRARY_PATH="/opt/firebird/lib:${LD_LIBRARY_PATH:-}"
+          # Add coverage flags
+          export CFLAGS="-I/opt/firebird/include -O0 -g --coverage ${CFLAGS:-}"
+          export CXXFLAGS="-I/opt/firebird/include -O0 -g --coverage ${CXXFLAGS:-}"
+          export LDFLAGS="-L/opt/firebird/lib --coverage ${LDFLAGS:-}"
+
+          php -v
+          phpize
+          ./configure --with-interbase=/opt/firebird
+          make -j"$(nproc)"
+
+      - name: Run PHPT tests
+        env:
+          FIREBIRD_HOST: "localhost"
+          ISC_USER: SYSDBA
+          ISC_PASSWORD: masterkey
+          NO_INTERACTION: 1
+          REPORT_EXIT_STATUS: 1
+          TEST_PHP_EXECUTABLE: php
+        run: |
+          set -eu
+          make test
+
+      - name: Capture Coverage
+        run: |
+          set -eu
+          mkdir -p coverage
+
+          # Capture initial
+          lcov --directory . --capture --output-file coverage/lcov.info
+
+          # Filter out system headers, PHP headers, and tests
+          lcov --remove coverage/lcov.info \
+            '/usr/*' \
+            '*/php-src/*' \
+            '*/tests/*' \
+            '*/build/*' \
+            '*/modules/*' \
+            --output-file coverage/lcov_filtered.info
+
+          # Generate HTML report
+          genhtml coverage/lcov_filtered.info --output-directory coverage/html
+
+          echo "Coverage summary:"
+          lcov --summary coverage/lcov_filtered.info
+
+      - name: Upload Coverage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/html/
+
+      # Optional: Upload to Codecov (uncomment if token available)
+      # - name: Upload to Codecov
+      #   uses: codecov/codecov-action@v4
+      #   with:
+      #     files: coverage/lcov_filtered.info
+      #     token: ${{ secrets.CODECOV_TOKEN }}

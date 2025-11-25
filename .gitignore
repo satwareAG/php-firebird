@@ -101,3 +101,5 @@ build_scripts/php-fb-config.bat
 
 # Junie guidelines (symlinked from Cline home)
 .junie/
+/coverage/
+/*.log

@@ -9,6 +9,7 @@ services:
       dockerfile: Dockerfile-8.1
     volumes:
       - ..:/ext
+    user: "${UID:-1000}:${GID:-1000}"
     working_dir: /ext
     command: tail -f /dev/null
     environment:
@@ -37,6 +38,7 @@ services:
       dockerfile: Dockerfile-8.2
     volumes:
       - ..:/ext
+    user: "${UID:-1000}:${GID:-1000}"
     working_dir: /ext
     environment:
       - PHP_IDE_CONFIG=serverName=php-firebird-dev
@@ -80,6 +82,7 @@ services:
     volumes:
       - ..:/ext
       - fb40-data:/firebird
+    user: "${UID:-1000}:${GID:-1000}"
     working_dir: /ext
     environment:
       - PHP_IDE_CONFIG=serverName=php-firebird-dev

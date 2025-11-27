@@ -1,4 +1,4 @@
-FROM php:8.1-cli AS base
+FROM webdevops/php-dev:8.1 AS base
 
 # Install dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -25,14 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Xdebug
-RUN pecl channel-update pecl.php.net \
-    && pecl install xdebug \
-    && docker-php-ext-enable xdebug
 
-# Configure PHP
-COPY php-dev.ini /usr/local/etc/php/conf.d/php-dev.ini
-COPY xdebug.ini /usr/local/etc/php/conf.d/xdebug.ini
 
 # Set up entrypoint
 COPY entrypoint.sh /entrypoint.sh

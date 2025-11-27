@@ -28,6 +28,11 @@
 
 #include <ibase.h>
 
+/* Compatibility for older Firebird headers (pre-4.0) */
+#ifndef isc_tpb_read_consistency
+#define isc_tpb_read_consistency 70
+#endif
+
 #ifndef SQLDA_CURRENT_VERSION
 #define SQLDA_CURRENT_VERSION SQLDA_VERSION1
 #endif

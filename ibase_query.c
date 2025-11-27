@@ -421,6 +421,7 @@ void php_ibase_query_minit(INIT_FUNC_ARGS) /* {{{ */
 static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{ */
 	isc_db_handle link, isc_tr_handle trans, unsigned short *array_cnt)
 {
+    fprintf(stderr, "DEBUG: _php_ibase_alloc_array enter. sqld=%d\n", sqlda->sqld);
 	unsigned short i, n;
 	ibase_array *ar;
 
@@ -446,12 +447,26 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 		ibase_array *a = &ar[n++];
 		ISC_ARRAY_DESC *ar_desc = &a->ar_desc;
 
-		if (isc_array_lookup_bounds(IB_STATUS, &link, &trans, var->relname,
-				var->sqlname, ar_desc)) {
+        /* Fix stack smashing: Copy names to local HEAP buffers to ensure
+         * safe access by isc_array_lookup_bounds and avoid stack corruption. */
+        char *rname = ecalloc(1, 256);
+        char *sname = ecalloc(1, 256);
+        if (var->relname) strncpy(rname, var->relname, 32);
+        if (var->sqlname) strncpy(sname, var->sqlname, 32);
+
+        fprintf(stderr, "DEBUG: calling isc_array_lookup_bounds on %s.%s\n", rname, sname);
+		if (isc_array_lookup_bounds(IB_STATUS, &link, &trans, rname,
+				sname, ar_desc)) {
+            fprintf(stderr, "DEBUG: isc_array_lookup_bounds failed\n");
 			_php_ibase_error();
 			efree(ar);
+            efree(rname);
+            efree(sname);
 			return FAILURE;
 		}
+        fprintf(stderr, "DEBUG: isc_array_lookup_bounds success. dtype=%d\n", ar_desc->array_desc_dtype);
+        efree(rname);
+        efree(sname);
 
 		switch (ar_desc->array_desc_dtype) {
 			case blr_text:
@@ -546,6 +561,7 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 		a->ar_size = a->el_size * ar_size;
 	} /* for column */
 	*ib_arrayp = ar;
+    fprintf(stderr, "DEBUG: _php_ibase_alloc_array exit success\n");
 	return SUCCESS;
 }
 /* }}} */
@@ -866,6 +882,7 @@ static int _php_ibase_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 
 static int _php_ibase_bind(ibase_query *ib_query, zval *b_vars) /* {{{ */
 {
+    fprintf(stderr, "DEBUG: _php_ibase_bind enter. sqld=%d\n", ib_query->in_sqlda->sqld);
 	BIND_BUF *buf = ib_query->bind_buf;
 	XSQLDA *sqlda = ib_query->in_sqlda;
 
@@ -1075,12 +1092,15 @@ static int _php_ibase_bind(ibase_query *ib_query, zval *b_vars) /* {{{ */
 						continue;
 					}
 
+                    fprintf(stderr, "DEBUG: Calling isc_array_put_slice\n");
 					if (isc_array_put_slice(IB_STATUS, &ib_query->link->handle, &ib_query->trans->handle,
 							&array_id, &ar->ar_desc, array_data, &ar->ar_size)) {
+                        fprintf(stderr, "DEBUG: isc_array_put_slice failed\n");
 						_php_ibase_error();
 						efree(array_data);
 						return FAILURE;
 					}
+                    fprintf(stderr, "DEBUG: isc_array_put_slice success\n");
 					buf[i].val.qval = array_id;
 					efree(array_data);
 				}
@@ -1194,7 +1214,7 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 {
 	int i, rv = FAILURE;
 	static char info_count[] = { isc_info_sql_records };
-	char result[64];
+	char result[512];
 	ISC_STATUS isc_result;
 	int argc = ib_query->in_fields_count;
 
@@ -2944,7 +2964,7 @@ static int _php_ibase_set_query_info(ibase_query *ib_query)
 	// size_t buf_size = 128;
 	// ISC_UCHAR *buf = emalloc(buf_size);
 
-	ISC_UCHAR buf[64] = {0};
+	ISC_UCHAR buf[1024] = {0};
 	size_t buf_size = sizeof(buf);
 
 	size_t pos;

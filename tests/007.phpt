@@ -1,12 +1,7 @@
 --TEST--
 InterBase: array handling
 --SKIPIF--
-<?php
-include("skipif.inc");
-if (version_compare(PHP_VERSION, '8.1.0', '>=')) {
-    die('skip Unstable on PHP 8.1 (Stack smashing detected)');
-}
-?>
+<?php include("skipif.inc"); ?>
 --FILE--
 <?php
 

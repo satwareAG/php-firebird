@@ -9,7 +9,7 @@ services:
       dockerfile: Dockerfile-8.1
     volumes:
       - ..:/ext
-    user: "${UID:-1000}:${GID:-1000}"
+    user: "${CURRENT_UID:-1000}:${CURRENT_GID:-1000}"
     working_dir: /ext
     command: tail -f /dev/null
     environment:
@@ -38,8 +38,9 @@ services:
       dockerfile: Dockerfile-8.2
     volumes:
       - ..:/ext
-    user: "${UID:-1000}:${GID:-1000}"
+    user: "${CURRENT_UID:-1000}:${CURRENT_GID:-1000}"
     working_dir: /ext
+    command: tail -f /dev/null
     environment:
       - PHP_IDE_CONFIG=serverName=php-firebird-dev
       - XDEBUG_CONFIG=client_host=host.docker.internal
@@ -60,7 +61,9 @@ services:
       dockerfile: Dockerfile-8.3
     volumes:
       - ..:/ext
+    user: "${CURRENT_UID:-1000}:${CURRENT_GID:-1000}"
     working_dir: /ext
+    command: tail -f /dev/null
     environment:
       - PHP_IDE_CONFIG=serverName=php-firebird-dev
       - XDEBUG_CONFIG=client_host=host.docker.internal
@@ -82,8 +85,9 @@ services:
     volumes:
       - ..:/ext
       - fb40-data:/firebird
-    user: "${UID:-1000}:${GID:-1000}"
+    user: "${CURRENT_UID:-1000}:${CURRENT_GID:-1000}"
     working_dir: /ext
+    command: tail -f /dev/null
     environment:
       - PHP_IDE_CONFIG=serverName=php-firebird-dev
       - XDEBUG_CONFIG=client_host=host.docker.internal
@@ -111,7 +115,9 @@ services:
     volumes:
       - ..:/ext
       - fb40-data:/firebird
+    user: "${CURRENT_UID:-1000}:${CURRENT_GID:-1000}"
     working_dir: /ext
+    command: tail -f /dev/null
     environment:
       - PHP_IDE_CONFIG=serverName=php-firebird-dev
       - XDEBUG_CONFIG=client_host=host.docker.internal

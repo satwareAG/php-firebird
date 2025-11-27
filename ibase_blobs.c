@@ -249,7 +249,6 @@ PHP_FUNCTION(ibase_blob_create)
 	}
 
 	RETVAL_RES(zend_register_resource(ib_blob, le_blob));
-	Z_TRY_ADDREF_P(return_value);
 }
 /* }}} */
 
@@ -309,7 +308,11 @@ PHP_FUNCTION(ibase_blob_add)
 		return;
 	}
 
-	ib_blob = (ibase_blob *)zend_fetch_resource_ex(blob_arg, "Interbase blob", le_blob);
+	ib_blob = (ibase_blob *)zend_fetch_resource_ex(blob_arg, NULL, le_blob);
+
+	if (!ib_blob) {
+		RETURN_FALSE;
+	}
 
 	if (ib_blob->type != BLOB_INPUT) {
 		_php_ibase_module_error("BLOB is not open for input");
@@ -319,6 +322,7 @@ PHP_FUNCTION(ibase_blob_add)
 	if (_php_ibase_blob_add(string_arg, ib_blob) != SUCCESS) {
 		RETURN_FALSE;
 	}
+	RETURN_TRUE;
 }
 /* }}} */
 
@@ -336,7 +340,11 @@ PHP_FUNCTION(ibase_blob_get)
 		return;
 	}
 
-	ib_blob = (ibase_blob *)zend_fetch_resource_ex(blob_arg, "Interbase blob", le_blob);
+	ib_blob = (ibase_blob *)zend_fetch_resource_ex(blob_arg, NULL, le_blob);
+
+	if (!ib_blob) {
+		RETURN_FALSE;
+	}
 
 	if (ib_blob->type != BLOB_OUTPUT) {
 		_php_ibase_module_error("BLOB is not open for output");
@@ -360,7 +368,11 @@ static void _php_ibase_blob_end(INTERNAL_FUNCTION_PARAMETERS, int bl_end) /* {{{
 		return;
 	}
 
-	ib_blob = (ibase_blob *)zend_fetch_resource_ex(blob_arg, "Interbase blob", le_blob);
+	ib_blob = (ibase_blob *)zend_fetch_resource_ex(blob_arg, NULL, le_blob);
+
+	if (!ib_blob) {
+		RETURN_FALSE;
+	}
 
 	if (bl_end == BLOB_CLOSE) { /* return id here */
 

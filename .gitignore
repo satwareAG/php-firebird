@@ -103,3 +103,4 @@ build_scripts/php-fb-config.bat
 .junie/
 /coverage/
 /*.log
+/tests/blob.*

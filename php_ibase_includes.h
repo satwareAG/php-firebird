@@ -57,8 +57,8 @@ extern int le_link, le_plink, le_trans;
 #define LE_LINK  "Firebird/InterBase link"
 #define LE_PLINK "Firebird/InterBase persistent link"
 #define LE_TRANS "Firebird/InterBase transaction"
-#define LE_EVENT "Firebird/InterBase blob"
-#define LE_BLOB  "Firebird/InterBase event"
+#define LE_EVENT "Firebird/InterBase event"
+#define LE_BLOB  "Firebird/InterBase blob"
 #define LE_QUERY "Firebird/InterBase query"
 #define LE_SCVH  "Firebird/InterBase service manager handle"
 

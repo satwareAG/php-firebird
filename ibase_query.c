@@ -423,6 +423,13 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 {
 	unsigned short i, n;
 	ibase_array *ar;
+	/* Fix stack smashing: Move handles to static memory to avoid potential stack
+	 * corruption if libfbclient writes out of bounds of handle pointers. */
+	static isc_db_handle safe_link;
+	static isc_tr_handle safe_trans;
+
+	safe_link = link;
+	safe_trans = trans;
 
 	/* first check if we have any arrays at all */
 	for (i = *array_cnt = 0; i < sqlda->sqld; ++i) {
@@ -453,7 +460,7 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
         if (var->relname) strncpy(rname, var->relname, 32);
         if (var->sqlname) strncpy(sname, var->sqlname, 32);
 
-		if (isc_array_lookup_bounds(IB_STATUS, &link, &trans, rname,
+		if (isc_array_lookup_bounds(IB_STATUS, &safe_link, &safe_trans, rname,
 				sname, ar_desc)) {
 			_php_ibase_error();
 			efree(ar);

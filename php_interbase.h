@@ -32,9 +32,6 @@ extern zend_module_entry ibase_module_entry;
 
 #include "ibase.h"
 
-#define TO_STRING_(x) #x
-#define TO_STRING(x) TO_STRING_(x)
-
 #ifndef FB_API_VER
   static_assert(false, "FATAL: FB_API_VER is not defined. Assumed very old, unsupported client library");
 #endif
@@ -42,15 +39,16 @@ extern zend_module_entry ibase_module_entry;
 #define PHP_INTERBASE_VER_MAJOR 6
 #define PHP_INTERBASE_VER_MINOR 1
 #define PHP_INTERBASE_VER_REV 1
-#define PHP_INTERBASE_VER_PRE "-RC2"
+/* #define PHP_INTERBASE_VER_PRE "-RC2" -- Defined only for pre-releases */
 
 // Keep two digit style similar to FB_API_VER
 #define PHP_INTERBASE_VER PHP_INTERBASE_VER_MAJOR * 10 + PHP_INTERBASE_VER_MINOR
-#define PHP_INTERBASE_VER_STR \
-  TO_STRING(PHP_INTERBASE_VER_MAJOR) "." \
-  TO_STRING(PHP_INTERBASE_VER_MINOR) "." \
-  TO_STRING(PHP_INTERBASE_VER_REV) \
-  PHP_INTERBASE_VER_PRE
+
+#ifdef PHP_INTERBASE_VER_PRE
+#   define PHP_INTERBASE_VER_STR "6.1.1" PHP_INTERBASE_VER_PRE
+#else
+#   define PHP_INTERBASE_VER_STR "6.1.1"
+#endif
 
 PHP_MINIT_FUNCTION(ibase);
 PHP_RINIT_FUNCTION(ibase);
@@ -82,10 +80,17 @@ PHP_FUNCTION(ibase_field_info);
 PHP_FUNCTION(ibase_param_info);
 
 PHP_FUNCTION(ibase_trans);
+PHP_FUNCTION(fbird_trans_start);
 PHP_FUNCTION(ibase_commit);
 PHP_FUNCTION(ibase_rollback);
 PHP_FUNCTION(ibase_commit_ret);
 PHP_FUNCTION(ibase_rollback_ret);
+
+PHP_FUNCTION(fbird_savepoint);
+PHP_FUNCTION(fbird_rollback_savepoint);
+PHP_FUNCTION(fbird_release_savepoint);
+
+PHP_FUNCTION(fbird_trans_info);
 
 PHP_FUNCTION(ibase_blob_create);
 PHP_FUNCTION(ibase_blob_add);

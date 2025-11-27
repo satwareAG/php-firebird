@@ -32,12 +32,13 @@
 #define SQLDA_CURRENT_VERSION SQLDA_VERSION1
 #endif
 
+/* Metadata identifier length (bytes). FB 4.0+ supports 63 chars (UTF8 = 4 bytes/char) */
 #ifndef METADATALENGTH
-#if FB_API_VER >= 40
-#    define METADATALENGTH 63*4
-#else
-#    define METADATALENGTH 31
-#endif
+#	if FB_API_VER >= 40
+#		define METADATALENGTH 252 /* 63 characters * 4 bytes (UTF8) */
+#	else
+#		define METADATALENGTH 31  /* Legacy 31 byte limit */
+#	endif
 #endif
 
 #define RESET_ERRMSG do { IBG(errmsg)[0] = '\0'; IBG(sql_code) = 0; } while (0)
@@ -120,7 +121,8 @@ typedef struct event {
 	ISC_LONG event_id;
 	unsigned short event_count;
 	char **events;
-    unsigned char *event_buffer, *result_buffer;
+    unsigned char *event_buffer;  /* Buffer for event registration (isc_que_events) */
+    unsigned char *result_buffer; /* Buffer for event results (counts) */
 	zval callback;
 	void *thread_ctx;
 	struct event *event_next;
@@ -207,6 +209,18 @@ enum php_interbase_option {
 	PHP_IBASE_WAIT               = 128,
 	PHP_IBASE_NOWAIT             = 256,
 		PHP_IBASE_LOCK_TIMEOUT   = 512,
+
+	/* Table reservation lock types */
+	PHP_IBASE_LOCK_SHARED        = 1024,
+	PHP_IBASE_LOCK_PROTECTED     = 2048,
+	PHP_IBASE_LOCK_EXCLUSIVE     = 4096, // Not used explicitly in legacy, but good for completeness
+
+	/* Table reservation access types */
+	PHP_IBASE_LOCK_READ          = 8192,
+	PHP_IBASE_LOCK_WRITE         = 16384,
+
+	/* Firebird 4.0+ features */
+	PHP_IBASE_READ_CONSISTENCY   = 32768
 };
 
 #define IBG(v) ZEND_MODULE_GLOBALS_ACCESSOR(ibase, v)

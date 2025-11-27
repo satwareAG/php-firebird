@@ -433,7 +433,7 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 	}
 	if (! *array_cnt) return SUCCESS;
 
-	ar = safe_emalloc(sizeof(ibase_array), *array_cnt, 0);
+	ar = safe_ecalloc(*array_cnt, sizeof(ibase_array), 0);
 
 	for (i = n = 0; i < sqlda->sqld; ++i) {
 		unsigned short dim;

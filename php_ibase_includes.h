@@ -82,7 +82,7 @@ extern int le_link, le_plink, le_trans;
 #define IBASE_BLOB_SEG 4096
 
 ZEND_BEGIN_MODULE_GLOBALS(ibase)
-	ISC_STATUS status[20];
+	ISC_STATUS status[256];
 	zend_resource *default_link;
 	zend_long num_links, num_persistent;
 	char errmsg[MAX_ERRMSG];

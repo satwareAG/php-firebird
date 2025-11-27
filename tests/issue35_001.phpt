@@ -26,7 +26,7 @@ test35();
 
 ?>
 --EXPECTF--
-object(stdClass)#1 (2) {
+object(stdClass)#%d (2) {
   ["ID"]=>
   int(1)
   ["CLIENT_NAME"]=>

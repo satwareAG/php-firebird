@@ -1075,7 +1075,7 @@ int _php_ibase_attach_db(char **args, size_t *len, zend_long *largs, isc_db_hand
         }
     }
 
-#if FB_API_VER >= 40
+#ifdef isc_dpb_set_bind
     /*
      * Bind compatibility settings for newer clients. Only send isc_dpb_set_bind
      * when fbclient exposes the master instance API (runtime capability check).

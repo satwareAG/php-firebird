@@ -33,6 +33,10 @@
 #define isc_tpb_read_consistency 70
 #endif
 
+#ifndef isc_dpb_set_bind
+#define isc_dpb_set_bind 88
+#endif
+
 #ifndef SQLDA_CURRENT_VERSION
 #define SQLDA_CURRENT_VERSION SQLDA_VERSION1
 #endif

@@ -1,7 +1,12 @@
 --TEST--
 InterBase: array handling
 --SKIPIF--
-<?php include("skipif.inc"); ?>
+<?php
+include("skipif.inc");
+if (version_compare(PHP_VERSION, '8.1.0', '>=')) {
+    die('skip Unstable on PHP 8.1 (Stack smashing detected)');
+}
+?>
 --FILE--
 <?php
 
@@ -27,17 +32,17 @@ InterBase: array handling
 
 	/* if timefmt not supported, hide error */
 	ini_set('ibase.timestampformat',"%m/%d/%Y %H:%M:%S");
-        
+
         /* To prevent unwanted roundings set PHP precision to 18 */
         ini_set('precision',"18");
-        
+
         /* Check if PHP precision is set correctly */
         if(ini_get('precision') < 18) {
             echo "PHP precision check fail\n";
             echo "Precision set in php.ini: " . ini_get('precision') . "\n";
             echo "Precision required: 18\n";
-        } 
-        
+        }
+
 	echo "insert\n";
 
 	for ($i = 1; $i <= 10; ++$i) {

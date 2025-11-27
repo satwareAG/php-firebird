@@ -457,10 +457,19 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
          * safe access by isc_array_lookup_bounds and avoid stack corruption. */
         char *rname = ecalloc(1, 256);
         char *sname = ecalloc(1, 256);
+
+		if (!rname || !sname) {
+			_php_ibase_module_error("Failed to allocate memory for array names");
+			if (rname) efree(rname);
+			if (sname) efree(sname);
+			efree(ar);
+			return FAILURE;
+		}
+
         if (var->relname) strncpy(rname, var->relname, 32);
         if (var->sqlname) strncpy(sname, var->sqlname, 32);
 
-		if (isc_array_lookup_bounds(IB_STATUS, &safe_link, &safe_trans, rname,
+		if (isc_array_lookup_bounds(IB_STATUS, safe_link, safe_trans, rname,
 				sname, ar_desc)) {
 			_php_ibase_error();
 			efree(ar);

@@ -139,9 +139,43 @@ jobs:
           TEST_PHP_EXECUTABLE: php
         run: |
           set -eu
-          make test
+          # Using pipefail to ensure make test exit code is preserved despite tee
+          set -o pipefail
 
-      - name: Capture Coverage
+          # Run tests and capture output
+          # We allow failure here (|| true) to process the log file for granular details
+          make test | tee test_output.txt || true
+
+          # Parse the summary table for non-zero failures or warnings
+          # Looking for standard PHP run-tests.php output format: "Tests failed    :    0 (  0.0%)"
+          FAILED_COUNT=$(grep -oP 'Tests failed\s*:\s*\K\d+' test_output.txt | head -1 || echo "0")
+          WARNED_COUNT=$(grep -oP 'Tests warned\s*:\s*\K\d+' test_output.txt | head -1 || echo "0")
+          LEAKED_COUNT=$(grep -oP 'Tests leaked\s*:\s*\K\d+' test_output.txt | head -1 || echo "0")
+
+          echo "Test Stats -> Failed: ${FAILED_COUNT}, Warned: ${WARNED_COUNT}, Leaked: ${LEAKED_COUNT}"
+
+          if [ "${FAILED_COUNT}" -gt 0 ] || [ "${WARNED_COUNT}" -gt 0 ] || [ "${LEAKED_COUNT}" -gt 0 ]; then
+             echo "❌ Test Failure Detected"
+
+             echo "::group::Test Failure Details"
+             if grep -q "FAILED TEST SUMMARY" test_output.txt; then
+                 grep -A 100 "FAILED TEST SUMMARY" test_output.txt | grep -m 1 -B 100 "=====================================================================" || true
+             elif grep -q "WARNED TEST SUMMARY" test_output.txt; then
+                 grep -A 100 "WARNED TEST SUMMARY" test_output.txt | grep -m 1 -B 100 "=====================================================================" || true
+             else
+                 echo "⚠️ No standard summary headers found. Displaying last 50 lines of log:"
+                 tail -n 50 test_output.txt
+             fi
+             echo "::endgroup::"
+
+             exit 1
+          fi
+
+          echo "✅ All tests passed successfully"
+
+      - name: Capture Coverage & Enforce Gate
+        env:
+          COVERAGE_THRESHOLD: 60.0
         run: |
           set -eu
           mkdir -p coverage
@@ -162,7 +196,33 @@ jobs:
           genhtml coverage/lcov_filtered.info --output-directory coverage/html
 
           echo "Coverage summary:"
-          lcov --summary coverage/lcov_filtered.info
+          # Save summary to variable for parsing
+          COVERAGE_OUTPUT=$(lcov --summary coverage/lcov_filtered.info)
+          echo "$COVERAGE_OUTPUT"
+
+          # Extract lines coverage percentage (e.g. "60.7")
+          # Pattern matches "lines......: 60.7%"
+          COVERAGE=$(echo "$COVERAGE_OUTPUT" | grep -oP "lines\.*: \K[0-9.]+")
+
+          if [ -z "$COVERAGE" ]; then
+            echo "Error: Could not parse coverage percentage"
+            exit 1
+          fi
+
+          echo "Current Line Coverage: ${COVERAGE}%"
+          echo "Required Threshold:    ${COVERAGE_THRESHOLD}%"
+
+          # Use Python for float comparison
+          if python3 -c "import sys; sys.exit(0 if float(sys.argv[1]) >= float(sys.argv[2]) else 1)" "$COVERAGE" "$COVERAGE_THRESHOLD"; then
+            echo "✅ Coverage Gate Passed"
+          else
+            echo "❌ Coverage dropped below baseline (${COVERAGE_THRESHOLD}%)"
+            exit 1
+          fi
+
+      - name: Cleanup Raw Coverage Files
+        run: |
+          rm -f coverage/*.info test_output.txt
 
       - name: Upload Coverage Artifact
         uses: actions/upload-artifact@v4

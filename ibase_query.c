@@ -425,11 +425,13 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 	ibase_array *ar;
 	/* Fix stack smashing: Move handles to static memory to avoid potential stack
 	 * corruption if libfbclient writes out of bounds of handle pointers. */
-	static isc_db_handle safe_link;
-	static isc_tr_handle safe_trans;
+	/* Use void* to ensure enough space if libfbclient expects 64-bit handles,
+     * even if PHP header defines 32-bit handles. */
+	static void *safe_link_ptr;
+	static void *safe_trans_ptr;
 
-	safe_link = link;
-	safe_trans = trans;
+	safe_link_ptr = (void *)(intptr_t)link;
+	safe_trans_ptr = (void *)(intptr_t)trans;
 
 	/* first check if we have any arrays at all */
 	for (i = *array_cnt = 0; i < sqlda->sqld; ++i) {
@@ -469,7 +471,9 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
         if (var->relname) strncpy(rname, var->relname, 32);
         if (var->sqlname) strncpy(sname, var->sqlname, 32);
 
-		if (isc_array_lookup_bounds(IB_STATUS, safe_link, safe_trans, rname,
+		/* Cast void** to isc_db_handle* to satisfy compiler but provide 64-bit storage.
+		 * This prevents stack smashing if libfbclient writes 8 bytes to a 4-byte handle pointer. */
+		if (isc_array_lookup_bounds(IB_STATUS, (isc_db_handle *)&safe_link_ptr, (isc_tr_handle *)&safe_trans_ptr, rname,
 				sname, ar_desc)) {
 			_php_ibase_error();
 			efree(ar);
@@ -573,7 +577,6 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 		a->ar_size = a->el_size * ar_size;
 	} /* for column */
 	*ib_arrayp = ar;
-    fprintf(stderr, "DEBUG: _php_ibase_alloc_array exit success\n");
 	return SUCCESS;
 }
 /* }}} */
@@ -1487,6 +1490,7 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
        memcpy(result_query->in_sqlda, ib_query->in_sqlda, in_size);
        /* Ensure indicators are not dangling for inputs on the cloned structure */
        for (int i = 0; i < result_query->in_sqlda->sqld; i++) {
+           result_query->in_sqlda->sqlvar[i].sqlind = NULL;
            result_query->in_sqlda->sqlvar[i].sqlind = NULL;
        }
    }

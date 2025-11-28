@@ -101,6 +101,8 @@ PHP_FUNCTION(ibase_blob_close);
 PHP_FUNCTION(ibase_blob_echo);
 PHP_FUNCTION(ibase_blob_info);
 PHP_FUNCTION(ibase_blob_import);
+PHP_FUNCTION(ibase_blob_create_stream);
+PHP_FUNCTION(ibase_blob_open_stream);
 
 PHP_FUNCTION(ibase_add_user);
 PHP_FUNCTION(ibase_modify_user);

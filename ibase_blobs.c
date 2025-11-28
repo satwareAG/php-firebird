@@ -37,6 +37,119 @@
 #define BLOB_CLOSE		1
 #define BLOB_CANCEL		2
 
+/* Stream Wrapper Definitions */
+typedef struct {
+	ibase_blob *ib_blob;
+} ibase_blob_stream_data;
+
+static ssize_t ibase_blob_stream_write(php_stream *stream, const char *buf, size_t count)
+{
+	ibase_blob_stream_data *data = (ibase_blob_stream_data *)stream->abstract;
+	ibase_blob *ib_blob = data->ib_blob;
+	size_t total_written = 0;
+	unsigned short chunk_size;
+
+	if (!ib_blob || !ib_blob->bl_handle) {
+		return 0;
+	}
+
+	while (count > 0) {
+		chunk_size = count > USHRT_MAX ? USHRT_MAX : (unsigned short)count;
+
+		if (isc_put_segment(IB_STATUS, &ib_blob->bl_handle, chunk_size, (char *)buf)) {
+			/* Error handling */
+			return total_written; /* Return what we managed to write */
+		}
+
+		buf += chunk_size;
+		count -= chunk_size;
+		total_written += chunk_size;
+	}
+
+	return total_written;
+}
+
+static ssize_t ibase_blob_stream_read(php_stream *stream, char *buf, size_t count)
+{
+	ibase_blob_stream_data *data = (ibase_blob_stream_data *)stream->abstract;
+	ibase_blob *ib_blob = data->ib_blob;
+	size_t total_read = 0;
+	unsigned short seg_len;
+	ISC_STATUS stat;
+
+	if (!ib_blob || !ib_blob->bl_handle) {
+		return 0;
+	}
+
+	/* Firebird reads in segments. We need to loop until count is satisfied or EOF */
+	while (count > 0) {
+		/* We can try to read up to count bytes, but Firebird reads segments.
+		   However, isc_get_segment's buffer size argument limits the read. */
+		unsigned short chunk_size = count > USHRT_MAX ? USHRT_MAX : (unsigned short)count;
+
+		stat = isc_get_segment(IB_STATUS, &ib_blob->bl_handle, &seg_len, chunk_size, buf);
+
+		if (stat == 0 || stat == isc_segment) {
+			/* Success or incomplete segment read */
+			buf += seg_len;
+			count -= seg_len;
+			total_read += seg_len;
+		} else if (stat == isc_segstr_eof) {
+			/* End of blob */
+			break;
+		} else {
+			/* Error */
+			break;
+		}
+	}
+
+	return total_read;
+}
+
+static int ibase_blob_stream_close(php_stream *stream, int close_handle)
+{
+	ibase_blob_stream_data *data = (ibase_blob_stream_data *)stream->abstract;
+	ibase_blob *ib_blob = data->ib_blob;
+
+	if (ib_blob) {
+		if (ib_blob->bl_handle != 0) {
+			if (ib_blob->type == BLOB_INPUT) {
+				/* If writing, close properly safely */
+				if (isc_close_blob(IB_STATUS, &ib_blob->bl_handle)) {
+					_php_ibase_error();
+				}
+			} else {
+				/* If reading, just close */
+				if (isc_close_blob(IB_STATUS, &ib_blob->bl_handle)) {
+					_php_ibase_error();
+				}
+			}
+		}
+		efree(ib_blob);
+		data->ib_blob = NULL;
+	}
+	efree(data);
+	return 0;
+}
+
+static int ibase_blob_stream_flush(php_stream *stream)
+{
+	/* Firebird blobs are written immediately via put_segment, no explicit flush needed */
+	return 0;
+}
+
+static const php_stream_ops ibase_blob_stream_ops = {
+	ibase_blob_stream_write,
+	ibase_blob_stream_read,
+	ibase_blob_stream_close,
+	ibase_blob_stream_flush,
+	"ibase_blob",
+	NULL, /* seek not supported for sequential blobs */
+	NULL, /* cast */
+	NULL, /* stat */
+	NULL  /* set_option */
+};
+
 #define PARSE_PARAMETERS \
 	switch (ZEND_NUM_ARGS()) { \
 		default: \
@@ -417,47 +530,88 @@ PHP_FUNCTION(ibase_blob_cancel)
 }
 /* }}} */
 
-/* {{{ proto array ibase_blob_info([ resource link_identifier, ] string blob_id)
+/* {{{ proto array ibase_blob_info([ resource link_identifier, ] string|resource blob_id_or_stream)
    Return blob length and other useful info */
 PHP_FUNCTION(ibase_blob_info)
 {
-	char *blob_id;
+	char *blob_id = NULL;
 	size_t blob_id_len;
-	zval *link = NULL;
+	zval *link = NULL, *arg1 = NULL;
 	ibase_db_link *ib_link;
 	ibase_trans *trans = NULL;
 	ibase_blob ib_blob = { 0, BLOB_INPUT };
 	IBASE_BLOBINFO bl_info;
+	php_stream *stream = NULL;
+	ibase_blob *ext_blob = NULL;
 
 	RESET_ERRMSG;
-	PARSE_PARAMETERS;
 
-	PHP_IBASE_LINK_TRANS(link, ib_link, trans);
+	// Handle different call signatures: (link, id/stream) or (id/stream)
+	if (ZEND_NUM_ARGS() == 1) {
+		if (zend_parse_parameters(1, "z", &arg1) == FAILURE) RETURN_FALSE;
+	} else if (ZEND_NUM_ARGS() == 2) {
+		if (zend_parse_parameters(2, "rz", &link, &arg1) == FAILURE) RETURN_FALSE;
+	} else {
+		WRONG_PARAM_COUNT;
+	}
 
-	if (! _php_ibase_string_to_quad(blob_id, &ib_blob.bl_qd)) {
-		_php_ibase_module_error("Unrecognized BLOB ID");
+	// Check if arg1 is a stream resource
+	if (arg1 && Z_TYPE_P(arg1) == IS_RESOURCE) {
+		stream = (php_stream *)zend_fetch_resource_ex(arg1, NULL, php_file_le_stream());
+		if (stream && stream->ops == &ibase_blob_stream_ops) {
+			ibase_blob_stream_data *data = (ibase_blob_stream_data *)stream->abstract;
+			if (data && data->ib_blob) {
+				ext_blob = data->ib_blob;
+				ib_blob = *ext_blob; // Copy struct content including handle and quad
+			}
+		}
+	} else if (arg1 && Z_TYPE_P(arg1) == IS_STRING) {
+		blob_id = Z_STRVAL_P(arg1);
+		blob_id_len = Z_STRLEN_P(arg1);
+	} else {
+		// Invalid argument type
+		php_error_docref(NULL, E_WARNING, "Expected blob ID string or blob stream resource");
 		RETURN_FALSE;
 	}
 
-	if (ib_blob.bl_qd.gds_quad_high || ib_blob.bl_qd.gds_quad_low) { /* not null ? */
-		if (isc_open_blob(IB_STATUS, &ib_link->handle, &trans->handle, &ib_blob.bl_handle,
-				&ib_blob.bl_qd)) {
-			_php_ibase_error();
+	if (ext_blob) {
+		// Using an open stream
+		if (_php_ibase_blob_info(ext_blob->bl_handle, &bl_info)) {
+			RETURN_FALSE;
+		}
+	} else {
+		// Using a blob ID string
+		if (!link) {
+			// Fetch default link if not provided
+			link = IBG(default_link) ? (zval *)IBG(default_link) : NULL;
+		}
+		PHP_IBASE_LINK_TRANS(link, ib_link, trans);
+
+		if (! _php_ibase_string_to_quad(blob_id, &ib_blob.bl_qd)) {
+			_php_ibase_module_error("Unrecognized BLOB ID");
 			RETURN_FALSE;
 		}
 
-		if (_php_ibase_blob_info(ib_blob.bl_handle, &bl_info)) {
-			RETURN_FALSE;
+		if (ib_blob.bl_qd.gds_quad_high || ib_blob.bl_qd.gds_quad_low) { /* not null ? */
+			if (isc_open_blob(IB_STATUS, &ib_link->handle, &trans->handle, &ib_blob.bl_handle,
+					&ib_blob.bl_qd)) {
+				_php_ibase_error();
+				RETURN_FALSE;
+			}
+
+			if (_php_ibase_blob_info(ib_blob.bl_handle, &bl_info)) {
+				RETURN_FALSE;
+			}
+			if (isc_close_blob(IB_STATUS, &ib_blob.bl_handle)) {
+				_php_ibase_error();
+				RETURN_FALSE;
+			}
+		} else { /* null blob */
+			bl_info.max_segment = 0;
+			bl_info.num_segments = 0;
+			bl_info.total_length = 0;
+			bl_info.bl_stream = 0;
 		}
-		if (isc_close_blob(IB_STATUS, &ib_blob.bl_handle)) {
-			_php_ibase_error();
-			RETURN_FALSE;
-		}
-	} else { /* null blob, all values to zero */
-		bl_info.max_segment = 0;
-		bl_info.num_segments = 0;
-		bl_info.total_length = 0;
-		bl_info.bl_stream = 0;
 	}
 
 	array_init(return_value);
@@ -476,6 +630,10 @@ PHP_FUNCTION(ibase_blob_info)
 
 	add_index_bool(return_value, 4, (!ib_blob.bl_qd.gds_quad_high && !ib_blob.bl_qd.gds_quad_low));
  	add_assoc_bool(return_value, "isnull", (!ib_blob.bl_qd.gds_quad_high && !ib_blob.bl_qd.gds_quad_low));
+
+	// Add Blob ID to output
+	zend_string *str_id = _php_ibase_quad_to_string(ib_blob.bl_qd);
+	add_assoc_str(return_value, "id", str_id);
 }
 /* }}} */
 
@@ -572,6 +730,99 @@ PHP_FUNCTION(ibase_blob_import)
 
 	_php_ibase_error();
 	RETURN_FALSE;
+}
+/* }}} */
+
+/* {{{ proto resource|false ibase_blob_create_stream([ resource link_identifier ])
+   Create blob and return it as a stream */
+PHP_FUNCTION(ibase_blob_create_stream)
+{
+	zval *link = NULL;
+	ibase_db_link *ib_link;
+	ibase_trans *trans = NULL;
+	ibase_blob *ib_blob;
+	ibase_blob_stream_data *data;
+	php_stream *stream;
+
+	RESET_ERRMSG;
+
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "|r", &link)) {
+		RETURN_FALSE;
+	}
+
+	PHP_IBASE_LINK_TRANS(link, ib_link, trans);
+
+	ib_blob = (ibase_blob *) emalloc(sizeof(ibase_blob));
+	ib_blob->bl_handle = 0;
+	ib_blob->type = BLOB_INPUT;
+
+	if (isc_create_blob(IB_STATUS, &ib_link->handle, &trans->handle, &ib_blob->bl_handle, &ib_blob->bl_qd)) {
+		_php_ibase_error();
+		efree(ib_blob);
+		RETURN_FALSE;
+	}
+
+	data = emalloc(sizeof(ibase_blob_stream_data));
+	data->ib_blob = ib_blob;
+
+	stream = php_stream_alloc(&ibase_blob_stream_ops, data, NULL, "w");
+	if (!stream) {
+		isc_cancel_blob(IB_STATUS, &ib_blob->bl_handle);
+		efree(ib_blob);
+		efree(data);
+		RETURN_FALSE;
+	}
+
+	php_stream_to_zval(stream, return_value);
+}
+/* }}} */
+
+/* {{{ proto resource|false ibase_blob_open_stream([ resource link_identifier, ] string blob_id)
+   Open blob and return it as a stream */
+PHP_FUNCTION(ibase_blob_open_stream)
+{
+	char *blob_id;
+	size_t blob_id_len;
+	zval *link = NULL;
+	ibase_db_link *ib_link;
+	ibase_trans *trans = NULL;
+	ibase_blob *ib_blob;
+	ibase_blob_stream_data *data;
+	php_stream *stream;
+
+	RESET_ERRMSG;
+	PARSE_PARAMETERS;
+
+	PHP_IBASE_LINK_TRANS(link, ib_link, trans);
+
+	ib_blob = (ibase_blob *) emalloc(sizeof(ibase_blob));
+	ib_blob->bl_handle = 0;
+	ib_blob->type = BLOB_OUTPUT;
+
+	if (! _php_ibase_string_to_quad(blob_id, &ib_blob->bl_qd)) {
+		_php_ibase_module_error("String is not a BLOB ID");
+		efree(ib_blob);
+		RETURN_FALSE;
+	}
+
+	if (isc_open_blob(IB_STATUS, &ib_link->handle, &trans->handle, &ib_blob->bl_handle, &ib_blob->bl_qd)) {
+		_php_ibase_error();
+		efree(ib_blob);
+		RETURN_FALSE;
+	}
+
+	data = emalloc(sizeof(ibase_blob_stream_data));
+	data->ib_blob = ib_blob;
+
+	stream = php_stream_alloc(&ibase_blob_stream_ops, data, NULL, "r");
+	if (!stream) {
+		isc_close_blob(IB_STATUS, &ib_blob->bl_handle);
+		efree(ib_blob);
+		efree(data);
+		RETURN_FALSE;
+	}
+
+	php_stream_to_zval(stream, return_value);
 }
 /* }}} */
 

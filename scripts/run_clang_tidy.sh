@@ -16,11 +16,18 @@ if ! [ -f compile_commands.json ]; then
     fi
 fi
 
-# Run clang-tidy on C++ files only
-# Note: firebird_utils.cpp is the main C++17 file being modernized
+# Run clang-tidy on relevant source files
+# Including new refactored C files and C++ files
 clang-tidy firebird_utils.cpp \
+    interbase.c \
+    ibase_query_exec.c \
+    ibase_result.c \
+    ibase_metadata.c \
+    ibase_service.c \
+    ibase_events.c \
+    ibase_blobs.c \
     --config-file=.clang-tidy \
-    --header-filter='firebird_utils\.(h|hpp)$' \
+    --header-filter='.*' \
     --format-style=file
 
 # Check for blocking errors

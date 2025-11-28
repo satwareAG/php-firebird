@@ -1,0 +1,2153 @@
+/*
+   +----------------------------------------------------------------------+
+   | PHP Version 8                                                        |
+   +----------------------------------------------------------------------+
+   | Copyright (c) The PHP Group                                          |
+   +----------------------------------------------------------------------+
+   | This source file is subject to version 3.01 of the PHP license,      |
+   | that is bundled with this package in the file LICENSE, and is        |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
+   | If you did not receive a copy of the PHP license and are unable to   |
+   | obtain it through the world-wide-web, please send a note to          |
+   | license@php.net so we can mail you a copy immediately.               |
+   +----------------------------------------------------------------------+
+ */
+
+/* Enable GNU features (includes X/Open for strptime, BSD for strlcpy/tm_zone) */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+#include <ctype.h>
+#include <string.h>
+
+#include "php.h"
+#include "php_ini.h"
+
+#if HAVE_IBASE
+
+#include "ext/standard/php_standard.h"
+#include "php_interbase.h"
+#include "php_ibase_includes.h"
+#include "php_ibase_query_internal.h"
+#include "firebird_utils.h"
+
+#define ISC_LONG_MIN    INT_MIN
+#define ISC_LONG_MAX    INT_MAX
+
+/* Exported for use in ibase_result.c and other files */
+int le_query;
+
+/* Forward declarations */
+static int _php_ibase_bind_array(zval *val, char *buf, zend_ulong buf_size, ibase_array *array, int dim);
+static int _php_ibase_set_query_info(ibase_query *ib_query);
+
+/* Helper function for safer SQLVAR data copying */
+int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, int field_index) /* {{{ */
+{
+	/* Validate input parameters */
+	if (!dest_var || !src_var) {
+		_php_ibase_module_error("EXECUTE PROCEDURE: Invalid XSQLVAR pointers for field %d", field_index);
+		return FAILURE;
+	}
+
+	if (!src_var->sqldata) {
+		_php_ibase_module_error("EXECUTE PROCEDURE: Source sqldata is NULL for field %d", field_index);
+		return FAILURE;
+	}
+
+	/* Verify sqltype consistency between source and destination */
+	if (dest_var->sqltype != src_var->sqltype) {
+		_php_ibase_module_error("EXECUTE PROCEDURE: sqltype mismatch for field %d (dest=%d, src=%d)",
+			field_index, dest_var->sqltype, src_var->sqltype);
+		return FAILURE;
+	}
+
+	/* Allocate and copy data based on SQL type with comprehensive bounds checking */
+	switch (dest_var->sqltype & ~1) {
+		case SQL_TEXT:
+			/* Validate field length for TEXT fields */
+			if (dest_var->sqllen != src_var->sqllen) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: TEXT sqllen mismatch for field %d (dest=%d, src=%d)",
+					field_index, dest_var->sqllen, src_var->sqllen);
+				return FAILURE;
+			}
+			if (dest_var->sqllen < 0 || dest_var->sqllen > 65535) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid TEXT length %d for field %d",
+					dest_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = safe_emalloc(sizeof(char), dest_var->sqllen, 0);
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate TEXT data for field %d", field_index);
+				return FAILURE;
+			}
+			/* Use safer copy with explicit size limit */
+			memcpy(dest_var->sqldata, src_var->sqldata, dest_var->sqllen);
+			break;
+
+		case SQL_VARYING:
+			/* Validate field length for VARCHAR fields */
+			if (dest_var->sqllen != src_var->sqllen) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: VARCHAR sqllen mismatch for field %d (dest=%d, src=%d)",
+					field_index, dest_var->sqllen, src_var->sqllen);
+				return FAILURE;
+			}
+			if (dest_var->sqllen < 0 || dest_var->sqllen > 65535) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid VARCHAR length %d for field %d",
+					dest_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = safe_emalloc(sizeof(char), dest_var->sqllen + sizeof(short), 0);
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate VARCHAR data for field %d", field_index);
+				return FAILURE;
+			}
+			/* Copy length prefix + data with bounds checking */
+			size_t varchar_copy_size = dest_var->sqllen + sizeof(short);
+			memcpy(dest_var->sqldata, src_var->sqldata, varchar_copy_size);
+			break;
+
+#ifdef SQL_BOOLEAN
+		case SQL_BOOLEAN:
+			if (src_var->sqllen != sizeof(FB_BOOLEAN)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid BOOLEAN length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(FB_BOOLEAN));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate BOOLEAN data for field %d", field_index);
+				return FAILURE;
+			}
+			/* Direct assignment for simple types (safer than memcpy for single values) */
+			*(FB_BOOLEAN *)dest_var->sqldata = *(FB_BOOLEAN *)src_var->sqldata;
+			break;
+#endif
+
+		case SQL_SHORT:
+			if (src_var->sqllen != sizeof(short)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid SHORT length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(short));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate SHORT data for field %d", field_index);
+				return FAILURE;
+			}
+			*(short *)dest_var->sqldata = *(short *)src_var->sqldata;
+			break;
+
+		case SQL_LONG:
+			if (src_var->sqllen != sizeof(ISC_LONG)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid LONG length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(ISC_LONG));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate LONG data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_LONG *)dest_var->sqldata = *(ISC_LONG *)src_var->sqldata;
+			break;
+
+		case SQL_FLOAT:
+			if (src_var->sqllen != sizeof(float)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid FLOAT length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(float));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate FLOAT data for field %d", field_index);
+				return FAILURE;
+			}
+			*(float *)dest_var->sqldata = *(float *)src_var->sqldata;
+			break;
+
+		case SQL_DOUBLE:
+			if (src_var->sqllen != sizeof(double)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid DOUBLE length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(double));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate DOUBLE data for field %d", field_index);
+				return FAILURE;
+			}
+			*(double *)dest_var->sqldata = *(double *)src_var->sqldata;
+			break;
+
+		case SQL_INT64:
+			if (src_var->sqllen != sizeof(ISC_INT64)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid INT64 length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(ISC_INT64));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate INT64 data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_INT64 *)dest_var->sqldata = *(ISC_INT64 *)src_var->sqldata;
+			break;
+
+		case SQL_TIMESTAMP:
+			if (src_var->sqllen != sizeof(ISC_TIMESTAMP)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid TIMESTAMP length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(ISC_TIMESTAMP));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate TIMESTAMP data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_TIMESTAMP *)dest_var->sqldata = *(ISC_TIMESTAMP *)src_var->sqldata;
+			break;
+
+		case SQL_TYPE_DATE:
+			if (src_var->sqllen != sizeof(ISC_DATE)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid DATE length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(ISC_DATE));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate DATE data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_DATE *)dest_var->sqldata = *(ISC_DATE *)src_var->sqldata;
+			break;
+
+		case SQL_TYPE_TIME:
+			if (src_var->sqllen != sizeof(ISC_TIME)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid TIME length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(ISC_TIME));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate TIME data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_TIME *)dest_var->sqldata = *(ISC_TIME *)src_var->sqldata;
+			break;
+
+		case SQL_BLOB:
+		case SQL_ARRAY:
+			if (src_var->sqllen != sizeof(ISC_QUAD)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid QUAD length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(ISC_QUAD));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate QUAD data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_QUAD *)dest_var->sqldata = *(ISC_QUAD *)src_var->sqldata;
+			break;
+
+#if FB_API_VER >= 40
+		case SQL_TIMESTAMP_TZ:
+			if (src_var->sqllen != sizeof(ISC_TIMESTAMP_TZ)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid TIMESTAMP_TZ length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(ISC_TIMESTAMP_TZ));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate TIMESTAMP_TZ data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_TIMESTAMP_TZ *)dest_var->sqldata = *(ISC_TIMESTAMP_TZ *)src_var->sqldata;
+			break;
+
+		case SQL_TIME_TZ:
+			if (src_var->sqllen != sizeof(ISC_TIME_TZ)) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid TIME_TZ length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(ISC_TIME_TZ));
+			if (!dest_var->sqldata) {
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate TIME_TZ data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_TIME_TZ *)dest_var->sqldata = *(ISC_TIME_TZ *)src_var->sqldata;
+			break;
+#endif
+
+		default:
+			_php_ibase_module_error("EXECUTE PROCEDURE: Unhandled sqltype %d for field %d",
+				dest_var->sqltype & ~1, field_index);
+			return FAILURE;
+	}
+
+	return SUCCESS;
+}
+/* }}} */
+
+static void _php_ibase_free_xsqlda(XSQLDA *sqlda) /* {{{ */
+{
+	int i;
+	XSQLVAR *var;
+
+	IBDEBUG("Free XSQLDA?");
+	if (sqlda) {
+		IBDEBUG("Freeing XSQLDA...");
+		var = sqlda->sqlvar;
+		for (i = 0; i < sqlda->sqld; i++, var++) {
+			efree(var->sqldata);
+		}
+		efree(sqlda);
+	}
+}
+/* }}} */
+
+static void _php_ibase_free_query(ibase_query *ib_query) /* {{{ */
+{
+	IBDEBUG("Freeing query...");
+
+	if(ib_query->in_nullind)efree(ib_query->in_nullind);
+	if(ib_query->out_nullind)efree(ib_query->out_nullind);
+	if(ib_query->bind_buf)efree(ib_query->bind_buf);
+	if(ib_query->in_sqlda)efree(ib_query->in_sqlda); // Note to myself: no need for _php_ibase_free_xsqlda()
+	if(ib_query->out_sqlda)_php_ibase_free_xsqlda(ib_query->out_sqlda);
+	if(ib_query->in_array)efree(ib_query->in_array);
+	if(ib_query->out_array)efree(ib_query->out_array);
+	if(ib_query->query)efree(ib_query->query);
+	if(ib_query->ht_aliases)zend_array_destroy(ib_query->ht_aliases);
+	if(ib_query->ht_ind)zend_array_destroy(ib_query->ht_ind);
+
+	efree(ib_query);
+}
+/* }}} */
+
+static void php_ibase_free_query_rsrc(zend_resource *rsrc) /* {{{ */
+{
+    ibase_query *ib_query = (ibase_query *)rsrc->ptr;
+
+    if (ib_query != NULL) {
+        IBDEBUG("Preparing to free query by dtor...");
+
+        /* If this is a child result, unlink it from the parent's list to prevent
+         * use-after-free if the parent is subsequently freed.
+         * Note: If we are being freed BY the parent (in the loop below), parent will
+         * have already set ib_query->parent = NULL, so this block won't run. */
+        if (ib_query->parent) {
+            ibase_query **curr = &ib_query->parent->child_head;
+            while (*curr) {
+                if (*curr == ib_query) {
+                    *curr = ib_query->child_next;
+                    break;
+                }
+                curr = &(*curr)->child_next;
+            }
+        }
+
+        /* Invalidate and free any dependent child result resources first so that
+         * further use of those results triggers a TypeError as expected by tests. */
+        ibase_query *child = ib_query->child_head;
+        while (child) {
+            ibase_query *next = child->child_next;
+            /* Break the back-link to avoid cascading frees */
+            child->parent = NULL;
+            if (child->res) {
+                /* Close child resource which marks it invalid for Zend */
+                zend_list_close(child->res);
+                child->res = NULL;
+            }
+            child = next;
+        }
+        /* Ensure any open cursor/statement is properly closed on the server
+         * to avoid -502 (Attempt to reopen an open cursor) on subsequent uses. */
+        if (ib_query->stmt) {
+            /* Close open cursor if needed */
+            if (ib_query->is_open) {
+                (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_close);
+                ib_query->is_open = 0;
+                ib_query->has_more_rows = 0;
+                /* If this is a child result that reused the parent's statement handle,
+                 * mirror the cursor state reset to the parent to avoid double-close
+                 * warnings on the next ibase_execute(). */
+                if (ib_query->parent) {
+                    ib_query->parent->is_open = 0;
+                    ib_query->parent->has_more_rows = 0;
+                }
+            }
+            /* Drop the statement handle only if this resource OWNS it.
+             * Result clones created for SELECT reuse parent's handle and must NOT drop it. */
+            if (ib_query->owns_stmt_handle) {
+                (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_drop);
+            }
+        }
+        _php_ibase_free_query(ib_query);
+    }
+}
+/* }}} */
+
+void php_ibase_query_minit(INIT_FUNC_ARGS) /* {{{ */
+{
+	(void)type;
+	le_query = zend_register_list_destructors_ex(php_ibase_free_query_rsrc, NULL,
+		LE_QUERY, module_number);
+}
+/* }}} */
+
+static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{ */
+	isc_db_handle link, isc_tr_handle trans, unsigned short *array_cnt)
+{
+	unsigned short i, n;
+	ibase_array *ar;
+	/* Fix stack smashing: Move handles to static memory to avoid potential stack
+	 * corruption if libfbclient writes out of bounds of handle pointers. */
+	/* Use void* to ensure enough space if libfbclient expects 64-bit handles,
+     * even if PHP header defines 32-bit handles. */
+	static void *safe_link_ptr;
+	static void *safe_trans_ptr;
+
+	safe_link_ptr = (void *)(intptr_t)link;
+	safe_trans_ptr = (void *)(intptr_t)trans;
+
+	/* first check if we have any arrays at all */
+	for (i = *array_cnt = 0; i < sqlda->sqld; ++i) {
+		if ((sqlda->sqlvar[i].sqltype & ~1) == SQL_ARRAY) {
+			++*array_cnt;
+		}
+	}
+	if (! *array_cnt) return SUCCESS;
+
+	ar = ecalloc(*array_cnt, sizeof(ibase_array));
+
+	for (i = n = 0; i < sqlda->sqld; ++i) {
+		unsigned short dim;
+		zend_ulong ar_size = 1;
+		XSQLVAR *var = &sqlda->sqlvar[i];
+
+		if ((var->sqltype & ~1) != SQL_ARRAY) {
+			 continue;
+		}
+
+		ibase_array *a = &ar[n++];
+		ISC_ARRAY_DESC *ar_desc = &a->ar_desc;
+
+        /* Fix stack smashing: Copy names to local HEAP buffers to ensure
+         * safe access by isc_array_lookup_bounds and avoid stack corruption. */
+        char *rname = ecalloc(1, 256);
+        char *sname = ecalloc(1, 256);
+
+		if (!rname || !sname) {
+			_php_ibase_module_error("Failed to allocate memory for array names");
+			if (rname) efree(rname);
+			if (sname) efree(sname);
+			efree(ar);
+			return FAILURE;
+		}
+
+        if (var->relname) strncpy(rname, var->relname, 32);
+        if (var->sqlname) strncpy(sname, var->sqlname, 32);
+
+		/* Cast void** to isc_db_handle* to satisfy compiler but provide 64-bit storage.
+		 * This prevents stack smashing if libfbclient writes 8 bytes to a 4-byte handle pointer. */
+		if (isc_array_lookup_bounds(IB_STATUS, (isc_db_handle *)&safe_link_ptr, (isc_tr_handle *)&safe_trans_ptr, rname,
+				sname, ar_desc)) {
+			_php_ibase_error();
+			efree(ar);
+            efree(rname);
+            efree(sname);
+			return FAILURE;
+		}
+        efree(rname);
+        efree(sname);
+
+		switch (ar_desc->array_desc_dtype) {
+			case blr_text:
+			case blr_text2:
+				a->el_type = SQL_TEXT;
+				a->el_size = ar_desc->array_desc_length;
+				break;
+#ifdef SQL_BOOLEAN
+				case blr_bool:
+					a->el_type = SQL_BOOLEAN;
+					a->el_size = sizeof(FB_BOOLEAN);
+					break;
+#endif
+			case blr_short:
+				a->el_type = SQL_SHORT;
+				a->el_size = sizeof(short);
+				break;
+			case blr_long:
+				a->el_type = SQL_LONG;
+				a->el_size = sizeof(ISC_LONG);
+				break;
+			case blr_float:
+				a->el_type = SQL_FLOAT;
+				a->el_size = sizeof(float);
+				break;
+			case blr_double:
+				a->el_type = SQL_DOUBLE;
+				a->el_size = sizeof(double);
+				break;
+			case blr_int64:
+				a->el_type = SQL_INT64;
+				a->el_size = sizeof(ISC_INT64);
+				break;
+			case blr_timestamp:
+				a->el_type = SQL_TIMESTAMP;
+				a->el_size = sizeof(ISC_TIMESTAMP);
+				break;
+			case blr_sql_date:
+				a->el_type = SQL_TYPE_DATE;
+				a->el_size = sizeof(ISC_DATE);
+				break;
+			case blr_sql_time:
+				a->el_type = SQL_TYPE_TIME;
+				a->el_size = sizeof(ISC_TIME);
+				break;
+#if FB_API_VER >= 40
+			// These are converted to VARCHAR via isc_dpb_set_bind tag at connect
+			// blr_dec64
+			// blr_dec128
+			// blr_int128
+			case blr_sql_time_tz:
+				a->el_type = SQL_TIME_TZ;
+				a->el_size = sizeof(ISC_TIME_TZ);
+				break;
+			case blr_timestamp_tz:
+				a->el_type = SQL_TIMESTAMP_TZ;
+				a->el_size = sizeof(ISC_TIMESTAMP_TZ);
+				break;
+#endif
+			case blr_varying:
+			case blr_varying2:
+				/**
+				 * IB has a strange way of handling VARCHAR arrays. It doesn't store
+				 * the length in the first short, as with VARCHAR fields. It does,
+				 * however, expect the extra short to be allocated for each element.
+				 */
+				a->el_type = SQL_TEXT;
+				a->el_size = ar_desc->array_desc_length + sizeof(short);
+				break;
+			case blr_quad:
+			case blr_blob_id:
+			case blr_cstring:
+			case blr_cstring2:
+				/**
+				 * These types are mentioned as array types in the manual, but I
+				 * wouldn't know how to create an array field with any of these
+				 * types. I assume these types are not applicable to arrays, and
+				 * were mentioned erroneously.
+				 */
+			default:
+				_php_ibase_module_error("Unsupported array type %d in relation '%s' column '%s'",
+					ar_desc->array_desc_dtype, var->relname, var->sqlname);
+				efree(ar);
+				return FAILURE;
+		} /* switch array_desc_type */
+
+		/* calculate elements count */
+		for (dim = 0; dim < ar_desc->array_desc_dimensions; dim++) {
+			ar_size *= 1 + ar_desc->array_desc_bounds[dim].array_bound_upper
+				-ar_desc->array_desc_bounds[dim].array_bound_lower;
+		}
+		a->ar_size = a->el_size * ar_size;
+	} /* for column */
+	*ib_arrayp = ar;
+	return SUCCESS;
+}
+/* }}} */
+
+/* allocate and prepare query */
+static int _php_ibase_prepare(ibase_query **new_query, ibase_db_link *link, /* {{{ */
+    ibase_trans *trans, zend_resource *trans_res, char *query)
+{
+	/* Return FAILURE, if querystring is empty */
+	if (*query == '\0') {
+		php_error_docref(NULL, E_WARNING, "Querystring empty.");
+		return FAILURE;
+	}
+
+ ibase_query *ib_query = ecalloc(1, sizeof(ibase_query));
+ /* Ensure linkage fields are initialized explicitly for clarity */
+ ib_query->parent = NULL;
+ ib_query->child_head = NULL;
+ ib_query->child_next = NULL;
+
+	ib_query->res = zend_register_resource(ib_query, le_query);
+	ib_query->link = link;
+	ib_query->trans = trans;
+	ib_query->trans_res = trans_res;
+ ib_query->dialect = link->dialect;
+ ib_query->query = estrdup(query);
+ /* This prepared query owns the statement handle and is responsible for
+  * dropping it in the resource destructor. */
+ ib_query->owns_stmt_handle = 1;
+
+	if (isc_dsql_allocate_statement(IB_STATUS, &link->handle, &ib_query->stmt)) {
+		_php_ibase_error();
+		goto _php_ibase_alloc_query_error;
+	}
+
+	if (isc_dsql_prepare(IB_STATUS, &ib_query->trans->handle, &ib_query->stmt,
+			0, query, link->dialect, NULL)) {
+		IBDEBUG("isc_dsql_prepare() failed\n");
+		_php_ibase_error();
+		goto _php_ibase_alloc_query_error;
+	}
+
+	if(_php_ibase_set_query_info(ib_query)){
+		goto _php_ibase_alloc_query_error;
+	}
+
+	if(ib_query->out_fields_count) {
+		ib_query->out_sqlda = (XSQLDA *) emalloc(XSQLDA_LENGTH(ib_query->out_fields_count));
+		ib_query->out_sqlda->sqln = ib_query->out_fields_count;
+		ib_query->out_sqlda->version = SQLDA_CURRENT_VERSION;
+
+  if (isc_dsql_describe(IB_STATUS, &ib_query->stmt, SQLDA_CURRENT_VERSION, ib_query->out_sqlda)) {
+			IBDEBUG("isc_dsql_describe() failed\n");
+			_php_ibase_error();
+			goto _php_ibase_alloc_query_error;
+		}
+
+		assert(ib_query->out_sqlda->sqln == ib_query->out_sqlda->sqld);
+		assert(ib_query->out_sqlda->sqld == ib_query->out_fields_count);
+
+		ib_query->out_nullind = safe_emalloc(sizeof(*ib_query->out_nullind), ib_query->out_sqlda->sqld, 0);
+		_php_ibase_alloc_xsqlda_vars(ib_query->out_sqlda, ib_query->out_nullind);
+		if (FAILURE == _php_ibase_alloc_array(&ib_query->out_array, ib_query->out_sqlda,
+			link->handle, trans->handle, &ib_query->out_array_cnt)) {
+			goto _php_ibase_alloc_query_error;
+		}
+	}
+
+	if(ib_query->in_fields_count) {
+		ib_query->in_sqlda = emalloc(XSQLDA_LENGTH(ib_query->in_fields_count));
+		ib_query->in_sqlda->sqln = ib_query->in_fields_count;
+		ib_query->in_sqlda->version = SQLDA_CURRENT_VERSION;
+
+		if (isc_dsql_describe_bind(IB_STATUS, &ib_query->stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda)) {
+			IBDEBUG("isc_dsql_describe_bind() failed\n");
+			_php_ibase_error();
+			goto _php_ibase_alloc_query_error;
+		}
+
+		assert(ib_query->in_sqlda->sqln == ib_query->in_sqlda->sqld);
+		assert(ib_query->in_sqlda->sqld == ib_query->in_fields_count);
+
+		ib_query->bind_buf = safe_emalloc(sizeof(BIND_BUF), ib_query->in_sqlda->sqld, 0);
+		ib_query->in_nullind = safe_emalloc(sizeof(*ib_query->in_nullind), ib_query->in_sqlda->sqld, 0);
+		if (FAILURE == _php_ibase_alloc_array(&ib_query->in_array, ib_query->in_sqlda,
+			link->handle, trans->handle, &ib_query->in_array_cnt)) {
+			goto _php_ibase_alloc_query_error;
+		}
+	}
+
+ *new_query = ib_query;
+
+	return SUCCESS;
+
+_php_ibase_alloc_query_error:
+	zend_list_delete(ib_query->res);
+
+	return FAILURE;
+}
+/* }}} */
+
+static int _php_ibase_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {{{ */
+	ibase_array *array, int dim)
+{
+	zval null_val, *pnull_val = &null_val;
+	int u_bound = array->ar_desc.array_desc_bounds[dim].array_bound_upper,
+		l_bound = array->ar_desc.array_desc_bounds[dim].array_bound_lower,
+		dim_len = 1 + u_bound - l_bound;
+
+	ZVAL_NULL(pnull_val);
+
+	if (dim < array->ar_desc.array_desc_dimensions) {
+		zend_ulong slice_size = buf_size / dim_len;
+		unsigned short i;
+		zval *subval = val;
+
+		if (Z_TYPE_P(val) == IS_ARRAY) {
+			zend_hash_internal_pointer_reset(Z_ARRVAL_P(val));
+		}
+
+		for (i = 0; i < dim_len; ++i) {
+
+			if (Z_TYPE_P(val) == IS_ARRAY &&
+				(subval = zend_hash_get_current_data(Z_ARRVAL_P(val))) == NULL)
+			{
+				subval = pnull_val;
+			}
+
+			if (_php_ibase_bind_array(subval, buf, slice_size, array, dim+1) == FAILURE)
+			{
+				return FAILURE;
+			}
+			buf += slice_size;
+
+			if (Z_TYPE_P(val) == IS_ARRAY) {
+				zend_hash_move_forward(Z_ARRVAL_P(val));
+			}
+		}
+
+		if (Z_TYPE_P(val) == IS_ARRAY) {
+			zend_hash_internal_pointer_reset(Z_ARRVAL_P(val));
+		}
+
+	} else {
+		/* expect a single value */
+		if (Z_TYPE_P(val) == IS_NULL) {
+			memset(buf, 0, buf_size);
+		} else if (array->ar_desc.array_desc_scale < 0) {
+
+			/* no coercion for array types */
+			double l;
+
+			convert_to_double(val);
+
+			if (Z_DVAL_P(val) > 0) {
+				l = Z_DVAL_P(val) * pow(10, -array->ar_desc.array_desc_scale) + .5;
+			} else {
+				l = Z_DVAL_P(val) * pow(10, -array->ar_desc.array_desc_scale) - .5;
+			}
+
+			switch (array->el_type) {
+				case SQL_SHORT:
+					if (l > SHRT_MAX || l < SHRT_MIN) {
+						_php_ibase_module_error("Array parameter exceeds field width");
+						return FAILURE;
+					}
+					*(short*) buf = (short) l;
+					break;
+				case SQL_LONG:
+					if (l > ISC_LONG_MAX || l < ISC_LONG_MIN) {
+						_php_ibase_module_error("Array parameter exceeds field width");
+						return FAILURE;
+					}
+					*(ISC_LONG*) buf = (ISC_LONG) l;
+					break;
+				case SQL_INT64:
+					{
+						long double l;
+
+						convert_to_string(val);
+
+						if (!sscanf(Z_STRVAL_P(val), "%Lf", &l)) {
+							_php_ibase_module_error("Cannot convert '%s' to long double",
+								 Z_STRVAL_P(val));
+							return FAILURE;
+						}
+
+						if (l > 0) {
+							*(ISC_INT64 *) buf = (ISC_INT64) (l * pow(10,
+								-array->ar_desc.array_desc_scale) + .5);
+						} else {
+							*(ISC_INT64 *) buf = (ISC_INT64) (l * pow(10,
+								-array->ar_desc.array_desc_scale) - .5);
+						}
+					}
+					break;
+			}
+		} else {
+			struct tm t = { 0 };
+
+			switch (array->el_type) {
+#ifndef HAVE_STRPTIME
+				unsigned short n;
+#endif
+#if (SIZEOF_ZEND_LONG < 8)
+				ISC_INT64 l;
+#endif
+
+				case SQL_SHORT:
+					convert_to_long(val);
+					if (Z_LVAL_P(val) > SHRT_MAX || Z_LVAL_P(val) < SHRT_MIN) {
+						_php_ibase_module_error("Array parameter exceeds field width");
+						return FAILURE;
+					}
+					*(short *) buf = (short) Z_LVAL_P(val);
+					break;
+				case SQL_LONG:
+					convert_to_long(val);
+#if (SIZEOF_ZEND_LONG > 4)
+					if (Z_LVAL_P(val) > ISC_LONG_MAX || Z_LVAL_P(val) < ISC_LONG_MIN) {
+						_php_ibase_module_error("Array parameter exceeds field width");
+						return FAILURE;
+					}
+#endif
+					*(ISC_LONG *) buf = (ISC_LONG) Z_LVAL_P(val);
+					break;
+				case SQL_INT64:
+#if (SIZEOF_ZEND_LONG >= 8)
+					convert_to_long(val);
+					*(zend_long *) buf = Z_LVAL_P(val);
+#else
+					convert_to_string(val);
+					if (!sscanf(Z_STRVAL_P(val), "%" LL_MASK "d", &l)) {
+						_php_ibase_module_error("Cannot convert '%s' to long integer",
+							 Z_STRVAL_P(val));
+						return FAILURE;
+					} else {
+						*(ISC_INT64 *) buf = l;
+					}
+#endif
+					break;
+				case SQL_FLOAT:
+					convert_to_double(val);
+					*(float*) buf = (float) Z_DVAL_P(val);
+					break;
+#ifdef SQL_BOOLEAN
+				case SQL_BOOLEAN:
+					convert_to_boolean(val);
+					// On Windows error unresolved symbol Z_BVAL_P is thrown, so we use Z_LVAL_P
+					*(FB_BOOLEAN*) buf = Z_LVAL_P(val);
+					break;
+#endif
+				case SQL_DOUBLE:
+					convert_to_double(val);
+					*(double*) buf = Z_DVAL_P(val);
+					break;
+				case SQL_TIMESTAMP:
+				// TODO: case SQL_TIMESTAMP_TZ:
+					convert_to_string(val);
+#ifdef HAVE_STRPTIME
+					strptime(Z_STRVAL_P(val), INI_STR("ibase.timestampformat"), &t);
+#else
+					n = sscanf(Z_STRVAL_P(val), "%d%*[/]%d%*[/]%d %d%*[:]%d%*[:]%d",
+						&t.tm_mon, &t.tm_mday, &t.tm_year, &t.tm_hour, &t.tm_min, &t.tm_sec);
+
+					if (n != 3 && n != 6) {
+						_php_ibase_module_error("Invalid date/time format (expected 3 or 6 fields, got %d."
+							" Use format 'm/d/Y H:i:s'. You gave '%s')", n, Z_STRVAL_P(val));
+						return FAILURE;
+					}
+					t.tm_year -= 1900;
+					t.tm_mon--;
+#endif
+					isc_encode_timestamp(&t, (ISC_TIMESTAMP * ) buf);
+					break;
+				case SQL_TYPE_DATE:
+					convert_to_string(val);
+#ifdef HAVE_STRPTIME
+					strptime(Z_STRVAL_P(val), INI_STR("ibase.dateformat"), &t);
+#else
+					n = sscanf(Z_STRVAL_P(val), "%d%*[/]%d%*[/]%d", &t.tm_mon, &t.tm_mday, &t.tm_year);
+
+					if (n != 3) {
+						_php_ibase_module_error("Invalid date format (expected 3 fields, got %d. "
+							"Use format 'm/d/Y' You gave '%s')", n, Z_STRVAL_P(val));
+						return FAILURE;
+					}
+					t.tm_year -= 1900;
+					t.tm_mon--;
+#endif
+					isc_encode_sql_date(&t, (ISC_DATE *) buf);
+					break;
+				case SQL_TYPE_TIME:
+				// TODO: case SQL_TIME_TZ:
+					convert_to_string(val);
+#ifdef HAVE_STRPTIME
+					strptime(Z_STRVAL_P(val), INI_STR("ibase.timeformat"), &t);
+#else
+					n = sscanf(Z_STRVAL_P(val), "%d%*[:]%d%*[:]%d", &t.tm_hour, &t.tm_min, &t.tm_sec);
+
+					if (n != 3) {
+						_php_ibase_module_error("Invalid time format (expected 3 fields, got %d. "
+							"Use format 'H:i:s'. You gave '%s')", n, Z_STRVAL_P(val));
+						return FAILURE;
+					}
+#endif
+					isc_encode_sql_time(&t, (ISC_TIME *) buf);
+					break;
+				default:
+					convert_to_string(val);
+					strlcpy(buf, Z_STRVAL_P(val), buf_size);
+			}
+		}
+	}
+	return SUCCESS;
+}
+/* }}} */
+
+static int _php_ibase_bind(ibase_query *ib_query, zval *b_vars) /* {{{ */
+{
+	BIND_BUF *buf = ib_query->bind_buf;
+	XSQLDA *sqlda = ib_query->in_sqlda;
+
+	int i, array_cnt = 0, rv = SUCCESS;
+
+	for (i = 0; i < sqlda->sqld; ++i) { /* bound vars */
+
+		zval *b_var = &b_vars[i];
+		XSQLVAR *var = &sqlda->sqlvar[i];
+
+		var->sqlind = &buf[i].nullind;
+		var->sqldata = (void*)&buf[i].val;
+
+		/* check if a NULL should be inserted */
+		switch (Z_TYPE_P(b_var)) {
+			int force_null;
+
+			case IS_STRING:
+
+				force_null = 0;
+
+				/* for these types, an empty string can be handled like a NULL value */
+				switch (var->sqltype & ~1) {
+					case SQL_SHORT:
+					case SQL_LONG:
+					case SQL_INT64:
+					case SQL_FLOAT:
+					case SQL_DOUBLE:
+					case SQL_TIMESTAMP:
+					case SQL_TYPE_DATE:
+					case SQL_TYPE_TIME:
+#if FB_API_VER >= 40
+					case SQL_INT128:
+					case SQL_DEC16:
+					case SQL_DEC34:
+					case SQL_TIMESTAMP_TZ:
+					case SQL_TIME_TZ:
+#endif
+						force_null = (Z_STRLEN_P(b_var) == 0);
+				}
+
+				if (! force_null) break;
+
+			case IS_NULL:
+					buf[i].nullind = -1;
+
+				if (var->sqltype & SQL_ARRAY) ++array_cnt;
+
+				continue;
+		}
+
+		/* if we make it to this point, we must provide a value for the parameter */
+
+		buf[i].nullind = 0;
+
+		switch (var->sqltype & ~1) {
+			struct tm t;
+
+			case SQL_TIMESTAMP:
+			// TODO: case SQL_TIMESTAMP_TZ:
+			// TODO: case SQL_TIME_TZ:
+			case SQL_TYPE_DATE:
+			case SQL_TYPE_TIME:
+				if (Z_TYPE_P(b_var) == IS_LONG) {
+					struct tm *res;
+					res = php_gmtime_r(&Z_LVAL_P(b_var), &t);
+					if (!res) {
+						return FAILURE;
+					}
+				} else {
+#ifdef HAVE_STRPTIME
+					char *format = INI_STR("ibase.timestampformat");
+
+					convert_to_string(b_var);
+
+					switch (var->sqltype & ~1) {
+						case SQL_TYPE_DATE:
+							format = INI_STR("ibase.dateformat");
+							break;
+						case SQL_TYPE_TIME:
+						// TODO: case SQL_TIME_TZ:
+							format = INI_STR("ibase.timeformat");
+					}
+					if (!strptime(Z_STRVAL_P(b_var), format, &t)) {
+						/* strptime() cannot handle it, so let IB have a try */
+						break;
+					}
+#else /* ifndef HAVE_STRPTIME */
+					break; /* let IB parse it as a string */
+#endif
+				}
+
+				switch (var->sqltype & ~1) {
+					default: /* == case SQL_TIMESTAMP */
+						isc_encode_timestamp(&t, &buf[i].val.tsval);
+						break;
+					case SQL_TYPE_DATE:
+						isc_encode_sql_date(&t, &buf[i].val.dtval);
+						break;
+					case SQL_TYPE_TIME:
+					// TODO: case SQL_TIME_TZ:
+						isc_encode_sql_time(&t, &buf[i].val.tmval);
+						break;
+				}
+				continue;
+
+			case SQL_BLOB:
+
+				convert_to_string(b_var);
+
+				if (Z_STRLEN_P(b_var) != BLOB_ID_LEN ||
+					!_php_ibase_string_to_quad(Z_STRVAL_P(b_var), &buf[i].val.qval)) {
+
+					ibase_blob ib_blob = { 0 };
+					ib_blob.type = BLOB_INPUT;
+
+					if (isc_create_blob(IB_STATUS, &ib_query->link->handle,
+							&ib_query->trans->handle, &ib_blob.bl_handle, &ib_blob.bl_qd)) {
+						_php_ibase_error();
+						return FAILURE;
+					}
+
+					if (_php_ibase_blob_add(b_var, &ib_blob) != SUCCESS) {
+						return FAILURE;
+					}
+
+					if (isc_close_blob(IB_STATUS, &ib_blob.bl_handle)) {
+						_php_ibase_error();
+						return FAILURE;
+					}
+					buf[i].val.qval = ib_blob.bl_qd;
+				}
+				continue;
+#ifdef SQL_BOOLEAN
+			case SQL_BOOLEAN:
+
+				switch (Z_TYPE_P(b_var)) {
+					case IS_LONG:
+					case IS_DOUBLE:
+					case IS_TRUE:
+					case IS_FALSE:
+						*(FB_BOOLEAN *)var->sqldata = zend_is_true(b_var) ? FB_TRUE : FB_FALSE;
+						break;
+					case IS_STRING:
+					{
+						zend_long lval;
+						double dval;
+
+						if ((Z_STRLEN_P(b_var) == 0)) {
+							*(FB_BOOLEAN *)var->sqldata = FB_FALSE;
+							break;
+						}
+
+						switch (is_numeric_string(Z_STRVAL_P(b_var), Z_STRLEN_P(b_var), &lval, &dval, 0)) {
+							case IS_LONG:
+								*(FB_BOOLEAN *)var->sqldata = (lval != 0) ? FB_TRUE : FB_FALSE;
+								break;
+							case IS_DOUBLE:
+								*(FB_BOOLEAN *)var->sqldata = (dval != 0) ? FB_TRUE : FB_FALSE;
+								break;
+							default:
+								if (!zend_binary_strncasecmp(Z_STRVAL_P(b_var), Z_STRLEN_P(b_var), "true", 4, 4)) {
+									*(FB_BOOLEAN *)var->sqldata = FB_TRUE;
+								} else if (!zend_binary_strncasecmp(Z_STRVAL_P(b_var), Z_STRLEN_P(b_var), "false", 5, 5)) {
+									*(FB_BOOLEAN *)var->sqldata = FB_FALSE;
+								} else {
+									_php_ibase_module_error("Parameter %d: cannot convert string to boolean", i+1);
+									rv = FAILURE;
+									continue;
+								}
+						}
+						break;
+					}
+					case IS_NULL:
+						buf[i].nullind = -1;
+						break;
+					default:
+						_php_ibase_module_error("Parameter %d: must be boolean", i+1);
+						rv = FAILURE;
+						continue;
+				}
+				var->sqltype = SQL_BOOLEAN;
+				continue;
+#endif
+			case SQL_ARRAY:
+
+				if (Z_TYPE_P(b_var) != IS_ARRAY) {
+					convert_to_string(b_var);
+
+					if (Z_STRLEN_P(b_var) != BLOB_ID_LEN ||
+						!_php_ibase_string_to_quad(Z_STRVAL_P(b_var), &buf[i].val.qval)) {
+
+						_php_ibase_module_error("Parameter %d: invalid array ID",i+1);
+						rv = FAILURE;
+					}
+				} else {
+					/* convert the array data into something IB can understand */
+					ibase_array *ar = &ib_query->in_array[array_cnt];
+					void *array_data = emalloc(ar->ar_size);
+					ISC_QUAD array_id = { 0, 0 };
+
+                    if (FAILURE == _php_ibase_bind_array(b_var, array_data, ar->ar_size,
+							ar, 0)) {
+						_php_ibase_module_error("Parameter %d: failed to bind array argument", i+1);
+						efree(array_data);
+						rv = FAILURE;
+						continue;
+					}
+
+					if (isc_array_put_slice(IB_STATUS, &ib_query->link->handle, &ib_query->trans->handle,
+							&array_id, &ar->ar_desc, array_data, &ar->ar_size)) {
+						_php_ibase_error();
+						efree(array_data);
+						return FAILURE;
+					}
+					buf[i].val.qval = array_id;
+					efree(array_data);
+				}
+				++array_cnt;
+				continue;
+			} /* switch */
+
+			/* we end up here if none of the switch cases handled the field */
+			convert_to_string(b_var);
+			var->sqldata = Z_STRVAL_P(b_var);
+			var->sqllen	 = (ISC_SHORT)Z_STRLEN_P(b_var);
+			var->sqltype = SQL_TEXT;
+	} /* for */
+	return rv;
+}
+/* }}} */
+
+void _php_ibase_alloc_xsqlda_vars(XSQLDA *sqlda, ISC_SHORT *nullinds) /* {{{ */
+{
+	int i;
+
+	for (i = 0; i < sqlda->sqld; i++) {
+		XSQLVAR *var = &sqlda->sqlvar[i];
+
+		// Convert CHAR to VARCHAR to avoid dealiong with padding with
+		// multi character charsets
+
+		if ((var->sqltype & ~1) == SQL_TEXT) {
+			var->sqltype = SQL_VARYING | (var->sqltype & 1);
+		}
+
+		switch (var->sqltype & ~1) {
+			case SQL_TEXT:
+				var->sqldata = safe_emalloc(sizeof(char), var->sqllen, 0);
+				break;
+			case SQL_VARYING:
+				var->sqldata = safe_emalloc(sizeof(char), var->sqllen + sizeof(short), 0);
+				break;
+#ifdef SQL_BOOLEAN
+			case SQL_BOOLEAN:
+				var->sqldata = emalloc(sizeof(FB_BOOLEAN));
+				break;
+#endif
+			case SQL_SHORT:
+				var->sqldata = emalloc(sizeof(short));
+				break;
+			case SQL_LONG:
+				var->sqldata = emalloc(sizeof(ISC_LONG));
+				break;
+			case SQL_FLOAT:
+				var->sqldata = emalloc(sizeof(float));
+					break;
+			case SQL_DOUBLE:
+				var->sqldata = emalloc(sizeof(double));
+				break;
+			case SQL_INT64:
+				var->sqldata = emalloc(sizeof(ISC_INT64));
+				break;
+			case SQL_TIMESTAMP:
+				var->sqldata = emalloc(sizeof(ISC_TIMESTAMP));
+				break;
+			case SQL_TYPE_DATE:
+				var->sqldata = emalloc(sizeof(ISC_DATE));
+				break;
+			case SQL_TYPE_TIME:
+				var->sqldata = emalloc(sizeof(ISC_TIME));
+				break;
+			case SQL_BLOB:
+			case SQL_ARRAY:
+				var->sqldata = emalloc(sizeof(ISC_QUAD));
+				break;
+#if FB_API_VER >= 40
+			// These are converted to VARCHAR via isc_dpb_set_bind tag at connect
+			// case SQL_DEC16:
+			// case SQL_DEC34:
+			// case SQL_INT128:
+			case SQL_TIMESTAMP_TZ:
+				var->sqldata = emalloc(sizeof(ISC_TIMESTAMP_TZ));
+				break;
+			case SQL_TIME_TZ:
+				var->sqldata = emalloc(sizeof(ISC_TIME_TZ));
+				break;
+#endif
+			default:
+				fbp_fatal("Unhandled sqltype: %d for sqlname %s %s:%d. Probably compiled against outdated fbclient library (%d)", var->sqltype, var->sqlname, __FILE__, __LINE__, FB_API_VER);
+				break;
+		} /* switch */
+
+		/* Enhanced validation for NULL indicator consistency */
+		if (var->sqltype & 1) { /* sql NULL flag */
+			if (nullinds == NULL) {
+				fbp_fatal("NULL indicators required for nullable field %d (sqltype=%d)", i, var->sqltype);
+				return;
+			}
+			var->sqlind = &nullinds[i];
+
+			/* Validate that nullable field has proper null indicator setup */
+			if (var->sqlind == NULL) {
+				fbp_fatal("Nullable field %d missing null indicator after assignment", i);
+				return;
+			}
+		} else {
+			/* NOT NULL field - should not have null indicator access */
+			var->sqlind = NULL;
+		}
+	} /* for */
+}
+/* }}} */
+
+static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, zval *args, int bind_n) /* {{{ */
+{
+	int i, rv = FAILURE;
+	static char info_count[] = { isc_info_sql_records };
+	char result[512];
+	ISC_STATUS isc_result;
+	int argc = ib_query->in_fields_count;
+
+	(void)execute_data;
+
+	RESET_ERRMSG;
+	RETVAL_FALSE;
+
+	/* Enhanced parameter validation BEFORE Firebird API calls */
+	if (bind_n < 0 || argc < 0) {
+		php_error_docref(NULL, E_WARNING, "Invalid parameter count: bind_n=%d, argc=%d", bind_n, argc);
+		return FAILURE;
+	}
+
+	if (bind_n != argc) {
+		php_error_docref(NULL, (bind_n < argc) ? E_WARNING : E_NOTICE,
+			"Statement expects %d arguments, %d given", argc, bind_n);
+
+		if (bind_n < argc) {
+			return FAILURE;
+		}
+	}
+
+ /* Cursor lifecycle management: before any re-execution, close an open cursor
+  * unconditionally to match legacy semantics and avoid -502 reopen errors. */
+ if (ib_query->statement_type != isc_info_sql_stmt_exec_procedure && ib_query->is_open) {
+     IBDEBUG("Closing open cursor before re-execution");
+     /* Be tolerant: ignore errors when attempting to close an already-closed
+      * cursor to avoid spurious warnings (e.g., after EOF). */
+     (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_close);
+     ib_query->is_open = 0;
+     ib_query->has_more_rows = 0;
+ }
+
+	for (i = 0; i < argc; ++i) {
+		SEPARATE_ZVAL(&args[i]);
+	}
+
+	switch (ib_query->statement_type) {
+		isc_tr_handle tr;
+		ibase_tr_list **l;
+		ibase_trans *trans;
+
+		case isc_info_sql_stmt_start_trans:
+
+			/* a SET TRANSACTION statement should be executed with a NULL trans handle */
+			tr = 0;
+
+			if (isc_dsql_execute_immediate(IB_STATUS, &ib_query->link->handle, &tr, 0,
+					ib_query->query, ib_query->dialect, NULL)) {
+				_php_ibase_error();
+				goto _php_ibase_ex_error;
+			}
+
+			trans = (ibase_trans *) emalloc(sizeof(ibase_trans));
+			trans->handle = tr;
+			trans->link_cnt = 1;
+			trans->affected_rows = 0;
+			trans->db_link[0] = ib_query->link;
+
+			if (ib_query->link->tr_list == NULL) {
+				ib_query->link->tr_list = (ibase_tr_list *) emalloc(sizeof(ibase_tr_list));
+				ib_query->link->tr_list->trans = NULL;
+				ib_query->link->tr_list->next = NULL;
+			}
+
+			/* link the transaction into the connection-transaction list */
+			for (l = &ib_query->link->tr_list; *l != NULL; l = &(*l)->next);
+			*l = (ibase_tr_list *) emalloc(sizeof(ibase_tr_list));
+			(*l)->trans = trans;
+			(*l)->next = NULL;
+
+			RETVAL_RES(zend_register_resource(trans, le_trans));
+			Z_TRY_ADDREF_P(return_value);
+
+			return SUCCESS;
+
+		case isc_info_sql_stmt_commit:
+		case isc_info_sql_stmt_rollback:
+
+			if (isc_dsql_execute_immediate(IB_STATUS, &ib_query->link->handle,
+					&ib_query->trans->handle, 0, ib_query->query, ib_query->dialect, NULL)) {
+				_php_ibase_error();
+				goto _php_ibase_ex_error;
+			}
+
+			if (ib_query->trans->handle == 0 && ib_query->trans_res != NULL) {
+				/* transaction was released by the query and was a registered resource,
+				   so we have to release it */
+				zend_list_delete(ib_query->trans_res);
+				ib_query->trans_res = NULL;
+			}
+
+			RETVAL_TRUE;
+
+			return SUCCESS;
+
+		default:
+			RETVAL_FALSE;
+	}
+
+	if (ib_query->in_fields_count) { /* has placeholders */
+		IBDEBUG("Query wants XSQLDA for input");
+		if (_php_ibase_bind(ib_query, args) == FAILURE) {
+			IBDEBUG("Could not bind input XSQLDA");
+			goto _php_ibase_ex_error;
+		}
+	}
+
+    /* Execute the statement. For SELECT, this opens the cursor on ib_query->stmt. */
+    if (ib_query->statement_type == isc_info_sql_stmt_exec_procedure ||
+               ((ib_query->statement_type == isc_info_sql_stmt_insert ||
+                 ib_query->statement_type == isc_info_sql_stmt_update ||
+                 ib_query->statement_type == isc_info_sql_stmt_delete) &&
+                 ib_query->out_sqlda)) {
+        /* Use execute2 when output variables are expected (EXECUTE PROCEDURE
+         * and DML ... RETURNING). */
+        isc_result = isc_dsql_execute2(IB_STATUS, &ib_query->trans->handle,
+            &ib_query->stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda, ib_query->out_sqlda);
+    } else {
+        /* SELECT and DML without RETURNING */
+        isc_result = isc_dsql_execute(IB_STATUS, &ib_query->trans->handle,
+            &ib_query->stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda);
+    }
+
+    if (isc_result) {
+        IBDEBUG("Could not execute query");
+        _php_ibase_error();
+        goto _php_ibase_ex_error;
+    }
+
+    ib_query->trans->affected_rows = 0;
+
+    /* For SELECT statements, mark cursor state as open with rows pending. */
+    if (ib_query->statement_type == isc_info_sql_stmt_select && ib_query->out_sqlda) {
+        ib_query->is_open = 1;
+        ib_query->has_more_rows = 1;
+    }
+
+	/* Handle result sets for SELECT, EXECUTE PROCEDURE, and DML with RETURNING clauses */
+	if (ib_query->out_sqlda) { /* output variables in select, select for update, or RETURNING */
+
+		/* For EXECUTE PROCEDURE and INSERT/UPDATE/DELETE...RETURNING, create independent result resources to avoid
+		 * shared state issues where each execution overwrites the previous result.
+		 */
+  if (ib_query->statement_type == isc_info_sql_stmt_exec_procedure ||
+      ib_query->statement_type == isc_info_sql_stmt_insert ||
+      ib_query->statement_type == isc_info_sql_stmt_update ||
+      ib_query->statement_type == isc_info_sql_stmt_delete) {
+			/* Create a new query structure for this specific result */
+			ibase_query *result_query = ecalloc(1, sizeof(ibase_query));
+
+			/* Initialize error cleanup flag */
+			int cleanup_needed = 1;
+
+			/* Copy essential fields from the original query */
+			result_query->link = ib_query->link;
+			result_query->trans = ib_query->trans;
+			result_query->trans_res = ib_query->trans_res;
+   result_query->dialect = ib_query->dialect;
+   result_query->statement_type = ib_query->statement_type;
+   result_query->out_fields_count = ib_query->out_fields_count;
+   result_query->was_result_once = 1;
+
+   /* Reuse the original statement handle for metadata operations.
+    * This is safe for EXECUTE PROCEDURE and DML RETURNING because
+    * there is no open cursor to conflict with, and it enables
+    * alias resolution via the newer Firebird API which requires
+    * a valid statement handle. */
+   result_query->stmt = ib_query->stmt;
+   /* Keep a copy of SQL text for symmetry with SELECT path and
+    * potential debug/logging uses in helper routines. */
+   if (ib_query->query) {
+       result_query->query = estrdup(ib_query->query);
+   }
+
+			/* Validate source SQLDA before processing */
+			if (ib_query->out_sqlda && ib_query->out_fields_count > 0) {
+				/* Validate SQLDA structure integrity */
+				if (ib_query->out_sqlda->sqln != ib_query->out_fields_count ||
+				    ib_query->out_sqlda->sqld != ib_query->out_fields_count) {
+					_php_ibase_module_error("EXECUTE PROCEDURE: Invalid SQLDA structure - sqln=%d, sqld=%d, expected=%d",
+						ib_query->out_sqlda->sqln, ib_query->out_sqlda->sqld, ib_query->out_fields_count);
+					goto cleanup_result_query;
+				}
+
+				/* Allocate SQLDA structure with bounds checking */
+				size_t sqlda_size = XSQLDA_LENGTH(ib_query->out_fields_count);
+				if (sqlda_size < sizeof(XSQLDA) || ib_query->out_fields_count > 32767) {
+					_php_ibase_module_error("EXECUTE PROCEDURE: Invalid field count %d for SQLDA allocation",
+						ib_query->out_fields_count);
+					goto cleanup_result_query;
+				}
+
+				result_query->out_sqlda = (XSQLDA *) emalloc(sqlda_size);
+				if (!result_query->out_sqlda) {
+					_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate SQLDA memory");
+					goto cleanup_result_query;
+				}
+
+				/* Safe copy of SQLDA header and variable array */
+				memcpy(result_query->out_sqlda, ib_query->out_sqlda, sqlda_size);
+
+				/* CRITICAL SAFETY FIX: Clear all sqldata pointers in the copy immediately. */
+				for (int i = 0; i < ib_query->out_fields_count; i++) {
+					result_query->out_sqlda->sqlvar[i].sqldata = NULL;
+				}
+
+				/* Allocate null indicator array with validation */
+				result_query->out_nullind = safe_emalloc(sizeof(*result_query->out_nullind),
+					ib_query->out_fields_count, 0);
+				if (!result_query->out_nullind) {
+					_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate null indicator array");
+					goto cleanup_result_query;
+				}
+
+				/* Safe copy of null indicators */
+				memcpy(result_query->out_nullind, ib_query->out_nullind,
+					sizeof(*result_query->out_nullind) * ib_query->out_fields_count);
+
+				/* Deep copy data for each field using safer copying mechanism */
+				for (int i = 0; i < ib_query->out_fields_count; i++) {
+					XSQLVAR *orig_var = &ib_query->out_sqlda->sqlvar[i];
+					XSQLVAR *result_var = &result_query->out_sqlda->sqlvar[i];
+
+					/* Reset sqldata pointer - will be set by safe copy function */
+					result_var->sqldata = NULL;
+
+					/* Use safer copying function with comprehensive validation */
+					if (FAILURE == _php_ibase_safe_copy_sqlvar_data(result_var, orig_var, i)) {
+						goto cleanup_result_query;
+					}
+				}
+
+				/* Update sqlind pointers to point to the new null indicators */
+				for (int i = 0; i < ib_query->out_fields_count; i++) {
+					if (result_query->out_sqlda->sqlvar[i].sqltype & 1) {
+						result_query->out_sqlda->sqlvar[i].sqlind = &result_query->out_nullind[i];
+					} else {
+						result_query->out_sqlda->sqlvar[i].sqlind = NULL;
+					}
+				}
+			}
+
+   /* Copy input parameter metadata so ibase_num_params()/ibase_param_info()
+    * work on the returned result resource (e.g., ibase_query() path). */
+   result_query->in_fields_count = ib_query->in_fields_count;
+   if (ib_query->in_fields_count > 0 && ib_query->in_sqlda) {
+       size_t in_size = XSQLDA_LENGTH(ib_query->in_fields_count);
+       result_query->in_sqlda = (XSQLDA *) emalloc(in_size);
+       memcpy(result_query->in_sqlda, ib_query->in_sqlda, in_size);
+       /* Ensure indicators are not dangling for inputs on the cloned structure */
+       for (int i = 0; i < result_query->in_sqlda->sqld; i++) {
+           result_query->in_sqlda->sqlvar[i].sqlind = NULL;
+           result_query->in_sqlda->sqlvar[i].sqlind = NULL;
+       }
+   }
+
+   /* Set result flags - EXECUTE PROCEDURE results are immediately available */
+   result_query->has_more_rows = 1; /* Data is available for fetching */
+   result_query->is_open = 1; /* Result can be fetched once */
+
+   /* Register the result as a new resource - this transfers ownership
+    * IMPORTANT: This result does NOT own the statement handle. */
+   result_query->owns_stmt_handle = 0;
+   result_query->res = zend_register_resource(result_query, le_query);
+           if (!result_query->res) {
+               _php_ibase_module_error("EXECUTE PROCEDURE: Failed to register result resource");
+               goto cleanup_result_query;
+           }
+
+            /* Independent result snapshot: DO NOT link as child of parent query. */
+            result_query->parent = NULL;
+
+            /* Eagerly load column aliases before clearing the statement handle. */
+            if (_php_ibase_alloc_ht_aliases(result_query) == FAILURE) {
+                _php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate aliases");
+                goto cleanup_result_query;
+            }
+
+            result_query->stmt = 0; /* Do not reference the handle as it may be freed */
+
+			/* Success - disable cleanup since resource system now owns the memory */
+			cleanup_needed = 0;
+
+			RETVAL_RES(result_query->res);
+			Z_TRY_ADDREF_P(return_value);
+
+			return SUCCESS;
+
+cleanup_result_query:
+			/* Clean up partially allocated result_query on error path */
+			if (cleanup_needed && result_query) {
+				/* Free field data if partially allocated */
+				if (result_query->out_sqlda && result_query->out_fields_count > 0) {
+					for (int i = 0; i < result_query->out_fields_count; i++) {
+						if (result_query->out_sqlda->sqlvar[i].sqldata) {
+							efree(result_query->out_sqlda->sqlvar[i].sqldata);
+						}
+					}
+				}
+
+				/* Free SQLDA structure */
+				if (result_query->out_sqlda) {
+					efree(result_query->out_sqlda);
+				}
+
+				/* Free null indicator array */
+				if (result_query->out_nullind) {
+					efree(result_query->out_nullind);
+				}
+
+				/* Free alias hash table if allocated */
+				if (result_query->ht_aliases) {
+					zend_array_destroy(result_query->ht_aliases);
+				}
+
+				/* Free the result query structure itself */
+				efree(result_query);
+			}
+
+			/* Propagate error to caller */
+			goto _php_ibase_ex_error;
+  } else {
+            /* SELECT queries: Create independent result data to prevent use-after-free vulnerability */
+
+            /* Create a new query structure for this specific result */
+            ibase_query *result_query = ecalloc(1, sizeof(ibase_query));
+
+			/* Initialize error cleanup flag */
+			int cleanup_needed = 1;
+
+			/* Copy essential fields from the original query */
+			result_query->link = ib_query->link;
+			result_query->trans = ib_query->trans;
+			result_query->trans_res = ib_query->trans_res;
+			result_query->dialect = ib_query->dialect;
+			result_query->statement_type = ib_query->statement_type;
+			result_query->out_fields_count = ib_query->out_fields_count;
+			result_query->was_result_once = 1;
+
+   /* Reuse parent's prepared statement and already-open cursor */
+   result_query->stmt = ib_query->stmt;
+   result_query->query = estrdup(ib_query->query);
+
+   /* Copy input parameter metadata so ibase_num_params()/ibase_param_info()
+    * work on the returned result resource (e.g., ibase_query() path). */
+   result_query->in_fields_count = ib_query->in_fields_count;
+   if (ib_query->in_fields_count > 0 && ib_query->in_sqlda) {
+       size_t in_size = XSQLDA_LENGTH(ib_query->in_fields_count);
+       result_query->in_sqlda = (XSQLDA *) emalloc(in_size);
+       memcpy(result_query->in_sqlda, ib_query->in_sqlda, in_size);
+       /* Input buffer pointers are not needed on the result copy when
+        * reusing the same open cursor; keep them NULL to avoid misuse. */
+       for (int i = 0; i < result_query->in_sqlda->sqld; i++) {
+           result_query->in_sqlda->sqlvar[i].sqlind = NULL;
+           result_query->in_sqlda->sqlvar[i].sqldata = NULL;
+       }
+   }
+
+   /* Create independent copies of result data structures */
+   if (ib_query->out_fields_count > 0 && ib_query->out_sqlda) {
+                /* Validate source SQLDA before processing */
+                if (ib_query->out_sqlda->sqln != ib_query->out_fields_count ||
+                    ib_query->out_sqlda->sqld != ib_query->out_fields_count) {
+                    _php_ibase_module_error("SELECT: Invalid SQLDA structure - sqln=%d, sqld=%d, expected=%d",
+                        ib_query->out_sqlda->sqln, ib_query->out_sqlda->sqld, ib_query->out_fields_count);
+                    goto cleanup_select_result_query;
+                }
+
+				/* Allocate independent SQLDA structure */
+				size_t sqlda_size = XSQLDA_LENGTH(ib_query->out_fields_count);
+				result_query->out_sqlda = (XSQLDA *) emalloc(sqlda_size);
+				if (!result_query->out_sqlda) {
+					_php_ibase_module_error("SELECT: Failed to allocate SQLDA memory");
+					goto cleanup_select_result_query;
+				}
+
+				/* Safe copy of SQLDA header and variable array */
+				memcpy(result_query->out_sqlda, ib_query->out_sqlda, sqlda_size);
+
+				/* CRITICAL SAFETY FIX: Clear all sqldata pointers immediately to prevent
+				 * double-free of parent data if allocation loop fails. */
+				for (int i = 0; i < ib_query->out_fields_count; i++) {
+					result_query->out_sqlda->sqlvar[i].sqldata = NULL;
+				}
+
+				/* Allocate independent null indicator array */
+				result_query->out_nullind = safe_emalloc(sizeof(*result_query->out_nullind),
+					ib_query->out_fields_count, 0);
+				if (!result_query->out_nullind) {
+					_php_ibase_module_error("SELECT: Failed to allocate null indicator array");
+					goto cleanup_select_result_query;
+				}
+
+				/* Safe copy of null indicators */
+				memcpy(result_query->out_nullind, ib_query->out_nullind,
+					sizeof(*result_query->out_nullind) * ib_query->out_fields_count);
+
+				/* Deep copy data for each field using safer copying mechanism */
+				for (int i = 0; i < ib_query->out_fields_count; i++) {
+					XSQLVAR *orig_var = &ib_query->out_sqlda->sqlvar[i];
+					XSQLVAR *result_var = &result_query->out_sqlda->sqlvar[i];
+
+					/* Reset sqldata pointer - will be set by safe copy function */
+					result_var->sqldata = NULL;
+
+					/* Use safer copying function with comprehensive validation */
+					if (FAILURE == _php_ibase_safe_copy_sqlvar_data(result_var, orig_var, i)) {
+						goto cleanup_select_result_query;
+					}
+				}
+
+				/* Update sqlind pointers to point to the new null indicators */
+				for (int i = 0; i < ib_query->out_fields_count; i++) {
+					if (result_query->out_sqlda->sqlvar[i].sqltype & 1) {
+						result_query->out_sqlda->sqlvar[i].sqlind = &result_query->out_nullind[i];
+					} else {
+						result_query->out_sqlda->sqlvar[i].sqlind = NULL;
+					}
+				}
+
+				/* Copy array metadata if present */
+				if (ib_query->out_array_cnt > 0 && ib_query->out_array) {
+					result_query->out_array_cnt = ib_query->out_array_cnt;
+					result_query->out_array = safe_emalloc(sizeof(ibase_array), ib_query->out_array_cnt, 0);
+					if (!result_query->out_array) {
+						_php_ibase_module_error("SELECT: Failed to allocate array metadata");
+						goto cleanup_select_result_query;
+					}
+					memcpy(result_query->out_array, ib_query->out_array,
+						sizeof(ibase_array) * ib_query->out_array_cnt);
+				}
+			}
+
+			/* Set result flags - parent query remains open, result has independent data */
+			result_query->has_more_rows = 1; /* Data is available for fetching */
+			result_query->is_open = 1; /* Result can be fetched */
+
+   /* Register the result as a new resource - this transfers ownership
+    * IMPORTANT: This result does NOT own the statement handle. */
+   result_query->owns_stmt_handle = 0;
+   result_query->res = zend_register_resource(result_query, le_query);
+            if (!result_query->res) {
+                _php_ibase_module_error("SELECT: Failed to register result resource");
+                goto cleanup_select_result_query;
+            }
+
+            /* Link this result as a child of the parent prepared query so that
+             * freeing the parent can invalidate dependent results (required for
+             * use-after-free tests). */
+            result_query->parent = ib_query;
+            result_query->child_head = NULL;
+            result_query->child_next = ib_query->child_head;
+            ib_query->child_head = result_query;
+
+   /* Mark cursor state inherited from parent execute */
+   result_query->is_open = 1;
+   result_query->has_more_rows = 1;
+
+   /* Success - disable cleanup since resource system now owns the memory */
+   cleanup_needed = 0;
+
+   RETVAL_RES(result_query->res);
+   Z_TRY_ADDREF_P(return_value);
+
+   return SUCCESS;
+
+cleanup_select_result_query:
+			/* Clean up partially allocated result_query on error path */
+			if (cleanup_needed && result_query) {
+				/* Free field data if partially allocated */
+				if (result_query->out_sqlda && result_query->out_fields_count > 0) {
+					for (int i = 0; i < result_query->out_fields_count; i++) {
+						if (result_query->out_sqlda->sqlvar[i].sqldata) {
+							efree(result_query->out_sqlda->sqlvar[i].sqldata);
+						}
+					}
+				}
+
+				/* Free SQLDA structure */
+				if (result_query->out_sqlda) {
+					efree(result_query->out_sqlda);
+				}
+
+				/* Free null indicator array */
+				if (result_query->out_nullind) {
+					efree(result_query->out_nullind);
+				}
+
+				/* Free array metadata */
+				if (result_query->out_array) {
+					efree(result_query->out_array);
+				}
+
+				/* Free query string */
+				if (result_query->query) {
+					efree(result_query->query);
+				}
+
+				/* NOTE: Do NOT free result_query->stmt as it's shared with parent */
+
+				/* Free the result query structure itself */
+				efree(result_query);
+			}
+
+			/* Propagate error to caller */
+			goto _php_ibase_ex_error;
+		}
+	}
+
+	/* Update cursor flags based on statement type and execution result */
+	switch (ib_query->statement_type) {
+
+		unsigned long affected_rows;
+
+		case isc_info_sql_stmt_insert:
+		case isc_info_sql_stmt_update:
+		case isc_info_sql_stmt_delete:
+		case isc_info_sql_stmt_exec_procedure:
+
+			if (isc_dsql_sql_info(IB_STATUS, &ib_query->stmt, sizeof(info_count),
+					info_count, sizeof(result), result)) {
+				_php_ibase_error();
+				goto _php_ibase_ex_error;
+			}
+
+			affected_rows = 0;
+
+			if (result[0] == isc_info_sql_records) {
+				unsigned i = 3, result_size = isc_vax_integer(&result[1],2);
+
+				while (result[i] != isc_info_end && i < result_size) {
+					short len = (short)isc_vax_integer(&result[i+1],2);
+					if (result[i] != isc_info_req_select_count) {
+						affected_rows += isc_vax_integer(&result[i+3],len);
+					}
+					i += len+3;
+				}
+			}
+
+			ib_query->trans->affected_rows = affected_rows;
+
+			if (!ib_query->out_sqlda) { /* no result set is being returned */
+				/* Non-SELECT statements without RETURNING clause - no cursor opened */
+				ib_query->is_open = 0;
+				ib_query->has_more_rows = 0;
+
+				if (affected_rows) {
+					RETVAL_LONG(affected_rows);
+				} else {
+					RETVAL_TRUE;
+				}
+				break;
+			}
+
+			/* DML with RETURNING clause - cursor is opened but handled by result resource */
+			ib_query->is_open = 0;
+			ib_query->has_more_rows = 0;
+			break;
+
+		case isc_info_sql_stmt_select:
+			/* SELECT statements - cursor is now open and has potential rows */
+			if (ib_query->out_sqlda) {
+				ib_query->is_open = 1;
+				ib_query->has_more_rows = 1;
+			} else {
+				/* SELECT without output - unusual but handle */
+				ib_query->is_open = 0;
+				ib_query->has_more_rows = 0;
+			}
+			break;
+
+		default:
+			/* Other statement types (DDL, etc.) - no cursor */
+			ib_query->is_open = 0;
+			ib_query->has_more_rows = 0;
+			RETVAL_TRUE;
+			break;
+	}
+
+	rv = SUCCESS;
+
+_php_ibase_ex_error:
+	/* Clear cursor flags on any execution error to prevent inconsistent state */
+	ib_query->is_open = 0;
+	ib_query->has_more_rows = 0;
+	return rv;
+}
+/* }}} */
+
+/* {{{ proto mixed ibase_query([resource link_identifier, [ resource link_identifier, ]] string query [, mixed bind_arg [, mixed bind_arg [, ...]]])
+   Execute a query */
+PHP_FUNCTION(ibase_query)
+{
+	zval *zlink, *ztrans, *bind_args = NULL;
+	char *query;
+	size_t query_len;
+	int bind_i, bind_num;
+	zend_resource *trans_res = NULL;
+	ibase_db_link *ib_link = NULL;
+	ibase_trans *trans = NULL;
+
+	RESET_ERRMSG;
+
+	RETVAL_FALSE;
+
+	switch (ZEND_NUM_ARGS()) {
+		zend_long l;
+
+		default:
+			if (SUCCESS == zend_parse_parameters_ex(ZEND_PARSE_PARAMS_QUIET, 3, "rrs",
+					&zlink, &ztrans, &query, &query_len)) {
+
+				ib_link = (ibase_db_link*)zend_fetch_resource2_ex(zlink, LE_LINK, le_link, le_plink);
+				trans = (ibase_trans*)zend_fetch_resource_ex(ztrans, LE_TRANS,	le_trans);
+
+				trans_res = Z_RES_P(ztrans);
+				bind_i = 3;
+				break;
+			}
+		case 2:
+			if (SUCCESS == zend_parse_parameters_ex(ZEND_PARSE_PARAMS_QUIET, 2, "rs",
+					&zlink, &query, &query_len)) {
+				_php_ibase_get_link_trans(INTERNAL_FUNCTION_PARAM_PASSTHRU, zlink, &ib_link, &trans);
+
+				if (trans != NULL) {
+					trans_res = Z_RES_P(zlink);
+				}
+				bind_i = 2;
+				break;
+			}
+
+			/* the statement is 'CREATE DATABASE ...' if the link argument is IBASE_CREATE */
+			if (SUCCESS == zend_parse_parameters_ex(ZEND_PARSE_PARAMS_QUIET, ZEND_NUM_ARGS(),
+					 "ls", &l, &query, &query_len) && l == PHP_IBASE_CREATE) {
+				isc_db_handle db = 0;
+				isc_tr_handle trh = 0;
+
+				if (((l = INI_INT("ibase.max_links")) != -1) && (IBG(num_links) >= l)) {
+					_php_ibase_module_error("CREATE DATABASE is not allowed: maximum link count "
+						"(" ZEND_LONG_FMT ") reached", l);
+
+				} else if (isc_dsql_execute_immediate(IB_STATUS, &db, &trh, (short)query_len,
+						query, SQL_DIALECT_CURRENT, NULL)) {
+					_php_ibase_error();
+
+				} else if (!db) {
+					_php_ibase_module_error("Connection to created database could not be "
+						"established");
+
+				} else {
+
+					/* register the link as a resource; unfortunately, we cannot register
+					   it in the hash table, because we don't know the connection params */
+					ib_link = (ibase_db_link *) emalloc(sizeof(ibase_db_link));
+					ib_link->handle = db;
+					ib_link->dialect = SQL_DIALECT_CURRENT;
+					ib_link->tr_list = NULL;
+					ib_link->event_head = NULL;
+
+					RETVAL_RES(zend_register_resource(ib_link, le_link));
+					Z_TRY_ADDREF_P(return_value);
+
+					IBG(default_link) = Z_RES_P(return_value);
+					Z_TRY_ADDREF_P(return_value);
+				}
+				return;
+			}
+		case 1:
+		case 0:
+			if (SUCCESS == zend_parse_parameters(ZEND_NUM_ARGS() ? 1 : 0, "s", &query,
+					&query_len)) {
+				ib_link = (ibase_db_link *)zend_fetch_resource2(IBG(default_link), LE_LINK, le_link, le_plink);
+
+				bind_i = 1;
+				break;
+			}
+			return;
+	}
+
+	/* open default transaction */
+	if (ib_link == NULL || FAILURE == _php_ibase_def_trans(ib_link, &trans)){
+		return;
+	}
+
+	ibase_query *ib_query;
+	if(FAILURE == _php_ibase_prepare(&ib_query, ib_link, trans, trans_res, query)) {
+		return;
+	}
+
+	/* CRITICAL FIX: Ensure parameter metadata is populated for ibase_query() path
+	 * The ibase_param_info() function requires in_sqlda to be allocated and populated
+	 * even when called via ibase_query() instead of ibase_prepare() + ibase_execute().
+	 */
+	if (ib_query->in_fields_count > 0 && ib_query->in_sqlda == NULL) {
+		_php_ibase_module_error("Parameter metadata not populated despite in_fields_count=%d",
+			ib_query->in_fields_count);
+		goto _php_ibase_query_error;
+	}
+
+	{ // was while
+		int bind_n = ZEND_NUM_ARGS() - bind_i;
+		if (zend_parse_parameters(ZEND_NUM_ARGS(), "+", &bind_args, &bind_num) == FAILURE) {
+			goto _php_ibase_query_error;
+		}
+
+		if (FAILURE == _php_ibase_exec(INTERNAL_FUNCTION_PARAM_PASSTHRU, ib_query, &bind_args[bind_i], bind_n)) {
+			goto _php_ibase_query_error;
+		}
+
+		ib_query->was_result_once = 1;
+
+		return;
+	}
+
+	_php_ibase_module_error("Internal error: unexpected code path in ibase_query");
+	goto _php_ibase_query_error;
+
+_php_ibase_query_error:
+	zend_list_delete(ib_query->res);
+}
+/* }}} */
+
+/* {{{ proto int ibase_affected_rows( [ resource link_identifier ] )
+   Returns the number of rows affected by the previous INSERT, UPDATE or DELETE statement */
+PHP_FUNCTION(ibase_affected_rows)
+{
+	ibase_trans *trans = NULL;
+	ibase_db_link *ib_link;
+	zval *arg = NULL;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|r", &arg) == FAILURE) {
+		return;
+	}
+
+	if (!arg) {
+		ib_link = (ibase_db_link *)zend_fetch_resource2(IBG(default_link), LE_LINK, le_link, le_plink);
+		if (ib_link->tr_list == NULL || ib_link->tr_list->trans == NULL) {
+			RETURN_FALSE;
+		}
+		trans = ib_link->tr_list->trans;
+	} else {
+		/* one id was passed, could be db or trans id */
+		_php_ibase_get_link_trans(INTERNAL_FUNCTION_PARAM_PASSTHRU, arg, &ib_link, &trans);
+		if (trans == NULL) {
+			ib_link = (ibase_db_link *)zend_fetch_resource2_ex(arg, LE_LINK, le_link, le_plink);
+
+			if (ib_link->tr_list == NULL || ib_link->tr_list->trans == NULL) {
+				RETURN_FALSE;
+			}
+			trans = ib_link->tr_list->trans;
+		}
+	}
+	RETURN_LONG(trans->affected_rows);
+}
+/* }}} */
+
+/* {{{ proto resource ibase_prepare(resource link_identifier[, string query [, resource trans_identifier ]])
+   Prepare a query for later execution */
+PHP_FUNCTION(ibase_prepare)
+{
+	zval *link_arg, *trans_arg;
+	ibase_db_link *ib_link;
+	ibase_trans *trans = NULL;
+	size_t query_len;
+	zend_resource *trans_res = NULL;
+	ibase_query *ib_query;
+	char *query;
+
+	RESET_ERRMSG;
+
+	if (ZEND_NUM_ARGS() == 1) {
+		if (zend_parse_parameters(ZEND_NUM_ARGS(), "s", &query, &query_len) == FAILURE) {
+			return;
+		}
+		ib_link = (ibase_db_link *)zend_fetch_resource2(IBG(default_link), LE_LINK, le_link, le_plink);
+	} else if (ZEND_NUM_ARGS() == 2) {
+		if (zend_parse_parameters(ZEND_NUM_ARGS(), "rs", &link_arg, &query, &query_len) == FAILURE) {
+			return;
+		}
+		_php_ibase_get_link_trans(INTERNAL_FUNCTION_PARAM_PASSTHRU, link_arg, &ib_link, &trans);
+
+		if (trans != NULL) {
+			trans_res = Z_RES_P(link_arg);
+		}
+	} else {
+		if (zend_parse_parameters(ZEND_NUM_ARGS(), "rrs", &link_arg, &trans_arg, &query, &query_len) == FAILURE) {
+			return;
+		}
+		ib_link = (ibase_db_link *)zend_fetch_resource2_ex(link_arg, LE_LINK, le_link, le_plink);
+		trans = (ibase_trans *)zend_fetch_resource_ex(trans_arg, LE_TRANS, le_trans);
+		trans_res = Z_RES_P(trans_arg);
+	}
+
+	if (FAILURE == _php_ibase_def_trans(ib_link, &trans)) {
+		RETURN_FALSE;
+	}
+
+	if(FAILURE == _php_ibase_prepare(&ib_query, ib_link, trans, trans_res, query)){
+		RETURN_FALSE;
+	}
+
+	RETVAL_RES(ib_query->res);
+	Z_TRY_ADDREF_P(return_value);
+}
+/* }}} */
+
+/* {{{ proto mixed ibase_execute(resource query [, mixed bind_arg [, mixed bind_arg [, ...]]])
+   Execute a previously prepared query */
+PHP_FUNCTION(ibase_execute)
+{
+	zval *query, *args = NULL;
+	ibase_query *ib_query;
+	int bind_n = 0;
+
+	RESET_ERRMSG;
+
+	RETVAL_FALSE;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|r*", &query, &args, &bind_n)) {
+		return;
+	}
+
+	if(_php_ibase_fetch_query_res(query, &ib_query)) {
+		return;
+	}
+
+	_php_ibase_exec(INTERNAL_FUNCTION_PARAM_PASSTHRU, ib_query, args, bind_n);
+}
+/* }}} */
+
+/* {{{ proto bool ibase_free_query(resource query)
+   Free memory used by a query */
+PHP_FUNCTION(ibase_free_query)
+{
+	_php_ibase_free_query_impl(INTERNAL_FUNCTION_PARAM_PASSTHRU, 0);
+}
+/* }}} */
+
+static int _php_ibase_set_query_info(ibase_query *ib_query)
+{
+	int rv = FAILURE;
+	ISC_UCHAR buf[1024] = {0};
+	size_t buf_size = sizeof(buf);
+
+	size_t pos;
+
+	static ISC_UCHAR info_req[] = {
+		isc_info_sql_stmt_type,
+		isc_info_sql_select,
+			isc_info_sql_num_variables,
+		isc_info_sql_bind,
+			isc_info_sql_num_variables,
+	};
+
+	pos = 0;
+
+	// Assume buf will be tagged with `isc_info_truncated` and later in parsing
+	// we will catch that. Until `isc_info_truncated` is reached assume pos +=
+	// 2, etc are safe.
+	if (isc_dsql_sql_info(IB_STATUS, &ib_query->stmt, sizeof(info_req), (ISC_SCHAR *)info_req, buf_size, (ISC_SCHAR *)buf)) {
+		_php_ibase_error();
+		goto _php_ibase_parse_info_fail;
+	}
+
+	int ctx = 0;
+	while((buf[pos] != isc_info_end) && (pos < buf_size))
+	{
+		const ISC_UCHAR tag = buf[pos++];
+		switch(tag) {
+			case isc_info_sql_stmt_type: {
+				const ISC_USHORT size = (ISC_USHORT)isc_portable_integer(&buf[pos], 2); pos += 2;
+				ib_query->statement_type = (ISC_UCHAR)isc_portable_integer(&buf[pos], size); pos += size;
+			} break;
+			case isc_info_sql_select: ctx = 1; break;
+			case isc_info_sql_bind: ctx = 2; break;
+			case isc_info_sql_num_variables: {
+				const ISC_USHORT size = (ISC_USHORT)isc_portable_integer(&buf[pos], 2); pos += 2;
+				const ISC_USHORT count = (ISC_USHORT)isc_portable_integer(&buf[pos], size); pos += size;
+				if(ctx == 1) {
+					ib_query->out_fields_count = count;
+				} else if(ctx == 2) {
+					ib_query->in_fields_count = count;
+				} else {
+					fbp_fatal("isc_info_sql_num_variables: unknown ctx %d", ctx);
+				}
+				ctx = 0;
+			} break;
+			case isc_info_truncated: {
+				fbp_fatal("BUG: sql_info buffer truncated, current capacity: %ld", buf_size);
+			} break;
+			case isc_info_error: {
+				fbp_fatal("sql_info buffer error, pos: %lu", pos);
+				goto _php_ibase_parse_info_fail;
+			} break;
+			default: {
+				fbp_fatal("BUG: unrecognized sql_info entry: %d, pos: %lu", tag, pos);
+				goto _php_ibase_parse_info_fail;
+			} break;
+		}
+	}
+
+	if(buf[pos] != isc_info_end) {
+		fbp_fatal("BUG: sql_info unexpected end of buffer at pos: %lu", pos);
+		goto _php_ibase_parse_info_fail;
+	}
+
+	rv = SUCCESS;
+
+_php_ibase_parse_info_fail:
+	return rv;
+}
+
+int _php_ibase_fetch_query_res(zval *from, ibase_query **ib_query)
+{
+    /* Let Zend validate resource type and liveness; it will throw TypeError
+     * ("supplied resource is not a valid Firebird/InterBase query resource")
+     * when the resource is closed or wrong type, matching test expectations. */
+    *ib_query = (ibase_query *) zend_fetch_resource_ex(from, LE_QUERY, le_query);
+    return (*ib_query != NULL) ? SUCCESS : FAILURE;
+}
+
+void _php_ibase_free_query_impl(INTERNAL_FUNCTION_PARAMETERS, int as_result)
+{
+    zval *query_arg;
+    ibase_query *ib_query;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r", &query_arg) == FAILURE) {
+		RETURN_FALSE;
+	}
+
+    /* Use strict resource validation to throw TypeError on invalid resource types */
+    ib_query = (ibase_query *)zend_fetch_resource_ex(query_arg, LE_QUERY, le_query);
+    if (!ib_query) {
+        /* zend_fetch_resource_ex automatically throws TypeError for wrong types or closed resources */
+        RETURN_FALSE;
+    }
+
+    /* For both result and prepared-query handles, we want the first call to
+     * actively destroy the resource so that subsequent calls trigger a
+     * TypeError, matching test expectations. */
+    zend_list_close(Z_RES_P(query_arg));
+
+    RETURN_TRUE;
+}
+
+#endif /* HAVE_IBASE */

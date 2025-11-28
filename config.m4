@@ -67,7 +67,7 @@ if test "$PHP_INTERBASE" != "no"; then
   fi
 
   AC_DEFINE(HAVE_IBASE,1,[ ])
-  PHP_NEW_EXTENSION(interbase, interbase.c ibase_query.c ibase_service.c ibase_events.c ibase_blobs.c, $ext_shared,, -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1,[cxx])
+  PHP_NEW_EXTENSION(interbase, interbase.c ibase_query_exec.c ibase_result.c ibase_metadata.c ibase_service.c ibase_events.c ibase_blobs.c, $ext_shared,, -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1,[cxx])
   PHP_SUBST(INTERBASE_SHARED_LIBADD)
 
   PHP_REQUIRE_CXX()

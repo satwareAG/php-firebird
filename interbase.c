@@ -1816,7 +1816,7 @@ PHP_FUNCTION(ibase_trans)
 	ibase_db_link **ib_link = NULL;
 	ibase_trans *ib_trans;
 	isc_tr_handle tr_handle = 0;
-	ISC_STATUS result;
+	ISC_STATUS result = 0;
 
 	RESET_ERRMSG;
 
@@ -1903,6 +1903,7 @@ PHP_FUNCTION(ibase_trans)
 	}
 
 	/* start the transaction */
+	/* cppcheck-suppress uninitvar */
 	if (result) {
 		_php_ibase_error();
 		efree(ib_link);

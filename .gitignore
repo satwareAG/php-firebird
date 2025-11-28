@@ -88,10 +88,10 @@ coverage.info
 /reports
 yaml.loT
 
-# Temporary files
-core
-*.patch
-*.tgz
+# Static Analysis Artifacts
+compile_commands.json
+cppcheck-report.xml
+
 *.tar.gz
 *.tar.bz2
 

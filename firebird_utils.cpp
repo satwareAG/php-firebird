@@ -335,25 +335,25 @@ static void fbu_copy_status(const ISC_STATUS* from, ISC_STATUS* to, size_t maxLe
 
 #if FB_API_VER >= 40
 /* Decodes a time with time zone into its time components. */
-extern "C" void fbu_decode_time_tz(void *master_ptr, const ISC_TIME_TZ* timeTz, unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions,
-   unsigned timeZoneBufferLength, char* timeZoneBuffer)
+extern "C" void fbu_decode_time_tz(void *master_ptr, const ISC_TIME_TZ* time_tz, unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions,
+   unsigned time_zone_buffer_length, char* time_zone_buffer)
 {
-	Firebird::IMaster* master = (Firebird::IMaster*)master_ptr;
+	auto* master = static_cast<Firebird::IMaster*>(master_ptr);
 	Firebird::IUtil* util = master->getUtilInterface();
-	Firebird::IStatus* status = master->getStatus();
-	Firebird::CheckStatusWrapper st(status);
-	util->decodeTimeTz(&st, timeTz, hours, minutes, seconds, fractions,
-						timeZoneBufferLength, timeZoneBuffer);
+	Firebird::IStatus* fb_status = master->getStatus();
+	Firebird::CheckStatusWrapper status(fb_status);
+	util->decodeTimeTz(&status, time_tz, hours, minutes, seconds, fractions,
+						time_zone_buffer_length, time_zone_buffer);
 }
 
 /* Decodes a timestamp with time zone into its date and time components */
-extern "C" void fbu_decode_timestamp_tz(void *master_ptr, const ISC_TIMESTAMP_TZ* timestampTz,
+extern "C" void fbu_decode_timestamp_tz(void *master_ptr, const ISC_TIMESTAMP_TZ* timestamp_tz, // NOLINT(bugprone-easily-swappable-parameters)
 	unsigned* year, unsigned* month, unsigned* day,
 	unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions,
-	unsigned timeZoneBufferLength, char* timeZoneBuffer)
+	unsigned time_zone_buffer_length, char* time_zone_buffer) // NOLINT(readability-function-cognitive-complexity)
 {
     // Step 3.1: Use internal C++17 implementation with structured bindings
-    auto decoded = decode_timestamp_tz_impl(master_ptr, timestampTz);
+    auto decoded = decode_timestamp_tz_impl(master_ptr, timestamp_tz);
 
     if (decoded.has_value()) {
         // C++17: Structured binding assignment for cleaner multi-parameter handling
@@ -369,11 +369,11 @@ extern "C" void fbu_decode_timestamp_tz(void *master_ptr, const ISC_TIMESTAMP_TZ
         if (fractions) *fractions = f;
 
         // Handle timezone buffer with safe string copying
-        if (timeZoneBuffer && timeZoneBufferLength > 0) {
-            const auto& tz = decoded->timeZone;
-            const size_t copy_size = std::min(static_cast<size_t>(timeZoneBufferLength - 1), tz.size());
-            std::copy_n(tz.begin(), copy_size, timeZoneBuffer);
-            timeZoneBuffer[copy_size] = '\0';
+        if (time_zone_buffer && time_zone_buffer_length > 0) {
+            const auto& timezone = decoded->timeZone;
+            const size_t copy_size = std::min(static_cast<size_t>(time_zone_buffer_length - 1), timezone.size());
+            std::copy_n(timezone.begin(), copy_size, time_zone_buffer);
+            time_zone_buffer[copy_size] = '\0'; // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
         }
     } else {
         // Error case - set all outputs to zero/empty (safe fallback)
@@ -384,33 +384,33 @@ extern "C" void fbu_decode_timestamp_tz(void *master_ptr, const ISC_TIMESTAMP_TZ
         if (minutes) *minutes = 0;
         if (seconds) *seconds = 0;
         if (fractions) *fractions = 0;
-        if (timeZoneBuffer && timeZoneBufferLength > 0) {
-            timeZoneBuffer[0] = '\0';
+        if (time_zone_buffer && time_zone_buffer_length > 0) {
+            time_zone_buffer[0] = '\0'; // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
         }
     }
 }
 
-extern "C" int fbu_insert_aliases(void *master_ptr, ISC_STATUS* st, ibase_query *ib_query, void *statement_ptr)
+extern "C" int fbu_insert_aliases(void *master_ptr, ISC_STATUS* status, ibase_query *ib_query, void *statement_ptr)
 {
     // Step 3.3: Use internal C++17 implementation with RAII metadata management
-    if (!master_ptr || !ib_query || !statement_ptr) {
+    if (master_ptr == nullptr || ib_query == nullptr || statement_ptr == nullptr) {
         return -1;
     }
 
     auto* statement = static_cast<Firebird::IStatement*>(statement_ptr);
-    return insert_aliases_modern(master_ptr, st, ib_query, statement);
+    return insert_aliases_modern(master_ptr, status, ib_query, statement);
 }
 
-extern "C" int fbu_insert_field_info(void *master_ptr, ISC_STATUS* st, int is_outvar, int num,
+extern "C" int fbu_insert_field_info(void *master_ptr, ISC_STATUS* status, int is_outvar, int num,
 	zval *into_array, void *statement_ptr)
 {
     // Step 3.2: Use internal C++17 implementation with complete RAII
-    if (!master_ptr || !into_array || !statement_ptr) {
+    if (master_ptr == nullptr || into_array == nullptr || statement_ptr == nullptr) {
         return -1;
     }
 
     auto* statement = static_cast<Firebird::IStatement*>(statement_ptr);
-    return insert_field_info_modern(master_ptr, st, is_outvar != 0, num, into_array, statement);
+    return insert_field_info_modern(master_ptr, status, is_outvar != 0, num, into_array, statement);
 }
 
 #endif // FB_API_VER >= 40

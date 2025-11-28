@@ -36,15 +36,15 @@ ISC_DATE fbu_encode_date(void *master_ptr, unsigned year, unsigned month, unsign
 
 
 #if FB_API_VER >= 40
-void fbu_decode_time_tz(void *master_ptr, const ISC_TIME_TZ* timeTz, unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions,
-	unsigned timeZoneBufferLength, char* timeZoneBuffer);
-void fbu_decode_timestamp_tz(void *master_ptr, const ISC_TIMESTAMP_TZ* timestampTz,
+void fbu_decode_time_tz(void *master_ptr, const ISC_TIME_TZ* time_tz, unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions,
+	unsigned time_zone_buffer_length, char* time_zone_buffer);
+void fbu_decode_timestamp_tz(void *master_ptr, const ISC_TIMESTAMP_TZ* timestamp_tz,
 	unsigned* year, unsigned* month, unsigned* day,
 	unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions,
-	unsigned timeZoneBufferLength, char* timeZoneBuffer);
-int fbu_insert_field_info(void *master_ptr, ISC_STATUS* st, int is_outvar, int num,
+	unsigned time_zone_buffer_length, char* time_zone_buffer);
+int fbu_insert_field_info(void *master_ptr, ISC_STATUS* status, int is_outvar, int num,
   zval *into_array, void *statement_ptr);
-int fbu_insert_aliases(void *master_ptr, ISC_STATUS* st, ibase_query *ib_query,
+int fbu_insert_aliases(void *master_ptr, ISC_STATUS* status, ibase_query *ib_query,
   void *statement_ptr);
 
 #endif // FB_API_VER >= 30

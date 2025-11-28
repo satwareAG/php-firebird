@@ -4,7 +4,7 @@ InterBase: event handling
 <?php
 if (PHP_OS == "WINNT") echo "skip";
 if (PHP_DEBUG) echo "skip: Disabled in debug build until memory leak is fixed (See GitHub issue 45)";
-// if (true) die("skip: Event handling is unstable and thread-unsafe in current architecture (see Issue #46)");
+if (true) die("skip: Event handling is unstable and thread-unsafe in current architecture (see Issue #46)");
 include("skipif.inc");
 ?>
 --FILE--

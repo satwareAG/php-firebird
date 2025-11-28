@@ -27,7 +27,7 @@ In line with 2025 Best Practices for critical infrastructure (database drivers) 
 | `ibase_blobs.c` | 233 | 172 | **73.8%** | 🟢 Good | Blob coverage verified |
 | `ibase_query.c` | 1727 | 1196 | **69.3%** | 🟡 Decent | Core query logic |
 | `ibase_service.c` | 309 | 233 | **75.4%** | 🟢 Good | Service API (User/Maint/Info) |
-| `ibase_events.c` | 180 | 124 | **68.9%** | 🟢 Good | Event handling enabled and tested |
+| `ibase_events.c` | 180 | 24 | **13.3%** | 🔴 Critical | Recursion crash on PHP 8.3 (Disabled) |
 
 ## 3. Improvement Plan
 
@@ -48,10 +48,10 @@ In line with 2025 Best Practices for critical infrastructure (database drivers) 
     - **Added `tests/ibase_service_db_mgr.phpt`**: Database info and maintenance.
     - Result: 39.2% → 75.4% line coverage.
 
-### Phase 3: Architecture Fixes (Completed)
-- **Event Handling**: Validated existing canonical event pattern implementation.
-- **Tests Enabled**: Fixed and unskipped `tests/008.phpt`.
-- Result: 13.3% → 68.9% coverage for `ibase_events.c`. Overall coverage crossed 70%.
+### Phase 3: Architecture Fixes (Incomplete/Blocked)
+- **Event Handling**: Attempted to enable `tests/008.phpt`.
+- **Result**: Passed on PHP 8.1 but caused **Stack Overflow (Infinite Recursion)** on PHP 8.3.
+- **Action**: Test re-disabled to ensure CI stability. Requires deep re-architecting of callback mechanism (remove `isc_que_events` from callback path).
 
 ## 4. Security & Confidentiality Implications
 

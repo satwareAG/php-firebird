@@ -1,8 +1,17 @@
 #include <gtest/gtest.h>
 #include <memory>
 #include <cstring>
+#include "../firebird_utils_internal.h"
 #include "../firebird_utils.h"
 #include <ibase.h>
+
+// Undefine PHP macros that conflict with STL
+#ifdef max
+#undef max
+#endif
+#ifdef min
+#undef min
+#endif
 
 // Mock interfaces for testing RAII wrapper classes
 class MockFirebirdUtil : public Firebird::IUtil {

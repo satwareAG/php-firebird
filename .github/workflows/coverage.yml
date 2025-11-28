@@ -137,10 +137,9 @@ jobs:
           NO_INTERACTION: 1
           REPORT_EXIT_STATUS: 1
           TEST_PHP_EXECUTABLE: php
+        shell: bash
         run: |
-          set -eu
-          # Using pipefail to ensure make test exit code is preserved despite tee
-          set -o pipefail
+          set -euo pipefail
 
           # Run tests and capture output
           # We allow failure here (|| true) to process the log file for granular details

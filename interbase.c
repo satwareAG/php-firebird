@@ -2087,6 +2087,37 @@ PHP_FUNCTION(ibase_rollback_ret)
 }
 /* }}} */
 
+static int is_valid_identifier(const char *s, size_t len)
+{
+	size_t i;
+	if (len == 0) return 0;
+
+	if (s[0] == '"') {
+		/* Quoted identifier: must end with quote, and internal quotes must be paired */
+		if (len < 2 || s[len-1] != '"') return 0;
+		for (i = 1; i < len - 1; i++) {
+			if (s[i] == '"') {
+				if (s[i+1] == '"') {
+					i++; /* skip paired quote */
+				} else {
+					return 0; /* unescaped quote in middle */
+				}
+			}
+		}
+		return 1;
+	} else {
+		/* Unquoted identifier: alphanumeric, _, $ */
+		for (i = 0; i < len; i++) {
+			char c = s[i];
+			if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+				  (c >= '0' && c <= '9') || c == '_' || c == '$')) {
+				return 0;
+			}
+		}
+		return 1;
+	}
+}
+
 /* {{{ proto int ibase_gen_id(string generator [, int increment [, resource link_identifier ]])
    Increments the named generator and returns its new value */
 PHP_FUNCTION(ibase_gen_id)
@@ -2098,7 +2129,7 @@ PHP_FUNCTION(ibase_gen_id)
 	ibase_db_link *ib_link;
 	ibase_trans *trans = NULL;
 	XSQLDA out_sqlda;
-	ISC_INT64 result;
+	ISC_INT64 result = 0;
 
 	RESET_ERRMSG;
 
@@ -2108,7 +2139,12 @@ PHP_FUNCTION(ibase_gen_id)
 	}
 
 	if (gen_len > 31) {
-		php_error_docref(NULL, E_WARNING, "Invalid generator name");
+		php_error_docref(NULL, E_WARNING, "Invalid generator name (length > 31 characters)");
+		RETURN_FALSE;
+	}
+
+	if (!is_valid_identifier(generator, gen_len)) {
+		php_error_docref(NULL, E_WARNING, "Invalid generator name (contains invalid characters)");
 		RETURN_FALSE;
 	}
 

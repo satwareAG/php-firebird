@@ -17,7 +17,7 @@ if ! [ -f php-firebird.cppcheck ]; then
                  --output-file=cppcheck-report.xml
     else
         # Fallback to processing the file directly with broad checks
-        cppcheck firebird_utils.cpp \
+        cppcheck firebird_utils.cpp interbase.c ibase_query_exec.c ibase_result.c ibase_metadata.c ibase_service.c ibase_events.c ibase_blobs.c \
                  --std=c++17 \
                  --enable=all \
                  --inconclusive \
@@ -51,7 +51,10 @@ if [ "$ERRORS" -gt 0 ]; then
     echo "❌ Cppcheck found $ERRORS errors"
     # Show errors content if xmllint available
     if command -v xmllint &> /dev/null; then
-        xmllint --xpath '//error[@severity="error"]' cppcheck-report.xml
+        # Try to print errors, but also cat the file if that fails or returns empty
+        xmllint --xpath '//error[@severity="error"]' cppcheck-report.xml || cat cppcheck-report.xml
+    else
+        cat cppcheck-report.xml
     fi
     exit 1
 fi

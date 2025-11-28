@@ -21,6 +21,10 @@ RUN apt-get update && apt-get install -y \
     gdb \
     valgrind \
     lcov \
+    cppcheck \
+    clang-tidy \
+    bear \
+    libxml2-utils \
     && ln -s /usr/lib/x86_64-linux-gnu/libfbclient.so /usr/lib/libfbclient.so \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*

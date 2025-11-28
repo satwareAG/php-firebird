@@ -447,6 +447,8 @@ static const zend_function_entry ibase_functions[] = {
 	PHP_FALIAS(fbird_blob_get,		ibase_blob_get, 	arginfo_ibase_blob_get)
 	PHP_FALIAS(fbird_blob_echo,		ibase_blob_echo, 	arginfo_ibase_blob_echo)
 	PHP_FALIAS(fbird_blob_import,	ibase_blob_import, 	arginfo_ibase_blob_import)
+	PHP_FALIAS(fbird_blob_create_stream,	ibase_blob_create_stream,	arginfo_ibase_blob_create)
+	PHP_FALIAS(fbird_blob_open_stream,	ibase_blob_open_stream,	arginfo_ibase_blob_open)
 	PHP_FALIAS(fbird_errmsg,		ibase_errmsg, 		arginfo_ibase_errmsg)
 	PHP_FALIAS(fbird_errcode,		ibase_errcode, 		arginfo_ibase_errcode)
 

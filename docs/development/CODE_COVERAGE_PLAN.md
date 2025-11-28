@@ -1,7 +1,7 @@
 # Code Coverage Strategy (2025)
 
 **Status:** Baseline Established
-**Current Coverage:** 62.9% (Line) / 80.3% (Function)
+**Current Coverage:** 67.1% (Line) / 86.3% (Function)
 **Date:** 2025-11-28
 
 ## 1. Strategic Goals
@@ -10,8 +10,8 @@ In line with 2025 Best Practices for critical infrastructure (database drivers) 
 
 | Metric | Current | Target (Phase 1) | Target (Phase 2) | Industry Std |
 |--------|---------|------------------|------------------|--------------|
-| **Line Coverage** | 62.9% | **65%** | **75%** | ≥80% |
-| **Function Coverage** | 80.3% | **85%** | **90%** | ≥90% |
+| **Line Coverage** | 67.1% | **65%** | **75%** | ≥80% |
+| **Function Coverage** | 86.3% | **85%** | **90%** | ≥90% |
 | **New Code** | N/A | **≥80%** | **≥90%** | ≥90% |
 
 ### Rationale
@@ -24,9 +24,9 @@ In line with 2025 Best Practices for critical infrastructure (database drivers) 
 | File | Lines | Hit | Coverage | Status | Notes |
 |------|-------|-----|----------|--------|-------|
 | `firebird_utils.cpp` | 217 | 164 | **75.6%** | 🟢 Good | Modern C++17 implementation |
-| `ibase_blobs.c` | 233 | 172 | **73.8%** | 🟢 Good | Blob handling + New coverage |
+| `ibase_blobs.c` | 233 | 172 | **73.8%** | 🟢 Good | Blob coverage verified |
 | `ibase_query.c` | 1727 | 1196 | **69.3%** | 🟡 Decent | Core query logic |
-| `ibase_service.c` | 309 | 121 | **39.2%** | 🔴 Poor | Service API (Backup/Restore) |
+| `ibase_service.c` | 309 | 233 | **75.4%** | 🟢 Good | Service API (User/Maint/Info) |
 | `ibase_events.c` | 180 | 24 | **13.3%** | 🔴 Critical | Skipped in CI due to thread safety |
 
 ## 3. Improvement Plan
@@ -42,10 +42,11 @@ In line with 2025 Best Practices for critical infrastructure (database drivers) 
     - Added `tests/ibase_blob_003.phpt` (Large >64KB segmentation).
     - **Added `tests/ibase_blob_coverage.phpt`**: Covers `ibase_blob_info`, `ibase_blob_echo`, `ibase_blob_import`.
     - Result: 49.3% → 73.8% line coverage.
-2.  **Service API** (In Progress):
-    - Enabled basic Service Manager tests (`ibase_service_001.phpt`).
-    - Added robust error validation checks.
-    - Expanded constants coverage (`ibase_service_002.phpt`).
+2.  **Service API** (Completed):
+    - Enabled basic Service Manager tests (`ibase_service_001.phpt`, `002.phpt`).
+    - **Added `tests/ibase_service_user.phpt`**: Full CRUD for user management.
+    - **Added `tests/ibase_service_db_mgr.phpt`**: Database info and maintenance.
+    - Result: 39.2% → 75.4% line coverage.
 
 ### Phase 3: Architecture Fixes (Long-term)
 - **Event Handling**: Refactor `ibase_events.c` to be thread-safe or isolate it, enabling tests to run. This is the largest single blocker to >70% coverage.

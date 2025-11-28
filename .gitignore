@@ -104,3 +104,4 @@ build_scripts/php-fb-config.bat
 /coverage/
 /*.log
 /tests/blob.*
+/benchmark

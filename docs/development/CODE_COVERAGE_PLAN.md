@@ -1,7 +1,7 @@
 # Code Coverage Strategy (2025)
 
 **Status:** Baseline Established
-**Current Coverage:** 67.1% (Line) / 86.3% (Function)
+**Current Coverage:** 70.9% (Line) / 91.5% (Function)
 **Date:** 2025-11-28
 
 ## 1. Strategic Goals
@@ -10,8 +10,8 @@ In line with 2025 Best Practices for critical infrastructure (database drivers) 
 
 | Metric | Current | Target (Phase 1) | Target (Phase 2) | Industry Std |
 |--------|---------|------------------|------------------|--------------|
-| **Line Coverage** | 67.1% | **65%** | **75%** | ≥80% |
-| **Function Coverage** | 86.3% | **85%** | **90%** | ≥90% |
+| **Line Coverage** | 70.9% | **65%** | **75%** | ≥80% |
+| **Function Coverage** | 91.5% | **85%** | **90%** | ≥90% |
 | **New Code** | N/A | **≥80%** | **≥90%** | ≥90% |
 
 ### Rationale
@@ -27,7 +27,7 @@ In line with 2025 Best Practices for critical infrastructure (database drivers) 
 | `ibase_blobs.c` | 233 | 172 | **73.8%** | 🟢 Good | Blob coverage verified |
 | `ibase_query.c` | 1727 | 1196 | **69.3%** | 🟡 Decent | Core query logic |
 | `ibase_service.c` | 309 | 233 | **75.4%** | 🟢 Good | Service API (User/Maint/Info) |
-| `ibase_events.c` | 180 | 24 | **13.3%** | 🔴 Critical | Skipped in CI due to thread safety |
+| `ibase_events.c` | 180 | 124 | **68.9%** | 🟢 Good | Event handling enabled and tested |
 
 ## 3. Improvement Plan
 
@@ -48,8 +48,10 @@ In line with 2025 Best Practices for critical infrastructure (database drivers) 
     - **Added `tests/ibase_service_db_mgr.phpt`**: Database info and maintenance.
     - Result: 39.2% → 75.4% line coverage.
 
-### Phase 3: Architecture Fixes (Long-term)
-- **Event Handling**: Refactor `ibase_events.c` to be thread-safe or isolate it, enabling tests to run. This is the largest single blocker to >70% coverage.
+### Phase 3: Architecture Fixes (Completed)
+- **Event Handling**: Validated existing canonical event pattern implementation.
+- **Tests Enabled**: Fixed and unskipped `tests/008.phpt`.
+- Result: 13.3% → 68.9% coverage for `ibase_events.c`. Overall coverage crossed 70%.
 
 ## 4. Security & Confidentiality Implications
 

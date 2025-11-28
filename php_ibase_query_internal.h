@@ -39,8 +39,7 @@ void _php_ibase_field_info(zval *return_value, ibase_query *ib_query, int is_out
 /* From ibase_result.c */
 /* (helpers if needed by others, currently mostly consumers) */
 
-/* Helper for time conversion - currently file-static in ibase_result.c,
-   can be exposed if needed elsewhere */
+/* Helper for time conversion */
 time_t ibase_timegm_portable(struct tm *tm);
 time_t ibase_mktime_with_tz(struct tm *tm, const char *tz);
 

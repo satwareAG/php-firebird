@@ -36,10 +36,10 @@ cd docker/
 docker-compose up -d php81-dev
 
 # Build extension
-docker exec php-firebird-dev-php81-dev-1 /docker/scripts/build-extension.sh
+docker exec php-firebird-dev-php81-dev-1 /ext/scripts/container/build.sh
 
 # Run tests
-docker exec php-firebird-dev-php81-dev-1 /docker/scripts/test-extension.sh
+docker exec php-firebird-dev-php81-dev-1 /ext/scripts/container/test.sh
 ```
 
 ### Native Installation
@@ -358,5 +358,3 @@ This extension is licensed under the PHP License v3.01. See [LICENSE](LICENSE) f
 - **Issue Tracker**: https://github.com/FirebirdSQL/php-firebird/issues
 
 ---
-
-

@@ -96,20 +96,20 @@ docker compose exec "$CONTAINER" bash -c "
 
 # 5. Run Static Analysis
 echo -e "${BLUE}>> Running Clang-Tidy...${NC}"
-if ! docker compose exec "$CONTAINER" /ext/scripts/run_clang_tidy.sh; then
+if ! docker compose exec "$CONTAINER" /ext/scripts/container/analysis/clang_tidy.sh; then
     echo -e "${RED}Clang-Tidy failed.${NC}"
     exit 1
 fi
 
 echo -e "${BLUE}>> Running Cppcheck...${NC}"
-if ! docker compose exec "$CONTAINER" /ext/scripts/run_cppcheck.sh; then
+if ! docker compose exec "$CONTAINER" /ext/scripts/container/analysis/cppcheck.sh; then
     echo -e "${RED}Cppcheck failed.${NC}"
     exit 1
 fi
 
 # 6. Run Unit Tests
 echo -e "${BLUE}>> Running Unit Tests...${NC}"
-if ! docker compose exec "$CONTAINER" /ext/docker/scripts/test-extension.sh; then
+if ! docker compose exec "$CONTAINER" /ext/scripts/container/test.sh; then
     echo -e "${RED}Unit tests failed.${NC}"
     exit 1
 fi
@@ -120,14 +120,14 @@ if [ "$MODE" == "full" ]; then
     # Valgrind parses the current binary. Since 'make install' wasn't run in step 4 (just make),
     # test-extension.sh finds modules/interbase.so.
     # test_with_valgrind.sh also uses ./modules/interbase.so.
-    if ! docker compose exec "$CONTAINER" /ext/scripts/test_with_valgrind.sh; then
+    if ! docker compose exec "$CONTAINER" /ext/scripts/container/analysis/valgrind.sh; then
         echo -e "${RED}Valgrind failed.${NC}"
         exit 1
     fi
 
     echo -e "${BLUE}>> Running AddressSanitizer (Rebuilds with ASan)...${NC}"
     # ASan requires rebuild. This invalidates the previous build.
-    if ! docker compose exec "$CONTAINER" /ext/scripts/test_with_asan.sh; then
+    if ! docker compose exec "$CONTAINER" /ext/scripts/container/analysis/asan.sh; then
         echo -e "${RED}AddressSanitizer tests failed.${NC}"
         exit 1
     fi

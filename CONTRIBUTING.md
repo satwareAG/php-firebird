@@ -25,7 +25,7 @@ cd docker/
 docker-compose up -d php81  # or php82, php83, php84, php85
 
 # Build extension in container
-docker exec -it php-firebird-dev /docker/scripts/build-extension.sh
+docker exec -it php-firebird-dev /ext/scripts/container/build.sh
 ```
 
 ### Native Development Requirements

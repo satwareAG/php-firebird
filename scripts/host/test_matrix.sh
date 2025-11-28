@@ -80,7 +80,7 @@ for CONTAINER in "${TARGETS[@]}"; do
     echo "Running build and test suite (Target: ${TEST_TARGET:-ALL})..."
 
     # Construct command with optional target
-    CMD="/ext/docker/scripts/build-extension.sh && /ext/docker/scripts/test-extension.sh"
+    CMD="/ext/scripts/container/build.sh && /ext/scripts/container/test.sh"
     if [ -n "$TEST_TARGETS" ]; then
         CMD="$CMD $TEST_TARGETS"
     fi

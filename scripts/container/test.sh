@@ -6,10 +6,16 @@ echo "Testing PHP Firebird extension..."
 # Change to extension root directory
 cd /ext
 
-# Ensure extension is built
+# Ensure extension is built and compatible
 if [ ! -f modules/interbase.so ]; then
     echo "Extension not found. Building first..."
     /ext/scripts/container/build.sh
+else
+    # Check if extension loads successfully (handles API mismatch leftovers)
+    if ! php -d extension=$(pwd)/modules/interbase.so -r "exit(extension_loaded('interbase') ? 0 : 1);" >/dev/null 2>&1; then
+        echo "Extension found but failed to load (possible API mismatch). Rebuilding..."
+        /ext/scripts/container/build.sh
+    fi
 fi
 
 # Print PHP version and extension information

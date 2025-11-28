@@ -39,6 +39,7 @@
 #include "php_interbase.h"
 #include "php_ibase_includes.h"
 #include "SAPI.h"
+#include "zend_exceptions.h"
 #include <stdbool.h>
 #include <time.h>
 #include "firebird_utils.h"
@@ -51,6 +52,8 @@
 
 ZEND_DECLARE_MODULE_GLOBALS(ibase)
 static PHP_GINIT_FUNCTION(ibase);
+
+zend_class_entry *firebird_exception_ce;
 
 /* {{{ arginfo */
 ZEND_BEGIN_ARG_INFO(arginfo_ibase_errmsg, 0)
@@ -566,7 +569,11 @@ void _php_ibase_error(void) /* {{{ */
 		s = IBG(errmsg) + strlen(IBG(errmsg));
 	}
 
-	php_error_docref(NULL, E_WARNING, "%s", IBG(errmsg));
+	if (INI_BOOL("ibase.enable_exceptions")) {
+		zend_throw_exception(firebird_exception_ce, IBG(errmsg), IBG(sql_code));
+	} else {
+		php_error_docref(NULL, E_WARNING, "%s", IBG(errmsg));
+	}
 }
 /* }}} */
 
@@ -583,7 +590,11 @@ void _php_ibase_module_error(const char *msg, ...) /* {{{ */
 
 	IBG(sql_code) = -999; /* no SQL error */
 
-	php_error_docref(NULL, E_WARNING, "%s", IBG(errmsg));
+	if (INI_BOOL("ibase.enable_exceptions")) {
+		zend_throw_exception(firebird_exception_ce, IBG(errmsg), IBG(sql_code));
+	} else {
+		php_error_docref(NULL, E_WARNING, "%s", IBG(errmsg));
+	}
 }
 /* }}} */
 
@@ -828,6 +839,7 @@ PHP_INI_BEGIN()
 	PHP_INI_ENTRY("ibase.timeformat", IB_DEF_TIME_FMT, PHP_INI_ALL, NULL)
 	STD_PHP_INI_ENTRY_EX("ibase.default_trans_params", "0", PHP_INI_ALL, OnUpdateLongGEZero, default_trans_params, zend_ibase_globals, ibase_globals, php_ibase_trans_displayer)
 	STD_PHP_INI_ENTRY_EX("ibase.default_lock_timeout", "0", PHP_INI_ALL, OnUpdateLongGEZero, default_lock_timeout, zend_ibase_globals, ibase_globals, display_link_numbers)
+	PHP_INI_ENTRY_EX("ibase.enable_exceptions", "0", PHP_INI_ALL, NULL, zend_ini_boolean_displayer_cb)
 PHP_INI_END()
 
 #ifdef __GNUC__
@@ -881,6 +893,10 @@ static PHP_GINIT_FUNCTION(ibase)
 PHP_MINIT_FUNCTION(ibase)
 {
 	REGISTER_INI_ENTRIES();
+
+	zend_class_entry ce;
+	INIT_CLASS_ENTRY(ce, "Firebird\\Exception", NULL);
+	firebird_exception_ce = zend_register_internal_class_ex(&ce, zend_ce_exception);
 
 	le_link = zend_register_list_destructors_ex(_php_ibase_close_link, NULL, LE_LINK, module_number);
 	le_plink = zend_register_list_destructors_ex(php_ibase_commit_link_rsrc, _php_ibase_close_plink, LE_PLINK, module_number);

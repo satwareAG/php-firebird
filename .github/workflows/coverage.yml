@@ -111,6 +111,66 @@ jobs:
             exit 1
           fi
 
+      - name: Configure Firebird for CI (Allow /tmp access)
+        run: |
+          set -x
+          # Firebird 3+ defaults to restricting database paths.
+          # We need to allow access to /tmp for PHPT tests.
+          # In CI, it is safe to enable Full access.
+          FB_CONF="/opt/firebird/firebird.conf"
+          if [ -f "$FB_CONF" ]; then
+             echo "Modifying $FB_CONF to allow full database access..."
+
+             # Check if DatabaseAccess exists (commented or not)
+             if grep -q "DatabaseAccess" "$FB_CONF"; then
+                 # Replace existing line
+                 sed -i 's/^#\?\s*DatabaseAccess.*/DatabaseAccess = Full/g' "$FB_CONF"
+             else
+                 # Append if missing
+                 echo "DatabaseAccess = Full" >> "$FB_CONF"
+             fi
+
+             echo "Verifying DatabaseAccess setting:"
+             grep "DatabaseAccess" "$FB_CONF"
+
+             # Restart Firebird to apply changes
+             if [ -x /etc/init.d/firebird ]; then
+                /etc/init.d/firebird restart || true
+             elif command -v service >/dev/null 2>&1; then
+                service firebird restart || true
+             else
+                # Fallback kill and restart via script logic or pkill
+                pkill fbguard || true
+                pkill fbserver || true
+                sleep 2
+                /opt/firebird/bin/fbguard -daemon || true
+             fi
+
+             # Wait for restart
+             sleep 2
+             if nc -z 127.0.0.1 3050; then
+                echo "Firebird restarted successfully."
+             else
+                echo "WARNING: Firebird did not restart correctly."
+             fi
+
+             # Create directory for PHP tests
+             mkdir -p /tmp/fb_tests
+             chmod 777 /tmp/fb_tests
+
+             # Debug: Verify database creation with ISQL
+             echo "Testing database creation in /tmp/fb_tests..."
+             echo "CREATE DATABASE '/tmp/fb_tests/test_ci.fdb' user 'SYSDBA' password 'masterkey';" > /tmp/create_db.sql
+             if /opt/firebird/bin/isql -q -i /tmp/create_db.sql; then
+                echo "ISQL: Database creation SUCCESS."
+             else
+                echo "ISQL: Database creation FAILED."
+                cat /opt/firebird/firebird.log || true
+             fi
+          else
+             echo "WARNING: /opt/firebird/firebird.conf not found. Skipping configuration."
+          fi
+
       - name: Build PHP extension with Coverage
         env:
           FB_CONFIG: "no"
@@ -131,7 +191,8 @@ jobs:
 
       - name: Run PHPT tests
         env:
-          FIREBIRD_HOST: "localhost"
+          # FIREBIRD_HOST: "localhost" # Use local protocol/XNET by default
+          FIREBIRD_DB_DIR: "/tmp/fb_tests"
           ISC_USER: SYSDBA
           ISC_PASSWORD: masterkey
           NO_INTERACTION: 1

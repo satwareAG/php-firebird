@@ -61,8 +61,12 @@ static void _php_ibase_free_blob(zend_resource *rsrc) /* {{{ */
 
 	if (ib_blob->bl_handle != 0) { /* blob open*/
 		if (isc_cancel_blob(IB_STATUS, &ib_blob->bl_handle)) {
-			_php_ibase_module_error("You can lose data. Close any blob after reading from or "
-				"writing to it. Use ibase_blob_close() before calling ibase_close()");
+			/* If the blob handle is invalid (e.g. transaction committed/rolled back),
+			 * we can safely ignore the error as there's nothing to cancel/close. */
+			if (IB_STATUS[1] != isc_bad_segstr_handle) {
+				_php_ibase_module_error("You can lose data. Close any blob after reading from or "
+					"writing to it. Use ibase_blob_close() before calling ibase_close()");
+			}
 		}
 	}
 	efree(ib_blob);

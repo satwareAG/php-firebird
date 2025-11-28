@@ -4,7 +4,7 @@ InterBase: event handling
 <?php
 if (PHP_OS == "WINNT") echo "skip";
 if (PHP_DEBUG) echo "skip: Disabled in debug build until memory leak is fixed (See GitHub issue 45)";
-if (true) die("skip: Event handling is unstable and thread-unsafe in current architecture (see Issue #46)");
+// if (true) die("skip: Event handling is unstable and thread-unsafe in current architecture (see Issue #46)");
 include("skipif.inc");
 ?>
 --FILE--
@@ -12,39 +12,44 @@ include("skipif.inc");
 
 require("interbase.inc");
 
- = 0;
+$count = 0;
 
-function event_callback()
+function event_callback($event_name, $link = null)
 {
-	global ;
-	if ( == "TEST1") echo "FAIL TEST1\n";
-	return (++ < 5); /* cancel event */
+	global $count;
+    // echo "Triggered: $event_name\n";
+	if ($event_name == "TEST1") echo "FAIL TEST1\n";
+	return (++$count < 5); /* cancel event */
 }
 
- = ibase_connect();
+$conn = ibase_connect($test_base, $user, $password);
+if (!$conn) die("Connection failed");
 
-ibase_query("CREATE PROCEDURE pevent AS BEGIN POST_EVENT 'TEST1'; POST_EVENT 'TEST2'; END");
-ibase_commit();
+ibase_query($conn, "CREATE PROCEDURE pevent AS BEGIN POST_EVENT 'TEST1'; POST_EVENT 'TEST2'; END");
+ibase_commit($conn);
 
- = ibase_set_event_handler('event_callback','TEST1');
-ibase_free_event_handler();
+// Register handler for TEST1 then free it - it should NOT fire
+$ev = ibase_set_event_handler($conn, 'event_callback', 'TEST1');
+ibase_free_event_handler($ev);
 
-ibase_set_event_handler('event_callback','TEST2');
+// Register handler for TEST2 - it SHOULD fire 5 times then cancel
+ibase_set_event_handler($conn, 'event_callback', 'TEST2');
 
-usleep(5E+5);
+usleep(500000);
 
-for ( = 0;  < 8; ++) {
-	ibase_query("EXECUTE PROCEDURE pevent");
-	ibase_commit();
+for ($i = 0; $i < 8; $i++) {
+	ibase_query($conn, "EXECUTE PROCEDURE pevent");
+	ibase_commit($conn);
 
-	usleep(3E+5);
+	usleep(300000);
 }
 
-usleep(5E+5);
+usleep(500000);
 
-if (! ||  > 5) echo "FAIL ()\n";
+if (!$count || $count > 5) echo "FAIL ($count)\n";
 echo "end of test\n";
 
+ibase_close($conn);
 ?>
 --EXPECT--
 end of test

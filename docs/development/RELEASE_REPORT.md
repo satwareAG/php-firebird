@@ -1,12 +1,12 @@
 # Release Readiness Report
 
 **Date:** 2025-11-29
-**Version:** 6.1.1 (Release Candidate)
+**Version:** 6.2.0
 **Focus:** Feature Implementation (Transactions), Quality Assurance, Static Analysis, Code Coverage
 
 ## 1. Executive Summary
 
-This report documents the successful release readiness for the PHP Firebird extension version 6.1.1. This release focuses on modernization and feature parity, specifically completing the Transaction API (Phase 4) and introducing BLOB streams (Phase 3). We have also remediated critical bugs, implemented static analysis gates, and verified the CI/CD pipeline locally.
+This report documents the successful release readiness for the PHP Firebird extension version 6.2.0. This release focuses on modernization and feature parity, specifically completing the Transaction API (Phase 4) and introducing BLOB streams (Phase 3). We have also remediated critical bugs, implemented static analysis gates, and verified the CI/CD pipeline locally.
 
 **Key Achievements:**
 *   **Feature Completion**: Full Transaction API (TPB, Savepoints, Locking) and BLOB Streaming implemented.
@@ -14,7 +14,7 @@ This report documents the successful release readiness for the PHP Firebird exte
 *   **Code Coverage**: Achieved **67.1%** line coverage and **86.3%** function coverage (pre-Phase 4 baseline). New features are fully covered by dedicated PHPT tests.
 *   **Pipeline Verification**: **PASSED**. The test suite passed on PHP 8.1, 8.2, 8.3, 8.4, and 8.5-dev.
 
-## 2. New Features (Version 6.1.1)
+## 2. New Features (Version 6.2.0)
 
 ### Transaction API
 *   **`fbird_trans_start($link, array $options)`**: New function supporting comprehensive Transaction Parameter Block (TPB) configuration.
@@ -61,7 +61,7 @@ We integrated `cppcheck` and `clang-tidy` into the containerized workflow.
 > To address the coverage gap and Clang-Tidy modernization in the v6.2 release cycle, we will:
 > 1.  **Fault Injection Testing**: Introduce a mock layer for `isc_*` calls to simulate rare Firebird error conditions (e.g., network disconnects during fetch) which currently account for ~15% of uncovered code.
 > 2.  **Clang-Tidy Modernization**: Enable `modernize-*` checks incrementally, starting with `firebird_utils.cpp` and `ibase_blobs.c`.
-> 3.  **Target**: Achieve **80% global line coverage** by v6.2.0.
+> 3.  **Target**: Achieve **80% global line coverage** by v6.2.x cycle.
 
 ## 4. Pipeline Verification (Local `act`)
 
@@ -86,5 +86,5 @@ The extension is stable, secure, and verified.
 
 **Next Steps:**
 1.  Merge the updated `.github/workflows/coverage.yml` and all feature branches.
-2.  Create release tag `v6.1.1`.
+2.  Create release tag `v6.2.0`.
 3.  Publish release notes based on this report.

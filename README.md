@@ -317,7 +317,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development guidelines inclu
 
 ## Version Compatibility
 
-### Current Version: 6.1.1-RC2
+### Current Version: 6.2.0
 
 **Supported PHP Versions:**
 - PHP 8.1 (minimum required)

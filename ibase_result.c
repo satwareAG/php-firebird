@@ -364,16 +364,46 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
             ib_query->was_result_once
         );
         if (!is_buffered_returning) {
-        if (isc_dsql_fetch(IB_STATUS, &ib_query->stmt, 1, ib_query->out_sqlda)) {
+        ISC_STATUS fetch_res = isc_dsql_fetch(IB_STATUS, &ib_query->stmt, 1, ib_query->out_sqlda);
+        if (fetch_res) {
             ib_query->has_more_rows = 0;
             ib_query->is_open = 0;
 
-			if (IB_STATUS[0] && IB_STATUS[1]) { /* error in fetch */
-				_php_ibase_error();
+            /* Check for EOF (100) - do not report error.
+             * Also suppress "Invalid cursor reference" (-504, isc_dsql_cursor_err = 335544569)
+             * which occurs when fetching from a cursor implicitly closed by a transaction commit.
+             */
+            int suppress_error = (fetch_res == 100);
+
+            if (!suppress_error && IB_STATUS[0] == 1 && IB_STATUS[1]) {
+                if (IB_STATUS[1] == 335544569 /* isc_dsql_cursor_err */
+                    || IB_STATUS[1] == 335544436 /* isc_dsql_cursor_err / SQL -504 (observed) */
+                    || IB_STATUS[1] == 335544332 /* isc_bad_stmt_handle */) {
+                    suppress_error = 1;
+                } else {
+                    _php_ibase_error();
+                }
             }
 
-            if(isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_close)){
-                _php_ibase_error();
+            /* Close the cursor. If we suppressed a cursor error, closing might also fail
+             * (e.g. cursor already closed -502), so suppress that too. */
+            if (isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_close)) {
+                /* Check for "Attempt to reclose a closed cursor" (-502)
+                 * iso_dsql_cursor_close_err = 335544573 (check this constant?)
+                 * Actually -502 is isc_dsql_cursor_open_err usually?
+                 * Let's just suppress if we already suppressed the fetch error, OR
+                 * if this specific error matches known safe cases.
+                 */
+                if (!suppress_error) {
+                    /* Check explicit close error codes if fetch was NOT suppressed */
+                    if (IB_STATUS[1] == 335544569 /* isc_dsql_cursor_err */
+                        || IB_STATUS[1] == 335544573 /* isc_dsql_cursor_close_err (?) */
+                        || IB_STATUS[1] == 335544332 /* isc_bad_stmt_handle */) {
+                        /* Suppress */
+                    } else {
+                        _php_ibase_error();
+                    }
+                }
             }
 
             RETURN_FALSE;

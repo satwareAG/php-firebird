@@ -376,9 +376,14 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
             int suppress_error = (fetch_res == 100);
 
             if (!suppress_error && IB_STATUS[0] == 1 && IB_STATUS[1]) {
-                if (IB_STATUS[1] == 335544569 /* isc_dsql_cursor_err */
-                    || IB_STATUS[1] == 335544436 /* isc_dsql_cursor_err / SQL -504 (observed) */
-                    || IB_STATUS[1] == 335544332 /* isc_bad_stmt_handle */) {
+                /* Suppress specific cursor errors that indicate the cursor was closed
+                 * (e.g. by transaction commit) to allow returning FALSE (EOF) cleanly.
+                 * 335544569: isc_dsql_cursor_err (SQL -504)
+                 * 335544436: Observed error code for "Invalid cursor reference" on some versions
+                 * We do NOT suppress 335544332 (isc_bad_stmt_handle) as that implies
+                 * usage of a freed/corrupted resource which should warn.
+                 */
+                if (IB_STATUS[1] == 335544569 || IB_STATUS[1] == 335544436) {
                     suppress_error = 1;
                 } else {
                     _php_ibase_error();
@@ -395,10 +400,11 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
                  * if this specific error matches known safe cases.
                  */
                 if (!suppress_error) {
-                    /* Check explicit close error codes if fetch was NOT suppressed */
-                    if (IB_STATUS[1] == 335544569 /* isc_dsql_cursor_err */
-                        || IB_STATUS[1] == 335544573 /* isc_dsql_cursor_close_err (?) */
-                        || IB_STATUS[1] == 335544332 /* isc_bad_stmt_handle */) {
+                    /* If closing failed, check if it was due to cursor already being closed/invalid.
+                     * Suppress these to avoid double-fault noise. */
+                    if (IB_STATUS[1] == 335544569
+                        || IB_STATUS[1] == 335544436
+                        || IB_STATUS[1] == 335544573 /* isc_dsql_cursor_close_err */) {
                         /* Suppress */
                     } else {
                         _php_ibase_error();

@@ -64,6 +64,25 @@ This phase enables powerful Firebird specific features.
     *   **Goal:** Ensure all functions have `fbird_*` aliases.
     *   **Status:** **Completed.** Added missing aliases for blob stream functions.
 
+### Phase 4: Transaction API (COMPLETED)
+
+This phase exposes the full power of Firebird's transaction capabilities to PHP.
+
+*   **Comprehensive Transaction Start (`fbird_trans_start`)**
+    *   **Issue:** `ibase_trans` limited access to Firebird's TPB structure (e.g. inability to lock specific tables).
+    *   **Goal:** Allow passing a rich configuration array to define isolation, access mode, lock resolution, table reservation, and Firebird 4.0+ features.
+    *   **Status:** **Completed.** Implemented `_php_ibase_populate_trans_from_array` to parse PHP arrays into TPB buffers.
+
+*   **Savepoint Support**
+    *   **Issue:** Drivers relied on raw SQL for savepoints, leading to state inconsistencies.
+    *   **Goal:** Native wrappers for `SAVEPOINT`, `ROLLBACK TO`, and `RELEASE SAVEPOINT`.
+    *   **Status:** **Completed.** Implemented `fbird_savepoint`, `fbird_rollback_savepoint`, `fbird_release_savepoint`.
+
+*   **Transaction State Inspection**
+    *   **Issue:** Transaction resources were opaque.
+    *   **Goal:** Expose transaction ID, isolation level, and state.
+    *   **Status:** **Completed.** Implemented `fbird_trans_info`.
+
 ## Development Log
 
 *   **2025-11-28:** Roadmap initialized. Starting analysis of Recommendation #1 (Fetch Warnings) and #6 (Exceptions).

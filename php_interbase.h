@@ -37,17 +37,17 @@ extern zend_module_entry ibase_module_entry;
 #endif
 
 #define PHP_INTERBASE_VER_MAJOR 6
-#define PHP_INTERBASE_VER_MINOR 1
-#define PHP_INTERBASE_VER_REV 1
+#define PHP_INTERBASE_VER_MINOR 2
+#define PHP_INTERBASE_VER_REV 0
 /* #define PHP_INTERBASE_VER_PRE "-RC2" -- Defined only for pre-releases */
 
 // Keep two digit style similar to FB_API_VER
 #define PHP_INTERBASE_VER PHP_INTERBASE_VER_MAJOR * 10 + PHP_INTERBASE_VER_MINOR
 
 #ifdef PHP_INTERBASE_VER_PRE
-#   define PHP_INTERBASE_VER_STR "6.1.1" PHP_INTERBASE_VER_PRE
+#   define PHP_INTERBASE_VER_STR "6.2.0" PHP_INTERBASE_VER_PRE
 #else
-#   define PHP_INTERBASE_VER_STR "6.1.1"
+#   define PHP_INTERBASE_VER_STR "6.2.0"
 #endif
 
 PHP_MINIT_FUNCTION(ibase);

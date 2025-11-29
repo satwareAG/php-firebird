@@ -1460,7 +1460,7 @@ PHP_FUNCTION(ibase_drop_db)
 /* {{{ proto resource ibase_trans([int trans_args [, resource link_identifier [, ... ], int trans_args [, resource link_identifier [, ... ]] [, ...]]])
    Start a transaction over one or several databases */
 
-#define TPB_MAX_SIZE 32
+#define TPB_MAX_SIZE 2048
 
 void _php_ibase_populate_trans(zend_long trans_argl, zend_long trans_timeout, char *last_tpb, unsigned short *len) /* {{{ */
 {
@@ -1525,6 +1525,7 @@ void _php_ibase_populate_trans(zend_long trans_argl, zend_long trans_timeout, ch
 void _php_ibase_populate_trans_from_array(zval *options, zend_long *trans_timeout, char *last_tpb, unsigned short *len) /* {{{ */
 {
 	unsigned char *p = (unsigned char *) last_tpb;
+	unsigned char *end = p + TPB_MAX_SIZE;
 	zval *tmp;
 
 	/* TPB version */
@@ -1605,6 +1606,55 @@ void _php_ibase_populate_trans_from_array(zval *options, zend_long *trans_timeou
 		if (zend_is_true(tmp)) {
 			*p++ = isc_tpb_read_consistency;
 			*p++ = 1;
+		}
+	}
+
+	/* tables reservation (Firebird 1.5+) */
+	if ((tmp = zend_hash_str_find(Z_ARRVAL_P(options), "tables", sizeof("tables") - 1)) != NULL) {
+		if (Z_TYPE_P(tmp) == IS_ARRAY) {
+			zval *table_val;
+			zend_string *table_name;
+
+			ZEND_HASH_FOREACH_STR_KEY_VAL(Z_ARRVAL_P(tmp), table_name, table_val) {
+				if (table_name && Z_TYPE_P(table_val) == IS_LONG) {
+					zend_long lock_mode = Z_LVAL_P(table_val);
+					unsigned char tlen = (unsigned char) ZSTR_LEN(table_name);
+
+					// Basic Direction (Read/Write)
+					if (lock_mode & PHP_IBASE_LOCK_WRITE) {
+						if (p < end) *p++ = isc_tpb_lock_write;
+					} else if (lock_mode & PHP_IBASE_LOCK_READ) {
+						if (p < end) *p++ = isc_tpb_lock_read;
+					} else {
+						// Default to WRITE if only mode bits are set (common assumption) or SKIP?
+						// Let's skip if no direction is set to avoid invalid TPB
+						continue;
+					}
+
+					// Table Name
+					if (p + 1 + tlen < end) {
+						*p++ = tlen;
+						memcpy(p, ZSTR_VAL(table_name), tlen);
+						p += tlen;
+					} else {
+						// Buffer overflow prevention
+						php_error_docref(NULL, E_WARNING, "TPB buffer too small for table '%s'", ZSTR_VAL(table_name));
+						break;
+					}
+
+					// Lock Mode (Shared/Protected/Exclusive)
+					if (lock_mode & PHP_IBASE_LOCK_PROTECTED) {
+						if (p < end) *p++ = isc_tpb_protected;
+					} else if (lock_mode & PHP_IBASE_LOCK_EXCLUSIVE) {
+						if (p < end) *p++ = isc_tpb_exclusive;
+					} else if (lock_mode & PHP_IBASE_LOCK_SHARED) {
+						if (p < end) *p++ = isc_tpb_shared;
+					} else {
+						// Default to SHARED if no mode specified
+						if (p < end) *p++ = isc_tpb_shared;
+					}
+				}
+			} ZEND_HASH_FOREACH_END();
 		}
 	}
 

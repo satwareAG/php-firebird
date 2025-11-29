@@ -1,7 +1,8 @@
 # RFC: Comprehensive Transaction API Exposure
 
-**Status:** Draft
+**Status:** Implemented
 **Date:** 2025-11-27
+**Implemented:** 2025-11-29
 **Target:** php-firebird Extension (C++)
 **Related:** Doctrine Firebird Driver "Optimized Transaction Handling"
 

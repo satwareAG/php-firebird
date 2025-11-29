@@ -70,3 +70,4 @@ This phase enables powerful Firebird specific features.
 *   **2025-11-28:** Phase 1 Complete. Exception handling implemented (`ibase.enable_exceptions`). Fetch loop verified to be clean.
 *   **2025-11-28:** Phase 2 Complete. Statement reuse and commit retaining lifecycle verified via reproduction scripts.
 *   **2025-11-28:** Phase 3 Complete. BLOB Streaming implemented. `RETURNING` support verified. Aliases updated.
+*   **2025-11-29:** Phase 4 Complete. Transaction API (Savepoints, TPB Table Reservation, Transaction Info) implemented and verified.

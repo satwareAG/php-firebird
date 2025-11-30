@@ -604,6 +604,14 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 			ar_size *= 1 + ar_desc->array_desc_bounds[dim].array_bound_upper
 				-ar_desc->array_desc_bounds[dim].array_bound_lower;
 		}
+
+        /* Safety check for overflow */
+        float safe_size = (float)a->el_size * (float)ar_size;
+        if (safe_size > (float)ZEND_ULONG_MAX) {
+             _php_ibase_module_error("Array size exceeds system limits");
+             efree(ar);
+             return FAILURE;
+        }
 		a->ar_size = a->el_size * ar_size;
 	} /* for column */
 	*ib_arrayp = ar;
@@ -1285,7 +1293,21 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
      IBDEBUG("Closing open cursor before re-execution");
      /* Be tolerant: ignore errors when attempting to close an already-closed
       * cursor to avoid spurious warnings (e.g., after EOF). */
-     (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt.stmt, DSQL_close);
+     if (isc_dsql_free_statement(IB_STATUS, &ib_query->stmt.stmt, DSQL_close)) {
+         /* Suppress specific cursor errors that indicate the cursor was closed
+          * (e.g. by transaction commit) to allow returning FALSE (EOF) cleanly.
+          * 335544569: isc_dsql_cursor_err (SQL -504)
+          * 335544436: Observed error code for "Invalid cursor reference" on some versions
+          * 335544573: isc_dsql_cursor_close_err
+          */
+         if (IB_STATUS[1] == 335544569
+             || IB_STATUS[1] == 335544436
+             || IB_STATUS[1] == 335544573) {
+             /* Suppress known safe errors */
+         } else {
+             _php_ibase_error();
+         }
+     }
      ib_query->is_open = 0;
      ib_query->has_more_rows = 0;
  }

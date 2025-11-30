@@ -478,6 +478,10 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 		}
 
 		result = zend_hash_get_current_data(ht_ret);
+        if (!result) {
+            _php_ibase_module_error("Internal error: result array iterator out of sync");
+            RETURN_FALSE;
+        }
 
 		switch (var->sqltype & ~1) {
 

@@ -134,11 +134,19 @@ static int _php_ibase_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 			data = ((IBVARY *) data)->vary_string;
 			/* no break */
 		case SQL_TEXT:
-            {
-                /* Use strnlen to avoid including garbage/padding if null-terminated */
-                size_t actual_len = strnlen((char*)data, len);
-                ZVAL_STRINGL(val, (char*)data, actual_len);
-            }
+			{
+				/* CHAR fields are fixed-length and space-padded by Firebird.
+				 * First check for null termination (some Firebird versions do this).
+				 * Then rtrim trailing spaces which are padding bytes (not character data).
+				 * Note: This matches the behavior expected by PHP users - CHAR fields
+				 * return trimmed data like VARCHAR, not raw padded storage. */
+				size_t actual_len = strnlen((char*)data, len);
+				/* Rtrim trailing space padding */
+				while (actual_len > 0 && ((unsigned char*)data)[actual_len - 1] == ' ') {
+					actual_len--;
+				}
+				ZVAL_STRINGL(val, (char*)data, actual_len);
+			}
 			break;
 #ifdef SQL_BOOLEAN
 		case SQL_BOOLEAN:

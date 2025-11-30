@@ -325,8 +325,6 @@ static int _php_ibase_blob_info(fb_safe_handle bl_handle, IBASE_BLOBINFO *bl_inf
 			case isc_info_blob_type:
 				bl_info->bl_stream = isc_vax_integer(p, item_len);
 				break;
-			case isc_info_end:
-				break;
 			case isc_info_truncated:
 			case isc_info_error:  /* hmm. don't think so...*/
 				_php_ibase_module_error("PHP module internal error");

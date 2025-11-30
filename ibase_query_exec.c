@@ -407,6 +407,7 @@ static void php_ibase_free_query_rsrc(zend_resource *rsrc) /* {{{ */
         if (ib_query->stmt.stmt) {
             /* Close open cursor if needed */
             if (ib_query->is_open) {
+                IBDEBUG("Closing open cursor in dtor");
                 (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt.stmt, DSQL_close);
                 ib_query->is_open = 0;
                 ib_query->has_more_rows = 0;
@@ -653,7 +654,9 @@ static int _php_ibase_prepare(ibase_query **new_query, ibase_db_link *link, /* {
 	}
 
 	if(ib_query->in_fields_count) {
+        fprintf(stderr, "DEBUG: fields=%d\n", (int)ib_query->in_fields_count);
 		ib_query->in_sqlda = emalloc(XSQLDA_LENGTH(ib_query->in_fields_count));
+        fprintf(stderr, "DEBUG: allocated in_sqlda=%p at %p\n", ib_query->in_sqlda, &ib_query->in_sqlda);
 		ib_query->in_sqlda->sqln = ib_query->in_fields_count;
 		ib_query->in_sqlda->version = SQLDA_CURRENT_VERSION;
 

@@ -99,7 +99,7 @@ time_t ibase_mktime_with_tz(struct tm *tm, const char *tz)
 }
 
 static int _php_ibase_var_zval(zval *val, void *data, int type, int len, /* {{{ */
-    int scale, size_t flag)
+    int scale, int subtype, size_t flag)
 {
 	static ISC_INT64 const scales[] = { 1, 10, 100, 1000,
 		10000,
@@ -130,22 +130,76 @@ static int _php_ibase_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 	switch (type & ~1) {
 
 		case SQL_VARYING:
-			len = ((IBVARY *) data)->vary_length;
-			data = ((IBVARY *) data)->vary_string;
-			/* no break */
+			{
+				/* VARCHAR: length is actual data length from vary_length,
+				 * no padding - just use the data as-is */
+				len = ((IBVARY *) data)->vary_length;
+				data = ((IBVARY *) data)->vary_string;
+				ZVAL_STRINGL(val, (char*)data, len);
+			}
+			break;
 		case SQL_TEXT:
 			{
-				/* CHAR fields are fixed-length and space-padded by Firebird.
-				 * First check for null termination (some Firebird versions do this).
-				 * Then rtrim trailing spaces which are padding bytes (not character data).
-				 * Note: This matches the behavior expected by PHP users - CHAR fields
-				 * return trimmed data like VARCHAR, not raw padded storage. */
-				size_t actual_len = strnlen((char*)data, len);
-				/* Rtrim trailing space padding */
-				while (actual_len > 0 && ((unsigned char*)data)[actual_len - 1] == ' ') {
-					actual_len--;
+				/* CHAR(N) field handling for multi-byte character sets:
+				 *
+				 * For UTF8 CHAR(N): sqllen = N×4 (max bytes), buffer space-padded
+				 * For single-byte CHAR(N): sqllen = N, buffer space-padded
+				 *
+				 * Problem: We cannot distinguish intentional trailing spaces from
+				 * padding using byte-level analysis. For UTF8, we know the declared
+				 * character count (N = sqllen/4) and can count exactly that many
+				 * UTF8 characters to find the actual data boundary.
+				 *
+				 * For single-byte charsets, we rtrim spaces which matches
+				 * historical SQL CHAR behavior (trailing spaces are insignificant).
+				 *
+				 * Charset IDs: 4 = UTF8, 59 = UTF8MB4 (Firebird 4+)
+				 */
+				unsigned char charset_id = (unsigned char)(subtype & 0xFF);
+
+				if (charset_id == 4 || charset_id == 59) {
+					/* UTF8/UTF8MB4: count exactly N characters where N = sqllen/4 */
+					size_t char_count = (size_t)len / 4;
+					size_t actual_len = 0;
+					size_t chars = 0;
+					const unsigned char *p = (const unsigned char *)data;
+
+					while (actual_len < (size_t)len && chars < char_count) {
+						unsigned char c = p[actual_len];
+						size_t char_bytes;
+
+						if ((c & 0x80) == 0) {
+							char_bytes = 1;  /* ASCII */
+						} else if ((c & 0xE0) == 0xC0) {
+							char_bytes = 2;  /* 2-byte UTF8 */
+						} else if ((c & 0xF0) == 0xE0) {
+							char_bytes = 3;  /* 3-byte UTF8 (e.g., €) */
+						} else if ((c & 0xF8) == 0xF0) {
+							char_bytes = 4;  /* 4-byte UTF8 */
+						} else {
+							char_bytes = 1;  /* Invalid UTF8, treat as single byte */
+						}
+
+						/* Safety: don't read past buffer */
+						if (actual_len + char_bytes > (size_t)len) {
+							break;
+						}
+
+						actual_len += char_bytes;
+						chars++;
+					}
+
+					ZVAL_STRINGL(val, (char*)data, actual_len);
+				} else {
+					/* Single-byte or other charset: use strnlen + rtrim */
+					size_t actual_len = strnlen((char*)data, len);
+					if (actual_len == (size_t)len) {
+						while (actual_len > 0 && ((unsigned char*)data)[actual_len - 1] == ' ') {
+							actual_len--;
+						}
+					}
+					ZVAL_STRINGL(val, (char*)data, actual_len);
 				}
-				ZVAL_STRINGL(val, (char*)data, actual_len);
 			}
 			break;
 #ifdef SQL_BOOLEAN
@@ -334,9 +388,12 @@ static int _php_ibase_arr_zval(zval *ar_zval, char *data, zend_ulong data_size, 
 			zval_ptr_dtor(&slice_zval);
 		}
 	} else { /* data at last */
-
+		/* For arrays, subtype info is not readily available in ar_desc.
+		 * Pass 0 for subtype which will use the single-byte rtrim logic.
+		 * This is acceptable as array CHAR fields are less common and
+		 * historical behavior is preserved. */
 		if (FAILURE == _php_ibase_var_zval(ar_zval, data, ib_array->el_type,
-				ib_array->ar_desc.array_desc_length, ib_array->ar_desc.array_desc_scale, flag)) {
+				ib_array->ar_desc.array_desc_length, ib_array->ar_desc.array_desc_scale, 0, flag)) {
 			return FAILURE;
 		}
 
@@ -495,7 +552,7 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 
 			default:
 				_php_ibase_var_zval(result, var->sqldata, var->sqltype, var->sqllen,
-					var->sqlscale, flag);
+					var->sqlscale, var->sqlsubtype, flag);
 				break;
 			case SQL_BLOB:
 				if (flag & PHP_IBASE_FETCH_BLOBS) { /* fetch blob contents into hash */

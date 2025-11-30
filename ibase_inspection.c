@@ -26,12 +26,11 @@
 static int _fbird_exec_kill(ibase_db_link *link, ibase_trans *trans, ISC_LONG attachment_id)
 {
 	void *stmt = 0;
-	ISC_STATUS status[20];
 	XSQLDA *sqlda = NULL;
 	static const char *sql = "DELETE FROM MON$ATTACHMENTS WHERE MON$ATTACHMENT_ID = ?";
 	int res = FAILURE;
 
-	if (isc_dsql_allocate_statement(status, &link->handle.db, (isc_stmt_handle*)&stmt)) {
+	if (isc_dsql_allocate_statement(IB_STATUS, &link->handle.db, (isc_stmt_handle*)&stmt)) {
 		_php_ibase_error();
 		return FAILURE;
 	}
@@ -40,7 +39,7 @@ static int _fbird_exec_kill(ibase_db_link *link, ibase_trans *trans, ISC_LONG at
 	sqlda->version = SQLDA_CURRENT_VERSION;
 	sqlda->sqln = 1;
 
-	if (isc_dsql_prepare(status, &trans->handle.tr, (isc_stmt_handle*)&stmt, 0, (char *)sql, 1, sqlda)) {
+	if (isc_dsql_prepare(IB_STATUS, &trans->handle.tr, (isc_stmt_handle*)&stmt, 0, (char *)sql, 1, sqlda)) {
 		_php_ibase_error();
 		goto cleanup;
 	}
@@ -51,7 +50,7 @@ static int _fbird_exec_kill(ibase_db_link *link, ibase_trans *trans, ISC_LONG at
 	sqlda->sqlvar[0].sqllen = sizeof(ISC_LONG);
 	sqlda->sqlvar[0].sqlind = NULL;
 
-	if (isc_dsql_execute(status, &trans->handle.tr, (isc_stmt_handle*)&stmt, 1, sqlda)) {
+	if (isc_dsql_execute(IB_STATUS, &trans->handle.tr, (isc_stmt_handle*)&stmt, 1, sqlda)) {
 		_php_ibase_error();
 		goto cleanup;
 	}
@@ -59,7 +58,7 @@ static int _fbird_exec_kill(ibase_db_link *link, ibase_trans *trans, ISC_LONG at
 	res = SUCCESS;
 
 cleanup:
-	isc_dsql_free_statement(status, (isc_stmt_handle*)&stmt, DSQL_drop);
+	isc_dsql_free_statement(IB_STATUS, (isc_stmt_handle*)&stmt, DSQL_drop);
 	if (sqlda) efree(sqlda);
 	return res;
 }
@@ -72,6 +71,8 @@ PHP_FUNCTION(fbird_kill_attachment)
 	zend_long attachment_id;
 	ibase_db_link *link;
 	ibase_trans *trans;
+
+	RESET_ERRMSG;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "rl", &link_arg, &attachment_id) == FAILURE) {
 		return;
@@ -97,9 +98,10 @@ PHP_FUNCTION(fbird_list_table_blockers)
 	ibase_db_link *link;
 	ibase_trans *trans;
 	void *stmt = 0;
-	ISC_STATUS status[20];
 	XSQLDA *in_sqlda = NULL, *out_sqlda = NULL;
 	char *pattern = NULL;
+
+	RESET_ERRMSG;
 
 	/* SQL to find attachments using the table in statements */
 	static const char *sql =
@@ -115,7 +117,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
 
 	PHP_IBASE_LINK_TRANS(link_arg, link, trans);
 
-	if (isc_dsql_allocate_statement(status, &link->handle.db, (isc_stmt_handle*)&stmt)) {
+	if (isc_dsql_allocate_statement(IB_STATUS, &link->handle.db, (isc_stmt_handle*)&stmt)) {
 		_php_ibase_error();
 		RETURN_FALSE;
 	}
@@ -124,7 +126,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
 	in_sqlda->version = SQLDA_CURRENT_VERSION;
 	in_sqlda->sqln = 1;
 
-	if (isc_dsql_prepare(status, &trans->handle.tr, (isc_stmt_handle*)&stmt, 0, (char *)sql, 1, in_sqlda)) {
+	if (isc_dsql_prepare(IB_STATUS, &trans->handle.tr, (isc_stmt_handle*)&stmt, 0, (char *)sql, 1, in_sqlda)) {
 		_php_ibase_error();
 		goto cleanup_error;
 	}
@@ -144,7 +146,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
     out_sqlda->version = SQLDA_CURRENT_VERSION;
     out_sqlda->sqln = 2;
 
-    if (isc_dsql_describe(status, (isc_stmt_handle*)&stmt, 1, out_sqlda)) {
+    if (isc_dsql_describe(IB_STATUS, (isc_stmt_handle*)&stmt, 1, out_sqlda)) {
         _php_ibase_error();
         goto cleanup_error;
     }
@@ -164,7 +166,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
     out_sqlda->sqlvar[1].sqllen = 255;
     out_sqlda->sqlvar[1].sqlind = &null_ind[1];
 
-    if (isc_dsql_execute(status, &trans->handle.tr, (isc_stmt_handle*)&stmt, 1, in_sqlda)) {
+    if (isc_dsql_execute(IB_STATUS, &trans->handle.tr, (isc_stmt_handle*)&stmt, 1, in_sqlda)) {
         _php_ibase_error();
         goto cleanup_error;
     }
@@ -172,8 +174,8 @@ PHP_FUNCTION(fbird_list_table_blockers)
     array_init(return_value);
 
     while (1) {
-        if (isc_dsql_fetch(status, (isc_stmt_handle*)&stmt, 1, out_sqlda)) {
-            if (status[1] == 100) break; // EOF
+        if (isc_dsql_fetch(IB_STATUS, (isc_stmt_handle*)&stmt, 1, out_sqlda)) {
+            if (IB_STATUS[1] == 100) break; // EOF
             _php_ibase_error();
             /* Return partial result but free resources */
             goto cleanup;
@@ -197,14 +199,14 @@ PHP_FUNCTION(fbird_list_table_blockers)
     }
 
 cleanup:
-    isc_dsql_free_statement(status, (isc_stmt_handle*)&stmt, DSQL_drop);
+    isc_dsql_free_statement(IB_STATUS, (isc_stmt_handle*)&stmt, DSQL_drop);
     if (in_sqlda) efree(in_sqlda);
     if (out_sqlda) efree(out_sqlda);
     if (pattern) efree(pattern);
     return;
 
 cleanup_error:
-    isc_dsql_free_statement(status, (isc_stmt_handle*)&stmt, DSQL_drop);
+    isc_dsql_free_statement(IB_STATUS, (isc_stmt_handle*)&stmt, DSQL_drop);
     if (in_sqlda) efree(in_sqlda);
     if (out_sqlda) efree(out_sqlda);
     if (pattern) efree(pattern);
@@ -222,11 +224,12 @@ PHP_FUNCTION(fbird_drop_table_force)
 	ibase_db_link *link;
 	ibase_trans *trans;
     void *stmt = 0;
-    ISC_STATUS status[20];
     XSQLDA *in_sqlda = NULL, *out_sqlda = NULL;
     char *pattern = NULL;
     ISC_LONG *kill_list = NULL;
     char *drop_sql = NULL;
+
+    RESET_ERRMSG;
 
     if (zend_parse_parameters(ZEND_NUM_ARGS(), "rs", &link_arg, &table_name, &table_name_len) == FAILURE) {
 		return;
@@ -245,7 +248,7 @@ PHP_FUNCTION(fbird_drop_table_force)
 		"WHERE A.MON$ATTACHMENT_ID <> CURRENT_CONNECTION "
 		"AND UPPER(S.MON$SQL_TEXT) LIKE UPPER(?)";
 
-    if (isc_dsql_allocate_statement(status, &link->handle.db, (isc_stmt_handle*)&stmt)) {
+    if (isc_dsql_allocate_statement(IB_STATUS, &link->handle.db, (isc_stmt_handle*)&stmt)) {
 		_php_ibase_error();
         goto error;
 	}
@@ -254,7 +257,7 @@ PHP_FUNCTION(fbird_drop_table_force)
 	in_sqlda->version = SQLDA_CURRENT_VERSION;
 	in_sqlda->sqln = 1;
 
-	if (isc_dsql_prepare(status, &trans->handle.tr, (isc_stmt_handle*)&stmt, 0, (char *)sql, 1, in_sqlda)) {
+	if (isc_dsql_prepare(IB_STATUS, &trans->handle.tr, (isc_stmt_handle*)&stmt, 0, (char *)sql, 1, in_sqlda)) {
 		_php_ibase_error();
 		goto error;
 	}
@@ -268,7 +271,7 @@ PHP_FUNCTION(fbird_drop_table_force)
     out_sqlda->version = SQLDA_CURRENT_VERSION;
     out_sqlda->sqln = 1;
 
-    if (isc_dsql_describe(status, (isc_stmt_handle*)&stmt, 1, out_sqlda)) {
+    if (isc_dsql_describe(IB_STATUS, (isc_stmt_handle*)&stmt, 1, out_sqlda)) {
          _php_ibase_error();
          goto error;
     }
@@ -281,7 +284,7 @@ PHP_FUNCTION(fbird_drop_table_force)
     out_sqlda->sqlvar[0].sqllen = sizeof(ISC_LONG);
     out_sqlda->sqlvar[0].sqlind = &null_ind;
 
-    if (isc_dsql_execute(status, &trans->handle.tr, (isc_stmt_handle*)&stmt, 1, in_sqlda)) {
+    if (isc_dsql_execute(IB_STATUS, &trans->handle.tr, (isc_stmt_handle*)&stmt, 1, in_sqlda)) {
         _php_ibase_error();
         goto error;
     }
@@ -291,8 +294,8 @@ PHP_FUNCTION(fbird_drop_table_force)
     kill_list = emalloc(sizeof(ISC_LONG) * kill_list_size);
 
     while (1) {
-        if (isc_dsql_fetch(status, (isc_stmt_handle*)&stmt, 1, out_sqlda)) {
-             if (status[1] == 100) break;
+        if (isc_dsql_fetch(IB_STATUS, (isc_stmt_handle*)&stmt, 1, out_sqlda)) {
+             if (IB_STATUS[1] == 100) break;
              _php_ibase_error();
              /* Break on error but attempt kill of what we found? Or abort? Abort safer. */
              goto error;
@@ -305,7 +308,7 @@ PHP_FUNCTION(fbird_drop_table_force)
     }
 
     /* 2. Cleanup Query Resources */
-    isc_dsql_free_statement(status, (isc_stmt_handle*)&stmt, DSQL_drop);
+    isc_dsql_free_statement(IB_STATUS, (isc_stmt_handle*)&stmt, DSQL_drop);
     stmt = 0;
 
     /* 3. Execute Kills */
@@ -316,19 +319,19 @@ PHP_FUNCTION(fbird_drop_table_force)
     /* 4. Execute Drop */
     int len = spprintf(&drop_sql, 0, "DROP TABLE %s", table_name);
 
-    if (isc_dsql_allocate_statement(status, &link->handle.db, (isc_stmt_handle*)&stmt)) {
+    if (isc_dsql_allocate_statement(IB_STATUS, &link->handle.db, (isc_stmt_handle*)&stmt)) {
          _php_ibase_error();
          goto error;
     }
 
     /* Use execute immediate for DDL (no params) */
-    if (isc_dsql_execute_immediate(status, &link->handle.db, &trans->handle.tr, len, drop_sql, 1, NULL)) {
+    if (isc_dsql_execute_immediate(IB_STATUS, &link->handle.db, &trans->handle.tr, len, drop_sql, 1, NULL)) {
          _php_ibase_error();
          goto error;
     }
 
     /* Success Path */
-    isc_dsql_free_statement(status, (isc_stmt_handle*)&stmt, DSQL_drop);
+    isc_dsql_free_statement(IB_STATUS, (isc_stmt_handle*)&stmt, DSQL_drop);
 
     if (in_sqlda) efree(in_sqlda);
     if (out_sqlda) efree(out_sqlda);
@@ -339,7 +342,7 @@ PHP_FUNCTION(fbird_drop_table_force)
     RETURN_TRUE;
 
 error:
-    if (stmt) isc_dsql_free_statement(status, (isc_stmt_handle*)&stmt, DSQL_drop);
+    if (stmt) isc_dsql_free_statement(IB_STATUS, (isc_stmt_handle*)&stmt, DSQL_drop);
     if (in_sqlda) efree(in_sqlda);
     if (out_sqlda) efree(out_sqlda);
     if (pattern) efree(pattern);

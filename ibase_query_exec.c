@@ -385,7 +385,7 @@ static int _php_ibase_bind(ibase_query *ib_query, zval *b_vars) /* {{{ */
 			case IS_NULL:
 					buf[i].nullind = -1;
 
-				if (var->sqltype & SQL_ARRAY) ++array_cnt;
+				if ((var->sqltype & ~1) == SQL_ARRAY) ++array_cnt;
 
 				continue;
 		}
@@ -537,6 +537,8 @@ static int _php_ibase_bind(ibase_query *ib_query, zval *b_vars) /* {{{ */
 				} else {
 					/* convert the array data into something IB can understand */
 					ibase_array *ar = &ib_query->in_array[array_cnt];
+                    /* DEBUG: Print allocation size */
+                    fprintf(stderr, "Allocating array_data: size=%lu el_size=%d\n", (unsigned long)ar->ar_size, (int)ar->el_size);
 					void *array_data = emalloc(ar->ar_size);
 					ISC_QUAD array_id = { 0, 0 };
 
@@ -548,8 +550,11 @@ static int _php_ibase_bind(ibase_query *ib_query, zval *b_vars) /* {{{ */
 						continue;
 					}
 
+                    /* FIX: Use temporary ISC_LONG for slice length to avoid pointer type mismatch on 64-bit systems */
+                    ISC_LONG slice_len = (ISC_LONG)ar->ar_size;
+
 					if (isc_array_put_slice(IB_STATUS, &ib_query->link->handle.db, &ib_query->trans->handle.tr,
-							&array_id, &ar->ar_desc, array_data, &ar->ar_size)) {
+							&array_id, &ar->ar_desc, array_data, &slice_len)) {
 						_php_ibase_error();
 						efree(array_data);
 						return FAILURE;
@@ -849,12 +854,13 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 #endif
 			case blr_varying:
 			case blr_varying2:
-				/**
-				 * IB has a strange way of handling VARCHAR arrays. It doesn't store
-				 * the length in the first short, as with VARCHAR fields. It does,
-				 * however, expect the extra short to be allocated for each element.
+				/*
+				 * We use SQL_VARYING to explicitly handle the length prefix.
+				 * This ensures proper binary layout (short length + data) is generated
+				 * in _php_ibase_bind_array, preventing data corruption or offset errors
+				 * that occur if we treat it as SQL_TEXT but allocate extra space.
 				 */
-				a->el_type = SQL_TEXT;
+				a->el_type = SQL_VARYING;
 				a->el_size = ar_desc->array_desc_length + sizeof(short);
 				break;
 			case blr_quad:
@@ -1197,6 +1203,20 @@ static int _php_ibase_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 					}
 #endif
 					isc_encode_sql_time(&t, (ISC_TIME *) buf);
+					break;
+				case SQL_VARYING:
+					{
+						convert_to_string(val);
+						size_t str_len = Z_STRLEN_P(val);
+						size_t max_len = buf_size - sizeof(short);
+						if (str_len > max_len) {
+							str_len = max_len;
+						}
+						*(short *)buf = (short)str_len;
+						if (str_len > 0) {
+							memcpy(buf + sizeof(short), Z_STRVAL_P(val), str_len);
+						}
+					}
 					break;
 				default:
 					convert_to_string(val);

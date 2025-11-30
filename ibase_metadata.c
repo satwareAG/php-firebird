@@ -47,7 +47,8 @@ static zend_bool _php_ibase_sql_has_returning(const char *sql);
 
 void _php_ibase_insert_alias(HashTable *ht, const char *alias)
 {
-	char buf[METADATALENGTH + 3 + 1]; // _00 + \0 - note: i > 99 handled by strlen
+	/* Buffer size increased to handle aliases of maximum length plus suffix */
+	char buf[METADATALENGTH + 32];
 	zval t2;
 	int i = 1;
 	char const *base = alias;

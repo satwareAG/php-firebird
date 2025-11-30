@@ -85,10 +85,4 @@ if test "$PHP_INTERBASE" != "no"; then
       [shared_objects_interbase],
       [yes])])
 
-  dnl Patch run-tests.php to output version info in summary
-  if test -f run-tests.php; then
-    AC_MSG_NOTICE([Patching run-tests.php to output version info])
-    $PHP_EXECUTABLE build_scripts/patch_run_tests.php
-  fi
-
 fi

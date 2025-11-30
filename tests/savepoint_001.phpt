@@ -56,9 +56,9 @@ fbird_query($trans_drop, "DROP TABLE test_savepoints");
 fbird_commit($trans_drop);
 
 ?>
---EXPECTF--
+--EXPECT--
 bool(true)
 bool(true)
 bool(true)
 int(2)
-bool(true)%a
+bool(true)

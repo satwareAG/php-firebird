@@ -46,6 +46,52 @@ int le_query;
 static int _php_ibase_bind_array(zval *val, char *buf, zend_ulong buf_size, ibase_array *array, int dim);
 static int _php_ibase_set_query_info(ibase_query *ib_query);
 
+/* Implementation of _php_ibase_set_query_info */
+static int _php_ibase_set_query_info(ibase_query *ib_query) /* {{{ */
+{
+	char info_req[] = { isc_info_sql_stmt_type };
+	char info_buf[20];
+	XSQLDA sqlda;
+
+	/* Get statement type */
+	if (isc_dsql_sql_info(IB_STATUS, &ib_query->stmt, sizeof(info_req), info_req, sizeof(info_buf), info_buf)) {
+		_php_ibase_error();
+		return FAILURE;
+	}
+
+	if (info_buf[0] == isc_info_sql_stmt_type) {
+		int len = isc_vax_integer(&info_buf[1], 2);
+		ib_query->statement_type = isc_vax_integer(&info_buf[3], len);
+	} else {
+		ib_query->statement_type = isc_info_sql_stmt_select; /* fallback/default */
+	}
+
+	/* Get field counts via describe */
+	memset(&sqlda, 0, sizeof(XSQLDA));
+	sqlda.version = SQLDA_CURRENT_VERSION;
+	sqlda.sqln = 0;
+	sqlda.sqld = 0;
+
+	if (isc_dsql_describe(IB_STATUS, &ib_query->stmt, SQLDA_CURRENT_VERSION, &sqlda)) {
+		_php_ibase_error();
+		return FAILURE;
+	}
+	ib_query->out_fields_count = sqlda.sqld;
+
+	memset(&sqlda, 0, sizeof(XSQLDA));
+	sqlda.version = SQLDA_CURRENT_VERSION;
+	sqlda.sqln = 0;
+	sqlda.sqld = 0;
+	if (isc_dsql_describe_bind(IB_STATUS, &ib_query->stmt, SQLDA_CURRENT_VERSION, &sqlda)) {
+		_php_ibase_error();
+		return FAILURE;
+	}
+	ib_query->in_fields_count = sqlda.sqld;
+
+	return SUCCESS;
+}
+/* }}} */
+
 /* Helper function for safer SQLVAR data copying */
 int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, int field_index) /* {{{ */
 {
@@ -1790,11 +1836,331 @@ _php_ibase_ex_error:
 }
 /* }}} */
 
-/* {{{ proto mixed ibase_query([resource link_identifier, [ resource link_identifier, ]] string query [, mixed bind_arg [, mixed bind_arg [, ...]]])
-// ... existing ...
-*/
+/* {{{ proto mixed ibase_query([resource link_identifier, [ resource link_identifier, ]] string query [, mixed bind_arg [, mixed bind_arg [, ...]]]) */
+PHP_FUNCTION(ibase_query)
+{
+	zval *args;
+	int i, argc = ZEND_NUM_ARGS();
+	char *query = NULL;
+	ibase_db_link *link = NULL;
+	ibase_trans *trans = NULL;
+	zval *link_arg = NULL, *trans_arg = NULL;
+	zend_resource *trans_res = NULL;
+	ibase_query *ib_query;
+	int bind_start = 0;
 
-// [EXISTING CODE ABOVE UNCHANGED]
+	if (argc < 1) {
+		WRONG_PARAM_COUNT;
+	}
+
+	args = safe_emalloc(argc, sizeof(zval), 0);
+	if (zend_get_parameters_array_ex(argc, args) == FAILURE) {
+		efree(args);
+		WRONG_PARAM_COUNT;
+	}
+
+	/* Flexible argument parsing handling optional params and placeholders */
+	i = 0;
+	while (i < argc) {
+		if (Z_TYPE(args[i]) == IS_STRING) {
+			query = Z_STRVAL(args[i]);
+			bind_start = i + 1;
+			break;
+		} else if (Z_TYPE(args[i]) == IS_RESOURCE) {
+			/* Identify resource type */
+			if (!trans && !link) {
+				trans = (ibase_trans *)zend_fetch_resource_ex(&args[i], NULL, le_trans);
+				if (trans) {
+					trans_arg = &args[i];
+					trans_res = Z_RES_P(trans_arg);
+				} else {
+					link = (ibase_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_link);
+					if (!link) link = (ibase_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_plink);
+					if (link) link_arg = &args[i];
+				}
+			} else if (trans && !link) {
+				link = (ibase_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_link);
+				if (!link) link = (ibase_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_plink);
+				if (link) link_arg = &args[i];
+			} else if (link && !trans) {
+				trans = (ibase_trans *)zend_fetch_resource_ex(&args[i], NULL, le_trans);
+				if (trans) {
+					trans_arg = &args[i];
+					trans_res = Z_RES_P(trans_arg);
+				}
+			}
+		}
+		/* Skip non-string, non-resource arguments (e.g. IBASE_CREATE/0 placeholder) */
+		i++;
+	}
+
+	if (!query) {
+		efree(args);
+		_php_ibase_module_error("Query argument missing or not a string");
+		RETURN_FALSE;
+	}
+
+	/* Resolve Link if missing */
+	if (!link && !trans) {
+		if (IBG(default_link)) {
+			link = (ibase_db_link *)zend_fetch_resource2(IBG(default_link), "InterBase link", le_link, le_plink);
+		}
+
+		/* If no link found, try CREATE DATABASE support via execute immediate */
+		if (!link) {
+             isc_db_handle db_handle = 0;
+             isc_tr_handle tr_handle = 0;
+
+             /* Try to execute without connection (for CREATE DATABASE) */
+             if (isc_dsql_execute_immediate(IB_STATUS, &db_handle, &tr_handle, 0, query, 3, NULL) == 0) {
+                 /* Success: Create link resource for the new database */
+                 link = (ibase_db_link *) emalloc(sizeof(ibase_db_link));
+                 link->handle = db_handle;
+                 link->dialect = 3;
+                 link->tr_list = NULL;
+                 link->event_head = NULL;
+
+                 zend_resource *res = zend_register_resource(link, le_link);
+
+                 /* Set as default if none exists */
+                 if (!IBG(default_link)) {
+                     IBG(default_link) = res;
+                     GC_ADDREF(res);
+                 }
+
+                 /* Cleanup transaction if started */
+                 if (tr_handle) {
+                     isc_commit_transaction(IB_STATUS, &tr_handle);
+                 }
+
+                 efree(args);
+                 RETVAL_RES(res);
+                 Z_TRY_ADDREF_P(return_value);
+                 return;
+             }
+
+             /* If failed, assume connection required and report error */
+             _php_ibase_error(); // Report why execute immediate failed
+			 efree(args);
+			 // _php_ibase_module_error("No default connection"); // Redundant if _php_ibase_error called
+			 RETURN_FALSE;
+		}
+	}
+
+	/* Resolve Transaction if missing */
+	if (!trans) {
+		if (SUCCESS != _php_ibase_def_trans(link, &trans)) {
+			efree(args);
+			RETURN_FALSE;
+		}
+	}
+
+	if (!trans) {
+		efree(args);
+		_php_ibase_module_error("Could not determine transaction");
+		RETURN_FALSE;
+	}
+
+	if (FAILURE == _php_ibase_prepare(&ib_query, link, trans, trans_res, query)) {
+		efree(args);
+		RETURN_FALSE;
+	}
+
+	if (FAILURE == _php_ibase_exec(INTERNAL_FUNCTION_PARAM_PASSTHRU, ib_query, &args[bind_start], argc - bind_start)) {
+		zend_list_delete(ib_query->res);
+		efree(args);
+		RETURN_FALSE;
+	}
+
+	if (Z_TYPE_P(return_value) != IS_RESOURCE) {
+	    zend_list_delete(ib_query->res);
+	}
+
+	efree(args);
+}
+/* }}} */
+
+/* {{{ proto resource ibase_prepare([resource link_identifier, [ resource link_identifier, ]] string query) */
+PHP_FUNCTION(ibase_prepare)
+{
+	zval *args;
+	int i, argc = ZEND_NUM_ARGS();
+	char *query;
+	ibase_db_link *link = NULL;
+	ibase_trans *trans = NULL;
+	zval *link_arg = NULL, *trans_arg = NULL;
+	zend_resource *trans_res = NULL;
+	ibase_query *ib_query;
+
+	if (argc < 1) {
+		WRONG_PARAM_COUNT;
+	}
+
+	args = safe_emalloc(argc, sizeof(zval), 0);
+	if (zend_get_parameters_array_ex(argc, args) == FAILURE) {
+		efree(args);
+		WRONG_PARAM_COUNT;
+	}
+
+	/* Parse arguments */
+	i = 0;
+	if (Z_TYPE(args[i]) == IS_RESOURCE) {
+		trans = (ibase_trans *)zend_fetch_resource_ex(&args[i], NULL, le_trans);
+		if (trans) {
+			trans_arg = &args[i];
+			trans_res = Z_RES_P(trans_arg);
+			i++;
+		} else {
+			link = (ibase_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_link);
+			if (!link) {
+				link = (ibase_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_plink);
+			}
+			if (link) {
+				link_arg = &args[i];
+				i++;
+			}
+		}
+	}
+
+	if (i == 1 && i < argc && Z_TYPE(args[i]) == IS_RESOURCE) {
+		if (trans) {
+			ibase_db_link *l = (ibase_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_link);
+			if (!l) l = (ibase_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_plink);
+			if (l) {
+				link = l;
+				link_arg = &args[i];
+				i++;
+			}
+		} else if (link) {
+			ibase_trans *t = (ibase_trans *)zend_fetch_resource_ex(&args[i], NULL, le_trans);
+			if (t) {
+				trans = t;
+				trans_arg = &args[i];
+				trans_res = Z_RES_P(trans_arg);
+				i++;
+			}
+		}
+	}
+
+	if (i < argc && Z_TYPE(args[i]) == IS_STRING) {
+		query = Z_STRVAL(args[i]);
+	} else {
+		efree(args);
+		_php_ibase_module_error("Query argument missing or not a string");
+		RETURN_FALSE;
+	}
+
+	if (!link && !trans) {
+		if (IBG(default_link)) {
+			link = (ibase_db_link *)zend_fetch_resource2(IBG(default_link), "InterBase link", le_link, le_plink);
+		}
+		if (!link) {
+			efree(args);
+			_php_ibase_module_error("No default connection");
+			RETURN_FALSE;
+		}
+	}
+
+	if (!trans) {
+		if (SUCCESS != _php_ibase_def_trans(link, &trans)) {
+			efree(args);
+			RETURN_FALSE;
+		}
+	}
+
+	if (FAILURE == _php_ibase_prepare(&ib_query, link, trans, trans_res, query)) {
+		efree(args);
+		RETURN_FALSE;
+	}
+
+	efree(args);
+	RETVAL_RES(ib_query->res);
+	Z_TRY_ADDREF_P(return_value);
+}
+/* }}} */
+
+/* {{{ proto mixed ibase_execute(resource query [, mixed bind_arg [, mixed bind_arg [, ...]]]) */
+PHP_FUNCTION(ibase_execute)
+{
+	zval *args;
+	int i, argc = ZEND_NUM_ARGS();
+	ibase_query *ib_query;
+
+	if (argc < 1) {
+		WRONG_PARAM_COUNT;
+	}
+
+	args = safe_emalloc(argc, sizeof(zval), 0);
+	if (zend_get_parameters_array_ex(argc, args) == FAILURE) {
+		efree(args);
+		WRONG_PARAM_COUNT;
+	}
+
+	ib_query = (ibase_query *)zend_fetch_resource_ex(&args[0], NULL, le_query);
+	if (!ib_query) {
+		efree(args);
+		RETURN_FALSE;
+	}
+
+	if (FAILURE == _php_ibase_exec(INTERNAL_FUNCTION_PARAM_PASSTHRU, ib_query, &args[1], argc - 1)) {
+		efree(args);
+		RETURN_FALSE;
+	}
+
+	efree(args);
+}
+/* }}} */
+
+/* {{{ proto bool ibase_free_query(resource query) */
+PHP_FUNCTION(ibase_free_query)
+{
+	zval *query_arg;
+	ibase_query *ib_query;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r", &query_arg) == FAILURE) {
+		return;
+	}
+
+	ib_query = (ibase_query *)zend_fetch_resource_ex(query_arg, NULL, le_query);
+	if (!ib_query) {
+		RETURN_FALSE;
+	}
+
+	zend_list_close(Z_RES_P(query_arg));
+	RETURN_TRUE;
+}
+/* }}} */
+
+/* {{{ proto int ibase_affected_rows([ resource link_identifier ]) */
+PHP_FUNCTION(ibase_affected_rows)
+{
+	zval *link_arg = NULL;
+	ibase_db_link *link = NULL;
+	ibase_trans *trans = NULL;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|r", &link_arg) == FAILURE) {
+		return;
+	}
+
+	if (link_arg) {
+		link = (ibase_db_link *)zend_fetch_resource2_ex(link_arg, LE_LINK, le_link, le_plink);
+	} else {
+		if (IBG(default_link)) {
+			link = (ibase_db_link *)zend_fetch_resource2(IBG(default_link), "InterBase link", le_link, le_plink);
+		}
+	}
+
+	if (!link) {
+		RETURN_FALSE;
+	}
+
+	if (SUCCESS == _php_ibase_def_trans(link, &trans)) {
+		RETVAL_LONG(trans->affected_rows);
+	} else {
+		RETURN_FALSE;
+	}
+}
+/* }}} */
 
 static zval * _php_ibase_hash_to_zval_array(HashTable *ht, int *count)
 {
@@ -2065,3 +2431,5 @@ PHP_FUNCTION(fbird_execute_auto)
     /* Return value is already set by _php_ibase_exec (TRUE/affected_rows) */
 }
 /* }}} */
+
+#endif /* HAVE_IBASE */

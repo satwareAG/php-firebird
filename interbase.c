@@ -371,39 +371,6 @@ ZEND_BEGIN_ARG_INFO(arginfo_ibase_get_client_minor_version, 0)
 ZEND_END_ARG_INFO()
 /* }}} */
 
-	ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_list_table_blockers, 0, 0, 2)
-		ZEND_ARG_INFO(0, link_identifier)
-		ZEND_ARG_INFO(0, table_name)
-	ZEND_END_ARG_INFO()
-
-	ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_kill_attachment, 0, 0, 2)
-		ZEND_ARG_INFO(0, link_identifier)
-		ZEND_ARG_INFO(0, attachment_id)
-	ZEND_END_ARG_INFO()
-
-	ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_drop_table_force, 0, 0, 2)
-		ZEND_ARG_INFO(0, link_identifier)
-		ZEND_ARG_INFO(0, table_name)
-	ZEND_END_ARG_INFO()
-
-	ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_execute_statement, 0, 0, 2)
-		ZEND_ARG_INFO(0, trans_handle)
-		ZEND_ARG_INFO(0, query)
-		ZEND_ARG_TYPE_INFO(0, params, IS_ARRAY, 0)
-	ZEND_END_ARG_INFO()
-
-	ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_execute_query, 0, 0, 2)
-		ZEND_ARG_INFO(0, trans_handle)
-		ZEND_ARG_INFO(0, query)
-		ZEND_ARG_TYPE_INFO(0, params, IS_ARRAY, 0)
-	ZEND_END_ARG_INFO()
-
-	ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_execute_auto, 0, 0, 2)
-		ZEND_ARG_INFO(0, link_identifier)
-		ZEND_ARG_INFO(0, query)
-		ZEND_ARG_TYPE_INFO(0, params, IS_ARRAY, 0)
-	ZEND_END_ARG_INFO()
-
 /* {{{ extension definition structures */
 static const zend_function_entry ibase_functions[] = {
 	PHP_FE(ibase_connect, 		arginfo_ibase_connect)
@@ -2373,5 +2340,6 @@ void fbp_error_ex(long level, const char *msg, ...)
 }
 
 /* }}} */
+
 
 #endif /* HAVE_IBASE */

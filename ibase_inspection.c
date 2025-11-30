@@ -27,8 +27,9 @@ static int _fbird_exec_kill(ibase_db_link *link, ibase_trans *trans, ISC_LONG at
 {
 	isc_stmt_handle stmt = 0;
 	ISC_STATUS status[20];
-	XSQLDA *sqlda;
+	XSQLDA *sqlda = NULL;
 	static const char *sql = "DELETE FROM MON$ATTACHMENTS WHERE MON$ATTACHMENT_ID = ?";
+	int res = FAILURE;
 
 	if (isc_dsql_allocate_statement(status, &link->handle, &stmt)) {
 		_php_ibase_error();
@@ -41,9 +42,7 @@ static int _fbird_exec_kill(ibase_db_link *link, ibase_trans *trans, ISC_LONG at
 
 	if (isc_dsql_prepare(status, &trans->handle, &stmt, 0, (char *)sql, 1, sqlda)) {
 		_php_ibase_error();
-		isc_dsql_free_statement(status, &stmt, DSQL_drop);
-		efree(sqlda);
-		return FAILURE;
+		goto cleanup;
 	}
 
 	/* Bind parameter */
@@ -54,14 +53,15 @@ static int _fbird_exec_kill(ibase_db_link *link, ibase_trans *trans, ISC_LONG at
 
 	if (isc_dsql_execute(status, &trans->handle, &stmt, 1, sqlda)) {
 		_php_ibase_error();
-        isc_dsql_free_statement(status, &stmt, DSQL_drop);
-		efree(sqlda);
-		return FAILURE;
+		goto cleanup;
 	}
 
+	res = SUCCESS;
+
+cleanup:
 	isc_dsql_free_statement(status, &stmt, DSQL_drop);
-	efree(sqlda);
-	return SUCCESS;
+	if (sqlda) efree(sqlda);
+	return res;
 }
 
 /* {{{ proto bool fbird_kill_attachment(resource link_or_trans, int attachment_id)
@@ -98,7 +98,8 @@ PHP_FUNCTION(fbird_list_table_blockers)
 	ibase_trans *trans;
 	isc_stmt_handle stmt = 0;
 	ISC_STATUS status[20];
-	XSQLDA *in_sqlda, *out_sqlda;
+	XSQLDA *in_sqlda = NULL, *out_sqlda = NULL;
+	char *pattern = NULL;
 
 	/* SQL to find attachments using the table in statements */
 	static const char *sql =
@@ -125,15 +126,11 @@ PHP_FUNCTION(fbird_list_table_blockers)
 
 	if (isc_dsql_prepare(status, &trans->handle, &stmt, 0, (char *)sql, 1, in_sqlda)) {
 		_php_ibase_error();
-		isc_dsql_free_statement(status, &stmt, DSQL_drop);
-		efree(in_sqlda);
-		RETURN_FALSE;
+		goto cleanup_error;
 	}
 
     /* Prepare search pattern: %NAME% */
-    /* We accept table names. Usually in SQL they appear as " NAME " or just NAME.
-       %NAME% is heuristic but acceptable for this utility function */
-    char *pattern = emalloc(table_name_len + 3);
+    pattern = emalloc(table_name_len + 3);
     snprintf(pattern, table_name_len + 3, "%%%s%%", table_name);
 
     /* Bind input */
@@ -149,7 +146,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
 
     if (isc_dsql_describe(status, &stmt, 1, out_sqlda)) {
         _php_ibase_error();
-        goto cleanup;
+        goto cleanup_error;
     }
 
     /* Allocate buffers for output */
@@ -158,7 +155,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
     short null_ind[2];
 
     out_sqlda->sqlvar[0].sqldata = (char *)&ret_id;
-    out_sqlda->sqlvar[0].sqltype = SQL_LONG; // force to LONG
+    out_sqlda->sqlvar[0].sqltype = SQL_LONG;
     out_sqlda->sqlvar[0].sqllen = sizeof(ISC_LONG);
     out_sqlda->sqlvar[0].sqlind = &null_ind[0];
 
@@ -169,7 +166,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
 
     if (isc_dsql_execute(status, &trans->handle, &stmt, 1, in_sqlda)) {
         _php_ibase_error();
-        goto cleanup;
+        goto cleanup_error;
     }
 
     array_init(return_value);
@@ -178,6 +175,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
         if (isc_dsql_fetch(status, &stmt, 1, out_sqlda)) {
             if (status[1] == 100) break; // EOF
             _php_ibase_error();
+            /* Return partial result but free resources */
             goto cleanup;
         }
 
@@ -186,13 +184,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
         add_assoc_long(&row, "attachment_id", ret_id);
 
         /* Trim user field */
-        // Note: SQL_TEXT is space padded.
-        int info_len = out_sqlda->sqlvar[1].sqllen;
-        // Actually we hardcoded 255 size but sqllen might be different reported by describe,
-        // but we didn't call describeBind? No we did describe. But we forced sqldata buffers.
-        // Wait, describe outputs info about columns. We should allocate based on that or coercion.
-        // Coercion via sqlda->sqlvar[i].sqltype = SQL_TEXT IS supported.
-        ret_user[out_sqlda->sqlvar[1].sqllen] = '\0'; // rough safety
+        ret_user[out_sqlda->sqlvar[1].sqllen] = '\0';
 
         // Trim trailing spaces manually
         for (int i = out_sqlda->sqlvar[1].sqllen - 1; i >= 0; i--) {
@@ -206,9 +198,17 @@ PHP_FUNCTION(fbird_list_table_blockers)
 
 cleanup:
     isc_dsql_free_statement(status, &stmt, DSQL_drop);
-    efree(in_sqlda);
-    efree(out_sqlda);
-    efree(pattern);
+    if (in_sqlda) efree(in_sqlda);
+    if (out_sqlda) efree(out_sqlda);
+    if (pattern) efree(pattern);
+    return;
+
+cleanup_error:
+    isc_dsql_free_statement(status, &stmt, DSQL_drop);
+    if (in_sqlda) efree(in_sqlda);
+    if (out_sqlda) efree(out_sqlda);
+    if (pattern) efree(pattern);
+    RETURN_FALSE;
 }
 /* }}} */
 
@@ -221,37 +221,23 @@ PHP_FUNCTION(fbird_drop_table_force)
 	size_t table_name_len;
 	ibase_db_link *link;
 	ibase_trans *trans;
-
-    /* Reusing logic involves calling parsing again or calling C function helpers?
-       We can call our own C functions fbird_list_table_blockers provided we refactor logic out of PHP_FUNCTION macros.
-       Or just implement directly here. */
+    isc_stmt_handle stmt = 0;
+    ISC_STATUS status[20];
+    XSQLDA *in_sqlda = NULL, *out_sqlda = NULL;
+    char *pattern = NULL;
+    ISC_LONG *kill_list = NULL;
+    char *drop_sql = NULL;
 
     if (zend_parse_parameters(ZEND_NUM_ARGS(), "rs", &link_arg, &table_name, &table_name_len) == FAILURE) {
 		return;
 	}
 
-    /* Since this function is complex (List -> Loop -> Kill -> Drop),
-       and we want to avoid duplicating huge chunks of DSQL code,
-       It may be better to implement the logic:
-       1. Get Blockers List
-       2. Loop and Kill
-       3. Drop
-    */
-
-    /*
-    WARNING: We cannot easily call PHP_FUNCTION(fbird_kill_attachment) from here without overhead.
-    But we have _fbird_exec_kill helper!
-    And we can duplicate the listing logic or extract it.
-    For the sake of "Act Mode" efficiency, I'll skip extraction for now and do a targeted fetch-loop-kill.
-    */
-
     PHP_IBASE_LINK_TRANS(link_arg, link, trans);
 
-    char *pattern = emalloc(table_name_len + 3);
+    /* 1. Collect Blockers */
+    pattern = emalloc(table_name_len + 3);
     snprintf(pattern, table_name_len + 3, "%%%s%%", table_name);
 
-    isc_stmt_handle stmt = 0;
-    ISC_STATUS status[20];
     static const char *sql =
 		"SELECT DISTINCT A.MON$ATTACHMENT_ID "
 		"FROM MON$ATTACHMENTS A "
@@ -261,20 +247,16 @@ PHP_FUNCTION(fbird_drop_table_force)
 
     if (isc_dsql_allocate_statement(status, &link->handle, &stmt)) {
 		_php_ibase_error();
-        efree(pattern);
-		RETURN_FALSE;
+        goto error;
 	}
 
-    XSQLDA *in_sqlda = (XSQLDA *) emalloc(XSQLDA_LENGTH(1));
+    in_sqlda = (XSQLDA *) emalloc(XSQLDA_LENGTH(1));
 	in_sqlda->version = SQLDA_CURRENT_VERSION;
 	in_sqlda->sqln = 1;
 
 	if (isc_dsql_prepare(status, &trans->handle, &stmt, 0, (char *)sql, 1, in_sqlda)) {
 		_php_ibase_error();
-		isc_dsql_free_statement(status, &stmt, DSQL_drop);
-		efree(in_sqlda);
-        efree(pattern);
-		RETURN_FALSE;
+		goto error;
 	}
 
     in_sqlda->sqlvar[0].sqldata = pattern;
@@ -282,17 +264,13 @@ PHP_FUNCTION(fbird_drop_table_force)
     in_sqlda->sqlvar[0].sqllen = (short)(table_name_len + 2);
     in_sqlda->sqlvar[0].sqlind = NULL;
 
-    XSQLDA *out_sqlda = (XSQLDA *) emalloc(XSQLDA_LENGTH(1));
+    out_sqlda = (XSQLDA *) emalloc(XSQLDA_LENGTH(1));
     out_sqlda->version = SQLDA_CURRENT_VERSION;
     out_sqlda->sqln = 1;
 
     if (isc_dsql_describe(status, &stmt, 1, out_sqlda)) {
          _php_ibase_error();
-        isc_dsql_free_statement(status, &stmt, DSQL_drop);
-        efree(in_sqlda);
-        efree(pattern);
-        efree(out_sqlda);
-        RETURN_FALSE;
+         goto error;
     }
 
     ISC_LONG ret_id;
@@ -305,25 +283,19 @@ PHP_FUNCTION(fbird_drop_table_force)
 
     if (isc_dsql_execute(status, &trans->handle, &stmt, 1, in_sqlda)) {
         _php_ibase_error();
-         isc_dsql_free_statement(status, &stmt, DSQL_drop);
-        efree(in_sqlda);
-        efree(pattern);
-        efree(out_sqlda);
-        RETURN_FALSE;
+        goto error;
     }
 
-    /* Store IDs to kill to avoid messing with cursor while deleting rows from same table?
-       MON$ tables are virtual, but better safe. */
     int kill_list_size = 10;
     int kill_list_count = 0;
-    ISC_LONG *kill_list = emalloc(sizeof(ISC_LONG) * kill_list_size);
+    kill_list = emalloc(sizeof(ISC_LONG) * kill_list_size);
 
     while (1) {
         if (isc_dsql_fetch(status, &stmt, 1, out_sqlda)) {
              if (status[1] == 100) break;
              _php_ibase_error();
-             // continue or break? break
-             break;
+             /* Break on error but attempt kill of what we found? Or abort? Abort safer. */
+             goto error;
         }
         if (kill_list_count >= kill_list_size) {
             kill_list_size *= 2;
@@ -332,42 +304,47 @@ PHP_FUNCTION(fbird_drop_table_force)
         kill_list[kill_list_count++] = ret_id;
     }
 
+    /* 2. Cleanup Query Resources */
     isc_dsql_free_statement(status, &stmt, DSQL_drop);
-    efree(in_sqlda);
-    efree(out_sqlda);
-    efree(pattern);
+    stmt = 0;
 
-    /* Kill them */
+    /* 3. Execute Kills */
     for(int i=0; i<kill_list_count; i++) {
         _fbird_exec_kill(link, trans, kill_list[i]);
-        /* Ignore errors on kill (maybe already gone) */
     }
-    efree(kill_list);
 
-    /* Now Drop Table */
-    char *drop_sql;
-    /* We can use _php_ibase_exec helper from ibase_query.c? No it's static or tied to INTERNAL params.
-       We create a simple execute DDL helper logic here. */
-
+    /* 4. Execute Drop */
     int len = spprintf(&drop_sql, 0, "DROP TABLE %s", table_name);
 
-    stmt = 0;
     if (isc_dsql_allocate_statement(status, &link->handle, &stmt)) {
          _php_ibase_error();
-         efree(drop_sql);
-         RETURN_FALSE;
+         goto error;
     }
 
+    /* Use execute immediate for DDL (no params) */
     if (isc_dsql_execute_immediate(status, &link->handle, &trans->handle, len, drop_sql, 1, NULL)) {
          _php_ibase_error();
-         efree(drop_sql);
-         isc_dsql_free_statement(status, &stmt, DSQL_drop);
-         RETURN_FALSE;
+         goto error;
     }
 
-    efree(drop_sql);
+    /* Success Path */
     isc_dsql_free_statement(status, &stmt, DSQL_drop);
 
+    if (in_sqlda) efree(in_sqlda);
+    if (out_sqlda) efree(out_sqlda);
+    if (pattern) efree(pattern);
+    if (kill_list) efree(kill_list);
+    if (drop_sql) efree(drop_sql);
+
     RETURN_TRUE;
+
+error:
+    if (stmt) isc_dsql_free_statement(status, &stmt, DSQL_drop);
+    if (in_sqlda) efree(in_sqlda);
+    if (out_sqlda) efree(out_sqlda);
+    if (pattern) efree(pattern);
+    if (kill_list) efree(kill_list);
+    if (drop_sql) efree(drop_sql);
+    RETURN_FALSE;
 }
 /* }}} */

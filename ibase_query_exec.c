@@ -2140,7 +2140,7 @@ PHP_FUNCTION(ibase_execute)
 		WRONG_PARAM_COUNT;
 	}
 
-	ib_query = (ibase_query *)zend_fetch_resource_ex(&args[0], NULL, le_query);
+	ib_query = (ibase_query *)zend_fetch_resource_ex(&args[0], "Firebird/InterBase query", le_query);
 	if (!ib_query) {
 		efree(args);
 		RETURN_FALSE;
@@ -2165,7 +2165,7 @@ void _php_ibase_free_query_impl(INTERNAL_FUNCTION_PARAMETERS, int as_result)
 		return;
 	}
 
-	ib_query = (ibase_query *)zend_fetch_resource_ex(query_arg, NULL, le_query);
+	ib_query = (ibase_query *)zend_fetch_resource_ex(query_arg, "Firebird/InterBase query", le_query);
 	if (!ib_query) {
 		RETURN_FALSE;
 	}
@@ -2486,7 +2486,7 @@ int _php_ibase_fetch_query_res(zval *from, ibase_query **ib_query)
 	if (Z_TYPE_P(from) != IS_RESOURCE) {
 		return 0;
 	}
-	*ib_query = (ibase_query *)zend_fetch_resource_ex(from, NULL, le_query);
+	*ib_query = (ibase_query *)zend_fetch_resource_ex(from, "Firebird/InterBase query", le_query);
 	return (*ib_query) ? 1 : 0;
 }
 

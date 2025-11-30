@@ -38,6 +38,7 @@
 #include "ext/standard/md5.h"
 #include "php_interbase.h"
 #include "php_ibase_includes.h"
+#include "php_ibase_inspection.h"
 #include "SAPI.h"
 #include "zend_exceptions.h"
 #include <stdbool.h>
@@ -220,6 +221,39 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_ibase_free_query, 0, 0, 1)
 	ZEND_ARG_INFO(0, query)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_list_table_blockers, 0, 0, 2)
+    ZEND_ARG_INFO(0, link_identifier)
+    ZEND_ARG_INFO(0, table_name)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_kill_attachment, 0, 0, 2)
+    ZEND_ARG_INFO(0, link_identifier)
+    ZEND_ARG_INFO(0, attachment_id)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_drop_table_force, 0, 0, 2)
+    ZEND_ARG_INFO(0, link_identifier)
+    ZEND_ARG_INFO(0, table_name)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_execute_statement, 0, 0, 2)
+    ZEND_ARG_INFO(0, trans_handle)
+    ZEND_ARG_INFO(0, query)
+    ZEND_ARG_TYPE_INFO(0, params, IS_ARRAY, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_execute_query, 0, 0, 2)
+    ZEND_ARG_INFO(0, trans_handle)
+    ZEND_ARG_INFO(0, query)
+    ZEND_ARG_TYPE_INFO(0, params, IS_ARRAY, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_execute_auto, 0, 0, 2)
+    ZEND_ARG_INFO(0, link_identifier)
+    ZEND_ARG_INFO(0, query)
+    ZEND_ARG_TYPE_INFO(0, params, IS_ARRAY, 0)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_INFO_EX(arginfo_ibase_num_fields, 0, 0, 1)
 	ZEND_ARG_INFO(0, query_result)
 ZEND_END_ARG_INFO()
@@ -337,6 +371,39 @@ ZEND_BEGIN_ARG_INFO(arginfo_ibase_get_client_minor_version, 0)
 ZEND_END_ARG_INFO()
 /* }}} */
 
+	ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_list_table_blockers, 0, 0, 2)
+		ZEND_ARG_INFO(0, link_identifier)
+		ZEND_ARG_INFO(0, table_name)
+	ZEND_END_ARG_INFO()
+
+	ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_kill_attachment, 0, 0, 2)
+		ZEND_ARG_INFO(0, link_identifier)
+		ZEND_ARG_INFO(0, attachment_id)
+	ZEND_END_ARG_INFO()
+
+	ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_drop_table_force, 0, 0, 2)
+		ZEND_ARG_INFO(0, link_identifier)
+		ZEND_ARG_INFO(0, table_name)
+	ZEND_END_ARG_INFO()
+
+	ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_execute_statement, 0, 0, 2)
+		ZEND_ARG_INFO(0, trans_handle)
+		ZEND_ARG_INFO(0, query)
+		ZEND_ARG_TYPE_INFO(0, params, IS_ARRAY, 0)
+	ZEND_END_ARG_INFO()
+
+	ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_execute_query, 0, 0, 2)
+		ZEND_ARG_INFO(0, trans_handle)
+		ZEND_ARG_INFO(0, query)
+		ZEND_ARG_TYPE_INFO(0, params, IS_ARRAY, 0)
+	ZEND_END_ARG_INFO()
+
+	ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_execute_auto, 0, 0, 2)
+		ZEND_ARG_INFO(0, link_identifier)
+		ZEND_ARG_INFO(0, query)
+		ZEND_ARG_TYPE_INFO(0, params, IS_ARRAY, 0)
+	ZEND_END_ARG_INFO()
+
 /* {{{ extension definition structures */
 static const zend_function_entry ibase_functions[] = {
 	PHP_FE(ibase_connect, 		arginfo_ibase_connect)
@@ -352,6 +419,15 @@ static const zend_function_entry ibase_functions[] = {
 	PHP_FE(ibase_prepare, 		arginfo_ibase_prepare)
 	PHP_FE(ibase_execute, 		arginfo_ibase_execute)
 	PHP_FE(ibase_free_query, 	arginfo_ibase_free_query)
+
+    PHP_FE(fbird_list_table_blockers, arginfo_fbird_list_table_blockers)
+    PHP_FE(fbird_kill_attachment, arginfo_fbird_kill_attachment)
+    PHP_FE(fbird_drop_table_force, arginfo_fbird_drop_table_force)
+
+    PHP_FE(fbird_execute_statement, arginfo_fbird_execute_statement)
+    PHP_FE(fbird_execute_query, arginfo_fbird_execute_query)
+    PHP_FE(fbird_execute_auto, arginfo_fbird_execute_auto)
+
 	PHP_FE(ibase_gen_id, 		arginfo_ibase_gen_id)
 	PHP_FE(ibase_num_fields, 	arginfo_ibase_num_fields)
 	PHP_FE(ibase_num_params, 	arginfo_ibase_num_params)

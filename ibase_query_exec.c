@@ -390,6 +390,8 @@ static void php_ibase_free_query_rsrc(zend_resource *rsrc) /* {{{ */
                 }
                 curr = &(*curr)->child_next;
             }
+            /* Release reference to parent resource */
+            zend_list_delete(ib_query->parent->res);
         }
 
         /* Invalidate and free any dependent child result resources first so that
@@ -658,9 +660,7 @@ static int _php_ibase_prepare(ibase_query **new_query, ibase_db_link *link, /* {
 	}
 
 	if(ib_query->in_fields_count) {
-        fprintf(stderr, "DEBUG: fields=%d\n", (int)ib_query->in_fields_count);
 		ib_query->in_sqlda = emalloc(XSQLDA_LENGTH(ib_query->in_fields_count));
-        fprintf(stderr, "DEBUG: allocated in_sqlda=%p at %p\n", ib_query->in_sqlda, &ib_query->in_sqlda);
 		ib_query->in_sqlda->sqln = ib_query->in_fields_count;
 		ib_query->in_sqlda->version = SQLDA_CURRENT_VERSION;
 
@@ -1695,6 +1695,9 @@ cleanup_result_query:
             result_query->child_head = NULL;
             result_query->child_next = ib_query->child_head;
             ib_query->child_head = result_query;
+
+   /* Keep parent resource alive while this result exists */
+   GC_ADDREF(ib_query->res);
 
    /* Mark cursor state inherited from parent execute */
    result_query->is_open = 1;

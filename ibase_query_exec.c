@@ -671,10 +671,9 @@ static void php_ibase_free_query_rsrc(zend_resource *rsrc) /* {{{ */
                 }
                 curr = &(*curr)->child_next;
             }
-            /* Release reference to parent resource.
-             * zend_list_free decrements the refcount and destroys the resource
-             * if it reaches zero. */
-            zend_list_free(ib_query->parent->res);
+            /* Do NOT call zend_list_free on parent - the parent query resource
+             * should remain valid for subsequent ibase_execute() calls.
+             * The parent's lifetime is controlled by the user, not by child results. */
         }
 
         /* Invalidate and free any dependent child result resources first so that
@@ -1258,23 +1257,11 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
   * unconditionally to match legacy semantics and avoid -502 reopen errors. */
  if (ib_query->statement_type != isc_info_sql_stmt_exec_procedure && ib_query->is_open) {
      IBDEBUG("Closing open cursor before re-execution");
-     /* Be tolerant: ignore errors when attempting to close an already-closed
-      * cursor to avoid spurious warnings (e.g., after EOF). */
-     if (isc_dsql_free_statement(IB_STATUS, &ib_query->stmt.stmt, DSQL_close)) {
-         /* Suppress specific cursor errors that indicate the cursor was closed
-          * (e.g. by transaction commit) to allow returning FALSE (EOF) cleanly.
-          * 335544569: isc_dsql_cursor_err (SQL -504)
-          * 335544436: Observed error code for "Invalid cursor reference" on some versions
-          * 335544573: isc_dsql_cursor_close_err
-          */
-         if (IB_STATUS[1] == 335544569
-             || IB_STATUS[1] == 335544436
-             || IB_STATUS[1] == 335544573) {
-             /* Suppress known safe errors */
-         } else {
-             _php_ibase_error();
-         }
-     }
+     /* Be tolerant: silently ignore ALL errors when attempting to close the cursor
+      * before re-execution. The cursor may already have been closed by various means
+      * (ibase_free_result, transaction commit, EOF reached, etc.) - this is expected
+      * and should not generate warnings. We unconditionally reset the is_open flag. */
+     (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt.stmt, DSQL_close);
      ib_query->is_open = 0;
      ib_query->has_more_rows = 0;
  }
@@ -1701,8 +1688,10 @@ cleanup_result_query:
             result_query->child_next = ib_query->child_head;
             ib_query->child_head = result_query;
 
-   /* Keep parent resource alive while this result exists */
-   GC_ADDREF(ib_query->res);
+   /* NOTE: We do NOT increment parent's refcount. The parent query resource
+    * lifetime is controlled by the user, not by child results. This allows
+    * multiple ibase_execute() calls on the same prepared query without the
+    * query resource becoming invalid after ibase_free_result(). */
 
    /* Mark cursor state inherited from parent execute */
    result_query->is_open = 1;

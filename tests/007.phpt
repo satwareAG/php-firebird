@@ -3,10 +3,10 @@ InterBase: array handling
 --SKIPIF--
 <?php
 include("skipif.inc");
-// KNOWN ISSUE: Array handling has segfault in ibase_fetch_object with IBASE_FETCH_ARRAYS
-// This appears to be a long-standing issue with Firebird array API bindings (isc_array_get_slice).
-// Skip until the array fetching code in ibase_result.c is debugged.
-die("skip Array handling has known segfault issue - needs investigation");
+// KNOWN ISSUE: Array handling has segfault - heap corruption during array INSERT/FETCH
+// The isc_array_get_slice size parameter fix was applied but additional issues remain
+// in the array binding code path during ibase_query INSERT.
+die("skip Array handling has known segfault issue - needs deep investigation");
 ?>
 --FILE--
 <?php

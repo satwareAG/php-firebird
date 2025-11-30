@@ -621,16 +621,21 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 				if (flag & PHP_IBASE_FETCH_ARRAYS) { /* array can be *huge* so only fetch if asked */
 					ISC_QUAD ar_qd = *(ISC_QUAD *) var->sqldata;
 					ibase_array *ib_array = &ib_query->out_array[array_cnt++];
-					void *ar_data = emalloc(ib_array->ar_size);
+					/* Use local copy of size - isc_array_get_slice modifies its size parameter
+					 * to reflect actual bytes fetched, which corrupts ar_size for recursive use */
+					ISC_LONG fetch_size = ib_array->ar_size;
+					void *ar_data = emalloc((size_t)fetch_size);
 
 					if (isc_array_get_slice(IB_STATUS, &ib_query->link->handle.db,
 							&ib_query->trans->handle.tr, &ar_qd, &ib_array->ar_desc,
-							ar_data, &ib_array->ar_size)) {
+							ar_data, &fetch_size)) {
 						_php_ibase_error();
 						efree(ar_data);
 						goto _php_ibase_fetch_error;
 					}
 
+					/* Use ORIGINAL ar_size for recursive processing (structure size),
+					 * not the potentially modified fetch_size */
 					if (FAILURE == _php_ibase_arr_zval(result, ar_data, ib_array->ar_size, ib_array,
 							0, flag)) {
 						efree(ar_data);

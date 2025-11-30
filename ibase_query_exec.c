@@ -344,10 +344,20 @@ static int _php_ibase_bind(ibase_query *ib_query, zval *b_vars) /* {{{ */
 
 	int i, array_cnt = 0, rv = SUCCESS;
 
+	/* DEBUG: Entry point */
+	fprintf(stderr, "DEBUG _php_ibase_bind: ENTRY sqld=%d in_array_cnt=%d\n",
+		sqlda->sqld, ib_query->in_array_cnt);
+	fflush(stderr);
+
 	for (i = 0; i < sqlda->sqld; ++i) { /* bound vars */
 
 		zval *b_var = &b_vars[i];
 		XSQLVAR *var = &sqlda->sqlvar[i];
+
+		/* DEBUG: Print each parameter iteration */
+		fprintf(stderr, "DEBUG _php_ibase_bind: param[%d] type=%d sqltype=%d\n",
+			i, Z_TYPE_P(b_var), var->sqltype & ~1);
+		fflush(stderr);
 
 		var->sqlind = &buf[i].nullind;
 		var->sqldata = (void*)&buf[i].val;
@@ -538,8 +548,8 @@ static int _php_ibase_bind(ibase_query *ib_query, zval *b_vars) /* {{{ */
 					/* convert the array data into something IB can understand */
 					ibase_array *ar = &ib_query->in_array[array_cnt];
                     /* DEBUG: Print allocation size */
-                    fprintf(stderr, "Allocating array_data: size=%lu el_size=%d\n", (unsigned long)ar->ar_size, (int)ar->el_size);
-					void *array_data = emalloc(ar->ar_size);
+                    printf("Bind array %d: size=%lu el_size=%d\n", array_cnt, (unsigned long)ar->ar_size, (int)ar->el_size);
+					void *array_data = ecalloc(1, ar->ar_size);
 					ISC_QUAD array_id = { 0, 0 };
 
                     if (FAILURE == _php_ibase_bind_array(b_var, array_data, ar->ar_size,

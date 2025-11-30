@@ -25,8 +25,12 @@ function assert_exception(callable $fn, string $expectedPart) {
 
 // 1. Correct Usage of fbird_execute_statement (DDL)
 echo "1. DDL via execute_statement...\n";
+// Execute DDL. In Firebird, mixed DDL/DML in specific isolation levels or without commit
+// can be invisible. We commit the DDL here to ensure the table is visible for DML.
 $res = fbird_execute_statement($trans, "recreate table test_exec_safety (id int)");
 var_dump($res); // int(0)
+ibase_commit($trans);
+$trans = ibase_trans($db); // Start new transaction for DML
 
 // 2. Correct Usage of fbird_execute_statement (DML)
 echo "2. DML via execute_statement...\n";
@@ -72,7 +76,7 @@ ibase_close($db);
 1. DDL via execute_statement...
 int(0)
 2. DML via execute_statement...
-long(1)
+int(1)
 3. SELECT via execute_statement (Should fail)...
 Caught expected error containing: 'fbird_execute_statement expects a DML/DDL statement'
 4. SELECT via execute_query...

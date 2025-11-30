@@ -393,10 +393,10 @@ static void php_ibase_free_query_rsrc(zend_resource *rsrc) /* {{{ */
                 }
                 curr = &(*curr)->child_next;
             }
-            /* Release reference to parent resource */
-            if (GC_DELREF(ib_query->parent->res) == 0) {
-                zend_list_free(ib_query->parent->res);
-            }
+            /* Release reference to parent resource.
+             * zend_list_free decrements the refcount and destroys the resource
+             * if it reaches zero. */
+            zend_list_free(ib_query->parent->res);
         }
 
         /* Invalidate and free any dependent child result resources first so that

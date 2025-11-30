@@ -350,9 +350,9 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 		RETURN_FALSE;
 	}
 
- if(_php_ibase_fetch_query_res(res_arg, &ib_query)) {
+ if(!_php_ibase_fetch_query_res(res_arg, &ib_query)) {
         /* Let Zend validate resource via _php_ibase_fetch_query_res */
-        return;
+        RETURN_FALSE;
     }
 
 	if (ib_query->out_sqlda == NULL || !ib_query->has_more_rows || !ib_query->is_open) {
@@ -373,10 +373,6 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
         if (!is_buffered_returning) {
         ISC_STATUS fetch_res = isc_dsql_fetch(IB_STATUS, &ib_query->stmt.stmt, 1, ib_query->out_sqlda);
         if (fetch_res) {
-            fprintf(stderr, "DEBUG: isc_dsql_fetch returned %d\n", (int)fetch_res);
-            if(fetch_res != 100 && IB_STATUS[0] == 1 && IB_STATUS[1]) {
-                 fprintf(stderr, "DEBUG: IB_STATUS error: %d\n", (int)IB_STATUS[1]);
-            }
             ib_query->has_more_rows = 0;
             ib_query->is_open = 0;
 
@@ -625,8 +621,8 @@ PHP_FUNCTION(ibase_name_result)
 		return;
 	}
 
-	if(_php_ibase_fetch_query_res(result_arg, &ib_query)) {
-		return;
+	if(!_php_ibase_fetch_query_res(result_arg, &ib_query)) {
+		RETURN_FALSE;
 	}
 
 	if (isc_dsql_set_cursor_name(IB_STATUS, &ib_query->stmt.stmt, name_arg, 0)) {

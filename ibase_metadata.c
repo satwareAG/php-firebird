@@ -258,8 +258,8 @@ PHP_FUNCTION(ibase_field_info)
 		return;
 	}
 
-	if(_php_ibase_fetch_query_res(result_arg, &ib_query)) {
-		return;
+	if(!_php_ibase_fetch_query_res(result_arg, &ib_query)) {
+		RETURN_FALSE;
 	}
 
 	_php_ibase_field_info(return_value, ib_query, 1, (ISC_SHORT)field_arg);
@@ -279,8 +279,8 @@ PHP_FUNCTION(ibase_num_params)
 		return;
 	}
 
-	if(_php_ibase_fetch_query_res(result, &ib_query)) {
-		return;
+	if(!_php_ibase_fetch_query_res(result, &ib_query)) {
+		RETURN_FALSE;
 	}
 
 	if (ib_query->in_sqlda == NULL) {
@@ -305,8 +305,8 @@ PHP_FUNCTION(ibase_param_info)
 		return;
 	}
 
-	if(_php_ibase_fetch_query_res(result_arg, &ib_query)) {
-		return;
+	if(!_php_ibase_fetch_query_res(result_arg, &ib_query)) {
+		RETURN_FALSE;
 	}
 
 	_php_ibase_field_info(return_value, ib_query, 0, field_arg);
@@ -327,8 +327,8 @@ PHP_FUNCTION(ibase_num_fields)
 		return;
 	}
 
-	if(_php_ibase_fetch_query_res(result, &ib_query)) {
-		return;
+	if(!_php_ibase_fetch_query_res(result, &ib_query)) {
+		RETURN_FALSE;
 	}
 
 	sqlda = ib_query->out_sqlda;

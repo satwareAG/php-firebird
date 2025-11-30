@@ -16,8 +16,8 @@ InterBase: misc sql types (may take a while)
         echo "PHP precision check fail\n";
         echo "Precision set in php.ini: " . ini_get('precision') . "\n";
         echo "Precision required: 18\n";
-    } 
-    
+    }
+
     ibase_query(
     	"create table test3 (
             iter		integer not null,

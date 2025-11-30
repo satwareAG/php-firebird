@@ -47,30 +47,25 @@ static zend_bool _php_ibase_sql_has_returning(const char *sql);
 
 void _php_ibase_insert_alias(HashTable *ht, const char *alias)
 {
-	char buf[METADATALENGTH + 3 + 1]; // _00 + \0
+	char buf[METADATALENGTH + 3 + 1]; // _00 + \0 - note: i > 99 handled by strlen
 	zval t2;
-	int i = 0;
-	char const *base = "FIELD"; /* use 'FIELD' if name is empty */
-
+	int i = 1;
+	char const *base = alias;
 	size_t alias_len = strlen(alias);
-	size_t alias_len_w_suff = alias_len + 3;
 
-	switch (*alias) {
-		void *p;
+	if (*alias == '\0') {
+		base = "FIELD";
+		/* For empty name, immediately enter deduplication logic starting with 0 */
+		i = 0;
+		snprintf(buf, sizeof(buf), "%s_%02d", base, i++);
+		alias = buf;
+		alias_len = strlen(alias);
+	}
 
-		default:
-			i = 1;
-			base = alias;
-
-			while ((p = zend_symtable_str_find_ptr(
-					ht, alias, alias_len)) != NULL) {
-
-		case '\0':
-				// TODO: i > 99?
-				snprintf(buf, sizeof(buf), "%s_%02d", base, i++);
-				alias = buf;
-				alias_len = alias_len_w_suff;
-			}
+	while (zend_symtable_str_find_ptr(ht, alias, alias_len) != NULL) {
+		snprintf(buf, sizeof(buf), "%s_%02d", base, i++);
+		alias = buf;
+		alias_len = strlen(alias);
 	}
 
 	ZVAL_NULL(&t2);

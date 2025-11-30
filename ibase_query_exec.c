@@ -1272,23 +1272,23 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 	}
 
 	switch (ib_query->statement_type) {
-		isc_tr_handle tr;
+		fb_safe_handle tr;
 		ibase_tr_list **l;
 		ibase_trans *trans;
 
 		case isc_info_sql_stmt_start_trans:
 
 			/* a SET TRANSACTION statement should be executed with a NULL trans handle */
-			tr = 0;
+			tr.ptr = NULL;
 
-			if (isc_dsql_execute_immediate(IB_STATUS, &ib_query->link->handle.db, &tr, 0,
+			if (isc_dsql_execute_immediate(IB_STATUS, &ib_query->link->handle.db, &tr.tr, 0,
 					ib_query->query, ib_query->dialect, NULL)) {
 				_php_ibase_error();
 				goto _php_ibase_ex_error;
 			}
 
 			trans = (ibase_trans *) emalloc(sizeof(ibase_trans));
-			trans->handle.tr = tr;
+			trans->handle = tr;
 			trans->link_cnt = 1;
 			trans->affected_rows = 0;
 			trans->db_link[0] = ib_query->link;
@@ -2355,7 +2355,7 @@ PHP_FUNCTION(fbird_execute_auto)
     ibase_query *ib_query;
     zval *bind_args = NULL;
     int bind_n = 0;
-    isc_tr_handle tr_handle = 0;
+    fb_safe_handle tr_handle = {0};
     ISC_STATUS result;
 
     RESET_ERRMSG;
@@ -2368,7 +2368,7 @@ PHP_FUNCTION(fbird_execute_auto)
     if (!link) RETURN_FALSE;
 
     /* Start autonomous transaction */
-    result = isc_start_transaction(IB_STATUS, &tr_handle, 1, &link->handle, 0, NULL);
+    result = isc_start_transaction(IB_STATUS, &tr_handle.tr, 1, &link->handle.db, 0, NULL);
     if (result) {
         _php_ibase_error();
         RETURN_FALSE;
@@ -2376,7 +2376,7 @@ PHP_FUNCTION(fbird_execute_auto)
 
     /* Create temp trans object */
     trans = (ibase_trans *) emalloc(sizeof(ibase_trans));
-    trans->handle.tr = tr_handle;
+    trans->handle = tr_handle;
     trans->link_cnt = 1;
     trans->affected_rows = 0;
     trans->db_link[0] = link;

@@ -285,7 +285,7 @@ int _php_ibase_blob_add(zval *string_arg, ibase_blob *ib_blob) /* {{{ */
 }
 /* }}} */
 
-static int _php_ibase_blob_info(isc_blob_handle bl_handle, IBASE_BLOBINFO *bl_info) /* {{{ */
+static int _php_ibase_blob_info(fb_safe_handle bl_handle, IBASE_BLOBINFO *bl_info) /* {{{ */
 {
 	static char bl_items[] = {
 		isc_info_blob_num_segments,
@@ -301,7 +301,7 @@ static int _php_ibase_blob_info(isc_blob_handle bl_handle, IBASE_BLOBINFO *bl_in
 	bl_info->total_length = 0;
 	bl_info->bl_stream = 0;
 
-	if (isc_blob_info(IB_STATUS, &bl_handle, sizeof(bl_items), bl_items, sizeof(bl_inf), bl_inf)) {
+	if (isc_blob_info(IB_STATUS, &bl_handle.blob, sizeof(bl_items), bl_items, sizeof(bl_inf), bl_inf)) {
 		_php_ibase_error();
 		return FAILURE;
 	}
@@ -576,7 +576,7 @@ PHP_FUNCTION(ibase_blob_info)
 
 	if (ext_blob) {
 		// Using an open stream
-		if (_php_ibase_blob_info(ext_blob->bl_handle.blob, &bl_info)) {
+		if (_php_ibase_blob_info(ext_blob->bl_handle, &bl_info)) {
 			RETURN_FALSE;
 		}
 	} else {
@@ -599,7 +599,7 @@ PHP_FUNCTION(ibase_blob_info)
 				RETURN_FALSE;
 			}
 
-			if (_php_ibase_blob_info(ib_blob.bl_handle.blob, &bl_info)) {
+			if (_php_ibase_blob_info(ib_blob.bl_handle, &bl_info)) {
 				RETURN_FALSE;
 			}
 			if (isc_close_blob(IB_STATUS, &ib_blob.bl_handle.blob)) {

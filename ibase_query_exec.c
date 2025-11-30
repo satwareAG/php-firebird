@@ -576,14 +576,38 @@ void _php_ibase_alloc_xsqlda_vars(XSQLDA *sqlda, ISC_SHORT *nullinds) /* {{{ */
 	int i;
 	XSQLVAR *var;
 
-	IBDEBUG("Free XSQLDA?");
 	if (sqlda) {
-		IBDEBUG("Freeing XSQLDA...");
 		var = sqlda->sqlvar;
 		for (i = 0; i < sqlda->sqld; i++, var++) {
-			efree(var->sqldata);
+			var->sqlind = &nullinds[i];
+
+            /* Allocate sqldata buffer based on sqltype and sqllen */
+            size_t code_size = 0;
+            switch (var->sqltype & ~1) {
+                case SQL_VARYING:
+                    code_size = var->sqllen + sizeof(short);
+                    break;
+                case SQL_TEXT:
+                    code_size = var->sqllen;
+                    break;
+                case SQL_ARRAY:
+                case SQL_BLOB:
+                    code_size = sizeof(ISC_QUAD);
+                    break;
+                default:
+                    /* For fixed-size types (INTEGER, FLOAT, DATE, TIMESTAMP, BOOLEAN, etc.),
+                       sqllen is reliable size. */
+                    code_size = var->sqllen;
+                    break;
+            }
+
+            if (code_size > 0) {
+                /* Use ecalloc to zero-initialize the buffer to prevent garbage data */
+                var->sqldata = ecalloc(1, code_size);
+            } else {
+                var->sqldata = NULL;
+            }
 		}
-		efree(sqlda);
 	}
 }
 /* }}} */
@@ -913,7 +937,6 @@ static int _php_ibase_prepare(ibase_query **new_query, ibase_db_link *link, /* {
 	}
 
 	if(ib_query->out_fields_count) {
-        php_error(E_WARNING, "DEBUG: Allocating out_sqlda for %d fields", ib_query->out_fields_count);
 		ib_query->out_sqlda = (XSQLDA *) emalloc(XSQLDA_LENGTH(ib_query->out_fields_count));
 		ib_query->out_sqlda->sqln = ib_query->out_fields_count;
 		ib_query->out_sqlda->version = SQLDA_CURRENT_VERSION;
@@ -923,7 +946,6 @@ static int _php_ibase_prepare(ibase_query **new_query, ibase_db_link *link, /* {
 			_php_ibase_error();
 			goto _php_ibase_alloc_query_error;
 		}
-        php_error(E_WARNING, "DEBUG: Describe done. sqln=%d, sqld=%d", ib_query->out_sqlda->sqln, ib_query->out_sqlda->sqld);
 
 		/* assert(ib_query->out_sqlda->sqln == ib_query->out_sqlda->sqld); */
 		/* assert(ib_query->out_sqlda->sqld == ib_query->out_fields_count); */

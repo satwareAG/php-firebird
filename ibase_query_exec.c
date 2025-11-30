@@ -394,7 +394,9 @@ static void php_ibase_free_query_rsrc(zend_resource *rsrc) /* {{{ */
                 curr = &(*curr)->child_next;
             }
             /* Release reference to parent resource */
-            zend_list_delete(ib_query->parent->res);
+            if (GC_DELREF(ib_query->parent->res) == 0) {
+                zend_list_free(ib_query->parent->res);
+            }
         }
 
         /* Invalidate and free any dependent child result resources first so that
@@ -2279,10 +2281,10 @@ PHP_FUNCTION(fbird_execute_statement)
 
     /* Strict return type check */
     if (Z_TYPE_P(return_value) == IS_RESOURCE) {
-        _php_ibase_module_error("fbird_execute_statement expects a DML/DDL statement, but SELECT was executed. Use fbird_execute_query().");
+        zend_throw_error(NULL, "fbird_execute_statement expects a DML/DDL statement, but SELECT was executed. Use fbird_execute_query().");
         zend_list_delete(Z_RES_P(return_value));
         zend_list_delete(ib_query->res);
-        RETURN_FALSE;
+        RETURN_THROWS();
     }
 
     /* Cleanup prepared query resource as fbird_execute_statement is one-shot for the user?
@@ -2351,10 +2353,10 @@ PHP_FUNCTION(fbird_execute_query)
 
     if (Z_TYPE_P(return_value) != IS_RESOURCE) {
         /* RETURNING queries also return resource if execute2 results are present. */
-        _php_ibase_module_error("fbird_execute_query expects a SELECT or RETURNING statement.");
+        zend_throw_error(NULL, "fbird_execute_query expects a SELECT or RETURNING statement.");
         // _php_ibase_exec returns TRUE/LONG for DML.
         zend_list_delete(ib_query->res);
-        RETURN_FALSE;
+        RETURN_THROWS();
     }
 
     /* Keep ib_query alive as it holds the statement handle */
@@ -2454,12 +2456,12 @@ PHP_FUNCTION(fbird_execute_auto)
     if (Z_TYPE_P(return_value) == IS_RESOURCE) {
         /* We cannot support returning a cursor from an autonomous transaction
            because we commit immediately below, which would close the cursor. */
-        _php_ibase_module_error("fbird_execute_auto cannot be used with SELECT statements (cursor would be closed on commit).");
+        zend_throw_error(NULL, "fbird_execute_auto cannot be used with SELECT statements (cursor would be closed on commit).");
         zend_list_delete(Z_RES_P(return_value));
         zend_list_delete(ib_query->res);
         isc_rollback_transaction(IB_STATUS, &trans->handle.tr);
         efree(trans);
-        RETURN_FALSE;
+        RETURN_THROWS();
     }
 
     /* Commit */

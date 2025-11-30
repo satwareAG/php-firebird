@@ -134,7 +134,11 @@ static int _php_ibase_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 			data = ((IBVARY *) data)->vary_string;
 			/* no break */
 		case SQL_TEXT:
-			ZVAL_STRINGL(val, (char*)data, len);
+            {
+                /* Use strnlen to avoid including garbage/padding if null-terminated */
+                size_t actual_len = strnlen((char*)data, len);
+                ZVAL_STRINGL(val, (char*)data, actual_len);
+            }
 			break;
 #ifdef SQL_BOOLEAN
 		case SQL_BOOLEAN:
@@ -317,6 +321,9 @@ static int _php_ibase_arr_zval(zval *ar_zval, char *data, zend_ulong data_size, 
 			data += slice_size;
 
 			add_index_zval(ar_zval, l_bound + i, &slice_zval);
+			/* slice_zval holds a reference to the value which was copied into ar_zval.
+			   We must release our reference to avoid leaking the value/zval structure. */
+			zval_ptr_dtor(&slice_zval);
 		}
 	} else { /* data at last */
 

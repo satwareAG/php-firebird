@@ -364,7 +364,7 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
             ib_query->was_result_once
         );
         if (!is_buffered_returning) {
-        ISC_STATUS fetch_res = isc_dsql_fetch(IB_STATUS, &ib_query->stmt, 1, ib_query->out_sqlda);
+        ISC_STATUS fetch_res = isc_dsql_fetch(IB_STATUS, &ib_query->stmt.stmt, 1, ib_query->out_sqlda);
         if (fetch_res) {
             ib_query->has_more_rows = 0;
             ib_query->is_open = 0;
@@ -392,7 +392,7 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 
             /* Close the cursor. If we suppressed a cursor error, closing might also fail
              * (e.g. cursor already closed -502), so suppress that too. */
-            if (isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_close)) {
+            if (isc_dsql_free_statement(IB_STATUS, &ib_query->stmt.stmt, DSQL_close)) {
                 /* Check for "Attempt to reclose a closed cursor" (-502)
                  * iso_dsql_cursor_close_err = 335544573 (check this constant?)
                  * Actually -502 is isc_dsql_cursor_open_err usually?
@@ -480,16 +480,16 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 					char bl_info[20];
 					unsigned short i;
 
-					blob_handle.bl_handle = 0;
+					blob_handle.bl_handle.ptr = 0;
 					blob_handle.bl_qd = *(ISC_QUAD *) var->sqldata;
 
-					if (isc_open_blob(IB_STATUS, &ib_query->link->handle, &ib_query->trans->handle,
-							&blob_handle.bl_handle, &blob_handle.bl_qd)) {
+					if (isc_open_blob(IB_STATUS, &ib_query->link->handle.db, &ib_query->trans->handle.tr,
+							&blob_handle.bl_handle.blob, &blob_handle.bl_qd)) {
 						_php_ibase_error();
 						goto _php_ibase_fetch_error;
 					}
 
-					if (isc_blob_info(IB_STATUS, &blob_handle.bl_handle, sizeof(bl_items),
+					if (isc_blob_info(IB_STATUS, &blob_handle.bl_handle.blob, sizeof(bl_items),
 							bl_items, sizeof(bl_info), bl_info)) {
 						_php_ibase_error();
 						goto _php_ibase_fetch_error;
@@ -524,7 +524,7 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 						goto _php_ibase_fetch_error;
 					}
 
-					if (isc_close_blob(IB_STATUS, &blob_handle.bl_handle)) {
+					if (isc_close_blob(IB_STATUS, &blob_handle.bl_handle.blob)) {
 						_php_ibase_error();
 						goto _php_ibase_fetch_error;
 					}
@@ -540,8 +540,8 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 					ibase_array *ib_array = &ib_query->out_array[array_cnt++];
 					void *ar_data = emalloc(ib_array->ar_size);
 
-					if (isc_array_get_slice(IB_STATUS, &ib_query->link->handle,
-							&ib_query->trans->handle, &ar_qd, &ib_array->ar_desc,
+					if (isc_array_get_slice(IB_STATUS, &ib_query->link->handle.db,
+							&ib_query->trans->handle.tr, &ar_qd, &ib_array->ar_desc,
 							ar_data, &ib_array->ar_size)) {
 						_php_ibase_error();
 						efree(ar_data);
@@ -618,7 +618,7 @@ PHP_FUNCTION(ibase_name_result)
 		return;
 	}
 
-	if (isc_dsql_set_cursor_name(IB_STATUS, &ib_query->stmt, name_arg, 0)) {
+	if (isc_dsql_set_cursor_name(IB_STATUS, &ib_query->stmt.stmt, name_arg, 0)) {
 		_php_ibase_error();
 		RETURN_FALSE;
 	}

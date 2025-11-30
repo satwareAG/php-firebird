@@ -54,7 +54,7 @@ static int _php_ibase_set_query_info(ibase_query *ib_query) /* {{{ */
 	XSQLDA sqlda;
 
 	/* Get statement type */
-	if (isc_dsql_sql_info(IB_STATUS, &ib_query->stmt, sizeof(info_req), info_req, sizeof(info_buf), info_buf)) {
+	if (isc_dsql_sql_info(IB_STATUS, &ib_query->stmt.stmt, sizeof(info_req), info_req, sizeof(info_buf), info_buf)) {
 		_php_ibase_error();
 		return FAILURE;
 	}
@@ -72,7 +72,7 @@ static int _php_ibase_set_query_info(ibase_query *ib_query) /* {{{ */
 	sqlda.sqln = 0;
 	sqlda.sqld = 0;
 
-	if (isc_dsql_describe(IB_STATUS, &ib_query->stmt, SQLDA_CURRENT_VERSION, &sqlda)) {
+	if (isc_dsql_describe(IB_STATUS, &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, &sqlda)) {
 		_php_ibase_error();
 		return FAILURE;
 	}
@@ -82,7 +82,7 @@ static int _php_ibase_set_query_info(ibase_query *ib_query) /* {{{ */
 	sqlda.version = SQLDA_CURRENT_VERSION;
 	sqlda.sqln = 0;
 	sqlda.sqld = 0;
-	if (isc_dsql_describe_bind(IB_STATUS, &ib_query->stmt, SQLDA_CURRENT_VERSION, &sqlda)) {
+	if (isc_dsql_describe_bind(IB_STATUS, &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, &sqlda)) {
 		_php_ibase_error();
 		return FAILURE;
 	}
@@ -404,10 +404,10 @@ static void php_ibase_free_query_rsrc(zend_resource *rsrc) /* {{{ */
         }
         /* Ensure any open cursor/statement is properly closed on the server
          * to avoid -502 (Attempt to reopen an open cursor) on subsequent uses. */
-        if (ib_query->stmt) {
+        if (ib_query->stmt.stmt) {
             /* Close open cursor if needed */
             if (ib_query->is_open) {
-                (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_close);
+                (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt.stmt, DSQL_close);
                 ib_query->is_open = 0;
                 ib_query->has_more_rows = 0;
                 /* If this is a child result that reused the parent's statement handle,
@@ -421,7 +421,7 @@ static void php_ibase_free_query_rsrc(zend_resource *rsrc) /* {{{ */
             /* Drop the statement handle only if this resource OWNS it.
              * Result clones created for SELECT reuse parent's handle and must NOT drop it. */
             if (ib_query->owns_stmt_handle) {
-                (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_drop);
+                (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt.stmt, DSQL_drop);
             }
         }
         _php_ibase_free_query(ib_query);
@@ -438,20 +438,10 @@ void php_ibase_query_minit(INIT_FUNC_ARGS) /* {{{ */
 /* }}} */
 
 static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{ */
-	isc_db_handle link, isc_tr_handle trans, unsigned short *array_cnt)
+	fb_safe_handle link, fb_safe_handle trans, unsigned short *array_cnt)
 {
 	unsigned short i, n;
 	ibase_array *ar;
-	/* Fix stack smashing: Move handles to static memory to avoid potential stack
-	 * corruption if libfbclient writes out of bounds of handle pointers. */
-	/* Use void* to ensure enough space if libfbclient expects 64-bit handles,
-     * even if PHP header defines 32-bit handles. */
-	static void *safe_link_ptr;
-	static void *safe_trans_ptr;
-
-	safe_link_ptr = (void *)(intptr_t)link;
-	safe_trans_ptr = (void *)(intptr_t)trans;
-
 	/* first check if we have any arrays at all */
 	for (i = *array_cnt = 0; i < sqlda->sqld; ++i) {
 		if ((sqlda->sqlvar[i].sqltype & ~1) == SQL_ARRAY) {
@@ -490,9 +480,7 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
         if (var->relname) strncpy(rname, var->relname, 32);
         if (var->sqlname) strncpy(sname, var->sqlname, 32);
 
-		/* Cast void** to isc_db_handle* to satisfy compiler but provide 64-bit storage.
-		 * This prevents stack smashing if libfbclient writes 8 bytes to a 4-byte handle pointer. */
-		if (isc_array_lookup_bounds(IB_STATUS, (isc_db_handle *)&safe_link_ptr, (isc_tr_handle *)&safe_trans_ptr, rname,
+		if (isc_array_lookup_bounds(IB_STATUS, &link.db, &trans.tr, rname,
 				sname, ar_desc)) {
 			_php_ibase_error();
 			efree(ar);
@@ -626,12 +614,12 @@ static int _php_ibase_prepare(ibase_query **new_query, ibase_db_link *link, /* {
   * dropping it in the resource destructor. */
  ib_query->owns_stmt_handle = 1;
 
-	if (isc_dsql_allocate_statement(IB_STATUS, &link->handle, &ib_query->stmt)) {
+	if (isc_dsql_allocate_statement(IB_STATUS, &link->handle.db, &ib_query->stmt.stmt)) {
 		_php_ibase_error();
 		goto _php_ibase_alloc_query_error;
 	}
 
-	if (isc_dsql_prepare(IB_STATUS, &ib_query->trans->handle, &ib_query->stmt,
+	if (isc_dsql_prepare(IB_STATUS, &ib_query->trans->handle.tr, &ib_query->stmt.stmt,
 			0, query, link->dialect, NULL)) {
 		IBDEBUG("isc_dsql_prepare() failed\n");
 		_php_ibase_error();
@@ -647,7 +635,7 @@ static int _php_ibase_prepare(ibase_query **new_query, ibase_db_link *link, /* {
 		ib_query->out_sqlda->sqln = ib_query->out_fields_count;
 		ib_query->out_sqlda->version = SQLDA_CURRENT_VERSION;
 
-  if (isc_dsql_describe(IB_STATUS, &ib_query->stmt, SQLDA_CURRENT_VERSION, ib_query->out_sqlda)) {
+  if (isc_dsql_describe(IB_STATUS, &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, ib_query->out_sqlda)) {
 			IBDEBUG("isc_dsql_describe() failed\n");
 			_php_ibase_error();
 			goto _php_ibase_alloc_query_error;
@@ -669,7 +657,7 @@ static int _php_ibase_prepare(ibase_query **new_query, ibase_db_link *link, /* {
 		ib_query->in_sqlda->sqln = ib_query->in_fields_count;
 		ib_query->in_sqlda->version = SQLDA_CURRENT_VERSION;
 
-		if (isc_dsql_describe_bind(IB_STATUS, &ib_query->stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda)) {
+		if (isc_dsql_describe_bind(IB_STATUS, &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda)) {
 			IBDEBUG("isc_dsql_describe_bind() failed\n");
 			_php_ibase_error();
 			goto _php_ibase_alloc_query_error;
@@ -1032,8 +1020,8 @@ static int _php_ibase_bind(ibase_query *ib_query, zval *b_vars) /* {{{ */
 					ibase_blob ib_blob = { 0 };
 					ib_blob.type = BLOB_INPUT;
 
-					if (isc_create_blob(IB_STATUS, &ib_query->link->handle,
-							&ib_query->trans->handle, &ib_blob.bl_handle, &ib_blob.bl_qd)) {
+					if (isc_create_blob(IB_STATUS, &ib_query->link->handle.db,
+							&ib_query->trans->handle.tr, &ib_blob.bl_handle.blob, &ib_blob.bl_qd)) {
 						_php_ibase_error();
 						return FAILURE;
 					}
@@ -1042,7 +1030,7 @@ static int _php_ibase_bind(ibase_query *ib_query, zval *b_vars) /* {{{ */
 						return FAILURE;
 					}
 
-					if (isc_close_blob(IB_STATUS, &ib_blob.bl_handle)) {
+					if (isc_close_blob(IB_STATUS, &ib_blob.bl_handle.blob)) {
 						_php_ibase_error();
 						return FAILURE;
 					}
@@ -1125,7 +1113,7 @@ static int _php_ibase_bind(ibase_query *ib_query, zval *b_vars) /* {{{ */
 						continue;
 					}
 
-					if (isc_array_put_slice(IB_STATUS, &ib_query->link->handle, &ib_query->trans->handle,
+					if (isc_array_put_slice(IB_STATUS, &ib_query->link->handle.db, &ib_query->trans->handle.tr,
 							&array_id, &ar->ar_desc, array_data, &ar->ar_size)) {
 						_php_ibase_error();
 						efree(array_data);
@@ -1274,7 +1262,7 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
      IBDEBUG("Closing open cursor before re-execution");
      /* Be tolerant: ignore errors when attempting to close an already-closed
       * cursor to avoid spurious warnings (e.g., after EOF). */
-     (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_close);
+     (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt.stmt, DSQL_close);
      ib_query->is_open = 0;
      ib_query->has_more_rows = 0;
  }
@@ -1293,14 +1281,14 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 			/* a SET TRANSACTION statement should be executed with a NULL trans handle */
 			tr = 0;
 
-			if (isc_dsql_execute_immediate(IB_STATUS, &ib_query->link->handle, &tr, 0,
+			if (isc_dsql_execute_immediate(IB_STATUS, &ib_query->link->handle.db, &tr, 0,
 					ib_query->query, ib_query->dialect, NULL)) {
 				_php_ibase_error();
 				goto _php_ibase_ex_error;
 			}
 
 			trans = (ibase_trans *) emalloc(sizeof(ibase_trans));
-			trans->handle = tr;
+			trans->handle.tr = tr;
 			trans->link_cnt = 1;
 			trans->affected_rows = 0;
 			trans->db_link[0] = ib_query->link;
@@ -1325,13 +1313,13 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 		case isc_info_sql_stmt_commit:
 		case isc_info_sql_stmt_rollback:
 
-			if (isc_dsql_execute_immediate(IB_STATUS, &ib_query->link->handle,
-					&ib_query->trans->handle, 0, ib_query->query, ib_query->dialect, NULL)) {
+			if (isc_dsql_execute_immediate(IB_STATUS, &ib_query->link->handle.db,
+					&ib_query->trans->handle.tr, 0, ib_query->query, ib_query->dialect, NULL)) {
 				_php_ibase_error();
 				goto _php_ibase_ex_error;
 			}
 
-			if (ib_query->trans->handle == 0 && ib_query->trans_res != NULL) {
+			if (ib_query->trans->handle.tr == 0 && ib_query->trans_res != NULL) {
 				/* transaction was released by the query and was a registered resource,
 				   so we have to release it */
 				zend_list_delete(ib_query->trans_res);
@@ -1362,12 +1350,12 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
                  ib_query->out_sqlda)) {
         /* Use execute2 when output variables are expected (EXECUTE PROCEDURE
          * and DML ... RETURNING). */
-        isc_result = isc_dsql_execute2(IB_STATUS, &ib_query->trans->handle,
-            &ib_query->stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda, ib_query->out_sqlda);
+        isc_result = isc_dsql_execute2(IB_STATUS, &ib_query->trans->handle.tr,
+            &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda, ib_query->out_sqlda);
     } else {
         /* SELECT and DML without RETURNING */
-        isc_result = isc_dsql_execute(IB_STATUS, &ib_query->trans->handle,
-            &ib_query->stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda);
+        isc_result = isc_dsql_execute(IB_STATUS, &ib_query->trans->handle.tr,
+            &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda);
     }
 
     if (isc_result) {
@@ -1525,7 +1513,7 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
                 goto cleanup_result_query;
             }
 
-            result_query->stmt = 0; /* Do not reference the handle as it may be freed */
+            result_query->stmt.ptr = 0; /* Do not reference the handle as it may be freed */
 
 			/* Success - disable cleanup since resource system now owns the memory */
 			cleanup_needed = 0;
@@ -1766,7 +1754,7 @@ cleanup_select_result_query:
 		case isc_info_sql_stmt_delete:
 		case isc_info_sql_stmt_exec_procedure:
 
-			if (isc_dsql_sql_info(IB_STATUS, &ib_query->stmt, sizeof(info_count),
+			if (isc_dsql_sql_info(IB_STATUS, &ib_query->stmt.stmt, sizeof(info_count),
 					info_count, sizeof(result), result)) {
 				_php_ibase_error();
 				goto _php_ibase_ex_error;
@@ -1848,6 +1836,7 @@ PHP_FUNCTION(ibase_query)
 	zend_resource *trans_res = NULL;
 	ibase_query *ib_query;
 	int bind_start = 0;
+	int explicit_create = 0;
 
 	if (argc < 1) {
 		WRONG_PARAM_COUNT;
@@ -1864,6 +1853,13 @@ PHP_FUNCTION(ibase_query)
 	while (i < argc) {
 		zval *arg = &args[i];
 		ZVAL_DEREF(arg); /* Handle references */
+
+		/* Handle IBASE_CREATE (0) passed as first argument */
+		if (i == 0 && Z_TYPE_P(arg) == IS_LONG && Z_LVAL_P(arg) == PHP_IBASE_CREATE) {
+			explicit_create = 1;
+			i++;
+			continue;
+		}
 
 		if (Z_TYPE_P(arg) == IS_STRING) {
 			query = Z_STRVAL_P(arg);
@@ -1901,6 +1897,45 @@ PHP_FUNCTION(ibase_query)
 		efree(args);
 		_php_ibase_module_error("Query argument missing or not a string");
 		RETURN_FALSE;
+	}
+
+	/* Handle CREATE DATABASE request via IBASE_CREATE flag */
+	if (explicit_create) {
+		/* Use void* for handles to ensure 64-bit storage on stack, preventing stack smashing
+		   if Firebird client writes 64-bit handles to 32-bit isc_db_handle types. */
+		void *safe_new_db_handle = NULL;
+		void *safe_new_trans_handle = NULL;
+		unsigned short dialect = 3; /* Default dialect 3 for new databases */
+
+		if (isc_dsql_execute_immediate(IB_STATUS, (isc_db_handle*)&safe_new_db_handle, (isc_tr_handle*)&safe_new_trans_handle, 0, query, dialect, NULL)) {
+			_php_ibase_error();
+			efree(args);
+			RETURN_FALSE;
+		}
+
+		/* Commit the implicit transaction started by CREATE DATABASE to ensure persistence */
+		if (safe_new_trans_handle) {
+			if (isc_commit_transaction(IB_STATUS, (isc_tr_handle*)&safe_new_trans_handle)) {
+				_php_ibase_error();
+				/* Note: Database created but commit failed? */
+			}
+		}
+
+		/* Register the new database connection as a resource */
+		if (safe_new_db_handle) {
+			link = (ibase_db_link *) ecalloc(1, sizeof(ibase_db_link));
+			link->handle.ptr = safe_new_db_handle;
+			link->dialect = dialect;
+			link->tr_list = NULL;
+			link->event_head = NULL;
+
+			RETVAL_RES(zend_register_resource(link, le_link));
+		} else {
+			RETVAL_TRUE;
+		}
+
+		efree(args);
+		return;
 	}
 
 	/* Resolve Link if missing */
@@ -2341,7 +2376,7 @@ PHP_FUNCTION(fbird_execute_auto)
 
     /* Create temp trans object */
     trans = (ibase_trans *) emalloc(sizeof(ibase_trans));
-    trans->handle = tr_handle;
+    trans->handle.tr = tr_handle;
     trans->link_cnt = 1;
     trans->affected_rows = 0;
     trans->db_link[0] = link;
@@ -2349,7 +2384,7 @@ PHP_FUNCTION(fbird_execute_auto)
 
     /* Prepare */
     if (FAILURE == _php_ibase_prepare(&ib_query, link, trans, NULL, sql)) {
-        isc_rollback_transaction(IB_STATUS, &trans->handle);
+        isc_rollback_transaction(IB_STATUS, &trans->handle.tr);
         efree(trans);
         RETURN_FALSE;
     }
@@ -2365,7 +2400,7 @@ PHP_FUNCTION(fbird_execute_auto)
         }
 
         zend_list_delete(ib_query->res); // Frees statement
-        isc_rollback_transaction(IB_STATUS, &trans->handle);
+        isc_rollback_transaction(IB_STATUS, &trans->handle.tr);
         efree(trans);
         RETURN_FALSE;
     }
@@ -2382,13 +2417,13 @@ PHP_FUNCTION(fbird_execute_auto)
         _php_ibase_module_error("fbird_execute_auto cannot be used with SELECT statements (cursor would be closed on commit).");
         zend_list_delete(Z_RES_P(return_value));
         zend_list_delete(ib_query->res);
-        isc_rollback_transaction(IB_STATUS, &trans->handle);
+        isc_rollback_transaction(IB_STATUS, &trans->handle.tr);
         efree(trans);
         RETURN_FALSE;
     }
 
     /* Commit */
-    if (isc_commit_transaction(IB_STATUS, &trans->handle)) {
+    if (isc_commit_transaction(IB_STATUS, &trans->handle.tr)) {
         _php_ibase_error();
         zend_list_delete(ib_query->res);
         efree(trans); // Handle invalid now

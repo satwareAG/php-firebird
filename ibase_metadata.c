@@ -112,7 +112,7 @@ void _php_ibase_field_info(zval *return_value, ibase_query *ib_query, int is_out
 #if FB_API_VER >= 40
 	if(IBG(master_instance) && IBG(get_statement_interface)) {
 		void *statement = NULL;
-		if(((fb_get_statement_interface_t)IBG(get_statement_interface))(IB_STATUS, &statement, &ib_query->stmt)){
+		if(((fb_get_statement_interface_t)IBG(get_statement_interface))(IB_STATUS, &statement, &ib_query->stmt.stmt)){
 			_php_ibase_error();
 			RETURN_FALSE;
 		}
@@ -356,7 +356,7 @@ int _php_ibase_alloc_ht_aliases(ibase_query *ib_query)
 #if FB_API_VER >= 40
     if(IBG(master_instance) && IBG(get_statement_interface)) {
         void *statement = NULL;
-        if(((fb_get_statement_interface_t)IBG(get_statement_interface))(IB_STATUS, &statement, &ib_query->stmt)){
+        if(((fb_get_statement_interface_t)IBG(get_statement_interface))(IB_STATUS, &statement, &ib_query->stmt.stmt)){
             return FAILURE;
         }
 

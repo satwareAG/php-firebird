@@ -56,9 +56,9 @@ void _php_ibase_free_event(ibase_event *event) /* {{{ */
 
         /* First, cancel events while the link is still valid to avoid UAF.
          * Use a local status vector to avoid racing with concurrent DSQL calls. */
-        if (event->link->handle != 0 && event->event_id != 0) {
+        if (event->link->handle.ptr != 0 && event->event_id != 0) {
             ISC_STATUS st[20] = {0};
-            if (isc_cancel_events(st, &event->link->handle, &event->event_id)) {
+            if (isc_cancel_events(st, &event->link->handle.db, &event->event_id)) {
                 /* Swallow async-cancel errors quietly; nothing useful to report here.
                  * Do not call _php_ibase_error() from a destructor path for async cleanup. */
             }
@@ -152,7 +152,7 @@ static void _php_ibase_event_block(ibase_db_link *ib_link, unsigned short count,
 	 * otherwise, events will have to fire twice before ibase_wait_event() returns.
 	 */
 
-    isc_wait_for_event(dummy_result, &ib_link->handle, *l, *event_buf, *result_buf);
+    isc_wait_for_event(dummy_result, &ib_link->handle.db, *l, *event_buf, *result_buf);
     isc_event_counts(dummy_count, *l, *event_buf, *result_buf);
 }
 /* }}} */
@@ -220,7 +220,7 @@ PHP_FUNCTION(ibase_wait_event)
 	_php_ibase_event_block(ib_link, event_count, events, &buffer_size, &event_buffer, &result_buffer);
 
 	/* now block until an event occurs */
-	if (isc_wait_for_event(IB_STATUS, &ib_link->handle, buffer_size, event_buffer, result_buffer)) {
+	if (isc_wait_for_event(IB_STATUS, &ib_link->handle.db, buffer_size, event_buffer, result_buffer)) {
 		_php_ibase_error();
 		_php_ibase_event_free(event_buffer,result_buffer);
 		RETURN_FALSE;
@@ -267,7 +267,7 @@ static void  _php_ibase_callback(ibase_event *event, /* {{{ */
 	 */
 
 	/* Prevent callback recursion and validate state */
- if (!event || event->state == DEAD || !event->link || event->link->handle == 0) {
+ if (!event || event->state == DEAD || !event->link || event->link->handle.ptr == 0) {
         return;
     }
 
@@ -318,12 +318,12 @@ static void  _php_ibase_callback(ibase_event *event, /* {{{ */
      * IMPORTANT: Copy the latest result buffer into the event buffer BEFORE
      * re-queuing to avoid immediate re-entrant callbacks on the same stack
      * (infinite recursion) when the library detects pending events. */
-    if (event->state == ACTIVE && event->link && event->link->handle != 0) {
+    if (event->state == ACTIVE && event->link && event->link->handle.ptr != 0) {
         unsigned short requeue_len = event->buffer_size ? event->buffer_size : buffer_size;
         memcpy(event->event_buffer, event->result_buffer, requeue_len);
             /* Use a local status vector in async context to avoid races on IB_STATUS */
         ISC_STATUS st[20] = {0};
-        if (isc_que_events(st, &event->link->handle, &event->event_id, requeue_len,
+        if (isc_que_events(st, &event->link->handle.db, &event->event_id, requeue_len,
                 event->event_buffer, (PHP_ISC_CALLBACK)_php_ibase_callback, (void *)event)) {
             /* On re-queue failure, mark as DEAD to prevent further callback attempts.
              * Avoid emitting warnings from async context. */
@@ -442,7 +442,7 @@ PHP_FUNCTION(ibase_set_event_handler)
   * racing with concurrent DSQL calls that may also use IB_STATUS. */
  {
      ISC_STATUS st[20] = {0};
-     if (isc_que_events(st, &ib_link->handle, &event->event_id, buffer_size,
+     if (isc_que_events(st, &ib_link->handle.db, &event->event_id, buffer_size,
              event->event_buffer, (PHP_ISC_CALLBACK)_php_ibase_callback, (void *)event)) {
          /* Registration failed: return an inert handler without async warnings */
          event->state = DEAD;

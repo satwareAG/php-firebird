@@ -1862,30 +1862,33 @@ PHP_FUNCTION(ibase_query)
 	/* Flexible argument parsing handling optional params and placeholders */
 	i = 0;
 	while (i < argc) {
-		if (Z_TYPE(args[i]) == IS_STRING) {
-			query = Z_STRVAL(args[i]);
+		zval *arg = &args[i];
+		ZVAL_DEREF(arg); /* Handle references */
+
+		if (Z_TYPE_P(arg) == IS_STRING) {
+			query = Z_STRVAL_P(arg);
 			bind_start = i + 1;
 			break;
-		} else if (Z_TYPE(args[i]) == IS_RESOURCE) {
+		} else if (Z_TYPE_P(arg) == IS_RESOURCE) {
 			/* Identify resource type */
 			if (!trans && !link) {
-				trans = (ibase_trans *)zend_fetch_resource_ex(&args[i], NULL, le_trans);
+				trans = (ibase_trans *)zend_fetch_resource_ex(arg, NULL, le_trans);
 				if (trans) {
-					trans_arg = &args[i];
+					trans_arg = arg;
 					trans_res = Z_RES_P(trans_arg);
 				} else {
-					link = (ibase_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_link);
-					if (!link) link = (ibase_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_plink);
-					if (link) link_arg = &args[i];
+					link = (ibase_db_link *)zend_fetch_resource_ex(arg, NULL, le_link);
+					if (!link) link = (ibase_db_link *)zend_fetch_resource_ex(arg, NULL, le_plink);
+					if (link) link_arg = arg;
 				}
 			} else if (trans && !link) {
-				link = (ibase_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_link);
-				if (!link) link = (ibase_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_plink);
-				if (link) link_arg = &args[i];
+				link = (ibase_db_link *)zend_fetch_resource_ex(arg, NULL, le_link);
+				if (!link) link = (ibase_db_link *)zend_fetch_resource_ex(arg, NULL, le_plink);
+				if (link) link_arg = arg;
 			} else if (link && !trans) {
-				trans = (ibase_trans *)zend_fetch_resource_ex(&args[i], NULL, le_trans);
+				trans = (ibase_trans *)zend_fetch_resource_ex(arg, NULL, le_trans);
 				if (trans) {
-					trans_arg = &args[i];
+					trans_arg = arg;
 					trans_res = Z_RES_P(trans_arg);
 				}
 			}
@@ -1906,44 +1909,11 @@ PHP_FUNCTION(ibase_query)
 			link = (ibase_db_link *)zend_fetch_resource2(IBG(default_link), "InterBase link", le_link, le_plink);
 		}
 
-		/* If no link found, try CREATE DATABASE support via execute immediate */
+		/* If no link found, fail gracefully */
 		if (!link) {
-             isc_db_handle db_handle = 0;
-             isc_tr_handle tr_handle = 0;
-
-             /* Try to execute without connection (for CREATE DATABASE) */
-             if (isc_dsql_execute_immediate(IB_STATUS, &db_handle, &tr_handle, 0, query, 3, NULL) == 0) {
-                 /* Success: Create link resource for the new database */
-                 link = (ibase_db_link *) emalloc(sizeof(ibase_db_link));
-                 link->handle = db_handle;
-                 link->dialect = 3;
-                 link->tr_list = NULL;
-                 link->event_head = NULL;
-
-                 zend_resource *res = zend_register_resource(link, le_link);
-
-                 /* Set as default if none exists */
-                 if (!IBG(default_link)) {
-                     IBG(default_link) = res;
-                     GC_ADDREF(res);
-                 }
-
-                 /* Cleanup transaction if started */
-                 if (tr_handle) {
-                     isc_commit_transaction(IB_STATUS, &tr_handle);
-                 }
-
-                 efree(args);
-                 RETVAL_RES(res);
-                 Z_TRY_ADDREF_P(return_value);
-                 return;
-             }
-
-             /* If failed, assume connection required and report error */
-             _php_ibase_error(); // Report why execute immediate failed
-			 efree(args);
-			 // _php_ibase_module_error("No default connection"); // Redundant if _php_ibase_error called
-			 RETURN_FALSE;
+			efree(args);
+			_php_ibase_module_error("No default connection");
+			RETURN_FALSE;
 		}
 	}
 

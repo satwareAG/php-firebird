@@ -122,7 +122,8 @@ static int _php_ibase_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 	/* Move variable declarations to function scope */
 	unsigned short l;
 	zend_long n;
-	char string_data[255] = {0}; /* Initialize to prevent uninitialized access */
+	/* Increased buffer to handle deep timezones + timestamp string */
+	char string_data[512] = {0}; /* Initialize to prevent uninitialized access */
 	struct tm t;
     char *format;
 
@@ -204,7 +205,8 @@ static int _php_ibase_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 				return FAILURE;
 			}
 
-			char timeZoneBuffer[40] = {0};
+			/* Increased buffer for Firebird deep/concatenated timezones */
+			char timeZoneBuffer[64] = {0};
 			unsigned year, month, day, hours, minutes, seconds, fractions;
 
 			if((type & ~1) == SQL_TIME_TZ){
@@ -230,8 +232,13 @@ static int _php_ibase_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 					return FAILURE;
 				}
 
-				size_t tz_len = snprintf(string_data, sizeof(string_data), "%s %s", timeBuf, timeZoneBuffer);
-				ZVAL_STRINGL(val, string_data, tz_len);
+				/* Safe checking for truncation */
+				int tz_len_int = snprintf(string_data, sizeof(string_data), "%s %s", timeBuf, timeZoneBuffer);
+				if (tz_len_int < 0 || (size_t)tz_len_int >= sizeof(string_data)) {
+					_php_ibase_module_error("Timezone string truncated");
+					return FAILURE;
+				}
+				ZVAL_STRINGL(val, string_data, (size_t)tz_len_int);
 			}
 			break;
 #endif

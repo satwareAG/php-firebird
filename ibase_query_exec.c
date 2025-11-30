@@ -39,6 +39,9 @@
 #define ISC_LONG_MIN    INT_MIN
 #define ISC_LONG_MAX    INT_MAX
 
+/* Max identifier size for Firebird 3+ (63 chars) but we alloc more for safety */
+#define MAX_IDENTIFIER_LEN 255
+
 /* Exported for use in ibase_result.c and other files */
 int le_query;
 
@@ -473,8 +476,10 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 
         /* Fix stack smashing: Copy names to local HEAP buffers to ensure
          * safe access by isc_array_lookup_bounds and avoid stack corruption. */
-        char *rname = ecalloc(1, 256);
-        char *sname = ecalloc(1, 256);
+        /* Increased buffer size for metadata names to support future expansion
+         * and avoid truncation warnings */
+        char *rname = ecalloc(1, MAX_IDENTIFIER_LEN + 1);
+        char *sname = ecalloc(1, MAX_IDENTIFIER_LEN + 1);
 
 		if (!rname || !sname) {
 			_php_ibase_module_error("Failed to allocate memory for array names");
@@ -484,8 +489,17 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 			return FAILURE;
 		}
 
-        if (var->relname) strncpy(rname, var->relname, 32);
-        if (var->sqlname) strncpy(sname, var->sqlname, 32);
+        /* Use length fields if available and valid, otherwise safe limit to struct size */
+        if (var->relname) {
+            int len = var->relname_length;
+            if (len > 32) len = 32; /* Cap to XSQLVAR limit */
+            if (len > 0) memcpy(rname, var->relname, len);
+        }
+        if (var->sqlname) {
+            int len = var->sqlname_length;
+            if (len > 32) len = 32; /* Cap to XSQLVAR limit */
+            if (len > 0) memcpy(sname, var->sqlname, len);
+        }
 
 		if (isc_array_lookup_bounds(IB_STATUS, &link.db, &trans.tr, rname,
 				sname, ar_desc)) {

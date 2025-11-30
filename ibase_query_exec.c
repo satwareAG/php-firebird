@@ -93,23 +93,25 @@ static int _php_ibase_set_query_info(ibase_query *ib_query) /* {{{ */
 /* }}} */
 
 /* Helper function for safer SQLVAR data copying */
-int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, int field_index) /* {{{ */
+int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, int field_index, const char *query_context) /* {{{ */
 {
 	/* Validate input parameters */
 	if (!dest_var || !src_var) {
-		_php_ibase_module_error("EXECUTE PROCEDURE: Invalid XSQLVAR pointers for field %d", field_index);
+		_php_ibase_module_error("EXECUTE PROCEDURE: Invalid XSQLVAR pointers for field %d in query: %s",
+            field_index, query_context ? query_context : "unknown");
 		return FAILURE;
 	}
 
 	if (!src_var->sqldata) {
-		_php_ibase_module_error("EXECUTE PROCEDURE: Source sqldata is NULL for field %d", field_index);
+		_php_ibase_module_error("EXECUTE PROCEDURE: Source sqldata is NULL for field %d in query: %s",
+            field_index, query_context ? query_context : "unknown");
 		return FAILURE;
 	}
 
 	/* Verify sqltype consistency between source and destination */
 	if (dest_var->sqltype != src_var->sqltype) {
-		_php_ibase_module_error("EXECUTE PROCEDURE: sqltype mismatch for field %d (dest=%d, src=%d)",
-			field_index, dest_var->sqltype, src_var->sqltype);
+		_php_ibase_module_error("EXECUTE PROCEDURE: sqltype mismatch for field %d (dest=%d, src=%d) in query: %s",
+			field_index, dest_var->sqltype, src_var->sqltype, query_context ? query_context : "unknown");
 		return FAILURE;
 	}
 
@@ -118,18 +120,19 @@ int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 		case SQL_TEXT:
 			/* Validate field length for TEXT fields */
 			if (dest_var->sqllen != src_var->sqllen) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: TEXT sqllen mismatch for field %d (dest=%d, src=%d)",
-					field_index, dest_var->sqllen, src_var->sqllen);
+				_php_ibase_module_error("EXECUTE PROCEDURE: TEXT sqllen mismatch for field %d (dest=%d, src=%d) in query: %s",
+					field_index, dest_var->sqllen, src_var->sqllen, query_context ? query_context : "unknown");
 				return FAILURE;
 			}
 			if (dest_var->sqllen < 0 || dest_var->sqllen > 65535) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid TEXT length %d for field %d",
-					dest_var->sqllen, field_index);
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid TEXT length %d for field %d in query: %s",
+					dest_var->sqllen, field_index, query_context ? query_context : "unknown");
 				return FAILURE;
 			}
 			dest_var->sqldata = safe_emalloc(sizeof(char), dest_var->sqllen, 0);
 			if (!dest_var->sqldata) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate TEXT data for field %d", field_index);
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate TEXT data for field %d in query: %s",
+                    field_index, query_context ? query_context : "unknown");
 				return FAILURE;
 			}
 			/* Use safer copy with explicit size limit */
@@ -139,18 +142,19 @@ int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 		case SQL_VARYING:
 			/* Validate field length for VARCHAR fields */
 			if (dest_var->sqllen != src_var->sqllen) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: VARCHAR sqllen mismatch for field %d (dest=%d, src=%d)",
-					field_index, dest_var->sqllen, src_var->sqllen);
+				_php_ibase_module_error("EXECUTE PROCEDURE: VARCHAR sqllen mismatch for field %d (dest=%d, src=%d) in query: %s",
+					field_index, dest_var->sqllen, src_var->sqllen, query_context ? query_context : "unknown");
 				return FAILURE;
 			}
 			if (dest_var->sqllen < 0 || dest_var->sqllen > 65535) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid VARCHAR length %d for field %d",
-					dest_var->sqllen, field_index);
+				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid VARCHAR length %d for field %d in query: %s",
+					dest_var->sqllen, field_index, query_context ? query_context : "unknown");
 				return FAILURE;
 			}
 			dest_var->sqldata = safe_emalloc(sizeof(char), dest_var->sqllen + sizeof(short), 0);
 			if (!dest_var->sqldata) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate VARCHAR data for field %d", field_index);
+				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate VARCHAR data for field %d in query: %s",
+                    field_index, query_context ? query_context : "unknown");
 				return FAILURE;
 			}
 			/* Copy length prefix + data with bounds checking */
@@ -1465,7 +1469,7 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 					result_var->sqldata = NULL;
 
 					/* Use safer copying function with comprehensive validation */
-					if (FAILURE == _php_ibase_safe_copy_sqlvar_data(result_var, orig_var, i)) {
+					if (FAILURE == _php_ibase_safe_copy_sqlvar_data(result_var, orig_var, i, ib_query->query)) {
 						goto cleanup_result_query;
 					}
 				}
@@ -1644,7 +1648,7 @@ cleanup_result_query:
 					result_var->sqldata = NULL;
 
 					/* Use safer copying function with comprehensive validation */
-					if (FAILURE == _php_ibase_safe_copy_sqlvar_data(result_var, orig_var, i)) {
+					if (FAILURE == _php_ibase_safe_copy_sqlvar_data(result_var, orig_var, i, ib_query->query)) {
 						goto cleanup_select_result_query;
 					}
 				}
@@ -1953,6 +1957,17 @@ PHP_FUNCTION(ibase_query)
 			_php_ibase_module_error("No default connection");
 			RETURN_FALSE;
 		}
+	} else if (!link && trans) {
+		/* If transaction is provided but link is not, infer link from transaction.
+		   Transactions must be associated with at least one database connection.
+		   We default to the first associated link. */
+		if (trans->link_cnt > 0) {
+			link = trans->db_link[0];
+		} else {
+			efree(args);
+			_php_ibase_module_error("Transaction has no associated link");
+			RETURN_FALSE;
+		}
 	}
 
 	/* Resolve Transaction if missing */
@@ -2120,7 +2135,7 @@ PHP_FUNCTION(ibase_execute)
 /* }}} */
 
 /* {{{ proto bool ibase_free_query(resource query) */
-PHP_FUNCTION(ibase_free_query)
+void _php_ibase_free_query_impl(INTERNAL_FUNCTION_PARAMETERS, int as_result)
 {
 	zval *query_arg;
 	ibase_query *ib_query;
@@ -2136,6 +2151,11 @@ PHP_FUNCTION(ibase_free_query)
 
 	zend_list_close(Z_RES_P(query_arg));
 	RETURN_TRUE;
+}
+
+PHP_FUNCTION(ibase_free_query)
+{
+	_php_ibase_free_query_impl(INTERNAL_FUNCTION_PARAM_PASSTHRU, 0);
 }
 /* }}} */
 
@@ -2439,5 +2459,14 @@ PHP_FUNCTION(fbird_execute_auto)
     /* Return value is already set by _php_ibase_exec (TRUE/affected_rows) */
 }
 /* }}} */
+
+int _php_ibase_fetch_query_res(zval *from, ibase_query **ib_query)
+{
+	if (Z_TYPE_P(from) != IS_RESOURCE) {
+		return 0;
+	}
+	*ib_query = (ibase_query *)zend_fetch_resource_ex(from, NULL, le_query);
+	return (*ib_query) ? 1 : 0;
+}
 
 #endif /* HAVE_IBASE */

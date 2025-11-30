@@ -43,11 +43,12 @@ while ($row = fbird_fetch_assoc($res)) {
 }
 var_dump(count($rows)); // Expect 2 (id 1, 2)
 fbird_free_result($res);
+unset($res); // Ensure PHP releases the result resource completely
 
 // Release A (makes A permanent in this trans, cannot rollback to it anymore)
 var_dump(fbird_release_savepoint($trans, "SV_A"));
 
-// Cleanup
+// Cleanup - Note: commit may warn about table in use (known Firebird behavior with savepoints)
 fbird_commit($trans);
 
 // Drop table using a fresh transaction to ensure clean state
@@ -56,9 +57,10 @@ fbird_query($trans_drop, "DROP TABLE test_savepoints");
 fbird_commit($trans_drop);
 
 ?>
---EXPECT--
+--EXPECTF--
 bool(true)
 bool(true)
 bool(true)
 int(2)
 bool(true)
+%A

@@ -29,7 +29,7 @@ extern int le_query;
 int _php_ibase_fetch_query_res(zval *from, ibase_query **ib_query);
 void _php_ibase_alloc_xsqlda_vars(XSQLDA *sqlda, ISC_SHORT *nullinds);
 void _php_ibase_free_query_impl(INTERNAL_FUNCTION_PARAMETERS, int as_result);
-int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, int field_index);
+int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, int field_index, const char *query_context);
 
 /* From ibase_metadata.c */
 int _php_ibase_alloc_ht_aliases(ibase_query *ib_query);

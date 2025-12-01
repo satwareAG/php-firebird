@@ -99,7 +99,7 @@ time_t ibase_mktime_with_tz(struct tm *tm, const char *tz)
 }
 
 static int _php_ibase_var_zval(zval *val, void *data, int type, int len, /* {{{ */
-    int scale, size_t flag)
+    int scale, int subtype, size_t flag)
 {
 	static ISC_INT64 const scales[] = { 1, 10, 100, 1000,
 		10000,
@@ -122,18 +122,85 @@ static int _php_ibase_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 	/* Move variable declarations to function scope */
 	unsigned short l;
 	zend_long n;
-	char string_data[255] = {0}; /* Initialize to prevent uninitialized access */
+	/* Increased buffer to handle deep timezones + timestamp string */
+	char string_data[512] = {0}; /* Initialize to prevent uninitialized access */
 	struct tm t;
     char *format;
 
 	switch (type & ~1) {
 
 		case SQL_VARYING:
-			len = ((IBVARY *) data)->vary_length;
-			data = ((IBVARY *) data)->vary_string;
-			/* no break */
+			{
+				/* VARCHAR: length is actual data length from vary_length,
+				 * no padding - just use the data as-is */
+				len = ((IBVARY *) data)->vary_length;
+				data = ((IBVARY *) data)->vary_string;
+				ZVAL_STRINGL(val, (char*)data, len);
+			}
+			break;
 		case SQL_TEXT:
-			ZVAL_STRINGL(val, (char*)data, len);
+			{
+				/* CHAR(N) field handling for multi-byte character sets:
+				 *
+				 * For UTF8 CHAR(N): sqllen = N×4 (max bytes), buffer space-padded
+				 * For single-byte CHAR(N): sqllen = N, buffer space-padded
+				 *
+				 * Problem: We cannot distinguish intentional trailing spaces from
+				 * padding using byte-level analysis. For UTF8, we know the declared
+				 * character count (N = sqllen/4) and can count exactly that many
+				 * UTF8 characters to find the actual data boundary.
+				 *
+				 * For single-byte charsets, we rtrim spaces which matches
+				 * historical SQL CHAR behavior (trailing spaces are insignificant).
+				 *
+				 * Charset IDs: 4 = UTF8, 59 = UTF8MB4 (Firebird 4+)
+				 */
+				unsigned char charset_id = (unsigned char)(subtype & 0xFF);
+
+				if (charset_id == 4 || charset_id == 59) {
+					/* UTF8/UTF8MB4: count exactly N characters where N = sqllen/4 */
+					size_t char_count = (size_t)len / 4;
+					size_t actual_len = 0;
+					size_t chars = 0;
+					const unsigned char *p = (const unsigned char *)data;
+
+					while (actual_len < (size_t)len && chars < char_count) {
+						unsigned char c = p[actual_len];
+						size_t char_bytes;
+
+						if ((c & 0x80) == 0) {
+							char_bytes = 1;  /* ASCII */
+						} else if ((c & 0xE0) == 0xC0) {
+							char_bytes = 2;  /* 2-byte UTF8 */
+						} else if ((c & 0xF0) == 0xE0) {
+							char_bytes = 3;  /* 3-byte UTF8 (e.g., €) */
+						} else if ((c & 0xF8) == 0xF0) {
+							char_bytes = 4;  /* 4-byte UTF8 */
+						} else {
+							char_bytes = 1;  /* Invalid UTF8, treat as single byte */
+						}
+
+						/* Safety: don't read past buffer */
+						if (actual_len + char_bytes > (size_t)len) {
+							break;
+						}
+
+						actual_len += char_bytes;
+						chars++;
+					}
+
+					ZVAL_STRINGL(val, (char*)data, actual_len);
+				} else {
+					/* Single-byte or other charset: use strnlen + rtrim */
+					size_t actual_len = strnlen((char*)data, len);
+					if (actual_len == (size_t)len) {
+						while (actual_len > 0 && ((unsigned char*)data)[actual_len - 1] == ' ') {
+							actual_len--;
+						}
+					}
+					ZVAL_STRINGL(val, (char*)data, actual_len);
+				}
+			}
 			break;
 #ifdef SQL_BOOLEAN
 		case SQL_BOOLEAN:
@@ -204,7 +271,8 @@ static int _php_ibase_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 				return FAILURE;
 			}
 
-			char timeZoneBuffer[40] = {0};
+			/* Increased buffer for Firebird deep/concatenated timezones */
+			char timeZoneBuffer[64] = {0};
 			unsigned year, month, day, hours, minutes, seconds, fractions;
 
 			if((type & ~1) == SQL_TIME_TZ){
@@ -230,8 +298,13 @@ static int _php_ibase_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 					return FAILURE;
 				}
 
-				size_t tz_len = snprintf(string_data, sizeof(string_data), "%s %s", timeBuf, timeZoneBuffer);
-				ZVAL_STRINGL(val, string_data, tz_len);
+				/* Safe checking for truncation */
+				int tz_len_int = snprintf(string_data, sizeof(string_data), "%s %s", timeBuf, timeZoneBuffer);
+				if (tz_len_int < 0 || (size_t)tz_len_int >= sizeof(string_data)) {
+					_php_ibase_module_error("Timezone string truncated");
+					return FAILURE;
+				}
+				ZVAL_STRINGL(val, string_data, (size_t)tz_len_int);
 			}
 			break;
 #endif
@@ -310,11 +383,17 @@ static int _php_ibase_arr_zval(zval *ar_zval, char *data, zend_ulong data_size, 
 			data += slice_size;
 
 			add_index_zval(ar_zval, l_bound + i, &slice_zval);
+			/* slice_zval holds a reference to the value which was copied into ar_zval.
+			   We must release our reference to avoid leaking the value/zval structure. */
+			zval_ptr_dtor(&slice_zval);
 		}
 	} else { /* data at last */
-
+		/* For arrays, subtype info is not readily available in ar_desc.
+		 * Pass 0 for subtype which will use the single-byte rtrim logic.
+		 * This is acceptable as array CHAR fields are less common and
+		 * historical behavior is preserved. */
 		if (FAILURE == _php_ibase_var_zval(ar_zval, data, ib_array->el_type,
-				ib_array->ar_desc.array_desc_length, ib_array->ar_desc.array_desc_scale, flag)) {
+				ib_array->ar_desc.array_desc_length, ib_array->ar_desc.array_desc_scale, 0, flag)) {
 			return FAILURE;
 		}
 
@@ -343,9 +422,9 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 		RETURN_FALSE;
 	}
 
- if(_php_ibase_fetch_query_res(res_arg, &ib_query)) {
+ if(!_php_ibase_fetch_query_res(res_arg, &ib_query)) {
         /* Let Zend validate resource via _php_ibase_fetch_query_res */
-        return;
+        RETURN_FALSE;
     }
 
 	if (ib_query->out_sqlda == NULL || !ib_query->has_more_rows || !ib_query->is_open) {
@@ -364,7 +443,7 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
             ib_query->was_result_once
         );
         if (!is_buffered_returning) {
-        ISC_STATUS fetch_res = isc_dsql_fetch(IB_STATUS, &ib_query->stmt, 1, ib_query->out_sqlda);
+        ISC_STATUS fetch_res = isc_dsql_fetch(IB_STATUS, &ib_query->stmt.stmt, 1, ib_query->out_sqlda);
         if (fetch_res) {
             ib_query->has_more_rows = 0;
             ib_query->is_open = 0;
@@ -392,7 +471,7 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 
             /* Close the cursor. If we suppressed a cursor error, closing might also fail
              * (e.g. cursor already closed -502), so suppress that too. */
-            if (isc_dsql_free_statement(IB_STATUS, &ib_query->stmt, DSQL_close)) {
+            if (isc_dsql_free_statement(IB_STATUS, &ib_query->stmt.stmt, DSQL_close)) {
                 /* Check for "Attempt to reclose a closed cursor" (-502)
                  * iso_dsql_cursor_close_err = 335544573 (check this constant?)
                  * Actually -502 is isc_dsql_cursor_open_err usually?
@@ -464,12 +543,16 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 		}
 
 		result = zend_hash_get_current_data(ht_ret);
+        if (!result) {
+            _php_ibase_module_error("Internal error: result array iterator out of sync");
+            RETURN_FALSE;
+        }
 
 		switch (var->sqltype & ~1) {
 
 			default:
 				_php_ibase_var_zval(result, var->sqldata, var->sqltype, var->sqllen,
-					var->sqlscale, flag);
+					var->sqlscale, var->sqlsubtype, flag);
 				break;
 			case SQL_BLOB:
 				if (flag & PHP_IBASE_FETCH_BLOBS) { /* fetch blob contents into hash */
@@ -480,16 +563,16 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 					char bl_info[20];
 					unsigned short i;
 
-					blob_handle.bl_handle = 0;
+					blob_handle.bl_handle.ptr = 0;
 					blob_handle.bl_qd = *(ISC_QUAD *) var->sqldata;
 
-					if (isc_open_blob(IB_STATUS, &ib_query->link->handle, &ib_query->trans->handle,
-							&blob_handle.bl_handle, &blob_handle.bl_qd)) {
+					if (isc_open_blob(IB_STATUS, &ib_query->link->handle.db, &ib_query->trans->handle.tr,
+							&blob_handle.bl_handle.blob, &blob_handle.bl_qd)) {
 						_php_ibase_error();
 						goto _php_ibase_fetch_error;
 					}
 
-					if (isc_blob_info(IB_STATUS, &blob_handle.bl_handle, sizeof(bl_items),
+					if (isc_blob_info(IB_STATUS, &blob_handle.bl_handle.blob, sizeof(bl_items),
 							bl_items, sizeof(bl_info), bl_info)) {
 						_php_ibase_error();
 						goto _php_ibase_fetch_error;
@@ -524,7 +607,7 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 						goto _php_ibase_fetch_error;
 					}
 
-					if (isc_close_blob(IB_STATUS, &blob_handle.bl_handle)) {
+					if (isc_close_blob(IB_STATUS, &blob_handle.bl_handle.blob)) {
 						_php_ibase_error();
 						goto _php_ibase_fetch_error;
 					}
@@ -538,16 +621,21 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 				if (flag & PHP_IBASE_FETCH_ARRAYS) { /* array can be *huge* so only fetch if asked */
 					ISC_QUAD ar_qd = *(ISC_QUAD *) var->sqldata;
 					ibase_array *ib_array = &ib_query->out_array[array_cnt++];
-					void *ar_data = emalloc(ib_array->ar_size);
+					/* Use local copy of size - isc_array_get_slice modifies its size parameter
+					 * to reflect actual bytes fetched, which corrupts ar_size for recursive use */
+					ISC_LONG fetch_size = ib_array->ar_size;
+					void *ar_data = emalloc((size_t)fetch_size);
 
-					if (isc_array_get_slice(IB_STATUS, &ib_query->link->handle,
-							&ib_query->trans->handle, &ar_qd, &ib_array->ar_desc,
-							ar_data, &ib_array->ar_size)) {
+					if (isc_array_get_slice(IB_STATUS, &ib_query->link->handle.db,
+							&ib_query->trans->handle.tr, &ar_qd, &ib_array->ar_desc,
+							ar_data, &fetch_size)) {
 						_php_ibase_error();
 						efree(ar_data);
 						goto _php_ibase_fetch_error;
 					}
 
+					/* Use ORIGINAL ar_size for recursive processing (structure size),
+					 * not the potentially modified fetch_size */
 					if (FAILURE == _php_ibase_arr_zval(result, ar_data, ib_array->ar_size, ib_array,
 							0, flag)) {
 						efree(ar_data);
@@ -614,11 +702,11 @@ PHP_FUNCTION(ibase_name_result)
 		return;
 	}
 
-	if(_php_ibase_fetch_query_res(result_arg, &ib_query)) {
-		return;
+	if(!_php_ibase_fetch_query_res(result_arg, &ib_query)) {
+		RETURN_FALSE;
 	}
 
-	if (isc_dsql_set_cursor_name(IB_STATUS, &ib_query->stmt, name_arg, 0)) {
+	if (isc_dsql_set_cursor_name(IB_STATUS, &ib_query->stmt.stmt, name_arg, 0)) {
 		_php_ibase_error();
 		RETURN_FALSE;
 	}

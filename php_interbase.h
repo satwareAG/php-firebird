@@ -70,6 +70,10 @@ PHP_FUNCTION(ibase_prepare);
 PHP_FUNCTION(ibase_execute);
 PHP_FUNCTION(ibase_free_query);
 
+PHP_FUNCTION(fbird_execute_statement);
+PHP_FUNCTION(fbird_execute_query);
+PHP_FUNCTION(fbird_execute_auto);
+
 PHP_FUNCTION(ibase_timefmt);
 
 PHP_FUNCTION(ibase_gen_id);

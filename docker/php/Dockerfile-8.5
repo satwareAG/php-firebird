@@ -25,21 +25,6 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Build and enable Xdebug from source
-RUN set -eux; \
-    git clone --depth 1 https://github.com/xdebug/xdebug.git /usr/src/xdebug; \
-    cd /usr/src/xdebug; \
-    phpize; \
-    ./configure --enable-xdebug; \
-    make -j"$(nproc)"; \
-    make install; \
-    docker-php-ext-enable xdebug; \
-    cd /; \
-    rm -rf /usr/src/xdebug
-
-# Copy XDebug runtime configuration (mode, client, etc.)
-COPY xdebug.ini /usr/local/etc/php/conf.d/xdebug.ini
-
 # Set up entrypoint
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

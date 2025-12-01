@@ -99,15 +99,24 @@ ZEND_END_MODULE_GLOBALS(ibase)
 
 ZEND_EXTERN_MODULE_GLOBALS(ibase)
 
+/* Union to safely hold 64-bit handles even if headers define them as 32-bit integers */
+typedef union {
+	void *ptr;
+	isc_db_handle db;
+	isc_tr_handle tr;
+	isc_stmt_handle stmt;
+	isc_blob_handle blob;
+} fb_safe_handle;
+
 typedef struct {
-	isc_db_handle handle;
+	fb_safe_handle handle;
 	struct tr_list *tr_list;
 	unsigned short dialect;
 	struct event *event_head;
 } ibase_db_link;
 
 typedef struct {
-	isc_tr_handle handle;
+	fb_safe_handle handle;
 	unsigned short link_cnt;
 	unsigned long affected_rows;
 	ibase_db_link *db_link[1]; /* last member */
@@ -119,7 +128,7 @@ typedef struct tr_list {
 } ibase_tr_list;
 
 typedef struct {
-	isc_blob_handle bl_handle;
+	fb_safe_handle bl_handle;
 	unsigned short type;
 	ISC_QUAD bl_qd;
 } ibase_blob;
@@ -172,7 +181,7 @@ typedef struct _ib_query {
     ibase_trans *trans;
     zend_resource *trans_res;
     zend_resource *res;
-    isc_stmt_handle stmt;
+    fb_safe_handle stmt;
     XSQLDA *in_sqlda, *out_sqlda;
     ibase_array *in_array, *out_array;
     unsigned short type, has_more_rows, is_open;

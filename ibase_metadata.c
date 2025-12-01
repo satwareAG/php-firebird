@@ -47,30 +47,26 @@ static zend_bool _php_ibase_sql_has_returning(const char *sql);
 
 void _php_ibase_insert_alias(HashTable *ht, const char *alias)
 {
-	char buf[METADATALENGTH + 3 + 1]; // _00 + \0
+	/* Buffer size increased to handle aliases of maximum length plus suffix */
+	char buf[METADATALENGTH + 32];
 	zval t2;
-	int i = 0;
-	char const *base = "FIELD"; /* use 'FIELD' if name is empty */
-
+	int i = 1;
+	char const *base = alias;
 	size_t alias_len = strlen(alias);
-	size_t alias_len_w_suff = alias_len + 3;
 
-	switch (*alias) {
-		void *p;
+	if (*alias == '\0') {
+		base = "FIELD";
+		/* For empty name, immediately enter deduplication logic starting with 0 */
+		i = 0;
+		snprintf(buf, sizeof(buf), "%s_%02d", base, i++);
+		alias = buf;
+		alias_len = strlen(alias);
+	}
 
-		default:
-			i = 1;
-			base = alias;
-
-			while ((p = zend_symtable_str_find_ptr(
-					ht, alias, alias_len)) != NULL) {
-
-		case '\0':
-				// TODO: i > 99?
-				snprintf(buf, sizeof(buf), "%s_%02d", base, i++);
-				alias = buf;
-				alias_len = alias_len_w_suff;
-			}
+	while (zend_symtable_str_find_ptr(ht, alias, alias_len) != NULL) {
+		snprintf(buf, sizeof(buf), "%s_%02d", base, i++);
+		alias = buf;
+		alias_len = strlen(alias);
 	}
 
 	ZVAL_NULL(&t2);
@@ -116,7 +112,7 @@ void _php_ibase_field_info(zval *return_value, ibase_query *ib_query, int is_out
 #if FB_API_VER >= 40
 	if(IBG(master_instance) && IBG(get_statement_interface)) {
 		void *statement = NULL;
-		if(((fb_get_statement_interface_t)IBG(get_statement_interface))(IB_STATUS, &statement, &ib_query->stmt)){
+		if(((fb_get_statement_interface_t)IBG(get_statement_interface))(IB_STATUS, &statement, &ib_query->stmt.stmt)){
 			_php_ibase_error();
 			RETURN_FALSE;
 		}
@@ -262,8 +258,8 @@ PHP_FUNCTION(ibase_field_info)
 		return;
 	}
 
-	if(_php_ibase_fetch_query_res(result_arg, &ib_query)) {
-		return;
+	if(!_php_ibase_fetch_query_res(result_arg, &ib_query)) {
+		RETURN_FALSE;
 	}
 
 	_php_ibase_field_info(return_value, ib_query, 1, (ISC_SHORT)field_arg);
@@ -283,8 +279,8 @@ PHP_FUNCTION(ibase_num_params)
 		return;
 	}
 
-	if(_php_ibase_fetch_query_res(result, &ib_query)) {
-		return;
+	if(!_php_ibase_fetch_query_res(result, &ib_query)) {
+		RETURN_FALSE;
 	}
 
 	if (ib_query->in_sqlda == NULL) {
@@ -309,8 +305,8 @@ PHP_FUNCTION(ibase_param_info)
 		return;
 	}
 
-	if(_php_ibase_fetch_query_res(result_arg, &ib_query)) {
-		return;
+	if(!_php_ibase_fetch_query_res(result_arg, &ib_query)) {
+		RETURN_FALSE;
 	}
 
 	_php_ibase_field_info(return_value, ib_query, 0, field_arg);
@@ -331,8 +327,8 @@ PHP_FUNCTION(ibase_num_fields)
 		return;
 	}
 
-	if(_php_ibase_fetch_query_res(result, &ib_query)) {
-		return;
+	if(!_php_ibase_fetch_query_res(result, &ib_query)) {
+		RETURN_FALSE;
 	}
 
 	sqlda = ib_query->out_sqlda;
@@ -360,7 +356,7 @@ int _php_ibase_alloc_ht_aliases(ibase_query *ib_query)
 #if FB_API_VER >= 40
     if(IBG(master_instance) && IBG(get_statement_interface)) {
         void *statement = NULL;
-        if(((fb_get_statement_interface_t)IBG(get_statement_interface))(IB_STATUS, &statement, &ib_query->stmt)){
+        if(((fb_get_statement_interface_t)IBG(get_statement_interface))(IB_STATUS, &statement, &ib_query->stmt.stmt)){
             return FAILURE;
         }
 

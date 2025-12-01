@@ -12,12 +12,12 @@ InterBase: misc sql types (may take a while)
     ini_set('precision',"18");
 
     /* Check if PHP precision is set correctly */
-    if(ini_get('precision') < 18) {
+    if((int)ini_get('precision') < 18) {
         echo "PHP precision check fail\n";
         echo "Precision set in php.ini: " . ini_get('precision') . "\n";
         echo "Precision required: 18\n";
-    } 
-    
+    }
+
     ibase_query(
     	"create table test3 (
             iter		integer not null,

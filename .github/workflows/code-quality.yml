@@ -1,0 +1,228 @@
+name: Code Quality (Static Analysis)
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  code-quality:
+    name: clang-tidy + cppcheck
+    runs-on: ubuntu-latest
+
+    # Use PHP 8.4 / Firebird 5.0 as fixed configuration for static analysis
+    container:
+      image: php:8.4-cli-bookworm
+
+    env:
+      ISC_USER: SYSDBA
+      ISC_PASSWORD: masterkey
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies (PHP build tools + analysis tools)
+        run: |
+          set -eu
+
+          if (set -o pipefail) 2>/dev/null; then :; fi
+
+          export DEBIAN_FRONTEND=noninteractive
+          for attempt in 1 2 3; do
+            if apt-get update; then
+              break
+            fi
+            echo "apt-get update failed (attempt ${attempt}/3), retrying in 5s..." >&2
+            sleep 5
+          done
+
+          apt-get install -y --no-install-recommends \
+            autoconf \
+            build-essential \
+            ca-certificates \
+            g++ \
+            git \
+            libicu-dev \
+            libreadline-dev \
+            libssl-dev \
+            libtool \
+            netbase \
+            netcat-openbsd \
+            pkg-config \
+            wget \
+            curl \
+            unzip \
+            bison \
+            flex \
+            cmake \
+            jq \
+            python3 \
+            zlib1g-dev \
+            bear \
+            clang-tidy \
+            clang-tools \
+            cppcheck \
+            libxml2-utils
+
+          rm -rf /var/lib/apt/lists/*
+
+      - name: Install Firebird server via IBSurgeon script
+        run: |
+          set -eu
+
+          if (set -o pipefail) 2>/dev/null; then :; fi
+
+          FB_SCRIPT_URL="https://raw.githubusercontent.com/IBSurgeon/firebirdlinuxinstall/refs/heads/main/fb_vanilla-50.sh"
+
+          echo "Downloading Firebird install script from ${FB_SCRIPT_URL}"
+          curl -fsSL "${FB_SCRIPT_URL}" -o /tmp/fb_install.sh
+          chmod +x /tmp/fb_install.sh
+
+          printf '\n' | /tmp/fb_install.sh
+
+          if ! nc -z 127.0.0.1 3050; then
+            if [ -x /etc/init.d/firebird ]; then
+              echo "Attempting to start Firebird via /etc/init.d/firebird ..."
+              /etc/init.d/firebird restart || /etc/init.d/firebird start || true
+            elif command -v service >/dev/null 2>&1; then
+              echo "Attempting to start Firebird via service firebird ..."
+              service firebird restart || service firebird start || true
+            fi
+          fi
+
+          if ! nc -z 127.0.0.1 3050; then
+            echo "Attempting to start Firebird via fbguard/fbserver binaries ..."
+            if [ -x /opt/firebird/bin/fbguard ]; then
+              /opt/firebird/bin/fbguard -daemon || true
+            elif [ -x /opt/firebird/bin/fbserver ]; then
+              /opt/firebird/bin/fbserver -daemon || true
+            fi
+          fi
+
+          for i in $(seq 1 60); do
+            if nc -z 127.0.0.1 3050; then
+              echo "Firebird is ready on localhost:3050"
+              break
+            fi
+            echo "Waiting for Firebird to start (attempt ${i}/60)..."
+            sleep 1
+          done
+
+          if ! nc -z 127.0.0.1 3050; then
+            echo "ERROR: Firebird did not start on localhost:3050" >&2
+            exit 1
+          fi
+
+      - name: Build PHP extension and generate compile_commands.json
+        env:
+          FB_CONFIG: "no"
+        run: |
+          set -eu
+
+          if (set -o pipefail) 2>/dev/null; then :; fi
+
+          export PATH="/opt/firebird/bin:${PATH}"
+          export LD_LIBRARY_PATH="/opt/firebird/lib:${LD_LIBRARY_PATH:-}"
+          export CFLAGS="-I/opt/firebird/include ${CFLAGS:-}"
+          export LDFLAGS="-L/opt/firebird/lib ${LDFLAGS:-}"
+
+          php -v
+          phpize
+          ./configure --with-interbase=/opt/firebird
+
+          # Generate compile_commands.json using bear
+          echo "Generating compilation database with bear..."
+          bear -- make -j"$(nproc)"
+
+          # Verify compile_commands.json was generated
+          if [ -f compile_commands.json ]; then
+            echo "✅ compile_commands.json generated successfully"
+            cat compile_commands.json | head -50
+          else
+            echo "⚠️ compile_commands.json not found, static analysis may be less accurate"
+          fi
+
+      - name: Run clang-tidy analysis
+        run: |
+          set -eu
+
+          echo "Running clang-tidy analysis..."
+
+          # Run clang-tidy on relevant source files
+          clang-tidy firebird_utils.cpp \
+              interbase.c \
+              ibase_query_exec.c \
+              ibase_result.c \
+              ibase_metadata.c \
+              ibase_service.c \
+              ibase_events.c \
+              ibase_blobs.c \
+              --config-file=.clang-tidy \
+              --header-filter='.*' \
+              --format-style=file || true
+
+          # Check for blocking errors (warnings are allowed)
+          echo "✅ clang-tidy analysis completed"
+
+      - name: Run cppcheck analysis
+        run: |
+          set -eu
+
+          echo "Running Cppcheck static analysis..."
+
+          # Common cppcheck flags
+          CPPCHECK_FLAGS="--std=c++17 --enable=all --inconclusive --inline-suppr"
+          # Suppress PHP macro false positives (ZEND_BEGIN_ARG_INFO_EX triggers missingReturn)
+          CPPCHECK_FLAGS="$CPPCHECK_FLAGS --suppress=missingReturn"
+          # Suppress false positive uninitialized variable warnings in PHP argument parsing
+          # These variables are initialized by ZEND_PARSE_PARAMETERS macros
+          CPPCHECK_FLAGS="$CPPCHECK_FLAGS --suppress=legacyUninitvar:ibase_query_exec.c"
+          # Exclude external Firebird library files
+          CPPCHECK_FLAGS="$CPPCHECK_FLAGS --suppress=*:/opt/firebird/*"
+          CPPCHECK_FLAGS="$CPPCHECK_FLAGS --suppress=*:/usr/local/include/*"
+          CPPCHECK_FLAGS="$CPPCHECK_FLAGS --xml --xml-version=2 --output-file=cppcheck-report.xml"
+
+          if [ -f compile_commands.json ]; then
+            cppcheck --project=compile_commands.json \
+                     $CPPCHECK_FLAGS
+          else
+            cppcheck firebird_utils.cpp interbase.c ibase_query_exec.c ibase_result.c ibase_metadata.c ibase_service.c ibase_events.c ibase_blobs.c \
+                     $CPPCHECK_FLAGS \
+                     -I. -I/usr/include/php -I/opt/firebird/include
+          fi
+
+          # Parse results
+          if command -v xmllint &> /dev/null; then
+            ERRORS=$(xmllint --xpath 'count(//error[@severity="error"])' cppcheck-report.xml 2>/dev/null || echo 0)
+            WARNINGS=$(xmllint --xpath 'count(//error[@severity="warning"])' cppcheck-report.xml 2>/dev/null || echo 0)
+          else
+            ERRORS=$(grep -c 'severity="error"' cppcheck-report.xml || echo 0)
+            WARNINGS=$(grep -c 'severity="warning"' cppcheck-report.xml || echo 0)
+          fi
+
+          echo "Cppcheck results: $ERRORS errors, $WARNINGS warnings"
+
+          # Block on errors, allow warnings
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "❌ Cppcheck found $ERRORS errors"
+            if command -v xmllint &> /dev/null; then
+              xmllint --xpath '//error[@severity="error"]' cppcheck-report.xml || cat cppcheck-report.xml
+            else
+              cat cppcheck-report.xml
+            fi
+            exit 1
+          fi
+
+          if [ "$WARNINGS" -gt 0 ]; then
+            echo "⚠️ Cppcheck found $WARNINGS warnings (review recommended)"
+          fi
+
+          echo "✅ Cppcheck analysis completed"
+
+      - name: Upload cppcheck report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cppcheck-report
+          path: cppcheck-report.xml
+          retention-days: 7

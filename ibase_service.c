@@ -35,7 +35,7 @@
 #include "php_ibase_includes.h"
 
 typedef struct {
-	isc_svc_handle handle;
+	void *handle; /* void* to support 64-bit handles */
 	char *hostname;
 	char *username;
 	zend_resource *res;
@@ -47,7 +47,7 @@ static void _php_ibase_free_service(zend_resource *rsrc) /* {{{ */
 {
 	ibase_service *sv = (ibase_service *) rsrc->ptr;
 
-	if (isc_service_detach(IB_STATUS, &sv->handle)) {
+	if (isc_service_detach(IB_STATUS, (isc_svc_handle *)&sv->handle)) {
 		_php_ibase_error();
 	}
 
@@ -177,7 +177,7 @@ static void _php_ibase_user(INTERNAL_FUNCTION_PARAMETERS, char operation) /* {{{
 	}
 
 	/* now start the job */
-	if (isc_service_start(IB_STATUS, &svm->handle, NULL, spb_len, buf)) {
+	if (isc_service_start(IB_STATUS, (isc_svc_handle *)&svm->handle, NULL, spb_len, buf)) {
 		IBASE_SVC_ERROR(svm);
 		RETURN_FALSE;
 	}
@@ -219,7 +219,7 @@ PHP_FUNCTION(ibase_service_attach)
 	char *host = NULL, *user = NULL, *pass = NULL;
 	char buf[350];
 	char loc[128] = "service_mgr";
-	isc_svc_handle handle = 0;
+	void *handle = 0;
 	unsigned short p = 0;
 
 	RESET_ERRMSG;
@@ -268,7 +268,7 @@ PHP_FUNCTION(ibase_service_attach)
 	}
 
 	/* attach to the service manager */
-	if (isc_service_attach(IB_STATUS, 0, loc, &handle, p, buf)) {
+	if (isc_service_attach(IB_STATUS, 0, loc, (isc_svc_handle *)&handle, p, buf)) {
 		_php_ibase_error();
 		RETURN_FALSE;
 	}
@@ -314,7 +314,7 @@ static void _php_ibase_service_query(INTERNAL_FUNCTION_PARAMETERS, /* {{{ */
 	if (info_action == isc_info_svc_get_users) {
 		static char action[] = { isc_action_svc_display_user };
 
-		if (isc_service_start(IB_STATUS, &svm->handle, NULL, sizeof(action), action)) {
+		if (isc_service_start(IB_STATUS, (isc_svc_handle *)&svm->handle, NULL, sizeof(action), action)) {
 			IBASE_SVC_ERROR(svm);
 			RETURN_FALSE;
 		}
@@ -323,7 +323,7 @@ static void _php_ibase_service_query(INTERNAL_FUNCTION_PARAMETERS, /* {{{ */
 query_loop:
 	result = res_buf;
 
-	if (isc_service_query(IB_STATUS, &svm->handle, NULL, sizeof(spb), spb,
+	if (isc_service_query(IB_STATUS, (isc_svc_handle *)&svm->handle, NULL, sizeof(spb), spb,
 			1, &info_action, sizeof(res_buf), res_buf)) {
 
 		IBASE_SVC_ERROR(svm);
@@ -489,7 +489,7 @@ static void _php_ibase_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operati
 	}
 
 	/* now start the backup/restore job */
-	if (isc_service_start(IB_STATUS, &svm->handle, NULL, (unsigned short)spb_len, buf)) {
+	if (isc_service_start(IB_STATUS, (isc_svc_handle *)&svm->handle, NULL, (unsigned short)spb_len, buf)) {
 		IBASE_SVC_ERROR(svm);
 		RETURN_FALSE;
 	}
@@ -597,7 +597,7 @@ options_argument:
 		RETURN_FALSE;
 	}
 
-	if (isc_service_start(IB_STATUS, &svm->handle, NULL, (unsigned short)spb_len, buf)) {
+	if (isc_service_start(IB_STATUS, (isc_svc_handle *)&svm->handle, NULL, (unsigned short)spb_len, buf)) {
 		IBASE_SVC_ERROR(svm);
 		RETURN_FALSE;
 	}

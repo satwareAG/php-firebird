@@ -4,6 +4,31 @@
 
 Complete guide for running and debugging GitHub Actions workflows locally using `act`. This allows testing workflows before pushing to GitHub, debugging issues, and validating changes.
 
+## Quick Reference: Available Workflows
+
+| Workflow | Job Name | Purpose |
+|----------|----------|---------|
+| `main.yml` | `linux-matrix-build` | Build & test PHP extension (PHP/Firebird matrix) |
+| `code-quality.yml` | `code-quality` | Static analysis (clang-tidy + cppcheck) |
+
+## Quick Start: Helper Script
+
+The easiest way to run local CI tests is using the helper script:
+
+```bash
+# Default: PHP 8.4 + Firebird 5.0
+./scripts/host/test_with_act.sh
+
+# Specific matrix combination
+./scripts/host/test_with_act.sh --php 8.3 --fb 4.0
+
+# Run code quality workflow (clang-tidy + cppcheck)
+./scripts/host/test_with_act.sh --quality
+
+# Run ALL matrix combinations (heavy!)
+./scripts/host/test_with_act.sh --all
+```
+
 ## Quick Commands
 
 ### Basic Workflow Execution
@@ -15,11 +40,14 @@ act --list
 # Run default event (push)
 act
 
-# Run specific job
-act --job linux-comprehensive-build
+# Run specific job from main.yml
+act -W .github/workflows/main.yml -j linux-matrix-build
+
+# Run code quality workflow
+act -W .github/workflows/code-quality.yml -j code-quality --rm
 
 # Run with specific matrix
-act --job linux-comprehensive-build --matrix php-version:8.3 --matrix build-type:release
+act -W .github/workflows/main.yml -j linux-matrix-build --matrix php-version:8.3 --matrix firebird-version:4.0
 
 # Dry run (validation only)
 act --dryrun

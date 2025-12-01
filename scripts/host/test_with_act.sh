@@ -1,6 +1,7 @@
 #!/bin/bash
 # Optimized Local GitHub Actions Testing using `act`
 # Aligned with .github/workflows/main.yml (linux-matrix-build)
+# and .github/workflows/code-quality.yml (code-quality)
 
 set -e
 
@@ -11,8 +12,11 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-WORKFLOW_FILE=".github/workflows/main.yml"
+# Workflow files
+WORKFLOW_MAIN=".github/workflows/main.yml"
+WORKFLOW_QUALITY=".github/workflows/code-quality.yml"
 JOB_NAME="linux-matrix-build"
+JOB_QUALITY="code-quality"
 
 # Default Matrix Target
 DEFAULT_PHP="8.4"
@@ -20,11 +24,19 @@ DEFAULT_FB="5.0"
 
 usage() {
     echo -e "${BLUE}Usage:${NC} $0 [options]"
+    echo ""
     echo "Options:"
     echo "  --php <ver>      PHP Version (8.1, 8.2, 8.3, 8.4, 8.5) [default: $DEFAULT_PHP]"
     echo "  --fb <ver>       Firebird Version (2.5, 3.0, 4.0, 5.0) [default: $DEFAULT_FB]"
     echo "  --all            Run ALL matrix combinations (Heavy!)"
+    echo "  --quality        Run code-quality workflow (clang-tidy + cppcheck)"
     echo "  --help           Show this help"
+    echo ""
+    echo "Examples:"
+    echo "  $0                          # Default: PHP $DEFAULT_PHP, Firebird $DEFAULT_FB"
+    echo "  $0 --php 8.3 --fb 4.0       # Specific matrix"
+    echo "  $0 --quality                # Static analysis only"
+    echo "  $0 --all                    # All matrix combinations"
 }
 
 check_act() {
@@ -50,7 +62,7 @@ run_act_matrix() {
 
     # Construct command
     # We map the workspace specific to our setup
-    cmd="act -W $WORKFLOW_FILE -j $JOB_NAME --matrix php-version:$php --matrix firebird-version:$fb --rm"
+    cmd="act -W $WORKFLOW_MAIN -j $JOB_NAME --matrix php-version:$php --matrix firebird-version:$fb --rm"
 
     echo -e "${BLUE}Exec:${NC} $cmd"
     $cmd
@@ -63,6 +75,29 @@ run_act_matrix() {
         return 0
     else
         echo -e "\n${RED}❌ Test Failed:${NC} PHP $php + FB $fb (Exit Code: $status)"
+        return 1
+    fi
+}
+
+run_code_quality() {
+    echo -e "\n${BLUE}🚀 Running Job:${NC} $JOB_QUALITY"
+    echo -e "${YELLOW}⚙️  Static Analysis:${NC} clang-tidy + cppcheck"
+
+    set +e # Allow failure to capture exit code
+
+    cmd="act -W $WORKFLOW_QUALITY -j $JOB_QUALITY --rm"
+
+    echo -e "${BLUE}Exec:${NC} $cmd"
+    $cmd
+
+    status=$?
+    set -e
+
+    if [ $status -eq 0 ]; then
+        echo -e "\n${GREEN}✅ Code Quality Passed${NC}"
+        return 0
+    else
+        echo -e "\n${RED}❌ Code Quality Failed${NC} (Exit Code: $status)"
         return 1
     fi
 }
@@ -94,19 +129,23 @@ check_act
 PHP_VER="$DEFAULT_PHP"
 FB_VER="$DEFAULT_FB"
 RUN_ALL=0
+RUN_QUALITY=0
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --php) PHP_VER="$2"; shift ;;
         --fb) FB_VER="$2"; shift ;;
         --all) RUN_ALL=1 ;;
+        --quality) RUN_QUALITY=1 ;;
         --help) usage; exit 0 ;;
         *) echo "Unknown parameter passed: $1"; usage; exit 1 ;;
     esac
     shift
 done
 
-if [ "$RUN_ALL" -eq 1 ]; then
+if [ "$RUN_QUALITY" -eq 1 ]; then
+    run_code_quality
+elif [ "$RUN_ALL" -eq 1 ]; then
     run_all
 else
     run_act_matrix "$PHP_VER" "$FB_VER"

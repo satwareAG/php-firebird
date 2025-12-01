@@ -19,12 +19,12 @@ echo "Test: BLOB creation from PHP stream with chunked writes\n";
 echo "=========================================================\n";
 
 $db = ibase_connect($test_base);
-$trans = ibase_trans($db);
 
-// Create test table
+// Create test table (DDL uses connection-level implicit transaction)
 @ibase_query($db, "DROP TABLE test_stream_blob");
+ibase_commit($db);  // Commit any pending DDL
 ibase_query($db, "CREATE TABLE test_stream_blob (id INTEGER NOT NULL PRIMARY KEY, data BLOB)");
-ibase_commit($trans);
+ibase_commit($db);  // Commit table creation
 
 // Test with various data sizes
 $sizes = [100, 8192, 32768, 65536];
@@ -119,9 +119,10 @@ foreach ($sizes as $size) {
     ibase_commit($trans);
 }
 
-// Cleanup
+// Cleanup - commit any pending DDL and suppress warnings
 @ibase_query($db, "DROP TABLE test_stream_blob");
-ibase_close($db);
+@ibase_commit($db);  // Commit DROP TABLE DDL (may warn if table was already dropped)
+@ibase_close($db);
 
 echo "\nDone!\n";
 ?>

@@ -2045,7 +2045,7 @@ PHP_FUNCTION(ibase_prepare)
 {
 	zval *args;
 	int i, argc = ZEND_NUM_ARGS();
-	char *query;
+	char *query = NULL;
 	ibase_db_link *link = NULL;
 	ibase_trans *trans = NULL;
 	zval *link_arg = NULL, *trans_arg = NULL;
@@ -2141,6 +2141,7 @@ PHP_FUNCTION(ibase_prepare)
 		}
 	}
 
+	/* cppcheck-suppress legacyUninitvar ; query is guaranteed non-NULL here */
 	if (FAILURE == _php_ibase_prepare(&ib_query, link, trans, trans_res, query)) {
 		efree(args);
 		RETURN_FALSE;
@@ -2266,7 +2267,7 @@ PHP_FUNCTION(fbird_execute_statement)
     char *sql;
     size_t sql_len;
     ibase_trans *trans;
-    ibase_db_link *link;
+    ibase_db_link *link = NULL;
     ibase_query *ib_query;
     zval *bind_args = NULL;
     int bind_n = 0;
@@ -2340,7 +2341,7 @@ PHP_FUNCTION(fbird_execute_query)
     char *sql;
     size_t sql_len;
     ibase_trans *trans;
-    ibase_db_link *link;
+    ibase_db_link *link = NULL;
     ibase_query *ib_query;
     zval *bind_args = NULL;
     int bind_n = 0;
@@ -2360,6 +2361,7 @@ PHP_FUNCTION(fbird_execute_query)
         RETURN_FALSE;
     }
 
+    /* cppcheck-suppress legacyUninitvar ; link is guaranteed non-NULL here */
     if (FAILURE == _php_ibase_prepare(&ib_query, link, trans, Z_RES_P(trans_arg), sql)) {
         RETURN_FALSE;
     }

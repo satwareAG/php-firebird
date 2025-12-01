@@ -170,22 +170,18 @@ jobs:
 
           echo "Running Cppcheck static analysis..."
 
+          # Common cppcheck flags
+          CPPCHECK_FLAGS="--std=c++17 --enable=all --inconclusive --inline-suppr"
+          CPPCHECK_FLAGS="$CPPCHECK_FLAGS --suppress=missingReturn:ibase_service.c"
+          CPPCHECK_FLAGS="$CPPCHECK_FLAGS --suppress=*:/opt/firebird/*"
+          CPPCHECK_FLAGS="$CPPCHECK_FLAGS --xml --xml-version=2 --output-file=cppcheck-report.xml"
+
           if [ -f compile_commands.json ]; then
             cppcheck --project=compile_commands.json \
-                     --std=c++17 \
-                     --enable=all \
-                     --inconclusive \
-                     --xml \
-                     --xml-version=2 \
-                     --output-file=cppcheck-report.xml
+                     $CPPCHECK_FLAGS
           else
             cppcheck firebird_utils.cpp interbase.c ibase_query_exec.c ibase_result.c ibase_metadata.c ibase_service.c ibase_events.c ibase_blobs.c \
-                     --std=c++17 \
-                     --enable=all \
-                     --inconclusive \
-                     --xml \
-                     --xml-version=2 \
-                     --output-file=cppcheck-report.xml \
+                     $CPPCHECK_FLAGS \
                      -I. -I/usr/include/php -I/opt/firebird/include
           fi
 

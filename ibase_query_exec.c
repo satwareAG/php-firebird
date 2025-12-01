@@ -548,7 +548,17 @@ static int _php_ibase_bind(ibase_query *ib_query, zval *b_vars) /* {{{ */
 						continue;
 					}
 
-                    /* FIX: Use temporary ISC_LONG for slice length to avoid pointer type mismatch on 64-bit systems */
+                    /* FIX: Use temporary ISC_LONG for slice length to avoid pointer type mismatch on 64-bit systems.
+                     *
+                     * Problem: ar->ar_size is zend_ulong (8 bytes on 64-bit) but isc_array_put_slice() expects
+                     * ISC_LONG* (4 bytes). Passing &ar->ar_size directly causes incorrect slice length
+                     * interpretation and potential memory corruption.
+                     *
+                     * Solution: Copy to temporary ISC_LONG, pass address of temporary.
+                     *
+                     * Test coverage: tests/007.phpt (currently SKIPPED due to broader array handling issues)
+                     * Documentation: docs/development/IBASE_QUERY_EXEC_FIXES.md
+                     */
                     ISC_LONG slice_len = (ISC_LONG)ar->ar_size;
 
 					if (isc_array_put_slice(IB_STATUS, &ib_query->link->handle.db, &ib_query->trans->handle.tr,
@@ -1256,7 +1266,19 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 	RESET_ERRMSG;
 	RETVAL_FALSE;
 
-	/* Enhanced parameter validation BEFORE Firebird API calls */
+	/* Enhanced parameter validation BEFORE Firebird API calls.
+	 *
+	 * Validation behavior:
+	 *   - bind_n < 0 or argc < 0: Invalid state → E_WARNING + FAILURE
+	 *   - bind_n < argc (too few args given): E_WARNING + FAILURE (execution blocked)
+	 *   - bind_n > argc (extra args given): E_NOTICE (execution continues, extra args ignored)
+	 *
+	 * This stricter validation provides clearer error messages compared to letting
+	 * Firebird return cryptic errors for parameter mismatches.
+	 *
+	 * Test coverage: tests/bug45373.phpt
+	 * Documentation: docs/development/IBASE_QUERY_EXEC_FIXES.md
+	 */
 	if (bind_n < 0 || argc < 0) {
 		php_error_docref(NULL, E_WARNING, "Invalid parameter count: bind_n=%d, argc=%d", bind_n, argc);
 		return FAILURE;

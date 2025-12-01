@@ -240,18 +240,43 @@ jobs:
           set -eu
           mkdir -p coverage
 
-          # Capture initial coverage data
-          # Use --rc lcov_branch_coverage=0 to avoid branch coverage complications
-          # Force continue on gcov errors with 2>/dev/null and || true
-          echo "Capturing coverage data..."
+          echo "=== Debug: Listing gcno/gcda files ==="
+          find . -name "*.gcno" -o -name "*.gcda" 2>/dev/null | head -20 || true
+
+          # Run gcov directly on source files to generate .gcov files
+          # This ensures gcov can find the corresponding .gcno files
+          echo "Running gcov on source files..."
+          for src in *.c; do
+            if [ -f "$src" ]; then
+              gcov -o . "$src" 2>/dev/null || true
+            fi
+          done
+
+          # Also process files in .libs if they exist
+          if [ -d ".libs" ]; then
+            for gcda in .libs/*.gcda; do
+              if [ -f "$gcda" ]; then
+                base=$(basename "$gcda" .gcda)
+                if [ -f "${base}.c" ]; then
+                  gcov -o .libs "${base}.c" 2>/dev/null || true
+                fi
+              fi
+            done
+          fi
+
+          echo "=== Debug: Listing .gcov files ==="
+          ls -la *.gcov 2>/dev/null | head -10 || echo "No .gcov files in root"
+
+          # Capture coverage using lcov (with fallback for older versions)
+          echo "Capturing coverage data with lcov..."
           lcov --directory . --capture --output-file coverage/lcov.info \
             --rc lcov_branch_coverage=0 \
+            --no-external \
             2>&1 || true
 
           # Check if we got any coverage data
           if [ ! -s coverage/lcov.info ]; then
             echo "Warning: No coverage data captured in initial capture"
-            # Create minimal valid lcov file
             echo "TN:" > coverage/lcov.info
           fi
 

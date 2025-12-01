@@ -1203,21 +1203,39 @@ static int _php_ibase_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 					break;
 				case SQL_VARYING:
 					{
-						convert_to_string(val);
-						size_t str_len = Z_STRLEN_P(val);
+						/* Use zval_get_string() to get copy without modifying original zval
+						 * This fixes PHP 8.x issue where convert_to_string() modifies in-place,
+						 * causing all array elements to contain the last value */
+						zend_string *str = zval_get_string(val);
+						size_t str_len = ZSTR_LEN(str);
 						size_t max_len = buf_size - sizeof(short);
 						if (str_len > max_len) {
 							str_len = max_len;
 						}
 						*(short *)buf = (short)str_len;
 						if (str_len > 0) {
-							memcpy(buf + sizeof(short), Z_STRVAL_P(val), str_len);
+							memcpy(buf + sizeof(short), ZSTR_VAL(str), str_len);
 						}
+						zend_string_release(str);
 					}
 					break;
 				default:
-					convert_to_string(val);
-					strlcpy(buf, Z_STRVAL_P(val), buf_size);
+					{
+						/* Use zval_get_string() to get copy without modifying original zval
+						 * This fixes PHP 8.x issue where convert_to_string() modifies in-place,
+						 * causing all CHAR array elements to contain the last value */
+						zend_string *str = zval_get_string(val);
+						size_t copy_len = ZSTR_LEN(str);
+						if (copy_len >= buf_size) {
+							copy_len = buf_size - 1;
+						}
+						memcpy(buf, ZSTR_VAL(str), copy_len);
+						/* Pad remaining buffer with spaces for CHAR fields (SQL_TEXT) */
+						if (copy_len < buf_size) {
+							memset(buf + copy_len, ' ', buf_size - copy_len);
+						}
+						zend_string_release(str);
+					}
 			}
 		}
 	}

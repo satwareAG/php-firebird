@@ -172,8 +172,14 @@ jobs:
 
           # Common cppcheck flags
           CPPCHECK_FLAGS="--std=c++17 --enable=all --inconclusive --inline-suppr"
-          CPPCHECK_FLAGS="$CPPCHECK_FLAGS --suppress=missingReturn:ibase_service.c"
+          # Suppress PHP macro false positives (ZEND_BEGIN_ARG_INFO_EX triggers missingReturn)
+          CPPCHECK_FLAGS="$CPPCHECK_FLAGS --suppress=missingReturn"
+          # Suppress false positive uninitialized variable warnings in PHP argument parsing
+          # These variables are initialized by ZEND_PARSE_PARAMETERS macros
+          CPPCHECK_FLAGS="$CPPCHECK_FLAGS --suppress=legacyUninitvar:ibase_query_exec.c"
+          # Exclude external Firebird library files
           CPPCHECK_FLAGS="$CPPCHECK_FLAGS --suppress=*:/opt/firebird/*"
+          CPPCHECK_FLAGS="$CPPCHECK_FLAGS --suppress=*:/usr/local/include/*"
           CPPCHECK_FLAGS="$CPPCHECK_FLAGS --xml --xml-version=2 --output-file=cppcheck-report.xml"
 
           if [ -f compile_commands.json ]; then

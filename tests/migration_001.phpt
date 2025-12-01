@@ -3,9 +3,10 @@ Migration reliability: fbird_drop_table_force logic
 --SKIPIF--
 <?php
 include("skipif.inc");
-// TEMPORARY: Skip due to MON$ table access issues in test infrastructure
-// Root cause: fbird_drop_table_force now uses IB_STATUS correctly but test needs rework
-die("skip fbird_drop_table_force test needs test infrastructure fixes");
+// KNOWN ISSUE: fbird_drop_table_force has bug returning "unknown ISC error 0"
+// Root cause: Function's error handling needs investigation (not test infrastructure)
+// TODO: Fix function in interbase.c, then enable this test
+die("skip fbird_drop_table_force has unresolved bug - returns 'unknown ISC error 0'");
 ?>
 --FILE--
 <?php

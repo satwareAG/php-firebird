@@ -268,10 +268,12 @@ jobs:
           ls -la *.gcov 2>/dev/null | head -10 || echo "No .gcov files in root"
 
           # Capture coverage using lcov (with fallback for older versions)
+          # Use --ignore-errors gcov to skip files with gcno/gcda path mismatches
           echo "Capturing coverage data with lcov..."
           lcov --directory . --capture --output-file coverage/lcov.info \
             --rc lcov_branch_coverage=0 \
             --no-external \
+            --ignore-errors gcov \
             2>&1 || true
 
           # Check if we got any coverage data

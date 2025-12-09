@@ -28,7 +28,7 @@ jobs:
         firebird-version: ['2.5', '3.0', '4.0', '5.0']
 
     env:
-      # Default Firebird credentials expected by tests/interbase.inc.
+      # Default Firebird credentials expected by tests/firebird.inc.
       ISC_USER: SYSDBA
       ISC_PASSWORD: masterkey
 
@@ -161,7 +161,7 @@ jobs:
             exit 1
           fi
 
-      - name: Build PHP extension (interbase)
+      - name: Build PHP extension (firebird)
         env:
           # Force config.m4 to use the Firebird installation at /opt/firebird
           # instead of probing a system fb_config.
@@ -179,14 +179,14 @@ jobs:
 
           php -v
           phpize
-          ./configure --with-interbase=/opt/firebird
+          ./configure --with-firebird=/opt/firebird
           make -j"$(nproc)"
 
       - name: Run PHPT tests
         env:
           # tests/config.inc reads FIREBIRD_HOST and uses it as the host
           # portion of connection strings; the database path is appended in
-          # tests/interbase.inc. Since the Firebird server runs in the same
+          # tests/firebird.inc. Since the Firebird server runs in the same
           # container, we connect to localhost on the default port.
           FIREBIRD_HOST: "localhost"
           ISC_USER: SYSDBA

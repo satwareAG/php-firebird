@@ -16,18 +16,22 @@ if ! [ -f compile_commands.json ]; then
     fi
 fi
 
-# Run clang-tidy on relevant source files
-# Including new refactored C files and C++ files
-clang-tidy firebird_utils.cpp \
-    interbase.c \
-    ibase_query_exec.c \
-    ibase_result.c \
-    ibase_metadata.c \
-    ibase_service.c \
-    ibase_events.c \
-    ibase_blobs.c \
+# Run clang-tidy on extension source files (renamed from ibase_* to fbird_*)
+# Using header-filter to ONLY analyze our extension's headers, not PHP system headers
+clang-tidy \
+    firebird.c \
+    firebird_utils.cpp \
+    fbird_query.c \
+    fbird_query_exec.c \
+    fbird_result.c \
+    fbird_metadata.c \
+    fbird_service.c \
+    fbird_events.c \
+    fbird_blobs.c \
+    fbird_inspection.c \
+    fbird_udf.c \
     --config-file=.clang-tidy \
-    --header-filter='.*' \
+    --header-filter='^\./(php_firebird|php_fbird|firebird_utils).*\.h$' \
     --format-style=file
 
 # Check for blocking errors

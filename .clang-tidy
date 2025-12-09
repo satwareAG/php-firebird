@@ -18,7 +18,9 @@ WarningsAsErrors: >
   performance-move-const-arg,
   bugprone-use-after-move
 
-HeaderFilterRegex: 'firebird_utils\.(h|hpp|cpp)$'
+# Only analyze extension's own headers, not PHP system headers
+# Matches: php_firebird.h, php_fbird_*.h, firebird_utils*.h
+HeaderFilterRegex: '^\./(php_firebird|php_fbird|firebird_utils).*\.(h|hpp)$'
 
 CheckOptions:
   - key: modernize-use-auto.MinTypeNameLength

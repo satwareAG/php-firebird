@@ -90,7 +90,7 @@ docker compose exec "$CONTAINER" bash -c "
     cd /ext
     if [ -f Makefile ]; then make clean; phpize --clean; fi
     phpize
-    CPPFLAGS='-I/usr/include/firebird' ./configure --with-interbase=/usr
+    CPPFLAGS='-I/usr/include/firebird' ./configure --with-firebird=/usr
     bear -- make -j\$(nproc)
 "
 

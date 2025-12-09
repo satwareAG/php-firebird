@@ -29,7 +29,7 @@
 
 #include "php.h"
 
-#if HAVE_IBASE
+#if HAVE_FIREBIRD
 
 #include "php_firebird.h"
 #include "php_ibase_includes.h"
@@ -651,4 +651,4 @@ PHP_FUNCTION(ibase_server_info)
 
 void php_ibase_register_service_constants(INIT_FUNC_ARGS) { /* nop */ }
 
-#endif /* HAVE_IBASE */
+#endif /* HAVE_FIREBIRD */

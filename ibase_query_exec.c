@@ -28,7 +28,7 @@
 #include "php.h"
 #include "php_ini.h"
 
-#if HAVE_IBASE
+#if HAVE_FIREBIRD
 
 #include "ext/standard/php_standard.h"
 #include "php_firebird.h"
@@ -2521,4 +2521,4 @@ int _php_ibase_fetch_query_res(zval *from, ibase_query **ib_query)
 	return (*ib_query) ? 1 : 0;
 }
 
-#endif /* HAVE_IBASE */
+#endif /* HAVE_FIREBIRD */

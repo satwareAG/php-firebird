@@ -31,7 +31,7 @@
 #define FBIRD_TSRMLS_FETCH_FROM_CTX(user_data)
 #define FBIRD_TSRMLS_SET_CTX(user_data)
 
-#if HAVE_IBASE
+#if HAVE_FIREBIRD
 
 #include "php_firebird.h"
 #include "php_ibase_includes.h"
@@ -487,4 +487,4 @@ PHP_FUNCTION(ibase_free_event_handler)
 }
 /* }}} */
 
-#endif /* HAVE_IBASE */
+#endif /* HAVE_FIREBIRD */

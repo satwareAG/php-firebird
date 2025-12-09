@@ -960,7 +960,7 @@ PHP_MINIT_FUNCTION(ibase)
 	REGISTER_LONG_CONSTANT("IBASE_FETCH_BLOBS", PHP_IBASE_FETCH_BLOBS, CONST_PERSISTENT);
 	REGISTER_LONG_CONSTANT("IBASE_FETCH_ARRAYS", PHP_IBASE_FETCH_ARRAYS, CONST_PERSISTENT);
 	REGISTER_LONG_CONSTANT("IBASE_UNIXTIME", PHP_IBASE_UNIXTIME, CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("IBASE_VER", PHP_INTERBASE_VER, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("IBASE_VER", PHP_FIREBIRD_VER, CONST_PERSISTENT);
 
 	/* transactions */
 	REGISTER_LONG_CONSTANT("IBASE_WRITE", PHP_IBASE_WRITE, CONST_PERSISTENT);
@@ -1011,8 +1011,8 @@ PHP_MSHUTDOWN_FUNCTION(ibase)
 	 * be unloaded automatically when the process exits.
 	 */
 	zend_module_entry *ibase_entry;
-	if ((ibase_entry = zend_hash_str_find_ptr(&module_registry, ibase_module_entry.name,
-			strlen(ibase_module_entry.name))) != NULL) {
+	if ((ibase_entry = zend_hash_str_find_ptr(&module_registry, firebird_module_entry.name,
+			strlen(firebird_module_entry.name))) != NULL) {
 		ibase_entry->handle = 0;
 	}
 #endif

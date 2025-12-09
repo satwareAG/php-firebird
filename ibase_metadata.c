@@ -28,7 +28,7 @@
 #include "php.h"
 #include "php_ini.h"
 
-#if HAVE_IBASE
+#if HAVE_FIREBIRD
 
 #include "ext/standard/php_standard.h"
 #include "php_firebird.h"
@@ -651,4 +651,4 @@ static zend_bool _php_ibase_sql_has_returning(const char *sql)
     return 0;
 }
 
-#endif /* HAVE_IBASE */
+#endif /* HAVE_FIREBIRD */

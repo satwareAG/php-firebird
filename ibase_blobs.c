@@ -29,7 +29,7 @@
 
 #include "php.h"
 
-#if HAVE_IBASE
+#if HAVE_FIREBIRD
 
 #include "php_firebird.h"
 #include "php_ibase_includes.h"
@@ -824,4 +824,4 @@ PHP_FUNCTION(ibase_blob_open_stream)
 }
 /* }}} */
 
-#endif /* HAVE_IBASE */
+#endif /* HAVE_FIREBIRD */

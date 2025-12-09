@@ -2,8 +2,8 @@
 ibase_connect() basic attach and SELECT 1 using defaults
 --SKIPIF--
 <?php
-if (!extension_loaded('interbase')) {
-    die('skip interbase extension not available');
+if (!extension_loaded('firebird')) {
+    die('skip firebird extension not available');
 }
 --FILE--
 <?php

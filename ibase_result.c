@@ -28,7 +28,7 @@
 #include "php.h"
 #include "php_ini.h"
 
-#if HAVE_IBASE
+#if HAVE_FIREBIRD
 
 #include "ext/standard/php_standard.h"
 #include "php_firebird.h"
@@ -723,4 +723,4 @@ PHP_FUNCTION(ibase_free_result)
 }
 /* }}} */
 
-#endif /* HAVE_IBASE */
+#endif /* HAVE_FIREBIRD */

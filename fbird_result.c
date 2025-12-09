@@ -382,10 +382,12 @@ static int _php_fbird_arr_zval(zval *ar_zval, char *data, zend_ulong data_size, 
 			}
 			data += slice_size;
 
+			/* add_index_zval transfers ownership of the zval to the array.
+			 * Do NOT call zval_ptr_dtor after this - it would free the value
+			 * that was just added, causing all array elements to contain
+			 * the last (use-after-free) value. This was the root cause of
+			 * the bug where all CHAR array elements returned the last value. */
 			add_index_zval(ar_zval, l_bound + i, &slice_zval);
-			/* slice_zval holds a reference to the value which was copied into ar_zval.
-			   We must release our reference to avoid leaking the value/zval structure. */
-			zval_ptr_dtor(&slice_zval);
 		}
 	} else { /* data at last */
 		/* For arrays, subtype info is not readily available in ar_desc.
@@ -626,13 +628,13 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 					ISC_LONG fetch_size = ib_array->ar_size;
 					void *ar_data = emalloc((size_t)fetch_size);
 
-					if (isc_array_get_slice(IB_STATUS, &ib_query->link->handle.db,
-							&ib_query->trans->handle.tr, &ar_qd, &ib_array->ar_desc,
-							ar_data, &fetch_size)) {
-						_php_fbird_error();
-						efree(ar_data);
-						goto _php_fbird_fetch_error;
-					}
+				if (isc_array_get_slice(IB_STATUS, &ib_query->link->handle.db,
+						&ib_query->trans->handle.tr, &ar_qd, &ib_array->ar_desc,
+						ar_data, &fetch_size)) {
+					_php_fbird_error();
+					efree(ar_data);
+					goto _php_fbird_fetch_error;
+				}
 
 					/* Use ORIGINAL ar_size for recursive processing (structure size),
 					 * not the potentially modified fetch_size */

@@ -10,7 +10,7 @@ die("skip fbird_drop_table_force has unresolved bug - returns 'unknown ISC error
 ?>
 --FILE--
 <?php
-require("interbase.inc");
+require("firebird.inc");
 
 $db = ibase_connect($test_base);
 

@@ -10,7 +10,7 @@ if (ibase_get_client_major_version() < 4) die("skip Firebird client library < 4.
 --FILE--
 <?php
 
-require("interbase.inc");
+require("firebird.inc");
 require("common.inc");
 ibase_connect($test_base);
 test_field_data40();

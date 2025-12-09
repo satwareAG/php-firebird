@@ -5,7 +5,7 @@ fbird_savepoint() error handling
 --FILE--
 <?php
 
-require("interbase.inc");
+require("firebird.inc");
 
 $db = fbird_connect($test_base);
 $trans = fbird_trans($db);

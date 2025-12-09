@@ -12,7 +12,7 @@ _php_ibase_blob_add() has no such safety check.
 <?php include("skipif.inc"); ?>
 --FILE--
 <?php
-require("interbase.inc");
+require("firebird.inc");
 
 echo "Connecting...\n";
 $db = ibase_connect($test_base);

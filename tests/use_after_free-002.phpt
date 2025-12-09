@@ -14,7 +14,7 @@ if(PHP_MAJOR_VERSION < 8) print "Skip PHP < 8";
 // as in 006.phpt, you would expect 5 batches with 2 rows printed with
 // incremented I but it doesn't of course.
 
-require("interbase.inc");
+require("firebird.inc");
 require("common.inc");
 ibase_connect($test_base);
 

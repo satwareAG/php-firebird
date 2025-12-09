@@ -11,7 +11,7 @@ die("skip Array handling has known segfault issue - needs deep investigation");
 --FILE--
 <?php
 
-	require("interbase.inc");
+	require("firebird.inc");
 
 	ibase_connect($test_base);
 

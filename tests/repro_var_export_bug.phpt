@@ -4,7 +4,7 @@ Bug: var_export returns NULL for valid resources
 <?php include("skipif.inc"); ?>
 --FILE--
 <?php
-require("interbase.inc");
+require("firebird.inc");
 $x = ibase_connect($test_base);
 $trans = ibase_trans($x);
 $query = ibase_prepare($trans, "SELECT 1 FROM RDB\$DATABASE");

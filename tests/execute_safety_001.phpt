@@ -4,7 +4,7 @@ API Safety: fbird_execute_statement vs fbird_execute_query error validation
 <?php include("skipif.inc"); ?>
 --FILE--
 <?php
-require("interbase.inc");
+require("firebird.inc");
 
 $db = ibase_connect($test_base);
 $trans = ibase_trans($db);

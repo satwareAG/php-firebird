@@ -5,7 +5,7 @@ InterBase: misc sql types (may take a while)
 --FILE--
 <?php
 
-    require("interbase.inc");
+    require("firebird.inc");
     ibase_connect($test_base);
 
     /* To prevent unwanted roundings set PHP precision to 18 */

@@ -4,7 +4,7 @@ Check functionality of fbird_* aliases
 <?php include("skipif.inc"); ?>
 --FILE--
 <?php
-require("interbase.inc");
+require("firebird.inc");
 
 function test_alias_functionality() {
     global $test_base, $user, $password;
@@ -117,7 +117,7 @@ function test_alias_functionality() {
     fbird_rollback($trans_rb_ret); // Cleanup
 
     // Test Service aliases (Basic check)
-    global $host; // from interbase.inc
+    global $host; // from firebird.inc
     $service = fbird_service_attach($host ? $host : "localhost", $user, $password);
     if ($service) {
         echo "fbird_service_attach succeeded\n";

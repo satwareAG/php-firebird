@@ -5,7 +5,7 @@ InterBase: binding (may take a while)
 --FILE--
 <?php
 
-	require("interbase.inc");
+	require("firebird.inc");
 
 	ibase_connect($test_base);
 

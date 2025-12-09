@@ -8,7 +8,7 @@ skip_if_fb_gt(3.0);
 --FILE--
 <?php
 
-require_once("interbase.inc");
+require_once("firebird.inc");
 ibase_connect($test_base);
 
 // FB 2.5, 3.0 identifier len is by byte count not character count

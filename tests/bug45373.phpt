@@ -5,7 +5,7 @@ Bug #45373 (php crash on query with errors in params)
 --FILE--
 <?php
 
-require("interbase.inc");
+require("firebird.inc");
 
 $db = ibase_connect($test_base);
 

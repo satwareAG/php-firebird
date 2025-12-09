@@ -8,7 +8,7 @@ print "skip: custom test for @mlazdans";
 --FILE--
 <?php
 
-require("interbase.inc");
+require("firebird.inc");
 
 (function(){
     // ibase_connect("127.0.0.1/3052:E:\\dbf50\\test\\TEST.FDB", "sysdba", "masterkey", "utf8");

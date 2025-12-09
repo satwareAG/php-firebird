@@ -13,7 +13,7 @@ in some scenarios with PHP Firebird extension 6.2.0.
 <?php include("skipif.inc"); ?>
 --FILE--
 <?php
-require("interbase.inc");
+require("firebird.inc");
 
 echo "Test: BLOB creation from PHP stream with chunked writes\n";
 echo "=========================================================\n";

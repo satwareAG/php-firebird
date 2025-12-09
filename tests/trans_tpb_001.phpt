@@ -5,7 +5,7 @@ fbird_trans_start() with new array options and fbird_trans_info()
 --FILE--
 <?php
 
-require("interbase.inc");
+require("firebird.inc");
 
 $db = fbird_connect($test_base);
 

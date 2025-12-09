@@ -5,7 +5,7 @@ Bug #46247 (ibase_set_event_handler() is allowing to pass callback without event
 --FILE--
 <?php
 
-require("interbase.inc");
+require("firebird.inc");
 
 $db = ibase_connect($test_base);
 

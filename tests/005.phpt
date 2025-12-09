@@ -9,7 +9,7 @@ include("skipif.inc");
 
 // See https://github.com/FirebirdSQL/php-firebird/issues/41
 
-    require("interbase.inc");
+    require("firebird.inc");
 
     ibase_connect($test_base);
 

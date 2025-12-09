@@ -5,7 +5,7 @@ fbird_savepoint(), fbird_rollback_savepoint(), fbird_release_savepoint()
 --FILE--
 <?php
 
-require("interbase.inc");
+require("firebird.inc");
 
 $db = fbird_connect($test_base);
 

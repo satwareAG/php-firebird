@@ -13,7 +13,7 @@ if(defined('FBIRD_VER') && (FBIRD_VER >= 61)) print "Skip FBIRD_VER < 6.1";
 // as in 006.phpt, you would expect 5 batches with 2 rows printed with
 // incremented I but it doesn't of course.
 
-require("interbase.inc");
+require("firebird.inc");
 require("common.inc");
 test_use_after_ibase_free_query();
 

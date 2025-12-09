@@ -8,7 +8,7 @@ include("skipif-php80-or-older.inc");
 --FILE--
 <?php
 
-require("interbase.inc");
+require("firebird.inc");
 
 $db = ibase_connect($test_base);
 

@@ -5,7 +5,7 @@ InterBase: BLOB test
 --FILE--
 <?php
 
-    require("interbase.inc");
+    require("firebird.inc");
 
     $link = ibase_connect($test_base);
 

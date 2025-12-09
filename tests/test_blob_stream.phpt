@@ -4,7 +4,7 @@ Firebird: Stream Wrapper for BLOBs (Phase 3) - Full Cycle
 <?php include("skipif.inc"); ?>
 --FILE--
 <?php
-require("interbase.inc");
+require("firebird.inc");
 
 $db = ibase_connect($test_base);
 

@@ -7,7 +7,7 @@ include("skipif.inc");
 --FILE--
 <?php
 
-require("interbase.inc");
+require("firebird.inc");
 ibase_connect($test_base);
 
 (function(){

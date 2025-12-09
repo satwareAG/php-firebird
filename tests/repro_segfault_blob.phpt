@@ -4,7 +4,7 @@ Bug: Segfault on resource cleanup with BLOBs
 <?php include("skipif.inc"); ?>
 --FILE--
 <?php
-require("interbase.inc");
+require("firebird.inc");
 $x = ibase_connect($test_base);
 $trans = ibase_trans($x);
 
@@ -50,7 +50,7 @@ echo "Done\n";
 ?>
 --CLEAN--
 <?php
-require("interbase.inc");
+require("firebird.inc");
 $x = ibase_connect($test_base);
 @ibase_query($x, "DROP TABLE test_blobs");
 ibase_close($x);

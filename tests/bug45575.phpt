@@ -6,7 +6,7 @@ Bug #45575 (Segfault with invalid non-string as event handler callback)
 --FILE--
 <?php
 
-require("interbase.inc");
+require("firebird.inc");
 
 $db = ibase_connect($test_base);
 

@@ -10,7 +10,7 @@ include("skipif.inc");
 --FILE--
 <?php
 
-require("interbase.inc");
+require("firebird.inc");
 
 $count = 0;
 

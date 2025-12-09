@@ -11,7 +11,7 @@ skip_if_ext_gte(61);
 --FILE--
 <?php
 
-require("interbase.inc");
+require("firebird.inc");
 require("common.inc");
 ibase_connect($test_base);
 test_time_unixtime();

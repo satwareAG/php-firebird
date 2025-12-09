@@ -8,7 +8,7 @@ skip_if_fb_lt(4.0) || skip_if_fbclient_lt(4.0);
 --FILE--
 <?php
 
-require_once("interbase.inc");
+require_once("firebird.inc");
 ibase_connect($test_base);
 
 // FB3: The maximum identifier length is 31 bytes

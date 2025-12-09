@@ -2172,17 +2172,17 @@ static int is_valid_identifier(const char *s, size_t len)
 			}
 		}
 		return 1;
-	} else {
-		/* Unquoted identifier: alphanumeric, _, $ */
-		for (i = 0; i < len; i++) {
-			char c = s[i];
-			if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
-				  (c >= '0' && c <= '9') || c == '_' || c == '$')) {
-				return 0;
-			}
-		}
-		return 1;
 	}
+
+	/* Unquoted identifier: alphanumeric, _, $ */
+	for (i = 0; i < len; i++) {
+		char c = s[i];
+		if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+			  (c >= '0' && c <= '9') || c == '_' || c == '$')) {
+			return 0;
+		}
+	}
+	return 1;
 }
 
 /* {{{ proto fbird_gen_id(string generator [, int increment [, resource link_identifier ]])

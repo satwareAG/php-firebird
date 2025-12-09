@@ -4,7 +4,6 @@ InterBase: use after ibase_free_query()
 <?php
 include("skipif.inc");
 if(!defined('FBIRD_VER') || (FBIRD_VER < 61)) print "Skip FBIRD_VER < 6.1";
-if(PHP_MAJOR_VERSION < 8) print "Skip PHP < 8";
 ?>
 --FILE--
 <?php

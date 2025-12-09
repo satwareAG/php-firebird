@@ -3,7 +3,6 @@ ibase_drop_db(): Make sure passing an integer to the function throws an error.
 --SKIPIF--
 <?php
 include("skipif.inc");
-include("skipif-php80-or-older.inc");
 ?>
 --FILE--
 <?php

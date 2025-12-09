@@ -3,7 +3,6 @@ ibase_param_info(): Error if called with a single argument
 --SKIPIF--
 <?php
 include("skipif.inc");
-include("skipif-php80-or-older.inc");
 ?>
 --FILE--
 <?php

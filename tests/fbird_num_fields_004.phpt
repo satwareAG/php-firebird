@@ -3,7 +3,6 @@ ibase_num_fields(): Make sure passing zero arguments to the function throws an e
 --SKIPIF--
 <?php
 include("skipif.inc");
-include("skipif-php80-or-older.inc");
 ?>
 --FILE--
 <?php

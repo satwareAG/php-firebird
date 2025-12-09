@@ -3,7 +3,6 @@ ibase_free_query(): Basic test
 --SKIPIF--
 <?php
 include("skipif.inc");
-include("skipif-php80-or-older.inc");
 ?>
 --FILE--
 <?php

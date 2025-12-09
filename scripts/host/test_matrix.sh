@@ -3,8 +3,8 @@ set -e
 
 # Modern implementation of test runner across PHP versions
 # Usage: ./test_matrix.sh [container_name] [test_files...]
-# Example: ./test_matrix.sh php81-dev tests/ibase_blob_001.phpt tests/ibase_blob_002.phpt
-# Example (all versions, specific test): ./test_matrix.sh "" tests/ibase_blob_001.phpt
+# Example: ./test_matrix.sh php81-dev tests/fbird_blob_001.phpt tests/fbird_blob_002.phpt
+# Example (all versions, specific test): ./test_matrix.sh "" tests/fbird_blob_001.phpt
 
 # Colors
 GREEN='\033[0;32m'

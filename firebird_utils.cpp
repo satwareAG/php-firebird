@@ -186,8 +186,8 @@ namespace {
                 return std::nullopt;
             }
 
-            // Temporary storage for decode operation
-            unsigned year, month, day, hours, minutes, seconds, fractions;
+            // Temporary storage for decode operation (initialized to avoid analyzer warnings)
+            unsigned year = 0, month = 0, day = 0, hours = 0, minutes = 0, seconds = 0, fractions = 0;
             constexpr size_t TZ_BUFFER_SIZE = 64;
             std::array<char, TZ_BUFFER_SIZE> tz_buffer{};
 

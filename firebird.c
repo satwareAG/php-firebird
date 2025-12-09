@@ -2196,7 +2196,7 @@ PHP_FUNCTION(fbird_gen_id)
 	char query[128], *generator;
 	size_t gen_len;
 	zend_long inc = 1;
-	fbird_db_link *ib_link;
+	fbird_db_link *ib_link = NULL;
 	fbird_transaction *trans = NULL;
 	XSQLDA out_sqlda;
 	ISC_INT64 result = 0;

@@ -14,7 +14,7 @@ skip_if_ext_lt(61);
 
 require("firebird.inc");
 
-set_exception_handler("php_ibase_exception_handler");
+set_exception_handler("php_fbird_exception_handler");
 
 $x = ibase_connect($test_base);
 var_dump(ibase_close($x));

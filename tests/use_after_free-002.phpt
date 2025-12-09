@@ -17,11 +17,11 @@ require("firebird.inc");
 require("common.inc");
 ibase_connect($test_base);
 
-set_exception_handler("php_ibase_exception_handler");
+set_exception_handler("php_fbird_exception_handler");
 
-test_use_after_ibase_free_query();
+test_use_after_fbird_free_query();
 
 ?>
 --EXPECT--
 ---- Batch 1 ----
-Fatal error: Uncaught TypeError: ibase_fetch_assoc(): supplied resource is not a valid Firebird/InterBase query resource
+Fatal error: Uncaught TypeError: fbird_fetch_assoc(): supplied resource is not a valid Firebird/InterBase query resource

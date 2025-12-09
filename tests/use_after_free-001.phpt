@@ -15,7 +15,7 @@ if(defined('FBIRD_VER') && (FBIRD_VER >= 61)) print "Skip FBIRD_VER < 6.1";
 
 require("firebird.inc");
 require("common.inc");
-test_use_after_ibase_free_query();
+test_use_after_fbird_free_query();
 
 ?>
 --EXPECT--

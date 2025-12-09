@@ -19,7 +19,7 @@ ibase_connect($test_base);
         "ROLLBACK TO SAVEPOINT sp_name",
         "COMMIT",
     ];
-    ibase_query_bulk($queries);
+    fbird_query_bulk($queries);
     dump_table_rows("TEST1");
 })();
 

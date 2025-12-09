@@ -19,11 +19,11 @@ ibase_connect($test_base);
     ];
 
     print "---- current status\n";
-    ibase_query_bulk($queries);
+    fbird_query_bulk($queries);
     dump_table_rows("TEST1");
 
     print "---- now rollback\n";
-    ibase_query_bulk([
+    fbird_query_bulk([
         "ROLLBACK TO SAVEPOINT sp_name",
         "COMMIT",
     ]);

@@ -17,9 +17,9 @@ skip_if_php_lt(8);
 require("firebird.inc");
 require("common.inc");
 
-set_exception_handler("php_ibase_exception_handler");
+set_exception_handler("php_fbird_exception_handler");
 
-test_ibase_trans_014_015();
+test_fbird_trans_014_015();
 
 ?>
 --EXPECTF--

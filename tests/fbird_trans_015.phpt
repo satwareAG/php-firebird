@@ -17,7 +17,7 @@ skip_if_php_gte(8);
 require("firebird.inc");
 require("common.inc");
 
-test_ibase_trans_014_015();
+test_fbird_trans_014_015();
 
 ?>
 --EXPECTF--

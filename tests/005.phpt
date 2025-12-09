@@ -73,7 +73,7 @@ parameters run in this context
 
     $link_def = ibase_connect($test_base);
 
-    $tr_def_l1 = ibase_trans(IBASE_READ); /* here transaction start */
+    $tr_def_l1 = ibase_trans(FBIRD_READ); /* here transaction start */
 
     /* all default */
 	$res = ibase_query("select * from test5");
@@ -117,8 +117,8 @@ three transaction on default link
 
 	$tr_1 = ibase_query("SET TRANSACTION");
 	$tr_2 = ibase_query("SET TRANSACTION READ ONLY");
-	$tr_3 = ibase_trans(IBASE_READ+IBASE_COMMITTED+IBASE_REC_VERSION+IBASE_WAIT);
-	$tr_4 = ibase_trans(IBASE_READ+IBASE_COMMITTED+IBASE_REC_NO_VERSION+IBASE_NOWAIT);
+	$tr_3 = ibase_trans(FBIRD_READ+FBIRD_COMMITTED+FBIRD_REC_VERSION+FBIRD_WAIT);
+	$tr_4 = ibase_trans(FBIRD_READ+FBIRD_COMMITTED+FBIRD_REC_NO_VERSION+FBIRD_NOWAIT);
 
     /* insert in first transaction context...  */
     /* as default */
@@ -146,7 +146,7 @@ three transaction on default link
 	$tr_1 = ibase_trans();
   	 ibase_query($tr_1, "insert into test5 (i) values (5)");
 
-	/* tr_2 is IBASE_READ + IBASE_CONCURRENCY + IBASE_WAIT */
+	/* tr_2 is FBIRD_READ + FBIRD_CONCURRENCY + FBIRD_WAIT */
 	$res = ibase_query($tr_2, "select * from test5");
 
     echo "one row in second transaction\n";
@@ -154,7 +154,7 @@ three transaction on default link
 
     ibase_free_result($res);
 
-	/* tr_3 is IBASE_COMMITTED + IBASE_REC_VERSION + IBASE_WAIT */
+	/* tr_3 is FBIRD_COMMITTED + FBIRD_REC_VERSION + FBIRD_WAIT */
 	$res = ibase_query($tr_3, "select * from test5");
 
     echo "three rows in third transaction\n";
@@ -162,7 +162,7 @@ three transaction on default link
 
     ibase_free_result($res);
 
- 	/* tr_4 IBASE_COMMITTED + IBASE_REC_NO_VERSION + IBASE_NOWAIT */
+ 	/* tr_4 FBIRD_COMMITTED + FBIRD_REC_NO_VERSION + FBIRD_NOWAIT */
  	$res = ibase_query($tr_4, "select * from test5");
 
  	 echo "three rows in fourth transaction with deadlock\n";
@@ -178,8 +178,8 @@ transactions on second link
     $link_1 = ibase_pconnect($test_base);
     $link_2 = ibase_pconnect($test_base);
 
-	$tr_1 = ibase_trans(IBASE_DEFAULT, $link_2);  /* this default transaction also */
-	$tr_2 = ibase_trans(IBASE_COMMITTED, $link_2);
+	$tr_1 = ibase_trans(FBIRD_DEFAULT, $link_2);  /* this default transaction also */
+	$tr_2 = ibase_trans(FBIRD_COMMITTED, $link_2);
 
 	$res = ibase_query($tr_1, "select * from test5");
 

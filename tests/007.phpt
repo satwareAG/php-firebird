@@ -87,7 +87,7 @@ die("skip Array handling has known segfault issue - needs deep investigation");
 			$v_integer, $v_numeric, $v_smallint, $v_varchar);
 		$sel = ibase_query("select * from test7 where iter = $iter");
 
-		$row = ibase_fetch_object($sel,IBASE_FETCH_ARRAYS);
+		$row = ibase_fetch_object($sel,FBIRD_FETCH_ARRAYS);
                 for ($i = 1; $i <= 10; ++$i) {
 
 			if(strncmp($row->V_CHAR[$i],$v_char[$i],strlen($v_char[$i])) != 0) {

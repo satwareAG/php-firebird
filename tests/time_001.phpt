@@ -1,5 +1,5 @@
 --TEST--
-IBASE_UNIXTIME: return negative unix timestamp (old behaviour) for TIME fields
+FBIRD_UNIXTIME: return negative unix timestamp (old behaviour) for TIME fields
 --SKIPIF--
 <?php
 include("skipif.inc");

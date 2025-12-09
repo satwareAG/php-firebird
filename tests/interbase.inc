@@ -54,7 +54,7 @@ function init_db()
 		($charset = ini_get('ibase.default_charset')) ? $charset : 'NONE'
 	);
 
-	$test_db = ibase_query(IBASE_CREATE, $sql);
+	$test_db = ibase_query(FBIRD_CREATE, $sql);
 
 	$tr = ibase_trans($test_db);
 	ibase_query($tr,"create table test1 (i integer, c varchar(100))");
@@ -88,7 +88,7 @@ function get_fb_version(): float
 	if(isset($fb_version)) return $fb_version;
 
 	if($se = ibase_service_attach($host ? $host : "localhost", $user, $password)) {
-		$fb_version_str = ibase_server_info($se, IBASE_SVC_SERVER_VERSION);
+		$fb_version_str = ibase_server_info($se, FBIRD_SVC_SERVER_VERSION);
 		if($fb_version_str === false)die("skip cannot ibase_server_info()");
 		$server_version  = explode(" ", $fb_version_str);
 		$vers = (float)$server_version[count($server_version) - 1];

@@ -45,7 +45,7 @@ function test_time_unixtime(): void {
 	ibase_commit();
 	ibase_query("INSERT INTO TTEST (ID) VALUES (1)");
 	dump_table_rows("TTEST");
-	dump_table_rows("TTEST", null, IBASE_UNIXTIME);
+	dump_table_rows("TTEST", null, FBIRD_UNIXTIME);
 }
 
 function test_time_tz_unixtime(): void {
@@ -57,7 +57,7 @@ function test_time_tz_unixtime(): void {
 	ibase_commit();
 	ibase_query("INSERT INTO TTEST (ID) VALUES (1)");
 	dump_table_rows("TTEST");
-	dump_table_rows("TTEST", null, IBASE_UNIXTIME);
+	dump_table_rows("TTEST", null, FBIRD_UNIXTIME);
 }
 
 function test_fields25(): void {

@@ -1,5 +1,5 @@
 --TEST--
-IBASE_UNIXTIME: ignore IBASE_UNIXTIME flag for TIME fields
+FBIRD_UNIXTIME: ignore FBIRD_UNIXTIME flag for TIME fields
 --SKIPIF--
 <?php
 include("skipif.inc");

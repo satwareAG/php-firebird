@@ -108,7 +108,7 @@ foreach ($sizes as $size) {
     // Verify
     $trans = ibase_trans($db);
     $result = ibase_query($trans, "SELECT data FROM test_stream_blob WHERE id = {$size}");
-    $row = ibase_fetch_assoc($result, IBASE_TEXT);
+    $row = ibase_fetch_assoc($result, FBIRD_TEXT);
 
     if ($row && strlen($row['DATA']) === $size) {
         echo "  - VERIFIED: Retrieved " . strlen($row['DATA']) . " bytes\n";

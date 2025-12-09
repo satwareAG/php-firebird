@@ -9,7 +9,7 @@ require("interbase.inc");
 
 $x = ibase_connect($test_base);
 
-$trans = ibase_trans(IBASE_DEFAULT, $x);
+$trans = ibase_trans(FBIRD_DEFAULT, $x);
 $sth = ibase_prepare($trans, 'INSERT INTO test1 VALUES (?, ?)');
 
 $res = ibase_execute($sth, 100, 100);

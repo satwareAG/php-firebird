@@ -63,7 +63,7 @@ InterBase: BLOB test
     echo "test blob 2\n";
 
     $q = ibase_query("SELECT v_blob FROM test4 WHERE v_integer = 2");
-    $row = ibase_fetch_object($q,IBASE_TEXT);
+    $row = ibase_fetch_object($q,FBIRD_TEXT);
 
     if($row->V_BLOB != $blob_str)
 		echo " BLOB 2 fail\n";
@@ -115,7 +115,7 @@ InterBase: BLOB test
 
     echo "fetch blob 3\n";
     $q = ibase_query("SELECT v_blob FROM test4 WHERE v_integer = 3");
-    $row = ibase_fetch_object($q,IBASE_TEXT);
+    $row = ibase_fetch_object($q,FBIRD_TEXT);
     echo $row->V_BLOB;
     ibase_free_result($q);
 

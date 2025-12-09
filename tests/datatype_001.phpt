@@ -16,8 +16,8 @@ require("interbase.inc");
     ibase_query("DELETE FROM TEST_001");
     ibase_query("ALTER TABLE TEST_001 ALTER COLUMN ID RESTART WITH 1");
     ibase_query("INSERT INTO TEST_001 (ID) VALUES (DEFAULT)");
-    // dump_table_rows("TEST_001", null, IBASE_FETCH_BLOBS | IBASE_UNIXTIME);
-    dump_table_rows("TEST_001", null, IBASE_FETCH_BLOBS);
+    // dump_table_rows("TEST_001", null, FBIRD_FETCH_BLOBS | FBIRD_UNIXTIME);
+    dump_table_rows("TEST_001", null, FBIRD_FETCH_BLOBS);
 })();
 
 ?>

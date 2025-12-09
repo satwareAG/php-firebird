@@ -143,13 +143,13 @@ function skip_if_fbclient_gte(float $v): void {
 }
 
 function skip_if_ext_lt(int $v): void {
-    if(!defined('IBASE_VER'))die("Skip IBASE_VER (not defined) < $v");
-    if(IBASE_VER < $v)die("Skip IBASE_VER ".IBASE_VER." < $v");
+    if(!defined('FBIRD_VER'))die("Skip FBIRD_VER (not defined) < $v");
+    if(FBIRD_VER < $v)die("Skip FBIRD_VER ".FBIRD_VER." < $v");
 }
 
 function skip_if_ext_gte(int $v): void {
-    if(defined('IBASE_VER')) {
-        if(IBASE_VER >= $v)die("Skip IBASE_VER ".IBASE_VER." >= $v");
+    if(defined('FBIRD_VER')) {
+        if(FBIRD_VER >= $v)die("Skip FBIRD_VER ".FBIRD_VER." >= $v");
     }
 }
 

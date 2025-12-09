@@ -122,7 +122,7 @@ function test_alias_functionality() {
     if ($service) {
         echo "fbird_service_attach succeeded\n";
 
-        $server_info = fbird_server_info($service, IBASE_SVC_SERVER_VERSION);
+        $server_info = fbird_server_info($service, FBIRD_SVC_SERVER_VERSION);
         if ($server_info) {
             echo "fbird_server_info succeeded\n";
         } else {

@@ -44,7 +44,7 @@ $host = getenv('FB_HOST') ?: $host;
 // the same host string.
 if (!@ibase_connect($host)) {
     $sql = sprintf("CREATE DATABASE '%s' USER '%s' PASSWORD '%s'", $host, $user, $password);
-    $db = @ibase_query(IBASE_CREATE, $sql);
+    $db = @ibase_query(FBIRD_CREATE, $sql);
     if ($db === false) {
         die('skip: unable to create default database for ibase_connect_dpb_001');
     }

@@ -51,7 +51,7 @@ ibase_commit($db2);
 
 // Create a blocker - open cursor blocks DDL in some Firebird configurations
 $db3 = ibase_connect($test_base);
-$trans3 = ibase_trans($db3, IBASE_READ | IBASE_WAIT);
+$trans3 = ibase_trans($db3, FBIRD_READ | FBIRD_WAIT);
 $cursor = ibase_query($trans3, "SELECT * FROM $table");
 
 // Force drop should still work by disconnecting blockers

@@ -14,31 +14,31 @@ $pass = getenv('ISC_PASSWORD') ?: 'masterkey';
 $service = ibase_service_attach($host, $user, $pass);
 
 // Standard info
-$version = ibase_server_info($service, IBASE_SVC_SERVER_VERSION);
+$version = ibase_server_info($service, FBIRD_SVC_SERVER_VERSION);
 var_dump(is_string($version) && strlen($version) > 0);
 
-$impl = ibase_server_info($service, IBASE_SVC_IMPLEMENTATION);
+$impl = ibase_server_info($service, FBIRD_SVC_IMPLEMENTATION);
 var_dump(is_string($impl) && strlen($impl) > 0);
 
-$env = ibase_server_info($service, IBASE_SVC_GET_ENV);
+$env = ibase_server_info($service, FBIRD_SVC_GET_ENV);
 var_dump(is_string($env));
 
-$dbpath = ibase_server_info($service, IBASE_SVC_USER_DBPATH);
+$dbpath = ibase_server_info($service, FBIRD_SVC_USER_DBPATH);
 var_dump(is_string($dbpath));
 
 // New constants coverage
-if (defined('IBASE_SVC_GET_ENV_LOCK')) {
-    $lock = ibase_server_info($service, IBASE_SVC_GET_ENV_LOCK);
+if (defined('FBIRD_SVC_GET_ENV_LOCK')) {
+    $lock = ibase_server_info($service, FBIRD_SVC_GET_ENV_LOCK);
     var_dump(is_string($lock));
 } else {
-    echo "IBASE_SVC_GET_ENV_LOCK not defined\n";
+    echo "FBIRD_SVC_GET_ENV_LOCK not defined\n";
 }
 
-if (defined('IBASE_SVC_GET_ENV_MSG')) {
-    $msg = ibase_server_info($service, IBASE_SVC_GET_ENV_MSG);
+if (defined('FBIRD_SVC_GET_ENV_MSG')) {
+    $msg = ibase_server_info($service, FBIRD_SVC_GET_ENV_MSG);
     var_dump(is_string($msg));
 } else {
-    echo "IBASE_SVC_GET_ENV_MSG not defined\n";
+    echo "FBIRD_SVC_GET_ENV_MSG not defined\n";
 }
 
 ibase_service_detach($service);

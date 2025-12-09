@@ -3,7 +3,7 @@ InterBase: use after ibase_free_query()
 --SKIPIF--
 <?php
 include("skipif.inc");
-if(defined('IBASE_VER') && (IBASE_VER >= 61)) print "Skip IBASE_VER < 6.1";
+if(defined('FBIRD_VER') && (FBIRD_VER >= 61)) print "Skip FBIRD_VER < 6.1";
 ?>
 --FILE--
 <?php

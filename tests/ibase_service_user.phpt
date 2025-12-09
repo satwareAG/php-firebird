@@ -24,7 +24,7 @@ var_dump($res);
 
 // 3. Verify User Exists
 echo "--- Verify User ---\n";
-$users = ibase_server_info($service, IBASE_SVC_GET_USERS);
+$users = ibase_server_info($service, FBIRD_SVC_GET_USERS);
 $found = false;
 foreach ($users as $u) {
     if ($u['user_name'] === $new_user) {
@@ -41,7 +41,7 @@ $res = ibase_modify_user($service, $new_user, $mod_pass, 'TestMod');
 var_dump($res);
 
 // 5. Verify Modification
-$users = ibase_server_info($service, IBASE_SVC_GET_USERS);
+$users = ibase_server_info($service, FBIRD_SVC_GET_USERS);
 foreach ($users as $u) {
     if ($u['user_name'] === $new_user) {
         var_dump($u['first_name']);
@@ -55,7 +55,7 @@ $res = ibase_delete_user($service, $new_user);
 var_dump($res);
 
 // 7. Verify Deletion
-$users = ibase_server_info($service, IBASE_SVC_GET_USERS);
+$users = ibase_server_info($service, FBIRD_SVC_GET_USERS);
 $found = false;
 foreach ($users as $u) {
     if ($u['user_name'] === $new_user) {

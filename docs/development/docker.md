@@ -6,13 +6,13 @@ This document describes how to use the Docker-based development environment for 
 
 - Docker Engine 26.0 or later
 - Docker Compose V2
-- IntelliJ IDEA Ultimate with Docker plugin enabled
+- IntelliJ IDEA Ultimate / CLion with Docker plugin enabled
 
 ## Getting Started
 
 1. **Build the Docker images**:
    ```bash
-   cd satware-docs
+   cd docker
    docker compose build
    ```
 
@@ -23,7 +23,7 @@ This document describes how to use the Docker-based development environment for 
 
 3. **Build the extension**:
    ```bash
-   docker compose run --rm php81-dev bash -c "/ext/satware-docs/environments/docker/scripts/build-extension.sh"
+   docker compose exec php83-dev sh -c "cd /ext && phpize --clean && phpize && ./configure && make clean && make -j\$(nproc)"
    ```
 
 ## Using IntelliJ IDEA Run Configurations

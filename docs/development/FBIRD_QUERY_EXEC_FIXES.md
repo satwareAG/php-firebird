@@ -1,15 +1,15 @@
-# ibase_query_exec.c - Critical Fixes Documentation
+# fbird_query_exec.c - Critical Fixes Documentation
 
 ## Overview
 
-This document tracks critical fixes in `ibase_query_exec.c` that improve 64-bit compatibility and input validation, along with their test coverage status.
+This document tracks critical fixes in `fbird_query_exec.c` that improve 64-bit compatibility and input validation, along with their test coverage status.
 
 ---
 
 ## Fix 1: ISC_LONG Slice Length for 64-bit Systems
 
 ### Location
-File: `ibase_query_exec.c`, function `_php_ibase_bind()`, lines ~406-409
+File: `fbird_query_exec.c`, function `_php_fbird_bind()`, lines ~406-409
 
 ### Problem
 On 64-bit systems, the `ar->ar_size` field (type `zend_ulong`, 8 bytes on 64-bit) was being passed directly to `isc_array_put_slice()`, which expects an `ISC_LONG*` (4 bytes). This pointer type mismatch could cause:
@@ -36,8 +36,7 @@ if (isc_array_put_slice(IB_STATUS, &ib_query->link->handle.db, &ib_query->trans-
 | `tests/007.phpt` | **SKIPPED** | Known segfault in array handling (heap corruption during INSERT/FETCH) |
 
 ### Related Documentation
-- `docs/development/TEST_FAILURE_ANALYSIS_PHP81.md` - Root cause analysis of array segfaults
-- `docs/development/BABYSTEPS_IMPLEMENTATION_PLAN.md` - Planned array handling fixes
+- See `docs/DEVELOPMENT_HISTORY.md` for project history
 
 ### Integration Notes
 ⚠️ **Caution**: While this fix addresses the 64-bit pointer type mismatch, the underlying array handling still has known issues that cause segfaults. The test remains skipped until the broader array handling issues are resolved.
@@ -52,7 +51,7 @@ if (isc_array_put_slice(IB_STATUS, &ib_query->link->handle.db, &ib_query->trans-
 ## Fix 2: Enhanced Parameter Count Validation
 
 ### Location
-File: `ibase_query_exec.c`, function `_php_ibase_exec()`, lines ~921-931
+File: `fbird_query_exec.c`, function `_php_fbird_exec()`, lines ~921-931
 
 ### Problem
 Previous versions had weaker input validation that could lead to:
@@ -122,4 +121,4 @@ This stricter validation may cause existing code that was passing silently to no
 
 ## Version History
 - **2025-12-01**: Initial documentation created
-- Fixes applied in ibase_query_exec.c as part of ongoing modernization effort
+- **2025-12-09**: Renamed from IBASE_QUERY_EXEC_FIXES.md to FBIRD_QUERY_EXEC_FIXES.md

@@ -1,8 +1,10 @@
-# Cross-Platform Deployment Guide - C++17 Modernized PHP Firebird Extension
+# Cross-Platform Deployment Guide - PHP Firebird Extension
 
 ## Overview
 
-Deployment instructions for the modernized php-firebird extension with C++17 features across Linux, Windows, and macOS platforms. The extension now requires C++17 compiler support and PHP 8.1+ minimum version.
+Deployment instructions for the php-firebird extension with C++17 features across Linux, Windows, and macOS platforms. The extension requires C++17 compiler support and PHP 8.1+ minimum version.
+
+> **Note:** As of December 2025, the extension has been renamed from `interbase` to `firebird`. Use `extension=firebird` in configuration.
 
 ## Requirements Matrix
 

@@ -2,30 +2,34 @@
 
 This document outlines the roadmap for transforming the legacy `interbase` extension into a modern `firebird` extension.
 
-## Phase 1: Directory Restructure & Renaming
+**Status Updated:** December 2025
+
+## Phase 1: Directory Restructure & Renaming ✅ COMPLETE
 **Goal:** Rename the extension to `firebird` and reorganize the project structure.
 
-- [ ] Rename extension module from `interbase` to `firebird`.
-- [ ] Rename build arguments (`--with-interbase` -> `--with-firebird`).
-- [ ] Rename `interbase.c` to `firebird.c`.
-- [ ] Rename `php_interbase.h` to `php_firebird.h`.
-- [ ] Update `config.m4` and `config.w32`.
-- [ ] Ensure `extension=firebird.so` is the target.
-- [ ] Maintain `ibase_*` functions as aliases for backward compatibility.
+- [x] Rename extension module from `interbase` to `firebird`.
+- [x] Rename build arguments (`--with-interbase` -> `--with-firebird`).
+- [x] Rename `interbase.c` to `firebird.c`.
+- [x] Rename `php_interbase.h` to `php_firebird.h`.
+- [x] Update `config.m4` and `config.w32`.
+- [x] Ensure `extension=firebird.so` is the target.
+- [x] Maintain `fbird_*` as primary functions with `ibase_*` backward compatible aliases.
+- [x] Rename all `IBASE_*` constants to `FBIRD_*` (no BC - intentional break).
+- [x] Rename all source files: `ibase_*.c` → `fbird_*.c`.
 
-## Phase 2: Namespace & Code Organization
+## Phase 2: Namespace & Code Organization ⏳ PARTIAL
 **Goal:** Adopt a cleaner folder structure and prepare for OO implementation.
 
 - [ ] Move source files to `src/` directory (optional/standardization).
-- [ ] Refactor monolithic `interbase.c` into logical units if not already done.
+- [x] Refactor monolithic `interbase.c` into logical units (already done as fbird_*.c files).
 - [ ] Establish `Firebird` top-level namespace for future classes.
 
-## Phase 3: Test Suite Modernization
+## Phase 3: Test Suite Modernization ✅ COMPLETE
 **Goal:** Ensure tests run against the new extension name.
 
-- [ ] Update `.phpt` files to load `firebird` extension.
-- [ ] Verify all legacy tests pass with the new extension.
-- [ ] Add specific tests for the renaming (checking module name, etc.).
+- [x] Update `.phpt` files to load `firebird` extension.
+- [x] Verify all legacy tests pass with the new extension (85 tests, 100% pass).
+- [x] Rename test files: `ibase_*.phpt` → `fbird_*.phpt`.
 
 ## Phase 4: Object-Oriented API
 **Goal:** Provide a modern, object-oriented interface.

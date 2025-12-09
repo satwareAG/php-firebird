@@ -31,7 +31,7 @@
 #include <tuple>
 #include "php.h"
 #include "firebird_utils.h"
-#include "php_ibase_includes.h"
+#include "php_fbird_includes.h"
 #include "firebird_utils_internal.h"
 
 //=============================================================================

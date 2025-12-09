@@ -23,8 +23,8 @@
    +----------------------------------------------------------------------+
  */
 
-#ifndef PHP_IBASE_INCLUDES_H
-#define PHP_IBASE_INCLUDES_H
+#ifndef PHP_FBIRD_INCLUDES_H
+#define PHP_FBIRD_INCLUDES_H
 
 #include <ibase.h>
 

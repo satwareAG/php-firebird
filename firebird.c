@@ -37,8 +37,8 @@
 #include "ext/standard/php_standard.h"
 #include "ext/standard/md5.h"
 #include "php_firebird.h"
-#include "php_ibase_includes.h"
-#include "php_ibase_inspection.h"
+#include "php_fbird_includes.h"
+#include "php_fbird_inspection.h"
 #include "SAPI.h"
 #include "zend_exceptions.h"
 #include <stdbool.h>

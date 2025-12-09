@@ -20,7 +20,7 @@
 
 #include "php.h"
 #include "php_firebird.h"
-#include "php_ibase_includes.h"
+#include "php_fbird_includes.h"
 
 /* Helper to execute a delete statement with one integer parameter */
 static int _fbird_exec_kill(ibase_db_link *link, ibase_trans *trans, ISC_LONG attachment_id)

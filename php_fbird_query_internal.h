@@ -14,11 +14,11 @@
    +----------------------------------------------------------------------+
  */
 
-#ifndef PHP_IBASE_QUERY_INTERNAL_H
-#define PHP_IBASE_QUERY_INTERNAL_H
+#ifndef PHP_FBIRD_QUERY_INTERNAL_H
+#define PHP_FBIRD_QUERY_INTERNAL_H
 
 #include "php.h"
-#include "php_ibase_includes.h"
+#include "php_fbird_includes.h"
 
 /* Resource type for queries */
 extern int le_query;
@@ -43,4 +43,4 @@ void _php_ibase_field_info(zval *return_value, ibase_query *ib_query, int is_out
 time_t ibase_timegm_portable(struct tm *tm);
 time_t ibase_mktime_with_tz(struct tm *tm, const char *tz);
 
-#endif /* PHP_IBASE_QUERY_INTERNAL_H */
+#endif /* PHP_FBIRD_QUERY_INTERNAL_H */

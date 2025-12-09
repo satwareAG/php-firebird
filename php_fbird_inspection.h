@@ -14,12 +14,12 @@
    +----------------------------------------------------------------------+
  */
 
-#ifndef PHP_IBASE_INSPECTION_H
-#define PHP_IBASE_INSPECTION_H
+#ifndef PHP_FBIRD_INSPECTION_H
+#define PHP_FBIRD_INSPECTION_H
 
 /* Migration inspection functions */
 PHP_FUNCTION(fbird_list_table_blockers);
 PHP_FUNCTION(fbird_kill_attachment);
 PHP_FUNCTION(fbird_drop_table_force);
 
-#endif /* PHP_IBASE_INSPECTION_H */
+#endif /* PHP_FBIRD_INSPECTION_H */

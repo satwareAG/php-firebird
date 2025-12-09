@@ -34,7 +34,7 @@
 #if HAVE_FIREBIRD
 
 #include "php_firebird.h"
-#include "php_ibase_includes.h"
+#include "php_fbird_includes.h"
 
 static int le_event;
 

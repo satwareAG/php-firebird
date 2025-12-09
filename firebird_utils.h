@@ -25,7 +25,7 @@ extern "C" {
 #if FB_API_VER >= 30
 
 #include <ibase.h>
-#include "php_ibase_includes.h"
+#include "php_fbird_includes.h"
 
 unsigned fbu_get_client_version(void *master_ptr);
 ISC_TIME fbu_encode_time(void *master_ptr, unsigned hours, unsigned minutes,

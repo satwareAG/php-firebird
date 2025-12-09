@@ -32,7 +32,7 @@
 #if HAVE_FIREBIRD
 
 #include "php_firebird.h"
-#include "php_ibase_includes.h"
+#include "php_fbird_includes.h"
 
 #define BLOB_CLOSE		1
 #define BLOB_CANCEL		2

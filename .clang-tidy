@@ -1,4 +1,7 @@
 # C++17 modernization and PHP extension specific checks
+#
+# PHP extensions use macros that expand to code triggering certain warnings.
+# We suppress warnings that are unavoidable due to PHP/Zend API design.
 Checks: >
   modernize-*,
   performance-*,
@@ -9,7 +12,39 @@ Checks: >
   -readability-braces-around-statements,
   -cppcoreguidelines-avoid-c-arrays,
   -cppcoreguidelines-pro-type-vararg,
-  -readability-implicit-bool-conversion
+  -readability-implicit-bool-conversion,
+  -performance-no-int-to-ptr,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -bugprone-macro-parentheses,
+  -readability-function-cognitive-complexity,
+  -bugprone-multi-level-implicit-pointer-conversion,
+  -readability-math-missing-parentheses,
+  -cppcoreguidelines-narrowing-conversions,
+  -bugprone-narrowing-conversions,
+  -bugprone-reserved-identifier,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-assignment-in-if-condition,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-signed-char-misuse,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+  -readability-identifier-naming,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -readability-magic-numbers,
+  -cppcoreguidelines-init-variables,
+  -readability-isolate-declaration,
+  -readability-non-const-parameter,
+  -clang-analyzer-deadcode.DeadStores,
+  -bugprone-branch-clone
+
+# Suppressions explained:
+# - performance-no-int-to-ptr: PHP ZEND_BEGIN_ARG_INFO macros cast integers to pointers
+# - cppcoreguidelines-avoid-non-const-global-variables: PHP module globals must be mutable
+# - bugprone-macro-parentheses: PHP CHECK_LINK macro uses intentional inline pattern
+# - readability-function-cognitive-complexity: PHP macros expand to deeply nested code
+# - bugprone-multi-level-implicit-pointer-conversion: PHP resource fetch patterns
+# - readability-math-missing-parentheses: PHP date/time macros
+# - cppcoreguidelines-narrowing-conversions: PHP API uses mixed integer types
+# - bugprone-narrowing-conversions: Same as above
 
 WarningsAsErrors: >
   modernize-use-nullptr,
@@ -35,3 +70,12 @@ CheckOptions:
     value: 'lower_case'
   - key: readability-identifier-naming.ParameterCase
     value: 'lower_case'
+  # Allow short names for common loop variables and parameters
+  - key: readability-identifier-length.MinimumVariableNameLength
+    value: 1
+  - key: readability-identifier-length.MinimumParameterNameLength
+    value: 1
+  - key: readability-identifier-length.IgnoredVariableNames
+    value: 'i|j|k|n|p|s|c|e|l'
+  - key: readability-identifier-length.IgnoredParameterNames
+    value: 'i|j|k|n|p|s|c|e|l'

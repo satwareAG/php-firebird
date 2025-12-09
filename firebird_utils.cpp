@@ -89,7 +89,7 @@ namespace {
     struct TimeComponents {
         unsigned hours, minutes, seconds, fractions;
 
-        constexpr bool is_valid() const noexcept {
+        [[nodiscard]] constexpr bool is_valid() const noexcept {
             return hours <= 23 &&
                    minutes <= 59 &&
                    seconds <= 59 &&
@@ -122,7 +122,7 @@ namespace {
     struct DateComponents {
         unsigned year, month, day;
 
-        constexpr bool is_valid() const noexcept {
+        [[nodiscard]] constexpr bool is_valid() const noexcept {
             return year >= 1 && year <= 9999 &&
                    month >= 1 && month <= 12 &&
                    day >= 1 && day <= 31;
@@ -152,16 +152,16 @@ namespace {
 #if FB_API_VER >= 40
     // Step 3.1: Structured bindings support for timestamp decoding
     struct DecodedTimestampTz {
-        unsigned year, month, day;
-        unsigned hours, minutes, seconds, fractions;
+        unsigned year{0}, month{0}, day{0};
+        unsigned hours{0}, minutes{0}, seconds{0}, fractions{0};
         std::string timeZone;
 
         // C++17: Enable structured binding assignment
-        auto tie() const noexcept {
+        [[nodiscard]] auto tie() const noexcept {
             return std::tie(year, month, day, hours, minutes, seconds, fractions);
         }
 
-        bool is_valid() const noexcept {
+        [[nodiscard]] bool is_valid() const noexcept {
             return year >= 1 && year <= 9999 &&
                    month >= 1 && month <= 12 &&
                    day >= 1 && day <= 31 &&

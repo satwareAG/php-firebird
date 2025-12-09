@@ -1865,6 +1865,9 @@ PHP_FUNCTION(fbird_trans_info)
 					add_assoc_string(return_value, "access_mode", (*p == isc_info_tra_readonly) ? "READ_ONLY" : "READ_WRITE");
 				}
 				break;
+			default:
+				/* Ignore unknown info items */
+				break;
 		}
 		p += len;
 	}
@@ -1877,8 +1880,8 @@ PHP_FUNCTION(fbird_trans_info)
 
 PHP_FUNCTION(fbird_trans)
 {
-	unsigned short i, link_cnt = 0, tpb_len = 0;
-	int argn = ZEND_NUM_ARGS();
+	int i, argn = ZEND_NUM_ARGS();
+	unsigned short link_cnt = 0, tpb_len = 0;
 	char last_tpb[TPB_MAX_SIZE];
 	fbird_db_link **ib_link = NULL;
 	fbird_transaction *ib_trans;
@@ -1922,7 +1925,7 @@ PHP_FUNCTION(fbird_trans)
 				memcpy(&tpb[TPB_MAX_SIZE * link_cnt], last_tpb, TPB_MAX_SIZE);
 
 				/* add a database handle to the TEB with the most recently specified set of modifiers */
-				teb[link_cnt].db_ptr = (isc_db_handle *)&ib_link[link_cnt]->handle.db;
+				teb[link_cnt].db_ptr = &ib_link[link_cnt]->handle.db;
 				teb[link_cnt].tpb_len = tpb_len;
 				teb[link_cnt].tpb_ptr = &tpb[TPB_MAX_SIZE * link_cnt];
 

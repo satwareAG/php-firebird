@@ -60,56 +60,51 @@ This document identifies outdated code, documentation, and build configurations 
 ### 1.3 Windows Build Scripts - Outdated
 
 **Directory: `scripts/host/windows/`**
+- **Status**: ✅ COMPLETE (December 2025)
 
-| File | Issues | Action |
+| File | Issues | Status |
 |------|--------|--------|
-| `php-fb-build-all.bat` | References PHP 7.4.13 and 8.0.30 | Remove PHP 7.4/8.0 entries |
-| `php-fb-build.bat` | Uses old `interbase` naming throughout | Update to `firebird` naming |
-| `php-fb-sdk-init.bat` | Has PHP 7.3 specific code | Remove PHP 7.3 handling |
-| `php-fb-sdk-build.bat` | Likely uses old naming | Review and update |
-| `php-fb-config.dist.bat` | May have outdated references | Review |
+| `php-fb-build-all.bat` | References PHP 7.4.13 and 8.0.30 | ✅ Updated to PHP 8.1+ only |
+| `php-fb-build.bat` | Uses old `interbase` naming throughout | ✅ Updated to `firebird` naming |
+| `php-fb-sdk-init.bat` | Has PHP 7.3 specific code | ⚠️ Review if still needed |
+| `php-fb-sdk-build.bat` | Likely uses old naming | ⚠️ Review if still needed |
+| `php-fb-config.dist.bat` | May have outdated references | ⚠️ Review |
 
-**php-fb-build-all.bat Updates Required**:
-```batch
-# BEFORE (includes PHP 7.4 and 8.0):
-set "phps="php-7.4.13 vc15" "php-8.0.30 vs16" "php-8.1.33 vs16"..."
-
-# AFTER (PHP 8.1+ only):
-set "phps="php-8.1.33 vs16" "php-8.2.29 vs16" "php-8.3.26 vs16" "php-8.4.13 vs17" "php-8.5.0RC2 vs17""
-```
+**Changes Made**:
+- `php-fb-build-all.bat`: Removed PHP 7.4/8.0 entries, now PHP 8.1+ only
+- `php-fb-build.bat`: Updated all `interbase` → `firebird` naming, fixed header file path
 
 ### 1.4 Docker Release Build File - Outdated
 
 **File: `docker/Dockerfile`**
-- **Status**: ❌ Heavily outdated
-- **Issues**:
-  - References PHP 7.4.13 and 8.0.30
-  - Uses `--with-interbase` instead of `--with-firebird`
-  - References `interbase.so` instead of `firebird.so`
-  - Clones from FirebirdSQL/php-firebird instead of satwareAG/php-firebird
-- **Action**: Complete rewrite with modern naming and PHP 8.1+ only
+- **Status**: ✅ COMPLETE (December 2025)
+- **Changes Made**:
+  - Removed PHP 7.4.13 and 8.0.30, now PHP 8.1+ only
+  - Changed `--with-interbase` to `--with-firebird`
+  - Changed `interbase.so` to `firebird.so`
+  - Changed clone source to satwareAG/php-firebird
+  - Added branch argument for flexibility
 
 ### 1.5 GitHub Actions Workflow - Outdated Naming
 
 **File: `.github/workflows/main.yml`**
-- **Status**: ⚠️ Uses old configure flag
-- **Issues**:
-  - Uses `--with-interbase=/opt/firebird` (should be `--with-firebird`)
-  - Comments reference `tests/interbase.inc` (should be `tests/firebird.inc`)
-  - No Windows CI configured
-- **Action**: Update configure flags and comments
+- **Status**: ✅ COMPLETE (December 2025, commit 9e9e20a)
+- **Changes Made**:
+  - Changed `--with-interbase=/opt/firebird` to `--with-firebird=/opt/firebird`
+  - Updated comment from `tests/interbase.inc` to `tests/firebird.inc`
+  - Updated build step name to "Build PHP extension (firebird)"
+- **Future**: Windows CI can be added later using GitHub Actions
 
 ### 1.6 Documentation - Old Naming Throughout
 
 **File: `docs/deployment/CROSS_PLATFORM_DEPLOYMENT.md`**
-- **Status**: ❌ Completely outdated
-- **Issues**:
-  - All examples use `interbase` naming
-  - References `ibase_connect()`, `ibase_close()`
-  - Uses `fbu_get_client_version()` (undefined function)
-  - Extension file named `interbase.so` instead of `firebird.so`
-  - Docker examples use old naming
-- **Action**: Complete rewrite with `fbird_*` naming and `firebird.so`
+- **Status**: ✅ COMPLETE (December 2025)
+- **Changes Made**:
+  - Complete rewrite with `fbird_*` function naming
+  - All examples now use `firebird.so` and `extension=firebird`
+  - Updated PHP examples to use `fbird_connect()`, `fbird_close()`, etc.
+  - Added migration section linking to README.md
+  - Updated Docker examples with correct naming
 
 ### 1.7 Build Infrastructure - PHP Version Compatibility
 
@@ -330,18 +325,23 @@ docker exec php-firebird-dev-php83-dev-1 sh -c "cd /ext && make test TESTS='-q -
 
 ---
 
-## Summary
+## Summary - Completion Status (December 2025)
 
-| Category | Items to Clean | Priority |
-|----------|---------------|----------|
-| Test Infrastructure | 2 files | CRITICAL |
-| Windows Scripts | 5 files | HIGH |
-| GitHub Actions | 1 file | HIGH |
-| Docker Files | 1 file | MEDIUM |
-| Documentation | 1 file | MEDIUM |
-| Build Infrastructure | 2 files | LOW |
+| Category | Items | Status |
+|----------|-------|--------|
+| Test Infrastructure | functions.inc, common.inc | ✅ COMPLETE |
+| Windows Scripts | php-fb-build-all.bat, php-fb-build.bat | ✅ COMPLETE |
+| Windows Build Config | config.w32 (NEW) | ✅ CREATED |
+| GitHub Actions | main.yml | ✅ COMPLETE |
+| Docker Files | Dockerfile | ✅ COMPLETE |
+| Container Scripts | build.sh | ✅ COMPLETE |
+| Documentation | CROSS_PLATFORM_DEPLOYMENT.md | ✅ COMPLETE |
+| Build Infrastructure | gen_stub.php, php.m4 | ⚠️ LOW PRIORITY |
 
-**Total Estimated Files**: ~12 files need updates
-**Estimated Time**: 2-4 hours for all phases
+**Completed Files**: 9 files updated/created
+**Remaining**: 2 build infrastructure files (low priority), 3 Windows scripts (review needed)
 
-**Windows CI**: GitHub Actions provides free, zero-cost Windows testing. Recommended to implement in Phase 2.
+**Next Steps**:
+1. Test static analysis with updated clang-tidy configuration
+2. Optionally add Windows CI workflow (`.github/workflows/windows.yml`)
+3. Review remaining Windows scripts (`php-fb-sdk-*.bat`, `php-fb-config.dist.bat`)

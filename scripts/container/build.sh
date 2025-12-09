@@ -19,9 +19,9 @@ phpize
 
 # Configure with Firebird paths
 CPPFLAGS="-I/usr/include/firebird" ./configure \
-    --with-interbase=/usr
+    --with-firebird=/usr
 
 # Build
 make -j$(nproc)
 
-echo "Build completed. Extension is available at: $(pwd)/modules/interbase.so"
+echo "Build completed. Extension is available at: $(pwd)/modules/firebird.so"

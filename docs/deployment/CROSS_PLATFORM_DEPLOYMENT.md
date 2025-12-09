@@ -4,7 +4,7 @@
 
 Deployment instructions for the php-firebird extension with C++17 features across Linux, Windows, and macOS platforms. The extension requires C++17 compiler support and PHP 8.1+ minimum version.
 
-> **Note:** As of December 2025, the extension has been renamed from `interbase` to `firebird`. Use `extension=firebird` in configuration.
+> **Breaking Change (v7.0.0):** The extension has been renamed from `interbase` to `firebird`. All functions are now prefixed with `fbird_*` instead of `ibase_*`. Use `extension=firebird` in configuration.
 
 ## Requirements Matrix
 
@@ -20,12 +20,12 @@ Deployment instructions for the php-firebird extension with C++17 features acros
 
 **Install Dependencies:**
 ```bash
-# Ubuntu 20.04/22.04
+# Ubuntu 20.04/22.04/24.04
 sudo apt update
 sudo apt install -y software-properties-common
 sudo add-apt-repository ppa:ondrej/php -y
 sudo apt update
-sudo apt install -y php8.1-dev build-essential libfirebird-dev autoconf
+sudo apt install -y php8.3-dev build-essential libfirebird-dev autoconf
 
 # Verify C++17 support
 g++ --version  # Should be 8.0+ for C++17 support
@@ -36,25 +36,25 @@ g++ --version  # Should be 8.0+ for C++17 support
 git clone https://github.com/satwareAG/php-firebird.git
 cd php-firebird
 
-phpize8.1
-./configure --with-php-config=/usr/bin/php-config8.1
+phpize8.3
+./configure --with-php-config=/usr/bin/php-config8.3 --with-firebird
 make clean && make
 
 # Test compilation
-php8.1 -d extension=modules/interbase.so -m | grep interbase
+php8.3 -d extension=modules/firebird.so -m | grep firebird
 ```
 
 **Install Extension:**
 ```bash
 # Copy to extension directory
-sudo cp modules/interbase.so $(php-config8.1 --extension-dir)/
+sudo cp modules/firebird.so $(php-config8.3 --extension-dir)/
 
 # Enable in php.ini
-echo "extension=interbase" | sudo tee -a /etc/php/8.1/cli/conf.d/20-interbase.ini
-echo "extension=interbase" | sudo tee -a /etc/php/8.1/fpm/conf.d/20-interbase.ini
+echo "extension=firebird" | sudo tee -a /etc/php/8.3/cli/conf.d/20-firebird.ini
+echo "extension=firebird" | sudo tee -a /etc/php/8.3/fpm/conf.d/20-firebird.ini
 
 # Restart services
-sudo systemctl restart php8.1-fpm
+sudo systemctl restart php8.3-fpm
 ```
 
 ### CentOS/RHEL/Fedora
@@ -72,10 +72,10 @@ sudo dnf install -y php-devel gcc-c++ firebird-devel autoconf
 **Build and Install:**
 ```bash
 phpize
-./configure
+./configure --with-firebird
 make clean && make
-sudo cp modules/interbase.so $(php-config --extension-dir)/
-echo "extension=interbase" | sudo tee /etc/php.d/20-interbase.ini
+sudo cp modules/firebird.so $(php-config --extension-dir)/
+echo "extension=firebird" | sudo tee /etc/php.d/20-firebird.ini
 ```
 
 ## Windows Deployment
@@ -102,11 +102,11 @@ winget install Microsoft.VisualStudio.2022.BuildTools
 
 **Install Firebird Client:**
 ```powershell
-# Download Firebird 4.0+ installer
-Invoke-WebRequest -Uri "https://github.com/FirebirdSQL/firebird/releases/download/v4.0.4/Firebird-4.0.4.0-0-x64.exe" -OutFile "firebird-installer.exe"
+# Download Firebird 5.0+ installer
+Invoke-WebRequest -Uri "https://github.com/FirebirdSQL/firebird/releases/download/v5.0.3/Firebird-5.0.3.1683-ReleaseCandidate1-windows-x64.zip" -OutFile "firebird.zip"
 
-# Install with client libraries
-.\firebird-installer.exe /S /TASKS=clienttask
+# Extract
+Expand-Archive -Path firebird.zip -DestinationPath C:\firebird
 ```
 
 ### Build Process
@@ -116,24 +116,24 @@ Invoke-WebRequest -Uri "https://github.com/FirebirdSQL/firebird/releases/downloa
 @echo off
 call "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
 
-set FIREBIRD_HOME="C:\Program Files\Firebird\Firebird_4_0"
-set PHP_HOME="C:\php"
+set FIREBIRD_HOME=C:\firebird
+set PHP_HOME=C:\php
 ```
 
 **Configure and Build:**
 ```batch
 phpize
-configure.bat --enable-interbase --with-firebird="%FIREBIRD_HOME%"
+configure.bat --with-firebird="%FIREBIRD_HOME%"
 nmake clean
 nmake
 ```
 
 **Test and Install:**
 ```batch
-php -d extension=Release\php_interbase.dll -m | findstr interbase
+php -d extension=Release\php_firebird.dll -m | findstr firebird
 
-copy Release\php_interbase.dll "%PHP_HOME%\ext\"
-echo extension=interbase >> "%PHP_HOME%\php.ini"
+copy Release\php_firebird.dll "%PHP_HOME%\ext\"
+echo extension=firebird >> "%PHP_HOME%\php.ini"
 ```
 
 ## macOS Deployment
@@ -151,7 +151,7 @@ xcode-select --install
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 # Install PHP and Firebird
-brew install php@8.1 firebird autoconf
+brew install php@8.3 firebird autoconf
 
 # Verify C++17 support
 clang --version  # Should support C++17 (clang 10.0+)
@@ -168,24 +168,24 @@ export PKG_CONFIG_PATH="/opt/homebrew/lib/pkgconfig"
 **Build Extension:**
 ```bash
 phpize
-./configure --enable-interbase --with-php-config=/opt/homebrew/bin/php-config@8.1
+./configure --with-firebird --with-php-config=/opt/homebrew/bin/php-config@8.3
 make clean && make
 
 # Test compilation
-/opt/homebrew/bin/php@8.1 -d extension=modules/interbase.so -m | grep interbase
+/opt/homebrew/bin/php@8.3 -d extension=modules/firebird.so -m | grep firebird
 ```
 
 **Install Extension:**
 ```bash
 # Copy to extension directory
-EXT_DIR=$(/opt/homebrew/bin/php-config@8.1 --extension-dir)
-sudo cp modules/interbase.so "$EXT_DIR/"
+EXT_DIR=$(/opt/homebrew/bin/php-config@8.3 --extension-dir)
+sudo cp modules/firebird.so "$EXT_DIR/"
 
 # Enable in php.ini
-echo "extension=interbase" >> /opt/homebrew/etc/php/8.1/php.ini
+echo "extension=firebird" >> /opt/homebrew/etc/php/8.3/php.ini
 
 # Restart services (if using php-fpm)
-brew services restart php@8.1
+brew services restart php@8.3
 ```
 
 ## Docker Deployment
@@ -196,15 +196,15 @@ brew services restart php@8.1
 ```bash
 # Start development environment
 cd docker
-docker-compose up -d php81-dev php83-dev
+docker-compose up -d php83-dev
 
 # Build in specific PHP version
-docker-compose exec php81-dev bash -c "cd /ext && phpize && ./configure && make"
+docker-compose exec php83-dev bash -c "cd /ext && phpize && ./configure --with-firebird && make"
 
 # Test across versions
 for version in php81-dev php82-dev php83-dev php84-dev php85-dev; do
   echo "Testing $version..."
-  docker-compose exec $version bash -c "cd /ext && php -d extension=modules/interbase.so -m | grep interbase"
+  docker-compose exec $version bash -c "cd /ext && php -d extension=modules/firebird.so -m | grep firebird"
 done
 ```
 
@@ -212,7 +212,7 @@ done
 
 **Create Dockerfile:**
 ```dockerfile
-FROM php:8.1-fpm
+FROM php:8.3-fpm
 RUN apt-get update && apt-get install -y \
     build-essential \
     autoconf \
@@ -223,10 +223,10 @@ COPY . /usr/src/php-firebird
 WORKDIR /usr/src/php-firebird
 
 RUN phpize && \
-    ./configure --enable-interbase && \
+    ./configure --with-firebird && \
     make && \
     make install && \
-    docker-php-ext-enable interbase
+    docker-php-ext-enable firebird
 ```
 
 ## Verification and Testing
@@ -237,18 +237,17 @@ RUN phpize && \
 ```php
 <?php
 // test_installation.php
-if (!extension_loaded('interbase')) {
-    die('❌ Interbase extension not loaded');
+if (!extension_loaded('firebird')) {
+    die('❌ Firebird extension not loaded');
 }
 
-echo "✅ Extension loaded: " . phpversion('interbase') . "\n";
+echo "✅ Extension loaded: " . phpversion('firebird') . "\n";
 
-// Test C++17 modernized functions (safe with null parameters)
-$version = @fbu_get_client_version(null);
-echo "✅ Client version function safe: " . $version . "\n";
+// Test client version function (safe with null parameters)
+$version = fbird_client_version();
+echo "✅ Client version: " . dechex($version) . "\n";
 
-echo "🎉 C++17 modernized extension working correctly!\n";
-?>
+echo "🎉 Extension working correctly!\n";
 ```
 
 **Run Verification:**
@@ -267,24 +266,34 @@ $username = 'SYSDBA';
 $password = 'masterkey';
 
 try {
-    $connection = ibase_connect($db, $username, $password);
+    $connection = fbird_connect($db, $username, $password);
     if ($connection) {
         echo "✅ Firebird connection successful\n";
         
-        // Test modernized utility functions
-        $version = fbu_get_client_version($connection);
+        // Test client version function
+        $version = fbird_client_version();
         echo "✅ Client version: " . dechex($version) . "\n";
         
-        ibase_close($connection);
+        fbird_close($connection);
         echo "✅ Connection closed safely\n";
     } else {
-        echo "❌ Connection failed\n";
+        echo "❌ Connection failed: " . fbird_errmsg() . "\n";
     }
 } catch (Exception $e) {
     echo "❌ Error: " . $e->getMessage() . "\n";
 }
-?>
 ```
+
+## Migration from ibase_* to fbird_*
+
+When upgrading from older versions using `ibase_*` functions:
+
+1. **Search and replace** all function calls: `ibase_` → `fbird_`
+2. **Update extension loading**: `extension=interbase` → `extension=firebird`
+3. **Update extension checks**: `extension_loaded('interbase')` → `extension_loaded('firebird')`
+4. **Update constants**: `IBASE_*` → `FBIRD_*`
+
+See the [Migration Guide in README.md](../../README.md#migration-guide) for a complete function mapping table.
 
 ## Troubleshooting
 
@@ -297,12 +306,13 @@ try {
 
 **Windows:**
 - **MSVC not found**: Install Visual Studio Build Tools 2019+
-- **Firebird not found**: Verify installation in `C:\Program Files\Firebird\`
+- **Firebird not found**: Verify installation and set FIREBIRD_HOME
 - **Extension load failed**: Check PHP architecture matches (x64 vs x86)
+- **fbclient.dll not found**: Ensure Firebird bin directory is in PATH
 
 **macOS:**
-- **Homebrew path issues**: Use full paths `/opt/homebrew/bin/php@8.1`
-- **M1/M2 compatibility**: Use arm64 builds, avoid Rosetta emulation
+- **Homebrew path issues**: Use full paths `/opt/homebrew/bin/php@8.3`
+- **M1/M2/M3 compatibility**: Use arm64 builds, avoid Rosetta emulation
 - **Permission issues**: Use `sudo` for system directories
 
 ### Performance Verification
@@ -322,51 +332,51 @@ g++ -std=c++17 tests/performance_benchmark.cpp -o benchmark
 
 ## CI/CD Integration
 
+### GitHub Actions
+
+**Cross-platform validation runs on:**
+- Push to main/feature branches
+- Pull requests to main
+- Linux multi-PHP-version testing (8.1-8.5)
+- Static analysis (clang-tidy, Cppcheck)
+- Memory safety (AddressSanitizer, Valgrind)
+
 ### GitLab CI/CD
 
 **Trigger Pipeline:**
 ```bash
 git add .
-git commit -m "feat: add C++17 modernization"
+git commit -m "feat: add new feature"
 git push origin main
 ```
 
 **Pipeline runs automatically:**
 - Multi-version PHP builds (8.1-8.5)
-- Static analysis (clang-tidy, Cppcheck)
-- Memory safety (AddressSanitizer, Valgrind)
-- Performance regression detection
-- Cross-platform validation
-
-### GitHub Actions
-
-**Cross-platform validation runs on:**
-- Push to main/dev branches
-- Pull requests to main
-- Windows, macOS, Linux compilation verification
-- PHP 8.1-8.3 matrix testing
+- Static analysis
+- Memory safety validation
+- Cross-platform compilation verification
 
 ## Production Deployment Checklist
 
 **Pre-Deployment:**
-- [ ] All CI/CD pipelines passing (GitLab + GitHub Actions)
+- [ ] All CI/CD pipelines passing (GitHub Actions)
 - [ ] Static analysis reports clean (zero errors)
 - [ ] Memory safety validation passed
-- [ ] Performance regression check passed
+- [ ] All 85 tests passing (100% pass rate)
 - [ ] Cross-platform compilation verified
 
 **Deployment:**
 - [ ] Extension compiled for target platform and PHP version
 - [ ] Firebird client libraries installed and accessible
-- [ ] Extension enabled in php.ini configuration
+- [ ] Extension enabled in php.ini configuration (`extension=firebird`)
 - [ ] Web server/PHP-FPM restarted after installation
 - [ ] Basic functionality verification completed
 
 **Post-Deployment:**
-- [ ] Extension loading verified: `php -m | grep interbase`
+- [ ] Extension loading verified: `php -m | grep firebird`
 - [ ] Database connectivity tested with actual Firebird instance
-- [ ] Application functionality validated with C++17 modernized extension
-- [ ] Performance monitoring confirms no regression from upgrade
+- [ ] Application functionality validated with `fbird_*` functions
+- [ ] Performance monitoring confirms expected behavior
 - [ ] Error logs reviewed for any compatibility issues
 
-This guide ensures reliable deployment of the C++17 modernized extension across all supported platforms with comprehensive validation and testing procedures.
+This guide ensures reliable deployment of the php-firebird extension across all supported platforms with comprehensive validation and testing procedures.

@@ -1,0 +1,37 @@
+// config.w32 - Windows build configuration for php-firebird extension
+// PHP 8.1+ required
+
+ARG_WITH('firebird', 'Firebird database support', 'no');
+
+if (PHP_FIREBIRD != 'no') {
+    // Check for Firebird client library and header
+    if (CHECK_LIB('fbclient_ms.lib', 'firebird', PHP_FIREBIRD + '\\lib') &&
+        CHECK_HEADER_ADD_INCLUDE('ibase.h', 'CFLAGS_FIREBIRD', PHP_FIREBIRD + '\\include')) {
+
+        // Define all source files
+        var firebird_sources = 'firebird.c ' +
+                               'fbird_blobs.c ' +
+                               'fbird_events.c ' +
+                               'fbird_inspection.c ' +
+                               'fbird_metadata.c ' +
+                               'fbird_query.c ' +
+                               'fbird_query_exec.c ' +
+                               'fbird_result.c ' +
+                               'fbird_service.c ' +
+                               'fbird_udf.c ' +
+                               'firebird_utils.cpp';
+
+        // Register extension
+        // /EHsc enables C++ exception handling (required for firebird_utils.cpp)
+        EXTENSION('firebird', firebird_sources, PHP_FIREBIRD_SHARED,
+                  '/DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 /EHsc /std:c++17');
+
+        AC_DEFINE('HAVE_FIREBIRD', 1, 'Have Firebird support');
+
+        // Ensure fbclient.dll is available at runtime
+        ADD_FLAG('DEPS_FIREBIRD', 'fbclient.dll');
+
+    } else {
+        WARNING('firebird not enabled; Firebird client libraries and headers not found');
+    }
+}

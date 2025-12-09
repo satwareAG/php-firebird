@@ -1,6 +1,8 @@
 @echo off
+@REM Build php-firebird extension for all supported PHP versions (8.1+)
+@REM PHP 7.x and 8.0 are NOT supported
 
-set "phps="php-7.4.13 vc15" "php-8.0.30 vs16" "php-8.1.33 vs16" "php-8.2.29 vs16" "php-8.3.26 vs16" "php-8.4.13 vs17" "php-8.5.0RC2 vs17""
+set "phps="php-8.1.33 vs16" "php-8.2.29 vs16" "php-8.3.26 vs16" "php-8.4.13 vs17" "php-8.5.0RC2 vs17""
 
 setlocal enabledelayedexpansion
 for %%p in (%phps%) do (

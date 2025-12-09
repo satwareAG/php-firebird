@@ -1,7 +1,8 @@
 @echo off
 @REM php-fb-build.bat <pfb_php_tag> <pfb_cpp_vers> <pfb_ts> <pfb_arch>
-@REM php-fb-build.bat php-7.4.13 vc15 [0|1] [x64|x86]
+@REM php-fb-build.bat php-8.1.33 vs16 [0|1] [x64|x86]
 @REM
+@REM PHP 8.1+ minimum required
 
 @REM config  ======================================================================================
 call %~dp0php-fb-config.dist.bat
@@ -42,20 +43,20 @@ if "%pfb_php_vers%" == "" (
     exit 1
 )
 
-@REM Grab version
-for /f "tokens=3" %%i in ('findstr /b /c:"#define PHP_INTERBASE_VER_MAJOR" %~dp0..\php_interbase.h') do set VER_MAJOR=%%i
-for /f "tokens=3" %%i in ('findstr /b /c:"#define PHP_INTERBASE_VER_MINOR" %~dp0..\php_interbase.h') do set VER_MINOR=%%i
-for /f "tokens=3" %%i in ('findstr /b /c:"#define PHP_INTERBASE_VER_REV" %~dp0..\php_interbase.h') do set VER_REV=%%i
-for /f "tokens=3" %%i in ('findstr /b /c:"#define PHP_INTERBASE_VER_PRE" %~dp0..\php_interbase.h') do set VER_PRE=%%~i
+@REM Grab version from php_firebird.h
+for /f "tokens=3" %%i in ('findstr /b /c:"#define PHP_FIREBIRD_VER_MAJOR" %~dp0..\..\..\php_firebird.h') do set VER_MAJOR=%%i
+for /f "tokens=3" %%i in ('findstr /b /c:"#define PHP_FIREBIRD_VER_MINOR" %~dp0..\..\..\php_firebird.h') do set VER_MINOR=%%i
+for /f "tokens=3" %%i in ('findstr /b /c:"#define PHP_FIREBIRD_VER_REV" %~dp0..\..\..\php_firebird.h') do set VER_REV=%%i
+for /f "tokens=3" %%i in ('findstr /b /c:"#define PHP_FIREBIRD_VER_PRE" %~dp0..\..\..\php_firebird.h') do set VER_PRE=%%~i
 set PFB_VERS=%VER_MAJOR%.%VER_MINOR%.%VER_REV%%VER_PRE%
 
 if %PFB_ATTACH_GIT_HASH_TO_VERS% equ 1 (
-	for /f %%i in ('git -C %~dp0..\ rev-parse --short HEAD') do set PFB_VERS=%PFB_VERS%-%%i
+	for /f %%i in ('git -C %~dp0..\..\..\  rev-parse --short HEAD') do set PFB_VERS=%PFB_VERS%-%%i
 )
 
 @REM Initialize
 set php_root=php%pfb_php_vers%\%pfb_cpp_vers%\%pfb_arch%\php-src\
-set php_interbase=php_interbase-%PFB_VERS%-%pfb_php_vers%-%pfb_cpp_vers%
+set php_firebird=php_firebird-%PFB_VERS%-%pfb_php_vers%-%pfb_cpp_vers%
 
 if not exist "%php_root%.git\" (
     call :log "Cloning %pfb_php_tag% %pfb_arch%"
@@ -64,7 +65,7 @@ if not exist "%php_root%.git\" (
 
 if "%pfb_arch%" == "x86" (
     set build_root=%php_root%
-    set php_interbase=%php_interbase%-x86
+    set php_firebird=%php_firebird%-x86
 ) else (
     set build_root=%php_root%x64\
 )
@@ -73,16 +74,16 @@ if %pfb_ts% equ 1 (
     set build_root=%build_root%Release_TS\
 ) else (
     set build_root=%build_root%Release\
-    set php_interbase=%php_interbase%-nts
+    set php_firebird=%php_firebird%-nts
 )
 
 @REM Build
-call :log "Building %php_interbase%.dll..."
+call :log "Building %php_firebird%.dll..."
 call phpsdk-%pfb_cpp_vers%-%pfb_arch%.bat -t %~dp0php-fb-sdk-build.bat || goto :error
 
 @REM Validate
 set vb_check_code=^
-if(!extension_loaded('interbase')){ print \"Extension not loaded\n\"; exit(1); }^
+if(!extension_loaded('firebird')){ print \"Extension not loaded\n\"; exit(1); }^
 if('php-'.PHP_VERSION != '%pfb_php_tag%'){ printf(\"Version mismatch: expected '%pfb_php_tag%', but got '%%s' \n\", 'php-'.PHP_VERSION); exit(1); }^
 if((int)ZEND_THREAD_SAFE != %pfb_ts%){ printf(\"Thread Safety mismatch: expected %pfb_ts%, but got %%d \n\", ZEND_THREAD_SAFE); exit(1); }^
 if((PHP_INT_SIZE == 8 ? 'x64' : 'x86') != '%pfb_arch%'){ printf(\"Architecture mismatch: expected '%pfb_arch%', but got '%%s' \n\", (PHP_INT_SIZE == 8 ? 'x64' : 'x86')); exit(1); }
@@ -93,14 +94,14 @@ if "%pfb_arch%" == "x86" (
     set vb_libs=%PFB_FB64_DIR%
 )
 
-call :log "Validating %php_interbase%.dll..."
-set vb_cmd=cmd /c set "PATH=%vb_libs%;%PATH%" %build_root%php_exe -dextension=.\php_interbase.dll -r "%vb_check_code%"
+call :log "Validating %php_firebird%.dll..."
+set vb_cmd=cmd /c set "PATH=%vb_libs%;%PATH%" %build_root%php_exe -dextension=.\php_firebird.dll -r "%vb_check_code%"
 %vb_cmd% || goto :error
 
-call :log "Copying %php_interbase%.dll..."
-copy "%build_root%php_interbase.dll" "%PFB_OUTPUT_DIR%%php_interbase%.dll" || goto :error
+call :log "Copying %php_firebird%.dll..."
+copy "%build_root%php_firebird.dll" "%PFB_OUTPUT_DIR%%php_firebird%.dll" || goto :error
 
-call :log "Build OK" "%pfb_php_tag% %pfb_cpp_vers% %pfb_arch% Thread Safety %pfb_ts%" "%php_interbase%.dll"
+call :log "Build OK" "%pfb_php_tag% %pfb_cpp_vers% %pfb_arch% Thread Safety %pfb_ts%" "%php_firebird%.dll"
 
 exit /B
 
@@ -120,5 +121,5 @@ exit /B
 
 @REM error  =======================================================================================
 :error
-    call :log "Build FAILED" "%pfb_php_tag% %pfb_cpp_vers% %pfb_arch% Thread Safety %pfb_ts%" "%php_interbase%.dll"
+    call :log "Build FAILED" "%pfb_php_tag% %pfb_cpp_vers% %pfb_arch% Thread Safety %pfb_ts%" "%php_firebird%.dll"
 exit /B 1

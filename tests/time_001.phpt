@@ -5,7 +5,7 @@ FBIRD_UNIXTIME: return negative unix timestamp (old behaviour) for TIME fields
 include("skipif.inc");
 
 // See also: tests/time_003.phpt
-skip_if_ext_gte(61);
+skip_if_ext_gte(10);
 
 ?>
 --FILE--

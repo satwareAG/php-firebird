@@ -7,7 +7,7 @@ include("skipif.inc");
 
 // See also tests/fbird_trans_014.phpt
 // See also tests/fbird_trans_015.phpt
-skip_if_ext_gte(61);
+skip_if_ext_gte(10);
 
 ?>
 --FILE--

@@ -3,7 +3,7 @@ Firebird: use after fbird_free_query()
 --SKIPIF--
 <?php
 include("skipif.inc");
-if(!defined('FBIRD_VER') || (FBIRD_VER < 61)) print "Skip FBIRD_VER < 6.1";
+if(!defined('FBIRD_VER') || (FBIRD_VER < 10)) print "Skip FBIRD_VER < 1.0.0";
 ?>
 --FILE--
 <?php

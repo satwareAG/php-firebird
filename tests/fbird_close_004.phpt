@@ -6,7 +6,7 @@ fbird_close(): Basic test
 include("skipif.inc");
 
 // See also: tests/fbird_close_001.phpt
-skip_if_ext_lt(61);
+skip_if_ext_lt(10);
 
 ?>
 --FILE--

@@ -2,7 +2,7 @@
 
 A high-performance PHP extension providing native connectivity to Firebird databases. This modernized version targets PHP 8.1+ with C++17 standards and comprehensive development tooling.
 
-> **⚠️ Breaking Changes in v7.0**: This version uses `fbird_*` function names (not `ibase_*`) and builds as `firebird.so` (not `interbase.so`). See the [Migration Guide](#migration-guide) for upgrade instructions.
+> **⚠️ Breaking Changes in v1.0**: This version uses `fbird_*` function names (not `ibase_*`) and builds as `firebird.so` (not `interbase.so`). See the [Migration Guide](#migration-guide) for upgrade instructions.
 
 ## Features
 
@@ -541,7 +541,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development guidelines inclu
 
 ## Version Compatibility
 
-### Current Version: 7.0.0
+### Current Version: 1.0.0
 
 **Supported PHP Versions:**
 - PHP 8.1 (minimum required)

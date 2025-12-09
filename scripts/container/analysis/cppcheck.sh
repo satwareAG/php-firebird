@@ -17,7 +17,7 @@ if ! [ -f php-firebird.cppcheck ]; then
                  --output-file=cppcheck-report.xml
     else
         # Fallback to processing the file directly with broad checks
-        cppcheck firebird_utils.cpp interbase.c ibase_query_exec.c ibase_result.c ibase_metadata.c ibase_service.c ibase_events.c ibase_blobs.c \
+        cppcheck firebird_utils.cpp firebird.c fbird_query_exec.c fbird_result.c fbird_metadata.c fbird_service.c fbird_events.c fbird_blobs.c \
                  --std=c++17 \
                  --enable=all \
                  --inconclusive \

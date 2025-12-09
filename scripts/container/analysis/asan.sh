@@ -16,9 +16,9 @@ export ASAN_SYMBOLIZER_PATH="/usr/bin/llvm-symbolizer"
 
 # Run PHP tests with ASan
 echo "Running tests with AddressSanitizer..."
-php -d extension=./modules/interbase.so -m | grep "interbase"
+php -d extension=./modules/firebird.so -m | grep "firebird"
 
 # Run specific test that exercises modernized functions
-php -d extension=./modules/interbase.so tests/fbclient_vers_001.phpt
+php -d extension=./modules/firebird.so tests/fbclient_vers_001.phpt
 
 echo "✅ AddressSanitizer testing completed"

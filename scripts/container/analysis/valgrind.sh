@@ -26,10 +26,10 @@ VALGRIND_OPTS="
     --suppressions=valgrind-php.supp"
 
 # Run simple extension load test
-valgrind $VALGRIND_OPTS $PHP_BINARY $PHP_ARGS -d extension=./modules/interbase.so -r "echo 'Extension loaded';"
+valgrind $VALGRIND_OPTS $PHP_BINARY $PHP_ARGS -d extension=./modules/firebird.so -r "echo 'Extension loaded';"
 
 # Run comprehensive test that exercises modernized functions
-valgrind $VALGRIND_OPTS $PHP_BINARY $PHP_ARGS -d extension=./modules/interbase.so -r '
+valgrind $VALGRIND_OPTS $PHP_BINARY $PHP_ARGS -d extension=./modules/firebird.so -r '
 $version = fbu_get_client_version(null);
 echo "Client version (null test): " . $version . PHP_EOL;
 '

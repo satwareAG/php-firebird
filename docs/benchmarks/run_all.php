@@ -1,12 +1,12 @@
 <?php
-// satware-docs/benchmarks/run_all.php
-// Simple benchmark driver to run perf_interbase.php and perf_pdo_firebird.php
+// docs/benchmarks/run_all.php
+// Simple benchmark driver to run perf_firebird.php and perf_pdo_firebird.php
 // against multiple Firebird engines.
 //
 // Usage (inside php-firebird repo root or in php*-dev container):
-//   php satware-docs/benchmarks/run_all.php
+//   php docs/benchmarks/run_all.php
 //
-// This script does not modify perf_interbase.php or perf_pdo_firebird.php.
+// This script does not modify perf_firebird.php or perf_pdo_firebird.php.
 // It spawns separate PHP processes with appropriate FB_* environment
 // variables so that each benchmark run targets a specific engine.
 
@@ -37,7 +37,7 @@ $engines = [
 ];
 
 $drivers = [
-    'interbase'    => 'perf_interbase.php',
+    'firebird'     => 'perf_firebird.php',
     'pdo_firebird' => 'perf_pdo_firebird.php',
 ];
 

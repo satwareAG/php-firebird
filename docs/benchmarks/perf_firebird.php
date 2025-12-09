@@ -1,13 +1,13 @@
 <?php
-// satware-docs/benchmarks/perf_interbase.php
-// Benchmark basic operations using the classic interbase/ibase extension.
+// docs/benchmarks/perf_firebird.php
+// Benchmark basic operations using the php-firebird extension.
 //
 // Usage:
-//   php satware-docs/benchmarks/perf_interbase.php
+//   php docs/benchmarks/perf_firebird.php
 //
 // Make sure:
-//   - The `interbase` extension is enabled (php -m | grep interbase)
-//   - satware-docs/benchmarks/config.php is filled with a working DSN and credentials
+//   - The `firebird` extension is enabled (php -m | grep firebird)
+//   - docs/benchmarks/config.php is filled with a working DSN and credentials
 //   - The Firebird database contains a table `perf_test(id INTEGER, payload VARCHAR(100))`
 //
 // Example table:
@@ -18,8 +18,8 @@
 //   INSERT INTO perf_test(payload) VALUES ('test row');
 //   COMMIT;
 
-if (!extension_loaded('interbase')) {
-    fwrite(STDERR, "The 'interbase' extension is not loaded.\n");
+if (!extension_loaded('firebird')) {
+    fwrite(STDERR, "The 'firebird' extension is not loaded.\n");
     exit(1);
 }
 
@@ -39,8 +39,8 @@ function bench(string $label, callable $fn, int $iterations): void
 }
 
 // 1) Connect + simple SELECT per iteration
-bench('ibase connect+select', function () use ($config): void {
-    $link = ibase_connect(
+bench('fbird connect+select', function () use ($config): void {
+    $link = fbird_connect(
         $config['host'],
         $config['user'],
         $config['password'],
@@ -50,48 +50,48 @@ bench('ibase connect+select', function () use ($config): void {
         // Connection error already reported by extension
         return;
     }
-    $res = ibase_query($link, 'SELECT 1 FROM RDB$DATABASE');
+    $res = fbird_query($link, 'SELECT 1 FROM RDB$DATABASE');
     if ($res) {
-        ibase_fetch_row($res);
-        ibase_free_result($res);
+        fbird_fetch_row($res);
+        fbird_free_result($res);
     }
-    ibase_close($link);
+    fbird_close($link);
 }, $iterations);
 
 // 2) Reuse a single connection for all iterations
-$link = ibase_connect(
+$link = fbird_connect(
     $config['host'],
     $config['user'],
     $config['password'],
     $config['charset']
 );
 if (!$link) {
-    fwrite(STDERR, "Failed to connect via ibase_connect() for reuse benchmark.\n");
+    fwrite(STDERR, "Failed to connect via fbird_connect() for reuse benchmark.\n");
     exit(1);
 }
 
-bench('ibase reused connect+select', function () use ($link): void {
-    $res = ibase_query($link, 'SELECT 1 FROM RDB$DATABASE');
+bench('fbird reused connect+select', function () use ($link): void {
+    $res = fbird_query($link, 'SELECT 1 FROM RDB$DATABASE');
     if ($res) {
-        ibase_fetch_row($res);
-        ibase_free_result($res);
+        fbird_fetch_row($res);
+        fbird_free_result($res);
     }
 }, $iterations);
 
 // 3) Prepared statement with positional parameter against perf_test
-$prep = ibase_prepare($link, 'SELECT payload FROM perf_test WHERE id = ?');
+$prep = fbird_prepare($link, 'SELECT payload FROM perf_test WHERE id = ?');
 if (!$prep) {
     fwrite(STDERR, "Failed to prepare statement on perf_test.\n");
-    ibase_close($link);
+    fbird_close($link);
     exit(1);
 }
 
-bench('ibase prepared select with param', function () use ($prep): void {
-    $res = ibase_execute($prep, 1);
+bench('fbird prepared select with param', function () use ($prep): void {
+    $res = fbird_execute($prep, 1);
     if ($res) {
-        ibase_fetch_row($res);
-        ibase_free_result($res);
+        fbird_fetch_row($res);
+        fbird_free_result($res);
     }
 }, $iterations);
 
-ibase_close($link);
+fbird_close($link);

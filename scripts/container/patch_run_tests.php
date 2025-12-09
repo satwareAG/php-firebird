@@ -45,7 +45,7 @@ $search_summary = "Exts tested     : ' . sprintf('%5d', count(\$exts_tested)) . 
 // PHP string literals in this file need correct escaping.
 
 $replace_summary = "Exts tested     : ' . sprintf('%5d', count(\$exts_tested)) . '\n---------------------------------------------------------------------\n';
-        \$cmd = \"\$php -n -d extension_dir=modules/ -d extension=interbase.so -r 'echo \\\"PHP Interbase Version: \\\" . phpversion(\\\"interbase\\\") . \\\"\\\\n\\\"; echo \\\"Firebird Client Version: \\\" . ibase_get_client_version() . \\\"\\\\n\\\";'\";
+        \$cmd = \"\$php -n -d extension_dir=modules/ -d extension=firebird.so -r 'echo \\\"PHP Firebird Version: \\\" . phpversion(\\\"firebird\\\") . \\\"\\\\n\\\"; echo \\\"Firebird Client Version: \\\" . fbird_get_client_version() . \\\"\\\\n\\\";'\";
         \$ver_output = shell_exec(\$cmd);
         if (\$ver_output) {
              \$summary .= \$ver_output;

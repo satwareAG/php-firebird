@@ -118,8 +118,8 @@ fi
 if [ "$MODE" == "full" ]; then
     echo -e "${BLUE}>> Running Valgrind (on standard build)...${NC}"
     # Valgrind parses the current binary. Since 'make install' wasn't run in step 4 (just make),
-    # test-extension.sh finds modules/interbase.so.
-    # test_with_valgrind.sh also uses ./modules/interbase.so.
+    # test-extension.sh finds modules/firebird.so.
+    # test_with_valgrind.sh also uses ./modules/firebird.so.
     if ! docker compose exec "$CONTAINER" /ext/scripts/container/analysis/valgrind.sh; then
         echo -e "${RED}Valgrind failed.${NC}"
         exit 1

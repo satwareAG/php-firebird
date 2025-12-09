@@ -6,7 +6,7 @@ fbird_close(): Make sure passing a string to the function throws an error.
 include("skipif.inc");
 
 // See also: tests/fbird_close_003.phpt
-skip_if_ext_lt(61);
+skip_if_ext_lt(10);
 
 ?>
 --FILE--

@@ -80,11 +80,11 @@ The `config.m4` has been updated to:
 ```bash
 # Standard build process
 phpize
-./configure --with-interbase
+./configure --with-firebird
 make
 
 # Development build with debugging
-CXXFLAGS="-g -O0 -fsanitize=address" ./configure --with-interbase
+CXXFLAGS="-g -O0 -fsanitize=address" ./configure --with-firebird
 make
 
 # Clean build environment

@@ -36,8 +36,8 @@ extern zend_module_entry firebird_module_entry;
   static_assert(false, "FATAL: FB_API_VER is not defined. Assumed very old, unsupported client library");
 #endif
 
-#define PHP_FIREBIRD_VER_MAJOR 6
-#define PHP_FIREBIRD_VER_MINOR 2
+#define PHP_FIREBIRD_VER_MAJOR 1
+#define PHP_FIREBIRD_VER_MINOR 0
 #define PHP_FIREBIRD_VER_REV 0
 /* #define PHP_FIREBIRD_VER_PRE "-RC2" -- Defined only for pre-releases */
 
@@ -45,9 +45,9 @@ extern zend_module_entry firebird_module_entry;
 #define PHP_FIREBIRD_VER PHP_FIREBIRD_VER_MAJOR * 10 + PHP_FIREBIRD_VER_MINOR
 
 #ifdef PHP_FIREBIRD_VER_PRE
-#   define PHP_FIREBIRD_VER_STR "6.2.0" PHP_FIREBIRD_VER_PRE
+#   define PHP_FIREBIRD_VER_STR "1.0.0" PHP_FIREBIRD_VER_PRE
 #else
-#   define PHP_FIREBIRD_VER_STR "6.2.0"
+#   define PHP_FIREBIRD_VER_STR "1.0.0"
 #endif
 
 PHP_MINIT_FUNCTION(fbird);

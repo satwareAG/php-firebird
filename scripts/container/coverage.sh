@@ -24,7 +24,7 @@ export CFLAGS="-fprofile-arcs -ftest-coverage -O0 -g"
 export CXXFLAGS="-fprofile-arcs -ftest-coverage -O0 -g"
 export LDFLAGS="--coverage"
 
-./configure --with-interbase=/usr
+./configure --with-firebird=/usr
 
 # 2. Build
 echo "Building extension..."

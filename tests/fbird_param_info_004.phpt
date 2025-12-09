@@ -1,5 +1,5 @@
 --TEST--
-ibase_param_info(): Basic test with ibase_query()
+fbird_param_info(): Basic test with fbird_query()
 --SKIPIF--
 <?php include("skipif.inc"); ?>
 --FILE--
@@ -8,13 +8,13 @@ ibase_param_info(): Basic test with ibase_query()
 require("firebird.inc");
 
 (function($test_base){
-	ibase_connect($test_base);
+	fbird_connect($test_base);
 
-	$rs = ibase_query('SELECT * FROM TEST1 WHERE 1 = ? OR 2 = ?', 1, 2);
-	$count = ibase_num_params($rs);
+	$rs = fbird_query('SELECT * FROM TEST1 WHERE 1 = ? OR 2 = ?', 1, 2);
+	$count = fbird_num_params($rs);
 	var_dump($count);
 	for($i = 0; $i < $count; $i++){
-		var_dump(ibase_field_info($rs, $i));
+		var_dump(fbird_field_info($rs, $i));
 	}
 })($test_base);
 

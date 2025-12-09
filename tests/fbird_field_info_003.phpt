@@ -1,5 +1,5 @@
 --TEST--
-ibase_field_info(): fields introduced in FB 4.0
+fbird_field_info(): fields introduced in FB 4.0
 --SKIPIF--
 <?php
 include("skipif.inc");
@@ -10,17 +10,17 @@ skip_if_fbclient_lt(4);
 <?php
 
 require("firebird.inc");
-ibase_connect($test_base);
+fbird_connect($test_base);
 
 (function(){
-    ibase_query(file_get_contents(__DIR__."/001-FIELDS40.sql"));
-    ibase_commit();
+    fbird_query(file_get_contents(__DIR__."/001-FIELDS40.sql"));
+    fbird_commit();
 
-    ibase_query("INSERT INTO FIELDS40 (ID) VALUES (DEFAULT)");
-    $q = ibase_query("SELECT * FROM FIELDS40");
-    $num_fields = ibase_num_fields($q);
+    fbird_query("INSERT INTO FIELDS40 (ID) VALUES (DEFAULT)");
+    $q = fbird_query("SELECT * FROM FIELDS40");
+    $num_fields = fbird_num_fields($q);
     for($i = 0; $i < $num_fields; $i++){
-        $info = ibase_field_info($q, $i);
+        $info = fbird_field_info($q, $i);
         printf("%s/%s/%d\n", $info["name"], $info["type"], $info["length"]);
     }
 })();

@@ -1,5 +1,5 @@
 --TEST--
-ibase_name_result(): basic test
+fbird_name_result(): basic test
 --SKIPIF--
 <?php
 include("skipif.inc");
@@ -8,24 +8,24 @@ include("skipif.inc");
 <?php
 
 require("firebird.inc");
-ibase_connect($test_base);
+fbird_connect($test_base);
 
 (function(){
     $rowc = 2;
-    ibase_query("DELETE FROM TEST1");
-    $p = ibase_prepare("INSERT INTO TEST1 (i, c) VALUES (?, ?)");
+    fbird_query("DELETE FROM TEST1");
+    $p = fbird_prepare("INSERT INTO TEST1 (i, c) VALUES (?, ?)");
     for($i = 1; $i <= $rowc; $i++){
-        ibase_execute($p, $i, "row$i");
+        fbird_execute($p, $i, "row$i");
     }
     print "---- init ----\n";
     dump_table_rows("TEST1");
 
-    $q = ibase_query("SELECT * FROM TEST1 FOR UPDATE");
-    ibase_name_result($q, "curs");
+    $q = fbird_query("SELECT * FROM TEST1 FOR UPDATE");
+    fbird_name_result($q, "curs");
 
-    $p = ibase_prepare("UPDATE TEST1 SET i = ?, c = ? WHERE CURRENT OF curs");
-    for ($i = 1; ibase_fetch_row($q); ++$i) {
-        ibase_execute($p, $i*2, "row$i/".($i * 2));
+    $p = fbird_prepare("UPDATE TEST1 SET i = ?, c = ? WHERE CURRENT OF curs");
+    for ($i = 1; fbird_fetch_row($q); ++$i) {
+        fbird_execute($p, $i*2, "row$i/".($i * 2));
     }
 
     print "---- after update ----\n";

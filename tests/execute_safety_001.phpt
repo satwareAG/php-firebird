@@ -6,8 +6,8 @@ API Safety: fbird_execute_statement vs fbird_execute_query error validation
 <?php
 require("firebird.inc");
 
-$db = ibase_connect($test_base);
-$trans = ibase_trans($db);
+$db = fbird_connect($test_base);
+$trans = fbird_trans($db);
 
 // Helper to assert exception message
 function assert_exception(callable $fn, string $expectedPart) {
@@ -29,8 +29,8 @@ echo "1. DDL via execute_statement...\n";
 // can be invisible. We commit the DDL here to ensure the table is visible for DML.
 $res = fbird_execute_statement($trans, "recreate table test_exec_safety (id int)");
 var_dump($res); // int(0)
-ibase_commit($trans);
-$trans = ibase_trans($db); // Start new transaction for DML
+fbird_commit($trans);
+$trans = fbird_trans($db); // Start new transaction for DML
 
 // 2. Correct Usage of fbird_execute_statement (DML)
 echo "2. DML via execute_statement...\n";
@@ -47,9 +47,9 @@ assert_exception(function() use ($trans) {
 echo "4. SELECT via execute_query...\n";
 $res = fbird_execute_query($trans, "select * from test_exec_safety");
 var_dump(is_resource($res)); // bool(true)
-$row = ibase_fetch_row($res);
+$row = fbird_fetch_row($res);
 var_dump($row[0]); // int(1)
-ibase_free_result($res);
+fbird_free_result($res);
 
 // 5. Incorrect Usage: DML via execute_query (Expect Error)
 echo "5. DML via execute_query (Should fail)...\n";
@@ -64,13 +64,13 @@ fbird_execute_auto($db, "insert into test_exec_safety values (3)");
 
 // Check in our main transaction (need commit to see it? No, main trans started before auto?
 // If main is READ_COMMITTED, it should see committed data.)
-ibase_commit($trans);
-$trans = ibase_trans($db);
+fbird_commit($trans);
+$trans = fbird_trans($db);
 $res = fbird_execute_query($trans, "select count(*) from test_exec_safety");
-$row = ibase_fetch_row($res);
+$row = fbird_fetch_row($res);
 echo "Count after auto: " . $row[0] . "\n";
 
-ibase_close($db);
+fbird_close($db);
 ?>
 --EXPECTF--
 1. DDL via execute_statement...

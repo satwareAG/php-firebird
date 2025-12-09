@@ -1,5 +1,5 @@
 --TEST--
-ibase_trans(): Basic operations
+fbird_trans(): Basic operations
 --SKIPIF--
 <?php include("skipif.inc"); ?>
 --FILE--
@@ -7,20 +7,20 @@ ibase_trans(): Basic operations
 
 require("firebird.inc");
 
-$x = ibase_connect($test_base);
+$x = fbird_connect($test_base);
 
-$trans = ibase_trans(FBIRD_DEFAULT, $x);
-$sth = ibase_prepare($trans, 'INSERT INTO test1 VALUES (?, ?)');
+$trans = fbird_trans(FBIRD_DEFAULT, $x);
+$sth = fbird_prepare($trans, 'INSERT INTO test1 VALUES (?, ?)');
 
-$res = ibase_execute($sth, 100, 100);
+$res = fbird_execute($sth, 100, 100);
 var_dump($res);
 
-ibase_commit($trans);
+fbird_commit($trans);
 
-$rs = ibase_query($x, 'SELECT * FROM test1 WHERE i = 100');
-var_dump(ibase_fetch_assoc($rs));
+$rs = fbird_query($x, 'SELECT * FROM test1 WHERE i = 100');
+var_dump(fbird_fetch_assoc($rs));
 
-ibase_free_query($sth);
+fbird_free_query($sth);
 unset($res);
 
 ?>

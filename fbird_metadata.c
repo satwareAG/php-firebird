@@ -40,12 +40,12 @@
 #define ISC_LONG_MAX    INT_MAX
 
 /* Forward declarations */
-static zend_bool _php_ibase_infer_returning_prefix(const char *sql, size_t index, char *out, size_t out_len);
-static zend_bool _php_ibase_infer_returning_full_alias(const char *sql, size_t index, char *out, size_t out_len);
-static zend_bool _php_ibase_returning_token_alias(const char *sql, size_t index, char *out, size_t out_len);
-static zend_bool _php_ibase_sql_has_returning(const char *sql);
+static zend_bool _php_fbird_infer_returning_prefix(const char *sql, size_t index, char *out, size_t out_len);
+static zend_bool _php_fbird_infer_returning_full_alias(const char *sql, size_t index, char *out, size_t out_len);
+static zend_bool _php_fbird_returning_token_alias(const char *sql, size_t index, char *out, size_t out_len);
+static zend_bool _php_fbird_sql_has_returning(const char *sql);
 
-void _php_ibase_insert_alias(HashTable *ht, const char *alias)
+void _php_fbird_insert_alias(HashTable *ht, const char *alias)
 {
 	/* Buffer size increased to handle aliases of maximum length plus suffix */
 	char buf[METADATALENGTH + 32];
@@ -73,7 +73,7 @@ void _php_ibase_insert_alias(HashTable *ht, const char *alias)
 	zend_hash_str_add_new(ht, alias, alias_len, &t2);
 }
 
-void _php_ibase_field_info(zval *return_value, ibase_query *ib_query, int is_outvar, int num) /* {{{ */
+void _php_fbird_field_info(zval *return_value, fbird_query *ib_query, int is_outvar, int num) /* {{{ */
 {
 	unsigned short len;
 	char buf[16], *s = buf;
@@ -83,7 +83,7 @@ void _php_ibase_field_info(zval *return_value, ibase_query *ib_query, int is_out
  if(is_outvar){
         sqlda = ib_query->out_sqlda;
         if (sqlda == NULL) {
-            _php_ibase_module_error("Trying to get field info from a non-select query");
+            _php_fbird_module_error("Trying to get field info from a non-select query");
             RETURN_FALSE;
         }
     } else {
@@ -99,7 +99,7 @@ void _php_ibase_field_info(zval *return_value, ibase_query *ib_query, int is_out
  if (!var || num < 0 || num >= sqlda->sqld) {
         /* For parameters, do not emit a warning on out-of-range; return false quietly */
         if (is_outvar) {
-            _php_ibase_module_error("Field %d does not exist (valid range: 0-%d)", num, sqlda ? sqlda->sqld - 1 : -1);
+            _php_fbird_module_error("Field %d does not exist (valid range: 0-%d)", num, sqlda ? sqlda->sqld - 1 : -1);
         }
         RETURN_FALSE;
     }
@@ -113,12 +113,12 @@ void _php_ibase_field_info(zval *return_value, ibase_query *ib_query, int is_out
 	if(IBG(master_instance) && IBG(get_statement_interface)) {
 		void *statement = NULL;
 		if(((fb_get_statement_interface_t)IBG(get_statement_interface))(IB_STATUS, &statement, &ib_query->stmt.stmt)){
-			_php_ibase_error();
+			_php_fbird_error();
 			RETURN_FALSE;
 		}
 
 		if(fbu_insert_field_info(IBG(master_instance), IB_STATUS, is_outvar, num, return_value, statement)){
-			_php_ibase_error();
+			_php_fbird_error();
 			RETURN_FALSE;
 		}
 	} else {
@@ -244,13 +244,13 @@ void _php_ibase_field_info(zval *return_value, ibase_query *ib_query, int is_out
 }
 /* }}} */
 
-/* {{{ proto array ibase_field_info(resource query_result, int field_number)
+/* {{{ proto array fbird_field_info(resource query_result, int field_number)
    Get information about a field */
-PHP_FUNCTION(ibase_field_info)
+PHP_FUNCTION(fbird_field_info)
 {
 	zval *result_arg;
 	zend_long field_arg;
-	ibase_query *ib_query;
+	fbird_query *ib_query;
 
 	RESET_ERRMSG;
 
@@ -258,20 +258,20 @@ PHP_FUNCTION(ibase_field_info)
 		return;
 	}
 
-	if(!_php_ibase_fetch_query_res(result_arg, &ib_query)) {
+	if(!_php_fbird_fetch_query_res(result_arg, &ib_query)) {
 		RETURN_FALSE;
 	}
 
-	_php_ibase_field_info(return_value, ib_query, 1, (ISC_SHORT)field_arg);
+	_php_fbird_field_info(return_value, ib_query, 1, (ISC_SHORT)field_arg);
 }
 /* }}} */
 
-/* {{{ proto int ibase_num_params(resource query)
+/* {{{ proto int fbird_num_params(resource query)
    Get the number of params in a prepared query */
-PHP_FUNCTION(ibase_num_params)
+PHP_FUNCTION(fbird_num_params)
 {
 	zval *result;
-	ibase_query *ib_query;
+	fbird_query *ib_query;
 
 	RESET_ERRMSG;
 
@@ -279,7 +279,7 @@ PHP_FUNCTION(ibase_num_params)
 		return;
 	}
 
-	if(!_php_ibase_fetch_query_res(result, &ib_query)) {
+	if(!_php_fbird_fetch_query_res(result, &ib_query)) {
 		RETURN_FALSE;
 	}
 
@@ -291,13 +291,13 @@ PHP_FUNCTION(ibase_num_params)
 }
 /* }}} */
 
-/* {{{ proto array ibase_param_info(resource query, int field_number)
+/* {{{ proto array fbird_param_info(resource query, int field_number)
    Get information about a parameter */
-PHP_FUNCTION(ibase_param_info)
+PHP_FUNCTION(fbird_param_info)
 {
 	zval *result_arg;
 	zend_long field_arg;
-	ibase_query *ib_query;
+	fbird_query *ib_query;
 
 	RESET_ERRMSG;
 
@@ -305,21 +305,21 @@ PHP_FUNCTION(ibase_param_info)
 		return;
 	}
 
-	if(!_php_ibase_fetch_query_res(result_arg, &ib_query)) {
+	if(!_php_fbird_fetch_query_res(result_arg, &ib_query)) {
 		RETURN_FALSE;
 	}
 
-	_php_ibase_field_info(return_value, ib_query, 0, field_arg);
+	_php_fbird_field_info(return_value, ib_query, 0, field_arg);
 }
 /* }}} */
 
-/* {{{ proto int ibase_num_fields(resource query_result)
+/* {{{ proto int fbird_num_fields(resource query_result)
    Get the number of fields in result */
-PHP_FUNCTION(ibase_num_fields)
+PHP_FUNCTION(fbird_num_fields)
 {
 	zval *result;
 	XSQLDA *sqlda;
-	ibase_query *ib_query;
+	fbird_query *ib_query;
 
 	RESET_ERRMSG;
 
@@ -327,7 +327,7 @@ PHP_FUNCTION(ibase_num_fields)
 		return;
 	}
 
-	if(!_php_ibase_fetch_query_res(result, &ib_query)) {
+	if(!_php_fbird_fetch_query_res(result, &ib_query)) {
 		RETURN_FALSE;
 	}
 
@@ -348,7 +348,7 @@ PHP_FUNCTION(ibase_num_fields)
 // also require runtime fbclient > 40 hence the runtime checks. Ideally rewrite
 // everything using newer API but that's a bit of work.
 
-int _php_ibase_alloc_ht_aliases(ibase_query *ib_query)
+int _php_fbird_alloc_ht_aliases(fbird_query *ib_query)
 {
 	ALLOC_HASHTABLE(ib_query->ht_aliases);
 	zend_hash_init(ib_query->ht_aliases, ib_query->out_fields_count, NULL, ZVAL_PTR_DTOR, 0);
@@ -368,7 +368,7 @@ int _php_ibase_alloc_ht_aliases(ibase_query *ib_query)
         if ((ib_query->statement_type == isc_info_sql_stmt_insert ||
              ib_query->statement_type == isc_info_sql_stmt_update ||
              ib_query->statement_type == isc_info_sql_stmt_delete) ||
-            _php_ibase_sql_has_returning(ib_query->query)) {
+            _php_fbird_sql_has_returning(ib_query->query)) {
             HashTable *ht2;
             ALLOC_HASHTABLE(ht2);
             zend_hash_init(ht2, ib_query->out_fields_count, NULL, ZVAL_PTR_DTOR, 0);
@@ -381,16 +381,16 @@ int _php_ibase_alloc_ht_aliases(ibase_query *ib_query)
 
                 /* Prefer full alias inference (e.g., OLD.I / NEW.I) when present */
                 char full[METADATALENGTH + 6 + 1] = {0};
-                if (_php_ibase_infer_returning_full_alias(ib_query->query, i, full, sizeof(full))) {
-                    _php_ibase_insert_alias(ht2, full);
+                if (_php_fbird_infer_returning_full_alias(ib_query->query, i, full, sizeof(full))) {
+                    _php_fbird_insert_alias(ht2, full);
                 } else {
                     char pref[5] = {0};
-                    if (_php_ibase_infer_returning_prefix(ib_query->query, i, pref, sizeof(pref)) && pref[0] != '\0') {
+                    if (_php_fbird_infer_returning_prefix(ib_query->query, i, pref, sizeof(pref)) && pref[0] != '\0') {
                         char buf[METADATALENGTH + 5 + 1];
                         snprintf(buf, sizeof(buf), "%s%s", pref, base_alias);
-                        _php_ibase_insert_alias(ht2, buf);
+                        _php_fbird_insert_alias(ht2, buf);
                     } else {
-                        _php_ibase_insert_alias(ht2, base_alias);
+                        _php_fbird_insert_alias(ht2, base_alias);
                     }
                 }
             }
@@ -413,23 +413,23 @@ int _php_ibase_alloc_ht_aliases(ibase_query *ib_query)
             if ((ib_query->statement_type == isc_info_sql_stmt_insert ||
                  ib_query->statement_type == isc_info_sql_stmt_update ||
                  ib_query->statement_type == isc_info_sql_stmt_delete) ||
-                _php_ibase_sql_has_returning(ib_query->query)) {
+                _php_fbird_sql_has_returning(ib_query->query)) {
                 char full[METADATALENGTH + 6 + 1] = {0};
-                if (_php_ibase_infer_returning_full_alias(ib_query->query, i, full, sizeof(full))) {
-                    _php_ibase_insert_alias(ib_query->ht_aliases, full);
+                if (_php_fbird_infer_returning_full_alias(ib_query->query, i, full, sizeof(full))) {
+                    _php_fbird_insert_alias(ib_query->ht_aliases, full);
                     continue;
                 } else {
                     char pref[5] = {0};
-                    if (_php_ibase_infer_returning_prefix(ib_query->query, i, pref, sizeof(pref)) && pref[0] != '\0') {
+                    if (_php_fbird_infer_returning_prefix(ib_query->query, i, pref, sizeof(pref)) && pref[0] != '\0') {
                         char buf[METADATALENGTH + 5 + 1];
                         snprintf(buf, sizeof(buf), "%s%s", pref, base_alias);
-                        _php_ibase_insert_alias(ib_query->ht_aliases, buf);
+                        _php_fbird_insert_alias(ib_query->ht_aliases, buf);
                         continue;
                     }
                 }
             }
 
-            _php_ibase_insert_alias(ib_query->ht_aliases, base_alias);
+            _php_fbird_insert_alias(ib_query->ht_aliases, base_alias);
         }
 #if FB_API_VER >= 40
     }
@@ -438,7 +438,7 @@ int _php_ibase_alloc_ht_aliases(ibase_query *ib_query)
 	return SUCCESS;
 }
 
-void _php_ibase_alloc_ht_ind(ibase_query *ib_query)
+void _php_fbird_alloc_ht_ind(fbird_query *ib_query)
 {
 	ALLOC_HASHTABLE(ib_query->ht_ind);
 	zend_hash_init(ib_query->ht_ind, ib_query->out_fields_count, NULL, ZVAL_PTR_DTOR, 0);
@@ -454,7 +454,7 @@ void _php_ibase_alloc_ht_ind(ibase_query *ib_query)
 /* Parse the RETURNING list and extract a qualifier prefix (OLD./NEW.) for the
  * k-th expression, if present. Returns 1 when detected and writes uppercased
  * qualifier including trailing dot into out; otherwise returns 0. */
-static zend_bool _php_ibase_infer_returning_prefix(const char *sql, size_t index, char *out, size_t out_len)
+static zend_bool _php_fbird_infer_returning_prefix(const char *sql, size_t index, char *out, size_t out_len)
 {
     if (!sql || !out || out_len < 5) { /* needs space for "OLD."/"NEW." */
         return 0;
@@ -517,7 +517,7 @@ static zend_bool _php_ibase_infer_returning_prefix(const char *sql, size_t index
  * expression is qualified with OLD./NEW. Returns 1 and writes the alias
  * (e.g., "OLD.I") into out when detected; otherwise returns 0. This is a
  * simple tokenizer aimed at test cases with unquoted identifiers. */
-static zend_bool _php_ibase_infer_returning_full_alias(const char *sql, size_t index, char *out, size_t out_len)
+static zend_bool _php_fbird_infer_returning_full_alias(const char *sql, size_t index, char *out, size_t out_len)
 {
     if (!sql || !out || out_len < 6) {
         return 0;
@@ -585,7 +585,7 @@ static zend_bool _php_ibase_infer_returning_full_alias(const char *sql, size_t i
  * contains a qualifier (e.g., OLD.I or NEW.C), write it as-is (uppercased
  * qualifier plus original column part) into out and return 1. If token has
  * no qualifier, return 0 so caller can fallback to base alias. */
-static zend_bool _php_ibase_returning_token_alias(const char *sql, size_t index, char *out, size_t out_len)
+static zend_bool _php_fbird_returning_token_alias(const char *sql, size_t index, char *out, size_t out_len)
 {
     if (!sql || !out || out_len < 6) return 0;
 
@@ -640,7 +640,7 @@ static zend_bool _php_ibase_returning_token_alias(const char *sql, size_t index,
 }
 
 /* Case-insensitive probe for the word RETURNING in the SQL text. */
-static zend_bool _php_ibase_sql_has_returning(const char *sql)
+static zend_bool _php_fbird_sql_has_returning(const char *sql)
 {
     if (!sql) return 0;
     const char *p = sql;

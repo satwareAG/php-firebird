@@ -13,7 +13,7 @@ skip_if_ext_gte(61);
 
 require("firebird.inc");
 require("common.inc");
-ibase_connect($test_base);
+fbird_connect($test_base);
 test_time_unixtime();
 
 ?>

@@ -50,45 +50,45 @@ extern zend_module_entry firebird_module_entry;
 #   define PHP_FIREBIRD_VER_STR "6.2.0"
 #endif
 
-PHP_MINIT_FUNCTION(ibase);
-PHP_RINIT_FUNCTION(ibase);
-PHP_MSHUTDOWN_FUNCTION(ibase);
-PHP_RSHUTDOWN_FUNCTION(ibase);
-PHP_MINFO_FUNCTION(ibase);
+PHP_MINIT_FUNCTION(fbird);
+PHP_RINIT_FUNCTION(fbird);
+PHP_MSHUTDOWN_FUNCTION(fbird);
+PHP_RSHUTDOWN_FUNCTION(fbird);
+PHP_MINFO_FUNCTION(fbird);
 
-PHP_FUNCTION(ibase_connect);
-PHP_FUNCTION(ibase_pconnect);
-PHP_FUNCTION(ibase_close);
-PHP_FUNCTION(ibase_drop_db);
-PHP_FUNCTION(ibase_query);
-PHP_FUNCTION(ibase_fetch_row);
-PHP_FUNCTION(ibase_fetch_assoc);
-PHP_FUNCTION(ibase_fetch_object);
-PHP_FUNCTION(ibase_free_result);
-PHP_FUNCTION(ibase_name_result);
-PHP_FUNCTION(ibase_prepare);
-PHP_FUNCTION(ibase_execute);
-PHP_FUNCTION(ibase_free_query);
+PHP_FUNCTION(fbird_connect);
+PHP_FUNCTION(fbird_pconnect);
+PHP_FUNCTION(fbird_close);
+PHP_FUNCTION(fbird_drop_db);
+PHP_FUNCTION(fbird_query);
+PHP_FUNCTION(fbird_fetch_row);
+PHP_FUNCTION(fbird_fetch_assoc);
+PHP_FUNCTION(fbird_fetch_object);
+PHP_FUNCTION(fbird_free_result);
+PHP_FUNCTION(fbird_name_result);
+PHP_FUNCTION(fbird_prepare);
+PHP_FUNCTION(fbird_execute);
+PHP_FUNCTION(fbird_free_query);
 
 PHP_FUNCTION(fbird_execute_statement);
 PHP_FUNCTION(fbird_execute_query);
 PHP_FUNCTION(fbird_execute_auto);
 
-PHP_FUNCTION(ibase_timefmt);
+PHP_FUNCTION(fbird_timefmt);
 
-PHP_FUNCTION(ibase_gen_id);
-PHP_FUNCTION(ibase_num_fields);
-PHP_FUNCTION(ibase_num_params);
-PHP_FUNCTION(ibase_affected_rows);
-PHP_FUNCTION(ibase_field_info);
-PHP_FUNCTION(ibase_param_info);
+PHP_FUNCTION(fbird_gen_id);
+PHP_FUNCTION(fbird_num_fields);
+PHP_FUNCTION(fbird_num_params);
+PHP_FUNCTION(fbird_affected_rows);
+PHP_FUNCTION(fbird_field_info);
+PHP_FUNCTION(fbird_param_info);
 
-PHP_FUNCTION(ibase_trans);
+PHP_FUNCTION(fbird_trans);
 PHP_FUNCTION(fbird_trans_start);
-PHP_FUNCTION(ibase_commit);
-PHP_FUNCTION(ibase_rollback);
-PHP_FUNCTION(ibase_commit_ret);
-PHP_FUNCTION(ibase_rollback_ret);
+PHP_FUNCTION(fbird_commit);
+PHP_FUNCTION(fbird_rollback);
+PHP_FUNCTION(fbird_commit_ret);
+PHP_FUNCTION(fbird_rollback_ret);
 
 PHP_FUNCTION(fbird_savepoint);
 PHP_FUNCTION(fbird_rollback_savepoint);
@@ -96,40 +96,40 @@ PHP_FUNCTION(fbird_release_savepoint);
 
 PHP_FUNCTION(fbird_trans_info);
 
-PHP_FUNCTION(ibase_blob_create);
-PHP_FUNCTION(ibase_blob_add);
-PHP_FUNCTION(ibase_blob_cancel);
-PHP_FUNCTION(ibase_blob_open);
-PHP_FUNCTION(ibase_blob_get);
-PHP_FUNCTION(ibase_blob_close);
-PHP_FUNCTION(ibase_blob_echo);
-PHP_FUNCTION(ibase_blob_info);
-PHP_FUNCTION(ibase_blob_import);
-PHP_FUNCTION(ibase_blob_create_stream);
-PHP_FUNCTION(ibase_blob_open_stream);
+PHP_FUNCTION(fbird_blob_create);
+PHP_FUNCTION(fbird_blob_add);
+PHP_FUNCTION(fbird_blob_cancel);
+PHP_FUNCTION(fbird_blob_open);
+PHP_FUNCTION(fbird_blob_get);
+PHP_FUNCTION(fbird_blob_close);
+PHP_FUNCTION(fbird_blob_echo);
+PHP_FUNCTION(fbird_blob_info);
+PHP_FUNCTION(fbird_blob_import);
+PHP_FUNCTION(fbird_blob_create_stream);
+PHP_FUNCTION(fbird_blob_open_stream);
 
-PHP_FUNCTION(ibase_add_user);
-PHP_FUNCTION(ibase_modify_user);
-PHP_FUNCTION(ibase_delete_user);
+PHP_FUNCTION(fbird_add_user);
+PHP_FUNCTION(fbird_modify_user);
+PHP_FUNCTION(fbird_delete_user);
 
-PHP_FUNCTION(ibase_service_attach);
-PHP_FUNCTION(ibase_service_detach);
-PHP_FUNCTION(ibase_backup);
-PHP_FUNCTION(ibase_restore);
-PHP_FUNCTION(ibase_maintain_db);
-PHP_FUNCTION(ibase_db_info);
-PHP_FUNCTION(ibase_server_info);
+PHP_FUNCTION(fbird_service_attach);
+PHP_FUNCTION(fbird_service_detach);
+PHP_FUNCTION(fbird_backup);
+PHP_FUNCTION(fbird_restore);
+PHP_FUNCTION(fbird_maintain_db);
+PHP_FUNCTION(fbird_db_info);
+PHP_FUNCTION(fbird_server_info);
 
-PHP_FUNCTION(ibase_errmsg);
-PHP_FUNCTION(ibase_errcode);
+PHP_FUNCTION(fbird_errmsg);
+PHP_FUNCTION(fbird_errcode);
 
-PHP_FUNCTION(ibase_wait_event);
-PHP_FUNCTION(ibase_set_event_handler);
-PHP_FUNCTION(ibase_free_event_handler);
+PHP_FUNCTION(fbird_wait_event);
+PHP_FUNCTION(fbird_set_event_handler);
+PHP_FUNCTION(fbird_free_event_handler);
 
-PHP_FUNCTION(ibase_get_client_version);
-PHP_FUNCTION(ibase_get_client_major_version);
-PHP_FUNCTION(ibase_get_client_minor_version);
+PHP_FUNCTION(fbird_get_client_version);
+PHP_FUNCTION(fbird_get_client_major_version);
+PHP_FUNCTION(fbird_get_client_minor_version);
 
 #else
 

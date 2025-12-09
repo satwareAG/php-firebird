@@ -1,5 +1,5 @@
 --TEST--
-ibase_field_info(): basic fields
+fbird_field_info(): basic fields
 --SKIPIF--
 <?php
 include("skipif.inc");
@@ -13,7 +13,7 @@ ini_set('ibase.default_charset', "NONE");
 require("firebird.inc");
 require("common.inc");
 
-ibase_connect($test_base);
+fbird_connect($test_base);
 test_fields25();
 
 ?>

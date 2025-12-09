@@ -44,7 +44,7 @@ void fbu_decode_timestamp_tz(void *master_ptr, const ISC_TIMESTAMP_TZ* timestamp
 	unsigned time_zone_buffer_length, char* time_zone_buffer);
 int fbu_insert_field_info(void *master_ptr, ISC_STATUS* status, int is_outvar, int num,
   zval *into_array, void *statement_ptr);
-int fbu_insert_aliases(void *master_ptr, ISC_STATUS* status, ibase_query *ib_query,
+int fbu_insert_aliases(void *master_ptr, ISC_STATUS* status, fbird_query *ib_query,
   void *statement_ptr);
 
 #endif // FB_API_VER >= 30

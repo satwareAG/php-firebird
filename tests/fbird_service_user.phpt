@@ -1,5 +1,5 @@
 --TEST--
-ibase_service_user: Add, Modify, Delete, and List Users
+fbird_service_user: Add, Modify, Delete, and List Users
 --SKIPIF--
 <?php include("skipif.inc"); ?>
 --FILE--
@@ -11,20 +11,20 @@ $new_pass = 'pw123456';
 $mod_pass = 'pw654321';
 
 // 1. Attach
-$service = ibase_service_attach($host, $user, $password);
+$service = fbird_service_attach($host, $user, $password);
 if (!$service) die("Skip: Check service connection");
 
 // Cleanup (just in case)
-@ibase_delete_user($service, $new_user);
+@fbird_delete_user($service, $new_user);
 
 // 2. Add User
 echo "--- Add User ---\n";
-$res = ibase_add_user($service, $new_user, $new_pass, 'Test', 'Middle', 'User');
+$res = fbird_add_user($service, $new_user, $new_pass, 'Test', 'Middle', 'User');
 var_dump($res);
 
 // 3. Verify User Exists
 echo "--- Verify User ---\n";
-$users = ibase_server_info($service, FBIRD_SVC_GET_USERS);
+$users = fbird_server_info($service, FBIRD_SVC_GET_USERS);
 $found = false;
 foreach ($users as $u) {
     if ($u['user_name'] === $new_user) {
@@ -37,11 +37,11 @@ var_dump($found);
 
 // 4. Modify User
 echo "--- Modify User ---\n";
-$res = ibase_modify_user($service, $new_user, $mod_pass, 'TestMod');
+$res = fbird_modify_user($service, $new_user, $mod_pass, 'TestMod');
 var_dump($res);
 
 // 5. Verify Modification
-$users = ibase_server_info($service, FBIRD_SVC_GET_USERS);
+$users = fbird_server_info($service, FBIRD_SVC_GET_USERS);
 foreach ($users as $u) {
     if ($u['user_name'] === $new_user) {
         var_dump($u['first_name']);
@@ -51,11 +51,11 @@ foreach ($users as $u) {
 
 // 6. Delete User
 echo "--- Delete User ---\n";
-$res = ibase_delete_user($service, $new_user);
+$res = fbird_delete_user($service, $new_user);
 var_dump($res);
 
 // 7. Verify Deletion
-$users = ibase_server_info($service, FBIRD_SVC_GET_USERS);
+$users = fbird_server_info($service, FBIRD_SVC_GET_USERS);
 $found = false;
 foreach ($users as $u) {
     if ($u['user_name'] === $new_user) {
@@ -65,7 +65,7 @@ foreach ($users as $u) {
 }
 var_dump($found);
 
-ibase_service_detach($service);
+fbird_service_detach($service);
 ?>
 --EXPECT--
 --- Add User ---

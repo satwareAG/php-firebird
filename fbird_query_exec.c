@@ -42,15 +42,15 @@
 /* Max identifier size for Firebird 3+ (63 chars) but we alloc more for safety */
 #define MAX_IDENTIFIER_LEN 255
 
-/* Exported for use in ibase_result.c and other files */
+/* Exported for use in fbird_result.c and other files */
 int le_query;
 
 /* Forward declarations */
-static int _php_ibase_bind_array(zval *val, char *buf, zend_ulong buf_size, ibase_array *array, int dim);
-static int _php_ibase_set_query_info(ibase_query *ib_query);
+static int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, fbird_array *array, int dim);
+static int _php_fbird_set_query_info(fbird_query *ib_query);
 
-/* Implementation of _php_ibase_set_query_info */
-static int _php_ibase_set_query_info(ibase_query *ib_query) /* {{{ */
+/* Implementation of _php_fbird_set_query_info */
+static int _php_fbird_set_query_info(fbird_query *ib_query) /* {{{ */
 {
 	char info_req[] = { isc_info_sql_stmt_type };
 	char info_buf[20];
@@ -58,7 +58,7 @@ static int _php_ibase_set_query_info(ibase_query *ib_query) /* {{{ */
 
 	/* Get statement type */
 	if (isc_dsql_sql_info(IB_STATUS, &ib_query->stmt.stmt, sizeof(info_req), info_req, sizeof(info_buf), info_buf)) {
-		_php_ibase_error();
+		_php_fbird_error();
 		return FAILURE;
 	}
 
@@ -76,7 +76,7 @@ static int _php_ibase_set_query_info(ibase_query *ib_query) /* {{{ */
 	sqlda.sqld = 0;
 
 	if (isc_dsql_describe(IB_STATUS, &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, &sqlda)) {
-		_php_ibase_error();
+		_php_fbird_error();
 		return FAILURE;
 	}
 	ib_query->out_fields_count = sqlda.sqld;
@@ -86,7 +86,7 @@ static int _php_ibase_set_query_info(ibase_query *ib_query) /* {{{ */
 	sqlda.sqln = 0;
 	sqlda.sqld = 0;
 	if (isc_dsql_describe_bind(IB_STATUS, &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, &sqlda)) {
-		_php_ibase_error();
+		_php_fbird_error();
 		return FAILURE;
 	}
 	ib_query->in_fields_count = sqlda.sqld;
@@ -96,24 +96,24 @@ static int _php_ibase_set_query_info(ibase_query *ib_query) /* {{{ */
 /* }}} */
 
 /* Helper function for safer SQLVAR data copying */
-int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, int field_index, const char *query_context) /* {{{ */
+int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, int field_index, const char *query_context) /* {{{ */
 {
 	/* Validate input parameters */
 	if (!dest_var || !src_var) {
-		_php_ibase_module_error("EXECUTE PROCEDURE: Invalid XSQLVAR pointers for field %d in query: %s",
+		_php_fbird_module_error("EXECUTE PROCEDURE: Invalid XSQLVAR pointers for field %d in query: %s",
             field_index, query_context ? query_context : "unknown");
 		return FAILURE;
 	}
 
 	if (!src_var->sqldata) {
-		_php_ibase_module_error("EXECUTE PROCEDURE: Source sqldata is NULL for field %d in query: %s",
+		_php_fbird_module_error("EXECUTE PROCEDURE: Source sqldata is NULL for field %d in query: %s",
             field_index, query_context ? query_context : "unknown");
 		return FAILURE;
 	}
 
 	/* Verify sqltype consistency between source and destination */
 	if (dest_var->sqltype != src_var->sqltype) {
-		_php_ibase_module_error("EXECUTE PROCEDURE: sqltype mismatch for field %d (dest=%d, src=%d) in query: %s",
+		_php_fbird_module_error("EXECUTE PROCEDURE: sqltype mismatch for field %d (dest=%d, src=%d) in query: %s",
 			field_index, dest_var->sqltype, src_var->sqltype, query_context ? query_context : "unknown");
 		return FAILURE;
 	}
@@ -123,18 +123,18 @@ int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 		case SQL_TEXT:
 			/* Validate field length for TEXT fields */
 			if (dest_var->sqllen != src_var->sqllen) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: TEXT sqllen mismatch for field %d (dest=%d, src=%d) in query: %s",
+				_php_fbird_module_error("EXECUTE PROCEDURE: TEXT sqllen mismatch for field %d (dest=%d, src=%d) in query: %s",
 					field_index, dest_var->sqllen, src_var->sqllen, query_context ? query_context : "unknown");
 				return FAILURE;
 			}
 			if (dest_var->sqllen < 0 || dest_var->sqllen > 65535) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid TEXT length %d for field %d in query: %s",
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid TEXT length %d for field %d in query: %s",
 					dest_var->sqllen, field_index, query_context ? query_context : "unknown");
 				return FAILURE;
 			}
 			dest_var->sqldata = safe_emalloc(sizeof(char), dest_var->sqllen, 0);
 			if (!dest_var->sqldata) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate TEXT data for field %d in query: %s",
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate TEXT data for field %d in query: %s",
                     field_index, query_context ? query_context : "unknown");
 				return FAILURE;
 			}
@@ -145,18 +145,18 @@ int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 		case SQL_VARYING:
 			/* Validate field length for VARCHAR fields */
 			if (dest_var->sqllen != src_var->sqllen) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: VARCHAR sqllen mismatch for field %d (dest=%d, src=%d) in query: %s",
+				_php_fbird_module_error("EXECUTE PROCEDURE: VARCHAR sqllen mismatch for field %d (dest=%d, src=%d) in query: %s",
 					field_index, dest_var->sqllen, src_var->sqllen, query_context ? query_context : "unknown");
 				return FAILURE;
 			}
 			if (dest_var->sqllen < 0 || dest_var->sqllen > 65535) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid VARCHAR length %d for field %d in query: %s",
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid VARCHAR length %d for field %d in query: %s",
 					dest_var->sqllen, field_index, query_context ? query_context : "unknown");
 				return FAILURE;
 			}
 			dest_var->sqldata = safe_emalloc(sizeof(char), dest_var->sqllen + sizeof(short), 0);
 			if (!dest_var->sqldata) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate VARCHAR data for field %d in query: %s",
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate VARCHAR data for field %d in query: %s",
                     field_index, query_context ? query_context : "unknown");
 				return FAILURE;
 			}
@@ -168,12 +168,12 @@ int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 #ifdef SQL_BOOLEAN
 		case SQL_BOOLEAN:
 			if (src_var->sqllen != sizeof(FB_BOOLEAN)) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid BOOLEAN length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid BOOLEAN length %d for field %d", src_var->sqllen, field_index);
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(FB_BOOLEAN));
 			if (!dest_var->sqldata) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate BOOLEAN data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate BOOLEAN data for field %d", field_index);
 				return FAILURE;
 			}
 			/* Direct assignment for simple types (safer than memcpy for single values) */
@@ -183,12 +183,12 @@ int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 
 		case SQL_SHORT:
 			if (src_var->sqllen != sizeof(short)) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid SHORT length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid SHORT length %d for field %d", src_var->sqllen, field_index);
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(short));
 			if (!dest_var->sqldata) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate SHORT data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate SHORT data for field %d", field_index);
 				return FAILURE;
 			}
 			*(short *)dest_var->sqldata = *(short *)src_var->sqldata;
@@ -196,12 +196,12 @@ int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 
 		case SQL_LONG:
 			if (src_var->sqllen != sizeof(ISC_LONG)) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid LONG length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid LONG length %d for field %d", src_var->sqllen, field_index);
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(ISC_LONG));
 			if (!dest_var->sqldata) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate LONG data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate LONG data for field %d", field_index);
 				return FAILURE;
 			}
 			*(ISC_LONG *)dest_var->sqldata = *(ISC_LONG *)src_var->sqldata;
@@ -209,12 +209,12 @@ int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 
 		case SQL_FLOAT:
 			if (src_var->sqllen != sizeof(float)) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid FLOAT length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid FLOAT length %d for field %d", src_var->sqllen, field_index);
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(float));
 			if (!dest_var->sqldata) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate FLOAT data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate FLOAT data for field %d", field_index);
 				return FAILURE;
 			}
 			*(float *)dest_var->sqldata = *(float *)src_var->sqldata;
@@ -222,12 +222,12 @@ int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 
 		case SQL_DOUBLE:
 			if (src_var->sqllen != sizeof(double)) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid DOUBLE length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid DOUBLE length %d for field %d", src_var->sqllen, field_index);
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(double));
 			if (!dest_var->sqldata) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate DOUBLE data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate DOUBLE data for field %d", field_index);
 				return FAILURE;
 			}
 			*(double *)dest_var->sqldata = *(double *)src_var->sqldata;
@@ -235,12 +235,12 @@ int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 
 		case SQL_INT64:
 			if (src_var->sqllen != sizeof(ISC_INT64)) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid INT64 length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid INT64 length %d for field %d", src_var->sqllen, field_index);
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(ISC_INT64));
 			if (!dest_var->sqldata) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate INT64 data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate INT64 data for field %d", field_index);
 				return FAILURE;
 			}
 			*(ISC_INT64 *)dest_var->sqldata = *(ISC_INT64 *)src_var->sqldata;
@@ -248,12 +248,12 @@ int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 
 		case SQL_TIMESTAMP:
 			if (src_var->sqllen != sizeof(ISC_TIMESTAMP)) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid TIMESTAMP length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid TIMESTAMP length %d for field %d", src_var->sqllen, field_index);
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(ISC_TIMESTAMP));
 			if (!dest_var->sqldata) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate TIMESTAMP data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate TIMESTAMP data for field %d", field_index);
 				return FAILURE;
 			}
 			*(ISC_TIMESTAMP *)dest_var->sqldata = *(ISC_TIMESTAMP *)src_var->sqldata;
@@ -261,12 +261,12 @@ int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 
 		case SQL_TYPE_DATE:
 			if (src_var->sqllen != sizeof(ISC_DATE)) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid DATE length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid DATE length %d for field %d", src_var->sqllen, field_index);
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(ISC_DATE));
 			if (!dest_var->sqldata) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate DATE data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate DATE data for field %d", field_index);
 				return FAILURE;
 			}
 			*(ISC_DATE *)dest_var->sqldata = *(ISC_DATE *)src_var->sqldata;
@@ -274,12 +274,12 @@ int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 
 		case SQL_TYPE_TIME:
 			if (src_var->sqllen != sizeof(ISC_TIME)) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid TIME length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid TIME length %d for field %d", src_var->sqllen, field_index);
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(ISC_TIME));
 			if (!dest_var->sqldata) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate TIME data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate TIME data for field %d", field_index);
 				return FAILURE;
 			}
 			*(ISC_TIME *)dest_var->sqldata = *(ISC_TIME *)src_var->sqldata;
@@ -288,12 +288,12 @@ int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 		case SQL_BLOB:
 		case SQL_ARRAY:
 			if (src_var->sqllen != sizeof(ISC_QUAD)) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid QUAD length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid QUAD length %d for field %d", src_var->sqllen, field_index);
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(ISC_QUAD));
 			if (!dest_var->sqldata) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate QUAD data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate QUAD data for field %d", field_index);
 				return FAILURE;
 			}
 			*(ISC_QUAD *)dest_var->sqldata = *(ISC_QUAD *)src_var->sqldata;
@@ -302,12 +302,12 @@ int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 #if FB_API_VER >= 40
 		case SQL_TIMESTAMP_TZ:
 			if (src_var->sqllen != sizeof(ISC_TIMESTAMP_TZ)) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid TIMESTAMP_TZ length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid TIMESTAMP_TZ length %d for field %d", src_var->sqllen, field_index);
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(ISC_TIMESTAMP_TZ));
 			if (!dest_var->sqldata) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate TIMESTAMP_TZ data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate TIMESTAMP_TZ data for field %d", field_index);
 				return FAILURE;
 			}
 			*(ISC_TIMESTAMP_TZ *)dest_var->sqldata = *(ISC_TIMESTAMP_TZ *)src_var->sqldata;
@@ -315,12 +315,12 @@ int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 
 		case SQL_TIME_TZ:
 			if (src_var->sqllen != sizeof(ISC_TIME_TZ)) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Invalid TIME_TZ length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid TIME_TZ length %d for field %d", src_var->sqllen, field_index);
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(ISC_TIME_TZ));
 			if (!dest_var->sqldata) {
-				_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate TIME_TZ data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate TIME_TZ data for field %d", field_index);
 				return FAILURE;
 			}
 			*(ISC_TIME_TZ *)dest_var->sqldata = *(ISC_TIME_TZ *)src_var->sqldata;
@@ -328,7 +328,7 @@ int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 #endif
 
 		default:
-			_php_ibase_module_error("EXECUTE PROCEDURE: Unhandled sqltype %d for field %d",
+			_php_fbird_module_error("EXECUTE PROCEDURE: Unhandled sqltype %d for field %d",
 				dest_var->sqltype & ~1, field_index);
 			return FAILURE;
 	}
@@ -337,7 +337,7 @@ int _php_ibase_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 }
 /* }}} */
 
-static int _php_ibase_bind(ibase_query *ib_query, zval *b_vars) /* {{{ */
+static int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 {
 	BIND_BUF *buf = ib_query->bind_buf;
 	XSQLDA *sqlda = ib_query->in_sqlda;
@@ -450,23 +450,23 @@ static int _php_ibase_bind(ibase_query *ib_query, zval *b_vars) /* {{{ */
 				convert_to_string(b_var);
 
 				if (Z_STRLEN_P(b_var) != BLOB_ID_LEN ||
-					!_php_ibase_string_to_quad(Z_STRVAL_P(b_var), &buf[i].val.qval)) {
+					!_php_fbird_string_to_quad(Z_STRVAL_P(b_var), &buf[i].val.qval)) {
 
-					ibase_blob ib_blob = { 0 };
+					fbird_blob ib_blob = { 0 };
 					ib_blob.type = BLOB_INPUT;
 
 					if (isc_create_blob(IB_STATUS, &ib_query->link->handle.db,
 							&ib_query->trans->handle.tr, &ib_blob.bl_handle.blob, &ib_blob.bl_qd)) {
-						_php_ibase_error();
+						_php_fbird_error();
 						return FAILURE;
 					}
 
-					if (_php_ibase_blob_add(b_var, &ib_blob) != SUCCESS) {
+					if (_php_fbird_blob_add(b_var, &ib_blob) != SUCCESS) {
 						return FAILURE;
 					}
 
 					if (isc_close_blob(IB_STATUS, &ib_blob.bl_handle.blob)) {
-						_php_ibase_error();
+						_php_fbird_error();
 						return FAILURE;
 					}
 					buf[i].val.qval = ib_blob.bl_qd;
@@ -505,7 +505,7 @@ static int _php_ibase_bind(ibase_query *ib_query, zval *b_vars) /* {{{ */
 								} else if (!zend_binary_strncasecmp(Z_STRVAL_P(b_var), Z_STRLEN_P(b_var), "false", 5, 5)) {
 									*(FB_BOOLEAN *)var->sqldata = FB_FALSE;
 								} else {
-									_php_ibase_module_error("Parameter %d: cannot convert string to boolean", i+1);
+									_php_fbird_module_error("Parameter %d: cannot convert string to boolean", i+1);
 									rv = FAILURE;
 									continue;
 								}
@@ -516,7 +516,7 @@ static int _php_ibase_bind(ibase_query *ib_query, zval *b_vars) /* {{{ */
 						buf[i].nullind = -1;
 						break;
 					default:
-						_php_ibase_module_error("Parameter %d: must be boolean", i+1);
+						_php_fbird_module_error("Parameter %d: must be boolean", i+1);
 						rv = FAILURE;
 						continue;
 				}
@@ -529,20 +529,20 @@ static int _php_ibase_bind(ibase_query *ib_query, zval *b_vars) /* {{{ */
 					convert_to_string(b_var);
 
 					if (Z_STRLEN_P(b_var) != BLOB_ID_LEN ||
-						!_php_ibase_string_to_quad(Z_STRVAL_P(b_var), &buf[i].val.qval)) {
+						!_php_fbird_string_to_quad(Z_STRVAL_P(b_var), &buf[i].val.qval)) {
 
-						_php_ibase_module_error("Parameter %d: invalid array ID",i+1);
+						_php_fbird_module_error("Parameter %d: invalid array ID",i+1);
 						rv = FAILURE;
 					}
 			} else {
 				/* convert the array data into something IB can understand */
-				ibase_array *ar = &ib_query->in_array[array_cnt];
+				fbird_array *ar = &ib_query->in_array[array_cnt];
 				void *array_data = ecalloc(1, ar->ar_size);
 					ISC_QUAD array_id = { 0, 0 };
 
-                    if (FAILURE == _php_ibase_bind_array(b_var, array_data, ar->ar_size,
+                    if (FAILURE == _php_fbird_bind_array(b_var, array_data, ar->ar_size,
 							ar, 0)) {
-						_php_ibase_module_error("Parameter %d: failed to bind array argument", i+1);
+						_php_fbird_module_error("Parameter %d: failed to bind array argument", i+1);
 						efree(array_data);
 						rv = FAILURE;
 						continue;
@@ -563,7 +563,7 @@ static int _php_ibase_bind(ibase_query *ib_query, zval *b_vars) /* {{{ */
 
 					if (isc_array_put_slice(IB_STATUS, &ib_query->link->handle.db, &ib_query->trans->handle.tr,
 							&array_id, &ar->ar_desc, array_data, &slice_len)) {
-						_php_ibase_error();
+						_php_fbird_error();
 						efree(array_data);
 						return FAILURE;
 					}
@@ -584,7 +584,7 @@ static int _php_ibase_bind(ibase_query *ib_query, zval *b_vars) /* {{{ */
 }
 /* }}} */
 
-void _php_ibase_alloc_xsqlda_vars(XSQLDA *sqlda, ISC_SHORT *nullinds) /* {{{ */
+void _php_fbird_alloc_xsqlda_vars(XSQLDA *sqlda, ISC_SHORT *nullinds) /* {{{ */
 {
 	int i;
 	XSQLVAR *var;
@@ -625,7 +625,7 @@ void _php_ibase_alloc_xsqlda_vars(XSQLDA *sqlda, ISC_SHORT *nullinds) /* {{{ */
 }
 /* }}} */
 
-static void _php_ibase_free_xsqlda(XSQLDA *sqlda) /* {{{ */
+static void _php_fbird_free_xsqlda(XSQLDA *sqlda) /* {{{ */
 {
 	int i;
 	XSQLVAR *var;
@@ -642,15 +642,15 @@ static void _php_ibase_free_xsqlda(XSQLDA *sqlda) /* {{{ */
 }
 /* }}} */
 
-static void _php_ibase_free_query(ibase_query *ib_query) /* {{{ */
+static void _php_fbird_free_query(fbird_query *ib_query) /* {{{ */
 {
 	IBDEBUG("Freeing query...");
 
 	if(ib_query->in_nullind)efree(ib_query->in_nullind);
 	if(ib_query->out_nullind)efree(ib_query->out_nullind);
 	if(ib_query->bind_buf)efree(ib_query->bind_buf);
-	if(ib_query->in_sqlda)efree(ib_query->in_sqlda); // Note to myself: no need for _php_ibase_free_xsqlda()
-	if(ib_query->out_sqlda)_php_ibase_free_xsqlda(ib_query->out_sqlda);
+	if(ib_query->in_sqlda)efree(ib_query->in_sqlda); // Note to myself: no need for _php_fbird_free_xsqlda()
+	if(ib_query->out_sqlda)_php_fbird_free_xsqlda(ib_query->out_sqlda);
 	if(ib_query->in_array)efree(ib_query->in_array);
 	if(ib_query->out_array)efree(ib_query->out_array);
 	if(ib_query->query)efree(ib_query->query);
@@ -661,9 +661,9 @@ static void _php_ibase_free_query(ibase_query *ib_query) /* {{{ */
 }
 /* }}} */
 
-static void php_ibase_free_query_rsrc(zend_resource *rsrc) /* {{{ */
+static void php_fbird_free_query_rsrc(zend_resource *rsrc) /* {{{ */
 {
-    ibase_query *ib_query = (ibase_query *)rsrc->ptr;
+    fbird_query *ib_query = (fbird_query *)rsrc->ptr;
 
     if (ib_query != NULL) {
         IBDEBUG("Preparing to free query by dtor...");
@@ -673,7 +673,7 @@ static void php_ibase_free_query_rsrc(zend_resource *rsrc) /* {{{ */
          * Note: If we are being freed BY the parent (in the loop below), parent will
          * have already set ib_query->parent = NULL, so this block won't run. */
         if (ib_query->parent) {
-            ibase_query **curr = &ib_query->parent->child_head;
+            fbird_query **curr = &ib_query->parent->child_head;
             while (*curr) {
                 if (*curr == ib_query) {
                     *curr = ib_query->child_next;
@@ -682,15 +682,15 @@ static void php_ibase_free_query_rsrc(zend_resource *rsrc) /* {{{ */
                 curr = &(*curr)->child_next;
             }
             /* Do NOT call zend_list_free on parent - the parent query resource
-             * should remain valid for subsequent ibase_execute() calls.
+             * should remain valid for subsequent fbird_execute() calls.
              * The parent's lifetime is controlled by the user, not by child results. */
         }
 
         /* Invalidate and free any dependent child result resources first so that
          * further use of those results triggers a TypeError as expected by tests. */
-        ibase_query *child = ib_query->child_head;
+        fbird_query *child = ib_query->child_head;
         while (child) {
-            ibase_query *next = child->child_next;
+            fbird_query *next = child->child_next;
             /* Break the back-link to avoid cascading frees */
             child->parent = NULL;
             if (child->res) {
@@ -711,7 +711,7 @@ static void php_ibase_free_query_rsrc(zend_resource *rsrc) /* {{{ */
                 ib_query->has_more_rows = 0;
                 /* If this is a child result that reused the parent's statement handle,
                  * mirror the cursor state reset to the parent to avoid double-close
-                 * warnings on the next ibase_execute(). */
+                 * warnings on the next fbird_execute(). */
                 if (ib_query->parent) {
                     ib_query->parent->is_open = 0;
                     ib_query->parent->has_more_rows = 0;
@@ -723,24 +723,24 @@ static void php_ibase_free_query_rsrc(zend_resource *rsrc) /* {{{ */
                 (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt.stmt, DSQL_drop);
             }
         }
-        _php_ibase_free_query(ib_query);
+        _php_fbird_free_query(ib_query);
     }
 }
 /* }}} */
 
-void php_ibase_query_minit(INIT_FUNC_ARGS) /* {{{ */
+void php_fbird_query_minit(INIT_FUNC_ARGS) /* {{{ */
 {
 	(void)type;
-	le_query = zend_register_list_destructors_ex(php_ibase_free_query_rsrc, NULL,
+	le_query = zend_register_list_destructors_ex(php_fbird_free_query_rsrc, NULL,
 		LE_QUERY, module_number);
 }
 /* }}} */
 
-static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{ */
+static int _php_fbird_alloc_array(fbird_array **ib_arrayp, XSQLDA *sqlda, /* {{{ */
 	fb_safe_handle link, fb_safe_handle trans, unsigned short *array_cnt)
 {
 	unsigned short i, n;
-	ibase_array *ar;
+	fbird_array *ar;
 	/* first check if we have any arrays at all */
 	for (i = *array_cnt = 0; i < sqlda->sqld; ++i) {
 		if ((sqlda->sqlvar[i].sqltype & ~1) == SQL_ARRAY) {
@@ -749,7 +749,7 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 	}
 	if (! *array_cnt) return SUCCESS;
 
-	ar = ecalloc(*array_cnt, sizeof(ibase_array));
+	ar = ecalloc(*array_cnt, sizeof(fbird_array));
 
 	for (i = n = 0; i < sqlda->sqld; ++i) {
 		unsigned short dim;
@@ -760,7 +760,7 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 			 continue;
 		}
 
-		ibase_array *a = &ar[n++];
+		fbird_array *a = &ar[n++];
 		ISC_ARRAY_DESC *ar_desc = &a->ar_desc;
 
         /* Fix stack smashing: Copy names to local HEAP buffers to ensure
@@ -771,7 +771,7 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
         char *sname = ecalloc(1, MAX_IDENTIFIER_LEN + 1);
 
 		if (!rname || !sname) {
-			_php_ibase_module_error("Failed to allocate memory for array names");
+			_php_fbird_module_error("Failed to allocate memory for array names");
 			if (rname) efree(rname);
 			if (sname) efree(sname);
 			efree(ar);
@@ -792,7 +792,7 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 
 		if (isc_array_lookup_bounds(IB_STATUS, &link.db, &trans.tr, rname,
 				sname, ar_desc)) {
-			_php_ibase_error();
+			_php_fbird_error();
 			efree(ar);
             efree(rname);
             efree(sname);
@@ -864,7 +864,7 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 				/*
 				 * We use SQL_VARYING to explicitly handle the length prefix.
 				 * This ensures proper binary layout (short length + data) is generated
-				 * in _php_ibase_bind_array, preventing data corruption or offset errors
+				 * in _php_fbird_bind_array, preventing data corruption or offset errors
 				 * that occur if we treat it as SQL_TEXT but allocate extra space.
 				 */
 				a->el_type = SQL_VARYING;
@@ -881,7 +881,7 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 				 * were mentioned erroneously.
 				 */
 			default:
-				_php_ibase_module_error("Unsupported array type %d in relation '%s' column '%s'",
+				_php_fbird_module_error("Unsupported array type %d in relation '%s' column '%s'",
 					ar_desc->array_desc_dtype, var->relname, var->sqlname);
 				efree(ar);
 				return FAILURE;
@@ -896,7 +896,7 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
         /* Safety check for overflow */
         float safe_size = (float)a->el_size * (float)ar_size;
         if (safe_size > (float)ZEND_ULONG_MAX) {
-             _php_ibase_module_error("Array size exceeds system limits");
+             _php_fbird_module_error("Array size exceeds system limits");
              efree(ar);
              return FAILURE;
         }
@@ -908,8 +908,8 @@ static int _php_ibase_alloc_array(ibase_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 /* }}} */
 
 /* allocate and prepare query */
-static int _php_ibase_prepare(ibase_query **new_query, ibase_db_link *link, /* {{{ */
-    ibase_trans *trans, zend_resource *trans_res, char *query)
+static int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
+    fbird_transaction *trans, zend_resource *trans_res, char *query)
 {
 	/* Return FAILURE, if querystring is empty */
 	if (*query == '\0') {
@@ -917,7 +917,7 @@ static int _php_ibase_prepare(ibase_query **new_query, ibase_db_link *link, /* {
 		return FAILURE;
 	}
 
- ibase_query *ib_query = ecalloc(1, sizeof(ibase_query));
+ fbird_query *ib_query = ecalloc(1, sizeof(fbird_query));
  /* Ensure linkage fields are initialized explicitly for clarity */
  ib_query->parent = NULL;
  ib_query->child_head = NULL;
@@ -934,19 +934,19 @@ static int _php_ibase_prepare(ibase_query **new_query, ibase_db_link *link, /* {
  ib_query->owns_stmt_handle = 1;
 
 	if (isc_dsql_allocate_statement(IB_STATUS, &link->handle.db, &ib_query->stmt.stmt)) {
-		_php_ibase_error();
-		goto _php_ibase_alloc_query_error;
+		_php_fbird_error();
+		goto _php_fbird_alloc_query_error;
 	}
 
 	if (isc_dsql_prepare(IB_STATUS, &ib_query->trans->handle.tr, &ib_query->stmt.stmt,
 			0, query, link->dialect, NULL)) {
 		IBDEBUG("isc_dsql_prepare() failed\n");
-		_php_ibase_error();
-		goto _php_ibase_alloc_query_error;
+		_php_fbird_error();
+		goto _php_fbird_alloc_query_error;
 	}
 
-	if(_php_ibase_set_query_info(ib_query)){
-		goto _php_ibase_alloc_query_error;
+	if(_php_fbird_set_query_info(ib_query)){
+		goto _php_fbird_alloc_query_error;
 	}
 
 	if(ib_query->out_fields_count) {
@@ -956,18 +956,18 @@ static int _php_ibase_prepare(ibase_query **new_query, ibase_db_link *link, /* {
 
   if (isc_dsql_describe(IB_STATUS, &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, ib_query->out_sqlda)) {
 			IBDEBUG("isc_dsql_describe() failed\n");
-			_php_ibase_error();
-			goto _php_ibase_alloc_query_error;
+			_php_fbird_error();
+			goto _php_fbird_alloc_query_error;
 		}
 
 		/* assert(ib_query->out_sqlda->sqln == ib_query->out_sqlda->sqld); */
 		/* assert(ib_query->out_sqlda->sqld == ib_query->out_fields_count); */
 
 		ib_query->out_nullind = safe_emalloc(sizeof(*ib_query->out_nullind), ib_query->out_sqlda->sqld, 0);
-		_php_ibase_alloc_xsqlda_vars(ib_query->out_sqlda, ib_query->out_nullind);
-		if (FAILURE == _php_ibase_alloc_array(&ib_query->out_array, ib_query->out_sqlda,
+		_php_fbird_alloc_xsqlda_vars(ib_query->out_sqlda, ib_query->out_nullind);
+		if (FAILURE == _php_fbird_alloc_array(&ib_query->out_array, ib_query->out_sqlda,
 			link->handle, trans->handle, &ib_query->out_array_cnt)) {
-			goto _php_ibase_alloc_query_error;
+			goto _php_fbird_alloc_query_error;
 		}
 	}
 
@@ -978,8 +978,8 @@ static int _php_ibase_prepare(ibase_query **new_query, ibase_db_link *link, /* {
 
 		if (isc_dsql_describe_bind(IB_STATUS, &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda)) {
 			IBDEBUG("isc_dsql_describe_bind() failed\n");
-			_php_ibase_error();
-			goto _php_ibase_alloc_query_error;
+			_php_fbird_error();
+			goto _php_fbird_alloc_query_error;
 		}
 
 		assert(ib_query->in_sqlda->sqln == ib_query->in_sqlda->sqld);
@@ -987,9 +987,9 @@ static int _php_ibase_prepare(ibase_query **new_query, ibase_db_link *link, /* {
 
 		ib_query->bind_buf = safe_emalloc(sizeof(BIND_BUF), ib_query->in_sqlda->sqld, 0);
 		ib_query->in_nullind = safe_emalloc(sizeof(*ib_query->in_nullind), ib_query->in_sqlda->sqld, 0);
-		if (FAILURE == _php_ibase_alloc_array(&ib_query->in_array, ib_query->in_sqlda,
+		if (FAILURE == _php_fbird_alloc_array(&ib_query->in_array, ib_query->in_sqlda,
 			link->handle, trans->handle, &ib_query->in_array_cnt)) {
-			goto _php_ibase_alloc_query_error;
+			goto _php_fbird_alloc_query_error;
 		}
 	}
 
@@ -997,15 +997,15 @@ static int _php_ibase_prepare(ibase_query **new_query, ibase_db_link *link, /* {
 
 	return SUCCESS;
 
-_php_ibase_alloc_query_error:
+_php_fbird_alloc_query_error:
 	zend_list_delete(ib_query->res);
 
 	return FAILURE;
 }
 /* }}} */
 
-static int _php_ibase_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {{{ */
-	ibase_array *array, int dim)
+static int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {{{ */
+	fbird_array *array, int dim)
 {
 	zval null_val, *pnull_val = &null_val;
 	int u_bound = array->ar_desc.array_desc_bounds[dim].array_bound_upper,
@@ -1031,7 +1031,7 @@ static int _php_ibase_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 				subval = pnull_val;
 			}
 
-			if (_php_ibase_bind_array(subval, buf, slice_size, array, dim+1) == FAILURE)
+			if (_php_fbird_bind_array(subval, buf, slice_size, array, dim+1) == FAILURE)
 			{
 				return FAILURE;
 			}
@@ -1066,14 +1066,14 @@ static int _php_ibase_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 			switch (array->el_type) {
 				case SQL_SHORT:
 					if (l > SHRT_MAX || l < SHRT_MIN) {
-						_php_ibase_module_error("Array parameter exceeds field width");
+						_php_fbird_module_error("Array parameter exceeds field width");
 						return FAILURE;
 					}
 					*(short*) buf = (short) l;
 					break;
 				case SQL_LONG:
 					if (l > ISC_LONG_MAX || l < ISC_LONG_MIN) {
-						_php_ibase_module_error("Array parameter exceeds field width");
+						_php_fbird_module_error("Array parameter exceeds field width");
 						return FAILURE;
 					}
 					*(ISC_LONG*) buf = (ISC_LONG) l;
@@ -1085,7 +1085,7 @@ static int _php_ibase_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 						convert_to_string(val);
 
 						if (!sscanf(Z_STRVAL_P(val), "%Lf", &l)) {
-							_php_ibase_module_error("Cannot convert '%s' to long double",
+							_php_fbird_module_error("Cannot convert '%s' to long double",
 								 Z_STRVAL_P(val));
 							return FAILURE;
 						}
@@ -1114,7 +1114,7 @@ static int _php_ibase_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 				case SQL_SHORT:
 					convert_to_long(val);
 					if (Z_LVAL_P(val) > SHRT_MAX || Z_LVAL_P(val) < SHRT_MIN) {
-						_php_ibase_module_error("Array parameter exceeds field width");
+						_php_fbird_module_error("Array parameter exceeds field width");
 						return FAILURE;
 					}
 					*(short *) buf = (short) Z_LVAL_P(val);
@@ -1123,7 +1123,7 @@ static int _php_ibase_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 					convert_to_long(val);
 #if (SIZEOF_ZEND_LONG > 4)
 					if (Z_LVAL_P(val) > ISC_LONG_MAX || Z_LVAL_P(val) < ISC_LONG_MIN) {
-						_php_ibase_module_error("Array parameter exceeds field width");
+						_php_fbird_module_error("Array parameter exceeds field width");
 						return FAILURE;
 					}
 #endif
@@ -1136,7 +1136,7 @@ static int _php_ibase_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 #else
 					convert_to_string(val);
 					if (!sscanf(Z_STRVAL_P(val), "%" LL_MASK "d", &l)) {
-						_php_ibase_module_error("Cannot convert '%s' to long integer",
+						_php_fbird_module_error("Cannot convert '%s' to long integer",
 							 Z_STRVAL_P(val));
 						return FAILURE;
 					} else {
@@ -1169,7 +1169,7 @@ static int _php_ibase_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 						&t.tm_mon, &t.tm_mday, &t.tm_year, &t.tm_hour, &t.tm_min, &t.tm_sec);
 
 					if (n != 3 && n != 6) {
-						_php_ibase_module_error("Invalid date/time format (expected 3 or 6 fields, got %d."
+						_php_fbird_module_error("Invalid date/time format (expected 3 or 6 fields, got %d."
 							" Use format 'm/d/Y H:i:s'. You gave '%s')", n, Z_STRVAL_P(val));
 						return FAILURE;
 					}
@@ -1186,7 +1186,7 @@ static int _php_ibase_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 					n = sscanf(Z_STRVAL_P(val), "%d%*[/]%d%*[/]%d", &t.tm_mon, &t.tm_mday, &t.tm_year);
 
 					if (n != 3) {
-						_php_ibase_module_error("Invalid date format (expected 3 fields, got %d. "
+						_php_fbird_module_error("Invalid date format (expected 3 fields, got %d. "
 							"Use format 'm/d/Y' You gave '%s')", n, Z_STRVAL_P(val));
 						return FAILURE;
 					}
@@ -1204,7 +1204,7 @@ static int _php_ibase_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 					n = sscanf(Z_STRVAL_P(val), "%d%*[:]%d%*[:]%d", &t.tm_hour, &t.tm_min, &t.tm_sec);
 
 					if (n != 3) {
-						_php_ibase_module_error("Invalid time format (expected 3 fields, got %d. "
+						_php_fbird_module_error("Invalid time format (expected 3 fields, got %d. "
 							"Use format 'H:i:s'. You gave '%s')", n, Z_STRVAL_P(val));
 						return FAILURE;
 					}
@@ -1253,7 +1253,7 @@ static int _php_ibase_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 }
 /* }}} */
 
-static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, zval *args, int bind_n) /* {{{ */
+static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, zval *args, int bind_n) /* {{{ */
 {
 	int i, rv = FAILURE;
 	static char info_count[] = { isc_info_sql_records };
@@ -1299,7 +1299,7 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
      IBDEBUG("Closing open cursor before re-execution");
      /* Be tolerant: silently ignore ALL errors when attempting to close the cursor
       * before re-execution. The cursor may already have been closed by various means
-      * (ibase_free_result, transaction commit, EOF reached, etc.) - this is expected
+      * (fbird_free_result, transaction commit, EOF reached, etc.) - this is expected
       * and should not generate warnings. We unconditionally reset the is_open flag. */
      (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt.stmt, DSQL_close);
      ib_query->is_open = 0;
@@ -1312,8 +1312,8 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 
 	switch (ib_query->statement_type) {
 		fb_safe_handle tr;
-		ibase_tr_list **l;
-		ibase_trans *trans;
+		fbird_tr_list **l;
+		fbird_transaction *trans;
 
 		case isc_info_sql_stmt_start_trans:
 
@@ -1322,25 +1322,25 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 
 			if (isc_dsql_execute_immediate(IB_STATUS, &ib_query->link->handle.db, &tr.tr, 0,
 					ib_query->query, ib_query->dialect, NULL)) {
-				_php_ibase_error();
-				goto _php_ibase_ex_error;
+				_php_fbird_error();
+				goto _php_fbird_ex_error;
 			}
 
-			trans = (ibase_trans *) emalloc(sizeof(ibase_trans));
+			trans = (fbird_transaction *) emalloc(sizeof(fbird_transaction));
 			trans->handle = tr;
 			trans->link_cnt = 1;
 			trans->affected_rows = 0;
 			trans->db_link[0] = ib_query->link;
 
 			if (ib_query->link->tr_list == NULL) {
-				ib_query->link->tr_list = (ibase_tr_list *) emalloc(sizeof(ibase_tr_list));
+				ib_query->link->tr_list = (fbird_tr_list *) emalloc(sizeof(fbird_tr_list));
 				ib_query->link->tr_list->trans = NULL;
 				ib_query->link->tr_list->next = NULL;
 			}
 
 			/* link the transaction into the connection-transaction list */
 			for (l = &ib_query->link->tr_list; *l != NULL; l = &(*l)->next);
-			*l = (ibase_tr_list *) emalloc(sizeof(ibase_tr_list));
+			*l = (fbird_tr_list *) emalloc(sizeof(fbird_tr_list));
 			(*l)->trans = trans;
 			(*l)->next = NULL;
 
@@ -1354,8 +1354,8 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 
 			if (isc_dsql_execute_immediate(IB_STATUS, &ib_query->link->handle.db,
 					&ib_query->trans->handle.tr, 0, ib_query->query, ib_query->dialect, NULL)) {
-				_php_ibase_error();
-				goto _php_ibase_ex_error;
+				_php_fbird_error();
+				goto _php_fbird_ex_error;
 			}
 
 			if (ib_query->trans->handle.tr == 0 && ib_query->trans_res != NULL) {
@@ -1375,9 +1375,9 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 
 	if (ib_query->in_fields_count) { /* has placeholders */
 		IBDEBUG("Query wants XSQLDA for input");
-		if (_php_ibase_bind(ib_query, args) == FAILURE) {
+		if (_php_fbird_bind(ib_query, args) == FAILURE) {
 			IBDEBUG("Could not bind input XSQLDA");
-			goto _php_ibase_ex_error;
+			goto _php_fbird_ex_error;
 		}
 	}
 
@@ -1399,8 +1399,8 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 
     if (isc_result) {
         IBDEBUG("Could not execute query");
-        _php_ibase_error();
-        goto _php_ibase_ex_error;
+        _php_fbird_error();
+        goto _php_fbird_ex_error;
     }
 
     ib_query->trans->affected_rows = 0;
@@ -1422,7 +1422,7 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
       ib_query->statement_type == isc_info_sql_stmt_update ||
       ib_query->statement_type == isc_info_sql_stmt_delete) {
 			/* Create a new query structure for this specific result */
-			ibase_query *result_query = ecalloc(1, sizeof(ibase_query));
+			fbird_query *result_query = ecalloc(1, sizeof(fbird_query));
 
 			/* Initialize error cleanup flag */
 			int cleanup_needed = 1;
@@ -1453,7 +1453,7 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 				/* Validate SQLDA structure integrity */
 				if (ib_query->out_sqlda->sqln != ib_query->out_fields_count ||
 				    ib_query->out_sqlda->sqld != ib_query->out_fields_count) {
-					_php_ibase_module_error("EXECUTE PROCEDURE: Invalid SQLDA structure - sqln=%d, sqld=%d, expected=%d",
+					_php_fbird_module_error("EXECUTE PROCEDURE: Invalid SQLDA structure - sqln=%d, sqld=%d, expected=%d",
 						ib_query->out_sqlda->sqln, ib_query->out_sqlda->sqld, ib_query->out_fields_count);
 					goto cleanup_result_query;
 				}
@@ -1461,14 +1461,14 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 				/* Allocate SQLDA structure with bounds checking */
 				size_t sqlda_size = XSQLDA_LENGTH(ib_query->out_fields_count);
 				if (sqlda_size < sizeof(XSQLDA) || ib_query->out_fields_count > 32767) {
-					_php_ibase_module_error("EXECUTE PROCEDURE: Invalid field count %d for SQLDA allocation",
+					_php_fbird_module_error("EXECUTE PROCEDURE: Invalid field count %d for SQLDA allocation",
 						ib_query->out_fields_count);
 					goto cleanup_result_query;
 				}
 
 				result_query->out_sqlda = (XSQLDA *) emalloc(sqlda_size);
 				if (!result_query->out_sqlda) {
-					_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate SQLDA memory");
+					_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate SQLDA memory");
 					goto cleanup_result_query;
 				}
 
@@ -1484,7 +1484,7 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 				result_query->out_nullind = safe_emalloc(sizeof(*result_query->out_nullind),
 					ib_query->out_fields_count, 0);
 				if (!result_query->out_nullind) {
-					_php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate null indicator array");
+					_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate null indicator array");
 					goto cleanup_result_query;
 				}
 
@@ -1501,7 +1501,7 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 					result_var->sqldata = NULL;
 
 					/* Use safer copying function with comprehensive validation */
-					if (FAILURE == _php_ibase_safe_copy_sqlvar_data(result_var, orig_var, i, ib_query->query)) {
+					if (FAILURE == _php_fbird_safe_copy_sqlvar_data(result_var, orig_var, i, ib_query->query)) {
 						goto cleanup_result_query;
 					}
 				}
@@ -1516,8 +1516,8 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
 				}
 			}
 
-   /* Copy input parameter metadata so ibase_num_params()/ibase_param_info()
-    * work on the returned result resource (e.g., ibase_query() path). */
+   /* Copy input parameter metadata so fbird_num_params()/fbird_param_info()
+    * work on the returned result resource (e.g., fbird_query() path). */
    result_query->in_fields_count = ib_query->in_fields_count;
    if (ib_query->in_fields_count > 0 && ib_query->in_sqlda) {
        size_t in_size = XSQLDA_LENGTH(ib_query->in_fields_count);
@@ -1539,7 +1539,7 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
    result_query->owns_stmt_handle = 0;
    result_query->res = zend_register_resource(result_query, le_query);
            if (!result_query->res) {
-               _php_ibase_module_error("EXECUTE PROCEDURE: Failed to register result resource");
+               _php_fbird_module_error("EXECUTE PROCEDURE: Failed to register result resource");
                goto cleanup_result_query;
            }
 
@@ -1547,8 +1547,8 @@ static int _php_ibase_exec(INTERNAL_FUNCTION_PARAMETERS, ibase_query *ib_query, 
             result_query->parent = NULL;
 
             /* Eagerly load column aliases before clearing the statement handle. */
-            if (_php_ibase_alloc_ht_aliases(result_query) == FAILURE) {
-                _php_ibase_module_error("EXECUTE PROCEDURE: Failed to allocate aliases");
+            if (_php_fbird_alloc_ht_aliases(result_query) == FAILURE) {
+                _php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate aliases");
                 goto cleanup_result_query;
             }
 
@@ -1594,12 +1594,12 @@ cleanup_result_query:
 			}
 
 			/* Propagate error to caller */
-			goto _php_ibase_ex_error;
+			goto _php_fbird_ex_error;
   } else {
             /* SELECT queries: Create independent result data to prevent use-after-free vulnerability */
 
             /* Create a new query structure for this specific result */
-            ibase_query *result_query = ecalloc(1, sizeof(ibase_query));
+            fbird_query *result_query = ecalloc(1, sizeof(fbird_query));
 
 			/* Initialize error cleanup flag */
 			int cleanup_needed = 1;
@@ -1617,8 +1617,8 @@ cleanup_result_query:
    result_query->stmt = ib_query->stmt;
    result_query->query = estrdup(ib_query->query);
 
-   /* Copy input parameter metadata so ibase_num_params()/ibase_param_info()
-    * work on the returned result resource (e.g., ibase_query() path). */
+   /* Copy input parameter metadata so fbird_num_params()/fbird_param_info()
+    * work on the returned result resource (e.g., fbird_query() path). */
    result_query->in_fields_count = ib_query->in_fields_count;
    if (ib_query->in_fields_count > 0 && ib_query->in_sqlda) {
        size_t in_size = XSQLDA_LENGTH(ib_query->in_fields_count);
@@ -1637,7 +1637,7 @@ cleanup_result_query:
                 /* Validate source SQLDA before processing */
                 if (ib_query->out_sqlda->sqln != ib_query->out_fields_count ||
                     ib_query->out_sqlda->sqld != ib_query->out_fields_count) {
-                    _php_ibase_module_error("SELECT: Invalid SQLDA structure - sqln=%d, sqld=%d, expected=%d",
+                    _php_fbird_module_error("SELECT: Invalid SQLDA structure - sqln=%d, sqld=%d, expected=%d",
                         ib_query->out_sqlda->sqln, ib_query->out_sqlda->sqld, ib_query->out_fields_count);
                     goto cleanup_select_result_query;
                 }
@@ -1646,7 +1646,7 @@ cleanup_result_query:
 				size_t sqlda_size = XSQLDA_LENGTH(ib_query->out_fields_count);
 				result_query->out_sqlda = (XSQLDA *) emalloc(sqlda_size);
 				if (!result_query->out_sqlda) {
-					_php_ibase_module_error("SELECT: Failed to allocate SQLDA memory");
+					_php_fbird_module_error("SELECT: Failed to allocate SQLDA memory");
 					goto cleanup_select_result_query;
 				}
 
@@ -1663,7 +1663,7 @@ cleanup_result_query:
 				result_query->out_nullind = safe_emalloc(sizeof(*result_query->out_nullind),
 					ib_query->out_fields_count, 0);
 				if (!result_query->out_nullind) {
-					_php_ibase_module_error("SELECT: Failed to allocate null indicator array");
+					_php_fbird_module_error("SELECT: Failed to allocate null indicator array");
 					goto cleanup_select_result_query;
 				}
 
@@ -1680,7 +1680,7 @@ cleanup_result_query:
 					result_var->sqldata = NULL;
 
 					/* Use safer copying function with comprehensive validation */
-					if (FAILURE == _php_ibase_safe_copy_sqlvar_data(result_var, orig_var, i, ib_query->query)) {
+					if (FAILURE == _php_fbird_safe_copy_sqlvar_data(result_var, orig_var, i, ib_query->query)) {
 						goto cleanup_select_result_query;
 					}
 				}
@@ -1697,13 +1697,13 @@ cleanup_result_query:
 				/* Copy array metadata if present */
 				if (ib_query->out_array_cnt > 0 && ib_query->out_array) {
 					result_query->out_array_cnt = ib_query->out_array_cnt;
-					result_query->out_array = safe_emalloc(sizeof(ibase_array), ib_query->out_array_cnt, 0);
+					result_query->out_array = safe_emalloc(sizeof(fbird_array), ib_query->out_array_cnt, 0);
 					if (!result_query->out_array) {
-						_php_ibase_module_error("SELECT: Failed to allocate array metadata");
+						_php_fbird_module_error("SELECT: Failed to allocate array metadata");
 						goto cleanup_select_result_query;
 					}
 					memcpy(result_query->out_array, ib_query->out_array,
-						sizeof(ibase_array) * ib_query->out_array_cnt);
+						sizeof(fbird_array) * ib_query->out_array_cnt);
 				}
 			}
 
@@ -1716,7 +1716,7 @@ cleanup_result_query:
    result_query->owns_stmt_handle = 0;
    result_query->res = zend_register_resource(result_query, le_query);
             if (!result_query->res) {
-                _php_ibase_module_error("SELECT: Failed to register result resource");
+                _php_fbird_module_error("SELECT: Failed to register result resource");
                 goto cleanup_select_result_query;
             }
 
@@ -1730,8 +1730,8 @@ cleanup_result_query:
 
    /* NOTE: We do NOT increment parent's refcount. The parent query resource
     * lifetime is controlled by the user, not by child results. This allows
-    * multiple ibase_execute() calls on the same prepared query without the
-    * query resource becoming invalid after ibase_free_result(). */
+    * multiple fbird_execute() calls on the same prepared query without the
+    * query resource becoming invalid after fbird_free_result(). */
 
    /* Mark cursor state inherited from parent execute */
    result_query->is_open = 1;
@@ -1784,7 +1784,7 @@ cleanup_select_result_query:
 			}
 
 			/* Propagate error to caller */
-			goto _php_ibase_ex_error;
+			goto _php_fbird_ex_error;
 		}
 	}
 
@@ -1800,8 +1800,8 @@ cleanup_select_result_query:
 
 			if (isc_dsql_sql_info(IB_STATUS, &ib_query->stmt.stmt, sizeof(info_count),
 					info_count, sizeof(result), result)) {
-				_php_ibase_error();
-				goto _php_ibase_ex_error;
+				_php_fbird_error();
+				goto _php_fbird_ex_error;
 			}
 
 			affected_rows = 0;
@@ -1860,7 +1860,7 @@ cleanup_select_result_query:
 
 	rv = SUCCESS;
 
-_php_ibase_ex_error:
+_php_fbird_ex_error:
 	/* Clear cursor flags on any execution error to prevent inconsistent state */
 	ib_query->is_open = 0;
 	ib_query->has_more_rows = 0;
@@ -1868,17 +1868,17 @@ _php_ibase_ex_error:
 }
 /* }}} */
 
-/* {{{ proto mixed ibase_query([resource link_identifier, [ resource link_identifier, ]] string query [, mixed bind_arg [, mixed bind_arg [, ...]]]) */
-PHP_FUNCTION(ibase_query)
+/* {{{ proto mixed fbird_query([resource link_identifier, [ resource link_identifier, ]] string query [, mixed bind_arg [, mixed bind_arg [, ...]]]) */
+PHP_FUNCTION(fbird_query)
 {
 	zval *args;
 	int i, argc = ZEND_NUM_ARGS();
 	char *query = NULL;
-	ibase_db_link *link = NULL;
-	ibase_trans *trans = NULL;
+	fbird_db_link *link = NULL;
+	fbird_transaction *trans = NULL;
 	zval *link_arg = NULL, *trans_arg = NULL;
 	zend_resource *trans_res = NULL;
-	ibase_query *ib_query;
+	fbird_query *ib_query;
 	int bind_start = 0;
 	int explicit_create = 0;
 
@@ -1912,21 +1912,21 @@ PHP_FUNCTION(ibase_query)
 		} else if (Z_TYPE_P(arg) == IS_RESOURCE) {
 			/* Identify resource type */
 			if (!trans && !link) {
-				trans = (ibase_trans *)zend_fetch_resource_ex(arg, NULL, le_trans);
+				trans = (fbird_transaction *)zend_fetch_resource_ex(arg, NULL, le_trans);
 				if (trans) {
 					trans_arg = arg;
 					trans_res = Z_RES_P(trans_arg);
 				} else {
-					link = (ibase_db_link *)zend_fetch_resource_ex(arg, NULL, le_link);
-					if (!link) link = (ibase_db_link *)zend_fetch_resource_ex(arg, NULL, le_plink);
+					link = (fbird_db_link *)zend_fetch_resource_ex(arg, NULL, le_link);
+					if (!link) link = (fbird_db_link *)zend_fetch_resource_ex(arg, NULL, le_plink);
 					if (link) link_arg = arg;
 				}
 			} else if (trans && !link) {
-				link = (ibase_db_link *)zend_fetch_resource_ex(arg, NULL, le_link);
-				if (!link) link = (ibase_db_link *)zend_fetch_resource_ex(arg, NULL, le_plink);
+				link = (fbird_db_link *)zend_fetch_resource_ex(arg, NULL, le_link);
+				if (!link) link = (fbird_db_link *)zend_fetch_resource_ex(arg, NULL, le_plink);
 				if (link) link_arg = arg;
 			} else if (link && !trans) {
-				trans = (ibase_trans *)zend_fetch_resource_ex(arg, NULL, le_trans);
+				trans = (fbird_transaction *)zend_fetch_resource_ex(arg, NULL, le_trans);
 				if (trans) {
 					trans_arg = arg;
 					trans_res = Z_RES_P(trans_arg);
@@ -1939,7 +1939,7 @@ PHP_FUNCTION(ibase_query)
 
 	if (!query) {
 		efree(args);
-		_php_ibase_module_error("Query argument missing or not a string");
+		_php_fbird_module_error("Query argument missing or not a string");
 		RETURN_FALSE;
 	}
 
@@ -1952,7 +1952,7 @@ PHP_FUNCTION(ibase_query)
 		unsigned short dialect = 3; /* Default dialect 3 for new databases */
 
 		if (isc_dsql_execute_immediate(IB_STATUS, (isc_db_handle*)&safe_new_db_handle, (isc_tr_handle*)&safe_new_trans_handle, 0, query, dialect, NULL)) {
-			_php_ibase_error();
+			_php_fbird_error();
 			efree(args);
 			RETURN_FALSE;
 		}
@@ -1960,14 +1960,14 @@ PHP_FUNCTION(ibase_query)
 		/* Commit the implicit transaction started by CREATE DATABASE to ensure persistence */
 		if (safe_new_trans_handle) {
 			if (isc_commit_transaction(IB_STATUS, (isc_tr_handle*)&safe_new_trans_handle)) {
-				_php_ibase_error();
+				_php_fbird_error();
 				/* Note: Database created but commit failed? */
 			}
 		}
 
 		/* Register the new database connection as a resource */
 		if (safe_new_db_handle) {
-			link = (ibase_db_link *) ecalloc(1, sizeof(ibase_db_link));
+			link = (fbird_db_link *) ecalloc(1, sizeof(fbird_db_link));
 			link->handle.ptr = safe_new_db_handle;
 			link->dialect = dialect;
 			link->tr_list = NULL;
@@ -1985,13 +1985,13 @@ PHP_FUNCTION(ibase_query)
 	/* Resolve Link if missing */
 	if (!link && !trans) {
 		if (IBG(default_link)) {
-			link = (ibase_db_link *)zend_fetch_resource2(IBG(default_link), "InterBase link", le_link, le_plink);
+			link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), "Firebird link", le_link, le_plink);
 		}
 
 		/* If no link found, fail gracefully */
 		if (!link) {
 			efree(args);
-			_php_ibase_module_error("No default connection");
+			_php_fbird_module_error("No default connection");
 			RETURN_FALSE;
 		}
 	} else if (!link && trans) {
@@ -2002,14 +2002,14 @@ PHP_FUNCTION(ibase_query)
 			link = trans->db_link[0];
 		} else {
 			efree(args);
-			_php_ibase_module_error("Transaction has no associated link");
+			_php_fbird_module_error("Transaction has no associated link");
 			RETURN_FALSE;
 		}
 	}
 
 	/* Resolve Transaction if missing */
 	if (!trans) {
-		if (SUCCESS != _php_ibase_def_trans(link, &trans)) {
+		if (SUCCESS != _php_fbird_def_trans(link, &trans)) {
 			efree(args);
 			RETURN_FALSE;
 		}
@@ -2017,16 +2017,16 @@ PHP_FUNCTION(ibase_query)
 
 	if (!trans) {
 		efree(args);
-		_php_ibase_module_error("Could not determine transaction");
+		_php_fbird_module_error("Could not determine transaction");
 		RETURN_FALSE;
 	}
 
-	if (FAILURE == _php_ibase_prepare(&ib_query, link, trans, trans_res, query)) {
+	if (FAILURE == _php_fbird_prepare(&ib_query, link, trans, trans_res, query)) {
 		efree(args);
 		RETURN_FALSE;
 	}
 
-	if (FAILURE == _php_ibase_exec(INTERNAL_FUNCTION_PARAM_PASSTHRU, ib_query, &args[bind_start], argc - bind_start)) {
+	if (FAILURE == _php_fbird_exec(INTERNAL_FUNCTION_PARAM_PASSTHRU, ib_query, &args[bind_start], argc - bind_start)) {
 		zend_list_delete(ib_query->res);
 		efree(args);
 		RETURN_FALSE;
@@ -2040,17 +2040,17 @@ PHP_FUNCTION(ibase_query)
 }
 /* }}} */
 
-/* {{{ proto resource ibase_prepare([resource link_identifier, [ resource link_identifier, ]] string query) */
-PHP_FUNCTION(ibase_prepare)
+/* {{{ proto resource fbird_prepare([resource link_identifier, [ resource link_identifier, ]] string query) */
+PHP_FUNCTION(fbird_prepare)
 {
 	zval *args;
 	int i, argc = ZEND_NUM_ARGS();
 	char *query = NULL;
-	ibase_db_link *link = NULL;
-	ibase_trans *trans = NULL;
+	fbird_db_link *link = NULL;
+	fbird_transaction *trans = NULL;
 	zval *link_arg = NULL, *trans_arg = NULL;
 	zend_resource *trans_res = NULL;
-	ibase_query *ib_query;
+	fbird_query *ib_query;
 
 	if (argc < 1) {
 		WRONG_PARAM_COUNT;
@@ -2065,15 +2065,15 @@ PHP_FUNCTION(ibase_prepare)
 	/* Parse arguments */
 	i = 0;
 	if (Z_TYPE(args[i]) == IS_RESOURCE) {
-		trans = (ibase_trans *)zend_fetch_resource_ex(&args[i], NULL, le_trans);
+		trans = (fbird_transaction *)zend_fetch_resource_ex(&args[i], NULL, le_trans);
 		if (trans) {
 			trans_arg = &args[i];
 			trans_res = Z_RES_P(trans_arg);
 			i++;
 		} else {
-			link = (ibase_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_link);
+			link = (fbird_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_link);
 			if (!link) {
-				link = (ibase_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_plink);
+				link = (fbird_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_plink);
 			}
 			if (link) {
 				link_arg = &args[i];
@@ -2084,15 +2084,15 @@ PHP_FUNCTION(ibase_prepare)
 
 	if (i == 1 && i < argc && Z_TYPE(args[i]) == IS_RESOURCE) {
 		if (trans) {
-			ibase_db_link *l = (ibase_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_link);
-			if (!l) l = (ibase_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_plink);
+			fbird_db_link *l = (fbird_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_link);
+			if (!l) l = (fbird_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_plink);
 			if (l) {
 				link = l;
 				link_arg = &args[i];
 				i++;
 			}
 		} else if (link) {
-			ibase_trans *t = (ibase_trans *)zend_fetch_resource_ex(&args[i], NULL, le_trans);
+			fbird_transaction *t = (fbird_transaction *)zend_fetch_resource_ex(&args[i], NULL, le_trans);
 			if (t) {
 				trans = t;
 				trans_arg = &args[i];
@@ -2106,17 +2106,17 @@ PHP_FUNCTION(ibase_prepare)
 		query = Z_STRVAL(args[i]);
 	} else {
 		efree(args);
-		_php_ibase_module_error("Query argument missing or not a string");
+		_php_fbird_module_error("Query argument missing or not a string");
 		RETURN_FALSE;
 	}
 
 	if (!link && !trans) {
 		if (IBG(default_link)) {
-			link = (ibase_db_link *)zend_fetch_resource2(IBG(default_link), "InterBase link", le_link, le_plink);
+			link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), "Firebird link", le_link, le_plink);
 		}
 		if (!link) {
 			efree(args);
-			_php_ibase_module_error("No default connection");
+			_php_fbird_module_error("No default connection");
 			RETURN_FALSE;
 		}
 	}
@@ -2129,20 +2129,20 @@ PHP_FUNCTION(ibase_prepare)
             link = trans->db_link[0];
         } else {
             efree(args);
-            _php_ibase_module_error("Transaction has no associated link");
+            _php_fbird_module_error("Transaction has no associated link");
             RETURN_FALSE;
         }
     }
 
 	if (!trans) {
-		if (SUCCESS != _php_ibase_def_trans(link, &trans)) {
+		if (SUCCESS != _php_fbird_def_trans(link, &trans)) {
 			efree(args);
 			RETURN_FALSE;
 		}
 	}
 
 	/* cppcheck-suppress legacyUninitvar ; query is guaranteed non-NULL here */
-	if (FAILURE == _php_ibase_prepare(&ib_query, link, trans, trans_res, query)) {
+	if (FAILURE == _php_fbird_prepare(&ib_query, link, trans, trans_res, query)) {
 		efree(args);
 		RETURN_FALSE;
 	}
@@ -2153,12 +2153,12 @@ PHP_FUNCTION(ibase_prepare)
 }
 /* }}} */
 
-/* {{{ proto mixed ibase_execute(resource query [, mixed bind_arg [, mixed bind_arg [, ...]]]) */
-PHP_FUNCTION(ibase_execute)
+/* {{{ proto mixed fbird_execute(resource query [, mixed bind_arg [, mixed bind_arg [, ...]]]) */
+PHP_FUNCTION(fbird_execute)
 {
 	zval *args;
 	int i, argc = ZEND_NUM_ARGS();
-	ibase_query *ib_query;
+	fbird_query *ib_query;
 
 	if (argc < 1) {
 		WRONG_PARAM_COUNT;
@@ -2170,13 +2170,13 @@ PHP_FUNCTION(ibase_execute)
 		WRONG_PARAM_COUNT;
 	}
 
-	ib_query = (ibase_query *)zend_fetch_resource_ex(&args[0], "Firebird/InterBase query", le_query);
+	ib_query = (fbird_query *)zend_fetch_resource_ex(&args[0], "Firebird query", le_query);
 	if (!ib_query) {
 		efree(args);
 		RETURN_FALSE;
 	}
 
-	if (FAILURE == _php_ibase_exec(INTERNAL_FUNCTION_PARAM_PASSTHRU, ib_query, &args[1], argc - 1)) {
+	if (FAILURE == _php_fbird_exec(INTERNAL_FUNCTION_PARAM_PASSTHRU, ib_query, &args[1], argc - 1)) {
 		efree(args);
 		RETURN_FALSE;
 	}
@@ -2185,17 +2185,17 @@ PHP_FUNCTION(ibase_execute)
 }
 /* }}} */
 
-/* {{{ proto bool ibase_free_query(resource query) */
-void _php_ibase_free_query_impl(INTERNAL_FUNCTION_PARAMETERS, int as_result)
+/* {{{ proto bool fbird_free_query(resource query) */
+void _php_fbird_free_query_impl(INTERNAL_FUNCTION_PARAMETERS, int as_result)
 {
 	zval *query_arg;
-	ibase_query *ib_query;
+	fbird_query *ib_query;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r", &query_arg) == FAILURE) {
 		return;
 	}
 
-	ib_query = (ibase_query *)zend_fetch_resource_ex(query_arg, "Firebird/InterBase query", le_query);
+	ib_query = (fbird_query *)zend_fetch_resource_ex(query_arg, "Firebird query", le_query);
 	if (!ib_query) {
 		RETURN_FALSE;
 	}
@@ -2204,28 +2204,28 @@ void _php_ibase_free_query_impl(INTERNAL_FUNCTION_PARAMETERS, int as_result)
 	RETURN_TRUE;
 }
 
-PHP_FUNCTION(ibase_free_query)
+PHP_FUNCTION(fbird_free_query)
 {
-	_php_ibase_free_query_impl(INTERNAL_FUNCTION_PARAM_PASSTHRU, 0);
+	_php_fbird_free_query_impl(INTERNAL_FUNCTION_PARAM_PASSTHRU, 0);
 }
 /* }}} */
 
-/* {{{ proto int ibase_affected_rows([ resource link_identifier ]) */
-PHP_FUNCTION(ibase_affected_rows)
+/* {{{ proto int fbird_affected_rows([ resource link_identifier ]) */
+PHP_FUNCTION(fbird_affected_rows)
 {
 	zval *link_arg = NULL;
-	ibase_db_link *link = NULL;
-	ibase_trans *trans = NULL;
+	fbird_db_link *link = NULL;
+	fbird_transaction *trans = NULL;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|r", &link_arg) == FAILURE) {
 		return;
 	}
 
 	if (link_arg) {
-		link = (ibase_db_link *)zend_fetch_resource2_ex(link_arg, LE_LINK, le_link, le_plink);
+		link = (fbird_db_link *)zend_fetch_resource2_ex(link_arg, LE_LINK, le_link, le_plink);
 	} else {
 		if (IBG(default_link)) {
-			link = (ibase_db_link *)zend_fetch_resource2(IBG(default_link), "InterBase link", le_link, le_plink);
+			link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), "Firebird link", le_link, le_plink);
 		}
 	}
 
@@ -2233,7 +2233,7 @@ PHP_FUNCTION(ibase_affected_rows)
 		RETURN_FALSE;
 	}
 
-	if (SUCCESS == _php_ibase_def_trans(link, &trans)) {
+	if (SUCCESS == _php_fbird_def_trans(link, &trans)) {
 		RETVAL_LONG(trans->affected_rows);
 	} else {
 		RETURN_FALSE;
@@ -2241,7 +2241,7 @@ PHP_FUNCTION(ibase_affected_rows)
 }
 /* }}} */
 
-static zval * _php_ibase_hash_to_zval_array(HashTable *ht, int *count)
+static zval * _php_fbird_hash_to_zval_array(HashTable *ht, int *count)
 {
     int n = zend_hash_num_elements(ht);
     if (n == 0) {
@@ -2266,9 +2266,9 @@ PHP_FUNCTION(fbird_execute_statement)
     zval *trans_arg, *params_arg = NULL;
     char *sql;
     size_t sql_len;
-    ibase_trans *trans;
-    ibase_db_link *link = NULL;
-    ibase_query *ib_query;
+    fbird_transaction *trans;
+    fbird_db_link *link = NULL;
+    fbird_query *ib_query;
     zval *bind_args = NULL;
     int bind_n = 0;
 
@@ -2278,26 +2278,26 @@ PHP_FUNCTION(fbird_execute_statement)
         return;
     }
 
-    trans = (ibase_trans *)zend_fetch_resource_ex(trans_arg, LE_TRANS, le_trans);
+    trans = (fbird_transaction *)zend_fetch_resource_ex(trans_arg, LE_TRANS, le_trans);
     if (!trans) {
         RETURN_FALSE;
     }
     if (trans->link_cnt > 0) {
         link = trans->db_link[0];
     } else {
-        _php_ibase_module_error("Transaction has no associated link");
+        _php_fbird_module_error("Transaction has no associated link");
         RETURN_FALSE;
     }
 
-    if (FAILURE == _php_ibase_prepare(&ib_query, link, trans, Z_RES_P(trans_arg), sql)) {
+    if (FAILURE == _php_fbird_prepare(&ib_query, link, trans, Z_RES_P(trans_arg), sql)) {
         RETURN_FALSE;
     }
 
     if (params_arg) {
-        bind_args = _php_ibase_hash_to_zval_array(Z_ARRVAL_P(params_arg), &bind_n);
+        bind_args = _php_fbird_hash_to_zval_array(Z_ARRVAL_P(params_arg), &bind_n);
     }
 
-    if (FAILURE == _php_ibase_exec(INTERNAL_FUNCTION_PARAM_PASSTHRU, ib_query, bind_args, bind_n)) {
+    if (FAILURE == _php_fbird_exec(INTERNAL_FUNCTION_PARAM_PASSTHRU, ib_query, bind_args, bind_n)) {
         if (bind_args) {
             for (int i=0; i<bind_n; i++) zval_ptr_dtor(&bind_args[i]);
             efree(bind_args);
@@ -2321,8 +2321,8 @@ PHP_FUNCTION(fbird_execute_statement)
 
     /* Cleanup prepared query resource as fbird_execute_statement is one-shot for the user?
        Wait, fbird_execute_statement takes SQL + Params. It prepares, executes, then destroys query handle?
-       Yes, similar to ibase_query execution path.
-       If the user wants prepared statement reuse, they should use ibase_prepare + ibase_execute.
+       Yes, similar to fbird_query execution path.
+       If the user wants prepared statement reuse, they should use fbird_prepare + fbird_execute.
        fbird_execute_statement is atomic execution.
     */
     zend_list_delete(ib_query->res);
@@ -2340,9 +2340,9 @@ PHP_FUNCTION(fbird_execute_query)
     zval *trans_arg, *params_arg = NULL;
     char *sql;
     size_t sql_len;
-    ibase_trans *trans;
-    ibase_db_link *link = NULL;
-    ibase_query *ib_query;
+    fbird_transaction *trans;
+    fbird_db_link *link = NULL;
+    fbird_query *ib_query;
     zval *bind_args = NULL;
     int bind_n = 0;
 
@@ -2352,25 +2352,25 @@ PHP_FUNCTION(fbird_execute_query)
         return;
     }
 
-    trans = (ibase_trans *)zend_fetch_resource_ex(trans_arg, LE_TRANS, le_trans);
+    trans = (fbird_transaction *)zend_fetch_resource_ex(trans_arg, LE_TRANS, le_trans);
     if (!trans) RETURN_FALSE;
     if (trans->link_cnt > 0) {
         link = trans->db_link[0];
     } else {
-        _php_ibase_module_error("Transaction has no associated link");
+        _php_fbird_module_error("Transaction has no associated link");
         RETURN_FALSE;
     }
 
     /* cppcheck-suppress legacyUninitvar ; link is guaranteed non-NULL here */
-    if (FAILURE == _php_ibase_prepare(&ib_query, link, trans, Z_RES_P(trans_arg), sql)) {
+    if (FAILURE == _php_fbird_prepare(&ib_query, link, trans, Z_RES_P(trans_arg), sql)) {
         RETURN_FALSE;
     }
 
     if (params_arg) {
-        bind_args = _php_ibase_hash_to_zval_array(Z_ARRVAL_P(params_arg), &bind_n);
+        bind_args = _php_fbird_hash_to_zval_array(Z_ARRVAL_P(params_arg), &bind_n);
     }
 
-    if (FAILURE == _php_ibase_exec(INTERNAL_FUNCTION_PARAM_PASSTHRU, ib_query, bind_args, bind_n)) {
+    if (FAILURE == _php_fbird_exec(INTERNAL_FUNCTION_PARAM_PASSTHRU, ib_query, bind_args, bind_n)) {
         if (bind_args) {
             for (int i=0; i<bind_n; i++) zval_ptr_dtor(&bind_args[i]);
             efree(bind_args);
@@ -2387,29 +2387,29 @@ PHP_FUNCTION(fbird_execute_query)
     if (Z_TYPE_P(return_value) != IS_RESOURCE) {
         /* RETURNING queries also return resource if execute2 results are present. */
         zend_throw_error(NULL, "fbird_execute_query expects a SELECT or RETURNING statement.");
-        // _php_ibase_exec returns TRUE/LONG for DML.
+        // _php_fbird_exec returns TRUE/LONG for DML.
         zend_list_delete(ib_query->res);
         RETURN_THROWS();
     }
 
     /* Keep ib_query alive as it holds the statement handle */
-    /* But wait, _php_ibase_exec creates a RESULT resource that references ib_query.
+    /* But wait, _php_fbird_exec creates a RESULT resource that references ib_query.
        If ib_query is just for execution, we should probably keep it alive managed by the result.
-       Actually _php_ibase_exec implementation for SELECT reuses ib_query->stmt.
+       Actually _php_fbird_exec implementation for SELECT reuses ib_query->stmt.
        And it sets result_query->parent = ib_query.
        So we MUST return the result resource (which is in return_value)
        AND let ib_query be managed.
-       Actually, ibase_query implementation returns the result resource but keeps ib_query resource alive?
-       Wait, ibase_query deletes ib_query->res ONLY on error.
+       Actually, fbird_query implementation returns the result resource but keeps ib_query resource alive?
+       Wait, fbird_query deletes ib_query->res ONLY on error.
        So on success, ib_query->res is alive.
        Is it returned? No, return_value is the result_query->res.
        So ib_query (the prepared statement) leaks?
-       No, ibase_query is one-shot.
-       Let's check ibase_query implementation again.
+       No, fbird_query is one-shot.
+       Let's check fbird_query implementation again.
        It does zend_list_delete(ib_query->res) ONLY on error label.
        If success, it returns.
        So ib_query resource leaks?
-       Ah, for SELECT, _php_ibase_exec returns result_query->res.
+       Ah, for SELECT, _php_fbird_exec returns result_query->res.
        result_query->parent = ib_query.
        So ib_query resource must persist for the lifetime of result?
        Yes.
@@ -2425,9 +2425,9 @@ PHP_FUNCTION(fbird_execute_auto)
     zval *link_arg, *params_arg = NULL;
     char *sql;
     size_t sql_len;
-    ibase_db_link *link;
-    ibase_trans *trans;
-    ibase_query *ib_query;
+    fbird_db_link *link;
+    fbird_transaction *trans;
+    fbird_query *ib_query;
     zval *bind_args = NULL;
     int bind_n = 0;
     fb_safe_handle tr_handle = {0};
@@ -2439,18 +2439,18 @@ PHP_FUNCTION(fbird_execute_auto)
         return;
     }
 
-    link = (ibase_db_link *)zend_fetch_resource2_ex(link_arg, LE_LINK, le_link, le_plink);
+    link = (fbird_db_link *)zend_fetch_resource2_ex(link_arg, LE_LINK, le_link, le_plink);
     if (!link) RETURN_FALSE;
 
     /* Start autonomous transaction */
     result = isc_start_transaction(IB_STATUS, &tr_handle.tr, 1, &link->handle.db, 0, NULL);
     if (result) {
-        _php_ibase_error();
+        _php_fbird_error();
         RETURN_FALSE;
     }
 
     /* Create temp trans object */
-    trans = (ibase_trans *) emalloc(sizeof(ibase_trans));
+    trans = (fbird_transaction *) emalloc(sizeof(fbird_transaction));
     trans->handle = tr_handle;
     trans->link_cnt = 1;
     trans->affected_rows = 0;
@@ -2458,17 +2458,17 @@ PHP_FUNCTION(fbird_execute_auto)
     /* We do NOT register this transaction as a resource because it's strictly local scope */
 
     /* Prepare */
-    if (FAILURE == _php_ibase_prepare(&ib_query, link, trans, NULL, sql)) {
+    if (FAILURE == _php_fbird_prepare(&ib_query, link, trans, NULL, sql)) {
         isc_rollback_transaction(IB_STATUS, &trans->handle.tr);
         efree(trans);
         RETURN_FALSE;
     }
 
     if (params_arg) {
-        bind_args = _php_ibase_hash_to_zval_array(Z_ARRVAL_P(params_arg), &bind_n);
+        bind_args = _php_fbird_hash_to_zval_array(Z_ARRVAL_P(params_arg), &bind_n);
     }
 
-    if (FAILURE == _php_ibase_exec(INTERNAL_FUNCTION_PARAM_PASSTHRU, ib_query, bind_args, bind_n)) {
+    if (FAILURE == _php_fbird_exec(INTERNAL_FUNCTION_PARAM_PASSTHRU, ib_query, bind_args, bind_n)) {
         if (bind_args) {
             for (int i=0; i<bind_n; i++) zval_ptr_dtor(&bind_args[i]);
             efree(bind_args);
@@ -2499,7 +2499,7 @@ PHP_FUNCTION(fbird_execute_auto)
 
     /* Commit */
     if (isc_commit_transaction(IB_STATUS, &trans->handle.tr)) {
-        _php_ibase_error();
+        _php_fbird_error();
         zend_list_delete(ib_query->res);
         efree(trans); // Handle invalid now
         RETURN_FALSE;
@@ -2508,16 +2508,16 @@ PHP_FUNCTION(fbird_execute_auto)
     zend_list_delete(ib_query->res);
     efree(trans);
 
-    /* Return value is already set by _php_ibase_exec (TRUE/affected_rows) */
+    /* Return value is already set by _php_fbird_exec (TRUE/affected_rows) */
 }
 /* }}} */
 
-int _php_ibase_fetch_query_res(zval *from, ibase_query **ib_query)
+int _php_fbird_fetch_query_res(zval *from, fbird_query **ib_query)
 {
 	if (Z_TYPE_P(from) != IS_RESOURCE) {
 		return 0;
 	}
-	*ib_query = (ibase_query *)zend_fetch_resource_ex(from, "Firebird/InterBase query", le_query);
+	*ib_query = (fbird_query *)zend_fetch_resource_ex(from, "Firebird query", le_query);
 	return (*ib_query) ? 1 : 0;
 }
 

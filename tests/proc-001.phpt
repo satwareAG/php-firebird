@@ -6,10 +6,10 @@ Procedures
 <?php
 
 require("firebird.inc");
-ibase_connect($test_base);
+fbird_connect($test_base);
 
 (function(){
-	ibase_query(
+	fbird_query(
 	"CREATE OR ALTER PROCEDURE GET_5_RECORDS(ARG INTEGER)
 	RETURNS (N INTEGER, RESULT INTEGER)
 	AS
@@ -24,15 +24,15 @@ ibase_connect($test_base);
 		END
 	END");
 
-	$query = ibase_prepare("EXECUTE PROCEDURE GET_5_RECORDS(?)");
-	dump_rows(ibase_execute($query, 1));
-	dump_rows(ibase_execute($query, 10));
+	$query = fbird_prepare("EXECUTE PROCEDURE GET_5_RECORDS(?)");
+	dump_rows(fbird_execute($query, 1));
+	dump_rows(fbird_execute($query, 10));
 
 	print "------------------\n";
 
-	$query = ibase_prepare("SELECT * FROM GET_5_RECORDS(?)");
-	dump_rows(ibase_execute($query, 1));
-	dump_rows(ibase_execute($query, 10));
+	$query = fbird_prepare("SELECT * FROM GET_5_RECORDS(?)");
+	dump_rows(fbird_execute($query, 1));
+	dump_rows(fbird_execute($query, 10));
 })();
 
 ?>

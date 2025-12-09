@@ -48,7 +48,7 @@ typedef struct {
 } IBVARY;
 
 /* Portable UTC epoch conversion helper */
-time_t ibase_timegm_portable(struct tm *tm)
+time_t fbird_timegm_portable(struct tm *tm)
 {
 #ifdef HAVE_TIMEGM
     return timegm(tm);
@@ -77,7 +77,7 @@ time_t ibase_timegm_portable(struct tm *tm)
 }
 
 /* Convert struct tm to epoch using a specific timezone name */
-time_t ibase_mktime_with_tz(struct tm *tm, const char *tz)
+time_t fbird_mktime_with_tz(struct tm *tm, const char *tz)
 {
     const char *use_tz = (tz && tz[0]) ? tz : "UTC";
     char *old_tz_env = getenv("TZ");
@@ -98,7 +98,7 @@ time_t ibase_mktime_with_tz(struct tm *tm, const char *tz)
     return ts;
 }
 
-static int _php_ibase_var_zval(zval *val, void *data, int type, int len, /* {{{ */
+static int _php_fbird_var_zval(zval *val, void *data, int type, int len, /* {{{ */
     int scale, int subtype, size_t flag)
 {
 	static ISC_INT64 const scales[] = { 1, 10, 100, 1000,
@@ -267,7 +267,7 @@ static int _php_ibase_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 			// connect if fbclient does not have fb_get_master_instance().
 			// Assert this just in case.
 			if(!IBG(master_instance)) {
-				_php_ibase_module_error("Timezone fields require Firebird 4.0+ master instance");
+				_php_fbird_module_error("Timezone fields require Firebird 4.0+ master instance");
 				return FAILURE;
 			}
 
@@ -290,7 +290,7 @@ static int _php_ibase_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 			}
 
 			if (((type & ~1) != SQL_TIME_TZ) && (flag & PHP_IBASE_UNIXTIME)) {
-				ZVAL_LONG(val, ibase_mktime_with_tz(&t, timeZoneBuffer));
+				ZVAL_LONG(val, fbird_mktime_with_tz(&t, timeZoneBuffer));
 			} else {
 				char timeBuf[80] = {0};
 				l = strftime(timeBuf, sizeof(timeBuf), format, &t);
@@ -301,7 +301,7 @@ static int _php_ibase_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 				/* Safe checking for truncation */
 				int tz_len_int = snprintf(string_data, sizeof(string_data), "%s %s", timeBuf, timeZoneBuffer);
 				if (tz_len_int < 0 || (size_t)tz_len_int >= sizeof(string_data)) {
-					_php_ibase_module_error("Timezone string truncated");
+					_php_fbird_module_error("Timezone string truncated");
 					return FAILURE;
 				}
 				ZVAL_STRINGL(val, string_data, (size_t)tz_len_int);
@@ -343,7 +343,7 @@ format_date_time:
                  * using PHP's configured timezone (date.timezone). This avoids
                  * dependence on the host OS timezone. */
                 const char *php_tz = INI_STR("date.timezone");
-                time_t timestamp = ibase_mktime_with_tz(&t, php_tz);
+                time_t timestamp = fbird_mktime_with_tz(&t, php_tz);
                 ZVAL_LONG(val, timestamp);
             } else {
                 l = strftime(string_data, sizeof(string_data), format, &t);
@@ -355,8 +355,8 @@ format_date_time:
 }
 /* }}}	*/
 
-static int _php_ibase_arr_zval(zval *ar_zval, char *data, zend_ulong data_size, /* {{{ */
-	ibase_array *ib_array, int dim, size_t flag)
+static int _php_fbird_arr_zval(zval *ar_zval, char *data, zend_ulong data_size, /* {{{ */
+	fbird_array *ib_array, int dim, size_t flag)
 {
 	/**
 	 * Create multidimension array - recursion function
@@ -376,7 +376,7 @@ static int _php_ibase_arr_zval(zval *ar_zval, char *data, zend_ulong data_size, 
 			zval slice_zval;
 
 			/* recursion here */
-			if (FAILURE == _php_ibase_arr_zval(&slice_zval, data, slice_size, ib_array, dim + 1,
+			if (FAILURE == _php_fbird_arr_zval(&slice_zval, data, slice_size, ib_array, dim + 1,
 					flag)) {
 				return FAILURE;
 			}
@@ -392,7 +392,7 @@ static int _php_ibase_arr_zval(zval *ar_zval, char *data, zend_ulong data_size, 
 		 * Pass 0 for subtype which will use the single-byte rtrim logic.
 		 * This is acceptable as array CHAR fields are less common and
 		 * historical behavior is preserved. */
-		if (FAILURE == _php_ibase_var_zval(ar_zval, data, ib_array->el_type,
+		if (FAILURE == _php_fbird_var_zval(ar_zval, data, ib_array->el_type,
 				ib_array->ar_desc.array_desc_length, ib_array->ar_desc.array_desc_scale, 0, flag)) {
 			return FAILURE;
 		}
@@ -409,12 +409,12 @@ static int _php_ibase_arr_zval(zval *ar_zval, char *data, zend_ulong data_size, 
 }
 /* }}} */
 
-static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) /* {{{ */
+static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) /* {{{ */
 {
 	zval *res_arg, *result;
 	zend_long flag = 0;
 	zend_long i, array_cnt = 0;
-	ibase_query *ib_query;
+	fbird_query *ib_query;
 
 	RESET_ERRMSG;
 
@@ -422,8 +422,8 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 		RETURN_FALSE;
 	}
 
- if(!_php_ibase_fetch_query_res(res_arg, &ib_query)) {
-        /* Let Zend validate resource via _php_ibase_fetch_query_res */
+ if(!_php_fbird_fetch_query_res(res_arg, &ib_query)) {
+        /* Let Zend validate resource via _php_fbird_fetch_query_res */
         RETURN_FALSE;
     }
 
@@ -465,7 +465,7 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
                 if (IB_STATUS[1] == 335544569 || IB_STATUS[1] == 335544436) {
                     suppress_error = 1;
                 } else {
-                    _php_ibase_error();
+                    _php_fbird_error();
                 }
             }
 
@@ -486,7 +486,7 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
                         || IB_STATUS[1] == 335544573 /* isc_dsql_cursor_close_err */) {
                         /* Suppress */
                     } else {
-                        _php_ibase_error();
+                        _php_fbird_error();
                     }
                 }
             }
@@ -508,14 +508,14 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 	HashTable *ht_ret;
 	if(!(fetch_type & FETCH_ROW)) {
 		if(!ib_query->ht_aliases){
-			if(_php_ibase_alloc_ht_aliases(ib_query)){
-				_php_ibase_error();
+			if(_php_fbird_alloc_ht_aliases(ib_query)){
+				_php_fbird_error();
 				RETURN_FALSE;
 			}
 		}
 		ht_ret = zend_array_dup(ib_query->ht_aliases);
 	} else {
-		if(!ib_query->ht_ind)_php_ibase_alloc_ht_ind(ib_query);
+		if(!ib_query->ht_ind)_php_fbird_alloc_ht_ind(ib_query);
 		ht_ret = zend_array_dup(ib_query->ht_ind);
 	}
 
@@ -528,8 +528,8 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 		if (var->sqltype & 1) {
 			// Nullable field - check null indicator safely
 			if (var->sqlind == NULL) {
-				_php_ibase_module_error("NULL indicator missing for nullable field %ld", i);
-				goto _php_ibase_fetch_error;
+				_php_fbird_module_error("NULL indicator missing for nullable field %ld", i);
+				goto _php_fbird_fetch_error;
 			}
 			is_null_field = (*var->sqlind == -1);
 		} else {
@@ -544,20 +544,20 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 
 		result = zend_hash_get_current_data(ht_ret);
         if (!result) {
-            _php_ibase_module_error("Internal error: result array iterator out of sync");
+            _php_fbird_module_error("Internal error: result array iterator out of sync");
             RETURN_FALSE;
         }
 
 		switch (var->sqltype & ~1) {
 
 			default:
-				_php_ibase_var_zval(result, var->sqldata, var->sqltype, var->sqllen,
+				_php_fbird_var_zval(result, var->sqldata, var->sqltype, var->sqllen,
 					var->sqlscale, var->sqlsubtype, flag);
 				break;
 			case SQL_BLOB:
 				if (flag & PHP_IBASE_FETCH_BLOBS) { /* fetch blob contents into hash */
 
-					ibase_blob blob_handle;
+					fbird_blob blob_handle;
 					zend_ulong max_len = 0;
 					static char bl_items[] = {isc_info_blob_total_length};
 					char bl_info[20];
@@ -568,14 +568,14 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 
 					if (isc_open_blob(IB_STATUS, &ib_query->link->handle.db, &ib_query->trans->handle.tr,
 							&blob_handle.bl_handle.blob, &blob_handle.bl_qd)) {
-						_php_ibase_error();
-						goto _php_ibase_fetch_error;
+						_php_fbird_error();
+						goto _php_fbird_fetch_error;
 					}
 
 					if (isc_blob_info(IB_STATUS, &blob_handle.bl_handle.blob, sizeof(bl_items),
 							bl_items, sizeof(bl_info), bl_info)) {
-						_php_ibase_error();
-						goto _php_ibase_fetch_error;
+						_php_fbird_error();
+						goto _php_fbird_fetch_error;
 					}
 
 					/* find total length of blob's data */
@@ -586,9 +586,9 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 						if (item == isc_info_end || item == isc_info_truncated ||
 							item == isc_info_error || i >= sizeof(bl_info)) {
 
-							_php_ibase_module_error("Could not determine BLOB size (internal error)"
+							_php_fbird_module_error("Could not determine BLOB size (internal error)"
 								);
-							goto _php_ibase_fetch_error;
+							goto _php_fbird_fetch_error;
 						}
 
 						item_len = (unsigned short) isc_vax_integer(&bl_info[i], 2);
@@ -602,25 +602,25 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 
 					if (max_len == 0) {
 						ZVAL_STRING(result, "");
-					} else if (SUCCESS != _php_ibase_blob_get(result, &blob_handle,
+					} else if (SUCCESS != _php_fbird_blob_get(result, &blob_handle,
 							max_len)) {
-						goto _php_ibase_fetch_error;
+						goto _php_fbird_fetch_error;
 					}
 
 					if (isc_close_blob(IB_STATUS, &blob_handle.bl_handle.blob)) {
-						_php_ibase_error();
-						goto _php_ibase_fetch_error;
+						_php_fbird_error();
+						goto _php_fbird_fetch_error;
 					}
 
 				} else { /* blob id only */
 					ISC_QUAD bl_qd = *(ISC_QUAD *) var->sqldata;
-					ZVAL_NEW_STR(result, _php_ibase_quad_to_string(bl_qd));
+					ZVAL_NEW_STR(result, _php_fbird_quad_to_string(bl_qd));
 				}
 				break;
 			case SQL_ARRAY:
 				if (flag & PHP_IBASE_FETCH_ARRAYS) { /* array can be *huge* so only fetch if asked */
 					ISC_QUAD ar_qd = *(ISC_QUAD *) var->sqldata;
-					ibase_array *ib_array = &ib_query->out_array[array_cnt++];
+					fbird_array *ib_array = &ib_query->out_array[array_cnt++];
 					/* Use local copy of size - isc_array_get_slice modifies its size parameter
 					 * to reflect actual bytes fetched, which corrupts ar_size for recursive use */
 					ISC_LONG fetch_size = ib_array->ar_size;
@@ -629,26 +629,26 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 					if (isc_array_get_slice(IB_STATUS, &ib_query->link->handle.db,
 							&ib_query->trans->handle.tr, &ar_qd, &ib_array->ar_desc,
 							ar_data, &fetch_size)) {
-						_php_ibase_error();
+						_php_fbird_error();
 						efree(ar_data);
-						goto _php_ibase_fetch_error;
+						goto _php_fbird_fetch_error;
 					}
 
 					/* Use ORIGINAL ar_size for recursive processing (structure size),
 					 * not the potentially modified fetch_size */
-					if (FAILURE == _php_ibase_arr_zval(result, ar_data, ib_array->ar_size, ib_array,
+					if (FAILURE == _php_fbird_arr_zval(result, ar_data, ib_array->ar_size, ib_array,
 							0, flag)) {
 						efree(ar_data);
-						goto _php_ibase_fetch_error;
+						goto _php_fbird_fetch_error;
 					}
 					efree(ar_data);
 
 				} else { /* blob id only */
 					ISC_QUAD ar_qd = *(ISC_QUAD *) var->sqldata;
-					ZVAL_NEW_STR(result, _php_ibase_quad_to_string(ar_qd));
+					ZVAL_NEW_STR(result, _php_fbird_quad_to_string(ar_qd));
 				}
 				break;
-			_php_ibase_fetch_error:
+			_php_fbird_fetch_error:
 				RETURN_FALSE;
 		} /* switch */
 
@@ -659,27 +659,27 @@ static void _php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 }
 /* }}} */
 
-/* {{{ proto array ibase_fetch_row(resource result [, int fetch_flags])
+/* {{{ proto fbird_fetch_row(resource result [, int fetch_flags])
    Fetch a row  from the results of a query */
-PHP_FUNCTION(ibase_fetch_row)
+PHP_FUNCTION(fbird_fetch_row)
 {
-	_php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAM_PASSTHRU, FETCH_ROW);
+	_php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAM_PASSTHRU, FETCH_ROW);
 }
 /* }}} */
 
-/* {{{ proto array ibase_fetch_assoc(resource result [, int fetch_flags])
+/* {{{ proto fbird_fetch_assoc(resource result [, int fetch_flags])
    Fetch a row  from the results of a query */
-PHP_FUNCTION(ibase_fetch_assoc)
+PHP_FUNCTION(fbird_fetch_assoc)
 {
-	_php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAM_PASSTHRU, FETCH_ARRAY);
+	_php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAM_PASSTHRU, FETCH_ARRAY);
 }
 /* }}} */
 
-/* {{{ proto object ibase_fetch_object(resource result [, int fetch_flags])
+/* {{{ proto fbird_fetch_object(resource result [, int fetch_flags])
    Fetch a object from the results of a query */
-PHP_FUNCTION(ibase_fetch_object)
+PHP_FUNCTION(fbird_fetch_object)
 {
-	_php_ibase_fetch_hash(INTERNAL_FUNCTION_PARAM_PASSTHRU, FETCH_ARRAY);
+	_php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAM_PASSTHRU, FETCH_ARRAY);
 
 	if (Z_TYPE_P(return_value) == IS_ARRAY) {
 		convert_to_object(return_value);
@@ -687,14 +687,14 @@ PHP_FUNCTION(ibase_fetch_object)
 }
 /* }}} */
 
-/* {{{ proto bool ibase_name_result(resource result, string name)
+/* {{{ proto fbird_name_result(resource result, string name)
    Assign a name to a result for use with ... WHERE CURRENT OF <name> statements */
-PHP_FUNCTION(ibase_name_result)
+PHP_FUNCTION(fbird_name_result)
 {
 	zval *result_arg;
 	char *name_arg;
 	size_t name_arg_len;
-	ibase_query *ib_query;
+	fbird_query *ib_query;
 
 	RESET_ERRMSG;
 
@@ -702,12 +702,12 @@ PHP_FUNCTION(ibase_name_result)
 		return;
 	}
 
-	if(!_php_ibase_fetch_query_res(result_arg, &ib_query)) {
+	if(!_php_fbird_fetch_query_res(result_arg, &ib_query)) {
 		RETURN_FALSE;
 	}
 
 	if (isc_dsql_set_cursor_name(IB_STATUS, &ib_query->stmt.stmt, name_arg, 0)) {
-		_php_ibase_error();
+		_php_fbird_error();
 		RETURN_FALSE;
 	}
 
@@ -715,11 +715,11 @@ PHP_FUNCTION(ibase_name_result)
 }
 /* }}} */
 
-/* {{{ proto bool ibase_free_result(resource result)
+/* {{{ proto bool fbird_free_result(resource result)
    Free the memory used by a result */
-PHP_FUNCTION(ibase_free_result)
+PHP_FUNCTION(fbird_free_result)
 {
-	_php_ibase_free_query_impl(INTERNAL_FUNCTION_PARAM_PASSTHRU, 1);
+	_php_fbird_free_query_impl(INTERNAL_FUNCTION_PARAM_PASSTHRU, 1);
 }
 /* }}} */
 

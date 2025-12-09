@@ -1,5 +1,5 @@
 --TEST--
-ibase_affected_rows(): Basic test
+fbird_affected_rows(): Basic test
 --SKIPIF--
 <?php include("skipif.inc"); ?>
 --FILE--
@@ -7,20 +7,20 @@ ibase_affected_rows(): Basic test
 
 require("firebird.inc");
 
-$x = ibase_connect($test_base);
+$x = fbird_connect($test_base);
 
-ibase_query($x, 'INSERT INTO test1 VALUES (1, 100)');
-ibase_query($x, 'INSERT INTO test1 VALUES (10000, 100)');
+fbird_query($x, 'INSERT INTO test1 VALUES (1, 100)');
+fbird_query($x, 'INSERT INTO test1 VALUES (10000, 100)');
 
-ibase_query($x, 'UPDATE test1 SET i = 10000');
-var_dump(ibase_affected_rows($x));
+fbird_query($x, 'UPDATE test1 SET i = 10000');
+var_dump(fbird_affected_rows($x));
 
 
-ibase_query($x, 'UPDATE test1 SET i = 10000 WHERE i = 2.0');
-var_dump(ibase_affected_rows($x));
+fbird_query($x, 'UPDATE test1 SET i = 10000 WHERE i = 2.0');
+var_dump(fbird_affected_rows($x));
 
-ibase_query($x, 'UPDATE test1 SET i =');
-var_dump(ibase_affected_rows($x));
+fbird_query($x, 'UPDATE test1 SET i =');
+var_dump(fbird_affected_rows($x));
 
 
 ?>
@@ -28,5 +28,5 @@ var_dump(ibase_affected_rows($x));
 int(3)
 int(0)
 
-Warning: ibase_query(): Dynamic SQL Error SQL error code = -104 %s on line %d
+Warning: fbird_query(): Dynamic SQL Error SQL error code = -104 %s on line %d
 int(0)

@@ -1,12 +1,12 @@
 --TEST--
-ibase_trans(): transaction control with SQL
+fbird_trans(): transaction control with SQL
 --SKIPIF--
 <?php include("skipif.inc"); ?>
 --FILE--
 <?php
 
 require("firebird.inc");
-ibase_connect($test_base);
+fbird_connect($test_base);
 
 (function() {
     $queries = [

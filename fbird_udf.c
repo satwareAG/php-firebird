@@ -36,7 +36,7 @@
 *         <return type> BY DESCRIPTOR,
 *         INTEGER BY DESCRIPTOR
 *         RETURNS PARAMETER 2
-*         ENTRY_POINT 'udf_call_php1' MODULE_NAME 'php_ibase_udf'
+*         ENTRY_POINT 'udf_call_php1' MODULE_NAME 'php_fbird_udf'
 *
 *     DECLARE EXTERNAL FUNCTION CALL_PHP2
 *         CSTRING(xx),
@@ -44,7 +44,7 @@
 *         INTEGER BY DESCRIPTOR,
 *         INTEGER BY DESCRIPTOR
 *         RETURNS PARAMETER 2
-*         ENTRY_POINT 'udf_call_php2' MODULE_NAME 'php_ibase_udf'
+*         ENTRY_POINT 'udf_call_php2' MODULE_NAME 'php_fbird_udf'
 *
 *     ... and so on. [for up to 8 input arguments]
 *
@@ -72,7 +72,7 @@
 *        INTEGER BY DESCRIPTOR,
 *        SMALLINT
 *        RETURNS PARAMETER 2
-*        ENTRY_POINT 'exec_php' MODULE_NAME 'php_ibase_udf'
+*        ENTRY_POINT 'exec_php' MODULE_NAME 'php_fbird_udf'
 *
 * The function will return 1 if execution succeeded and 0 if an error
 * occurred. The result that is returned from the executed PHP code is
@@ -84,13 +84,13 @@
 * connection, you should compile the library like this:
 *
 *     gcc -shared `php-config --includes` `php-config --ldflags` \
-*         `php-config --libs` -o php_ibase_udf.so php_ibase_udf.c
+*         `php-config --libs` -o php_fbird_udf.so php_fbird_udf.c
 *
 * If you connect to the classic server by TCP/IP, you should build the
 * PHP embedded static library and link against that.
 *
 *     gcc -shared `php-config --includes` `php-config --ldflags` \
-*         `php-config --libs` -o php_ibase_udf.so php_ibase_udf.c \
+*         `php-config --libs` -o php_fbird_udf.so php_fbird_udf.c \
 *         /usr/lib/libphp7.a
 *
 * If you use the super server, you should also link against the embedded

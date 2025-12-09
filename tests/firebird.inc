@@ -30,7 +30,7 @@ if ($password) {
 
 if ($fbDbDirEnv !== false && $fbDbDirEnv !== '') {
 	$dbDir = rtrim($fbDbDirEnv, '/');
-	$tmp   = @tempnam($dbDir, 'php_ibase_test_');
+	$tmp   = @tempnam($dbDir, 'php_fbird_test_');
 	if ($tmp === false) {
 		die('skip: cannot create temporary database file in FIREBIRD_DB_DIR');
 	}
@@ -39,7 +39,7 @@ if ($fbDbDirEnv !== false && $fbDbDirEnv !== '') {
 } elseif ($fbDbPathEnv !== false && $fbDbPathEnv !== '') {
 	$test_base = !empty($host) ? $host . ':' . $fbDbPathEnv : $fbDbPathEnv;
 } else {
-	unlink($test_base = tempnam(sys_get_temp_dir(), "php_ibase_test"));
+	unlink($test_base = tempnam(sys_get_temp_dir(), "php_fbird_test"));
 	if (!empty($host)) {
 		$test_base = $host . ':' . $test_base;
 	}
@@ -54,14 +54,14 @@ function init_db()
 		($charset = ini_get('ibase.default_charset')) ? $charset : 'NONE'
 	);
 
-	$test_db = ibase_query(FBIRD_CREATE, $sql);
+	$test_db = fbird_query(FBIRD_CREATE, $sql);
 
-	$tr = ibase_trans($test_db);
-	ibase_query($tr,"create table test1 (i integer, c varchar(100))");
-	ibase_commit_ret($tr);
-	ibase_query($tr,"insert into test1(i, c) values(1, 'test table not created with isql')");
-	ibase_commit($tr);
-	ibase_close($test_db);
+	$tr = fbird_trans($test_db);
+	fbird_query($tr,"create table test1 (i integer, c varchar(100))");
+	fbird_commit_ret($tr);
+	fbird_query($tr,"insert into test1(i, c) values(1, 'test table not created with isql')");
+	fbird_commit($tr);
+	fbird_close($test_db);
 }
 
 function cleanup_db()
@@ -76,8 +76,8 @@ function cleanup_db()
 	 * keep the test output clean; any leftover database will be cleaned up on
 	 * subsequent runs once no transactions are holding locks.
 	 */
-	if ($r = @ibase_connect($test_base)) {
-		@ibase_drop_db($r);
+	if ($r = @fbird_connect($test_base)) {
+		@fbird_drop_db($r);
 	}
 }
 
@@ -87,9 +87,9 @@ function get_fb_version(): float
 
 	if(isset($fb_version)) return $fb_version;
 
-	if($se = ibase_service_attach($host ? $host : "localhost", $user, $password)) {
-		$fb_version_str = ibase_server_info($se, FBIRD_SVC_SERVER_VERSION);
-		if($fb_version_str === false)die("skip cannot ibase_server_info()");
+	if($se = fbird_service_attach($host ? $host : "localhost", $user, $password)) {
+		$fb_version_str = fbird_server_info($se, FBIRD_SVC_SERVER_VERSION);
+		if($fb_version_str === false)die("skip cannot fbird_server_info()");
 		$server_version  = explode(" ", $fb_version_str);
 		$vers = (float)$server_version[count($server_version) - 1];
 		return $fb_version = $vers;

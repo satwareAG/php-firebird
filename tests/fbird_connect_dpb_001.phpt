@@ -1,5 +1,5 @@
 --TEST--
-ibase_connect() basic attach and SELECT 1 using defaults
+fbird_connect() basic attach and SELECT 1 using defaults
 --SKIPIF--
 <?php
 if (!extension_loaded('firebird')) {
@@ -15,7 +15,7 @@ $fbDbPathEnv = getenv('FIREBIRD_DB_PATH');
 
 if ($fbDbDirEnv !== false && $fbDbDirEnv !== '') {
     $dbDir = rtrim($fbDbDirEnv, '/');
-    $tmp   = @tempnam($dbDir, 'php_ibase_test_');
+    $tmp   = @tempnam($dbDir, 'php_fbird_test_');
     if ($tmp === false) {
         die('skip: cannot create temporary database file in FIREBIRD_DB_DIR');
     }
@@ -24,7 +24,7 @@ if ($fbDbDirEnv !== false && $fbDbDirEnv !== '') {
 } elseif ($fbDbPathEnv !== false && $fbDbPathEnv !== '') {
     $host = !empty($host) ? $host . ':' . $fbDbPathEnv : $fbDbPathEnv;
 } else {
-    $tmp = tempnam(sys_get_temp_dir(), "php_ibase_test");
+    $tmp = tempnam(sys_get_temp_dir(), "php_fbird_test");
     unlink($tmp);
     if (!empty($host)) {
         $host = $host . ':' . $tmp;
@@ -42,22 +42,22 @@ $host = getenv('FB_HOST') ?: $host;
 // (for example: firebird40:/firebird/data/test.fdb). If the attach fails
 // with I/O error because the file does not exist yet, create it once using
 // the same host string.
-if (!@ibase_connect($host)) {
+if (!@fbird_connect($host)) {
     $sql = sprintf("CREATE DATABASE '%s' USER '%s' PASSWORD '%s'", $host, $user, $password);
-    $db = @ibase_query(FBIRD_CREATE, $sql);
+    $db = @fbird_query(FBIRD_CREATE, $sql);
     if ($db === false) {
-        die('skip: unable to create default database for ibase_connect_dpb_001');
+        die('skip: unable to create default database for fbird_connect_dpb_001');
     }
-    ibase_close($db);
+    fbird_close($db);
 }
 
-$link = ibase_connect($host);
+$link = fbird_connect($host);
 var_dump($link !== false);
 
-$res = ibase_query($link, 'SELECT 1 FROM RDB$DATABASE');
-$row = ibase_fetch_row($res);
-ibase_free_result($res);
-ibase_close($link);
+$res = fbird_query($link, 'SELECT 1 FROM RDB$DATABASE');
+$row = fbird_fetch_row($res);
+fbird_free_result($res);
+fbird_close($link);
 
 var_dump((int) $row[0]);
 --EXPECTF--

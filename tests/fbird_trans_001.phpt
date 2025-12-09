@@ -1,12 +1,12 @@
 --TEST--
-ibase_trans(): Basic test
+fbird_trans(): Basic test
 --SKIPIF--
 <?php
 
 include("skipif.inc");
 
-// See also tests/ibase_trans_014.phpt
-// See also tests/ibase_trans_015.phpt
+// See also tests/fbird_trans_014.phpt
+// See also tests/fbird_trans_015.phpt
 skip_if_ext_gte(61);
 
 ?>
@@ -15,15 +15,15 @@ skip_if_ext_gte(61);
 
 require("firebird.inc");
 
-$x = ibase_connect($test_base);
-var_dump(ibase_trans($x));
-var_dump(ibase_trans(1));
-var_dump(ibase_close());
-var_dump(ibase_close($x));
+$x = fbird_connect($test_base);
+var_dump(fbird_trans($x));
+var_dump(fbird_trans(1));
+var_dump(fbird_close());
+var_dump(fbird_close($x));
 
 ?>
 --EXPECTF--
-resource(%d) of type (Firebird/InterBase transaction)
-resource(%d) of type (Firebird/InterBase transaction)
+resource(%d) of type (Firebird transaction)
+resource(%d) of type (Firebird transaction)
 bool(true)
 bool(true)

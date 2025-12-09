@@ -1,5 +1,5 @@
 --TEST--
-ibase_service_attach() specific error messages
+fbird_service_attach() specific error messages
 --SKIPIF--
 <?php include("skipif.inc"); ?>
 --FILE--
@@ -12,16 +12,16 @@ $user = getenv('ISC_USER') ?: 'SYSDBA';
 $pass = getenv('ISC_PASSWORD') ?: 'masterkey';
 
 // 1. Successful attach
-$service = ibase_service_attach($host, $user, $pass);
+$service = fbird_service_attach($host, $user, $pass);
 var_dump(is_resource($service) || $service instanceof \Firebird\Service);
-ibase_service_detach($service);
+fbird_service_detach($service);
 
 // 2. Auth failure
 // Suppress warning to handle error manually
-$service = @ibase_service_attach($host, $user, 'wrongpassword');
+$service = @fbird_service_attach($host, $user, 'wrongpassword');
 if ($service === false) {
     echo "Auth failed as expected\n";
-    $msg = ibase_errmsg();
+    $msg = fbird_errmsg();
     // Keywords common across Firebird versions for auth failure
     // FB 2.5: "Login incorrect"
     // FB 3.0+: "Your user name and password are not defined..."
@@ -38,10 +38,10 @@ if ($service === false) {
 }
 
 // 3. Host failure
-$service = @ibase_service_attach('nonexistent_host', $user, $pass);
+$service = @fbird_service_attach('nonexistent_host', $user, $pass);
 if ($service === false) {
     echo "Host failed as expected\n";
-    $msg = ibase_errmsg();
+    $msg = fbird_errmsg();
     // Keywords for network/host failure
     // "Unable to complete network request", "Unknown host", "Connection refused"
     $is_host_error = stripos($msg, 'network') !== false

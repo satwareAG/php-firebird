@@ -1,5 +1,5 @@
 --TEST--
-ibase_free_query(): Basic test
+fbird_free_query(): Basic test
 --SKIPIF--
 <?php
 include("skipif.inc");
@@ -9,18 +9,18 @@ include("skipif.inc");
 
 require("firebird.inc");
 
-$x = ibase_connect($test_base);
+$x = fbird_connect($test_base);
 
-$q =ibase_prepare($x, 'SELECT 1 FROM test1 WHERE i = ?');
-$q =ibase_prepare($x, 'SELECT 1 FROM test1 WHERE i = ?');
-$q = ibase_prepare($x, 'SELECT 1 FROM test1 WHERE i = ?');
+$q =fbird_prepare($x, 'SELECT 1 FROM test1 WHERE i = ?');
+$q =fbird_prepare($x, 'SELECT 1 FROM test1 WHERE i = ?');
+$q = fbird_prepare($x, 'SELECT 1 FROM test1 WHERE i = ?');
 
-var_dump(ibase_free_query($q));
-var_dump(ibase_free_query($q));
-var_dump(ibase_free_query($x));
+var_dump(fbird_free_query($q));
+var_dump(fbird_free_query($q));
+var_dump(fbird_free_query($x));
 
 ?>
 --EXPECTF--
 bool(true)
 
-Fatal error: Uncaught TypeError: ibase_free_query(): supplied resource is not a valid Firebird/InterBase query resource in %a
+Fatal error: Uncaught TypeError: fbird_free_query(): supplied resource is not a valid Firebird query resource in %a

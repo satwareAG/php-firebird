@@ -1,5 +1,5 @@
 --TEST--
-ibase_num_fields(): Basic test
+fbird_num_fields(): Basic test
 --SKIPIF--
 <?php include("skipif.inc"); ?>
 --FILE--
@@ -7,9 +7,9 @@ ibase_num_fields(): Basic test
 
 require("firebird.inc");
 
-$x = ibase_connect($test_base);
+$x = fbird_connect($test_base);
 
-var_dump(ibase_num_fields(ibase_query('SELECT * FROM test1')));
+var_dump(fbird_num_fields(fbird_query('SELECT * FROM test1')));
 
 ?>
 --EXPECTF--

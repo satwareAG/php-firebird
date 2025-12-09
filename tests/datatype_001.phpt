@@ -11,11 +11,11 @@ print "skip: custom test for @mlazdans";
 require("firebird.inc");
 
 (function(){
-    // ibase_connect("127.0.0.1/3052:E:\\dbf50\\test\\TEST.FDB", "sysdba", "masterkey", "utf8");
-    ibase_connect("127.0.0.1/3052:/opt/db/test.fdb", "sysdba", "masterkey", "utf8");
-    ibase_query("DELETE FROM TEST_001");
-    ibase_query("ALTER TABLE TEST_001 ALTER COLUMN ID RESTART WITH 1");
-    ibase_query("INSERT INTO TEST_001 (ID) VALUES (DEFAULT)");
+    // fbird_connect("127.0.0.1/3052:E:\\dbf50\\test\\TEST.FDB", "sysdba", "masterkey", "utf8");
+    fbird_connect("127.0.0.1/3052:/opt/db/test.fdb", "sysdba", "masterkey", "utf8");
+    fbird_query("DELETE FROM TEST_001");
+    fbird_query("ALTER TABLE TEST_001 ALTER COLUMN ID RESTART WITH 1");
+    fbird_query("INSERT INTO TEST_001 (ID) VALUES (DEFAULT)");
     // dump_table_rows("TEST_001", null, FBIRD_FETCH_BLOBS | FBIRD_UNIXTIME);
     dump_table_rows("TEST_001", null, FBIRD_FETCH_BLOBS);
 })();

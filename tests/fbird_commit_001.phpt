@@ -1,5 +1,5 @@
 --TEST--
-ibase_commit(): Make sure the method can be invoked with zero arguments
+fbird_commit(): Make sure the method can be invoked with zero arguments
 --SKIPIF--
 <?php include("skipif.inc"); ?>
 --FILE--
@@ -7,11 +7,11 @@ ibase_commit(): Make sure the method can be invoked with zero arguments
 
 require("firebird.inc");
 
-ibase_connect($test_base);
+fbird_connect($test_base);
 
-ibase_query('INSERT INTO test1 VALUES (100, 2)');
+fbird_query('INSERT INTO test1 VALUES (100, 2)');
 
-var_dump(ibase_commit());
+var_dump(fbird_commit());
 
 ?>
 --EXPECTF--

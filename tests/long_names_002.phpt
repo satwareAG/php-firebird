@@ -9,7 +9,7 @@ skip_if_fb_gt(3.0);
 <?php
 
 require_once("firebird.inc");
-ibase_connect($test_base);
+fbird_connect($test_base);
 
 // FB 2.5, 3.0 identifier len is by byte count not character count
 $MAX_LEN = 31;
@@ -26,8 +26,8 @@ function test_table(string $table){
 	$fields_str = join('" INTEGER,"', $fields);
 	$create_sql = sprintf('CREATE TABLE "%s" ("%s" INTEGER)', $table, $fields_str);
 
-	if(ibase_query($create_sql)){
-		ibase_commit();
+	if(fbird_query($create_sql)){
+		fbird_commit();
 	} else {
 		var_dump($create_sql);
 		die;

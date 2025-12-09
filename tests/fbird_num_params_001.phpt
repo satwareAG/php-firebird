@@ -1,5 +1,5 @@
 --TEST--
-ibase_num_params(): Basic test
+fbird_num_params(): Basic test
 --SKIPIF--
 <?php include("skipif.inc"); ?>
 --FILE--
@@ -7,10 +7,10 @@ ibase_num_params(): Basic test
 
 require("firebird.inc");
 
-$x = ibase_connect($test_base);
+$x = fbird_connect($test_base);
 
-$rs = ibase_prepare('SELECT * FROM test1 WHERE 1 = ? AND 2 = ?');
-var_dump(ibase_num_params($rs));
+$rs = fbird_prepare('SELECT * FROM test1 WHERE 1 = ? AND 2 = ?');
+var_dump(fbird_num_params($rs));
 
 ?>
 --EXPECTF--

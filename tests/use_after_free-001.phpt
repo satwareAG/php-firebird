@@ -1,5 +1,5 @@
 --TEST--
-InterBase: use after ibase_free_query()
+Firebird: use after fbird_free_query()
 --SKIPIF--
 <?php
 include("skipif.inc");
@@ -9,7 +9,7 @@ if(defined('FBIRD_VER') && (FBIRD_VER >= 61)) print "Skip FBIRD_VER < 6.1";
 <?php
 
 // Related to the "test execute procedure" part of tests/006.phpt. This
-// ilustrates incorrect use of ibase_free_query(). If you follow the same logic
+// ilustrates incorrect use of fbird_free_query(). If you follow the same logic
 // as in 006.phpt, you would expect 5 batches with 2 rows printed with
 // incremented I but it doesn't of course.
 

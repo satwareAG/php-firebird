@@ -16,9 +16,9 @@
 
 /*
  * This file has been refactored and split into:
- * - ibase_query_exec.c (Query execution logic)
- * - ibase_result.c     (Result set fetching)
- * - ibase_metadata.c   (Metadata handling)
+ * - fbird_query_exec.c (Query execution logic)
+ * - fbird_result.c     (Result set fetching)
+ * - fbird_metadata.c   (Metadata handling)
  *
  * Please refer to those files for implementation details.
  * This file is kept as a placeholder to avoid breaking legacy build scripts

@@ -6,12 +6,12 @@ Firebird: Stream Wrapper for BLOBs (Phase 3) - Full Cycle
 <?php
 require("firebird.inc");
 
-$db = ibase_connect($test_base);
+$db = fbird_connect($test_base);
 
 echo "1. Create BLOB Stream\n";
-$stream = ibase_blob_create_stream($db);
+$stream = fbird_blob_create_stream($db);
 if (!is_resource($stream)) {
-    echo "ibase_blob_create_stream failed\n";
+    echo "fbird_blob_create_stream failed\n";
 } else {
     echo "Stream created. Writing data...\n";
 
@@ -21,7 +21,7 @@ if (!is_resource($stream)) {
     echo "Written: $written bytes\n";
 
     // Get ID from open stream
-    $info = ibase_blob_info($stream);
+    $info = fbird_blob_info($stream);
     if (isset($info['id'])) {
         $blob_id = $info['id'];
         echo "Got BLOB ID from stream: [ID FOUND]\n";
@@ -35,7 +35,7 @@ if (!is_resource($stream)) {
 
     if ($blob_id) {
         echo "2. Read BLOB Stream using obtained ID\n";
-        $read_stream = ibase_blob_open_stream($db, $blob_id);
+        $read_stream = fbird_blob_open_stream($db, $blob_id);
         if ($read_stream) {
             $content = stream_get_contents($read_stream);
             echo "Content: $content\n";
@@ -45,29 +45,29 @@ if (!is_resource($stream)) {
         }
 
         // Verify standard read also works
-        $standard_content = ibase_blob_get(ibase_blob_open($db, $blob_id), 1000);
+        $standard_content = fbird_blob_get(fbird_blob_open($db, $blob_id), 1000);
         echo "Standard Read Content: $standard_content\n";
     }
 }
 
 echo "3. Read Stream from Standard BLOB\n";
-$blob_handle = ibase_blob_create($db);
-ibase_blob_add($blob_handle, "Standard to Stream Test");
-$std_id = ibase_blob_close($blob_handle);
+$blob_handle = fbird_blob_create($db);
+fbird_blob_add($blob_handle, "Standard to Stream Test");
+$std_id = fbird_blob_close($blob_handle);
 
-$read_stream = ibase_blob_open_stream($db, $std_id);
+$read_stream = fbird_blob_open_stream($db, $std_id);
 echo "Read stream opened for standard blob\n";
 $content = stream_get_contents($read_stream);
 echo "Stream Content: $content\n";
 fclose($read_stream);
 
-// Test ibase_blob_info with stream on standard blob
-$read_stream = ibase_blob_open_stream($db, $std_id);
-$info = ibase_blob_info($read_stream);
+// Test fbird_blob_info with stream on standard blob
+$read_stream = fbird_blob_open_stream($db, $std_id);
+$info = fbird_blob_info($read_stream);
 if (isset($info['id']) && $info['id'] === $std_id) {
-    echo "ibase_blob_info correct on read stream\n";
+    echo "fbird_blob_info correct on read stream\n";
 } else {
-    echo "ibase_blob_info failed on read stream\n";
+    echo "fbird_blob_info failed on read stream\n";
 }
 fclose($read_stream);
 
@@ -84,4 +84,4 @@ Standard Read Content: Phase 3 BLOB Streaming Test by MW
 3. Read Stream from Standard BLOB
 Read stream opened for standard blob
 Stream Content: Standard to Stream Test
-ibase_blob_info correct on read stream
+fbird_blob_info correct on read stream

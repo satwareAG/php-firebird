@@ -1,23 +1,23 @@
 --TEST--
-ibase_trans(): transaction control with SQL - commit explicitly
+fbird_trans(): transaction control with SQL - commit explicitly
 --SKIPIF--
 <?php include("skipif.inc"); ?>
 --FILE--
 <?php
 
 require("firebird.inc");
-ibase_connect($test_base);
+fbird_connect($test_base);
 
 (function() {
-    var_dump($t = ibase_query("SET TRANSACTION"));
-    var_dump(ibase_query($t, "COMMIT"));
-    var_dump(ibase_query($t, "COMMIT"));
+    var_dump($t = fbird_query("SET TRANSACTION"));
+    var_dump(fbird_query($t, "COMMIT"));
+    var_dump(fbird_query($t, "COMMIT"));
 })();
 
 ?>
 --EXPECTF--
-resource(%d) of type (Firebird/InterBase transaction)
+resource(%d) of type (Firebird transaction)
 bool(true)
 
-Warning: ibase_query(): Dynamic SQL Error SQL error code = -901 invalid transaction handle (expecting explicit transaction start)%s
+Warning: fbird_query(): Dynamic SQL Error SQL error code = -901 invalid transaction handle (expecting explicit transaction start)%s
 bool(false)

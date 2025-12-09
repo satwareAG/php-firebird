@@ -39,16 +39,16 @@ typedef struct {
 	char *hostname;
 	char *username;
 	zend_resource *res;
-} ibase_service;
+} fbird_service;
 
 static int le_service;
 
-static void _php_ibase_free_service(zend_resource *rsrc) /* {{{ */
+static void _php_fbird_free_service(zend_resource *rsrc) /* {{{ */
 {
-	ibase_service *sv = (ibase_service *) rsrc->ptr;
+	fbird_service *sv = (fbird_service *) rsrc->ptr;
 
 	if (isc_service_detach(IB_STATUS, (isc_svc_handle *)&sv->handle)) {
-		_php_ibase_error();
+		_php_fbird_error();
 	}
 
 	if (sv->hostname) {
@@ -65,12 +65,12 @@ static void _php_ibase_free_service(zend_resource *rsrc) /* {{{ */
 /* the svc api seems to get confused after an error has occurred,
    so invalidate the handle on errors */
 #define IBASE_SVC_ERROR(svm) \
-	do { zend_list_delete(svm->res); _php_ibase_error(); } while (0)
+	do { zend_list_delete(svm->res); _php_fbird_error(); } while (0)
 
 
-void php_ibase_service_minit(INIT_FUNC_ARGS) /* {{{ */
+void php_fbird_service_minit(INIT_FUNC_ARGS) /* {{{ */
 {
-	le_service = zend_register_list_destructors_ex(_php_ibase_free_service, NULL,
+	le_service = zend_register_list_destructors_ex(_php_fbird_free_service, NULL,
 		LE_SCVH, module_number);
 
 	/* backup options */
@@ -138,7 +138,7 @@ void php_ibase_service_minit(INIT_FUNC_ARGS) /* {{{ */
 }
 /* }}} */
 
-static void _php_ibase_user(INTERNAL_FUNCTION_PARAMETERS, char operation) /* {{{ */
+static void _php_fbird_user(INTERNAL_FUNCTION_PARAMETERS, char operation) /* {{{ */
 {
 	/* user = 0, password = 1, first_name = 2, middle_name = 3, last_name = 4 */
 	static char const user_flags[] = { isc_spb_sec_username, isc_spb_sec_password,
@@ -147,7 +147,7 @@ static void _php_ibase_user(INTERNAL_FUNCTION_PARAMETERS, char operation) /* {{{
 	int i, args_len[] = { 0, 0, 0, 0, 0 };
 	unsigned short spb_len = 1;
 	zval *res;
-	ibase_service *svm;
+	fbird_service *svm;
 
 	RESET_ERRMSG;
 
@@ -158,7 +158,7 @@ static void _php_ibase_user(INTERNAL_FUNCTION_PARAMETERS, char operation) /* {{{
 		RETURN_FALSE;
 	}
 
-	svm = (ibase_service *)zend_fetch_resource_ex(res, "Interbase service manager handle",
+	svm = (fbird_service *)zend_fetch_resource_ex(res, "Interbase service manager handle",
 		le_service);
 
 	buf[0] = operation;
@@ -169,7 +169,7 @@ static void _php_ibase_user(INTERNAL_FUNCTION_PARAMETERS, char operation) /* {{{
 				user_flags[i], (char)args_len[i], (char)(args_len[i] >> 8), args[i]);
 
 			if ((spb_len + chunk) > sizeof(buf) || chunk <= 0) {
-				_php_ibase_module_error("Internal error: insufficient buffer space for SPB (%d)", spb_len);
+				_php_fbird_module_error("Internal error: insufficient buffer space for SPB (%d)", spb_len);
 				RETURN_FALSE;
 			}
 			spb_len += chunk;
@@ -186,36 +186,36 @@ static void _php_ibase_user(INTERNAL_FUNCTION_PARAMETERS, char operation) /* {{{
 }
 /* }}} */
 
-/* {{{ proto bool ibase_add_user(resource service_handle, string user_name, string password [, string first_name [, string middle_name [, string last_name]]])
+/* {{{ proto fbird_add_user(resource service_handle, string user_name, string password [, string first_name [, string middle_name [, string last_name]]])
    Add a user to security database */
-PHP_FUNCTION(ibase_add_user)
+PHP_FUNCTION(fbird_add_user)
 {
-	_php_ibase_user(INTERNAL_FUNCTION_PARAM_PASSTHRU, isc_action_svc_add_user);
+	_php_fbird_user(INTERNAL_FUNCTION_PARAM_PASSTHRU, isc_action_svc_add_user);
 }
 /* }}} */
 
-/* {{{ proto bool ibase_modify_user(resource service_handle, string user_name, string password [, string first_name [, string middle_name [, string last_name]]])
+/* {{{ proto fbird_modify_user(resource service_handle, string user_name, string password [, string first_name [, string middle_name [, string last_name]]])
    Modify a user in security database */
-PHP_FUNCTION(ibase_modify_user)
+PHP_FUNCTION(fbird_modify_user)
 {
-	_php_ibase_user(INTERNAL_FUNCTION_PARAM_PASSTHRU, isc_action_svc_modify_user);
+	_php_fbird_user(INTERNAL_FUNCTION_PARAM_PASSTHRU, isc_action_svc_modify_user);
 }
 /* }}} */
 
-/* {{{ proto bool ibase_delete_user(resource service_handle, string user_name, string password [, string first_name [, string middle_name [, string last_name]]])
+/* {{{ proto fbird_delete_user(resource service_handle, string user_name, string password [, string first_name [, string middle_name [, string last_name]]])
    Delete a user from security database */
-PHP_FUNCTION(ibase_delete_user)
+PHP_FUNCTION(fbird_delete_user)
 {
-	_php_ibase_user(INTERNAL_FUNCTION_PARAM_PASSTHRU, isc_action_svc_delete_user);
+	_php_fbird_user(INTERNAL_FUNCTION_PARAM_PASSTHRU, isc_action_svc_delete_user);
 }
 /* }}} */
 
-/* {{{ proto resource ibase_service_attach([string host [, string dba_username [, string dba_password]]])
+/* {{{ proto resource fbird_service_attach([string host [, string dba_username [, string dba_password]]])
    Connect to the service manager */
-PHP_FUNCTION(ibase_service_attach)
+PHP_FUNCTION(fbird_service_attach)
 {
 	size_t hlen = 0, ulen = 0, plen = 0;
-	ibase_service *svm;
+	fbird_service *svm;
 	char *host = NULL, *user = NULL, *pass = NULL;
 	char buf[350];
 	char loc[128] = "service_mgr";
@@ -231,18 +231,18 @@ PHP_FUNCTION(ibase_service_attach)
 	}
 
 	if (ulen > 63) {
-		_php_ibase_module_error("Internal error: dba_username too long");
+		_php_fbird_module_error("Internal error: dba_username too long");
 		RETURN_FALSE;
 	}
 
 	if (plen > 255) {
-		_php_ibase_module_error("Internal error: dba_password too long");
+		_php_fbird_module_error("Internal error: dba_password too long");
 		RETURN_FALSE;
 	}
 
 	// 13 = strlen(":service_mgr") + \0;
 	if (hlen + 13 > sizeof(loc)) {
-		_php_ibase_module_error("Internal error: insufficient buffer space for name of the service (%zd)", hlen + 13);
+		_php_fbird_module_error("Internal error: insufficient buffer space for name of the service (%zd)", hlen + 13);
 		RETURN_FALSE;
 	}
 
@@ -269,11 +269,11 @@ PHP_FUNCTION(ibase_service_attach)
 
 	/* attach to the service manager */
 	if (isc_service_attach(IB_STATUS, 0, loc, (isc_svc_handle *)&handle, p, buf)) {
-		_php_ibase_error();
+		_php_fbird_error();
 		RETURN_FALSE;
 	}
 
-	svm = (ibase_service*)emalloc(sizeof(ibase_service));
+	svm = (fbird_service*)emalloc(sizeof(fbird_service));
 	svm->handle = handle;
 	svm->hostname = hlen > 0 ? estrdup(host) : NULL;
 	svm->username = ulen > 0 ? estrdup(user) : NULL;
@@ -284,9 +284,9 @@ PHP_FUNCTION(ibase_service_attach)
 }
 /* }}} */
 
-/* {{{ proto bool ibase_service_detach(resource service_handle)
+/* {{{ proto bool fbird_service_detach(resource service_handle)
    Disconnect from the service manager */
-PHP_FUNCTION(ibase_service_detach)
+PHP_FUNCTION(fbird_service_detach)
 {
 	zval *res;
 
@@ -302,8 +302,8 @@ PHP_FUNCTION(ibase_service_detach)
 }
 /* }}} */
 
-static void _php_ibase_service_query(INTERNAL_FUNCTION_PARAMETERS, /* {{{ */
-	ibase_service *svm, char info_action)
+static void _php_fbird_service_query(INTERNAL_FUNCTION_PARAMETERS, /* {{{ */
+	fbird_service *svm, char info_action)
 {
 	static char spb[] = { isc_info_svc_timeout, 10, 0, 0, 0 };
 
@@ -448,7 +448,7 @@ query_loop:
 }
 /* }}} */
 
-static void _php_ibase_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operation) /* {{{ */
+static void _php_fbird_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operation) /* {{{ */
 {
 	/**
 	 * It appears that the service API is a little bit confused about which flag
@@ -461,7 +461,7 @@ static void _php_ibase_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operati
 	size_t dblen, bklen, spb_len;
 	zend_long opts = 0;
 	zend_bool verbose = 0;
-	ibase_service *svm;
+	fbird_service *svm;
 
 	RESET_ERRMSG;
 
@@ -470,7 +470,7 @@ static void _php_ibase_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operati
 		RETURN_FALSE;
 	}
 
-	svm = (ibase_service *)zend_fetch_resource_ex(res,
+	svm = (fbird_service *)zend_fetch_resource_ex(res,
 		"Interbase service manager handle", le_service);
 
 	/* fill the param buffer */
@@ -484,7 +484,7 @@ static void _php_ibase_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operati
 	}
 
 	if (spb_len > sizeof(buf) || spb_len <= 0) {
-		_php_ibase_module_error("Internal error: insufficient buffer space for SPB (%zd)", spb_len);
+		_php_fbird_module_error("Internal error: insufficient buffer space for SPB (%zd)", spb_len);
 		RETURN_FALSE;
 	}
 
@@ -497,35 +497,35 @@ static void _php_ibase_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operati
 	if (!verbose) {
 		RETURN_TRUE;
 	} else {
-		_php_ibase_service_query(INTERNAL_FUNCTION_PARAM_PASSTHRU, svm, isc_info_svc_line);
+		_php_fbird_service_query(INTERNAL_FUNCTION_PARAM_PASSTHRU, svm, isc_info_svc_line);
 	}
 }
 /* }}} */
 
-/* {{{ proto mixed ibase_backup(resource service_handle, string source_db, string dest_file [, int options [, bool verbose]])
+/* {{{ proto fbird_backup(resource service_handle, string source_db, string dest_file [, int options [, bool verbose]])
    Initiates a backup task in the service manager and returns immediately */
-PHP_FUNCTION(ibase_backup)
+PHP_FUNCTION(fbird_backup)
 {
-	_php_ibase_backup_restore(INTERNAL_FUNCTION_PARAM_PASSTHRU, isc_action_svc_backup);
+	_php_fbird_backup_restore(INTERNAL_FUNCTION_PARAM_PASSTHRU, isc_action_svc_backup);
 }
 /* }}} */
 
-/* {{{ proto mixed ibase_restore(resource service_handle, string source_file, string dest_db [, int options [, bool verbose]])
+/* {{{ proto fbird_restore(resource service_handle, string source_file, string dest_db [, int options [, bool verbose]])
    Initiates a restore task in the service manager and returns immediately */
-PHP_FUNCTION(ibase_restore)
+PHP_FUNCTION(fbird_restore)
 {
-	_php_ibase_backup_restore(INTERNAL_FUNCTION_PARAM_PASSTHRU, isc_action_svc_restore);
+	_php_fbird_backup_restore(INTERNAL_FUNCTION_PARAM_PASSTHRU, isc_action_svc_restore);
 }
 /* }}} */
 
-static void _php_ibase_service_action(INTERNAL_FUNCTION_PARAMETERS, char svc_action) /* {{{ */
+static void _php_fbird_service_action(INTERNAL_FUNCTION_PARAMETERS, char svc_action) /* {{{ */
 {
 	zval *res;
 	char buf[128], *db;
 	size_t dblen;
 	int spb_len;
 	zend_long action, argument = 0;
-	ibase_service *svm;
+	fbird_service *svm;
 
 	RESET_ERRMSG;
 
@@ -534,7 +534,7 @@ static void _php_ibase_service_action(INTERNAL_FUNCTION_PARAMETERS, char svc_act
 		RETURN_FALSE;
 	}
 
-	svm = (ibase_service *)zend_fetch_resource_ex(res,
+	svm = (fbird_service *)zend_fetch_resource_ex(res,
 		"Interbase service manager handle", le_service);
 
 	if (svc_action == isc_action_svc_db_stats) {
@@ -554,7 +554,7 @@ static void _php_ibase_service_action(INTERNAL_FUNCTION_PARAMETERS, char svc_act
 		switch (action) {
 			default:
 unknown_option:
-				_php_ibase_module_error("Unrecognised option (" ZEND_LONG_FMT ")", action);
+				_php_fbird_module_error("Unrecognised option (" ZEND_LONG_FMT ")", action);
 				RETURN_FALSE;
 
 			case isc_spb_rpr_check_db:
@@ -593,7 +593,7 @@ options_argument:
 	}
 
 	if (spb_len > sizeof(buf) || spb_len == -1) {
-		_php_ibase_module_error("Internal error: insufficient buffer space for SPB (%d)", spb_len);
+		_php_fbird_module_error("Internal error: insufficient buffer space for SPB (%d)", spb_len);
 		RETURN_FALSE;
 	}
 
@@ -603,36 +603,36 @@ options_argument:
 	}
 
 	if (svc_action == isc_action_svc_db_stats) {
-		_php_ibase_service_query(INTERNAL_FUNCTION_PARAM_PASSTHRU, svm, isc_info_svc_line);
+		_php_fbird_service_query(INTERNAL_FUNCTION_PARAM_PASSTHRU, svm, isc_info_svc_line);
 	} else {
 		RETURN_TRUE;
 	}
 }
 /* }}} */
 
-/* {{{ proto bool ibase_maintain_db(resource service_handle, string db, int action [, int argument])
+/* {{{ proto fbird_maintain_db(resource service_handle, string db, int action [, int argument])
    Execute a maintenance command on the database server */
-PHP_FUNCTION(ibase_maintain_db)
+PHP_FUNCTION(fbird_maintain_db)
 {
-	_php_ibase_service_action(INTERNAL_FUNCTION_PARAM_PASSTHRU, isc_action_svc_properties);
+	_php_fbird_service_action(INTERNAL_FUNCTION_PARAM_PASSTHRU, isc_action_svc_properties);
 }
 /* }}} */
 
-/* {{{ proto string ibase_db_info(resource service_handle, string db, int action [, int argument])
+/* {{{ proto fbird_db_info(resource service_handle, string db, int action [, int argument])
    Request statistics about a database */
-PHP_FUNCTION(ibase_db_info)
+PHP_FUNCTION(fbird_db_info)
 {
-	_php_ibase_service_action(INTERNAL_FUNCTION_PARAM_PASSTHRU, isc_action_svc_db_stats);
+	_php_fbird_service_action(INTERNAL_FUNCTION_PARAM_PASSTHRU, isc_action_svc_db_stats);
 }
 /* }}} */
 
-/* {{{ proto string ibase_server_info(resource service_handle, int action)
+/* {{{ proto fbird_server_info(resource service_handle, int action)
    Request information about a database server */
-PHP_FUNCTION(ibase_server_info)
+PHP_FUNCTION(fbird_server_info)
 {
 	zval *res;
 	zend_long action;
-	ibase_service *svm;
+	fbird_service *svm;
 
 	RESET_ERRMSG;
 
@@ -640,15 +640,15 @@ PHP_FUNCTION(ibase_server_info)
 		RETURN_FALSE;
 	}
 
-	svm = (ibase_service *)zend_fetch_resource_ex(res,
+	svm = (fbird_service *)zend_fetch_resource_ex(res,
 		"Interbase service manager handle", le_service);
 
-	_php_ibase_service_query(INTERNAL_FUNCTION_PARAM_PASSTHRU, svm, (char)action);
+	_php_fbird_service_query(INTERNAL_FUNCTION_PARAM_PASSTHRU, svm, (char)action);
 }
 /* }}} */
 
 #else
 
-void php_ibase_register_service_constants(INIT_FUNC_ARGS) { /* nop */ }
+void php_fbird_register_service_constants(INIT_FUNC_ARGS) { /* nop */ }
 
 #endif /* HAVE_FIREBIRD */

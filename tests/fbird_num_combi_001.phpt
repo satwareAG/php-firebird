@@ -1,5 +1,5 @@
 --TEST--
-ibase_num_fields() / ibase_num_params(): combined
+fbird_num_fields() / fbird_num_params(): combined
 --SKIPIF--
 <?php
 include("skipif.inc");
@@ -8,20 +8,20 @@ include("skipif.inc");
 <?php
 
 require("firebird.inc");
-ibase_connect($test_base);
+fbird_connect($test_base);
 
 (function(){
-    ibase_query("DELETE FROM TEST1");
+    fbird_query("DELETE FROM TEST1");
 
-    $p = ibase_prepare("INSERT INTO TEST1 (I, C) VALUES (?, ?)");
-    var_dump(ibase_num_fields($p));
-    var_dump(ibase_num_params($p));
+    $p = fbird_prepare("INSERT INTO TEST1 (I, C) VALUES (?, ?)");
+    var_dump(fbird_num_fields($p));
+    var_dump(fbird_num_params($p));
 
     print "--------\n";
 
-    $p = ibase_prepare("INSERT INTO TEST1 (I, C) VALUES (?, ?) RETURNING I, C");
-    var_dump(ibase_num_fields($p));
-    var_dump(ibase_num_params($p));
+    $p = fbird_prepare("INSERT INTO TEST1 (I, C) VALUES (?, ?) RETURNING I, C");
+    var_dump(fbird_num_fields($p));
+    var_dump(fbird_num_params($p));
 })();
 
 ?>

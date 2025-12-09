@@ -8,18 +8,18 @@ include("skipif.inc");
 <?php
 
 require("firebird.inc");
-ibase_connect($test_base);
+fbird_connect($test_base);
 
 (function(){
-    ibase_query("DELETE FROM TEST1");
+    fbird_query("DELETE FROM TEST1");
 
-    $q = ibase_query("INSERT INTO TEST1 (I, C) VALUES (?, ?) RETURNING I, C", 1, "data 1");
+    $q = fbird_query("INSERT INTO TEST1 (I, C) VALUES (?, ?) RETURNING I, C", 1, "data 1");
     dump_rows($q);
     dump_table_rows("TEST1");
 
     print "--------\n";
 
-    $q = ibase_query("UPDATE TEST1 SET I = I + 1, C = C || ' updated' RETURNING OLD.I, OLD.C, NEW.I, NEW.C");
+    $q = fbird_query("UPDATE TEST1 SET I = I + 1, C = C || ' updated' RETURNING OLD.I, OLD.C, NEW.I, NEW.C");
     dump_rows($q);
     dump_table_rows("TEST1");
 })();

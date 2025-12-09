@@ -64,13 +64,13 @@
 
 extern int le_link, le_plink, le_trans;
 
-#define LE_LINK  "Firebird/InterBase link"
-#define LE_PLINK "Firebird/InterBase persistent link"
-#define LE_TRANS "Firebird/InterBase transaction"
-#define LE_EVENT "Firebird/InterBase event"
-#define LE_BLOB  "Firebird/InterBase blob"
-#define LE_QUERY "Firebird/InterBase query"
-#define LE_SCVH  "Firebird/InterBase service manager handle"
+#define LE_LINK  "Firebird link"
+#define LE_PLINK "Firebird persistent link"
+#define LE_TRANS "Firebird transaction"
+#define LE_EVENT "Firebird event"
+#define LE_BLOB  "Firebird blob"
+#define LE_QUERY "Firebird query"
+#define LE_SCVH  "Firebird service manager handle"
 
 #define IBASE_MSGSIZE 512
 #define MAX_ERRMSG (IBASE_MSGSIZE*2)
@@ -81,7 +81,7 @@ extern int le_link, le_plink, le_trans;
 /* this value should never be > USHRT_MAX */
 #define IBASE_BLOB_SEG 4096
 
-ZEND_BEGIN_MODULE_GLOBALS(ibase)
+ZEND_BEGIN_MODULE_GLOBALS(fbird)
 	ISC_STATUS status[256];
 	zend_resource *default_link;
 	zend_long num_links, num_persistent;
@@ -95,9 +95,9 @@ ZEND_BEGIN_MODULE_GLOBALS(ibase)
 	int client_version;
 	int client_major_version;
 	int client_minor_version;
-ZEND_END_MODULE_GLOBALS(ibase)
+ZEND_END_MODULE_GLOBALS(fbird)
 
-ZEND_EXTERN_MODULE_GLOBALS(ibase)
+ZEND_EXTERN_MODULE_GLOBALS(fbird)
 
 /* Union to safely hold 64-bit handles even if headers define them as 32-bit integers */
 typedef union {
@@ -113,28 +113,28 @@ typedef struct {
 	struct tr_list *tr_list;
 	unsigned short dialect;
 	struct event *event_head;
-} ibase_db_link;
+} fbird_db_link;
 
 typedef struct {
 	fb_safe_handle handle;
 	unsigned short link_cnt;
 	unsigned long affected_rows;
-	ibase_db_link *db_link[1]; /* last member */
-} ibase_trans;
+	fbird_db_link *db_link[1]; /* last member */
+} fbird_transaction;
 
 typedef struct tr_list {
-	ibase_trans *trans;
+	fbird_transaction *trans;
 	struct tr_list *next;
-} ibase_tr_list;
+} fbird_tr_list;
 
 typedef struct {
 	fb_safe_handle bl_handle;
 	unsigned short type;
 	ISC_QUAD bl_qd;
-} ibase_blob;
+} fbird_blob;
 
 typedef struct event {
-	ibase_db_link *link;
+	fbird_db_link *link;
 	zend_resource* link_res;
 	ISC_LONG event_id;
 	unsigned short event_count;
@@ -149,7 +149,7 @@ typedef struct event {
 	unsigned short buffer_size;
 	int callback_count;
 	int max_callbacks;
-} ibase_event;
+} fbird_event;
 
 /* sql variables union
  * used for convert and binding input variables
@@ -174,16 +174,16 @@ typedef struct {
 	ISC_ARRAY_DESC ar_desc;
 	ISC_LONG ar_size; /* size of entire array in bytes */
 	unsigned short el_type, el_size;
-} ibase_array;
+} fbird_array;
 
 typedef struct _ib_query {
-    ibase_db_link *link;
-    ibase_trans *trans;
+    fbird_db_link *link;
+    fbird_transaction *trans;
     zend_resource *trans_res;
     zend_resource *res;
     fb_safe_handle stmt;
     XSQLDA *in_sqlda, *out_sqlda;
-    ibase_array *in_array, *out_array;
+    fbird_array *in_array, *out_array;
     unsigned short type, has_more_rows, is_open;
     unsigned short in_array_cnt, out_array_cnt;
     unsigned short dialect;
@@ -192,7 +192,7 @@ typedef struct _ib_query {
     BIND_BUF *bind_buf;
     ISC_SHORT *in_nullind, *out_nullind;
     ISC_USHORT in_fields_count, out_fields_count;
-    HashTable *ht_aliases, *ht_ind; // Precomputed for ibase_fetch_*()
+    HashTable *ht_aliases, *ht_ind; // Precomputed for fbird_fetch_*()
     int was_result_once;
     /* Whether this query instance owns the statement handle and must DSQL_drop it
      * in the destructor. Result resources created for SELECT reuse the parent's
@@ -205,9 +205,9 @@ typedef struct _ib_query {
     struct _ib_query *parent;
     struct _ib_query *child_head;
     struct _ib_query *child_next;
-} ibase_query;
+} fbird_query;
 
-enum php_interbase_option {
+enum php_fbird_option {
 	PHP_IBASE_DEFAULT            = 0,
 	PHP_IBASE_CREATE             = 0,
 	/* fetch flags */
@@ -241,7 +241,7 @@ enum php_interbase_option {
 	PHP_IBASE_READ_CONSISTENCY   = 32768
 };
 
-#define IBG(v) ZEND_MODULE_GLOBALS_ACCESSOR(ibase, v)
+#define IBG(v) ZEND_MODULE_GLOBALS_ACCESSOR(fbird, v)
 
 #if defined(ZTS) && defined(COMPILE_DL_INTERBASE)
 ZEND_TSRMLS_CACHE_EXTERN()
@@ -264,48 +264,48 @@ typedef void (__stdcall *info_func_t)(char*);
 typedef void (*info_func_t)(char*);
 #endif
 
-void _php_ibase_error(void);
-void _php_ibase_module_error(const char *, ...)
+void _php_fbird_error(void);
+void _php_fbird_module_error(const char *, ...)
 	PHP_ATTRIBUTE_FORMAT(printf,1,2);
 
 /* determine if a resource is a link or transaction handle */
 #define PHP_IBASE_LINK_TRANS(zv, lh, th)                                                    \
 		do {                                                                                \
 			if (!zv) {                                                                      \
-				lh = (ibase_db_link *)zend_fetch_resource2(                                 \
-					IBG(default_link), "InterBase link", le_link, le_plink);                \
+				lh = (fbird_db_link *)zend_fetch_resource2(                                 \
+					IBG(default_link), "Firebird link", le_link, le_plink);                \
 			} else {                                                                        \
-				_php_ibase_get_link_trans(INTERNAL_FUNCTION_PARAM_PASSTHRU, zv, &lh, &th);  \
+				_php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAM_PASSTHRU, zv, &lh, &th);  \
 			}                                                                               \
-			if (SUCCESS != _php_ibase_def_trans(lh, &th)) { RETURN_FALSE; }                 \
+			if (SUCCESS != _php_fbird_def_trans(lh, &th)) { RETURN_FALSE; }                 \
 		} while (0)
 
-int _php_ibase_def_trans(ibase_db_link *ib_link, ibase_trans **trans);
-void _php_ibase_get_link_trans(INTERNAL_FUNCTION_PARAMETERS, zval *link_id,
-	ibase_db_link **ib_link, ibase_trans **trans);
+int _php_fbird_def_trans(fbird_db_link *ib_link, fbird_transaction **trans);
+void _php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAMETERS, zval *link_id,
+	fbird_db_link **ib_link, fbird_transaction **trans);
 
-/* provided by ibase_query.c */
-void php_ibase_query_minit(INIT_FUNC_ARGS);
+/* provided by fbird_query.c */
+void php_fbird_query_minit(INIT_FUNC_ARGS);
 
-/* provided by ibase_blobs.c */
-void php_ibase_blobs_minit(INIT_FUNC_ARGS);
-int _php_ibase_string_to_quad(char const *id, ISC_QUAD *qd);
-zend_string *_php_ibase_quad_to_string(ISC_QUAD const qd);
-int _php_ibase_blob_get(zval *return_value, ibase_blob *ib_blob, zend_ulong max_len);
-int _php_ibase_blob_add(zval *string_arg, ibase_blob *ib_blob);
+/* provided by fbird_blobs.c */
+void php_fbird_blobs_minit(INIT_FUNC_ARGS);
+int _php_fbird_string_to_quad(char const *id, ISC_QUAD *qd);
+zend_string *_php_fbird_quad_to_string(ISC_QUAD const qd);
+int _php_fbird_blob_get(zval *return_value, fbird_blob *ib_blob, zend_ulong max_len);
+int _php_fbird_blob_add(zval *string_arg, fbird_blob *ib_blob);
 
-/* provided by ibase_events.c */
-void php_ibase_events_minit(INIT_FUNC_ARGS);
-void _php_ibase_free_event(ibase_event *event);
+/* provided by fbird_events.c */
+void php_fbird_events_minit(INIT_FUNC_ARGS);
+void _php_fbird_free_event(fbird_event *event);
 
-/* provided by ibase_service.c */
-void php_ibase_service_minit(INIT_FUNC_ARGS);
+/* provided by fbird_service.c */
+void php_fbird_service_minit(INIT_FUNC_ARGS);
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void _php_ibase_insert_alias(HashTable *ht, const char *alias);
+void _php_fbird_insert_alias(HashTable *ht, const char *alias);
 
 #ifdef __cplusplus
 }

@@ -13,7 +13,7 @@ skip_if_fbclient_lt(4);
 
 require("firebird.inc");
 require("common.inc");
-ibase_connect($test_base);
+fbird_connect($test_base);
 test_time_tz_unixtime();
 
 ?>

@@ -258,7 +258,7 @@ namespace {
     }
 
     // Step 3.3: Modern alias insertion with RAII metadata management
-    int insert_aliases_modern(void* master_ptr, ISC_STATUS* status_vec, ibase_query* ib_query,
+    int insert_aliases_modern(void* master_ptr, ISC_STATUS* status_vec, fbird_query* ib_query,
                              Firebird::IStatement* statement) noexcept {
         try {
             FirebirdMasterWrapper master(master_ptr);
@@ -287,7 +287,7 @@ namespace {
 
                 // Convert string_view to C string for existing PHP function
                 std::string alias_str(alias);
-                _php_ibase_insert_alias(ib_query->ht_aliases, alias_str.c_str());
+                _php_fbird_insert_alias(ib_query->ht_aliases, alias_str.c_str());
             }
 
             return 0;
@@ -390,7 +390,7 @@ extern "C" void fbu_decode_timestamp_tz(void *master_ptr, const ISC_TIMESTAMP_TZ
     }
 }
 
-extern "C" int fbu_insert_aliases(void *master_ptr, ISC_STATUS* status, ibase_query *ib_query, void *statement_ptr)
+extern "C" int fbu_insert_aliases(void *master_ptr, ISC_STATUS* status, fbird_query *ib_query, void *statement_ptr)
 {
     // Step 3.3: Use internal C++17 implementation with RAII metadata management
     if (master_ptr == nullptr || ib_query == nullptr || statement_ptr == nullptr) {

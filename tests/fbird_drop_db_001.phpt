@@ -1,5 +1,5 @@
 --TEST--
-ibase_drop_db(): Basic test
+fbird_drop_db(): Basic test
 --SKIPIF--
 <?php include("skipif.inc"); ?>
 --FILE--
@@ -7,17 +7,17 @@ ibase_drop_db(): Basic test
 
 require("config.inc");
 
-unlink($file = tempnam(sys_get_temp_dir(),"php_ibase_test"));
+unlink($file = tempnam(sys_get_temp_dir(),"php_fbird_test"));
 if(!empty($host))$file = "$host:$file";
 
-$db = ibase_query(FBIRD_CREATE,
+$db = fbird_query(FBIRD_CREATE,
 		sprintf("CREATE SCHEMA '%s' USER '%s' PASSWORD '%s' DEFAULT CHARACTER SET %s",$file,
 		$user, $password, ($charset = ini_get('ibase.default_charset')) ? $charset : 'NONE'));
 
 var_dump($db);
-var_dump(ibase_drop_db($db));
+var_dump(fbird_drop_db($db));
 
 ?>
 --EXPECTF--
-resource(%d) of type (Firebird/InterBase link)
+resource(%d) of type (Firebird link)
 bool(true)

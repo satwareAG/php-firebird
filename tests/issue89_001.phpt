@@ -1,5 +1,5 @@
 --TEST--
-Issue #89: Passing result from ibase_prepare() to ibase_fetch_*() causes segfault.
+Issue #89: Passing result from fbird_prepare() to fbird_fetch_*() causes segfault.
 --SKIPIF--
 <?php
 include("skipif.inc");
@@ -8,11 +8,11 @@ include("skipif.inc");
 <?php
 
 require("firebird.inc");
-ibase_connect($test_base);
+fbird_connect($test_base);
 
 (function() {
-    $res = ibase_prepare('SELECT * FROM TEST1');
-    var_dump(ibase_fetch_assoc($res));
+    $res = fbird_prepare('SELECT * FROM TEST1');
+    var_dump(fbird_fetch_assoc($res));
 })();
 
 ?>

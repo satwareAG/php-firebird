@@ -1,11 +1,11 @@
 --TEST--
-ibase_close(): Basic test
+fbird_close(): Basic test
 --SKIPIF--
 <?php
 
 include("skipif.inc");
 
-// See also: tests/ibase_close_001.phpt
+// See also: tests/fbird_close_001.phpt
 skip_if_ext_lt(61);
 
 ?>
@@ -16,10 +16,10 @@ require("firebird.inc");
 
 set_exception_handler("php_fbird_exception_handler");
 
-$x = ibase_connect($test_base);
-var_dump(ibase_close($x));
-var_dump(ibase_close($x));
-var_dump(ibase_close());
+$x = fbird_connect($test_base);
+var_dump(fbird_close($x));
+var_dump(fbird_close($x));
+var_dump(fbird_close());
 
 ?>
 --EXPECT--

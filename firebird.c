@@ -31,12 +31,12 @@
 
 #include "php.h"
 
-#if HAVE_IBASE
+#if HAVE_FIREBIRD
 
 #include "php_ini.h"
 #include "ext/standard/php_standard.h"
 #include "ext/standard/md5.h"
-#include "php_interbase.h"
+#include "php_firebird.h"
 #include "php_ibase_includes.h"
 #include "php_ibase_inspection.h"
 #include "SAPI.h"
@@ -517,16 +517,16 @@ static const zend_function_entry ibase_functions[] = {
 	PHP_FE_END
 };
 
-zend_module_entry ibase_module_entry = {
+zend_module_entry firebird_module_entry = {
 	STANDARD_MODULE_HEADER,
-	"interbase",
+	"firebird",
 	ibase_functions,
 	PHP_MINIT(ibase),
 	PHP_MSHUTDOWN(ibase),
 	NULL,
 	PHP_RSHUTDOWN(ibase),
 	PHP_MINFO(ibase),
-	PHP_INTERBASE_VER_STR,
+	PHP_FIREBIRD_VER_STR,
 	PHP_MODULE_GLOBALS(ibase),
 	PHP_GINIT(ibase),
 	NULL,
@@ -534,11 +534,11 @@ zend_module_entry ibase_module_entry = {
 	STANDARD_MODULE_PROPERTIES_EX
 };
 
-#ifdef COMPILE_DL_INTERBASE
+#ifdef COMPILE_DL_FIREBIRD
 #ifdef ZTS
 ZEND_TSRMLS_CACHE_DEFINE()
 #endif
-ZEND_GET_MODULE(ibase)
+ZEND_GET_MODULE(firebird)
 #endif
 
 /* True globals, no need for thread safety */
@@ -916,7 +916,7 @@ void* _php_ibase_get_fbclient_symbol(const char* sym)
 
 static PHP_GINIT_FUNCTION(ibase)
 {
-#if defined(COMPILE_DL_INTERBASE) && defined(ZTS)
+#if defined(COMPILE_DL_FIREBIRD) && defined(ZTS)
 	ZEND_TSRMLS_CACHE_UPDATE();
 #endif
 	ibase_globals->num_persistent = ibase_globals->num_links = 0;
@@ -1036,13 +1036,13 @@ PHP_MINFO_FUNCTION(ibase)
 
 	php_info_print_table_start();
 	php_info_print_table_row(2, "Firebird/InterBase Support",
-#ifdef COMPILE_DL_INTERBASE
+#ifdef COMPILE_DL_FIREBIRD
 		"dynamic");
 #else
 		"static");
 #endif
 
-	php_info_print_table_row(2, "Interbase extension version", PHP_INTERBASE_VER_STR);
+	php_info_print_table_row(2, "Interbase extension version", PHP_FIREBIRD_VER_STR);
 
 #ifdef FB_API_VER
 	snprintf( (s = tmp), sizeof(tmp), "Firebird API version %d", FB_API_VER);
@@ -2342,4 +2342,4 @@ void fbp_error_ex(long level, const char *msg, ...)
 /* }}} */
 
 
-#endif /* HAVE_IBASE */
+#endif /* HAVE_FIREBIRD */

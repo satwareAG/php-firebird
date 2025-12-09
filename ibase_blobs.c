@@ -31,7 +31,7 @@
 
 #if HAVE_IBASE
 
-#include "php_interbase.h"
+#include "php_firebird.h"
 #include "php_ibase_includes.h"
 
 #define BLOB_CLOSE		1

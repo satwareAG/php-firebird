@@ -31,7 +31,7 @@
 #if HAVE_IBASE
 
 #include "ext/standard/php_standard.h"
-#include "php_interbase.h"
+#include "php_firebird.h"
 #include "php_ibase_includes.h"
 #include "php_ibase_query_internal.h"
 #include "firebird_utils.h"

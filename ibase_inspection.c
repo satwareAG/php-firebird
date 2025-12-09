@@ -19,7 +19,7 @@
 #endif
 
 #include "php.h"
-#include "php_interbase.h"
+#include "php_firebird.h"
 #include "php_ibase_includes.h"
 
 /* Helper to execute a delete statement with one integer parameter */

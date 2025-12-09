@@ -24,11 +24,11 @@
    +----------------------------------------------------------------------+
  */
 
-#ifndef PHP_INTERBASE_H
-#define PHP_INTERBASE_H
+#ifndef PHP_FIREBIRD_H
+#define PHP_FIREBIRD_H
 
-extern zend_module_entry ibase_module_entry;
-#define phpext_interbase_ptr &ibase_module_entry
+extern zend_module_entry firebird_module_entry;
+#define phpext_firebird_ptr &firebird_module_entry
 
 #include "ibase.h"
 
@@ -36,18 +36,18 @@ extern zend_module_entry ibase_module_entry;
   static_assert(false, "FATAL: FB_API_VER is not defined. Assumed very old, unsupported client library");
 #endif
 
-#define PHP_INTERBASE_VER_MAJOR 6
-#define PHP_INTERBASE_VER_MINOR 2
-#define PHP_INTERBASE_VER_REV 0
-/* #define PHP_INTERBASE_VER_PRE "-RC2" -- Defined only for pre-releases */
+#define PHP_FIREBIRD_VER_MAJOR 6
+#define PHP_FIREBIRD_VER_MINOR 2
+#define PHP_FIREBIRD_VER_REV 0
+/* #define PHP_FIREBIRD_VER_PRE "-RC2" -- Defined only for pre-releases */
 
 // Keep two digit style similar to FB_API_VER
-#define PHP_INTERBASE_VER PHP_INTERBASE_VER_MAJOR * 10 + PHP_INTERBASE_VER_MINOR
+#define PHP_FIREBIRD_VER PHP_FIREBIRD_VER_MAJOR * 10 + PHP_FIREBIRD_VER_MINOR
 
-#ifdef PHP_INTERBASE_VER_PRE
-#   define PHP_INTERBASE_VER_STR "6.2.0" PHP_INTERBASE_VER_PRE
+#ifdef PHP_FIREBIRD_VER_PRE
+#   define PHP_FIREBIRD_VER_STR "6.2.0" PHP_FIREBIRD_VER_PRE
 #else
-#   define PHP_INTERBASE_VER_STR "6.2.0"
+#   define PHP_FIREBIRD_VER_STR "6.2.0"
 #endif
 
 PHP_MINIT_FUNCTION(ibase);
@@ -133,6 +133,6 @@ PHP_FUNCTION(ibase_get_client_minor_version);
 
 #else
 
-#define phpext_interbase_ptr NULL
+#define phpext_firebird_ptr NULL
 
-#endif /* PHP_INTERBASE_H */
+#endif /* PHP_FIREBIRD_H */

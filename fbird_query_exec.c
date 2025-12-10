@@ -561,24 +561,24 @@ static int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
                      */
                     ISC_LONG slice_len = (ISC_LONG)ar->ar_size;
 
-                    /* FIX: For VARCHAR arrays (blr_varying), Firebird's isc_array_put_slice()
-                     * expects array_desc_length to be the TOTAL element size including the
-                     * 2-byte IBVARY length prefix, not just the declared VARCHAR length.
-                     * Temporarily adjust the descriptor for the slice operation. */
-                    ISC_USHORT orig_desc_length = ar->ar_desc.array_desc_length;
-                    if (ar->ar_desc.array_desc_dtype == blr_varying ||
-                        ar->ar_desc.array_desc_dtype == blr_varying2) {
-                        ar->ar_desc.array_desc_length = (ISC_USHORT)ar->el_size;
-                    }
+					/* For VARCHAR arrays, Firebird's isc_array_put_slice() expects
+					 * array_desc_length to be the TOTAL element size (including the
+					 * 2-byte IBVARY length prefix), not the declared VARCHAR length.
+					 * Temporarily adjust before the call and restore afterward. */
+					ISC_USHORT orig_desc_length = ar->ar_desc.array_desc_length;
+					if (ar->ar_desc.array_desc_dtype == blr_varying ||
+						ar->ar_desc.array_desc_dtype == blr_varying2) {
+						ar->ar_desc.array_desc_length = (ISC_USHORT)ar->el_size;
+					}
 
 					if (isc_array_put_slice(IB_STATUS, &ib_query->link->handle.db, &ib_query->trans->handle.tr,
 							&array_id, &ar->ar_desc, array_data, &slice_len)) {
-                        ar->ar_desc.array_desc_length = orig_desc_length; /* Restore on error */
+						ar->ar_desc.array_desc_length = orig_desc_length; /* restore on error */
 						_php_fbird_error();
 						efree(array_data);
 						return FAILURE;
 					}
-					ar->ar_desc.array_desc_length = orig_desc_length; /* Restore on success */
+					ar->ar_desc.array_desc_length = orig_desc_length; /* restore on success */
 					buf[i].val.qval = array_id;
 					efree(array_data);
 				}
@@ -871,12 +871,16 @@ static int _php_fbird_alloc_array(fbird_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 				a->el_size = sizeof(ISC_TIMESTAMP_TZ);
 				break;
 #endif
-case blr_varying:
+			case blr_varying:
 			case blr_varying2:
 				/*
-				 * VARCHAR arrays in Firebird use IBVARY format: 2-byte length prefix
-				 * followed by the actual character data. array_desc_length contains
-				 * the declared VARCHAR length, so storage is length + sizeof(short).
+				 * VARCHAR arrays use IBVARY format: 2-byte length prefix + character data.
+				 * array_desc_length = declared VARCHAR length (max chars) as returned by
+				 *                     isc_array_lookup_bounds() - must NOT be modified
+				 * el_size = array_desc_length + sizeof(short) = total bytes per element
+				 *
+				 * NOTE: isc_array_put_slice() and isc_array_get_slice() require temporary
+				 * adjustment of array_desc_length at the call site. See those locations.
 				 */
 				a->el_type = SQL_VARYING;
 				a->el_size = ar_desc->array_desc_length + sizeof(short);
@@ -1224,7 +1228,10 @@ static int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 					break;
 				case SQL_VARYING:
 					{
-						/* Use zval_get_string() to get copy without modifying original zval
+						/* VARCHAR arrays use IBVARY format: 2-byte length prefix + character data.
+						 * buf_size = el_size = array_desc_length + sizeof(short)
+						 *
+						 * Use zval_get_string() to get copy without modifying original zval.
 						 * This fixes PHP 8.x issue where convert_to_string() modifies in-place,
 						 * causing all array elements to contain the last value */
 						zend_string *str = zval_get_string(val);
@@ -1233,7 +1240,9 @@ static int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 						if (str_len > max_len) {
 							str_len = max_len;
 						}
+						/* Write length prefix */
 						*(short *)buf = (short)str_len;
+						/* Copy string data after length prefix */
 						if (str_len > 0) {
 							memcpy(buf + sizeof(short), ZSTR_VAL(str), str_len);
 						}

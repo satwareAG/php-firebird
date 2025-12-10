@@ -875,23 +875,16 @@ static int _php_fbird_alloc_array(fbird_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 			 *
 			 * We modify the descriptor in place so put_slice sees blr_text.
 			 *
-			 * UTF8 CHARSET HANDLING:
-			 * Firebird 3.0+ with UTF8 databases reports array_desc_length in BYTES
-			 * (4 bytes/char max for UTF8), even for blr_varying (not just blr_varying2).
-			 * We must convert to CHARACTER count by dividing by 4 for UTF8 databases.
+			 * NOTE: Previous UTF8 heuristic was REMOVED as it was incorrect.
+			 * ISC_ARRAY_DESC has no charset field, so we cannot reliably detect UTF8.
+			 * The heuristic (dividing by 4 if length divisible by 4) caused truncation
+			 * for non-UTF8 VARCHAR arrays like VARCHAR(1000) with charset NONE.
 			 *
-			 * Detection heuristic: If length > 4 and divisible by 4, assume UTF8.
-			 * This works because VARCHAR(1) UTF8 = 4 bytes, VARCHAR(10) UTF8 = 40 bytes.
+			 * For UTF8 databases, users may need to handle character/byte conversion
+			 * at the application level if truncation occurs.
 			 */
 			a->el_type = SQL_TEXT;
-			if (ar_desc->array_desc_length >= 4 && (ar_desc->array_desc_length % 4) == 0) {
-				/* UTF8 database: length is in bytes, divide by 4 to get char count */
-				a->el_size = ar_desc->array_desc_length / 4;
-				ar_desc->array_desc_length = ar_desc->array_desc_length / 4;
-			} else {
-				/* Non-UTF8 (NONE, ASCII, etc.): length is already character count */
-				a->el_size = ar_desc->array_desc_length;
-			}
+			a->el_size = ar_desc->array_desc_length;
 			ar_desc->array_desc_dtype = blr_text;
 			break;
 			case blr_quad:

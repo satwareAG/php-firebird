@@ -3,10 +3,11 @@ Firebird: array handling
 --SKIPIF--
 <?php
 include("skipif.inc");
-// KNOWN ISSUE: Array handling has segfault - heap corruption during array INSERT/FETCH
-// The isc_array_get_slice size parameter fix was applied but additional issues remain
-// in the array binding code path during fbird_query INSERT.
-die("skip Array handling has known segfault issue - needs deep investigation");
+// PARTIAL FIX: VARCHAR array corruption (first element empty) was fixed.
+// REMAINING ISSUE: "subscript out of bounds" error during INSERT for large arrays.
+// Simple arrays (CHAR[3], INTEGER[4,4,4]) work. Complex test (10+ elements) fails.
+// Needs investigation: array bounds checking in multi-column INSERT context.
+die("skip Array handling has remaining subscript bounds issue - under investigation");
 ?>
 --FILE--
 <?php

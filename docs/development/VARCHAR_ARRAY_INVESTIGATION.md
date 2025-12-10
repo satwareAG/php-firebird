@@ -1,6 +1,6 @@
-# VARCHAR Array Corruption Investigation
+# VARCHAR Array Truncation Investigation
 
-## Status: UNRESOLVED - Requires deeper Firebird internals research
+## Status: RESOLVED (commit 235a0bd)
 
 ## Problem Summary
 
@@ -93,9 +93,36 @@ From FirebirdSQL/firebird repository analysis:
 - `fbird_result.c`: `_php_fbird_arr_zval()`, `_php_fbird_fetch_hash()` - reads array data
 - `tests/007_iso_varchar10.phpt` - failing test case
 
-## Current Test Status
+## Resolution (2025-12-10)
 
-- Test suite: 85 passed, 8 skipped, 0 failures (excluding array tests)
-- VARCHAR array tests: SKIPPED pending fix
+### Root Cause
+The UTF8 charset detection heuristic was fundamentally flawed. It divided `array_desc_length` by 4 for any length divisible by 4, causing VARCHAR(1000) arrays with charset NONE to be truncated to 250 characters.
+
+The heuristic in both `fbird_query_exec.c` (write path) and `fbird_result.c` (read path):
+```c
+if (ar_desc->array_desc_length >= 4 && (ar_desc->array_desc_length % 4) == 0) {
+    ar_desc->array_desc_length = ar_desc->array_desc_length / 4;
+}
+```
+
+### Why It Was Wrong
+- `ISC_ARRAY_DESC` structure has no charset field
+- Cannot reliably detect UTF8 vs NONE charset
+- VARCHAR(1000) with NONE charset: 1000/4 = 250 (truncation!)
+- VARCHAR(10) with NONE charset: 10 is not divisible by 4 (works by accident)
+
+### Fix Applied
+Removed the UTF8 heuristic entirely from both files. Use `array_desc_length` directly.
+
+### Test Results After Fix
+All array tests pass (5/5):
+- 007_enabled.phpt - PASS
+- 007_iso_char.phpt - PASS
+- 007_iso_integer.phpt - PASS
+- 007_iso_varchar10.phpt - PASS  
+- 007_iso_varchar1000.phpt - PASS
+
+### Note
+For actual UTF8 databases, users may need to handle character/byte conversion at the application level if truncation occurs.
 
 ## Date: 2025-12-10

@@ -523,22 +523,28 @@ static int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 				var->sqltype = SQL_BOOLEAN;
 				continue;
 #endif
-			case SQL_ARRAY:
+		case SQL_ARRAY:
+			if (Z_TYPE_P(b_var) != IS_ARRAY) {
+				convert_to_string(b_var);
 
-				if (Z_TYPE_P(b_var) != IS_ARRAY) {
-					convert_to_string(b_var);
+				if (Z_STRLEN_P(b_var) != BLOB_ID_LEN ||
+					!_php_fbird_string_to_quad(Z_STRVAL_P(b_var), &buf[i].val.qval)) {
 
-					if (Z_STRLEN_P(b_var) != BLOB_ID_LEN ||
-						!_php_fbird_string_to_quad(Z_STRVAL_P(b_var), &buf[i].val.qval)) {
-
-						_php_fbird_module_error("Parameter %d: invalid array ID",i+1);
-						rv = FAILURE;
-					}
-			} else {
-				/* convert the array data into something IB can understand */
-				fbird_array *ar = &ib_query->in_array[array_cnt];
-				void *array_data = ecalloc(1, ar->ar_size);
-					ISC_QUAD array_id = { 0, 0 };
+					_php_fbird_module_error("Parameter %d: invalid array ID",i+1);
+					rv = FAILURE;
+				}
+		} else {
+			/* convert the array data into something IB can understand */
+			/* Bounds check before accessing in_array to prevent out-of-bounds access */
+			if (array_cnt >= ib_query->in_array_cnt) {
+				_php_fbird_module_error("Parameter %d: array index out of bounds", i+1);
+				rv = FAILURE;
+				++array_cnt;
+				continue;
+			}
+			fbird_array *ar = &ib_query->in_array[array_cnt];
+			void *array_data = ecalloc(1, ar->ar_size);
+				ISC_QUAD array_id = { 0, 0 };
 
                     if (FAILURE == _php_fbird_bind_array(b_var, array_data, ar->ar_size,
 							ar, 0)) {
@@ -1362,9 +1368,22 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
      ib_query->has_more_rows = 0;
  }
 
-	for (i = 0; i < argc; ++i) {
-		SEPARATE_ZVAL(&args[i]);
-	}
+	/* NOTE: We intentionally do NOT use SEPARATE_ZVAL here.
+	 *
+	 * Previously, SEPARATE_ZVAL was called on each argument to create independent
+	 * copies before binding. However, this caused memory corruption issues where
+	 * the PHP caller's original array variables would be corrupted after fbird_query
+	 * returned.
+	 *
+	 * The root cause was that SEPARATE_ZVAL's interaction with PHP 8's copy-on-write
+	 * semantics and the parameter passing mechanism corrupted the original zval's
+	 * HashTable.
+	 *
+	 * The fix is to NOT separate the zvals. Instead, _php_fbird_bind_array() now
+	 * uses zval_get_long(), zval_get_double(), zval_get_string() which create
+	 * temporary copies of values without modifying the original zval in-place.
+	 * This preserves the caller's arrays while still allowing Firebird binding.
+	 */
 
 	switch (ib_query->statement_type) {
 		fb_safe_handle tr;

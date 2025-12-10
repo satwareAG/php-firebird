@@ -859,13 +859,12 @@ static int _php_fbird_alloc_array(fbird_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 				a->el_size = sizeof(ISC_TIMESTAMP_TZ);
 				break;
 #endif
-			case blr_varying:
+case blr_varying:
 			case blr_varying2:
 				/*
-				 * We use SQL_VARYING to explicitly handle the length prefix.
-				 * This ensures proper binary layout (short length + data) is generated
-				 * in _php_fbird_bind_array, preventing data corruption or offset errors
-				 * that occur if we treat it as SQL_TEXT but allocate extra space.
+				 * VARCHAR arrays in Firebird use IBVARY format: 2-byte length prefix
+				 * followed by the actual character data. array_desc_length contains
+				 * the declared VARCHAR length, so storage is length + sizeof(short).
 				 */
 				a->el_type = SQL_VARYING;
 				a->el_size = ar_desc->array_desc_length + sizeof(short);

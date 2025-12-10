@@ -38,5 +38,5 @@ echo "Done\n";
 Inserting CHAR(10)[10]...
 INSERT OK
 Row ID: 1
-V_CHAR[1]: 'test1     '
+V_CHAR[1]: 'test1'
 Done

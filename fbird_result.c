@@ -625,15 +625,46 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 					/* Use local copy of size - isc_array_get_slice modifies its size parameter
 					 * to reflect actual bytes fetched, which corrupts ar_size for recursive use */
 					ISC_LONG fetch_size = ib_array->ar_size;
-					void *ar_data = emalloc((size_t)fetch_size);
+					/* Use ecalloc to zero-initialize - check if corruption is from uninitialized memory */
+					void *ar_data = ecalloc(1, (size_t)fetch_size);
+
+				/* Fetch a fresh array descriptor to ensure we have correct metadata.
+				 * The stored descriptor might have stale data. */
+				ISC_ARRAY_DESC fresh_desc;
+				char rname[64] = {0}, sname[64] = {0};
+				/* Get table/column name from the XSQLVAR - need to find the original var */
+				if (var->relname_length > 0 && var->relname_length < 64) {
+					memcpy(rname, var->relname, var->relname_length);
+				}
+				if (var->sqlname_length > 0 && var->sqlname_length < 64) {
+					memcpy(sname, var->sqlname, var->sqlname_length);
+				}
+				if (isc_array_lookup_bounds(IB_STATUS, &ib_query->link->handle.db,
+						&ib_query->trans->handle.tr, rname, sname, &fresh_desc)) {
+					_php_fbird_error();
+					efree(ar_data);
+					goto _php_fbird_fetch_error;
+				}
+				php_printf("DEBUG GET: Fresh desc_length=%d vs stored=%d\n",
+					fresh_desc.array_desc_length, ib_array->ar_desc.array_desc_length);
 
 				if (isc_array_get_slice(IB_STATUS, &ib_query->link->handle.db,
-						&ib_query->trans->handle.tr, &ar_qd, &ib_array->ar_desc,
+						&ib_query->trans->handle.tr, &ar_qd, &fresh_desc,
 						ar_data, &fetch_size)) {
 					_php_fbird_error();
 					efree(ar_data);
 					goto _php_fbird_fetch_error;
 				}
+
+				/* DEBUG: Hex dump first 60 bytes of buffer */
+					php_printf("DEBUG: dtype=%d, desc_len=%d, el_size=%d, ar_size=%lu, fetch_size=%d\n",
+						ib_array->ar_desc.array_desc_dtype, ib_array->ar_desc.array_desc_length,
+						ib_array->el_size, (unsigned long)ib_array->ar_size, fetch_size);
+					php_printf("DEBUG: Buffer hex dump (first 60 bytes): ");
+					for (int dbgi = 0; dbgi < 60 && dbgi < fetch_size; dbgi++) {
+						php_printf("%02x ", ((unsigned char*)ar_data)[dbgi]);
+					}
+					php_printf("\n");
 
 					/* Use ORIGINAL ar_size for recursive processing (structure size),
 					 * not the potentially modified fetch_size */

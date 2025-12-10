@@ -555,11 +555,18 @@ static int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
                      * interpretation and potential memory corruption.
                      *
                      * Solution: Copy to temporary ISC_LONG, pass address of temporary.
-                     *
-                     * Test coverage: tests/007.phpt (currently SKIPPED due to broader array handling issues)
-                     * Documentation: docs/development/IBASE_QUERY_EXEC_FIXES.md
                      */
                     ISC_LONG slice_len = (ISC_LONG)ar->ar_size;
+
+					/* DEBUG: Dump buffer before put_slice */
+					php_printf("DEBUG PUT: desc_dtype=%d, desc_len=%d, el_size=%d, ar_size=%lu, slice_len=%d\n",
+						ar->ar_desc.array_desc_dtype, ar->ar_desc.array_desc_length,
+						ar->el_size, (unsigned long)ar->ar_size, slice_len);
+					php_printf("DEBUG PUT: Buffer BEFORE put_slice (first 60 bytes): ");
+					for (int dbgi = 0; dbgi < 60 && dbgi < slice_len; dbgi++) {
+						php_printf("%02x ", ((unsigned char*)array_data)[dbgi]);
+					}
+					php_printf("\n");
 
 					if (isc_array_put_slice(IB_STATUS, &ib_query->link->handle.db, &ib_query->trans->handle.tr,
 							&array_id, &ar->ar_desc, array_data, &slice_len)) {
@@ -567,6 +574,14 @@ static int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 						efree(array_data);
 						return FAILURE;
 					}
+
+					/* DEBUG: Dump buffer AFTER put_slice to see if Firebird modified it */
+					php_printf("DEBUG PUT: slice_len after call=%d\n", slice_len);
+					php_printf("DEBUG PUT: Buffer AFTER put_slice (first 60 bytes): ");
+					for (int dbgi = 0; dbgi < 60 && dbgi < (int)ar->ar_size; dbgi++) {
+						php_printf("%02x ", ((unsigned char*)array_data)[dbgi]);
+					}
+					php_printf("\n");
 					buf[i].val.qval = array_id;
 					efree(array_data);
 				}
@@ -1225,6 +1240,8 @@ static int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 						zend_string *str = zval_get_string(val);
 						size_t str_len = ZSTR_LEN(str);
 						size_t max_len = buf_size - sizeof(short);
+						php_printf("DEBUG BIND: buf=%p, buf_size=%lu, str='%s' len=%zu\n",
+							buf, (unsigned long)buf_size, ZSTR_VAL(str), str_len);
 						if (str_len > max_len) {
 							str_len = max_len;
 						}
@@ -1234,6 +1251,10 @@ static int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 						if (str_len > 0) {
 							memcpy(buf + sizeof(short), ZSTR_VAL(str), str_len);
 						}
+						php_printf("DEBUG BIND AFTER: buf[0-5]=%02x %02x %02x %02x %02x %02x\n",
+							(unsigned char)buf[0], (unsigned char)buf[1],
+							(unsigned char)buf[2], (unsigned char)buf[3],
+							(unsigned char)buf[4], (unsigned char)buf[5]);
 						zend_string_release(str);
 					}
 					break;

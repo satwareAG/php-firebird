@@ -558,16 +558,6 @@ static int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
                      */
                     ISC_LONG slice_len = (ISC_LONG)ar->ar_size;
 
-					/* DEBUG: Dump buffer before put_slice */
-					php_printf("DEBUG PUT: desc_dtype=%d, desc_len=%d, el_size=%d, ar_size=%lu, slice_len=%d\n",
-						ar->ar_desc.array_desc_dtype, ar->ar_desc.array_desc_length,
-						ar->el_size, (unsigned long)ar->ar_size, slice_len);
-					php_printf("DEBUG PUT: Buffer BEFORE put_slice (first 60 bytes): ");
-					for (int dbgi = 0; dbgi < 60 && dbgi < slice_len; dbgi++) {
-						php_printf("%02x ", ((unsigned char*)array_data)[dbgi]);
-					}
-					php_printf("\n");
-
 					if (isc_array_put_slice(IB_STATUS, &ib_query->link->handle.db, &ib_query->trans->handle.tr,
 							&array_id, &ar->ar_desc, array_data, &slice_len)) {
 						_php_fbird_error();
@@ -575,13 +565,6 @@ static int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 						return FAILURE;
 					}
 
-					/* DEBUG: Dump buffer AFTER put_slice to see if Firebird modified it */
-					php_printf("DEBUG PUT: slice_len after call=%d\n", slice_len);
-					php_printf("DEBUG PUT: Buffer AFTER put_slice (first 60 bytes): ");
-					for (int dbgi = 0; dbgi < 60 && dbgi < (int)ar->ar_size; dbgi++) {
-						php_printf("%02x ", ((unsigned char*)array_data)[dbgi]);
-					}
-					php_printf("\n");
 					buf[i].val.qval = array_id;
 					efree(array_data);
 				}
@@ -874,22 +857,34 @@ static int _php_fbird_alloc_array(fbird_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 				a->el_size = sizeof(ISC_TIMESTAMP_TZ);
 				break;
 #endif
-			case blr_varying:
-			case blr_varying2:
-				/*
-				 * WORKAROUND: Treat VARCHAR arrays as TEXT (CHAR)
-				 * Firebird's isc_array_put_slice/get_slice appear to mishandle SQL_VARYING
-				 * stride alignment or format in some versions (PHP buffer corruption).
-				 * treating them as SQL_TEXT logic works reliably:
-				 * - Write as blank-padded text (Firebird converts to VARCHAR storage)
-				 * - Read as blank-padded text (Firebird converts from VARCHAR)
-				 *
-				 * We modify the descriptor in place so put_slice sees blr_text.
-				 */
+		case blr_varying:
+		case blr_varying2:
+			/*
+			 * WORKAROUND: Treat VARCHAR arrays as TEXT (CHAR)
+			 * Firebird's isc_array_put_slice/get_slice appear to mishandle SQL_VARYING
+			 * stride alignment or format in some versions (PHP buffer corruption).
+			 * treating them as SQL_TEXT logic works reliably:
+			 * - Write as blank-padded text (Firebird converts to VARCHAR storage)
+			 * - Read as blank-padded text (Firebird converts from VARCHAR)
+			 *
+			 * We modify the descriptor in place so put_slice sees blr_text.
+			 *
+			 * UTF8 FIX: For UTF8 databases (Firebird 3.0+), array_desc_length is reported
+			 * in bytes (chars × 4) but isc_array_put_slice expects character count.
+			 * Divide by 4 to get the correct character length.
+			 */
+			{
+				unsigned short char_length = ar_desc->array_desc_length;
+				/* Detect UTF8: length is multiple of 4 and >= 4 */
+				if (char_length >= 4 && (char_length % 4) == 0) {
+					char_length = char_length / 4;
+				}
 				a->el_type = SQL_TEXT;
-				a->el_size = ar_desc->array_desc_length;
+				a->el_size = char_length;
+				ar_desc->array_desc_length = char_length;
 				ar_desc->array_desc_dtype = blr_text;
-				break;
+			}
+			break;
 			case blr_quad:
 			case blr_blob_id:
 			case blr_cstring:
@@ -1242,8 +1237,6 @@ static int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 						zend_string *str = zval_get_string(val);
 						size_t str_len = ZSTR_LEN(str);
 						size_t max_len = buf_size - sizeof(short);
-						php_printf("DEBUG BIND: buf=%p, buf_size=%lu, str='%s' len=%zu\n",
-							buf, (unsigned long)buf_size, ZSTR_VAL(str), str_len);
 						if (str_len > max_len) {
 							str_len = max_len;
 						}
@@ -1253,10 +1246,6 @@ static int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 						if (str_len > 0) {
 							memcpy(buf + sizeof(short), ZSTR_VAL(str), str_len);
 						}
-						php_printf("DEBUG BIND AFTER: buf[0-5]=%02x %02x %02x %02x %02x %02x\n",
-							(unsigned char)buf[0], (unsigned char)buf[1],
-							(unsigned char)buf[2], (unsigned char)buf[3],
-							(unsigned char)buf[4], (unsigned char)buf[5]);
 						zend_string_release(str);
 					}
 					break;

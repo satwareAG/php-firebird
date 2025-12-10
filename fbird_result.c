@@ -645,13 +645,18 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 					efree(ar_data);
 					goto _php_fbird_fetch_error;
 				}
-				php_printf("DEBUG GET: Fresh desc_length=%d vs stored=%d\n",
-					fresh_desc.array_desc_length, ib_array->ar_desc.array_desc_length);
-
 				/* WORKAROUND: If we treated this as SQL_TEXT in alloc_array (for VARCHAR),
-				 * we must tell get_slice to return text (not varying structure). */
+				 * we must tell get_slice to return text (not varying structure).
+				 * Also apply the same UTF8 byte->char conversion as in alloc_array. */
 				if (ib_array->el_type == SQL_TEXT &&
 					(fresh_desc.array_desc_dtype == blr_varying || fresh_desc.array_desc_dtype == blr_varying2)) {
+					/* For UTF8 databases, array_desc_length is in bytes (chars × 4).
+					 * Convert to character count to match how we stored the data. */
+					unsigned short char_length = fresh_desc.array_desc_length;
+					if (char_length >= 4 && (char_length % 4) == 0) {
+						char_length = char_length / 4;
+					}
+					fresh_desc.array_desc_length = char_length;
 					fresh_desc.array_desc_dtype = blr_text;
 				}
 
@@ -662,16 +667,6 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 					efree(ar_data);
 					goto _php_fbird_fetch_error;
 				}
-
-				/* DEBUG: Hex dump first 60 bytes of buffer */
-					php_printf("DEBUG: dtype=%d, desc_len=%d, el_size=%d, ar_size=%lu, fetch_size=%d\n",
-						ib_array->ar_desc.array_desc_dtype, ib_array->ar_desc.array_desc_length,
-						ib_array->el_size, (unsigned long)ib_array->ar_size, fetch_size);
-					php_printf("DEBUG: Buffer hex dump (first 60 bytes): ");
-					for (int dbgi = 0; dbgi < 60 && dbgi < fetch_size; dbgi++) {
-						php_printf("%02x ", ((unsigned char*)ar_data)[dbgi]);
-					}
-					php_printf("\n");
 
 					/* Use ORIGINAL ar_size for recursive processing (structure size),
 					 * not the potentially modified fetch_size */

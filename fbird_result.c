@@ -403,7 +403,6 @@ static int _php_fbird_arr_zval(zval *ar_zval, char *data, zend_ulong data_size, 
 		   truncate the field to the cstring length */
 		if (ib_array->ar_desc.array_desc_dtype == blr_varying ||
 			ib_array->ar_desc.array_desc_dtype == blr_varying2) {
-
 			Z_STRLEN_P(ar_zval) = strlen(Z_STRVAL_P(ar_zval));
 		}
 	}

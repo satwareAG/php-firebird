@@ -561,24 +561,12 @@ static int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
                      */
                     ISC_LONG slice_len = (ISC_LONG)ar->ar_size;
 
-					/* For VARCHAR arrays, Firebird's isc_array_put_slice() expects
-					 * array_desc_length to be the TOTAL element size (including the
-					 * 2-byte IBVARY length prefix), not the declared VARCHAR length.
-					 * Temporarily adjust before the call and restore afterward. */
-					ISC_USHORT orig_desc_length = ar->ar_desc.array_desc_length;
-					if (ar->ar_desc.array_desc_dtype == blr_varying ||
-						ar->ar_desc.array_desc_dtype == blr_varying2) {
-						ar->ar_desc.array_desc_length = (ISC_USHORT)ar->el_size;
-					}
-
 					if (isc_array_put_slice(IB_STATUS, &ib_query->link->handle.db, &ib_query->trans->handle.tr,
 							&array_id, &ar->ar_desc, array_data, &slice_len)) {
-						ar->ar_desc.array_desc_length = orig_desc_length; /* restore on error */
 						_php_fbird_error();
 						efree(array_data);
 						return FAILURE;
 					}
-					ar->ar_desc.array_desc_length = orig_desc_length; /* restore on success */
 					buf[i].val.qval = array_id;
 					efree(array_data);
 				}

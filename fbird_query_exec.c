@@ -863,27 +863,16 @@ static int _php_fbird_alloc_array(fbird_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 			 * WORKAROUND: Treat VARCHAR arrays as TEXT (CHAR)
 			 * Firebird's isc_array_put_slice/get_slice appear to mishandle SQL_VARYING
 			 * stride alignment or format in some versions (PHP buffer corruption).
-			 * treating them as SQL_TEXT logic works reliably:
+			 * Treating them as SQL_TEXT logic works reliably:
 			 * - Write as blank-padded text (Firebird converts to VARCHAR storage)
 			 * - Read as blank-padded text (Firebird converts from VARCHAR)
 			 *
 			 * We modify the descriptor in place so put_slice sees blr_text.
-			 *
-			 * UTF8 FIX: For UTF8 databases (Firebird 3.0+), array_desc_length is reported
-			 * in bytes (chars × 4) but isc_array_put_slice expects character count.
-			 * Divide by 4 to get the correct character length.
+			 * Keep the original array_desc_length as-is - Firebird reports it correctly.
 			 */
-			{
-				unsigned short char_length = ar_desc->array_desc_length;
-				/* Detect UTF8: length is multiple of 4 and >= 4 */
-				if (char_length >= 4 && (char_length % 4) == 0) {
-					char_length = char_length / 4;
-				}
-				a->el_type = SQL_TEXT;
-				a->el_size = char_length;
-				ar_desc->array_desc_length = char_length;
-				ar_desc->array_desc_dtype = blr_text;
-			}
+			a->el_type = SQL_TEXT;
+			a->el_size = ar_desc->array_desc_length;
+			ar_desc->array_desc_dtype = blr_text;
 			break;
 			case blr_quad:
 			case blr_blob_id:

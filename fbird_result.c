@@ -647,16 +647,9 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 				}
 				/* WORKAROUND: If we treated this as SQL_TEXT in alloc_array (for VARCHAR),
 				 * we must tell get_slice to return text (not varying structure).
-				 * Also apply the same UTF8 byte->char conversion as in alloc_array. */
+				 * Keep the length as-is - Firebird reports it correctly. */
 				if (ib_array->el_type == SQL_TEXT &&
 					(fresh_desc.array_desc_dtype == blr_varying || fresh_desc.array_desc_dtype == blr_varying2)) {
-					/* For UTF8 databases, array_desc_length is in bytes (chars × 4).
-					 * Convert to character count to match how we stored the data. */
-					unsigned short char_length = fresh_desc.array_desc_length;
-					if (char_length >= 4 && (char_length % 4) == 0) {
-						char_length = char_length / 4;
-					}
-					fresh_desc.array_desc_length = char_length;
 					fresh_desc.array_desc_dtype = blr_text;
 				}
 

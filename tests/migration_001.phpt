@@ -3,10 +3,12 @@ Migration reliability: fbird_drop_table_force logic
 --SKIPIF--
 <?php
 include("skipif.inc");
-// KNOWN ISSUE: fbird_drop_table_force has bug returning "unknown ISC error 0"
-// Root cause: Function's error handling needs investigation (not test infrastructure)
-// TODO: Fix function in interbase.c, then enable this test
-die("skip fbird_drop_table_force has unresolved bug - returns 'unknown ISC error 0'");
+// KNOWN ISSUE: fbird_drop_table_force and related inspection functions have SQLDA binding bugs
+// Root cause: fbird_list_table_blockers fails with "Data type unknown" due to incorrect
+// parameter binding - needs isc_dsql_describe_bind() before binding, similar to fbird_query_exec.c
+// The inspection API (fbird_inspection.c) was added but has incomplete SQLDA parameter binding.
+// TODO: Refactor inspection functions to use proper describe_bind workflow
+die("skip fbird_inspection functions need SQLDA binding fixes");
 ?>
 --FILE--
 <?php

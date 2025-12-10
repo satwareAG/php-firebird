@@ -316,22 +316,32 @@ PHP_FUNCTION(fbird_drop_table_force)
         _fbird_exec_kill(link, trans, kill_list[i]);
     }
 
-    /* 4. Execute Drop */
-    int len = spprintf(&drop_sql, 0, "DROP TABLE %s", table_name);
+    /* 4. Execute Drop using prepared statement (same pattern as fbird_query) */
+    spprintf(&drop_sql, 0, "DROP TABLE %s", table_name);
 
+    /* Allocate a new statement for DROP */
     if (isc_dsql_allocate_statement(IB_STATUS, &link->handle.db, (isc_stmt_handle*)&stmt)) {
          _php_fbird_error();
          goto error;
     }
 
-    /* Use execute immediate for DDL (no params) */
-    if (isc_dsql_execute_immediate(IB_STATUS, &link->handle.db, &trans->handle.tr, len, drop_sql, 1, NULL)) {
+    /* Prepare the DROP statement */
+    if (isc_dsql_prepare(IB_STATUS, &trans->handle.tr, (isc_stmt_handle*)&stmt, 0, drop_sql, 3, NULL)) {
          _php_fbird_error();
          goto error;
     }
 
-    /* Success Path */
+    /* Execute the DROP statement */
+    if (isc_dsql_execute(IB_STATUS, &trans->handle.tr, (isc_stmt_handle*)&stmt, SQLDA_CURRENT_VERSION, NULL)) {
+         _php_fbird_error();
+         goto error;
+    }
+
+    /* Free the statement */
     isc_dsql_free_statement(IB_STATUS, (isc_stmt_handle*)&stmt, DSQL_drop);
+    stmt = 0;
+
+    /* Success Path */
 
     if (in_sqlda) efree(in_sqlda);
     if (out_sqlda) efree(out_sqlda);

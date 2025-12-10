@@ -886,7 +886,8 @@ static int _php_fbird_alloc_array(fbird_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 				 * adjustment of array_desc_length at the call site. See those locations.
 				 */
 				a->el_type = SQL_VARYING;
-				a->el_size = ar_desc->array_desc_length + sizeof(short);
+				/* EXPERIMENT: Align string data to 4 bytes boundary (2 byte len + 2 byte pad) */
+				a->el_size = ar_desc->array_desc_length + 4;
 				break;
 			case blr_quad:
 			case blr_blob_id:

@@ -1070,15 +1070,16 @@ static int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 			memset(buf, 0, buf_size);
 		} else if (array->ar_desc.array_desc_scale < 0) {
 
-			/* no coercion for array types */
+			/* no coercion for array types
+			 * Use zval_get_double() to avoid modifying the original zval in-place,
+			 * which would corrupt PHP arrays when processing multiple elements. */
 			double l;
+			double dval = zval_get_double(val);
 
-			convert_to_double(val);
-
-			if (Z_DVAL_P(val) > 0) {
-				l = Z_DVAL_P(val) * pow(10, -array->ar_desc.array_desc_scale) + .5;
+			if (dval > 0) {
+				l = dval * pow(10, -array->ar_desc.array_desc_scale) + .5;
 			} else {
-				l = Z_DVAL_P(val) * pow(10, -array->ar_desc.array_desc_scale) - .5;
+				l = dval * pow(10, -array->ar_desc.array_desc_scale) - .5;
 			}
 
 			switch (array->el_type) {
@@ -1098,21 +1099,24 @@ static int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 					break;
 				case SQL_INT64:
 					{
-						long double l;
+						long double ld;
 
-						convert_to_string(val);
+						/* Use zval_get_string() to get a copy without modifying the original zval */
+						zend_string *str = zval_get_string(val);
 
-						if (!sscanf(Z_STRVAL_P(val), "%Lf", &l)) {
+						if (!sscanf(ZSTR_VAL(str), "%Lf", &ld)) {
 							_php_fbird_module_error("Cannot convert '%s' to long double",
-								 Z_STRVAL_P(val));
+								 ZSTR_VAL(str));
+							zend_string_release(str);
 							return FAILURE;
 						}
+						zend_string_release(str);
 
-						if (l > 0) {
-							*(ISC_INT64 *) buf = (ISC_INT64) (l * pow(10,
+						if (ld > 0) {
+							*(ISC_INT64 *) buf = (ISC_INT64) (ld * pow(10,
 								-array->ar_desc.array_desc_scale) + .5);
 						} else {
-							*(ISC_INT64 *) buf = (ISC_INT64) (l * pow(10,
+							*(ISC_INT64 *) buf = (ISC_INT64) (ld * pow(10,
 								-array->ar_desc.array_desc_scale) - .5);
 						}
 					}
@@ -1125,109 +1129,138 @@ static int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 #ifndef HAVE_STRPTIME
 				unsigned short n;
 #endif
-#if (SIZEOF_ZEND_LONG < 8)
-				ISC_INT64 l;
-#endif
 
 				case SQL_SHORT:
-					convert_to_long(val);
-					if (Z_LVAL_P(val) > SHRT_MAX || Z_LVAL_P(val) < SHRT_MIN) {
-						_php_fbird_module_error("Array parameter exceeds field width");
-						return FAILURE;
+					{
+						/* Use zval_get_long() to avoid modifying the original zval in-place */
+						zend_long lval = zval_get_long(val);
+						if (lval > SHRT_MAX || lval < SHRT_MIN) {
+							_php_fbird_module_error("Array parameter exceeds field width");
+							return FAILURE;
+						}
+						*(short *) buf = (short) lval;
 					}
-					*(short *) buf = (short) Z_LVAL_P(val);
 					break;
 				case SQL_LONG:
-					convert_to_long(val);
+					{
+						/* Use zval_get_long() to avoid modifying the original zval in-place */
+						zend_long lval = zval_get_long(val);
 #if (SIZEOF_ZEND_LONG > 4)
-					if (Z_LVAL_P(val) > ISC_LONG_MAX || Z_LVAL_P(val) < ISC_LONG_MIN) {
-						_php_fbird_module_error("Array parameter exceeds field width");
-						return FAILURE;
-					}
+						if (lval > ISC_LONG_MAX || lval < ISC_LONG_MIN) {
+							_php_fbird_module_error("Array parameter exceeds field width");
+							return FAILURE;
+						}
 #endif
-					*(ISC_LONG *) buf = (ISC_LONG) Z_LVAL_P(val);
+						*(ISC_LONG *) buf = (ISC_LONG) lval;
+					}
 					break;
 				case SQL_INT64:
+					{
 #if (SIZEOF_ZEND_LONG >= 8)
-					convert_to_long(val);
-					*(zend_long *) buf = Z_LVAL_P(val);
+						/* Use zval_get_long() to avoid modifying the original zval in-place */
+						zend_long lval = zval_get_long(val);
+						*(zend_long *) buf = lval;
 #else
-					convert_to_string(val);
-					if (!sscanf(Z_STRVAL_P(val), "%" LL_MASK "d", &l)) {
-						_php_fbird_module_error("Cannot convert '%s' to long integer",
-							 Z_STRVAL_P(val));
-						return FAILURE;
-					} else {
+						/* Use zval_get_string() to get a copy without modifying the original zval */
+						ISC_INT64 l;
+						zend_string *str = zval_get_string(val);
+						if (!sscanf(ZSTR_VAL(str), "%" LL_MASK "d", &l)) {
+							_php_fbird_module_error("Cannot convert '%s' to long integer",
+								 ZSTR_VAL(str));
+							zend_string_release(str);
+							return FAILURE;
+						}
+						zend_string_release(str);
 						*(ISC_INT64 *) buf = l;
-					}
 #endif
+					}
 					break;
 				case SQL_FLOAT:
-					convert_to_double(val);
-					*(float*) buf = (float) Z_DVAL_P(val);
+					{
+						/* Use zval_get_double() to avoid modifying the original zval in-place */
+						double dval = zval_get_double(val);
+						*(float*) buf = (float) dval;
+					}
 					break;
 #ifdef SQL_BOOLEAN
 				case SQL_BOOLEAN:
-					convert_to_boolean(val);
-					// On Windows error unresolved symbol Z_BVAL_P is thrown, so we use Z_LVAL_P
-					*(FB_BOOLEAN*) buf = Z_LVAL_P(val);
+					/* zend_is_true() does not modify the zval */
+					*(FB_BOOLEAN*) buf = zend_is_true(val) ? FB_TRUE : FB_FALSE;
 					break;
 #endif
 				case SQL_DOUBLE:
-					convert_to_double(val);
-					*(double*) buf = Z_DVAL_P(val);
+					{
+						/* Use zval_get_double() to avoid modifying the original zval in-place */
+						double dval = zval_get_double(val);
+						*(double*) buf = dval;
+					}
 					break;
 				case SQL_TIMESTAMP:
 				// TODO: case SQL_TIMESTAMP_TZ:
-					convert_to_string(val);
+					{
+						/* Use zval_get_string() to get a copy without modifying the original zval */
+						zend_string *str = zval_get_string(val);
 #ifdef HAVE_STRPTIME
-					strptime(Z_STRVAL_P(val), INI_STR("ibase.timestampformat"), &t);
+						strptime(ZSTR_VAL(str), INI_STR("ibase.timestampformat"), &t);
 #else
-					n = sscanf(Z_STRVAL_P(val), "%d%*[/]%d%*[/]%d %d%*[:]%d%*[:]%d",
-						&t.tm_mon, &t.tm_mday, &t.tm_year, &t.tm_hour, &t.tm_min, &t.tm_sec);
+						n = sscanf(ZSTR_VAL(str), "%d%*[/]%d%*[/]%d %d%*[:]%d%*[:]%d",
+							&t.tm_mon, &t.tm_mday, &t.tm_year, &t.tm_hour, &t.tm_min, &t.tm_sec);
 
-					if (n != 3 && n != 6) {
-						_php_fbird_module_error("Invalid date/time format (expected 3 or 6 fields, got %d."
-							" Use format 'm/d/Y H:i:s'. You gave '%s')", n, Z_STRVAL_P(val));
-						return FAILURE;
-					}
-					t.tm_year -= 1900;
-					t.tm_mon--;
+						if (n != 3 && n != 6) {
+							_php_fbird_module_error("Invalid date/time format (expected 3 or 6 fields, got %d."
+								" Use format 'm/d/Y H:i:s'. You gave '%s')", n, ZSTR_VAL(str));
+							zend_string_release(str);
+							return FAILURE;
+						}
+						t.tm_year -= 1900;
+						t.tm_mon--;
 #endif
-					isc_encode_timestamp(&t, (ISC_TIMESTAMP * ) buf);
+						zend_string_release(str);
+						isc_encode_timestamp(&t, (ISC_TIMESTAMP * ) buf);
+					}
 					break;
 				case SQL_TYPE_DATE:
-					convert_to_string(val);
+					{
+						/* Use zval_get_string() to get a copy without modifying the original zval */
+						zend_string *str = zval_get_string(val);
 #ifdef HAVE_STRPTIME
-					strptime(Z_STRVAL_P(val), INI_STR("ibase.dateformat"), &t);
+						strptime(ZSTR_VAL(str), INI_STR("ibase.dateformat"), &t);
 #else
-					n = sscanf(Z_STRVAL_P(val), "%d%*[/]%d%*[/]%d", &t.tm_mon, &t.tm_mday, &t.tm_year);
+						n = sscanf(ZSTR_VAL(str), "%d%*[/]%d%*[/]%d", &t.tm_mon, &t.tm_mday, &t.tm_year);
 
-					if (n != 3) {
-						_php_fbird_module_error("Invalid date format (expected 3 fields, got %d. "
-							"Use format 'm/d/Y' You gave '%s')", n, Z_STRVAL_P(val));
-						return FAILURE;
-					}
-					t.tm_year -= 1900;
-					t.tm_mon--;
+						if (n != 3) {
+							_php_fbird_module_error("Invalid date format (expected 3 fields, got %d. "
+								"Use format 'm/d/Y' You gave '%s')", n, ZSTR_VAL(str));
+							zend_string_release(str);
+							return FAILURE;
+						}
+						t.tm_year -= 1900;
+						t.tm_mon--;
 #endif
-					isc_encode_sql_date(&t, (ISC_DATE *) buf);
+						zend_string_release(str);
+						isc_encode_sql_date(&t, (ISC_DATE *) buf);
+					}
 					break;
 				case SQL_TYPE_TIME:
 				// TODO: case SQL_TIME_TZ:
-					convert_to_string(val);
+					{
+						/* Use zval_get_string() to get a copy without modifying the original zval */
+						zend_string *str = zval_get_string(val);
 #ifdef HAVE_STRPTIME
-					strptime(Z_STRVAL_P(val), INI_STR("ibase.timeformat"), &t);
+						strptime(ZSTR_VAL(str), INI_STR("ibase.timeformat"), &t);
 #else
-					n = sscanf(Z_STRVAL_P(val), "%d%*[:]%d%*[:]%d", &t.tm_hour, &t.tm_min, &t.tm_sec);
+						n = sscanf(ZSTR_VAL(str), "%d%*[:]%d%*[:]%d", &t.tm_hour, &t.tm_min, &t.tm_sec);
 
-					if (n != 3) {
-						_php_fbird_module_error("Invalid time format (expected 3 fields, got %d. "
-							"Use format 'H:i:s'. You gave '%s')", n, Z_STRVAL_P(val));
-						return FAILURE;
-					}
+						if (n != 3) {
+							_php_fbird_module_error("Invalid time format (expected 3 fields, got %d. "
+								"Use format 'H:i:s'. You gave '%s')", n, ZSTR_VAL(str));
+							zend_string_release(str);
+							return FAILURE;
+						}
 #endif
-					isc_encode_sql_time(&t, (ISC_TIME *) buf);
+						zend_string_release(str);
+						isc_encode_sql_time(&t, (ISC_TIME *) buf);
+					}
 					break;
 				case SQL_VARYING:
 					{

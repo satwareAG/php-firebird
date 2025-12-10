@@ -1,14 +1,7 @@
 --TEST--
 Firebird: array handling
 --SKIPIF--
-<?php
-include("skipif.inc");
-// PARTIAL FIX: VARCHAR array corruption (first element empty) was fixed.
-// REMAINING ISSUE: "subscript out of bounds" error during INSERT for large arrays.
-// Simple arrays (CHAR[3], INTEGER[4,4,4]) work. Complex test (10+ elements) fails.
-// Needs investigation: array bounds checking in multi-column INSERT context.
-die("skip Array handling has remaining subscript bounds issue - under investigation");
-?>
+<?php include("skipif.inc"); ?>
 --FILE--
 <?php
 

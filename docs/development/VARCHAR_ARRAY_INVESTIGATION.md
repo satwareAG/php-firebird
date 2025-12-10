@@ -115,8 +115,8 @@ if (ar_desc->array_desc_length >= 4 && (ar_desc->array_desc_length % 4) == 0) {
 Removed the UTF8 heuristic entirely from both files. Use `array_desc_length` directly.
 
 ### Test Results After Fix
-All array tests pass (5/5):
-- 007_enabled.phpt - PASS
+All array tests pass (6/6):
+- 007.phpt - PASS (comprehensive: 10 columns, multi-dimensional arrays)
 - 007_iso_char.phpt - PASS
 - 007_iso_integer.phpt - PASS
 - 007_iso_varchar10.phpt - PASS  
@@ -124,5 +124,9 @@ All array tests pass (5/5):
 
 ### Note
 For actual UTF8 databases, users may need to handle character/byte conversion at the application level if truncation occurs.
+
+### Cleanup
+- Removed `007_enabled.phpt` (was identical to `007.phpt`, created during investigation)
+- Re-enabled `007.phpt` by removing the skip directive
 
 ## Date: 2025-12-10

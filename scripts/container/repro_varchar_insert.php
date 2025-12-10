@@ -36,7 +36,7 @@ fbird_commit($dbh);
 
 echo "Inserting data...\n";
 $v_varchar = array();
-for ($i = 1; $i <= 1; ++$i) {
+for ($i = 1; $i <= 2; ++$i) {
     $v_varchar[$i] = "test" . $i;
 }
 

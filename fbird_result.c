@@ -648,6 +648,13 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 				php_printf("DEBUG GET: Fresh desc_length=%d vs stored=%d\n",
 					fresh_desc.array_desc_length, ib_array->ar_desc.array_desc_length);
 
+				/* WORKAROUND: If we treated this as SQL_TEXT in alloc_array (for VARCHAR),
+				 * we must tell get_slice to return text (not varying structure). */
+				if (ib_array->el_type == SQL_TEXT &&
+					(fresh_desc.array_desc_dtype == blr_varying || fresh_desc.array_desc_dtype == blr_varying2)) {
+					fresh_desc.array_desc_dtype = blr_text;
+				}
+
 				if (isc_array_get_slice(IB_STATUS, &ib_query->link->handle.db,
 						&ib_query->trans->handle.tr, &ar_qd, &fresh_desc,
 						ar_data, &fetch_size)) {

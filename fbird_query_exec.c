@@ -877,17 +877,18 @@ static int _php_fbird_alloc_array(fbird_array **ib_arrayp, XSQLDA *sqlda, /* {{{
 			case blr_varying:
 			case blr_varying2:
 				/*
-				 * VARCHAR arrays use IBVARY format: 2-byte length prefix + character data.
-				 * array_desc_length = declared VARCHAR length (max chars) as returned by
-				 *                     isc_array_lookup_bounds() - must NOT be modified
-				 * el_size = array_desc_length + sizeof(short) = total bytes per element
+				 * WORKAROUND: Treat VARCHAR arrays as TEXT (CHAR)
+				 * Firebird's isc_array_put_slice/get_slice appear to mishandle SQL_VARYING
+				 * stride alignment or format in some versions (PHP buffer corruption).
+				 * treating them as SQL_TEXT logic works reliably:
+				 * - Write as blank-padded text (Firebird converts to VARCHAR storage)
+				 * - Read as blank-padded text (Firebird converts from VARCHAR)
 				 *
-				 * NOTE: isc_array_put_slice() and isc_array_get_slice() require temporary
-				 * adjustment of array_desc_length at the call site. See those locations.
+				 * We modify the descriptor in place so put_slice sees blr_text.
 				 */
-				a->el_type = SQL_VARYING;
-				/* EXPERIMENT: Align string data to 4 bytes boundary (2 byte len + 2 byte pad) */
-				a->el_size = ar_desc->array_desc_length + 4;
+				a->el_type = SQL_TEXT;
+				a->el_size = ar_desc->array_desc_length;
+				ar_desc->array_desc_dtype = blr_text;
 				break;
 			case blr_quad:
 			case blr_blob_id:

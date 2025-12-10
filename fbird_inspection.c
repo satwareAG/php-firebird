@@ -104,17 +104,19 @@ PHP_FUNCTION(fbird_list_table_blockers)
 	fbird_transaction *trans;
 	void *stmt = 0;
 	XSQLDA *in_sqlda = NULL, *out_sqlda = NULL;
-	char *pattern = NULL;
+	char *param_buf = NULL;
 
 	RESET_ERRMSG;
 
-	/* SQL to find attachments using the table in statements */
+	/* SQL to find attachments using the table in statements.
+	 * CONTAINING is Firebird's BLOB-aware, case-insensitive substring search.
+	 * It's more reliable than LIKE for BLOB fields like MON$SQL_TEXT. */
 	static const char *sql =
 		"SELECT DISTINCT A.MON$ATTACHMENT_ID, A.MON$USER "
 		"FROM MON$ATTACHMENTS A "
 		"JOIN MON$STATEMENTS S ON S.MON$ATTACHMENT_ID = A.MON$ATTACHMENT_ID "
 		"WHERE A.MON$ATTACHMENT_ID <> CURRENT_CONNECTION "
-		"AND UPPER(S.MON$SQL_TEXT) LIKE UPPER(?)";
+		"AND S.MON$SQL_TEXT CONTAINING ?";
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "rs", &link_arg, &table_name, &table_name_len) == FAILURE) {
 		return;
@@ -142,26 +144,23 @@ PHP_FUNCTION(fbird_list_table_blockers)
 		goto cleanup_error;
 	}
 
-    /* Prepare search pattern: %NAME% */
-    size_t pattern_len = table_name_len + 2;
-    pattern = emalloc(pattern_len + 1);
-    snprintf(pattern, pattern_len + 1, "%%%s%%", table_name);
+    /* CONTAINING does not need wildcards - just pass table name directly */
+    short in_null_ind = 0;
 
     /* Bind input using Firebird's expected type from describe_bind */
-    short in_null_ind = 0;
-    /* For VARCHAR/VARYING, Firebird returns sqllen as max length; we need VARY format */
     if ((in_sqlda->sqlvar[0].sqltype & ~1) == SQL_VARYING) {
         /* SQL_VARYING requires 2-byte length prefix */
-        char *vary_buf = emalloc(in_sqlda->sqlvar[0].sqllen + sizeof(short));
-        *(short *)vary_buf = (short)pattern_len;
-        memcpy(vary_buf + sizeof(short), pattern, pattern_len);
-        efree(pattern);
-        pattern = vary_buf;
-        in_sqlda->sqlvar[0].sqldata = pattern;
+        param_buf = emalloc(in_sqlda->sqlvar[0].sqllen + sizeof(short));
+        *(short *)param_buf = (short)table_name_len;
+        memcpy(param_buf + sizeof(short), table_name, table_name_len);
+        in_sqlda->sqlvar[0].sqldata = param_buf;
     } else {
         /* SQL_TEXT or other - direct binding */
-        in_sqlda->sqlvar[0].sqldata = pattern;
-        in_sqlda->sqlvar[0].sqllen = (short)pattern_len;
+        param_buf = emalloc(table_name_len + 1);
+        memcpy(param_buf, table_name, table_name_len);
+        param_buf[table_name_len] = '\0';
+        in_sqlda->sqlvar[0].sqldata = param_buf;
+        in_sqlda->sqlvar[0].sqllen = (short)table_name_len;
     }
     in_sqlda->sqlvar[0].sqlind = &in_null_ind;
 
@@ -175,14 +174,14 @@ PHP_FUNCTION(fbird_list_table_blockers)
         goto cleanup_error;
     }
 
-    /* Allocate buffers for output */
-    ISC_LONG ret_id;
+    /* Allocate buffers for output - MON$ATTACHMENT_ID is BIGINT (64-bit) in Firebird 3+ */
+    ISC_INT64 ret_id;
     char ret_user[256];
     short null_ind[2];
 
     out_sqlda->sqlvar[0].sqldata = (char *)&ret_id;
-    out_sqlda->sqlvar[0].sqltype = SQL_LONG;
-    out_sqlda->sqlvar[0].sqllen = sizeof(ISC_LONG);
+    out_sqlda->sqlvar[0].sqltype = SQL_INT64;
+    out_sqlda->sqlvar[0].sqllen = sizeof(ISC_INT64);
     out_sqlda->sqlvar[0].sqlind = &null_ind[0];
 
     out_sqlda->sqlvar[1].sqldata = ret_user;
@@ -226,14 +225,14 @@ cleanup:
     isc_dsql_free_statement(IB_STATUS, (isc_stmt_handle*)&stmt, DSQL_drop);
     if (in_sqlda) efree(in_sqlda);
     if (out_sqlda) efree(out_sqlda);
-    if (pattern) efree(pattern);
+    if (param_buf) efree(param_buf);
     return;
 
 cleanup_error:
     isc_dsql_free_statement(IB_STATUS, (isc_stmt_handle*)&stmt, DSQL_drop);
     if (in_sqlda) efree(in_sqlda);
     if (out_sqlda) efree(out_sqlda);
-    if (pattern) efree(pattern);
+    if (param_buf) efree(param_buf);
     RETURN_FALSE;
 }
 /* }}} */

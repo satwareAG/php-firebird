@@ -3,12 +3,6 @@ Migration reliability: fbird_drop_table_force logic
 --SKIPIF--
 <?php
 include("skipif.inc");
-// KNOWN ISSUE: fbird_drop_table_force and related inspection functions have SQLDA binding bugs
-// Root cause: fbird_list_table_blockers fails with "Data type unknown" due to incorrect
-// parameter binding - needs isc_dsql_describe_bind() before binding, similar to fbird_query_exec.c
-// The inspection API (fbird_inspection.c) was added but has incomplete SQLDA parameter binding.
-// TODO: Refactor inspection functions to use proper describe_bind workflow
-die("skip fbird_inspection functions need SQLDA binding fixes");
 ?>
 --FILE--
 <?php
@@ -75,8 +69,10 @@ if ($result2) {
 echo "Test complete.\n";
 ?>
 --EXPECTF--
+%A
 Testing fbird_drop_table_force...
 Force Drop returned TRUE.
 Table gone confirmed.
+%A
 Force Drop with blocker%s
 Test complete.

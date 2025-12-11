@@ -155,13 +155,36 @@ jobs:
 
           chmod +x /tmp/fb_install.sh
 
-          # Patch the script to use our pre-downloaded tarball instead of downloading
-          # Replace the FB_URL variable so the script uses our cached file
-          sed -i "s|^FB_URL=.*|FB_URL=\"file:///tmp/${FB_TARBALL_NAME}\"|" /tmp/fb_install.sh
-
-          # Also patch the downloadFile function to handle file:// URLs
-          # by copying the file instead of curling
-          sed -i 's|curl -w "%{http_code}" --location $url --output $tmp/$fname --progress-bar|if [[ "$url" == file://* ]]; then cp "${url#file://}" "$tmp/$fname"; m="200"; else curl -w "%{http_code}" --location $url --output $tmp/$fname --progress-bar; fi|' /tmp/fb_install.sh
+          # Patch the script's downloadFile function to skip download if file exists
+          # The script creates a temp dir and downloads to it - we'll place our file there
+          # by patching downloadFile to check for pre-existing file first
+          sed -i '/^downloadFile(){/,/^}$/c\
+downloadFile(){\
+    url=$1\
+    tmp=$2\
+    name=$3\
+    fname=$(basename -- "$url")\
+    echo "Downloading $name..."\
+    # Check if file was pre-downloaded to /tmp\
+    if [ -f "/tmp/$fname" ]; then\
+        echo "Using pre-downloaded $fname"\
+        cp "/tmp/$fname" "$tmp/$fname"\
+        return 0\
+    fi\
+    # Retry loop for reliability\
+    for attempt in 1 2 3 4 5; do\
+        m=$(curl -w "%{http_code}" --retry 3 --retry-delay 5 --location "$url" --output "$tmp/$fname" --progress-bar)\
+        r=$?\
+        if [ "$m" = "200" ] && [ $r -eq 0 ]; then\
+            echo "OK"\
+            return 0\
+        fi\
+        echo "Download attempt $attempt failed (HTTP $m, curl $r), retrying in 10s..."\
+        sleep 10\
+    done\
+    echo "ERROR: Failed to download after 5 attempts"\
+    exit 1\
+}' /tmp/fb_install.sh
 
           # Run IBSurgeon installer in non-interactive mode by feeding
           # default answers. The script installs Firebird under /opt/firebird

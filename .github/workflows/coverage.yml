@@ -73,12 +73,55 @@ jobs:
 
           if (set -o pipefail) 2>/dev/null; then :; fi
 
+          # Firebird 5.0 configuration
           FB_SCRIPT_SUFFIX='50'
+          FB_TARBALL_URL="https://github.com/FirebirdSQL/firebird/releases/download/v5.0.2/Firebird-5.0.2.1613-0-linux-x64.tar.gz"
           FB_SCRIPT_URL="https://raw.githubusercontent.com/IBSurgeon/firebirdlinuxinstall/refs/heads/main/fb_vanilla-${FB_SCRIPT_SUFFIX}.sh"
+          FB_TARBALL_NAME=$(basename "${FB_TARBALL_URL}")
 
+          # Function to download with retries
+          download_with_retry() {
+            local url="$1"
+            local output="$2"
+            local description="$3"
+            local max_attempts=5
+            local delay=10
+
+            for attempt in $(seq 1 $max_attempts); do
+              echo "Downloading ${description} (attempt ${attempt}/${max_attempts})..."
+              if curl -fsSL --retry 3 --retry-delay 5 "${url}" -o "${output}"; then
+                echo "Successfully downloaded ${description}"
+                return 0
+              fi
+              echo "Download failed, waiting ${delay} seconds before retry..."
+              sleep $delay
+              delay=$((delay * 2))  # Exponential backoff
+            done
+            echo "ERROR: Failed to download ${description} after ${max_attempts} attempts" >&2
+            return 1
+          }
+
+          # Pre-download Firebird tarball with retry logic (more reliable than letting script do it)
+          echo "Pre-downloading Firebird 5.0 tarball..."
+          if ! download_with_retry "${FB_TARBALL_URL}" "/tmp/${FB_TARBALL_NAME}" "Firebird 5.0 tarball"; then
+            exit 1
+          fi
+
+          # Download the IBSurgeon install script
           echo "Downloading Firebird install script from ${FB_SCRIPT_URL}"
-          curl -fsSL "${FB_SCRIPT_URL}" -o /tmp/fb_install.sh
+          if ! download_with_retry "${FB_SCRIPT_URL}" "/tmp/fb_install.sh" "IBSurgeon install script"; then
+            exit 1
+          fi
+
           chmod +x /tmp/fb_install.sh
+
+          # Patch the script to use our pre-downloaded tarball instead of downloading
+          # Replace the FB_URL variable so the script uses our cached file
+          sed -i "s|^FB_URL=.*|FB_URL=\"file:///tmp/${FB_TARBALL_NAME}\"|" /tmp/fb_install.sh
+
+          # Also patch the downloadFile function to handle file:// URLs
+          # by copying the file instead of curling
+          sed -i 's|curl -w "%{http_code}" --location $url --output $tmp/$fname --progress-bar|if [[ "$url" == file://* ]]; then cp "${url#file://}" "$tmp/$fname"; m="200"; else curl -w "%{http_code}" --location $url --output $tmp/$fname --progress-bar; fi|' /tmp/fb_install.sh
 
           # Run script non-interactively
           printf '\n' | /tmp/fb_install.sh

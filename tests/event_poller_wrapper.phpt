@@ -232,7 +232,7 @@ echo "=== All Tests Complete ===\n";
 
 6. PcntlEventPoller:
    Class exists: Yes
-   isAvailable(): Yes
+   isAvailable(): %s
    getMinTimeoutMs(): 1000ms
    getStrategyName(): pcntl
    Implements EventPollerInterface: Yes

@@ -357,6 +357,10 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_set_event_handler, 0, 0, 2)
 	ZEND_ARG_INFO(0, event2)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_poll_event, 0, 0, 1)
+	ZEND_ARG_INFO(0, event)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_free_event_handler, 0, 0, 1)
 	ZEND_ARG_INFO(0, event)
 ZEND_END_ARG_INFO()
@@ -436,6 +440,7 @@ static const zend_function_entry fbird_functions[] = {
 
 	PHP_FE(fbird_wait_event, 			arginfo_fbird_wait_event)
 	PHP_FE(fbird_set_event_handler, 	arginfo_fbird_set_event_handler)
+	PHP_FE(fbird_poll_event, 			arginfo_fbird_poll_event)
 	PHP_FE(fbird_free_event_handler, 	arginfo_fbird_free_event_handler)
 
 	PHP_FE(fbird_get_client_version, arginfo_fbird_get_client_version)

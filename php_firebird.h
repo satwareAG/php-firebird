@@ -125,6 +125,7 @@ PHP_FUNCTION(fbird_errcode);
 
 PHP_FUNCTION(fbird_wait_event);
 PHP_FUNCTION(fbird_set_event_handler);
+PHP_FUNCTION(fbird_poll_event);
 PHP_FUNCTION(fbird_free_event_handler);
 
 PHP_FUNCTION(fbird_get_client_version);

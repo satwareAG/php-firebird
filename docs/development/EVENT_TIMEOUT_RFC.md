@@ -1,13 +1,15 @@
 # RFC: Event Handling Timeout and Non-Blocking Options
 
-**Status:** PARTIALLY IMPLEMENTED  
+**Status:** PHASE 2 COMPLETE  
 **Author:** Michael Wegener  
 **Date:** December 2025  
 **Related:** EVENT_HANDLING_REDESIGN.md
 
 ## Implementation Status
 
-### What's Implemented (December 11, 2025)
+### Phase 1: C Extension Enhancement (December 11, 2025)
+
+**Status: PARTIALLY IMPLEMENTED** - API complete but timeout mechanism non-functional
 
 1. **API Enhancement:**
    - `fbird_poll_event()` now accepts optional `int $timeout_ms` parameter
@@ -19,6 +21,50 @@
    - Signal handler for `SIGALRM` installed
    - `alarm()` setup/teardown around `isc_wait_for_event()`
    - Previous alarm state preserved and restored
+
+### Phase 2: PHP Wrapper Classes (December 11, 2025)
+
+**Status: IMPLEMENTED** - Full PHP wrapper class library
+
+1. **Interface and Factory:**
+   - `EventPollerInterface` - Standard interface for all strategies
+   - `EventPoller` - Factory with auto-detection and strategy selection
+
+2. **Strategy Implementations:**
+   - `ProcessEventPoller` - Most reliable, uses process isolation via `proc_open()`
+   - `PcntlEventPoller` - Signal-based (SIGALRM), may have same limitations as C
+   - `FiberEventPoller` - Async integration with AMPHP (requires external package)
+
+3. **Files Added:**
+   - `src/Firebird/EventPollerInterface.php`
+   - `src/Firebird/EventPoller.php`
+   - `src/Firebird/ProcessEventPoller.php`
+   - `src/Firebird/PcntlEventPoller.php`
+   - `src/Firebird/FiberEventPoller.php`
+   - `tests/event_poller_wrapper.phpt`
+
+4. **Usage Example:**
+   ```php
+   use Firebird\EventPoller;
+   
+   $conn = fbird_connect($database, $user, $password);
+   $event = fbird_set_event_handler($conn, $callback, 'MY_EVENT');
+   
+   // Auto-detect best strategy
+   $poller = EventPoller::create($event);
+   
+   // For process-based timeout (most reliable):
+   $poller = EventPoller::create($event, 'process');
+   $poller->setConnectionDetails($database, $user, $password, ['MY_EVENT'], $callback);
+   
+   // Poll with 5 second timeout
+   $result = $poller->poll(5000);
+   if ($result === FBIRD_EVENT_TIMEOUT) {
+       echo "Timeout reached\n";
+   }
+   
+   $poller->free();
+   ```
 
 ### Critical Limitation Discovered
 

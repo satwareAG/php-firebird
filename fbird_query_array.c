@@ -21,6 +21,11 @@
  * PHP arrays to Firebird array format.
  */
 
+/* Enable POSIX extensions for strptime() - must be defined before any includes */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif

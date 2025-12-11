@@ -1,5 +1,15 @@
 # Event Handling Redesign for PHP 8.1+ Thread Safety
 
+**Status: IMPLEMENTED** (December 2025)
+
+**Summary:**
+- `fbird_set_event_handler()` - Non-blocking registration (no callbacks from external threads)
+- `fbird_poll_event()` - Blocking wait for events with thread-safe callback execution
+- `fbird_free_event_handler()` - Clean resource release
+- `fbird_wait_event()` - Unchanged (synchronous blocking wait)
+
+All tests pass (93/97, 4 skipped for version compatibility).
+
 ## Problem Analysis
 
 ### Current Architecture (Broken)

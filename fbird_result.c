@@ -350,6 +350,8 @@ format_date_time:
                 ZVAL_STRINGL(val, string_data, l);
             }
             break;
+		default:
+			break;
 	} /* switch (type) */
 	return SUCCESS;
 }
@@ -365,7 +367,7 @@ static int _php_fbird_arr_zval(zval *ar_zval, char *data, zend_ulong data_size, 
 		u_bound = ib_array->ar_desc.array_desc_bounds[dim].array_bound_upper,
 		l_bound = ib_array->ar_desc.array_desc_bounds[dim].array_bound_lower,
 		dim_len = 1 + u_bound - l_bound;
-	unsigned short i;
+	int i;
 
 	if (dim < ib_array->ar_desc.array_desc_dimensions) { /* array again */
 		zend_ulong slice_size = data_size / dim_len;

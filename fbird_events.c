@@ -164,7 +164,8 @@ PHP_FUNCTION(fbird_wait_event)
 	int num_args;
 	unsigned char *event_buffer, *result_buffer;
 	char *events[15];
-	unsigned short i = 0, event_count = 0, buffer_size;
+	uint32_t i = 0;
+	unsigned short event_count = 0, buffer_size;
 	ISC_ULONG occurred_event[15];
 
 	RESET_ERRMSG;

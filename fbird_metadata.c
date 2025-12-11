@@ -173,6 +173,8 @@ void _php_fbird_field_info(zval *return_value, fbird_query *ib_query, int is_out
 			case SQL_INT64:
 				precision = 18;
 				break;
+			default:
+				break;
 		}
 		len = slprintf(buf, 16, "NUMERIC(%d,%d)", precision, -var->sqlscale);
 		add_index_stringl(return_value, 4, s, len);
@@ -223,6 +225,9 @@ void _php_fbird_field_info(zval *return_value, fbird_query *ib_query, int is_out
 				 * and array dimensions */
 			case SQL_QUAD:
 				s = "QUAD";
+				break;
+			default:
+				s = "UNKNOWN";
 				break;
 #if FB_API_VER >= 40
 			// These are converted to VARCHAR via isc_dpb_set_bind tag at

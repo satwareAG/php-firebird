@@ -341,9 +341,8 @@ query_loop:
 						RETVAL_STRING(heap_buf);
 						efree(heap_buf);
 						return;
-					} else {
-						RETURN_TRUE;
 					}
+					RETURN_TRUE;
 				}
 				if (!heap_buf || (heap_p - heap_buf + line_len +2) > heap_buf_size) {
 					zend_long res_size = heap_buf ? heap_p - heap_buf : 0;
@@ -389,6 +388,9 @@ query_loop:
 							len = isc_vax_integer(result,2);
 							add_next_index_stringl(return_value, result +2, len);
 							result += len+2;
+							break;
+						default:
+							break;
 					}
 				} while (*result != isc_info_flag_end);
 				return;
@@ -438,6 +440,8 @@ query_loop:
 						case isc_spb_sec_groupid:
 							add_assoc_long(&user, "group_id", isc_vax_integer(result, 4));
 							result += 4;
+							break;
+						default:
 							break;
 					}
 				}

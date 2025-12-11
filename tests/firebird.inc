@@ -51,7 +51,7 @@ function init_db()
 
 	$sql = sprintf("CREATE SCHEMA '%s' USER '%s' PASSWORD '%s' DEFAULT CHARACTER SET %s",
 		$test_base, $user, $password,
-		($charset = ini_get('ibase.default_charset')) ? $charset : 'NONE'
+		($charset = ini_get('fbird.default_charset')) ? $charset : 'NONE'
 	);
 
 	$test_db = fbird_query(FBIRD_CREATE, $sql);

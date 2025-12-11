@@ -538,6 +538,49 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development guidelines inclu
 - `fbird_set_event_handler()` - Register event handler
 - `fbird_free_event_handler()` - Free event handler
 - `fbird_wait_event()` - Wait for event
+- `fbird_poll_event()` - Poll for events with optional timeout
+
+### PHP Event Polling Wrappers (src/Firebird/)
+
+For advanced timeout and non-blocking event handling, PHP wrapper classes are provided:
+
+```php
+<?php
+use Firebird\EventPoller;
+
+$conn = fbird_connect('/path/to/database.fdb', 'SYSDBA', 'masterkey');
+$event = fbird_set_event_handler($conn, function($name) {
+    echo "Event received: $name\n";
+    return true;  // Continue listening
+}, 'MY_EVENT');
+
+// Create poller with auto-detected strategy
+$poller = EventPoller::create($event);
+
+// Or specify strategy explicitly
+$poller = EventPoller::create($event, 'process');  // Most reliable
+$poller->setConnectionDetails('/path/to/database.fdb', 'SYSDBA', 'masterkey', ['MY_EVENT'], $callback);
+
+// Poll with 5 second timeout
+$result = $poller->poll(5000);
+
+if ($result === FBIRD_EVENT_TIMEOUT) {
+    echo "Timeout - no events\n";
+}
+
+$poller->free();
+fbird_close($conn);
+```
+
+**Available Strategies:**
+| Strategy | Constructor | Min Timeout | Requirements |
+|----------|-------------|-------------|--------------|
+| `process` | `ProcessEventPoller` | 10ms | `proc_open()` (most reliable) |
+| `pcntl` | `PcntlEventPoller` | 1000ms | pcntl extension (Unix only) |
+| `fiber` | `FiberEventPoller` | 1ms | amphp/amp ^3.0 |
+| `auto` | Auto-detect | Varies | Best available |
+
+See [EVENT_TIMEOUT_RFC.md](docs/development/EVENT_TIMEOUT_RFC.md) for implementation details.
 
 ## Version Compatibility
 

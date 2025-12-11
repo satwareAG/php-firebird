@@ -13,6 +13,7 @@ This document summarizes the major development phases and milestones of the php-
 | **Phase 4** | Nov 2025 | CI/CD automation, cross-platform validation |
 | **Phase 5** | Nov-Dec 2025 | Performance optimization research |
 | **Extension Rename** | Dec 2025 | Complete rename from interbase→firebird, ibase_→fbird_ |
+| **Event Timeout** | Dec 2025 | Event handling redesign with timeout and PHP wrapper classes |
 
 ## Major Milestones
 
@@ -45,6 +46,34 @@ This document summarizes the major development phases and milestones of the php-
 - Source files: 9 C files renamed
 - Test files: 41 .phpt files renamed
 - Include files: php_interbase.h → php_firebird.h
+
+### Event Timeout Implementation (December 2025)
+
+**Problem Solved:**
+The Firebird client library's `isc_wait_for_event()` blocks indefinitely and is not interruptible by signals on Linux. This made timeout-based event handling impossible at the C level.
+
+**Solution - PHP Wrapper Classes:**
+Implemented a strategy pattern with multiple polling approaches:
+
+1. **ProcessEventPoller** - Process isolation via `proc_open()` (most reliable)
+2. **PcntlEventPoller** - Signal-based timeout using SIGALRM (Unix only)
+3. **FiberEventPoller** - Async integration with AMPHP (requires amphp/amp ^3.0)
+4. **EventPoller** - Factory with auto-detection and strategy selection
+
+**Files Added:**
+- `src/Firebird/EventPollerInterface.php`
+- `src/Firebird/EventPoller.php`
+- `src/Firebird/ProcessEventPoller.php`
+- `src/Firebird/PcntlEventPoller.php`
+- `src/Firebird/FiberEventPoller.php`
+- `tests/event_poller_wrapper.phpt`
+
+**C Extension Changes:**
+- `fbird_poll_event()` now accepts optional `int $timeout_ms` parameter
+- Added `FBIRD_EVENT_TIMEOUT` constant (value: -2)
+- Added `IBASE_EVENT_TIMEOUT` alias for compatibility
+
+See [EVENT_TIMEOUT_RFC.md](development/EVENT_TIMEOUT_RFC.md) for full implementation details.
 
 ## Key Architectural Decisions
 

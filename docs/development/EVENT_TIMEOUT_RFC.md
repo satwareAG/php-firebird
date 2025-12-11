@@ -1,9 +1,53 @@
 # RFC: Event Handling Timeout and Non-Blocking Options
 
-**Status:** PROPOSED  
+**Status:** PARTIALLY IMPLEMENTED  
 **Author:** Michael Wegener  
 **Date:** December 2025  
 **Related:** EVENT_HANDLING_REDESIGN.md
+
+## Implementation Status
+
+### What's Implemented (December 11, 2025)
+
+1. **API Enhancement:**
+   - `fbird_poll_event()` now accepts optional `int $timeout_ms` parameter
+   - `FBIRD_EVENT_TIMEOUT` constant defined (value: -2)
+   - `IBASE_EVENT_TIMEOUT` alias for compatibility
+   - Arginfo updated with proper type hints and default value
+
+2. **Timeout Infrastructure (Unix):**
+   - Signal handler for `SIGALRM` installed
+   - `alarm()` setup/teardown around `isc_wait_for_event()`
+   - Previous alarm state preserved and restored
+
+### Critical Limitation Discovered
+
+**The Firebird client library's `isc_wait_for_event()` is NOT interruptible by signals on Linux.**
+
+Testing revealed that `SIGALRM` does not interrupt the blocking `isc_wait_for_event()` call.
+The Firebird client library likely uses internal mechanisms that either:
+- Restart interrupted system calls automatically
+- Use signal-resistant blocking primitives
+- Handle `EINTR` internally and retry
+
+This means the timeout parameter is currently **non-functional** for actual timeout interruption,
+though the API is fully in place for future alternative implementations.
+
+### Future Implementation Options
+
+To make timeouts functional, one of these approaches would be needed:
+
+1. **Socket access from fbclient:** Get the underlying socket FD and use `select()`/`poll()`
+   before calling `isc_wait_for_event()` (requires fbclient internals or async API)
+
+2. **isc_que_events() approach:** Use the async event API with custom polling loop
+   (more complex but doesn't block)
+
+3. **Process isolation:** Fork a child process for blocking wait, parent monitors with timeout
+   (high overhead but reliable)
+
+4. **Thread-based:** Use pthread with timeout join
+   (complex, thread-safety concerns)
 
 ## Summary
 

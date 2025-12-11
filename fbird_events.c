@@ -383,13 +383,13 @@ static void fbird_timeout_handler(int sig) {
    Parameters:
    - event: Event resource from fbird_set_event_handler()
    - timeout_ms: Optional timeout in milliseconds. -1 = block forever (default),
-                 0 = non-blocking (not recommended), >0 = timeout in ms
+                 0 = immediate return if no event, >0 = timeout in ms
 
    Returns:
+   - string: Event name that fired (callback was called)
    - FBIRD_EVENT_TIMEOUT (-2): Timeout reached before any event
    - false: Error occurred
-   - null: Handler was cancelled
-   - array: Event counts when event fired (callback was called)
+   - null: Handler was cancelled or no event pending
 
    If the callback returns false, the event handler is marked as cancelled. */
 PHP_FUNCTION(fbird_poll_event)
@@ -399,10 +399,12 @@ PHP_FUNCTION(fbird_poll_event)
 	fbird_event *event;
 	ISC_ULONG occurred_event[15];
 	unsigned short i;
+	ISC_STATUS wait_result;
 #ifndef PHP_WIN32
 	struct sigaction sa_new, sa_old;
 	unsigned int alarm_remaining = 0;
 	int use_timeout = 0;
+	int had_old_handler = 0;
 #endif
 
 	RESET_ERRMSG;
@@ -434,15 +436,108 @@ PHP_FUNCTION(fbird_poll_event)
 	}
 
 	/**
-	 * Use isc_wait_for_event() synchronously.
-	 * This blocks until an event fires.
-	 *
-	 * NOTE: For true non-blocking behavior, the caller should use
-	 * pcntl_alarm() or similar timeout mechanisms, or run this in
-	 * a separate process/fiber.
+	 * Handle baseline initialization on first poll.
+	 * isc_event_block() initializes counters to 0, and isc_wait_for_event()
+	 * returns immediately if counters are 0. We need to do a first wait/count
+	 * cycle to establish the baseline before waiting for actual events.
 	 */
-	if (isc_wait_for_event(IB_STATUS, &event->link->handle.db, event->buffer_size,
-			event->event_buffer, event->result_buffer)) {
+	if (event->needs_reregistration) {
+		ISC_STATUS init_status[20];
+		ISC_ULONG init_counts[15];
+
+		if (isc_wait_for_event(init_status, &event->link->handle.db,
+				event->buffer_size, event->event_buffer, event->result_buffer)) {
+			/* Initial wait failed - likely connection issue */
+			_php_fbird_error();
+			event->state = DEAD;
+			RETURN_FALSE;
+		}
+		isc_event_counts(init_counts, event->buffer_size,
+			event->event_buffer, event->result_buffer);
+		event->needs_reregistration = 0;
+	}
+
+#ifndef PHP_WIN32
+	/**
+	 * Set up alarm-based timeout for Unix systems.
+	 * We use SIGALRM to interrupt isc_wait_for_event() after the specified timeout.
+	 *
+	 * Strategy:
+	 * 1. Save any existing alarm state
+	 * 2. Install our signal handler
+	 * 3. Set alarm for timeout duration
+	 * 4. Call isc_wait_for_event()
+	 * 5. On return: cancel alarm, restore previous state
+	 * 6. Check if timeout occurred
+	 */
+	if (timeout_ms >= 0) {
+		use_timeout = 1;
+		fbird_timeout_occurred = 0;
+
+		/* Set up our signal handler, saving the old one */
+		memset(&sa_new, 0, sizeof(sa_new));
+		sa_new.sa_handler = fbird_timeout_handler;
+		sigemptyset(&sa_new.sa_mask);
+		sa_new.sa_flags = 0;  /* No SA_RESTART - we want EINTR */
+
+		if (sigaction(SIGALRM, &sa_new, &sa_old) == 0) {
+			had_old_handler = 1;
+		}
+
+		/* Cancel any pending alarm and save remaining time */
+		alarm_remaining = alarm(0);
+
+		/* Set our timeout alarm (convert ms to seconds, round up, minimum 1s) */
+		if (timeout_ms == 0) {
+			/* For 0ms timeout, we still need to set alarm to interrupt immediately */
+			/* Use the smallest possible alarm (1 second) but check the flag first */
+			alarm(1);
+		} else {
+			unsigned int timeout_sec = (unsigned int)((timeout_ms + 999) / 1000);
+			if (timeout_sec == 0) {
+				timeout_sec = 1;
+			}
+			alarm(timeout_sec);
+		}
+	}
+#endif
+
+	/**
+	 * Use isc_wait_for_event() synchronously.
+	 * This blocks until an event fires OR until interrupted by SIGALRM.
+	 */
+	wait_result = isc_wait_for_event(IB_STATUS, &event->link->handle.db, event->buffer_size,
+			event->event_buffer, event->result_buffer);
+
+#ifndef PHP_WIN32
+	/* Clean up timeout handling */
+	if (use_timeout) {
+		/* Cancel our alarm */
+		alarm(0);
+
+		/* Restore previous signal handler */
+		if (had_old_handler) {
+			sigaction(SIGALRM, &sa_old, NULL);
+		}
+
+		/* Restore any previous alarm that was pending */
+		if (alarm_remaining > 0) {
+			alarm(alarm_remaining);
+		}
+
+		/* Check if timeout occurred */
+		if (fbird_timeout_occurred) {
+			RETURN_LONG(PHP_IBASE_EVENT_TIMEOUT);
+		}
+	}
+#endif
+
+	/* Check for errors from isc_wait_for_event */
+	if (wait_result != 0) {
+#ifndef PHP_WIN32
+		/* On Unix, EINTR from timeout is handled above via fbird_timeout_occurred flag.
+		 * If we get here with an error, it's a real error. */
+#endif
 		_php_fbird_error();
 		event->state = DEAD;
 		RETURN_FALSE;

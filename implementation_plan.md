@@ -1,111 +1,144 @@
 # Implementation Plan
 
 [Overview]
-Add code quality workflow to GitHub Actions and update local act testing to ensure parity between local and CI validation.
+Fix all static analysis warnings and errors to achieve maximum code quality and stability in the PHP Firebird extension.
 
-This implementation addresses a gap identified in the CI pipeline: static analysis (clang-tidy, cppcheck) currently only runs locally via `scripts/host/qa_local.sh` but not in GitHub Actions. By adding a dedicated `code-quality.yml` workflow and updating the act testing script, developers will have consistent code quality validation both locally and in CI.
-
-Key changes:
-1. Create new `.github/workflows/code-quality.yml` workflow for static analysis
-2. Update `scripts/host/test_with_act.sh` to support running the new code-quality job
-3. Update documentation to reflect current job names and new workflow
+This implementation addresses 4 compilation errors in fbird_udf.c, approximately 50 clang-tidy warnings across 10 C source files, 2 cppcheck warnings, and 2 failing unit tests. The issues fall into these categories: macro argument errors, missing switch default cases, readability violations (else-after-return), pointer sign mismatches, uninitialized variable usage, tautological comparisons, and loop variable type narrowing. Fixing these issues ensures the extension compiles cleanly, passes static analysis, and maintains runtime stability.
 
 [Types]
-No new types or data structures are required for this implementation.
+No new types are introduced; changes affect existing C code only.
 
-This is a CI/CD and scripting task that involves YAML workflow files, Bash scripts, and Markdown documentation. No application-level types are affected.
+This plan modifies existing C/C++ code to fix static analysis issues. No new type definitions, interfaces, or data structures are required. The changes involve correcting macro usage, adding defensive code (default cases), refactoring control flow, and fixing type mismatches in existing code.
 
 [Files]
-Files to be created and modified for GitHub Actions code quality integration.
+Nine C source files require modifications to address all identified issues.
 
-**New files to be created:**
-- `.github/workflows/code-quality.yml` - GitHub Actions workflow for static analysis (clang-tidy, cppcheck)
+**Files to be modified:**
 
-**Existing files to be modified:**
-- `scripts/host/test_with_act.sh` - Add support for `--quality` flag to run code-quality job
-- `docs/development/LOCAL_GITHUB_ACTIONS_TESTING.md` - Update outdated job names and add code-quality documentation
+1. **fbird_udf.c** - CRITICAL: 4 compilation errors + multiple warnings
+   - Fix ZVAL_STRINGL macro argument count (lines 277, 282)
+   - Fix pointer sign conversions (lines 157, 235)
+   - Fix implicit conversion constant (line 157)
+   - Fix switch-bool warning (line 161)
+   - Add missing switch default cases (lines 217, 304)
 
-**Files to remain unchanged:**
-- `.github/workflows/main.yml` - Already correct with `linux-matrix-build` job
-- `.github/workflows/coverage.yml` - Already correct for code coverage
-- `scripts/host/qa_local.sh` - Reference implementation for static analysis steps
-- `scripts/container/analysis/clang_tidy.sh` - Container-based clang-tidy (reference)
-- `scripts/container/analysis/cppcheck.sh` - Container-based cppcheck (reference)
+2. **fbird_blobs.c** - 4 warnings
+   - Remove else-after-return (lines 201, 218)
+   - Fix bugprone-casting-through-void (line 217)
+   - Add missing switch default case (line 315)
+
+3. **fbird_events.c** - 3 warnings  
+   - Fix pointer sign conversions for isc_free calls (lines 67, 70)
+   - Fix loop variable type narrowing (line 202)
+
+4. **fbird_metadata.c** - 12 warnings
+   - Fix address-of-array always-true warnings (lines 128, 138, 143, 378, 380, 408, 410)
+   - Remove nested conditional operators (lines 380, 410)
+   - Add missing switch default cases (lines 161, 181)
+   - Remove else-after-continue (line 421)
+   - Remove else-after-return (line 496)
+
+5. **fbird_query_exec.c** - 18+ warnings (highest count)
+   - Fix tautological-constant-out-of-range-compare (lines 130, 152)
+   - Add missing switch default cases (lines 356, 364, 397, 417, 1084)
+   - Remove extraneous parentheses (line 490)
+   - Remove redundant casting (line 565)
+   - Fix address-of-array warnings (lines 786, 791)
+   - Fix uninitialized value issues (lines 1040, 1046, 1063)
+   - Fix loop variable type narrowing (line 1043)
+   - Remove else-after-return (line 1666)
+   - Remove else-after-break (line 1980)
+
+6. **fbird_result.c** - 2 warnings
+   - Add missing switch default case (line 130)
+   - Fix loop variable type narrowing (line 375)
+
+7. **fbird_service.c** - 3 warnings
+   - Remove else-after-return (line 344)
+   - Add missing switch default cases (lines 375, 402)
+
+8. **tests/fbird_connect_dpb_001.phpt** - Test fix needed (review expected output)
+
+9. **tests/fbird_field_info_004.phpt** - Test fix needed (review expected output)
 
 [Functions]
-Shell functions to be added and modified.
+Multiple functions require internal modifications to fix control flow and type handling issues.
 
-**New functions in `scripts/host/test_with_act.sh`:**
-- `run_code_quality()` - Execute code-quality workflow via act
-- Updated `usage()` - Add documentation for new `--quality` flag
+**Functions to be modified:**
 
-**Modified functions in `scripts/host/test_with_act.sh`:**
-- `run_act_matrix()` - No changes (already correct)
-- Main argument parsing block - Add `--quality` flag handling
+1. **fbird_udf.c::exec_php()** - Fix switch-bool, constant conversion, pointer sign
+2. **fbird_udf.c::call_php()** - Fix ZVAL_STRINGL calls, add switch default cases
+
+3. **fbird_blobs.c::_php_fbird_str_to_quad()** - Remove else-after-return  
+4. **fbird_blobs.c::_php_fbird_quad_to_string()** - Fix casting-through-void, remove else-after-return
+5. **fbird_blobs.c::PHP_FUNCTION(fbird_blob_info)** - Add switch default case
+
+6. **fbird_events.c::_php_fbird_free_event()** - Fix pointer sign for isc_free
+7. **fbird_events.c::PHP_FUNCTION(fbird_set_event_handler)** - Fix loop variable type
+
+8. **fbird_metadata.c::_php_fbird_build_field_info()** - Fix array address warnings, add defaults
+9. **fbird_metadata.c::_php_fbird_build_aliases()** - Fix nested conditionals, else-after-continue
+10. **fbird_metadata.c::_php_fbird_infer_returning_prefix()** - Remove else-after-return
+
+11. **fbird_query_exec.c::_php_fbird_bind_zval()** - Fix tautological comparisons, switch defaults
+12. **fbird_query_exec.c::_php_fbird_bind_array()** - Fix uninitialized values, loop types, switches
+13. **fbird_query_exec.c::_php_fbird_exec_query()** - Remove else-after-return
+14. **fbird_query_exec.c::PHP_FUNCTION(fbird_execute_statement)** - Remove else-after-break
+
+15. **fbird_result.c::_php_fbird_fetch_hash()** - Add switch default, fix loop type
+
+16. **fbird_service.c::PHP_FUNCTION(fbird_server_info)** - Remove else-after-return, add defaults
 
 [Classes]
-No classes are involved in this implementation.
+No classes are modified; this is a C extension without class definitions.
 
-This is purely a CI/CD and scripting task with no object-oriented code changes.
+The PHP Firebird extension is written in C and does not define PHP classes in the modified files. All changes are to C functions and control structures.
 
 [Dependencies]
-System dependencies required for the code-quality workflow.
+No dependency changes are required.
 
-**GitHub Actions runner dependencies (installed in workflow):**
-- `bear` - Build wrapper for generating compile_commands.json
-- `clang-tools` / `clang-tidy` - Static analysis for C/C++
-- `cppcheck` - Static analysis for C/C++
-- `libxml2-utils` - For XML parsing (xmllint)
-- Standard PHP build dependencies (already in main.yml)
-
-**Local testing dependencies:**
-- `act` - GitHub Actions local runner (already documented as required)
-- Docker - Container runtime (already required)
-
-**No new package.json or composer.json dependencies required.**
+All fixes are code-level changes to existing C source files. No new libraries, packages, or build system modifications are needed.
 
 [Testing]
-Validation approach for the implementation.
+Fix 2 failing tests and verify all 99 tests pass after changes.
 
-**Manual testing steps:**
-1. Run `scripts/host/test_with_act.sh --quality` to verify code-quality workflow runs locally
-2. Run `scripts/host/test_with_act.sh --php 8.4 --fb 5.0` to verify matrix builds still work
-3. Push branch to GitHub and verify code-quality workflow triggers and passes
-4. Verify clang-tidy and cppcheck output matches local `qa_local.sh` output
+**Test modifications:**
+1. **tests/fbird_connect_dpb_001.phpt** - Review and update expected output to match actual behavior
+2. **tests/fbird_field_info_004.phpt** - Review UTF8 field handling expected output
 
-**Validation criteria:**
-- Code-quality workflow completes successfully on Ubuntu runner
-- Static analysis detects same issues as local `qa_local.sh`
-- Exit codes properly propagate (failure blocks PR merge)
-- Documentation accurately describes all commands and options
-
-**No automated tests to add** - This is infrastructure/CI configuration.
+**Verification strategy:**
+1. Run full QA suite: `scripts/host/qa_full.sh`
+2. Verify clang-tidy reports 0 errors (currently 4 errors)
+3. Verify clang-tidy warnings reduced significantly (currently ~50 in user code)
+4. Verify cppcheck reports 0 warnings (currently 2)
+5. Verify all 99 unit tests pass (currently 93/95 pass, 2 fail, 4 skip)
+6. Run extension build without compiler warnings
 
 [Implementation Order]
-Ordered steps to implement changes with minimal risk.
+Execute fixes in dependency order, starting with critical errors that block compilation.
 
-1. **Create `.github/workflows/code-quality.yml`**
-   - Model after `scripts/container/analysis/clang_tidy.sh` and `cppcheck.sh`
-   - Use PHP 8.4 / Firebird 5.0 as fixed matrix (single configuration)
-   - Include bear for compilation database generation
-   - Add clang-tidy and cppcheck steps
+1. **Fix fbird_udf.c ZVAL_STRINGL errors (CRITICAL)** - Lines 277, 282 have extra argument
+   - Change `ZVAL_STRINGL(&args[i], d, strftime(...), 1)` to `ZVAL_STRINGL(&args[i], d, strftime(...))`
 
-2. **Test code-quality.yml locally with act**
-   - Run `act -W .github/workflows/code-quality.yml -j code-quality --rm`
-   - Verify successful completion
-   - Debug any issues before updating scripts
+2. **Fix fbird_udf.c remaining issues** - Pointer sign, switch-bool, defaults
 
-3. **Update `scripts/host/test_with_act.sh`**
-   - Add `--quality` flag to run code-quality job
-   - Add `run_code_quality()` function
-   - Update usage documentation
+3. **Fix fbird_query_exec.c uninitialized value issues** - Critical for runtime stability
+   - Initialize `val` pointer properly before use in _php_fbird_bind_array
 
-4. **Update `docs/development/LOCAL_GITHUB_ACTIONS_TESTING.md`**
-   - Replace `linux-comprehensive-build` with `linux-matrix-build`
-   - Add section for code-quality workflow
-   - Update quick commands section
+4. **Fix fbird_query_exec.c other issues** - Tautological comparisons, switch defaults, else-after-*
 
-5. **Final validation**
-   - Run `scripts/host/test_with_act.sh --quality`
-   - Run `scripts/host/test_with_act.sh --php 8.3 --fb 4.0`
-   - Push to GitHub and verify workflows run correctly
+5. **Fix fbird_blobs.c issues** - else-after-return, casting-through-void, switch default
+
+6. **Fix fbird_events.c issues** - Pointer sign conversions, loop variable type
+
+7. **Fix fbird_metadata.c issues** - Array address warnings, nested conditionals, control flow
+
+8. **Fix fbird_result.c issues** - Switch default, loop variable type
+
+9. **Fix fbird_service.c issues** - else-after-return, switch defaults
+
+10. **Review and fix failing tests** - Investigate actual vs expected output differences
+
+11. **Run full QA verification** - Ensure all issues resolved
+
+12. **Final cleanup and documentation** - Update any affected documentation

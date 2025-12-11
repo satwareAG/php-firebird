@@ -150,11 +150,11 @@ static void __attribute__((destructor)) fini()
 void exec_php(BLOBCALLBACK b, PARAMDSC *res, ISC_SHORT *init)
 {
 	int result, remaining = b->blob_total_length, i = 0;
-	char *code = pemalloc(remaining+1, 1);
+	char *code = pemalloc((size_t)remaining+1, 1);
 	ISC_USHORT read;
 
 	for (code[remaining] = '\0'; remaining > 0; remaining -= read)
-		b->blob_get_segment(b->blob_handle, &code[i++<<16],min(0x10000,remaining), &read);
+		b->blob_get_segment(b->blob_handle, (ISC_UCHAR*)&code[i++<<16],min(0x10000,remaining), &read);
 
 	LOCK();
 
@@ -274,17 +274,21 @@ static void call_php(char *name, PARAMDSC *r, int argc, PARAMDSC **argv)
 
 				case dtype_sql_date:
 					isc_decode_sql_date((ISC_DATE*)argv[i]->dsc_address, &t);
-					ZVAL_STRINGL(&args[i], d, strftime(d, sizeof(d), INI_STR("fbird.dateformat"), &t),1);
+					ZVAL_STRINGL(&args[i], d, strftime(d, sizeof(d), INI_STR("fbird.dateformat"), &t));
 					break;
 
 				case dtype_sql_time:
 					isc_decode_sql_time((ISC_TIME*)argv[i]->dsc_address, &t);
-					ZVAL_STRINGL(&args[i], d, strftime(d, sizeof(d), INI_STR("fbird.timeformat"), &t),1);
+					ZVAL_STRINGL(&args[i], d, strftime(d, sizeof(d), INI_STR("fbird.timeformat"), &t));
 					break;
 
 				case dtype_timestamp:
 					isc_decode_timestamp((ISC_TIMESTAMP*)argv[i]->dsc_address, &t);
 					ZVAL_STRINGL(&args[i], d, strftime(d, sizeof(d), INI_STR("fbird.timestampformat"), &t));
+					break;
+
+				default:
+					ZVAL_NULL(&args[i]);
 					break;
 			}
 		}
@@ -306,6 +310,9 @@ static void call_php(char *name, PARAMDSC *r, int argc, PARAMDSC **argv)
 				case dtype_sql_time:
 				case dtype_timestamp:
 					zval_ptr_dtor_nogc(&args[i]);
+					break;
+				default:
+					break;
 			}
 		}
 

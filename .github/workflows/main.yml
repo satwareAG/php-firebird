@@ -79,6 +79,9 @@ jobs:
 
           rm -rf /var/lib/apt/lists/*
 
+          # Install pcntl extension (required for EventPoller tests)
+          docker-php-ext-install pcntl
+
       - name: Install Firebird server via IBSurgeon script
         env:
           # Map matrix.firebird-version to firebirdlinuxinstall script suffix.

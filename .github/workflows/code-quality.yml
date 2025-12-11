@@ -1,228 +1,217 @@
-name: Code Quality (Static Analysis)
+name: Code Quality
 
 on:
   push:
+    branches: [main, master, 'feature/**']
   pull_request:
+    branches: [main, master]
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  code-quality:
-    name: clang-tidy + cppcheck
+  # ==========================================================================
+  # PHP Static Analysis (PHPStan + PHPCS)
+  # ==========================================================================
+  php-analysis:
+    name: PHP Static Analysis
     runs-on: ubuntu-latest
-
-    # Use PHP 8.4 / Firebird 5.0 as fixed configuration for static analysis
-    container:
-      image: php:8.4-cli-bookworm
-
-    env:
-      ISC_USER: SYSDBA
-      ISC_PASSWORD: masterkey
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install system dependencies (PHP build tools + analysis tools)
-        run: |
-          set -eu
-
-          if (set -o pipefail) 2>/dev/null; then :; fi
-
-          export DEBIAN_FRONTEND=noninteractive
-          for attempt in 1 2 3; do
-            if apt-get update; then
-              break
-            fi
-            echo "apt-get update failed (attempt ${attempt}/3), retrying in 5s..." >&2
-            sleep 5
-          done
-
-          apt-get install -y --no-install-recommends \
-            autoconf \
-            build-essential \
-            ca-certificates \
-            g++ \
-            git \
-            libicu-dev \
-            libreadline-dev \
-            libssl-dev \
-            libtool \
-            netbase \
-            netcat-openbsd \
-            pkg-config \
-            wget \
-            curl \
-            unzip \
-            bison \
-            flex \
-            cmake \
-            jq \
-            python3 \
-            zlib1g-dev \
-            bear \
-            clang-tidy \
-            clang-tools \
-            cppcheck \
-            libxml2-utils
-
-          rm -rf /var/lib/apt/lists/*
-
-      - name: Install Firebird server via IBSurgeon script
-        run: |
-          set -eu
-
-          if (set -o pipefail) 2>/dev/null; then :; fi
-
-          FB_SCRIPT_URL="https://raw.githubusercontent.com/IBSurgeon/firebirdlinuxinstall/refs/heads/main/fb_vanilla-50.sh"
-
-          echo "Downloading Firebird install script from ${FB_SCRIPT_URL}"
-          curl -fsSL "${FB_SCRIPT_URL}" -o /tmp/fb_install.sh
-          chmod +x /tmp/fb_install.sh
-
-          printf '\n' | /tmp/fb_install.sh
-
-          if ! nc -z 127.0.0.1 3050; then
-            if [ -x /etc/init.d/firebird ]; then
-              echo "Attempting to start Firebird via /etc/init.d/firebird ..."
-              /etc/init.d/firebird restart || /etc/init.d/firebird start || true
-            elif command -v service >/dev/null 2>&1; then
-              echo "Attempting to start Firebird via service firebird ..."
-              service firebird restart || service firebird start || true
-            fi
-          fi
-
-          if ! nc -z 127.0.0.1 3050; then
-            echo "Attempting to start Firebird via fbguard/fbserver binaries ..."
-            if [ -x /opt/firebird/bin/fbguard ]; then
-              /opt/firebird/bin/fbguard -daemon || true
-            elif [ -x /opt/firebird/bin/fbserver ]; then
-              /opt/firebird/bin/fbserver -daemon || true
-            fi
-          fi
-
-          for i in $(seq 1 60); do
-            if nc -z 127.0.0.1 3050; then
-              echo "Firebird is ready on localhost:3050"
-              break
-            fi
-            echo "Waiting for Firebird to start (attempt ${i}/60)..."
-            sleep 1
-          done
-
-          if ! nc -z 127.0.0.1 3050; then
-            echo "ERROR: Firebird did not start on localhost:3050" >&2
-            exit 1
-          fi
-
-      - name: Build PHP extension and generate compile_commands.json
-        env:
-          FB_CONFIG: "no"
-        run: |
-          set -eu
-
-          if (set -o pipefail) 2>/dev/null; then :; fi
-
-          export PATH="/opt/firebird/bin:${PATH}"
-          export LD_LIBRARY_PATH="/opt/firebird/lib:${LD_LIBRARY_PATH:-}"
-          export CFLAGS="-I/opt/firebird/include ${CFLAGS:-}"
-          export LDFLAGS="-L/opt/firebird/lib ${LDFLAGS:-}"
-
-          php -v
-          phpize
-          ./configure --with-interbase=/opt/firebird
-
-          # Generate compile_commands.json using bear
-          echo "Generating compilation database with bear..."
-          bear -- make -j"$(nproc)"
-
-          # Verify compile_commands.json was generated
-          if [ -f compile_commands.json ]; then
-            echo "✅ compile_commands.json generated successfully"
-            cat compile_commands.json | head -50
-          else
-            echo "⚠️ compile_commands.json not found, static analysis may be less accurate"
-          fi
-
-      - name: Run clang-tidy analysis
-        run: |
-          set -eu
-
-          echo "Running clang-tidy analysis..."
-
-          # Run clang-tidy on relevant source files
-          clang-tidy firebird_utils.cpp \
-              interbase.c \
-              ibase_query_exec.c \
-              ibase_result.c \
-              ibase_metadata.c \
-              ibase_service.c \
-              ibase_events.c \
-              ibase_blobs.c \
-              --config-file=.clang-tidy \
-              --header-filter='.*' \
-              --format-style=file || true
-
-          # Check for blocking errors (warnings are allowed)
-          echo "✅ clang-tidy analysis completed"
-
-      - name: Run cppcheck analysis
-        run: |
-          set -eu
-
-          echo "Running Cppcheck static analysis..."
-
-          # Common cppcheck flags
-          CPPCHECK_FLAGS="--std=c++17 --enable=all --inconclusive --inline-suppr"
-          # Suppress PHP macro false positives (ZEND_BEGIN_ARG_INFO_EX triggers missingReturn)
-          CPPCHECK_FLAGS="$CPPCHECK_FLAGS --suppress=missingReturn"
-          # Suppress false positive uninitialized variable warnings in PHP argument parsing
-          # These variables are initialized by ZEND_PARSE_PARAMETERS macros
-          CPPCHECK_FLAGS="$CPPCHECK_FLAGS --suppress=legacyUninitvar:ibase_query_exec.c"
-          # Exclude external Firebird library files
-          CPPCHECK_FLAGS="$CPPCHECK_FLAGS --suppress=*:/opt/firebird/*"
-          CPPCHECK_FLAGS="$CPPCHECK_FLAGS --suppress=*:/usr/local/include/*"
-          CPPCHECK_FLAGS="$CPPCHECK_FLAGS --xml --xml-version=2 --output-file=cppcheck-report.xml"
-
-          if [ -f compile_commands.json ]; then
-            cppcheck --project=compile_commands.json \
-                     $CPPCHECK_FLAGS
-          else
-            cppcheck firebird_utils.cpp interbase.c ibase_query_exec.c ibase_result.c ibase_metadata.c ibase_service.c ibase_events.c ibase_blobs.c \
-                     $CPPCHECK_FLAGS \
-                     -I. -I/usr/include/php -I/opt/firebird/include
-          fi
-
-          # Parse results
-          if command -v xmllint &> /dev/null; then
-            ERRORS=$(xmllint --xpath 'count(//error[@severity="error"])' cppcheck-report.xml 2>/dev/null || echo 0)
-            WARNINGS=$(xmllint --xpath 'count(//error[@severity="warning"])' cppcheck-report.xml 2>/dev/null || echo 0)
-          else
-            ERRORS=$(grep -c 'severity="error"' cppcheck-report.xml || echo 0)
-            WARNINGS=$(grep -c 'severity="warning"' cppcheck-report.xml || echo 0)
-          fi
-
-          echo "Cppcheck results: $ERRORS errors, $WARNINGS warnings"
-
-          # Block on errors, allow warnings
-          if [ "$ERRORS" -gt 0 ]; then
-            echo "❌ Cppcheck found $ERRORS errors"
-            if command -v xmllint &> /dev/null; then
-              xmllint --xpath '//error[@severity="error"]' cppcheck-report.xml || cat cppcheck-report.xml
-            else
-              cat cppcheck-report.xml
-            fi
-            exit 1
-          fi
-
-          if [ "$WARNINGS" -gt 0 ]; then
-            echo "⚠️ Cppcheck found $WARNINGS warnings (review recommended)"
-          fi
-
-          echo "✅ Cppcheck analysis completed"
-
-      - name: Upload cppcheck report
-        uses: actions/upload-artifact@v4
-        if: always()
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
         with:
-          name: cppcheck-report
-          path: cppcheck-report.xml
-          retention-days: 7
+          php-version: '8.3'
+          tools: composer:v2
+          coverage: none
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock', '**/composer.json') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-progress --no-suggest
+
+      - name: Run PHPStan
+        run: vendor/bin/phpstan analyse --error-format=github
+
+      - name: Run PHPCS
+        run: vendor/bin/phpcs --report=checkstyle src/ | cs2pr || vendor/bin/phpcs src/
+
+  # ==========================================================================
+  # C/C++ Static Analysis (clang-tidy + cppcheck)
+  # ==========================================================================
+  c-analysis:
+    name: C/C++ Static Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install analysis tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang-tidy \
+            cppcheck \
+            bear \
+            php-dev \
+            libfbclient2 \
+            firebird-dev || true
+
+      - name: Generate compile_commands.json
+        run: |
+          # Create a minimal compile_commands.json for static analysis
+          # This allows analysis without full Firebird installation
+          cat > compile_commands.json << 'EOF'
+          [
+            {
+              "directory": "${{ github.workspace }}",
+              "command": "gcc -I/usr/include/php/20230831 -I/usr/include/firebird -DHAVE_CONFIG_H -c firebird.c -o firebird.o",
+              "file": "firebird.c"
+            },
+            {
+              "directory": "${{ github.workspace }}",
+              "command": "gcc -I/usr/include/php/20230831 -I/usr/include/firebird -DHAVE_CONFIG_H -c fbird_blobs.c -o fbird_blobs.o",
+              "file": "fbird_blobs.c"
+            },
+            {
+              "directory": "${{ github.workspace }}",
+              "command": "gcc -I/usr/include/php/20230831 -I/usr/include/firebird -DHAVE_CONFIG_H -c fbird_events.c -o fbird_events.o",
+              "file": "fbird_events.c"
+            },
+            {
+              "directory": "${{ github.workspace }}",
+              "command": "gcc -I/usr/include/php/20230831 -I/usr/include/firebird -DHAVE_CONFIG_H -c fbird_inspection.c -o fbird_inspection.o",
+              "file": "fbird_inspection.c"
+            },
+            {
+              "directory": "${{ github.workspace }}",
+              "command": "gcc -I/usr/include/php/20230831 -I/usr/include/firebird -DHAVE_CONFIG_H -c fbird_metadata.c -o fbird_metadata.o",
+              "file": "fbird_metadata.c"
+            },
+            {
+              "directory": "${{ github.workspace }}",
+              "command": "gcc -I/usr/include/php/20230831 -I/usr/include/firebird -DHAVE_CONFIG_H -c fbird_query.c -o fbird_query.o",
+              "file": "fbird_query.c"
+            },
+            {
+              "directory": "${{ github.workspace }}",
+              "command": "gcc -I/usr/include/php/20230831 -I/usr/include/firebird -DHAVE_CONFIG_H -c fbird_query_exec.c -o fbird_query_exec.o",
+              "file": "fbird_query_exec.c"
+            },
+            {
+              "directory": "${{ github.workspace }}",
+              "command": "gcc -I/usr/include/php/20230831 -I/usr/include/firebird -DHAVE_CONFIG_H -c fbird_result.c -o fbird_result.o",
+              "file": "fbird_result.c"
+            },
+            {
+              "directory": "${{ github.workspace }}",
+              "command": "gcc -I/usr/include/php/20230831 -I/usr/include/firebird -DHAVE_CONFIG_H -c fbird_service.c -o fbird_service.o",
+              "file": "fbird_service.c"
+            },
+            {
+              "directory": "${{ github.workspace }}",
+              "command": "gcc -I/usr/include/php/20230831 -I/usr/include/firebird -DHAVE_CONFIG_H -c fbird_udf.c -o fbird_udf.o",
+              "file": "fbird_udf.c"
+            },
+            {
+              "directory": "${{ github.workspace }}",
+              "command": "g++ -I/usr/include/php/20230831 -I/usr/include/firebird -DHAVE_CONFIG_H -std=c++17 -c firebird_utils.cpp -o firebird_utils.o",
+              "file": "firebird_utils.cpp"
+            }
+          ]
+          EOF
+
+      - name: Run cppcheck
+        run: |
+          cppcheck \
+            --enable=warning,style,performance,portability \
+            --suppress=missingIncludeSystem \
+            --suppress=missingInclude \
+            --error-exitcode=0 \
+            --inline-suppr \
+            --xml \
+            --xml-version=2 \
+            *.c *.cpp 2>&1 | tee cppcheck-report.xml
+
+          # Check for errors (exit code 0 = no errors)
+          cppcheck \
+            --enable=warning,performance,portability \
+            --suppress=missingIncludeSystem \
+            --suppress=missingInclude \
+            --error-exitcode=1 \
+            --inline-suppr \
+            *.c *.cpp
+
+      - name: Run clang-tidy (informational)
+        continue-on-error: true
+        run: |
+          # Run clang-tidy on C files (informational, not blocking)
+          for file in *.c *.cpp; do
+            if [ -f "$file" ]; then
+              echo "Analyzing $file..."
+              clang-tidy "$file" \
+                --checks='-*,bugprone-*,cert-*,clang-analyzer-*,performance-*' \
+                --header-filter='.*\.h$' \
+                -- -I/usr/include/php/20230831 -I/usr/include/firebird 2>/dev/null || true
+            fi
+          done
+
+  # ==========================================================================
+  # Secret Detection (Gitleaks)
+  # ==========================================================================
+  secrets-scan:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
+  # ==========================================================================
+  # Quality Summary
+  # ==========================================================================
+  quality-summary:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    needs: [php-analysis, c-analysis, secrets-scan]
+    if: always()
+
+    steps:
+      - name: Check job results
+        run: |
+          echo "PHP Analysis: ${{ needs.php-analysis.result }}"
+          echo "C/C++ Analysis: ${{ needs.c-analysis.result }}"
+          echo "Secrets Scan: ${{ needs.secrets-scan.result }}"
+
+          if [ "${{ needs.php-analysis.result }}" = "failure" ] || \
+             [ "${{ needs.c-analysis.result }}" = "failure" ] || \
+             [ "${{ needs.secrets-scan.result }}" = "failure" ]; then
+            echo "❌ Quality gate failed"
+            exit 1
+          fi
+
+          echo "✅ All quality checks passed"

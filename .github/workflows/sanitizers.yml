@@ -1,0 +1,322 @@
+name: Memory Sanitizers
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  # Manual trigger for debugging
+  workflow_dispatch:
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==========================================================================
+  # AddressSanitizer + UndefinedBehaviorSanitizer Build
+  # Detects: Buffer overflows, use-after-free, undefined behavior
+  # ==========================================================================
+  asan-ubsan:
+    name: ASan + UBSan (PHP ${{ matrix.php-version }})
+    runs-on: ubuntu-latest
+    container:
+      image: php:${{ matrix.php-version }}-cli-bookworm
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ['8.3']
+
+    env:
+      ISC_USER: SYSDBA
+      ISC_PASSWORD: masterkey
+      # ASan/UBSan runtime options
+      ASAN_OPTIONS: "detect_leaks=1:abort_on_error=1:halt_on_error=0:print_stats=1:verbosity=1"
+      UBSAN_OPTIONS: "print_stacktrace=1:halt_on_error=0"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          set -eu
+          export DEBIAN_FRONTEND=noninteractive
+
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            autoconf \
+            build-essential \
+            ca-certificates \
+            clang \
+            g++ \
+            git \
+            libicu-dev \
+            libreadline-dev \
+            libssl-dev \
+            libtool \
+            llvm \
+            netbase \
+            netcat-openbsd \
+            pkg-config \
+            wget \
+            curl \
+            unzip \
+            zlib1g-dev
+
+          rm -rf /var/lib/apt/lists/*
+
+          # Install pcntl extension
+          docker-php-ext-install pcntl
+
+      - name: Install Firebird server
+        run: |
+          set -eu
+
+          FB_SCRIPT_URL="https://raw.githubusercontent.com/IBSurgeon/firebirdlinuxinstall/refs/heads/main/fb_vanilla-50.sh"
+          curl -fsSL "${FB_SCRIPT_URL}" -o /tmp/fb_install.sh
+          chmod +x /tmp/fb_install.sh
+          printf '\n' | /tmp/fb_install.sh
+
+          # Start Firebird
+          if [ -x /etc/init.d/firebird ]; then
+            /etc/init.d/firebird restart || /etc/init.d/firebird start || true
+          fi
+
+          if ! nc -z 127.0.0.1 3050; then
+            if [ -x /opt/firebird/bin/fbguard ]; then
+              /opt/firebird/bin/fbguard -daemon || true
+            fi
+          fi
+
+          # Wait for Firebird
+          for i in $(seq 1 30); do
+            if nc -z 127.0.0.1 3050; then
+              echo "Firebird is ready"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Build extension with AddressSanitizer + UBSan
+        env:
+          FB_CONFIG: "no"
+          CC: clang
+          CXX: clang++
+        run: |
+          set -eu
+
+          export PATH="/opt/firebird/bin:${PATH}"
+          export LD_LIBRARY_PATH="/opt/firebird/lib:${LD_LIBRARY_PATH:-}"
+
+          # Sanitizer flags
+          SANITIZE_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g -O1"
+
+          export CFLAGS="-I/opt/firebird/include ${SANITIZE_FLAGS}"
+          export CXXFLAGS="-I/opt/firebird/include ${SANITIZE_FLAGS}"
+          export LDFLAGS="-L/opt/firebird/lib -fsanitize=address,undefined"
+
+          phpize
+          ./configure --with-firebird=/opt/firebird
+          make -j"$(nproc)"
+
+          echo "Extension built with ASan + UBSan"
+
+      - name: Run tests with sanitizers
+        env:
+          FIREBIRD_HOST: "localhost"
+          NO_INTERACTION: 1
+          REPORT_EXIT_STATUS: 1
+          TEST_PHP_EXECUTABLE: php
+        run: |
+          set -eu
+
+          echo "=== Running tests with AddressSanitizer + UBSan ==="
+
+          # Run tests, capture output for analysis
+          make test 2>&1 | tee sanitizer_output.txt || true
+
+          # Check for sanitizer errors
+          if grep -qE "ERROR: (Address|Leak|UndefinedBehavior)Sanitizer" sanitizer_output.txt; then
+            echo "❌ Sanitizer detected issues!"
+            echo "::group::Sanitizer Errors"
+            grep -A 20 "ERROR: " sanitizer_output.txt || true
+            echo "::endgroup::"
+            exit 1
+          fi
+
+          # Check for SUMMARY lines (indicates issues found)
+          if grep -q "SUMMARY: " sanitizer_output.txt; then
+            echo "::group::Sanitizer Summary"
+            grep "SUMMARY: " sanitizer_output.txt
+            echo "::endgroup::"
+          fi
+
+          echo "✅ No sanitizer errors detected"
+
+  # ==========================================================================
+  # LeakSanitizer-only Build (Standalone memory leak detection)
+  # ==========================================================================
+  lsan:
+    name: LeakSanitizer (PHP 8.3)
+    runs-on: ubuntu-latest
+    container:
+      image: php:8.3-cli-bookworm
+
+    env:
+      ISC_USER: SYSDBA
+      ISC_PASSWORD: masterkey
+      LSAN_OPTIONS: "suppressions=lsan.supp:print_suppressions=0:verbosity=1"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          set -eu
+          export DEBIAN_FRONTEND=noninteractive
+
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            autoconf \
+            build-essential \
+            ca-certificates \
+            clang \
+            g++ \
+            git \
+            libicu-dev \
+            libreadline-dev \
+            libssl-dev \
+            libtool \
+            llvm \
+            netbase \
+            netcat-openbsd \
+            pkg-config \
+            wget \
+            curl \
+            unzip \
+            zlib1g-dev
+
+          rm -rf /var/lib/apt/lists/*
+          docker-php-ext-install pcntl
+
+      - name: Install Firebird server
+        run: |
+          set -eu
+
+          FB_SCRIPT_URL="https://raw.githubusercontent.com/IBSurgeon/firebirdlinuxinstall/refs/heads/main/fb_vanilla-50.sh"
+          curl -fsSL "${FB_SCRIPT_URL}" -o /tmp/fb_install.sh
+          chmod +x /tmp/fb_install.sh
+          printf '\n' | /tmp/fb_install.sh
+
+          if [ -x /etc/init.d/firebird ]; then
+            /etc/init.d/firebird restart || /etc/init.d/firebird start || true
+          fi
+
+          if ! nc -z 127.0.0.1 3050; then
+            if [ -x /opt/firebird/bin/fbguard ]; then
+              /opt/firebird/bin/fbguard -daemon || true
+            fi
+          fi
+
+          for i in $(seq 1 30); do
+            if nc -z 127.0.0.1 3050; then
+              echo "Firebird is ready"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Create LSan suppressions file
+        run: |
+          # Known leak patterns in PHP/Firebird internals (not our code)
+          cat > lsan.supp << 'EOF'
+          # PHP internal allocations
+          leak:zend_
+          leak:php_
+          leak:_emalloc
+          leak:_erealloc
+
+          # Firebird client library
+          leak:fb_client
+          leak:isc_
+          leak:ib_util
+
+          # ICU library
+          leak:libicuuc
+          leak:libicui18n
+          EOF
+
+      - name: Build extension with LeakSanitizer
+        env:
+          FB_CONFIG: "no"
+          CC: clang
+          CXX: clang++
+        run: |
+          set -eu
+
+          export PATH="/opt/firebird/bin:${PATH}"
+          export LD_LIBRARY_PATH="/opt/firebird/lib:${LD_LIBRARY_PATH:-}"
+
+          SANITIZE_FLAGS="-fsanitize=leak -fno-omit-frame-pointer -g -O1"
+
+          export CFLAGS="-I/opt/firebird/include ${SANITIZE_FLAGS}"
+          export CXXFLAGS="-I/opt/firebird/include ${SANITIZE_FLAGS}"
+          export LDFLAGS="-L/opt/firebird/lib -fsanitize=leak"
+
+          phpize
+          ./configure --with-firebird=/opt/firebird
+          make -j"$(nproc)"
+
+      - name: Run tests with LeakSanitizer
+        env:
+          FIREBIRD_HOST: "localhost"
+          NO_INTERACTION: 1
+          REPORT_EXIT_STATUS: 1
+          TEST_PHP_EXECUTABLE: php
+        run: |
+          set -eu
+
+          echo "=== Running tests with LeakSanitizer ==="
+
+          make test 2>&1 | tee lsan_output.txt || true
+
+          # Check for direct leaks (ignoring suppressed patterns)
+          if grep -q "Direct leak" lsan_output.txt; then
+            echo "::warning::Memory leaks detected (check if in extension code)"
+            echo "::group::Leak Details"
+            grep -A 10 "Direct leak" lsan_output.txt | head -50
+            echo "::endgroup::"
+          fi
+
+          echo "✅ LeakSanitizer check complete"
+
+  # ==========================================================================
+  # Summary Job
+  # ==========================================================================
+  sanitizer-summary:
+    name: Sanitizer Summary
+    runs-on: ubuntu-latest
+    needs: [asan-ubsan, lsan]
+    if: always()
+
+    steps:
+      - name: Check sanitizer results
+        run: |
+          echo "ASan + UBSan: ${{ needs.asan-ubsan.result }}"
+          echo "LSan: ${{ needs.lsan.result }}"
+
+          if [ "${{ needs.asan-ubsan.result }}" = "failure" ]; then
+            echo "❌ AddressSanitizer/UBSan detected critical issues"
+            exit 1
+          fi
+
+          if [ "${{ needs.lsan.result }}" = "failure" ]; then
+            echo "⚠️ LeakSanitizer detected issues (review required)"
+            # Don't fail build for leak detection (may be false positives)
+          fi
+
+          echo "✅ Sanitizer checks complete"

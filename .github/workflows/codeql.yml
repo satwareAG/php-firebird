@@ -1,0 +1,141 @@
+name: CodeQL Security Analysis
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    # Run weekly on Sunday at midnight UTC
+    - cron: '0 0 * * 0'
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==========================================================================
+  # CodeQL Analysis for C/C++ (Primary focus - PHP extension code)
+  # ==========================================================================
+  analyze-cpp:
+    name: CodeQL C/C++
+    runs-on: ubuntu-latest
+    container:
+      image: php:8.3-cli-bookworm
+
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          set -eu
+          export DEBIAN_FRONTEND=noninteractive
+
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            autoconf \
+            build-essential \
+            ca-certificates \
+            g++ \
+            git \
+            libicu-dev \
+            libreadline-dev \
+            libssl-dev \
+            libtool \
+            pkg-config \
+            wget \
+            curl \
+            unzip \
+            zlib1g-dev
+
+          rm -rf /var/lib/apt/lists/*
+
+      - name: Install Firebird client libraries
+        run: |
+          set -eu
+
+          # Download and install Firebird 5.0 for client libraries
+          FB_SCRIPT_URL="https://raw.githubusercontent.com/IBSurgeon/firebirdlinuxinstall/refs/heads/main/fb_vanilla-50.sh"
+          curl -fsSL "${FB_SCRIPT_URL}" -o /tmp/fb_install.sh
+          chmod +x /tmp/fb_install.sh
+          printf '\n' | /tmp/fb_install.sh || true
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: cpp
+          # Use security-extended for comprehensive security analysis
+          queries: security-extended
+          # Configure CodeQL to focus on our extension code
+          config: |
+            paths:
+              - '*.c'
+              - '*.cpp'
+              - '*.h'
+            paths-ignore:
+              - 'tests/**'
+              - 'docs/**'
+              - 'build/**'
+
+      - name: Build extension for CodeQL analysis
+        env:
+          FB_CONFIG: "no"
+        run: |
+          set -eu
+
+          export PATH="/opt/firebird/bin:${PATH}"
+          export LD_LIBRARY_PATH="/opt/firebird/lib:${LD_LIBRARY_PATH:-}"
+          export CFLAGS="-I/opt/firebird/include ${CFLAGS:-}"
+          export LDFLAGS="-L/opt/firebird/lib ${LDFLAGS:-}"
+
+          phpize
+          ./configure --with-firebird=/opt/firebird
+          make -j"$(nproc)"
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:cpp"
+
+  # ==========================================================================
+  # CodeQL Analysis for PHP (Wrapper classes)
+  # ==========================================================================
+  analyze-php:
+    name: CodeQL PHP
+    runs-on: ubuntu-latest
+
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: php
+          queries: security-extended
+          config: |
+            paths:
+              - 'src/**'
+            paths-ignore:
+              - 'tests/**'
+              - 'vendor/**'
+
+      - name: Autobuild PHP
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:php"

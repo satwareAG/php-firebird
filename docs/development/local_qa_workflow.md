@@ -227,6 +227,66 @@ The original `qa_local.sh` is still available for simpler checks:
 # mode: 'fast' (default) or 'full'
 ```
 
+## GitHub Actions CI/CD
+
+The project includes comprehensive CI/CD workflows that complement local QA:
+
+### Workflow Overview
+
+| Workflow | File | Triggers | Purpose |
+|----------|------|----------|---------|
+| **Main Build** | `main.yml` | Push, PR, Daily | PHP 8.1-8.5 × Firebird 2.5-5.0 matrix |
+| **Code Coverage** | `coverage.yml` | Push, PR, Daily | lcov coverage (≥55% gate) |
+| **Code Quality** | `code-quality.yml` | Push, PR | PHPStan, PHPCS, cppcheck, Gitleaks |
+| **CodeQL** | `codeql.yml` | Push, PR, Weekly | Security scanning (C++ & PHP) |
+| **Sanitizers** | `sanitizers.yml` | Push, PR | ASan, UBSan, LSan testing |
+
+### Code Quality Workflow
+
+```yaml
+# Three parallel jobs:
+php-analysis:    # PHPStan Level 8 + PHPCS PSR-12
+c-analysis:      # cppcheck (blocking) + clang-tidy (advisory)
+secrets-scan:    # Gitleaks secret detection
+```
+
+### CodeQL Security Scanning
+
+- **C/C++ Analysis**: Builds extension with Firebird, runs CodeQL security queries
+- **PHP Analysis**: Scans `src/` wrapper classes for vulnerabilities
+- **Schedule**: Weekly on Sundays + every PR to main
+
+### Sanitizer CI Jobs
+
+```yaml
+asan-ubsan:  # AddressSanitizer + UndefinedBehaviorSanitizer
+             # Detects: buffer overflows, use-after-free, undefined behavior
+             # BLOCKING: Fails build on errors
+
+lsan:        # LeakSanitizer (standalone)
+             # Detects: Memory leaks
+             # ADVISORY: Warnings only (false positives possible)
+```
+
+### Local vs CI Equivalence
+
+| Local Command | CI Equivalent |
+|---------------|---------------|
+| `./scripts/host/qa_full.sh --php-only` | Code Quality → php-analysis |
+| `./scripts/host/qa_full.sh --mode fast` | Code Quality (all jobs) |
+| `./scripts/host/qa_full.sh --mode full` | Sanitizers workflow |
+| `./scripts/host/qa_full.sh --mode security` | Code Quality + CodeQL |
+
+### Running Workflows Manually
+
+```bash
+# Trigger sanitizers workflow manually (debugging)
+gh workflow run sanitizers.yml
+
+# View workflow status
+gh run list --workflow=code-quality.yml
+```
+
 ## See Also
 
 - [STATIC_ANALYSIS_INTEGRATION.md](STATIC_ANALYSIS_INTEGRATION.md) - Detailed tool configuration

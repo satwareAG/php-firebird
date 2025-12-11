@@ -329,6 +329,8 @@ static int _php_fbird_blob_info(fb_safe_handle bl_handle, IBASE_BLOBINFO *bl_inf
 			case isc_info_error:  /* hmm. don't think so...*/
 				_php_fbird_module_error("PHP module internal error");
 				return FAILURE;
+			default:
+				break;
 		} /* switch */
 		p += item_len;
 	} /* for */

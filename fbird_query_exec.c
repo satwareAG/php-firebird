@@ -379,6 +379,9 @@ static int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 					case SQL_TIME_TZ:
 #endif
 						force_null = (Z_STRLEN_P(b_var) == 0);
+						break;
+					default:
+						break;
 				}
 
 				if (! force_null) break;
@@ -422,6 +425,9 @@ static int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 						case SQL_TYPE_TIME:
 						// TODO: case SQL_TIME_TZ:
 							format = INI_STR("fbird.timeformat");
+							break;
+						default:
+							break;
 					}
 					if (!strptime(Z_STRVAL_P(b_var), format, &t)) {
 						/* strptime() cannot handle it, so let IB have a try */
@@ -1034,7 +1040,7 @@ static int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 
 	if (dim < array->ar_desc.array_desc_dimensions) {
 		zend_ulong slice_size = buf_size / dim_len;
-		unsigned short i;
+		int i;
 		zval *subval = val;
 
 		if (Z_TYPE_P(val) == IS_ARRAY) {

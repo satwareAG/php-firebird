@@ -64,10 +64,10 @@ static int le_event;
 static void _php_fbird_event_free(unsigned char *event_buf, unsigned char *result_buf) /* {{{ */
 {
 	if (event_buf) {
-		isc_free(event_buf);
+		isc_free((ISC_SCHAR *)event_buf);
 	}
 	if (result_buf) {
-		isc_free(result_buf);
+		isc_free((ISC_SCHAR *)result_buf);
 	}
 }
 /* }}} */

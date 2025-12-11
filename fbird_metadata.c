@@ -125,7 +125,7 @@ void _php_fbird_field_info(zval *return_value, fbird_query *ib_query, int is_out
 #endif
 		// Old API with enhanced parameter support
 		/* Handle name - provide fallback for parameters where sqlname might be empty */
-		const char *field_name = (var->sqlname && strlen(var->sqlname) > 0) ? var->sqlname : "";
+		const char *field_name = (var->sqlname[0] != '\0') ? var->sqlname : "";
 		if (!is_outvar && strlen(field_name) == 0) {
 			/* For parameters, generate a meaningful fallback name */
 			snprintf(buf, sizeof(buf), "PARAM_%d", num);
@@ -135,12 +135,12 @@ void _php_fbird_field_info(zval *return_value, fbird_query *ib_query, int is_out
 		add_assoc_stringl(return_value, "name", field_name, strlen(field_name));
 
 		/* Handle alias - for parameters, alias typically same as name */
-		const char *alias_name = (var->aliasname && strlen(var->aliasname) > 0) ? var->aliasname : field_name;
+		const char *alias_name = (var->aliasname[0] != '\0') ? var->aliasname : field_name;
 		add_index_stringl(return_value, 1, alias_name, strlen(alias_name));
 		add_assoc_stringl(return_value, "alias", alias_name, strlen(alias_name));
 
 		/* Handle relation - typically empty for parameters */
-		const char *relation_name = (var->relname && strlen(var->relname) > 0) ? var->relname : "";
+		const char *relation_name = (var->relname[0] != '\0') ? var->relname : "";
 		add_index_stringl(return_value, 2, relation_name, strlen(relation_name));
 		add_assoc_stringl(return_value, "relation", relation_name, strlen(relation_name));
 #if FB_API_VER >= 40

@@ -149,30 +149,29 @@ static void __attribute__((destructor)) fini()
 */
 void exec_php(BLOBCALLBACK b, PARAMDSC *res, ISC_SHORT *init)
 {
-	int result, remaining = b->blob_total_length, i = 0;
+	int result = FAILURE, remaining = b->blob_total_length, i = 0;
 	char *code = pemalloc((size_t)remaining+1, 1);
 	ISC_USHORT read;
 
 	for (code[remaining] = '\0'; remaining > 0; remaining -= read)
-		b->blob_get_segment(b->blob_handle, (ISC_UCHAR*)&code[i++<<16],min(0x10000,remaining), &read);
+		b->blob_get_segment(b->blob_handle, (ISC_UCHAR*)&code[i++<<16],min(0xFFFF,remaining), &read);
 
 	LOCK();
 
-	switch (init && *init) {
-
-		default:
+	if (init && *init) {
 #ifdef PHP_EMBED
-			php_request_shutdown(NULL);
-			if (FAILURE == (result = php_request_startup())) {
-				break;
-			}
-		case 0:
+		php_request_shutdown(NULL);
+		if (FAILURE == (result = php_request_startup())) {
+			goto cleanup;
+		}
 #endif
-			/* feed it to the parser */
-			zend_first_try {
-				result = zend_eval_stringl(code, b->blob_total_length, NULL, "Firebird Embedded PHP engine");
-			} zend_end_try();
 	}
+	/* feed it to the parser */
+	zend_first_try {
+		result = zend_eval_stringl(code, b->blob_total_length, NULL, "Firebird Embedded PHP engine");
+	} zend_end_try();
+
+cleanup:
 
 	UNLOCK();
 
@@ -232,7 +231,7 @@ static void call_php(char *name, PARAMDSC *r, int argc, PARAMDSC **argv)
 
 				case dtype_varying:
 //???
-					ZVAL_STRINGL(&args[i], ((PARAMVARY*)argv[i]->dsc_address)->vary_string,
+					ZVAL_STRINGL(&args[i], (char*)((PARAMVARY*)argv[i]->dsc_address)->vary_string,
 						((PARAMVARY*)argv[i]->dsc_address)->vary_length);
 					break;
 

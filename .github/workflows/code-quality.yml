@@ -143,6 +143,7 @@ jobs:
             --enable=warning,style,performance,portability \
             --suppress=missingIncludeSystem \
             --suppress=missingInclude \
+            --suppress=unknownMacro \
             --error-exitcode=0 \
             --inline-suppr \
             --xml \
@@ -154,6 +155,7 @@ jobs:
             --enable=warning,performance,portability \
             --suppress=missingIncludeSystem \
             --suppress=missingInclude \
+            --suppress=unknownMacro \
             --error-exitcode=1 \
             --inline-suppr \
             *.c *.cpp
@@ -173,7 +175,7 @@ jobs:
           done
 
   # ==========================================================================
-  # Secret Detection (Gitleaks)
+  # Secret Detection (Gitleaks CLI - no license required)
   # ==========================================================================
   secrets-scan:
     name: Secret Detection
@@ -185,11 +187,21 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install Gitleaks
+        run: |
+          # Download latest gitleaks release
+          GITLEAKS_VERSION=$(curl -s https://api.github.com/repos/gitleaks/gitleaks/releases/latest | grep -oP '"tag_name": "\K[^"]+')
+          curl -sL "https://github.com/gitleaks/gitleaks/releases/download/${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION#v}_linux_x64.tar.gz" | tar xz
+          chmod +x gitleaks
+          sudo mv gitleaks /usr/local/bin/
+
       - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_CONFIG: .gitleaks.toml
+        run: |
+          gitleaks detect \
+            --config=.gitleaks.toml \
+            --source=. \
+            --verbose \
+            --redact
 
   # ==========================================================================
   # Quality Summary

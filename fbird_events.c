@@ -29,6 +29,12 @@
 #include "php_firebird.h"
 #include "php_fbird_includes.h"
 
+#ifndef PHP_WIN32
+#include <signal.h>
+#include <setjmp.h>
+#include <errno.h>
+#endif
+
 static int le_event;
 
 /**
@@ -359,28 +365,49 @@ PHP_FUNCTION(fbird_set_event_handler)
 }
 /* }}} */
 
-/* {{{ proto mixed fbird_poll_event(resource event)
+#ifndef PHP_WIN32
+/* Signal handler for alarm-based timeout */
+static volatile sig_atomic_t fbird_timeout_occurred = 0;
+static void fbird_timeout_handler(int sig) {
+	(void)sig;
+	fbird_timeout_occurred = 1;
+}
+#endif
+
+/* {{{ proto mixed fbird_poll_event(resource event [, int timeout_ms])
    Poll for pending events and call the registered callback if an event fired.
 
    This is the thread-safe way to handle Firebird events in PHP 8.1+.
    The callback is called from within this function (in the PHP thread).
 
+   Parameters:
+   - event: Event resource from fbird_set_event_handler()
+   - timeout_ms: Optional timeout in milliseconds. -1 = block forever (default),
+                 0 = non-blocking (not recommended), >0 = timeout in ms
+
    Returns:
+   - FBIRD_EVENT_TIMEOUT (-2): Timeout reached before any event
    - false: Error occurred
-   - null: No events pending
-   - string: Name of event that fired (callback was called)
+   - null: Handler was cancelled
+   - array: Event counts when event fired (callback was called)
 
    If the callback returns false, the event handler is marked as cancelled. */
 PHP_FUNCTION(fbird_poll_event)
 {
 	zval *event_arg;
+	zend_long timeout_ms = -1;  /* Default: block forever */
 	fbird_event *event;
 	ISC_ULONG occurred_event[15];
 	unsigned short i;
+#ifndef PHP_WIN32
+	struct sigaction sa_new, sa_old;
+	unsigned int alarm_remaining = 0;
+	int use_timeout = 0;
+#endif
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r", &event_arg) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r|l", &event_arg, &timeout_ms) == FAILURE) {
 		RETURN_FALSE;
 	}
 

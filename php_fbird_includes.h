@@ -238,7 +238,10 @@ enum php_fbird_option {
 	PHP_IBASE_LOCK_WRITE         = 16384,
 
 	/* Firebird 4.0+ features */
-	PHP_IBASE_READ_CONSISTENCY   = 32768
+	PHP_IBASE_READ_CONSISTENCY   = 32768,
+
+	/* Event timeout return value */
+	PHP_IBASE_EVENT_TIMEOUT      = -2
 };
 
 #define IBG(v) ZEND_MODULE_GLOBALS_ACCESSOR(fbird, v)

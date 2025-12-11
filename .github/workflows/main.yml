@@ -155,36 +155,44 @@ jobs:
 
           chmod +x /tmp/fb_install.sh
 
-          # Patch the script's downloadFile function to skip download if file exists
-          # The script creates a temp dir and downloads to it - we'll place our file there
-          # by patching downloadFile to check for pre-existing file first
-          sed -i '/^downloadFile(){/,/^}$/c\
-downloadFile(){\
-    url=$1\
-    tmp=$2\
-    name=$3\
-    fname=$(basename -- "$url")\
-    echo "Downloading $name..."\
-    # Check if file was pre-downloaded to /tmp\
-    if [ -f "/tmp/$fname" ]; then\
-        echo "Using pre-downloaded $fname"\
-        cp "/tmp/$fname" "$tmp/$fname"\
-        return 0\
-    fi\
-    # Retry loop for reliability\
-    for attempt in 1 2 3 4 5; do\
-        m=$(curl -w "%{http_code}" --retry 3 --retry-delay 5 --location "$url" --output "$tmp/$fname" --progress-bar)\
-        r=$?\
-        if [ "$m" = "200" ] && [ $r -eq 0 ]; then\
-            echo "OK"\
-            return 0\
-        fi\
-        echo "Download attempt $attempt failed (HTTP $m, curl $r), retrying in 10s..."\
-        sleep 10\
-    done\
-    echo "ERROR: Failed to download after 5 attempts"\
-    exit 1\
-}' /tmp/fb_install.sh
+          # Create a patched downloadFile function that checks for pre-downloaded files
+          cat > /tmp/downloadFile_patch.sh << 'PATCH_EOF'
+          downloadFile(){
+              url=$1
+              tmp=$2
+              name=$3
+              fname=$(basename -- "$url")
+              echo "Downloading $name..."
+              if [ -f "/tmp/$fname" ]; then
+                  echo "Using pre-downloaded $fname"
+                  cp "/tmp/$fname" "$tmp/$fname"
+                  return 0
+              fi
+              for attempt in 1 2 3 4 5; do
+                  m=$(curl -w "%{http_code}" --retry 3 --retry-delay 5 --location "$url" --output "$tmp/$fname" --progress-bar)
+                  r=$?
+                  if [ "$m" = "200" ] && [ $r -eq 0 ]; then
+                      echo "OK"
+                      return 0
+                  fi
+                  echo "Download attempt $attempt failed (HTTP $m, curl $r), retrying in 10s..."
+                  sleep 10
+              done
+              echo "ERROR: Failed to download after 5 attempts"
+              exit 1
+          }
+          PATCH_EOF
+
+          # Remove leading whitespace from patch file
+          sed -i 's/^          //' /tmp/downloadFile_patch.sh
+
+          # Apply patch by replacing the downloadFile function
+          # First, extract lines before and after downloadFile function
+          head -n $(grep -n '^downloadFile(){' /tmp/fb_install.sh | cut -d: -f1 | head -1 | xargs -I{} expr {} - 1) /tmp/fb_install.sh > /tmp/fb_patched.sh
+          cat /tmp/downloadFile_patch.sh >> /tmp/fb_patched.sh
+          tail -n +$(grep -n '^}' /tmp/fb_install.sh | awk -F: 'NR==1{print $1+1}') /tmp/fb_install.sh >> /tmp/fb_patched.sh
+          mv /tmp/fb_patched.sh /tmp/fb_install.sh
+          chmod +x /tmp/fb_install.sh
 
           # Run IBSurgeon installer in non-interactive mode by feeding
           # default answers. The script installs Firebird under /opt/firebird

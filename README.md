@@ -244,12 +244,12 @@ fbird_close($db);
 extension=firebird.so
 
 ; Connection format defaults
-ibase.timestampformat = "%Y-%m-%d %H:%M:%S"
-ibase.dateformat = "%Y-%m-%d"
-ibase.timeformat = "%H:%M:%S"
+fbird.timestampformat = "%Y-%m-%d %H:%M:%S"
+fbird.dateformat = "%Y-%m-%d"
+fbird.timeformat = "%H:%M:%S"
 ```
 
-> **Note**: INI settings retain the `ibase.*` prefix for compatibility with existing configurations.
+> **⚠️ Breaking Change (v1.0)**: INI settings have been renamed from `ibase.*` to `fbird.*`. Update your php.ini configuration accordingly.
 
 ### Environment Variables
 ```bash

@@ -41,6 +41,23 @@ This document summarizes the major development phases and milestones of the php-
 2. All PHP functions renamed: `ibase_*` → `fbird_*` (BC aliases retained)
 3. All constants renamed: `IBASE_*` → `FBIRD_*` (no BC aliases - intentional break)
 4. All source files renamed: `ibase_*.c` → `fbird_*.c`, `interbase.*` → `firebird.*`
+5. All INI directives renamed: `ibase.*` → `fbird.*` (no BC aliases - clean break)
+
+**INI Directives Renamed (14 total):**
+- `fbird.allow_persistent` - Allow persistent connections
+- `fbird.max_persistent` - Maximum persistent connections
+- `fbird.max_links` - Maximum total connections
+- `fbird.default_db` - Default database path
+- `fbird.default_user` - Default username
+- `fbird.default_password` - Default password
+- `fbird.default_charset` - Default character set
+- `fbird.timestampformat` - Timestamp format string
+- `fbird.dateformat` - Date format string
+- `fbird.timeformat` - Time format string
+- `fbird.default_trans_params` - Default transaction parameters
+- `fbird.default_lock_timeout` - Default lock timeout
+- `fbird.enable_exceptions` - Enable exception mode
+- `fbird.blob_segment_size` - BLOB segment size (NEW - default 4096)
 
 **Files Renamed (51 total):**
 - Source files: 9 C files renamed

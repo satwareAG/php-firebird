@@ -410,17 +410,17 @@ static int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 					}
 				} else {
 #ifdef HAVE_STRPTIME
-					char *format = INI_STR("ibase.timestampformat");
+					char *format = INI_STR("fbird.timestampformat");
 
 					convert_to_string(b_var);
 
 					switch (var->sqltype & ~1) {
 						case SQL_TYPE_DATE:
-							format = INI_STR("ibase.dateformat");
+							format = INI_STR("fbird.dateformat");
 							break;
 						case SQL_TYPE_TIME:
 						// TODO: case SQL_TIME_TZ:
-							format = INI_STR("ibase.timeformat");
+							format = INI_STR("fbird.timeformat");
 					}
 					if (!strptime(Z_STRVAL_P(b_var), format, &t)) {
 						/* strptime() cannot handle it, so let IB have a try */
@@ -1200,7 +1200,7 @@ static int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 						/* Use zval_get_string() to get a copy without modifying the original zval */
 						zend_string *str = zval_get_string(val);
 #ifdef HAVE_STRPTIME
-						strptime(ZSTR_VAL(str), INI_STR("ibase.timestampformat"), &t);
+						strptime(ZSTR_VAL(str), INI_STR("fbird.timestampformat"), &t);
 #else
 						n = sscanf(ZSTR_VAL(str), "%d%*[/]%d%*[/]%d %d%*[:]%d%*[:]%d",
 							&t.tm_mon, &t.tm_mday, &t.tm_year, &t.tm_hour, &t.tm_min, &t.tm_sec);
@@ -1223,7 +1223,7 @@ static int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 						/* Use zval_get_string() to get a copy without modifying the original zval */
 						zend_string *str = zval_get_string(val);
 #ifdef HAVE_STRPTIME
-						strptime(ZSTR_VAL(str), INI_STR("ibase.dateformat"), &t);
+						strptime(ZSTR_VAL(str), INI_STR("fbird.dateformat"), &t);
 #else
 						n = sscanf(ZSTR_VAL(str), "%d%*[/]%d%*[/]%d", &t.tm_mon, &t.tm_mday, &t.tm_year);
 
@@ -1246,7 +1246,7 @@ static int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {
 						/* Use zval_get_string() to get a copy without modifying the original zval */
 						zend_string *str = zval_get_string(val);
 #ifdef HAVE_STRPTIME
-						strptime(ZSTR_VAL(str), INI_STR("ibase.timeformat"), &t);
+						strptime(ZSTR_VAL(str), INI_STR("fbird.timeformat"), &t);
 #else
 						n = sscanf(ZSTR_VAL(str), "%d%*[:]%d%*[:]%d", &t.tm_hour, &t.tm_min, &t.tm_sec);
 

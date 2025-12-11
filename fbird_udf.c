@@ -274,17 +274,17 @@ static void call_php(char *name, PARAMDSC *r, int argc, PARAMDSC **argv)
 
 				case dtype_sql_date:
 					isc_decode_sql_date((ISC_DATE*)argv[i]->dsc_address, &t);
-					ZVAL_STRINGL(&args[i], d, strftime(d, sizeof(d), INI_STR("ibase.dateformat"), &t),1);
+					ZVAL_STRINGL(&args[i], d, strftime(d, sizeof(d), INI_STR("fbird.dateformat"), &t),1);
 					break;
 
 				case dtype_sql_time:
 					isc_decode_sql_time((ISC_TIME*)argv[i]->dsc_address, &t);
-					ZVAL_STRINGL(&args[i], d, strftime(d, sizeof(d), INI_STR("ibase.timeformat"), &t),1);
+					ZVAL_STRINGL(&args[i], d, strftime(d, sizeof(d), INI_STR("fbird.timeformat"), &t),1);
 					break;
 
 				case dtype_timestamp:
 					isc_decode_timestamp((ISC_TIMESTAMP*)argv[i]->dsc_address, &t);
-					ZVAL_STRINGL(&args[i], d, strftime(d, sizeof(d), INI_STR("ibase.timestampformat"), &t));
+					ZVAL_STRINGL(&args[i], d, strftime(d, sizeof(d), INI_STR("fbird.timestampformat"), &t));
 					break;
 			}
 		}

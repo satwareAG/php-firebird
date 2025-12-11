@@ -42,7 +42,7 @@ Firebird: misc sql types (may take a while)
 	@fbird_query("insert into test3 (iter) values (?)", null);
 
     /* if timefmt is not supported, suppress error here */
-    ini_set('ibase.timestampformat',"%m/%d/%Y %H:%M:%S");
+    ini_set('fbird.timestampformat',"%m/%d/%Y %H:%M:%S");
 
     for($iter = 0; $iter < 10; $iter++){
     	/* prepare data  */

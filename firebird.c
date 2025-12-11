@@ -574,7 +574,7 @@ void _php_fbird_error(void) /* {{{ */
 		s = IBG(errmsg) + msg_len;
 	}
 
-	if (INI_BOOL("ibase.enable_exceptions")) {
+	if (INI_BOOL("fbird.enable_exceptions")) {
 		zend_throw_exception(firebird_exception_ce, IBG(errmsg), IBG(sql_code));
 	} else {
 		php_error_docref(NULL, E_WARNING, "%s", IBG(errmsg));
@@ -595,7 +595,7 @@ void _php_fbird_module_error(const char *msg, ...) /* {{{ */
 
 	IBG(sql_code) = -999; /* no SQL error */
 
-	if (INI_BOOL("ibase.enable_exceptions")) {
+	if (INI_BOOL("fbird.enable_exceptions")) {
 		zend_throw_exception(firebird_exception_ce, IBG(errmsg), IBG(sql_code));
 	} else {
 		php_error_docref(NULL, E_WARNING, "%s", IBG(errmsg));
@@ -832,19 +832,20 @@ static PHP_INI_DISP(php_fbird_trans_displayer)
 
 /* {{{ startup, shutdown and info functions */
 PHP_INI_BEGIN()
-	PHP_INI_ENTRY_EX("ibase.allow_persistent", "1", PHP_INI_SYSTEM, NULL, zend_ini_boolean_displayer_cb)
-	PHP_INI_ENTRY_EX("ibase.max_persistent", "-1", PHP_INI_SYSTEM, NULL, display_link_numbers)
-	PHP_INI_ENTRY_EX("ibase.max_links", "-1", PHP_INI_SYSTEM, NULL, display_link_numbers)
-	PHP_INI_ENTRY("ibase.default_db", NULL, PHP_INI_SYSTEM, NULL)
-	PHP_INI_ENTRY("ibase.default_user", NULL, PHP_INI_ALL, NULL)
-	PHP_INI_ENTRY_EX("ibase.default_password", NULL, PHP_INI_ALL, NULL, php_fbird_password_displayer_cb)
-	PHP_INI_ENTRY("ibase.default_charset", NULL, PHP_INI_ALL, NULL)
-	PHP_INI_ENTRY("ibase.timestampformat", IB_DEF_DATE_FMT " " IB_DEF_TIME_FMT, PHP_INI_ALL, NULL)
-	PHP_INI_ENTRY("ibase.dateformat", IB_DEF_DATE_FMT, PHP_INI_ALL, NULL)
-	PHP_INI_ENTRY("ibase.timeformat", IB_DEF_TIME_FMT, PHP_INI_ALL, NULL)
-	STD_PHP_INI_ENTRY_EX("ibase.default_trans_params", "0", PHP_INI_ALL, OnUpdateLongGEZero, default_trans_params, zend_fbird_globals, fbird_globals, php_fbird_trans_displayer)
-	STD_PHP_INI_ENTRY_EX("ibase.default_lock_timeout", "0", PHP_INI_ALL, OnUpdateLongGEZero, default_lock_timeout, zend_fbird_globals, fbird_globals, display_link_numbers)
-	PHP_INI_ENTRY_EX("ibase.enable_exceptions", "0", PHP_INI_ALL, NULL, zend_ini_boolean_displayer_cb)
+	PHP_INI_ENTRY_EX("fbird.allow_persistent", "1", PHP_INI_SYSTEM, NULL, zend_ini_boolean_displayer_cb)
+	PHP_INI_ENTRY_EX("fbird.max_persistent", "-1", PHP_INI_SYSTEM, NULL, display_link_numbers)
+	PHP_INI_ENTRY_EX("fbird.max_links", "-1", PHP_INI_SYSTEM, NULL, display_link_numbers)
+	PHP_INI_ENTRY("fbird.default_db", NULL, PHP_INI_SYSTEM, NULL)
+	PHP_INI_ENTRY("fbird.default_user", NULL, PHP_INI_ALL, NULL)
+	PHP_INI_ENTRY_EX("fbird.default_password", NULL, PHP_INI_ALL, NULL, php_fbird_password_displayer_cb)
+	PHP_INI_ENTRY("fbird.default_charset", NULL, PHP_INI_ALL, NULL)
+	PHP_INI_ENTRY("fbird.timestampformat", IB_DEF_DATE_FMT " " IB_DEF_TIME_FMT, PHP_INI_ALL, NULL)
+	PHP_INI_ENTRY("fbird.dateformat", IB_DEF_DATE_FMT, PHP_INI_ALL, NULL)
+	PHP_INI_ENTRY("fbird.timeformat", IB_DEF_TIME_FMT, PHP_INI_ALL, NULL)
+	STD_PHP_INI_ENTRY_EX("fbird.default_trans_params", "0", PHP_INI_ALL, OnUpdateLongGEZero, default_trans_params, zend_fbird_globals, fbird_globals, php_fbird_trans_displayer)
+	STD_PHP_INI_ENTRY_EX("fbird.default_lock_timeout", "0", PHP_INI_ALL, OnUpdateLongGEZero, default_lock_timeout, zend_fbird_globals, fbird_globals, display_link_numbers)
+	STD_PHP_INI_ENTRY_EX("fbird.blob_segment_size", "4096", PHP_INI_ALL, OnUpdateLongGEZero, blob_segment_size, zend_fbird_globals, fbird_globals, display_link_numbers)
+	PHP_INI_ENTRY_EX("fbird.enable_exceptions", "0", PHP_INI_ALL, NULL, zend_ini_boolean_displayer_cb)
 PHP_INI_END()
 
 #ifdef __GNUC__
@@ -1165,19 +1166,19 @@ static void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent) /* 
 	}
 
 	/* restrict to the server/db in the .ini if in safe mode */
-	if (!len[DB] && (c = INI_STR("ibase.default_db"))) {
+	if (!len[DB] && (c = INI_STR("fbird.default_db"))) {
 		args[DB] = c;
 		len[DB] = strlen(c);
 	}
-	if (!len[USER] && (c = INI_STR("ibase.default_user"))) {
+	if (!len[USER] && (c = INI_STR("fbird.default_user"))) {
 		args[USER] = c;
 		len[USER] = strlen(c);
 	}
-	if (!len[PASS] && (c = INI_STR("ibase.default_password"))) {
+	if (!len[PASS] && (c = INI_STR("fbird.default_password"))) {
 		args[PASS] = c;
 		len[PASS] = strlen(c);
 	}
-	if (!len[CSET] && (c = INI_STR("ibase.default_charset"))) {
+	if (!len[CSET] && (c = INI_STR("fbird.default_charset"))) {
 		args[CSET] = c;
 		len[CSET] = strlen(c);
 	}
@@ -1238,7 +1239,7 @@ static void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent) /* 
 
 		/* no link found, so we have to open one */
 
-		if ((l = INI_INT("ibase.max_links")) != -1 && IBG(num_links) >= l) {
+		if ((l = INI_INT("fbird.max_links")) != -1 && IBG(num_links) >= l) {
 			_php_fbird_module_error("Too many open links (%ld)", IBG(num_links));
 			RETURN_FALSE;
 		}
@@ -1249,7 +1250,7 @@ static void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent) /* 
 		}
 
 		/* use non-persistent if allowed number of persistent links is exceeded */
-		if (!persistent || ((l = INI_INT("ibase.max_persistent") != -1) && IBG(num_persistent) >= l)) {
+		if (!persistent || ((l = INI_INT("fbird.max_persistent") != -1) && IBG(num_persistent) >= l)) {
 			ib_link = (fbird_db_link *) emalloc(sizeof(fbird_db_link));
 			RETVAL_RES(zend_register_resource(ib_link, le_link));
 		} else {
@@ -1300,7 +1301,7 @@ PHP_FUNCTION(fbird_connect)
    Open a persistent connection to an InterBase database */
 PHP_FUNCTION(fbird_pconnect)
 {
-	_php_fbird_connect(INTERNAL_FUNCTION_PARAM_PASSTHRU, INI_INT("ibase.allow_persistent"));
+	_php_fbird_connect(INTERNAL_FUNCTION_PARAM_PASSTHRU, INI_INT("fbird.allow_persistent"));
 }
 /* }}} */
 

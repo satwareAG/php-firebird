@@ -26,7 +26,7 @@ Firebird: array handling
 	fbird_commit();
 
 	/* if timefmt not supported, hide error */
-	ini_set('ibase.timestampformat',"%m/%d/%Y %H:%M:%S");
+	ini_set('fbird.timestampformat',"%m/%d/%Y %H:%M:%S");
 
         /* To prevent unwanted roundings set PHP precision to 18 */
         ini_set('precision',"18");

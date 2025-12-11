@@ -276,12 +276,12 @@ static int _php_fbird_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 			unsigned year, month, day, hours, minutes, seconds, fractions;
 
 			if((type & ~1) == SQL_TIME_TZ){
-				format = INI_STR("ibase.timeformat");
+				format = INI_STR("fbird.timeformat");
 				fbu_decode_time_tz(IBG(master_instance), (ISC_TIME_TZ *) data, &hours, &minutes, &seconds, &fractions, sizeof(timeZoneBuffer), timeZoneBuffer);
 				ISC_TIME time = fbu_encode_time(IBG(master_instance), hours, minutes, seconds, fractions);
 				isc_decode_sql_time(&time, &t);
 			} else {
-				format = INI_STR("ibase.timestampformat");
+				format = INI_STR("fbird.timestampformat");
 				fbu_decode_timestamp_tz(IBG(master_instance), (ISC_TIMESTAMP_TZ *) data, &year, &month, &day, &hours, &minutes, &seconds, &fractions, sizeof(timeZoneBuffer), timeZoneBuffer);
 				ISC_TIMESTAMP ts;
 				ts.timestamp_date = fbu_encode_date(IBG(master_instance), year, month, day);
@@ -309,15 +309,15 @@ static int _php_fbird_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 			break;
 #endif
 		case SQL_TIMESTAMP:
-			format = INI_STR("ibase.timestampformat");
+			format = INI_STR("fbird.timestampformat");
 			isc_decode_timestamp((ISC_TIMESTAMP *) data, &t);
 			goto format_date_time;
 		case SQL_TYPE_DATE:
-			format = INI_STR("ibase.dateformat");
+			format = INI_STR("fbird.dateformat");
 			isc_decode_sql_date((ISC_DATE *) data, &t);
 			goto format_date_time;
 		case SQL_TYPE_TIME:
-			format = INI_STR("ibase.timeformat");
+			format = INI_STR("fbird.timeformat");
 			isc_decode_sql_time((ISC_TIME *) data, &t);
 
 format_date_time:

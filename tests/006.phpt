@@ -32,7 +32,7 @@ Firebird: binding (may take a while)
 	fbird_commit();
 
 	/* if timefmt not supported, hide error */
-	ini_set('ibase.timestampformat',"%m/%d/%Y %H:%M:%S");
+	ini_set('fbird.timestampformat',"%m/%d/%Y %H:%M:%S");
 
 	echo "insert\n";
 

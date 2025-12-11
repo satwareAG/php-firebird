@@ -88,7 +88,8 @@ ZEND_BEGIN_MODULE_GLOBALS(fbird)
 	char errmsg[MAX_ERRMSG];
 	zend_long sql_code;
 	zend_long default_trans_params;
-	zend_long default_lock_timeout; // only used togetger with trans_param IBASE_LOCK_TIMEOUT
+	zend_long default_lock_timeout; /* only used together with trans_param FBIRD_LOCK_TIMEOUT */
+	zend_long blob_segment_size;    /* configurable BLOB segment size (default: 4096) */
 	void *get_master_interface;
 	void *master_instance;
 	void *get_statement_interface;

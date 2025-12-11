@@ -14,7 +14,7 @@ if(!empty($host))$file = "$host:$file";
 
 $db = fbird_query(FBIRD_CREATE,
 		sprintf("CREATE SCHEMA '%s' USER '%s' PASSWORD '%s' DEFAULT CHARACTER SET %s",$file,
-		$user, $password, ($charset = ini_get('ibase.default_charset')) ? $charset : 'NONE'));
+		$user, $password, ($charset = ini_get('fbird.default_charset')) ? $charset : 'NONE'));
 
 var_dump($db);
 var_dump(fbird_drop_db($db));

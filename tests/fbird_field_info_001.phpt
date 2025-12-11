@@ -8,7 +8,7 @@ include("skipif.inc");
 <?php
 
 require_once('config.inc');
-ini_set('ibase.default_charset', "NONE");
+ini_set('fbird.default_charset', "NONE");
 
 require("firebird.inc");
 require("common.inc");

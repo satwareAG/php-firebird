@@ -198,15 +198,15 @@ int _php_fbird_string_to_quad(char const *id, ISC_QUAD *qd) /* {{{ */
 	/* shortcut for most common case */
 	if (sizeof(ISC_QUAD) == sizeof(ISC_UINT64)) {
 		return sscanf(id, BLOB_ID_MASK, (ISC_UINT64 *) qd);
-	} else {
-		ISC_UINT64 res;
-		if (sscanf(id, BLOB_ID_MASK, &res)) {
-			qd->gds_quad_high = (ISC_LONG) (res >> 0x20);
-			qd->gds_quad_low = (ISC_LONG) (res & 0xFFFFFFFF);
-			return 1;
-		}
-		return 0;
 	}
+	/* else branch: different sizes */
+	ISC_UINT64 res;
+	if (sscanf(id, BLOB_ID_MASK, &res)) {
+		qd->gds_quad_high = (ISC_LONG) (res >> 0x20);
+		qd->gds_quad_low = (ISC_LONG) (res & 0xFFFFFFFF);
+		return 1;
+	}
+	return 0;
 }
 /* }}} */
 
@@ -214,11 +214,14 @@ zend_string *_php_fbird_quad_to_string(ISC_QUAD const qd) /* {{{ */
 {
 	/* shortcut for most common case */
 	if (sizeof(ISC_QUAD) == sizeof(ISC_UINT64)) {
-		return strpprintf(BLOB_ID_LEN+1, "0x%0*" LL_MASK "x", 16, *(ISC_UINT64*)(void *) &qd);
-	} else {
-		ISC_UINT64 res = ((ISC_UINT64) qd.gds_quad_high << 0x20) | qd.gds_quad_low;
-		return strpprintf(BLOB_ID_LEN+1, "0x%0*" LL_MASK "x", 16, res);
+		/* Use memcpy for type punning to avoid casting through void */
+		ISC_UINT64 val;
+		memcpy(&val, &qd, sizeof(ISC_UINT64));
+		return strpprintf(BLOB_ID_LEN+1, "0x%0*" LL_MASK "x", 16, val);
 	}
+	/* else branch: different sizes */
+	ISC_UINT64 res = ((ISC_UINT64) qd.gds_quad_high << 0x20) | qd.gds_quad_low;
+	return strpprintf(BLOB_ID_LEN+1, "0x%0*" LL_MASK "x", 16, res);
 }
 /* }}} */
 

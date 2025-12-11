@@ -127,11 +127,12 @@ int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 					field_index, dest_var->sqllen, src_var->sqllen, query_context ? query_context : "unknown");
 				return FAILURE;
 			}
-			if (dest_var->sqllen < 0 || dest_var->sqllen > 65535) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid TEXT length %d for field %d in query: %s",
-					dest_var->sqllen, field_index, query_context ? query_context : "unknown");
-				return FAILURE;
-			}
+		/* ISC_SHORT can't exceed 32767, so > 65535 check is tautologically false - only check < 0 */
+		if (dest_var->sqllen < 0) {
+			_php_fbird_module_error("EXECUTE PROCEDURE: Invalid TEXT length %d for field %d in query: %s",
+				dest_var->sqllen, field_index, query_context ? query_context : "unknown");
+			return FAILURE;
+		}
 			dest_var->sqldata = safe_emalloc(sizeof(char), dest_var->sqllen, 0);
 			if (!dest_var->sqldata) {
 				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate TEXT data for field %d in query: %s",

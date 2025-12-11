@@ -148,7 +148,6 @@ class PcntlEventPoller implements EventPollerInterface
             }
 
             return $result;
-
         } finally {
             // Cancel any pending alarm
             pcntl_alarm(0);

@@ -1,0 +1,47 @@
+parameters:
+    # Maximum analysis level (strictest)
+    level: 8
+
+    # Paths to analyze
+    paths:
+        - src/
+
+    # PHP version to analyze for
+    phpVersion: 80100
+
+    # Treat phpt files' PHP code specially (optional future)
+    # excludePaths:
+    #     - tests/*.phpt
+
+    # Report unmatched ignores
+    reportUnmatchedIgnoredErrors: false
+
+    # Type coverage tracking
+    treatPhpDocTypesAsCertain: false
+
+    # Strict rules (level 8 enables most strict checks automatically)
+    checkUninitializedProperties: true
+
+    # Ignore patterns for extension-specific code (C extension provides these)
+    ignoreErrors:
+        # Allow fbird_* functions that are provided by the C extension
+        - '#^Function fbird_\w+ not found\.$#'
+        - '#^Function fbird_\w+ invoked with .* parameters, .* required\.$#'
+        # Extension-provided classes and constants
+        - '#^Class Firebird\\Event not found\.$#'
+        - '#^Constant FBIRD_EVENT_TIMEOUT not found\.$#'
+        # Type strictness for optional parameters in wrapper classes
+        - message: '#^Parameter .* expects (resource|string|callable).*, .*(resource|string|callable).*\|null given\.$#'
+          path: src/Firebird/FiberEventPoller.php
+        # Property type assignments in signal handlers
+        - message: '#^Property .* does not accept bool\.$#'
+          path: src/Firebird/PcntlEventPoller.php
+        - message: '#^Property .* is never assigned .* so it can be removed from the property type\.$#'
+          path: src/Firebird/PcntlEventPoller.php
+        # Runtime checks for pcntl functions
+        - message: '#^Call to function function_exists\(\) .* will always evaluate to true\.$#'
+          path: src/Firebird/PcntlEventPoller.php
+        - message: '#^If condition is always false\.$#'
+          path: src/Firebird/PcntlEventPoller.php
+        - message: '#^Parameter .* of function pcntl_signal expects .*, bool given\.$#'
+          path: src/Firebird/PcntlEventPoller.php

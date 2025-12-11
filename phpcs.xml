@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<ruleset name="PHP-Firebird">
+    <description>PHP-Firebird Code Standards based on PSR-12</description>
+
+    <!-- Use PSR-12 as base -->
+    <rule ref="PSR12">
+        <!-- Exclude file-level docblock position rule - declare(strict_types=1)
+             before docblock is a valid and common pattern (Symfony, PHPStan, etc.) -->
+        <exclude name="PSR12.Files.FileHeader.IncorrectOrder"/>
+    </rule>
+
+    <!-- Paths to scan -->
+    <file>src/</file>
+
+    <!-- Exclude vendor directory -->
+    <exclude-pattern>vendor/</exclude-pattern>
+</ruleset>

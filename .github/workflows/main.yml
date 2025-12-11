@@ -114,7 +114,22 @@ jobs:
           FB_SCRIPT_URL="https://raw.githubusercontent.com/IBSurgeon/firebirdlinuxinstall/refs/heads/main/fb_vanilla-${FB_SCRIPT_SUFFIX}.sh"
 
           echo "Downloading Firebird install script from ${FB_SCRIPT_URL}"
-          curl -fsSL "${FB_SCRIPT_URL}" -o /tmp/fb_install.sh
+
+          # Retry loop for downloading (IBSurgeon servers can have temporary 503 errors)
+          for attempt in 1 2 3 4 5; do
+            if curl -fsSL "${FB_SCRIPT_URL}" -o /tmp/fb_install.sh; then
+              echo "Downloaded Firebird install script successfully (attempt ${attempt})"
+              break
+            fi
+            echo "Download failed (attempt ${attempt}/5), waiting 10 seconds before retry..."
+            sleep 10
+          done
+
+          if [ ! -f /tmp/fb_install.sh ]; then
+            echo "ERROR: Failed to download Firebird install script after 5 attempts" >&2
+            exit 1
+          fi
+
           chmod +x /tmp/fb_install.sh
 
           # Run IBSurgeon installer in non-interactive mode by feeding

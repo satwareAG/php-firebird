@@ -1,0 +1,543 @@
+/*
+   +----------------------------------------------------------------------+
+   | PHP Version 8                                                        |
+   +----------------------------------------------------------------------+
+   | Copyright (c) The PHP Group                                          |
+   +----------------------------------------------------------------------+
+   | This source file is subject to version 3.01 of the PHP license,      |
+   | that is bundled with this package in the file LICENSE, and is        |
+   | available through the world-wide-web at the following url:           |
+   | http://www.php.net/license/3_01.txt                                  |
+   | If you did not receive a copy of the PHP license and are unable to   |
+   | obtain it through the world-wide-web, please send a note to          |
+   | license@php.net so we can mail you a copy immediately.               |
+   +----------------------------------------------------------------------+
+ */
+
+/**
+ * Parameter binding functions.
+ *
+ * This file contains functions for binding PHP values to Firebird query
+ * parameters and safely copying SQLVAR data.
+ */
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include "php.h"
+#include "php_ini.h"
+
+#if HAVE_FIREBIRD
+
+#include "php_firebird.h"
+#include "php_fbird_includes.h"
+#include "php_fbird_query_internal.h"
+#include "php_fbird_query_bind.h"
+#include "php_fbird_query_array.h"
+#include "firebird_utils.h"
+
+/* Helper function for safer SQLVAR data copying */
+int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, int field_index, const char *query_context) /* {{{ */
+{
+	/* Validate input parameters */
+	if (!dest_var || !src_var) {
+		_php_fbird_module_error("EXECUTE PROCEDURE: Invalid XSQLVAR pointers for field %d in query: %s",
+            field_index, query_context ? query_context : "unknown");
+		return FAILURE;
+	}
+
+	if (!src_var->sqldata) {
+		_php_fbird_module_error("EXECUTE PROCEDURE: Source sqldata is NULL for field %d in query: %s",
+            field_index, query_context ? query_context : "unknown");
+		return FAILURE;
+	}
+
+	/* Verify sqltype consistency between source and destination */
+	if (dest_var->sqltype != src_var->sqltype) {
+		_php_fbird_module_error("EXECUTE PROCEDURE: sqltype mismatch for field %d (dest=%d, src=%d) in query: %s",
+			field_index, dest_var->sqltype, src_var->sqltype, query_context ? query_context : "unknown");
+		return FAILURE;
+	}
+
+	/* Allocate and copy data based on SQL type with comprehensive bounds checking */
+	switch (dest_var->sqltype & ~1) {
+		case SQL_TEXT:
+			/* Validate field length for TEXT fields */
+			if (dest_var->sqllen != src_var->sqllen) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: TEXT sqllen mismatch for field %d (dest=%d, src=%d) in query: %s",
+					field_index, dest_var->sqllen, src_var->sqllen, query_context ? query_context : "unknown");
+				return FAILURE;
+			}
+			/* ISC_SHORT can't exceed 32767, so > 65535 check is tautologically false - only check < 0 */
+			if (dest_var->sqllen < 0) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid TEXT length %d for field %d in query: %s",
+					dest_var->sqllen, field_index, query_context ? query_context : "unknown");
+				return FAILURE;
+			}
+			dest_var->sqldata = safe_emalloc(sizeof(char), dest_var->sqllen, 0);
+			if (!dest_var->sqldata) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate TEXT data for field %d in query: %s",
+                    field_index, query_context ? query_context : "unknown");
+				return FAILURE;
+			}
+			/* Use safer copy with explicit size limit */
+			memcpy(dest_var->sqldata, src_var->sqldata, dest_var->sqllen);
+			break;
+
+		case SQL_VARYING:
+			/* Validate field length for VARCHAR fields */
+			if (dest_var->sqllen != src_var->sqllen) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: VARCHAR sqllen mismatch for field %d (dest=%d, src=%d) in query: %s",
+					field_index, dest_var->sqllen, src_var->sqllen, query_context ? query_context : "unknown");
+				return FAILURE;
+			}
+			if (dest_var->sqllen < 0 || dest_var->sqllen > 65535) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid VARCHAR length %d for field %d in query: %s",
+					dest_var->sqllen, field_index, query_context ? query_context : "unknown");
+				return FAILURE;
+			}
+			dest_var->sqldata = safe_emalloc(sizeof(char), dest_var->sqllen + sizeof(short), 0);
+			if (!dest_var->sqldata) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate VARCHAR data for field %d in query: %s",
+                    field_index, query_context ? query_context : "unknown");
+				return FAILURE;
+			}
+			/* Copy length prefix + data with bounds checking */
+			{
+				size_t varchar_copy_size = dest_var->sqllen + sizeof(short);
+				memcpy(dest_var->sqldata, src_var->sqldata, varchar_copy_size);
+			}
+			break;
+
+#ifdef SQL_BOOLEAN
+		case SQL_BOOLEAN:
+			if (src_var->sqllen != sizeof(FB_BOOLEAN)) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid BOOLEAN length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(FB_BOOLEAN));
+			if (!dest_var->sqldata) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate BOOLEAN data for field %d", field_index);
+				return FAILURE;
+			}
+			/* Direct assignment for simple types (safer than memcpy for single values) */
+			*(FB_BOOLEAN *)dest_var->sqldata = *(FB_BOOLEAN *)src_var->sqldata;
+			break;
+#endif
+
+		case SQL_SHORT:
+			if (src_var->sqllen != sizeof(short)) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid SHORT length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(short));
+			if (!dest_var->sqldata) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate SHORT data for field %d", field_index);
+				return FAILURE;
+			}
+			*(short *)dest_var->sqldata = *(short *)src_var->sqldata;
+			break;
+
+		case SQL_LONG:
+			if (src_var->sqllen != sizeof(ISC_LONG)) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid LONG length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(ISC_LONG));
+			if (!dest_var->sqldata) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate LONG data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_LONG *)dest_var->sqldata = *(ISC_LONG *)src_var->sqldata;
+			break;
+
+		case SQL_FLOAT:
+			if (src_var->sqllen != sizeof(float)) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid FLOAT length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(float));
+			if (!dest_var->sqldata) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate FLOAT data for field %d", field_index);
+				return FAILURE;
+			}
+			*(float *)dest_var->sqldata = *(float *)src_var->sqldata;
+			break;
+
+		case SQL_DOUBLE:
+			if (src_var->sqllen != sizeof(double)) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid DOUBLE length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(double));
+			if (!dest_var->sqldata) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate DOUBLE data for field %d", field_index);
+				return FAILURE;
+			}
+			*(double *)dest_var->sqldata = *(double *)src_var->sqldata;
+			break;
+
+		case SQL_INT64:
+			if (src_var->sqllen != sizeof(ISC_INT64)) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid INT64 length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(ISC_INT64));
+			if (!dest_var->sqldata) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate INT64 data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_INT64 *)dest_var->sqldata = *(ISC_INT64 *)src_var->sqldata;
+			break;
+
+		case SQL_TIMESTAMP:
+			if (src_var->sqllen != sizeof(ISC_TIMESTAMP)) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid TIMESTAMP length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(ISC_TIMESTAMP));
+			if (!dest_var->sqldata) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate TIMESTAMP data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_TIMESTAMP *)dest_var->sqldata = *(ISC_TIMESTAMP *)src_var->sqldata;
+			break;
+
+		case SQL_TYPE_DATE:
+			if (src_var->sqllen != sizeof(ISC_DATE)) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid DATE length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(ISC_DATE));
+			if (!dest_var->sqldata) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate DATE data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_DATE *)dest_var->sqldata = *(ISC_DATE *)src_var->sqldata;
+			break;
+
+		case SQL_TYPE_TIME:
+			if (src_var->sqllen != sizeof(ISC_TIME)) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid TIME length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(ISC_TIME));
+			if (!dest_var->sqldata) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate TIME data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_TIME *)dest_var->sqldata = *(ISC_TIME *)src_var->sqldata;
+			break;
+
+		case SQL_BLOB:
+		case SQL_ARRAY:
+			if (src_var->sqllen != sizeof(ISC_QUAD)) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid QUAD length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(ISC_QUAD));
+			if (!dest_var->sqldata) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate QUAD data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_QUAD *)dest_var->sqldata = *(ISC_QUAD *)src_var->sqldata;
+			break;
+
+#if FB_API_VER >= 40
+		case SQL_TIMESTAMP_TZ:
+			if (src_var->sqllen != sizeof(ISC_TIMESTAMP_TZ)) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid TIMESTAMP_TZ length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(ISC_TIMESTAMP_TZ));
+			if (!dest_var->sqldata) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate TIMESTAMP_TZ data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_TIMESTAMP_TZ *)dest_var->sqldata = *(ISC_TIMESTAMP_TZ *)src_var->sqldata;
+			break;
+
+		case SQL_TIME_TZ:
+			if (src_var->sqllen != sizeof(ISC_TIME_TZ)) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid TIME_TZ length %d for field %d", src_var->sqllen, field_index);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(sizeof(ISC_TIME_TZ));
+			if (!dest_var->sqldata) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate TIME_TZ data for field %d", field_index);
+				return FAILURE;
+			}
+			*(ISC_TIME_TZ *)dest_var->sqldata = *(ISC_TIME_TZ *)src_var->sqldata;
+			break;
+#endif
+
+		default:
+			_php_fbird_module_error("EXECUTE PROCEDURE: Unhandled sqltype %d for field %d",
+				dest_var->sqltype & ~1, field_index);
+			return FAILURE;
+	}
+
+	return SUCCESS;
+}
+/* }}} */
+
+int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
+{
+	BIND_BUF *buf = ib_query->bind_buf;
+	XSQLDA *sqlda = ib_query->in_sqlda;
+
+	int i, array_cnt = 0, rv = SUCCESS;
+
+	for (i = 0; i < sqlda->sqld; ++i) { /* bound vars */
+
+		zval *b_var = &b_vars[i];
+		XSQLVAR *var = &sqlda->sqlvar[i];
+
+		var->sqlind = &buf[i].nullind;
+		var->sqldata = (void*)&buf[i].val;
+
+		/* check if a NULL should be inserted */
+		switch (Z_TYPE_P(b_var)) {
+			int force_null;
+
+			case IS_STRING:
+
+				force_null = 0;
+
+				/* for these types, an empty string can be handled like a NULL value */
+				switch (var->sqltype & ~1) {
+					case SQL_SHORT:
+					case SQL_LONG:
+					case SQL_INT64:
+					case SQL_FLOAT:
+					case SQL_DOUBLE:
+					case SQL_TIMESTAMP:
+					case SQL_TYPE_DATE:
+					case SQL_TYPE_TIME:
+#if FB_API_VER >= 40
+					case SQL_INT128:
+					case SQL_DEC16:
+					case SQL_DEC34:
+					case SQL_TIMESTAMP_TZ:
+					case SQL_TIME_TZ:
+#endif
+						force_null = (Z_STRLEN_P(b_var) == 0);
+						break;
+					default:
+						break;
+				}
+
+				if (! force_null) break;
+				/* fall through */
+
+			case IS_NULL:
+					buf[i].nullind = -1;
+
+				if ((var->sqltype & ~1) == SQL_ARRAY) ++array_cnt;
+
+				continue;
+		}
+
+		/* if we make it to this point, we must provide a value for the parameter */
+
+		buf[i].nullind = 0;
+
+		switch (var->sqltype & ~1) {
+			struct tm t;
+
+			case SQL_TIMESTAMP:
+			/* TODO: case SQL_TIMESTAMP_TZ: */
+			/* TODO: case SQL_TIME_TZ: */
+			case SQL_TYPE_DATE:
+			case SQL_TYPE_TIME:
+				if (Z_TYPE_P(b_var) == IS_LONG) {
+					struct tm *res;
+					res = php_gmtime_r(&Z_LVAL_P(b_var), &t);
+					if (!res) {
+						return FAILURE;
+					}
+				} else {
+#ifdef HAVE_STRPTIME
+					char *format = INI_STR("fbird.timestampformat");
+
+					convert_to_string(b_var);
+
+					switch (var->sqltype & ~1) {
+						case SQL_TYPE_DATE:
+							format = INI_STR("fbird.dateformat");
+							break;
+						case SQL_TYPE_TIME:
+						/* TODO: case SQL_TIME_TZ: */
+							format = INI_STR("fbird.timeformat");
+							break;
+						default:
+							break;
+					}
+					if (!strptime(Z_STRVAL_P(b_var), format, &t)) {
+						/* strptime() cannot handle it, so let IB have a try */
+						break;
+					}
+#else /* ifndef HAVE_STRPTIME */
+					break; /* let IB parse it as a string */
+#endif
+				}
+
+				switch (var->sqltype & ~1) {
+					default: /* == case SQL_TIMESTAMP */
+						isc_encode_timestamp(&t, &buf[i].val.tsval);
+						break;
+					case SQL_TYPE_DATE:
+						isc_encode_sql_date(&t, &buf[i].val.dtval);
+						break;
+					case SQL_TYPE_TIME:
+					/* TODO: case SQL_TIME_TZ: */
+						isc_encode_sql_time(&t, &buf[i].val.tmval);
+						break;
+				}
+				continue;
+
+			case SQL_BLOB:
+
+				convert_to_string(b_var);
+
+				if (Z_STRLEN_P(b_var) != BLOB_ID_LEN ||
+					!_php_fbird_string_to_quad(Z_STRVAL_P(b_var), &buf[i].val.qval)) {
+
+					fbird_blob ib_blob = { 0 };
+					ib_blob.type = BLOB_INPUT;
+
+					if (isc_create_blob(IB_STATUS, &ib_query->link->handle.db,
+							&ib_query->trans->handle.tr, &ib_blob.bl_handle.blob, &ib_blob.bl_qd)) {
+						_php_fbird_error();
+						return FAILURE;
+					}
+
+					if (_php_fbird_blob_add(b_var, &ib_blob) != SUCCESS) {
+						return FAILURE;
+					}
+
+					if (isc_close_blob(IB_STATUS, &ib_blob.bl_handle.blob)) {
+						_php_fbird_error();
+						return FAILURE;
+					}
+					buf[i].val.qval = ib_blob.bl_qd;
+				}
+				continue;
+#ifdef SQL_BOOLEAN
+			case SQL_BOOLEAN:
+
+				switch (Z_TYPE_P(b_var)) {
+					case IS_LONG:
+					case IS_DOUBLE:
+					case IS_TRUE:
+					case IS_FALSE:
+						*(FB_BOOLEAN *)var->sqldata = zend_is_true(b_var) ? FB_TRUE : FB_FALSE;
+						break;
+					case IS_STRING:
+					{
+						zend_long lval;
+						double dval;
+
+						if ((Z_STRLEN_P(b_var) == 0)) {
+							*(FB_BOOLEAN *)var->sqldata = FB_FALSE;
+							break;
+						}
+
+						switch (is_numeric_string(Z_STRVAL_P(b_var), Z_STRLEN_P(b_var), &lval, &dval, 0)) {
+							case IS_LONG:
+								*(FB_BOOLEAN *)var->sqldata = (lval != 0) ? FB_TRUE : FB_FALSE;
+								break;
+							case IS_DOUBLE:
+								*(FB_BOOLEAN *)var->sqldata = (dval != 0) ? FB_TRUE : FB_FALSE;
+								break;
+							default:
+								if (!zend_binary_strncasecmp(Z_STRVAL_P(b_var), Z_STRLEN_P(b_var), "true", 4, 4)) {
+									*(FB_BOOLEAN *)var->sqldata = FB_TRUE;
+								} else if (!zend_binary_strncasecmp(Z_STRVAL_P(b_var), Z_STRLEN_P(b_var), "false", 5, 5)) {
+									*(FB_BOOLEAN *)var->sqldata = FB_FALSE;
+								} else {
+									_php_fbird_module_error("Parameter %d: cannot convert string to boolean", i+1);
+									rv = FAILURE;
+									continue;
+								}
+						}
+						break;
+					}
+					case IS_NULL:
+						buf[i].nullind = -1;
+						break;
+					default:
+						_php_fbird_module_error("Parameter %d: must be boolean", i+1);
+						rv = FAILURE;
+						continue;
+				}
+				var->sqltype = SQL_BOOLEAN;
+				continue;
+#endif
+			case SQL_ARRAY:
+				if (Z_TYPE_P(b_var) != IS_ARRAY) {
+					convert_to_string(b_var);
+
+					if (Z_STRLEN_P(b_var) != BLOB_ID_LEN ||
+						!_php_fbird_string_to_quad(Z_STRVAL_P(b_var), &buf[i].val.qval)) {
+
+						_php_fbird_module_error("Parameter %d: invalid array ID",i+1);
+						rv = FAILURE;
+					}
+				} else {
+					/* convert the array data into something IB can understand */
+					/* Bounds check before accessing in_array to prevent out-of-bounds access */
+					if (array_cnt >= ib_query->in_array_cnt) {
+						_php_fbird_module_error("Parameter %d: array index out of bounds", i+1);
+						rv = FAILURE;
+						++array_cnt;
+						continue;
+					}
+					fbird_array *ar = &ib_query->in_array[array_cnt];
+					void *array_data = ecalloc(1, ar->ar_size);
+					ISC_QUAD array_id = { 0, 0 };
+
+					if (FAILURE == _php_fbird_bind_array(b_var, array_data, ar->ar_size,
+							ar, 0)) {
+						_php_fbird_module_error("Parameter %d: failed to bind array argument", i+1);
+						efree(array_data);
+						rv = FAILURE;
+						continue;
+					}
+
+					/* FIX: Use temporary ISC_LONG for slice length to avoid pointer type mismatch on 64-bit systems.
+					 *
+					 * Problem: ar->ar_size is zend_ulong (8 bytes on 64-bit) but isc_array_put_slice() expects
+					 * ISC_LONG* (4 bytes). Passing &ar->ar_size directly causes incorrect slice length
+					 * interpretation and potential memory corruption.
+					 *
+					 * Solution: Copy to temporary ISC_LONG, pass address of temporary.
+					 */
+					ISC_LONG slice_len = (ISC_LONG)ar->ar_size;
+
+					if (isc_array_put_slice(IB_STATUS, &ib_query->link->handle.db, &ib_query->trans->handle.tr,
+							&array_id, &ar->ar_desc, array_data, &slice_len)) {
+						_php_fbird_error();
+						efree(array_data);
+						return FAILURE;
+					}
+
+					buf[i].val.qval = array_id;
+					efree(array_data);
+				}
+				++array_cnt;
+				continue;
+		} /* switch */
+
+		/* we end up here if none of the switch cases handled the field */
+		convert_to_string(b_var);
+		var->sqldata = Z_STRVAL_P(b_var);
+		var->sqllen	 = (ISC_SHORT)Z_STRLEN_P(b_var);
+		var->sqltype = SQL_TEXT;
+	} /* for */
+	return rv;
+}
+/* }}} */
+
+#endif /* HAVE_FIREBIRD */

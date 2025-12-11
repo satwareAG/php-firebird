@@ -16,6 +16,9 @@ if (PHP_FIREBIRD != 'no') {
                                'fbird_metadata.c ' +
                                'fbird_query.c ' +
                                'fbird_query_exec.c ' +
+                               'fbird_query_prepare.c ' +
+                               'fbird_query_bind.c ' +
+                               'fbird_query_array.c ' +
                                'fbird_result.c ' +
                                'fbird_service.c ' +
                                'fbird_udf.c ' +

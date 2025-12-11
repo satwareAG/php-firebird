@@ -34,20 +34,12 @@
 #include "php_firebird.h"
 #include "php_fbird_includes.h"
 #include "php_fbird_query_internal.h"
+#include "php_fbird_query_prepare.h"
+#include "php_fbird_query_bind.h"
+#include "php_fbird_query_array.h"
 #include "firebird_utils.h"
 
-#define ISC_LONG_MIN    INT_MIN
-#define ISC_LONG_MAX    INT_MAX
-
-/* Max identifier size for Firebird 3+ (63 chars) but we alloc more for safety */
-#define MAX_IDENTIFIER_LEN 255
-
-/* Exported for use in fbird_result.c and other files */
-int le_query;
-
-/* Forward declarations */
-static int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, fbird_array *array, int dim);
-static int _php_fbird_set_query_info(fbird_query *ib_query);
+/* le_query is defined in fbird_query_prepare.c */
 
 /* Implementation of _php_fbird_set_query_info */
 static int _php_fbird_set_query_info(fbird_query *ib_query) /* {{{ */

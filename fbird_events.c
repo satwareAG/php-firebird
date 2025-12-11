@@ -343,23 +343,11 @@ PHP_FUNCTION(fbird_set_event_handler)
 	event->buffer_size = buffer_size;
 
 	/**
-	 * Initialize event buffers with a preliminary wait to establish baseline.
-	 * Without this, the first poll would return immediately with stale counts.
+	 * NOTE: We do NOT call isc_wait_for_event() here because it blocks.
+	 * The baseline initialization will happen on the first fbird_poll_event() call.
+	 * The event handler is ready to use immediately.
 	 */
-	{
-		ISC_STATUS init_status[20];
-		ISC_ULONG init_counts[15];
-		if (isc_wait_for_event(init_status, &ib_link->handle.db, buffer_size,
-				event->event_buffer, event->result_buffer)) {
-			/* Initialization failed */
-			event->state = DEAD;
-			RETVAL_RES(zend_register_resource(event, le_event));
-			Z_TRY_ADDREF_P(return_value);
-			return;
-		}
-		/* Get baseline counts */
-		isc_event_counts(init_counts, buffer_size, event->event_buffer, event->result_buffer);
-	}
+	event->needs_reregistration = 1; /* Flag: first poll needs baseline init */
 
 	/* Mark as active and add to link's event list */
 	event->state = ACTIVE;

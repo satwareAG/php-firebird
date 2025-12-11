@@ -413,4 +413,58 @@ extern "C" int fbu_insert_field_info(void *master_ptr, ISC_STATUS* status, int i
     return insert_field_info_modern(master_ptr, status, is_outvar != 0, num, into_array, statement);
 }
 
+/* Encode time with timezone */
+extern "C" int fbu_encode_time_tz(void *master_ptr, ISC_TIME_TZ* time_tz,
+	unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions,
+	const char* time_zone)
+{
+    if (!master_ptr || !time_tz || !time_zone) {
+        return -1;
+    }
+
+    try {
+        auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+        Firebird::IUtil* util = master->getUtilInterface();
+        Firebird::IStatus* fb_status = master->getStatus();
+        Firebird::CheckStatusWrapper status(fb_status);
+
+        util->encodeTimeTz(&status, time_tz, hours, minutes, seconds, fractions, time_zone);
+
+        if (status.isDirty()) {
+            return -1;
+        }
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+/* Encode timestamp with timezone */
+extern "C" int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* timestamp_tz,
+	unsigned year, unsigned month, unsigned day,
+	unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions,
+	const char* time_zone)
+{
+    if (!master_ptr || !timestamp_tz || !time_zone) {
+        return -1;
+    }
+
+    try {
+        auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+        Firebird::IUtil* util = master->getUtilInterface();
+        Firebird::IStatus* fb_status = master->getStatus();
+        Firebird::CheckStatusWrapper status(fb_status);
+
+        util->encodeTimeStampTz(&status, timestamp_tz, year, month, day,
+                                hours, minutes, seconds, fractions, time_zone);
+
+        if (status.isDirty()) {
+            return -1;
+        }
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
 #endif // FB_API_VER >= 40

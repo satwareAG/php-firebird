@@ -167,6 +167,10 @@ typedef struct {
 		ISC_TIMESTAMP tsval;
 		ISC_DATE dtval;
 		ISC_TIME tmval;
+#if FB_API_VER >= 40
+		ISC_TIMESTAMP_TZ tstzval;
+		ISC_TIME_TZ tmtzval;
+#endif
 	} val;
 	short nullind;
 } BIND_BUF;

@@ -347,8 +347,6 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 			struct tm t;
 
 			case SQL_TIMESTAMP:
-			/* TODO: case SQL_TIMESTAMP_TZ: */
-			/* TODO: case SQL_TIME_TZ: */
 			case SQL_TYPE_DATE:
 			case SQL_TYPE_TIME:
 				if (Z_TYPE_P(b_var) == IS_LONG) {
@@ -368,7 +366,6 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 							format = INI_STR("fbird.dateformat");
 							break;
 						case SQL_TYPE_TIME:
-						/* TODO: case SQL_TIME_TZ: */
 							format = INI_STR("fbird.timeformat");
 							break;
 						default:
@@ -391,11 +388,116 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 						isc_encode_sql_date(&t, &buf[i].val.dtval);
 						break;
 					case SQL_TYPE_TIME:
-					/* TODO: case SQL_TIME_TZ: */
 						isc_encode_sql_time(&t, &buf[i].val.tmval);
 						break;
 				}
 				continue;
+
+#if FB_API_VER >= 40
+			case SQL_TIMESTAMP_TZ:
+			case SQL_TIME_TZ:
+				/* Timezone types require Firebird 4.0+ master interface */
+				if (!IBG(master_instance)) {
+					_php_fbird_module_error("Parameter %d: Timezone fields require Firebird 4.0+ client library", i+1);
+					rv = FAILURE;
+					continue;
+				}
+
+				{
+					char tz_name[64] = "GMT";  /* Default timezone */
+					unsigned year = 1970, month = 1, day = 1;
+					unsigned hours = 0, minutes = 0, seconds = 0, fractions = 0;
+
+					if (Z_TYPE_P(b_var) == IS_LONG) {
+						/* Unix timestamp - convert to components in UTC */
+						struct tm *res;
+						res = php_gmtime_r(&Z_LVAL_P(b_var), &t);
+						if (!res) {
+							_php_fbird_module_error("Parameter %d: Invalid timestamp value", i+1);
+							rv = FAILURE;
+							continue;
+						}
+						year = (unsigned)(t.tm_year + 1900);
+						month = (unsigned)(t.tm_mon + 1);
+						day = (unsigned)t.tm_mday;
+						hours = (unsigned)t.tm_hour;
+						minutes = (unsigned)t.tm_min;
+						seconds = (unsigned)t.tm_sec;
+						fractions = 0;
+						/* Keep tz_name as "GMT" for unix timestamps */
+					} else {
+						/* String format: "YYYY-MM-DD HH:MM:SS.FFFF TZ" or "HH:MM:SS.FFFF TZ" */
+						convert_to_string(b_var);
+						char *str = Z_STRVAL_P(b_var);
+						size_t len = Z_STRLEN_P(b_var);
+
+						/* Try to parse timezone from end of string */
+						char *tz_start = NULL;
+						char *space = strrchr(str, ' ');
+						if (space && space > str) {
+							/* Check if what follows the last space looks like a timezone */
+							char *potential_tz = space + 1;
+							if (potential_tz[0] == '+' || potential_tz[0] == '-' ||
+								(potential_tz[0] >= 'A' && potential_tz[0] <= 'Z') ||
+								(potential_tz[0] >= 'a' && potential_tz[0] <= 'z')) {
+								tz_start = potential_tz;
+								size_t tz_len = strlen(tz_start);
+								if (tz_len > 0 && tz_len < sizeof(tz_name)) {
+									strncpy(tz_name, tz_start, sizeof(tz_name) - 1);
+									tz_name[sizeof(tz_name) - 1] = '\0';
+								}
+							}
+						}
+
+						/* Parse date/time components using strptime */
+						memset(&t, 0, sizeof(t));
+						char *parse_end = NULL;
+
+						if ((var->sqltype & ~1) == SQL_TIME_TZ) {
+							/* Time only format */
+							char *format = INI_STR("fbird.timeformat");
+							parse_end = strptime(str, format, &t);
+							hours = (unsigned)t.tm_hour;
+							minutes = (unsigned)t.tm_min;
+							seconds = (unsigned)t.tm_sec;
+						} else {
+							/* Timestamp format */
+							char *format = INI_STR("fbird.timestampformat");
+							parse_end = strptime(str, format, &t);
+							year = (unsigned)(t.tm_year + 1900);
+							month = (unsigned)(t.tm_mon + 1);
+							day = (unsigned)t.tm_mday;
+							hours = (unsigned)t.tm_hour;
+							minutes = (unsigned)t.tm_min;
+							seconds = (unsigned)t.tm_sec;
+						}
+
+						if (!parse_end) {
+							/* strptime failed - let Firebird try to parse it as string */
+							break;
+						}
+					}
+
+					/* Encode using Firebird 4.0+ API */
+					var->sqldata = (void*)&buf[i].val;
+					if ((var->sqltype & ~1) == SQL_TIME_TZ) {
+						if (fbu_encode_time_tz(IBG(master_instance), &buf[i].val.tmtzval,
+								hours, minutes, seconds, fractions, tz_name) != 0) {
+							_php_fbird_module_error("Parameter %d: Failed to encode TIME WITH TIME ZONE", i+1);
+							rv = FAILURE;
+							continue;
+						}
+					} else {
+						if (fbu_encode_timestamp_tz(IBG(master_instance), &buf[i].val.tstzval,
+								year, month, day, hours, minutes, seconds, fractions, tz_name) != 0) {
+							_php_fbird_module_error("Parameter %d: Failed to encode TIMESTAMP WITH TIME ZONE", i+1);
+							rv = FAILURE;
+							continue;
+						}
+					}
+				}
+				continue;
+#endif /* FB_API_VER >= 40 */
 
 			case SQL_BLOB:
 

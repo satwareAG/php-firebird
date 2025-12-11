@@ -42,6 +42,17 @@ void fbu_decode_timestamp_tz(void *master_ptr, const ISC_TIMESTAMP_TZ* timestamp
 	unsigned* year, unsigned* month, unsigned* day,
 	unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions,
 	unsigned time_zone_buffer_length, char* time_zone_buffer);
+
+/* Encode time with timezone - pass timezone as string like "+02:00" or "Europe/Berlin" */
+int fbu_encode_time_tz(void *master_ptr, ISC_TIME_TZ* time_tz,
+	unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions,
+	const char* time_zone);
+
+/* Encode timestamp with timezone - pass timezone as string like "+02:00" or "Europe/Berlin" */
+int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* timestamp_tz,
+	unsigned year, unsigned month, unsigned day,
+	unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions,
+	const char* time_zone);
 int fbu_insert_field_info(void *master_ptr, ISC_STATUS* status, int is_outvar, int num,
   zval *into_array, void *statement_ptr);
 int fbu_insert_aliases(void *master_ptr, ISC_STATUS* status, fbird_query *ib_query,

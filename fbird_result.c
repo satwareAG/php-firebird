@@ -322,9 +322,11 @@ static int _php_fbird_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 
 format_date_time:
 			/*
-			  XXX - Might have to remove this later - seems that isc_decode_date()
-			   always sets tm_isdst to 0, sometimes incorrectly (InterBase 6 bug?)
-			*/
+			 * Setting tm_isdst = -1 tells mktime() to determine DST status automatically.
+			 * This is the correct fix for the InterBase 6 bug where isc_decode_date()
+			 * always set tm_isdst to 0, causing incorrect time formatting during DST.
+			 * Modern Firebird still doesn't set this field, so this workaround remains.
+			 */
 			t.tm_isdst = -1;
 #if HAVE_STRUCT_TM_TM_ZONE
 			t.tm_zone = tzname[0];

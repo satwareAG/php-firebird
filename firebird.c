@@ -755,7 +755,11 @@ static void _php_fbird_free_trans(zend_resource *rsrc) /* {{{ */
 }
 /* }}} */
 
-/* TODO this function should be part of either Zend or PHP API */
+/*
+ * Custom INI display callback for password fields.
+ * Displays "********" instead of the actual password value in phpinfo().
+ * Note: This pattern is common across extensions; consider proposing for Zend API.
+ */
 static PHP_INI_DISP(php_fbird_password_displayer_cb)
 {
 
@@ -865,7 +869,15 @@ void* _php_fbird_get_fbclient_symbol(const char* sym)
 	return GetProcAddress(l, sym);
 }
 #else
-	static_assert(false, "TODO: implement dynamic symbol name lookup for your platform");
+	/*
+	 * Compile-time check: This extension supports dynamic symbol lookup on:
+	 * - POSIX systems with RTLD_DEFAULT (Linux, macOS, BSD, etc.)
+	 * - Windows (GetModuleHandle/GetProcAddress)
+	 *
+	 * If you're porting to a new platform, implement _php_fbird_get_fbclient_symbol()
+	 * to retrieve symbols from the loaded fbclient library.
+	 */
+	static_assert(false, "Platform not supported: implement _php_fbird_get_fbclient_symbol() for your platform");
 #endif
 
 static PHP_GINIT_FUNCTION(fbird)

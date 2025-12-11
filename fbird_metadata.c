@@ -221,8 +221,13 @@ void _php_fbird_field_info(zval *return_value, fbird_query *ib_query, int is_out
 			case SQL_ARRAY:
 				s = "ARRAY";
 				break;
-				/* FIXME: provide more detailed information about the field type, field size
-				 * and array dimensions */
+				/*
+				 * FUTURE ENHANCEMENT: For ARRAY fields, this function could return
+				 * extended metadata including element type, size, and dimensions
+				 * (e.g., "ARRAY[1:10] OF INTEGER"). This would require calling
+				 * isc_array_lookup_bounds() for each array field. Current behavior
+				 * returns "ARRAY" which is sufficient for most use cases.
+				 */
 			case SQL_QUAD:
 				s = "QUAD";
 				break;

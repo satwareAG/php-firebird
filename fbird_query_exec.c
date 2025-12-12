@@ -131,6 +131,9 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 			trans->handle = tr;
 			trans->link_cnt = 1;
 			trans->affected_rows = 0;
+#if FB_API_VER >= 30
+			trans->fbt_transaction = NULL;  /* Phase 4: Initialize OO API transaction pointer */
+#endif
 			trans->db_link[0] = ib_query->link;
 
 			if (ib_query->link->tr_list == NULL) {
@@ -1255,6 +1258,9 @@ PHP_FUNCTION(fbird_execute_auto)
     trans->handle = tr_handle;
     trans->link_cnt = 1;
     trans->affected_rows = 0;
+#if FB_API_VER >= 30
+    trans->fbt_transaction = NULL;  /* Phase 4: Initialize OO API transaction pointer */
+#endif
     trans->db_link[0] = link;
     /* We do NOT register this transaction as a resource because it's strictly local scope */
 

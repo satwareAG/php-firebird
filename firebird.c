@@ -752,6 +752,18 @@ static void _php_fbird_free_trans(zend_resource *rsrc) /* {{{ */
 	unsigned short i;
 
 	IBDEBUG("Cleaning up transaction resource...");
+
+#if FB_API_VER >= 30
+	/* Phase 4: Use OO API rollback when transaction was created via OO API */
+	if (trans->fbt_transaction != NULL) {
+		IBDEBUG("Rolling back unhandled OO API transaction...");
+		if (fbt_rollback(trans->fbt_transaction, IB_STATUS)) {
+			_php_fbird_error();
+		}
+		trans->fbt_transaction = NULL;
+		trans->handle.ptr = 0;
+	} else
+#endif
 	if (trans->handle.ptr != 0) {
 		IBDEBUG("Rolling back unhandled transaction...");
 		if (isc_rollback_transaction(IB_STATUS, &trans->handle.tr)) {
@@ -1781,6 +1793,9 @@ PHP_FUNCTION(fbird_trans_start)
 	ib_trans->handle.ptr = tr_handle;
 	ib_trans->link_cnt = 1;
 	ib_trans->affected_rows = 0;
+#if FB_API_VER >= 30
+	ib_trans->fbt_transaction = NULL;  /* Phase 4: Initialize OO API transaction pointer */
+#endif
 	ib_trans->db_link[0] = ib_link;
 
 	/* the first item in the connection-transaction list is reserved for the default transaction */
@@ -2052,6 +2067,9 @@ PHP_FUNCTION(fbird_trans)
 	ib_trans->handle.ptr = tr_handle;
 	ib_trans->link_cnt = link_cnt;
 	ib_trans->affected_rows = 0;
+#if FB_API_VER >= 30
+	ib_trans->fbt_transaction = NULL;  /* Phase 4: Initialize OO API transaction pointer */
+#endif
 	for (i = 0; i < link_cnt; ++i) {
 		fbird_tr_list **l;
 		ib_trans->db_link[i] = ib_link[i];
@@ -2165,7 +2183,7 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit) /* {{
 {
 	fbird_transaction *trans = NULL;
 	int res_id = 0;
-	int result;
+	ISC_STATUS result;
 	fbird_db_link *ib_link;
 	zval *arg = NULL;
 

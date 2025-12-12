@@ -28,6 +28,30 @@ namespace fb {
 constexpr std::size_t STATUS_VECTOR_SIZE = 20;
 
 /**
+ * Check if IStatus has error data (FB 4.0+ compatible).
+ * In FB 5.0+, hasData() is available. In FB 4.0, we use getState().
+ * @param status The IStatus pointer to check
+ * @return true if status contains error information
+ */
+inline bool statusHasError(Firebird::IStatus* status) noexcept {
+    if (!status) return false;
+    // FB 4.0 compatible: check state flags instead of hasData()
+    // STATE_ERRORS (0x01) indicates errors, STATE_WARNINGS (0x02) indicates warnings
+    return (status->getState() & Firebird::IStatus::STATE_ERRORS) != 0;
+}
+
+/**
+ * Check if IStatus has any data (errors or warnings) - FB 4.0+ compatible.
+ * @param status The IStatus pointer to check
+ * @return true if status contains any information
+ */
+inline bool statusHasData(Firebird::IStatus* status) noexcept {
+    if (!status) return false;
+    // Check for either errors or warnings
+    return (status->getState() & (Firebird::IStatus::STATE_ERRORS | Firebird::IStatus::STATE_WARNINGS)) != 0;
+}
+
+/**
  * Exception class for Firebird errors with rich status information.
  * Parses ISC_STATUS vectors into human-readable error messages.
  */
@@ -49,7 +73,7 @@ public:
         : std::runtime_error(formatStatus(status)),
           sqlcode_(extractSqlcode(status)),
           gdscode_(extractGdscode(status)) {
-        if (status && status->hasData()) {
+        if (statusHasData(status)) {
             copyStatusVector(status->getErrors());
         }
     }
@@ -99,7 +123,7 @@ private:
     }
 
     static std::string formatStatus(Firebird::IStatus* status) {
-        if (!status || !status->hasData()) {
+        if (!statusHasData(status)) {
             return "Unknown Firebird error";
         }
         return formatStatusVector(status->getErrors());
@@ -133,7 +157,7 @@ private:
     }
 
     static ISC_LONG extractSqlcode(Firebird::IStatus* status) noexcept {
-        if (!status || !status->hasData()) {
+        if (!statusHasData(status)) {
             return 0;
         }
         return extractSqlcodeFromVector(status->getErrors());
@@ -147,7 +171,7 @@ private:
     }
 
     static ISC_LONG extractGdscode(Firebird::IStatus* status) noexcept {
-        if (!status || !status->hasData()) {
+        if (!statusHasData(status)) {
             return 0;
         }
         return extractGdscodeFromVector(status->getErrors());
@@ -230,10 +254,10 @@ public:
     [[nodiscard]] const Firebird::IStatus* get() const noexcept { return status_; }
 
     /**
-     * Check if an error has occurred.
+     * Check if an error has occurred (FB 4.0+ compatible).
      */
     [[nodiscard]] bool hasError() const noexcept {
-        return status_ && status_->hasData();
+        return statusHasError(status_);
     }
 
     /**
@@ -267,7 +291,7 @@ public:
     void copyTo(ISC_STATUS* dest, std::size_t dest_size = STATUS_VECTOR_SIZE) const noexcept {
         if (!dest || dest_size == 0) return;
 
-        if (status_ && status_->hasData()) {
+        if (statusHasData(status_)) {
             const ISC_STATUS* errors = status_->getErrors();
             for (std::size_t i = 0; i < dest_size && errors[i] != isc_arg_end; ++i) {
                 dest[i] = errors[i];
@@ -322,7 +346,7 @@ private:
  * Utility function for quick error checking.
  */
 inline void checkStatus(Firebird::IStatus* status) {
-    if (status && status->hasData()) {
+    if (statusHasError(status)) {
         throw Exception(status);
     }
 }

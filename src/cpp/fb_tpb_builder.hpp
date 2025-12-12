@@ -355,10 +355,13 @@ public:
 
     /**
      * Clear all parameters and reset to initial state.
+     * Note: IXpbBuilder::clear() requires IStatus* in FB 4.0+
      */
     void clear() {
-        if (use_builder_ && builder_) {
-            builder_->clear(nullptr);
+        if (use_builder_ && builder_ && master_) {
+            // FB 4.0 compatible: clear() requires a status parameter
+            StatusWrapper status(master_);
+            builder_->clear(status.get());
         }
         buffer_.clear();
         buffer_.push_back(isc_tpb_version3);

@@ -371,7 +371,8 @@ private:
     if (!statement) return std::nullopt;
 
     auto* metadata = statement->getOutputMetadata(status);
-    if (!metadata || (status && status->hasData())) {
+    // FB 4.0 compatible: use statusHasError() instead of hasData()
+    if (!metadata || statusHasError(status)) {
         return std::nullopt;
     }
 
@@ -387,7 +388,8 @@ private:
     if (!statement) return std::nullopt;
 
     auto* metadata = statement->getInputMetadata(status);
-    if (!metadata || (status && status->hasData())) {
+    // FB 4.0 compatible: use statusHasError() instead of hasData()
+    if (!metadata || statusHasError(status)) {
         return std::nullopt;
     }
 

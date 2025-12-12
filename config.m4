@@ -27,6 +27,15 @@ if test "$PHP_FIREBIRD" != "no"; then
     FB_LIBDIR=`$FB_CONFIG --libs`
     FB_VERSION=`$FB_CONFIG --version`
     AC_MSG_RESULT(version $FB_VERSION)
+
+    dnl Check for minimum Firebird version (3.0+)
+    AC_MSG_CHECKING([for minimum Firebird version 3.0])
+    fb_major=`echo $FB_VERSION | cut -d. -f1`
+    if test "$fb_major" -lt 3; then
+      AC_MSG_ERROR([Firebird 3.0 or later is required. Found version: $FB_VERSION])
+    fi
+    AC_MSG_RESULT([yes (Firebird $FB_VERSION)])
+
     PHP_EVAL_LIBLINE($FB_LIBDIR, FIREBIRD_SHARED_LIBADD)
     PHP_EVAL_INCLINE($FB_CFLAGS)
 

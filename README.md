@@ -7,7 +7,7 @@ A high-performance PHP extension providing native connectivity to Firebird datab
 ## Features
 
 - **Native Performance**: Direct fbclient library integration
-- **Full Firebird Support**: Compatible with Firebird 2.5, 3.0, 4.0, 5.0+
+- **Full Firebird Support**: Compatible with Firebird 3.0, 4.0, 5.0+
 - **Modern C++ OO API**: Uses Firebird 3.0+ Object-Oriented API with RAII wrappers
 - **Modern PHP**: Optimized for PHP 8.1+ with typed properties and attributes
 - **Memory Safety**: Built with AddressSanitizer and comprehensive static analysis
@@ -595,14 +595,14 @@ See [EVENT_TIMEOUT_RFC.md](docs/development/EVENT_TIMEOUT_RFC.md) for implementa
 - PHP 8.5 (development)
 
 **Supported Firebird Versions:**
-- Firebird 2.5 (legacy support)
-- Firebird 3.0 (full support)
+- Firebird 3.0 (minimum required, full support)
 - Firebird 4.0 (full support)
 - Firebird 5.0+ (full support)
 
 **Dropped Support:**
 - ❌ PHP 7.x (legacy, security issues)
 - ❌ PHP 8.0 (legacy, no longer maintained)
+- ❌ Firebird 2.5 (legacy, use OO API from FB 3.0+)
 - ❌ `ibase_*` function aliases (use `fbird_*` instead)
 - ❌ `interbase.so` extension name (use `firebird.so`)
 

@@ -28,6 +28,11 @@
 
 #include <ibase.h>
 
+/* Firebird 3.0+ required - compile-time check */
+#if !defined(FB_API_VER) || FB_API_VER < 30
+#error "Firebird 3.0 or later is required. Please install Firebird 3.0+ client libraries."
+#endif
+
 /* Compatibility for older Firebird headers (pre-4.0) */
 #ifndef isc_tpb_read_consistency
 #define isc_tpb_read_consistency 70
@@ -124,12 +129,10 @@ typedef struct {
 	fb_safe_handle handle;
 	unsigned short link_cnt;
 	unsigned long affected_rows;
-	/* Phase 4: OO API transaction wrapper (fb::Transaction* from fbt_start())
+	/* OO API transaction wrapper (fb::Transaction* from fbt_start())
 	 * When non-NULL, this transaction was created via the modern OO API.
 	 * The handle.tr may be 0 in this case - use fbt_get_handle() instead. */
-#if FB_API_VER >= 30
 	void *fbt_transaction;
-#endif
 	fbird_db_link *db_link[1]; /* last member */
 } fbird_transaction;
 
@@ -220,13 +223,11 @@ typedef struct _ib_query {
     struct _ib_query *parent;
     struct _ib_query *child_head;
     struct _ib_query *child_next;
-    /* Phase 5: OO API statement wrapper (fb::Statement* from fbs_prepare())
+    /* OO API statement wrapper (fb::Statement* from fbs_prepare())
      * When non-NULL, this statement was prepared via the modern OO API.
      * The stmt.ptr may be 0 in this case - use fbs_get_statement() instead. */
-#if FB_API_VER >= 30
     void *fbs_statement;
     void *fbs_resultset;  /* OO API IResultSet* for cursor operations */
-#endif
 } fbird_query;
 
 enum php_fbird_option {

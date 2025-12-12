@@ -2097,26 +2097,62 @@ int _php_fbird_def_trans(fbird_db_link *ib_link, fbird_transaction **trans) /* {
 			tr->handle.ptr = 0;
 			tr->link_cnt = 1;
 			tr->affected_rows = 0;
+#if FB_API_VER >= 30
+			tr->fbt_transaction = NULL;
+#endif
 			tr->db_link[0] = ib_link;
 			ib_link->tr_list->trans = tr;
 		}
 		if (tr->handle.ptr == 0) {
-			ISC_STATUS result;
 			zend_long trans_argl = IBG(default_trans_params);
+			char last_tpb[TPB_MAX_SIZE];
+			unsigned short tpb_len = 0;
 
-			if(trans_argl == PHP_IBASE_DEFAULT){
-				result = isc_start_transaction(IB_STATUS, &tr->handle.tr, 1, &ib_link->handle.db, 0, NULL);
-			} else {
+			/* Build TPB if non-default parameters */
+			if (trans_argl != PHP_IBASE_DEFAULT) {
 				zend_long trans_timeout = IBG(default_lock_timeout);
-				char last_tpb[TPB_MAX_SIZE];
-				unsigned short tpb_len = 0;
 				_php_fbird_populate_trans(trans_argl, trans_timeout, last_tpb, &tpb_len);
-				result = isc_start_transaction(IB_STATUS, &tr->handle.tr, 1, &ib_link->handle.db, tpb_len, last_tpb);
 			}
 
-			if (result) {
-				_php_fbird_error();
-				return FAILURE;
+#if FB_API_VER >= 30
+			/* Phase 4: Use OO API transaction when connection was created via OO API */
+			if (ib_link->fbc_connection != NULL) {
+				void* attachment = fbc_get_attachment(ib_link->fbc_connection);
+				if (attachment == NULL) {
+					_php_fbird_module_error("Failed to get attachment from OO API connection");
+					return FAILURE;
+				}
+
+				tr->fbt_transaction = fbt_start(
+					IBG(master_instance),
+					attachment,
+					tpb_len,
+					tpb_len > 0 ? (const unsigned char*)last_tpb : NULL,
+					IB_STATUS
+				);
+
+				if (tr->fbt_transaction == NULL) {
+					_php_fbird_error();
+					return FAILURE;
+				}
+
+				/* Store a compatible handle for legacy code paths that may inspect it */
+				tr->handle.ptr = fbt_get_handle(tr->fbt_transaction);
+			} else
+#endif
+			{
+				/* Legacy path: use isc_start_transaction */
+				ISC_STATUS result;
+				if (trans_argl == PHP_IBASE_DEFAULT) {
+					result = isc_start_transaction(IB_STATUS, &tr->handle.tr, 1, &ib_link->handle.db, 0, NULL);
+				} else {
+					result = isc_start_transaction(IB_STATUS, &tr->handle.tr, 1, &ib_link->handle.db, tpb_len, last_tpb);
+				}
+
+				if (result) {
+					_php_fbird_error();
+					return FAILURE;
+				}
 			}
 		}
 		*trans = tr;
@@ -2129,7 +2165,7 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit) /* {{
 {
 	fbird_transaction *trans = NULL;
 	int res_id = 0;
-	ISC_STATUS result;
+	int result;
 	fbird_db_link *ib_link;
 	zval *arg = NULL;
 
@@ -2164,24 +2200,57 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit) /* {{
 		}
 	}
 
-	switch (commit) {
-		default: /* == case ROLLBACK: */
-			result = isc_rollback_transaction(IB_STATUS, &trans->handle.tr);
-			break;
-		case COMMIT:
-			result = isc_commit_transaction(IB_STATUS, &trans->handle.tr);
-			break;
-		case (ROLLBACK | RETAIN):
-			result = isc_rollback_retaining(IB_STATUS, &trans->handle.tr);
-			break;
-		case (COMMIT | RETAIN):
-			result = isc_commit_retaining(IB_STATUS, &trans->handle.tr);
-			break;
-	}
+#if FB_API_VER >= 30
+	/* Phase 4: Use OO API transaction end when transaction was created via OO API */
+	if (trans->fbt_transaction != NULL) {
+		switch (commit) {
+			default: /* == case ROLLBACK: */
+				result = fbt_rollback(trans->fbt_transaction, IB_STATUS);
+				break;
+			case COMMIT:
+				result = fbt_commit(trans->fbt_transaction, IB_STATUS);
+				break;
+			case (ROLLBACK | RETAIN):
+				result = fbt_rollback_retaining(trans->fbt_transaction, IB_STATUS);
+				break;
+			case (COMMIT | RETAIN):
+				result = fbt_commit_retaining(trans->fbt_transaction, IB_STATUS);
+				break;
+		}
 
-	if (result) {
-		_php_fbird_error();
-		RETURN_FALSE;
+		if (result) {
+			_php_fbird_error();
+			RETURN_FALSE;
+		}
+
+		/* Clear handle for non-retained operations */
+		if ((commit & RETAIN) == 0) {
+			trans->fbt_transaction = NULL;
+			trans->handle.ptr = 0;
+		}
+	} else
+#endif
+	{
+		/* Legacy path: use isc_* functions */
+		switch (commit) {
+			default: /* == case ROLLBACK: */
+				result = isc_rollback_transaction(IB_STATUS, &trans->handle.tr);
+				break;
+			case COMMIT:
+				result = isc_commit_transaction(IB_STATUS, &trans->handle.tr);
+				break;
+			case (ROLLBACK | RETAIN):
+				result = isc_rollback_retaining(IB_STATUS, &trans->handle.tr);
+				break;
+			case (COMMIT | RETAIN):
+				result = isc_commit_retaining(IB_STATUS, &trans->handle.tr);
+				break;
+		}
+
+		if (result) {
+			_php_fbird_error();
+			RETURN_FALSE;
+		}
 	}
 
 	/* Don't try to destroy implicitly opened transaction from list... */

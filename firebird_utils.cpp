@@ -522,6 +522,202 @@ extern "C" unsigned fbc_get_server_version(void* connection) {
     return conn->getVersion().getVersion();
 }
 
+// =============================================================================
+// Phase 4: OO API Transaction Functions
+// =============================================================================
+// The fb_transaction.hpp wrapper layer provides RAII transaction management.
+// These C interop functions bridge between C code (firebird.c) and the C++ OO API.
+//
+// Available bridge functions:
+// - fbt_start()            - Start transaction using OO API
+// - fbt_commit()           - Commit transaction
+// - fbt_rollback()         - Rollback transaction
+// - fbt_commit_retaining() - Commit with retaining
+// - fbt_rollback_retaining() - Rollback with retaining
+// - fbt_is_active()        - Check if transaction is active
+// - fbt_get_handle()       - Get raw ITransaction pointer
+// - fbt_free()             - Free wrapper without commit/rollback
+// =============================================================================
+
+#include "src/cpp/fb_transaction.hpp"
+
+extern "C" void* fbt_start(
+    void* master_ptr,
+    void* attachment_ptr,
+    unsigned tpb_len,
+    const unsigned char* tpb,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !attachment_ptr) {
+        return nullptr;
+    }
+
+    try {
+        auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+        auto* attachment = static_cast<Firebird::IAttachment*>(attachment_ptr);
+
+        // Create transaction using factory method
+        auto trans = fb::Transaction::start(master, attachment, tpb_len, tpb);
+
+        if (!trans.isActive()) {
+            if (status_vector) {
+                trans.copyLastStatus(status_vector, ISC_STATUS_LENGTH);
+            }
+            return nullptr;
+        }
+
+        // Move to heap and return as opaque pointer
+        return reinterpret_cast<void*>(new fb::Transaction(std::move(trans)));
+
+    } catch (const fb::Exception& e) {
+        (void)e; // suppress unused variable warning
+        return nullptr;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+extern "C" int fbt_commit(void* transaction, ISC_STATUS* status_vector) {
+    if (!transaction) {
+        return 0;
+    }
+
+    try {
+        auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
+
+        trans->commit();
+
+        if (status_vector) {
+            trans->copyLastStatus(status_vector, ISC_STATUS_LENGTH);
+        }
+
+        delete trans;
+        return 0;
+
+    } catch (const fb::Exception&) {
+        auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
+        if (status_vector) {
+            trans->copyLastStatus(status_vector, ISC_STATUS_LENGTH);
+        }
+        delete trans;
+        return -1;
+    } catch (...) {
+        delete reinterpret_cast<fb::Transaction*>(transaction);
+        return -1;
+    }
+}
+
+extern "C" int fbt_rollback(void* transaction, ISC_STATUS* status_vector) {
+    if (!transaction) {
+        return 0;
+    }
+
+    try {
+        auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
+
+        trans->rollback();
+
+        if (status_vector) {
+            trans->copyLastStatus(status_vector, ISC_STATUS_LENGTH);
+        }
+
+        delete trans;
+        return 0;
+
+    } catch (const fb::Exception&) {
+        auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
+        if (status_vector) {
+            trans->copyLastStatus(status_vector, ISC_STATUS_LENGTH);
+        }
+        delete trans;
+        return -1;
+    } catch (...) {
+        delete reinterpret_cast<fb::Transaction*>(transaction);
+        return -1;
+    }
+}
+
+extern "C" int fbt_commit_retaining(void* transaction, ISC_STATUS* status_vector) {
+    if (!transaction) {
+        return -1;
+    }
+
+    try {
+        auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
+
+        trans->commitRetaining();
+
+        if (status_vector) {
+            trans->copyLastStatus(status_vector, ISC_STATUS_LENGTH);
+        }
+
+        // Transaction remains valid after retaining commit - do NOT delete
+        return 0;
+
+    } catch (const fb::Exception&) {
+        auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
+        if (status_vector) {
+            trans->copyLastStatus(status_vector, ISC_STATUS_LENGTH);
+        }
+        return -1;
+    } catch (...) {
+        return -1;
+    }
+}
+
+extern "C" int fbt_rollback_retaining(void* transaction, ISC_STATUS* status_vector) {
+    if (!transaction) {
+        return -1;
+    }
+
+    try {
+        auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
+
+        trans->rollbackRetaining();
+
+        if (status_vector) {
+            trans->copyLastStatus(status_vector, ISC_STATUS_LENGTH);
+        }
+
+        // Transaction remains valid after retaining rollback - do NOT delete
+        return 0;
+
+    } catch (const fb::Exception&) {
+        auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
+        if (status_vector) {
+            trans->copyLastStatus(status_vector, ISC_STATUS_LENGTH);
+        }
+        return -1;
+    } catch (...) {
+        return -1;
+    }
+}
+
+extern "C" int fbt_is_active(void* transaction) {
+    if (!transaction) {
+        return 0;
+    }
+    auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
+    return trans->isActive() ? 1 : 0;
+}
+
+extern "C" void* fbt_get_handle(void* transaction) {
+    if (!transaction) {
+        return nullptr;
+    }
+    auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
+    return trans->get();  // Returns ITransaction*
+}
+
+extern "C" void fbt_free(void* transaction) {
+    if (transaction) {
+        // Use rollbackNoThrow to safely clean up without throwing
+        auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
+        trans->rollbackNoThrow();
+        delete trans;
+    }
+}
+
 #endif // FB_API_VER >= 30
 
 #if FB_API_VER >= 40

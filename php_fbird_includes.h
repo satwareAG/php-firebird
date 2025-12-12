@@ -124,6 +124,12 @@ typedef struct {
 	fb_safe_handle handle;
 	unsigned short link_cnt;
 	unsigned long affected_rows;
+	/* Phase 4: OO API transaction wrapper (fb::Transaction* from fbt_start())
+	 * When non-NULL, this transaction was created via the modern OO API.
+	 * The handle.tr may be 0 in this case - use fbt_get_handle() instead. */
+#if FB_API_VER >= 30
+	void *fbt_transaction;
+#endif
 	fbird_db_link *db_link[1]; /* last member */
 } fbird_transaction;
 

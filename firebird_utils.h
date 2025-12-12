@@ -114,6 +114,92 @@ void* fbc_get_attachment(void* connection);
  */
 unsigned fbc_get_server_version(void* connection);
 
+/* =============================================================================
+ * Phase 4: Firebird OO API Transaction Functions (FB 3.0+)
+ *
+ * These functions provide a C interface to the modern Firebird C++ OO API
+ * for transaction management. They replace the legacy isc_start_transaction(),
+ * isc_commit_transaction(), and isc_rollback_transaction() functions.
+ * ============================================================================= */
+
+/**
+ * Start a transaction using the OO API.
+ *
+ * @param master_ptr Pointer to IMaster interface
+ * @param attachment_ptr Pointer to IAttachment interface (from fbc_get_attachment())
+ * @param tpb_len Length of TPB buffer
+ * @param tpb Transaction parameter buffer (may be NULL for defaults)
+ * @param status_vector Output status vector for errors
+ * @return Pointer to transaction object, or NULL on failure
+ */
+void* fbt_start(
+    void* master_ptr,
+    void* attachment_ptr,
+    unsigned tpb_len,
+    const unsigned char* tpb,
+    ISC_STATUS* status_vector
+);
+
+/**
+ * Commit a transaction created with fbt_start().
+ *
+ * @param transaction Pointer returned by fbt_start()
+ * @param status_vector Output status vector for errors
+ * @return 0 on success, non-zero on failure
+ */
+int fbt_commit(void* transaction, ISC_STATUS* status_vector);
+
+/**
+ * Rollback a transaction created with fbt_start().
+ *
+ * @param transaction Pointer returned by fbt_start()
+ * @param status_vector Output status vector for errors
+ * @return 0 on success, non-zero on failure
+ */
+int fbt_rollback(void* transaction, ISC_STATUS* status_vector);
+
+/**
+ * Commit with retaining (keeps transaction context).
+ *
+ * @param transaction Pointer returned by fbt_start()
+ * @param status_vector Output status vector for errors
+ * @return 0 on success, non-zero on failure
+ */
+int fbt_commit_retaining(void* transaction, ISC_STATUS* status_vector);
+
+/**
+ * Rollback with retaining (keeps transaction context).
+ *
+ * @param transaction Pointer returned by fbt_start()
+ * @param status_vector Output status vector for errors
+ * @return 0 on success, non-zero on failure
+ */
+int fbt_rollback_retaining(void* transaction, ISC_STATUS* status_vector);
+
+/**
+ * Check if a transaction is active.
+ *
+ * @param transaction Pointer returned by fbt_start()
+ * @return 1 if active, 0 if not
+ */
+int fbt_is_active(void* transaction);
+
+/**
+ * Get the ITransaction pointer from a transaction wrapper.
+ *
+ * @param transaction Pointer returned by fbt_start()
+ * @return Raw ITransaction pointer, or NULL
+ */
+void* fbt_get_handle(void* transaction);
+
+/**
+ * Free a transaction wrapper without commit/rollback.
+ * Use only when the transaction was already ended via other means.
+ *
+ * @param transaction Pointer returned by fbt_start()
+ */
+void fbt_free(void* transaction);
+
 #endif // FB_API_VER >= 30
 
 

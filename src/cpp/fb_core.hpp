@@ -8,6 +8,16 @@
 
 namespace fb {
 
+/**
+ * Get the global Firebird IMaster instance.
+ * This function retrieves the master interface from the PHP extension globals (IBG).
+ * It is implemented in firebird_utils.cpp to access PHP global state.
+ *
+ * @return Pointer to IMaster interface, or nullptr if not initialized
+ */
+Firebird::IMaster* getMaster() noexcept;
+
+
 // Forward declarations
 struct AttachmentDeleter;
 struct TransactionDeleter;

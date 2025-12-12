@@ -297,7 +297,38 @@ namespace {
         }
     }
 #endif // FB_API_VER >= 40
+} // end anonymous namespace
+
+// =============================================================================
+// Namespace fb::getMaster() implementation
+// =============================================================================
+
+// Undefine min/max macros from php_fbird_includes.h to avoid C++ STL conflicts
+#ifdef min
+#undef min
+#endif
+#ifdef max
+#undef max
+#endif
+
+#include "src/cpp/fb_core.hpp"
+
+namespace fb {
+
+/**
+ * Implementation of getMaster() - retrieves the global IMaster instance
+ * from PHP extension globals (IBG macro).
+ *
+ * This function provides the bridge between the C++ wrapper layer and the
+ * PHP extension's global state.
+ */
+Firebird::IMaster* getMaster() noexcept {
+    // IBG(master_instance) is defined in php_fbird_includes.h
+    // It's stored as void* for C compatibility
+    return static_cast<Firebird::IMaster*>(IBG(master_instance));
 }
+
+} // namespace fb
 
 /* Returns the client version. 0 bytes are minor version, 1 bytes are major version. */
 extern "C" unsigned fbu_get_client_version(void *master_ptr)

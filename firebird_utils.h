@@ -200,6 +200,180 @@ void* fbt_get_handle(void* transaction);
  */
 void fbt_free(void* transaction);
 
+/* =============================================================================
+ * Phase 5: Firebird OO API Statement Functions (FB 3.0+)
+ *
+ * These functions provide a C interface to the modern Firebird C++ OO API
+ * for statement preparation, execution, and result fetching.
+ * They replace the legacy isc_dsql_* functions.
+ * ============================================================================= */
+
+/**
+ * Prepare a statement using OO API.
+ *
+ * @param master_ptr IMaster interface pointer (from IBG(master_instance))
+ * @param attachment_ptr IAttachment pointer (from fbc_get_attachment())
+ * @param transaction_ptr ITransaction pointer (from fbt_get_handle())
+ * @param sql SQL statement text
+ * @param sql_length Length of SQL text (0 = null-terminated)
+ * @param dialect SQL dialect (1, 2, or 3)
+ * @param status_vector Output ISC_STATUS array
+ * @return Opaque StatementWrapper pointer or NULL on error
+ */
+void* fbs_prepare(
+    void* master_ptr,
+    void* attachment_ptr,
+    void* transaction_ptr,
+    const char* sql,
+    unsigned sql_length,
+    unsigned dialect,
+    ISC_STATUS* status_vector
+);
+
+/**
+ * Execute a non-SELECT statement.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param statement_ptr StatementWrapper pointer (from fbs_prepare())
+ * @param transaction_ptr ITransaction pointer
+ * @param in_msg Input message buffer
+ * @param in_metadata IMessageMetadata for input
+ * @param out_msg Output message buffer
+ * @param out_metadata IMessageMetadata for output
+ * @param status_vector Output ISC_STATUS array
+ * @return 1 on success, 0 on error
+ */
+int fbs_execute(
+    void* master_ptr,
+    void* statement_ptr,
+    void* transaction_ptr,
+    void* in_msg,
+    void* in_metadata,
+    void* out_msg,
+    void* out_metadata,
+    ISC_STATUS* status_vector
+);
+
+/**
+ * Open cursor for SELECT statement.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param statement_ptr StatementWrapper pointer
+ * @param transaction_ptr ITransaction pointer
+ * @param in_msg Input message buffer
+ * @param in_metadata IMessageMetadata for input
+ * @param cursor_flags Cursor flags
+ * @param status_vector Output ISC_STATUS array
+ * @return 1 on success, 0 on error
+ */
+int fbs_open_cursor(
+    void* master_ptr,
+    void* statement_ptr,
+    void* transaction_ptr,
+    void* in_msg,
+    void* in_metadata,
+    unsigned cursor_flags,
+    ISC_STATUS* status_vector
+);
+
+/**
+ * Fetch next row from cursor.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param statement_ptr StatementWrapper pointer
+ * @param out_msg Output message buffer
+ * @param status_vector Output ISC_STATUS array
+ * @return 1 = row fetched, 0 = end of data, -1 = error
+ */
+int fbs_fetch(
+    void* master_ptr,
+    void* statement_ptr,
+    void* out_msg,
+    ISC_STATUS* status_vector
+);
+
+/**
+ * Close cursor.
+ *
+ * @param statement_ptr StatementWrapper pointer
+ * @param status_vector Output ISC_STATUS array
+ * @return 1 on success, 0 on error
+ */
+int fbs_close_cursor(void* statement_ptr, ISC_STATUS* status_vector);
+
+/**
+ * Free/unprepare statement.
+ *
+ * @param statement_ptr StatementWrapper pointer
+ * @param status_vector Output ISC_STATUS array
+ * @return 1 on success, 0 on error
+ */
+int fbs_free(void* statement_ptr, ISC_STATUS* status_vector);
+
+/**
+ * Get statement type.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param statement_ptr StatementWrapper pointer
+ * @param status_vector Output ISC_STATUS array
+ * @return Statement type constant
+ */
+unsigned fbs_get_type(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
+
+/**
+ * Get affected rows count.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param statement_ptr StatementWrapper pointer
+ * @param status_vector Output ISC_STATUS array
+ * @return Affected rows count
+ */
+ISC_UINT64 fbs_get_affected_records(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
+
+/**
+ * Get input metadata.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param statement_ptr StatementWrapper pointer
+ * @param status_vector Output ISC_STATUS array
+ * @return IMessageMetadata pointer or NULL
+ */
+void* fbs_get_input_metadata(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
+
+/**
+ * Get output metadata.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param statement_ptr StatementWrapper pointer
+ * @param status_vector Output ISC_STATUS array
+ * @return IMessageMetadata pointer or NULL
+ */
+void* fbs_get_output_metadata(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
+
+/**
+ * Get raw IStatement pointer.
+ *
+ * @param statement_ptr StatementWrapper pointer
+ * @return Raw IStatement pointer or NULL
+ */
+void* fbs_get_statement(void* statement_ptr);
+
+/**
+ * Check if statement is prepared.
+ *
+ * @param statement_ptr StatementWrapper pointer
+ * @return 1 if prepared, 0 otherwise
+ */
+int fbs_is_prepared(void* statement_ptr);
+
+/**
+ * Check if cursor is open.
+ *
+ * @param statement_ptr StatementWrapper pointer
+ * @return 1 if cursor open, 0 otherwise
+ */
+int fbs_is_cursor_open(void* statement_ptr);
+
 #endif // FB_API_VER >= 30
 
 

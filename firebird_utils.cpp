@@ -855,3 +855,231 @@ extern "C" int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* times
 }
 
 #endif // FB_API_VER >= 40
+
+// =============================================================================
+// Phase 5: Statement OO API Functions (FB 3.0+)
+// =============================================================================
+
+#if FB_API_VER >= 30
+
+#include "src/cpp/fb_statement.hpp"
+
+/**
+ * The fb_statement.hpp wrapper layer provides RAII statement management.
+ *
+ * StatementWrapper class handles:
+ * - Statement preparation via IAttachment::prepare()
+ * - Execution via IStatement::execute()
+ * - Cursor management via IStatement::openCursor() / IResultSet
+ * - Metadata retrieval
+ * - Automatic cleanup on destruction
+ */
+
+extern "C" void* fbs_prepare(
+    void* master_ptr,
+    void* attachment_ptr,
+    void* transaction_ptr,
+    const char* sql,
+    unsigned sql_length,
+    unsigned dialect,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !attachment_ptr || !sql) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_req_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return nullptr;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* attachment = static_cast<Firebird::IAttachment*>(attachment_ptr);
+    auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
+
+    // Allocate wrapper on heap
+    auto* wrapper = new (std::nothrow) fb::StatementWrapper();
+    if (!wrapper) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_virmemexh;
+            status_vector[2] = isc_arg_end;
+        }
+        return nullptr;
+    }
+
+    if (!wrapper->prepare(master, attachment, transaction, sql, sql_length, dialect, status_vector)) {
+        delete wrapper;
+        return nullptr;
+    }
+
+    return wrapper;
+}
+
+extern "C" int fbs_execute(
+    void* master_ptr,
+    void* statement_ptr,
+    void* transaction_ptr,
+    void* in_msg,
+    void* in_metadata,
+    void* out_msg,
+    void* out_metadata,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !statement_ptr) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_stmt_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
+    auto* in_meta = static_cast<Firebird::IMessageMetadata*>(in_metadata);
+    auto* out_meta = static_cast<Firebird::IMessageMetadata*>(out_metadata);
+
+    return wrapper->execute(master, transaction, in_msg, in_meta, out_msg, out_meta, status_vector) ? 1 : 0;
+}
+
+extern "C" int fbs_open_cursor(
+    void* master_ptr,
+    void* statement_ptr,
+    void* transaction_ptr,
+    void* in_msg,
+    void* in_metadata,
+    unsigned cursor_flags,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !statement_ptr) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_stmt_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
+    auto* in_meta = static_cast<Firebird::IMessageMetadata*>(in_metadata);
+
+    return wrapper->openCursor(master, transaction, in_msg, in_meta, cursor_flags, status_vector) ? 1 : 0;
+}
+
+extern "C" int fbs_fetch(
+    void* master_ptr,
+    void* statement_ptr,
+    void* out_msg,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !statement_ptr) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_stmt_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return -1;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+
+    return wrapper->fetchNext(master, out_msg, status_vector);
+}
+
+extern "C" int fbs_close_cursor(void* statement_ptr, ISC_STATUS* status_vector) {
+    if (!statement_ptr) {
+        return 1;  // Already closed
+    }
+
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    return wrapper->closeCursor(status_vector) ? 1 : 0;
+}
+
+extern "C" int fbs_free(void* statement_ptr, ISC_STATUS* status_vector) {
+    if (!statement_ptr) {
+        return 1;  // Already freed
+    }
+
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    bool result = wrapper->free(status_vector);
+    delete wrapper;
+    return result ? 1 : 0;
+}
+
+extern "C" unsigned fbs_get_type(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector) {
+    if (!master_ptr || !statement_ptr) {
+        return 0;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+
+    return wrapper->getType(master, status_vector);
+}
+
+extern "C" ISC_UINT64 fbs_get_affected_records(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector) {
+    if (!master_ptr || !statement_ptr) {
+        return 0;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+
+    return wrapper->getAffectedRecords(master, status_vector);
+}
+
+extern "C" void* fbs_get_input_metadata(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector) {
+    if (!master_ptr || !statement_ptr) {
+        return nullptr;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+
+    return wrapper->getInputMetadata(master, status_vector);
+}
+
+extern "C" void* fbs_get_output_metadata(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector) {
+    if (!master_ptr || !statement_ptr) {
+        return nullptr;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+
+    return wrapper->getOutputMetadata(master, status_vector);
+}
+
+extern "C" void* fbs_get_statement(void* statement_ptr) {
+    if (!statement_ptr) {
+        return nullptr;
+    }
+
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    return wrapper->getStatement();
+}
+
+extern "C" int fbs_is_prepared(void* statement_ptr) {
+    if (!statement_ptr) {
+        return 0;
+    }
+
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    return wrapper->isPrepared() ? 1 : 0;
+}
+
+extern "C" int fbs_is_cursor_open(void* statement_ptr) {
+    if (!statement_ptr) {
+        return 0;
+    }
+
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    return wrapper->isCursorOpen() ? 1 : 0;
+}
+
+#endif // FB_API_VER >= 30 (Phase 5 Statement functions)

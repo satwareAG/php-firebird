@@ -826,6 +826,284 @@ When attempting to integrate `fb_connection.hpp` into `firebird_utils.cpp`, the 
 
 ---
 
+## 12. Phase 3 Implementation Notes (2025-12-12)
+
+### 12.1 Connection OO API Integration
+
+**Objective**: Integrate OO API connection path into the main extension code.
+
+**Implementation Approach**:
+Rather than maintaining dual code paths (legacy `isc_attach_database()` + new OO API), the extension was updated to use the C++ OO API wrappers alongside legacy handles.
+
+**Key Changes to `firebird.c`**:
+1. Modified `_php_fbird_attach_db()` to call `fbc_connect()` from C++ wrapper
+2. Stored OO API connection pointer in `fbird_db_link->fbc_connection` field
+3. Modified `_php_fbird_close_link()` to use `fbc_disconnect()` when OO API connection exists
+
+**Critical Architectural Discovery**:
+> **`IAttachment*` (OO API) is NOT interchangeable with `isc_db_handle` (legacy)**
+
+This discovery necessitated full migration of transaction handling alongside connection handling:
+- Transactions started on an `IAttachment*` must use `ITransaction*`
+- Cannot mix legacy `isc_start_transaction()` with OO API `IAttachment*`
+- Required creating `fb_transaction.hpp` in same phase
+
+### 12.2 Struct Updates
+
+Added `fbc_connection` field to `fbird_db_link` struct in `php_fbird_includes.h`:
+
+```c
+typedef struct {
+    isc_db_handle handle;            // Legacy handle
+    zend_long tr_list;
+    unsigned short dialect;
+    fbird_event *event_head;
+#if FB_API_VER >= 30
+    void *fbc_connection;            // OO API connection wrapper (Phase 3)
+#endif
+} fbird_db_link;
+```
+
+### 12.3 C Interop Functions Created
+
+| Function | Purpose |
+|----------|---------|
+| `fbc_connect()` | Create OO API connection via `IProvider::attachDatabase()` |
+| `fbc_disconnect()` | Disconnect via `IAttachment::detach()` |
+| `fbc_drop_database()` | Drop database via `IAttachment::dropDatabase()` |
+| `fbc_is_connected()` | Check connection validity |
+| `fbc_get_attachment()` | Get raw `IAttachment*` pointer for transaction use |
+| `fbc_get_server_version()` | Get server version code from OO API |
+
+### 12.4 Phase 3 Completion Status
+
+**Completed: 2025-12-12**
+
+- ✅ C++ ConnectionWrapper RAII class implemented
+- ✅ C interop functions (`fbc_*`) implemented and tested
+- ✅ `fbird_db_link` struct updated with `fbc_connection` field
+- ✅ Build succeeds with PHP 8.4 + Firebird 4.0.5 client
+
+**Note**: Connection OO API path currently disabled pending transaction integration testing. Enable by uncommenting in `_php_fbird_attach_db()`.
+
+---
+
+## 13. Phase 4 Implementation Notes (2025-12-12)
+
+### 13.1 Transaction OO API Integration
+
+**Objective**: Implement transaction handling using OO API to work with `IAttachment*` connections.
+
+**Key Insight**: When using OO API connections (`fbc_connection`), transactions MUST also use OO API:
+- `IAttachment::startTransaction()` returns `ITransaction*`
+- Cannot pass `ITransaction*` to legacy `isc_commit_transaction()`
+- Requires full bi-directional mapping: `fbt_transaction` ↔ `ITransaction*`
+
+### 13.2 C++ Transaction Wrapper
+
+Created `src/cpp/fb_transaction.hpp`:
+
+```cpp
+class TransactionWrapper {
+    Firebird::ITransaction* transaction_ = nullptr;
+    bool owns_transaction_ = false;
+    
+public:
+    bool start(Firebird::IMaster* master, Firebird::IAttachment* attachment,
+               unsigned tpb_length, const unsigned char* tpb,
+               ISC_STATUS* status_vector);
+    bool commit(ISC_STATUS* status_vector);
+    bool rollback(ISC_STATUS* status_vector);
+    bool commitRetaining(ISC_STATUS* status_vector);
+    bool rollbackRetaining(ISC_STATUS* status_vector);
+    // ...
+};
+```
+
+### 13.3 Struct Updates
+
+Added `fbt_transaction` field to `fbird_transaction` struct in `php_fbird_includes.h`:
+
+```c
+typedef struct {
+    fb_safe_handle handle;           // Legacy isc_tr_handle
+    unsigned short link_cnt;
+    unsigned long affected_rows;
+#if FB_API_VER >= 30
+    void *fbt_transaction;           // OO API ITransaction* wrapper (Phase 4)
+#endif
+    fbird_db_link *db_link[1];
+} fbird_transaction;
+```
+
+### 13.4 C Interop Functions Created
+
+| Function | Purpose |
+|----------|---------|
+| `fbt_start()` | Start transaction via `IAttachment::startTransaction()` |
+| `fbt_commit()` | Commit via `ITransaction::commit()` |
+| `fbt_rollback()` | Rollback via `ITransaction::rollback()` |
+| `fbt_commit_retaining()` | Commit retaining via `ITransaction::commitRetaining()` |
+| `fbt_rollback_retaining()` | Rollback retaining via `ITransaction::rollbackRetaining()` |
+| `fbt_get_transaction()` | Get raw `ITransaction*` for statement use |
+
+### 13.5 Integration Points in `firebird.c`
+
+**Transaction Start** (`_php_fbird_def_trans()`, `_php_fbird_trans_start()`):
+```c
+#if FB_API_VER >= 30
+    if (ib_link->fbc_connection) {
+        trans->fbt_transaction = fbt_start(
+            master_instance,
+            fbc_get_attachment(ib_link->fbc_connection),
+            tpb_length, tpb, status_vector
+        );
+    }
+#endif
+```
+
+**Transaction End** (`_php_fbird_trans_end()`):
+```c
+#if FB_API_VER >= 30
+    if (trans->fbt_transaction) {
+        if (commit) {
+            result = fbt_commit(trans->fbt_transaction, status_vector);
+        } else {
+            result = fbt_rollback(trans->fbt_transaction, status_vector);
+        }
+        trans->fbt_transaction = NULL;
+    }
+#endif
+```
+
+### 13.6 Critical Bug Fix: `fbt_transaction` Initialization
+
+**Problem**: After adding `fbt_transaction` field, tests 005, 006, 007, 013 segfaulted.
+
+**Root Cause**: Uninitialized `fbt_transaction` contained garbage memory, evaluated as non-NULL, causing OO API code path to execute with invalid pointer.
+
+**Solution**: Initialize `fbt_transaction = NULL` in ALL 5 transaction allocation paths:
+
+| Location | Function | Line |
+|----------|----------|------|
+| `firebird.c` | `_php_fbird_def_trans()` / `fbird_trans_start()` | ~1793 |
+| `firebird.c` | `PHP_FUNCTION(fbird_trans)` multi-link | ~2067 |
+| `firebird.c` | Additional trans allocation | ~2115 |
+| `fbird_query_exec.c` | SET TRANSACTION case | ~130 |
+| `fbird_query_exec.c` | `fbird_execute_auto` | ~1260 |
+
+**Commit**: `396cf8f` - fix: initialize fbt_transaction in all allocation paths
+
+### 13.7 Phase 4 Completion Status
+
+**Completed: 2025-12-12**
+
+- ✅ C++ TransactionWrapper RAII class implemented (`src/cpp/fb_transaction.hpp`)
+- ✅ C interop functions (`fbt_*`) implemented in `firebird_utils.cpp`
+- ✅ `fbird_transaction` struct updated with `fbt_transaction` field
+- ✅ Transaction start/commit/rollback integrated in `firebird.c`
+- ✅ `fbt_transaction = NULL` initialization added to all 5 allocation paths
+- ✅ All 98 tests pass (4 skipped, 100% non-skipped pass rate)
+
+### 13.8 Current Repository State
+
+- **Branch**: `feature/fbird-extension-release`
+- **Latest Commit**: `396cf8f` (Phase 4 initialization fix)
+- **Test Status**: 98 passed, 0 failed, 4 skipped (100% non-skipped)
+- **Minimum Client**: Firebird 3.0+ (Full OO Migration confirmed)
+
+---
+
+## 14. Phase 5 Implementation Notes (2025-12-12)
+
+### 14.1 Status: 🟢 IN PROGRESS
+
+**Started**: 2025-12-12
+
+**Completed So Far**:
+- ✅ Created `src/cpp/fb_statement.hpp` - RAII wrapper for `IStatement` with cursor management
+- ✅ Added C interop function declarations to `firebird_utils.h`
+- ✅ Implemented C interop functions (`fbs_*`) in `firebird_utils.cpp`
+- ✅ Build verified: PHP 8.4.15 + Firebird 4.0.5 client
+- ✅ All 98 tests pass (4 skipped, 100% non-skipped)
+
+**Remaining**:
+- 🟡 Add `fbs_statement` field to `fbird_query` struct
+- 🟡 Integrate `fbs_prepare()` into `fbird_query_prepare.c`
+- 🟡 Integrate `fbs_execute()` into `fbird_query_exec.c`
+- 🟡 Integrate cursor/fetch operations into `fbird_result.c`
+
+### 14.2 Objective
+
+Migrate statement preparation and execution to OO API using `IStatement` and `IResultSet` interfaces.
+
+### 14.2 Files to Create
+
+| File | Purpose |
+|------|---------|
+| `src/cpp/fb_statement.hpp` | RAII wrapper for `IStatement` |
+| `src/cpp/fb_resultset.hpp` | RAII wrapper for `IResultSet` (optional, may combine) |
+
+### 14.3 C Interop Functions to Implement
+
+| Function | Legacy Equivalent | OO API Method |
+|----------|-------------------|---------------|
+| `fbs_prepare()` | `isc_dsql_prepare()` | `IAttachment::prepare()` |
+| `fbs_execute()` | `isc_dsql_execute()` | `IStatement::execute()` |
+| `fbs_execute2()` | `isc_dsql_execute2()` | `IStatement::execute()` with output |
+| `fbs_fetch()` | `isc_dsql_fetch()` | `IResultSet::fetchNext()` |
+| `fbs_free()` | `isc_dsql_free_statement()` | `IStatement::free()` |
+| `fbs_get_cursor()` | N/A | `IStatement::openCursor()` |
+| `fbs_get_input_metadata()` | `isc_dsql_describe_bind()` | `IStatement::getInputMetadata()` |
+| `fbs_get_output_metadata()` | `isc_dsql_describe()` | `IStatement::getOutputMetadata()` |
+
+### 14.4 Struct Updates Required
+
+Add `fbs_statement` field to `fbird_query` struct (in `php_fbird_query_internal.h` or similar):
+
+```c
+typedef struct {
+    isc_stmt_handle stmt;            // Legacy handle
+    // ... existing fields ...
+#if FB_API_VER >= 30
+    void *fbs_statement;             // OO API IStatement* wrapper
+    void *fbs_resultset;             // OO API IResultSet* wrapper (for cursors)
+#endif
+} fbird_query;
+```
+
+### 14.5 Integration Points
+
+**Query Preparation** (`fbird_query_prepare.c`):
+- `_php_fbird_alloc_query()` - Use `fbs_prepare()` when OO API connection active
+- Store `IStatement*` in `fbird_query->fbs_statement`
+
+**Query Execution** (`fbird_query_exec.c`):
+- `_php_fbird_exec()` - Use `fbs_execute()` when OO API statement active  
+- Handle `IResultSet` for SELECT queries via `IStatement::openCursor()`
+
+**Result Fetching** (`fbird_result.c`):
+- Fetch operations use `IResultSet::fetchNext()` when OO API active
+
+### 14.6 Complexity Notes
+
+Statement handling is the most complex phase due to:
+- SQLDA management (input/output message buffers)
+- Type coercion between PHP and Firebird types
+- Cursor management for SELECT statements
+- Metadata caching for performance
+- Affected rows tracking
+
+### 14.7 Test Coverage
+
+All existing query/statement tests must pass:
+- `tests/fbird_query_*.phpt`
+- `tests/fbird_fetch_*.phpt`
+- `tests/fbird_execute_*.phpt`
+- `tests/fbird_prepare_*.phpt`
+
+---
+
 ## Document History
 
 | Version | Date | Author | Changes |
@@ -833,3 +1111,6 @@ When attempting to integrate `fb_connection.hpp` into `firebird_utils.cpp`, the 
 | 1.0 | 2025-12-12 | Jane Alesi | Initial plan based on DeepWiki research |
 | 1.1 | 2025-12-12 | Jane Alesi | Added Phase 2 implementation notes and API compatibility findings |
 | 1.2 | 2025-12-12 | Jane Alesi | Phase 2 completion: FB 4.0 compatibility resolved, OO API fully integrated |
+| 1.3 | 2025-12-12 | Jane Alesi | Phase 3 completion: Connection OO API integration |
+| 1.4 | 2025-12-12 | Jane Alesi | Phase 4 completion: Transaction OO API integration with initialization fix |
+| 1.5 | 2025-12-12 | Jane Alesi | Added Phase 5 plan: Statement/Query infrastructure |

@@ -284,6 +284,46 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
 	 * dropping it in the resource destructor. */
 	ib_query->owns_stmt_handle = 1;
 
+#if FB_API_VER >= 30
+	/* Phase 5: Create OO API statement wrapper when OO API connection and
+	 * transaction are available. The OO API wrapper is prepared in parallel
+	 * with the legacy handle - this allows gradual migration of execution
+	 * and fetch operations to the OO API while maintaining compatibility
+	 * with existing describe operations.
+	 *
+	 * Key insight from Phase 3-4: IAttachment* (OO API) is NOT interchangeable
+	 * with isc_db_handle (legacy). When both connection and transaction use
+	 * OO API, statement operations should also use OO API for consistency.
+	 */
+	if (link->fbc_connection && trans->fbt_transaction) {
+		void *attachment_ptr = fbc_get_attachment(link->fbc_connection);
+		void *transaction_ptr = fbt_get_handle(trans->fbt_transaction);
+
+		if (attachment_ptr && transaction_ptr) {
+			ib_query->fbs_statement = fbs_prepare(
+				IBG(master_instance),
+				attachment_ptr,
+				transaction_ptr,
+				query,
+				0,  /* sql_length: 0 = null-terminated */
+				link->dialect,
+				IB_STATUS
+			);
+			/* Note: OO API preparation may fail independently of legacy API.
+			 * For now, we don't treat this as a fatal error - the legacy path
+			 * will still be used. Future work will make OO API the primary path. */
+			if (!ib_query->fbs_statement) {
+				IBDEBUG("fbs_prepare() failed, falling back to legacy API\n");
+				/* Clear status for legacy attempt */
+				IB_STATUS[0] = 0;
+				IB_STATUS[1] = 0;
+			} else {
+				IBDEBUG("OO API statement prepared successfully\n");
+			}
+		}
+	}
+#endif
+
 	if (isc_dsql_allocate_statement(IB_STATUS, &link->handle.db, &ib_query->stmt.stmt)) {
 		_php_fbird_error();
 		goto _php_fbird_alloc_query_error;

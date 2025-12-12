@@ -361,6 +361,7 @@ PHP_FUNCTION(fbird_blob_create)
 	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
 	ib_blob->bl_handle.ptr = 0;
 	ib_blob->type = BLOB_INPUT;
+	ib_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
 
 	if (isc_create_blob(IB_STATUS, &ib_link->handle.db, &trans->handle.tr, &ib_blob->bl_handle.blob, &ib_blob->bl_qd)) {
 		_php_fbird_error();
@@ -391,6 +392,7 @@ PHP_FUNCTION(fbird_blob_open)
 	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
 	ib_blob->bl_handle.ptr = 0;
 	ib_blob->type = BLOB_OUTPUT;
+	ib_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
 
 	do {
 		if (! _php_fbird_string_to_quad(blob_id, &ib_blob->bl_qd)) {
@@ -542,7 +544,7 @@ PHP_FUNCTION(fbird_blob_info)
 	zval *link = NULL, *arg1 = NULL;
 	fbird_db_link *ib_link;
 	fbird_transaction *trans = NULL;
-	fbird_blob ib_blob = { 0, BLOB_INPUT };
+	fbird_blob ib_blob = { {0}, BLOB_INPUT, {0, 0}, NULL };  /* Phase 6: explicit fbb_blob init */
 	IBASE_BLOBINFO bl_info;
 	php_stream *stream = NULL;
 	fbird_blob *ext_blob = NULL;
@@ -649,7 +651,7 @@ PHP_FUNCTION(fbird_blob_echo)
 	zval *link = NULL;
 	fbird_db_link *ib_link;
 	fbird_transaction *trans = NULL;
-	fbird_blob ib_blob_id = { 0, BLOB_OUTPUT  };
+	fbird_blob ib_blob_id = { {0}, BLOB_OUTPUT, {0, 0}, NULL };  /* Phase 6: explicit fbb_blob init */
 	char bl_data[IBASE_BLOB_SEG];
 	unsigned short seg_len;
 
@@ -696,7 +698,7 @@ PHP_FUNCTION(fbird_blob_import)
 	zval *link = NULL, *file;
 	int size;
 	unsigned short b;
-	fbird_blob ib_blob = { 0, 0 };
+	fbird_blob ib_blob = { {0}, 0, {0, 0}, NULL };  /* Phase 6: explicit fbb_blob init */
 	fbird_db_link *ib_link;
 	fbird_transaction *trans = NULL;
 	char bl_data[IBASE_BLOB_SEG];
@@ -758,6 +760,7 @@ PHP_FUNCTION(fbird_blob_create_stream)
 	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
 	ib_blob->bl_handle.ptr = 0;
 	ib_blob->type = BLOB_INPUT;
+	ib_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
 
 	if (isc_create_blob(IB_STATUS, &ib_link->handle.db, &trans->handle.tr, &ib_blob->bl_handle.blob, &ib_blob->bl_qd)) {
 		_php_fbird_error();
@@ -801,6 +804,7 @@ PHP_FUNCTION(fbird_blob_open_stream)
 	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
 	ib_blob->bl_handle.ptr = 0;
 	ib_blob->type = BLOB_OUTPUT;
+	ib_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
 
 	if (! _php_fbird_string_to_quad(blob_id, &ib_blob->bl_qd)) {
 		_php_fbird_module_error("String is not a BLOB ID");

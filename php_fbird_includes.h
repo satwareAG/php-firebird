@@ -145,6 +145,10 @@ typedef struct {
 	fb_safe_handle bl_handle;
 	unsigned short type;
 	ISC_QUAD bl_qd;
+	/* Phase 6: OO API blob wrapper (fb::BlobWrapper* from fbb_create()/fbb_open())
+	 * When non-NULL, this blob was created via the modern OO API.
+	 * The bl_handle.blob may be 0 in this case - use fbb_* functions instead. */
+	void *fbb_blob;
 } fbird_blob;
 
 typedef struct event {

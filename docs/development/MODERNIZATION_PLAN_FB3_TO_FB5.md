@@ -1180,8 +1180,10 @@ if (ib_query->fbs_statement && fbs_is_cursor_open(ib_query->fbs_statement)) {
 | **Phase 3** | Connection Integration (fbc_* functions in firebird.c) | ✅ COMPLETE | 2025-12-12 |
 | **Phase 4** | Transaction Layer (TransactionWrapper, fbt_* functions) | ✅ COMPLETE | 2025-12-12 |
 | **Phase 5** | Statement Layer (StatementWrapper, fbs_* functions) | ✅ COMPLETE | 2025-12-12 |
-| **Phase 6** | Blob/Events/Services | 🟡 PLANNED | - |
-| **Phase 7** | Testing & Documentation | 🟡 PLANNED | - |
+| **Phase 6** | Blob OO API (BlobWrapper, fbb_* functions) | ✅ COMPLETE | 2025-12-12 |
+| **Phase 7** | Event OO API (EventsWrapper, fbe_* functions) | ✅ COMPLETE | 2025-12-12 |
+| **Phase 8** | Service OO API | 🟡 PLANNED | - |
+| **Phase 9+** | Final Legacy Removal & Testing | 🟡 PLANNED | - |
 
 ### 15.2 C Interop Function Families Implemented
 
@@ -1194,7 +1196,13 @@ if (ib_query->fbs_statement && fbs_is_cursor_open(ib_query->fbs_statement)) {
 **Statement (`fbs_*`)**: 8 functions
 - `fbs_prepare`, `fbs_execute`, `fbs_open_cursor`, `fbs_fetch`, `fbs_close_cursor`, `fbs_free`, `fbs_is_cursor_open`, `fbs_get_affected_rows`
 
-**Total**: 20 C interop functions bridging C extension code to C++ OO API wrappers
+**Blob (`fbb_*`)**: 8 functions
+- `fbb_create`, `fbb_open`, `fbb_put_segment`, `fbb_get_segment`, `fbb_close`, `fbb_cancel`, `fbb_get_info`, `fbb_free`
+
+**Event (`fbe_*`)**: 5 functions
+- `fbe_create`, `fbe_queue`, `fbe_cancel`, `fbe_has_event`, `fbe_free`
+
+**Total**: 33 C interop functions bridging C extension code to C++ OO API wrappers
 
 ### 15.3 C++ RAII Wrapper Classes
 
@@ -1203,6 +1211,9 @@ if (ib_query->fbs_statement && fbs_is_cursor_open(ib_query->fbs_statement)) {
 | `ConnectionWrapper` | `src/cpp/fb_connection.hpp` | RAII wrapper for IAttachment |
 | `TransactionWrapper` | `src/cpp/fb_transaction.hpp` | RAII wrapper for ITransaction |
 | `StatementWrapper` | `src/cpp/fb_statement.hpp` | RAII wrapper for IStatement + IResultSet cursor |
+| `BlobWrapper` | `src/cpp/fb_blob.hpp` | RAII wrapper for IBlob |
+| `EventsWrapper` | `src/cpp/fb_events.hpp` | RAII wrapper for IEvents + IEventCallback |
+| `EventCallback` | `src/cpp/fb_events.hpp` | IEventCallback implementation with atomic state |
 | `StatusWrapper` | `src/cpp/fb_status.hpp` | Error handling with `statusHasError()` helper |
 | `DpbBuilder` | `src/cpp/fb_dpb_builder.hpp` | Database Parameter Block construction |
 | `TpbBuilder` | `src/cpp/fb_tpb_builder.hpp` | Transaction Parameter Block construction |
@@ -1215,6 +1226,8 @@ if (ib_query->fbs_statement && fbs_is_cursor_open(ib_query->fbs_statement)) {
 | `fbird_transaction` | `fbt_transaction` | OO API TransactionWrapper pointer | Phase 4 |
 | `fbird_query` | `fbs_statement` | OO API StatementWrapper pointer | Phase 5 |
 | `fbird_query` | `fbs_resultset` | OO API IResultSet pointer for cursor ops | Phase 5 |
+| `fbird_blob` | `fbb_blob` | OO API BlobWrapper pointer | Phase 6 |
+| `fbird_event` | `fbe_events` | OO API EventsWrapper pointer | Phase 7 |
 
 ### 15.5 Test Coverage
 
@@ -1455,25 +1468,88 @@ typedef struct {
 
 #### Phase 7: Event OO API Wrapper
 
-**Goal**: Create `IEvents` wrapper for event handling.
+**Status**: ✅ COMPLETE (2025-12-12)
 
-**New Files**:
-- `src/cpp/fb_events.hpp` - RAII wrapper for IEvents
+**Goal**: Create `IEvents` wrapper for event handling with RAII patterns.
+
+**New Files Created**:
+- `src/cpp/fb_events.hpp` - RAII wrappers for IEvents and IEventCallback
+
+**C++ Classes Implemented**:
+
+```cpp
+namespace fb {
+
+class EventCallback final : public Firebird::IEventCallbackImpl<EventCallback, Firebird::CheckStatusWrapper> {
+public:
+    void addRef();
+    int release();
+    void eventCallbackFunction(unsigned int length, const unsigned char* events);
+    bool hasEventOccurred() const;
+    void reset();
+private:
+    std::atomic<bool> m_eventOccurred;
+    std::atomic<int> m_refCount;
+};
+
+class EventsWrapper {
+public:
+    bool queue(Firebird::IMaster*, Firebird::IAttachment*, unsigned int, const unsigned char*, ISC_STATUS*);
+    bool cancel(Firebird::IMaster*, ISC_STATUS*);
+    bool hasEventOccurred() const;
+    bool isActive() const;
+private:
+    Firebird::IEvents* m_events;
+    EventCallback* m_callback;
+};
+
+} // namespace fb
+```
 
 **C Interop Functions**:
-| Function | Legacy Equivalent | OO API Method |
-|----------|-------------------|---------------|
-| `fbe_create_buffer()` | `isc_event_block` | Manual buffer + `IUtil` |
-| `fbe_queue()` | `isc_que_events` | `IAttachment::queEvents()` |
-| `fbe_wait()` | `isc_wait_for_event` | Custom wait with callback |
-| `fbe_counts()` | `isc_event_counts` | `IUtil::decodeDate()` analogue |
-| `fbe_cancel()` | - | `IEvents::cancel()` |
+| Function | Legacy Equivalent | OO API Method | Status |
+|----------|-------------------|---------------|--------|
+| `fbe_create()` | N/A | Wrapper allocation | ✅ Implemented |
+| `fbe_queue()` | `isc_que_events` | `IAttachment::queEvents()` | ✅ Implemented |
+| `fbe_cancel()` | N/A | `IEvents::cancel()` | ✅ Implemented |
+| `fbe_has_event()` | N/A | Callback state check | ✅ Implemented |
+| `fbe_free()` | N/A | Wrapper cleanup | ✅ Implemented |
 
-**Note**: Event handling in OO API uses callback-based `IEventCallback`. 
-May need redesign of event polling mechanism.
+**Struct Update** (in `php_fbird_includes.h`):
+```c
+typedef struct fbird_event {
+    // ... existing fields ...
+    void *fbe_events;  /* Phase 7: OO API event wrapper */
+} fbird_event;
+```
+
+**Integration Points** (in `fbird_events.c`):
+- Added `#include "firebird_utils.h"` for `fbe_*` function access
+- Initialization: `event->fbe_events = NULL;` in event allocation
+- Cleanup in `_php_fbird_free_event()`:
+```c
+#if FB_API_VER >= 30
+    if (event->fbe_events) {
+        fbe_cancel(IBG(master_instance), event->fbe_events, NULL);
+        fbe_free(event->fbe_events);
+        event->fbe_events = NULL;
+    }
+#endif
+```
+
+**Compilation Issues Solved**:
+1. **Abstract class member**: Changed from `EventCallback m_callback;` to `EventCallback* m_callback;` (pointer) to avoid issues with non-copyable atomic members
+2. **Missing addRef/release**: Implemented `IReferenceCounted` interface methods in `EventCallback`
+3. **Wrong error code**: Changed `isc_exception` to `isc_except2` (correct Firebird error constant)
+
+**Architecture Note**:
+The extension uses polling-based synchronous event handling (`isc_wait_for_event()`) because PHP callbacks MUST execute in the PHP thread context. The OO API wrapper provides foundation for future async support but is not actively used for event waiting. The wrapper enables proper resource cleanup via RAII patterns.
 
 **Test Coverage**:
-- `event_poller_wrapper.phpt`
+- `event_poller_wrapper.phpt` ✅ PASS
+
+**Commits**:
+- `60dd90e` feat(oo-api): implement Event OO API wrapper (Phase 7)
 
 ---
 
@@ -1717,3 +1793,4 @@ Phase 11 (Encode/Decode) ──────┘           │
 | 1.5 | 2025-12-12 | Jane Alesi | Added Phase 5 plan: Statement/Query infrastructure |
 | 1.6 | 2025-12-12 | Jane Alesi | Phase 5 Parts 1-4: Statement OO API integration complete (prepare, execute, fetch) |
 | 1.7 | 2025-12-12 | Jane Alesi | Added Section 16: Complete Legacy Code Removal Plan (Phases 6-15) |
+| 1.8 | 2025-12-12 | Jane Alesi | Phase 6 & 7 completion: Blob (fbb_*) and Event (fbe_*) OO API wrappers complete |

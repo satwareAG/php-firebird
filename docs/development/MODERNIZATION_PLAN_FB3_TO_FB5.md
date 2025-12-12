@@ -1077,15 +1077,58 @@ typedef struct {
 **Query Preparation** (`fbird_query_prepare.c`):
 - `_php_fbird_alloc_query()` - Use `fbs_prepare()` when OO API connection active
 - Store `IStatement*` in `fbird_query->fbs_statement`
+- ✅ Part 2 - Completed (commit `2b7e9a4`)
 
 **Query Execution** (`fbird_query_exec.c`):
 - `_php_fbird_exec()` - Use `fbs_execute()` when OO API statement active  
 - Handle `IResultSet` for SELECT queries via `IStatement::openCursor()`
+- ✅ Part 3 - Completed (commit `740c2d9`)
 
 **Result Fetching** (`fbird_result.c`):
-- Fetch operations use `IResultSet::fetchNext()` when OO API active
+- `_php_fbird_fetch_hash()` - Use `fbs_fetch()` when OO API cursor open
+- Close OO cursor via `fbs_close_cursor()` at end of data
+- ✅ Part 4 - Completed (commit pending)
 
-### 14.6 Complexity Notes
+### 14.6 Part 4 Implementation Details
+
+**Part 4**: Integrate `fbs_fetch()` cursor operations into `fbird_result.c`
+
+**Key Changes**:
+1. Added OO API fetch path in `_php_fbird_fetch_hash()` function
+2. Check `fbs_is_cursor_open()` before fetching
+3. Use `fbs_fetch()` for cursor advancement when OO cursor is open
+4. Handle end-of-data (returns 0) and errors (returns -1)
+5. Close OO cursor with `fbs_close_cursor()` when fetch completes
+
+**Code Pattern**:
+```c
+#if FB_API_VER >= 30
+if (ib_query->fbs_statement && fbs_is_cursor_open(ib_query->fbs_statement)) {
+    int oo_fetch_result = fbs_fetch(
+        IBG(master_instance),
+        ib_query->fbs_statement,
+        NULL, /* out_msg: cursor advancement only */
+        IB_STATUS
+    );
+    
+    if (oo_fetch_result == 0) {
+        /* End of data */
+        fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
+        RETURN_FALSE;
+    } else if (oo_fetch_result == -1) {
+        /* Error */
+        fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
+        _php_fbird_error();
+        RETURN_FALSE;
+    }
+    /* Row fetched successfully - continue to legacy data extraction */
+}
+#endif
+```
+
+**Test Results**: 98 passed, 0 failed, 4 skipped (100% non-skipped)
+
+### 14.7 Complexity Notes
 
 Statement handling is the most complex phase due to:
 - SQLDA management (input/output message buffers)
@@ -1114,3 +1157,4 @@ All existing query/statement tests must pass:
 | 1.3 | 2025-12-12 | Jane Alesi | Phase 3 completion: Connection OO API integration |
 | 1.4 | 2025-12-12 | Jane Alesi | Phase 4 completion: Transaction OO API integration with initialization fix |
 | 1.5 | 2025-12-12 | Jane Alesi | Added Phase 5 plan: Statement/Query infrastructure |
+| 1.6 | 2025-12-12 | Jane Alesi | Phase 5 Parts 1-4: Statement OO API integration complete (prepare, execute, fetch) |

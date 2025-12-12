@@ -448,6 +448,54 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
             ib_query->was_result_once
         );
         if (!is_buffered_returning) {
+
+#if FB_API_VER >= 30
+        /* Phase 5 Part 4: OO API fetch path when cursor was opened via OO API.
+         * When fbs_statement has an open cursor, use fbs_fetch() to advance it.
+         * Currently uses legacy XSQLDA for data transfer until message buffer integration.
+         */
+        int use_oo_fetch = 0;
+        if (ib_query->fbs_statement && fbs_is_cursor_open(ib_query->fbs_statement)) {
+            /* OO API cursor is open - use OO fetch to advance cursor.
+             * Pass NULL for out_msg since we use legacy XSQLDA for data transfer.
+             * The OO API cursor was opened in Part 3 via fbs_open_cursor().
+             *
+             * Note: fbs_fetch returns 1 = row fetched, 0 = end of data, -1 = error
+             */
+            int oo_fetch_result = fbs_fetch(
+                IBG(master_instance),
+                ib_query->fbs_statement,
+                NULL, /* out_msg: Not using OO message buffer - cursor advancement only */
+                IB_STATUS
+            );
+
+            if (oo_fetch_result == 0) {
+                /* End of data - no more rows */
+                ib_query->has_more_rows = 0;
+                ib_query->is_open = 0;
+
+                /* Close the OO cursor */
+                fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
+
+                RETURN_FALSE;
+            } else if (oo_fetch_result == -1) {
+                /* Error during fetch */
+                ib_query->has_more_rows = 0;
+                ib_query->is_open = 0;
+                _php_fbird_error();
+                fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
+                RETURN_FALSE;
+            }
+
+            /* Row fetched successfully via OO API.
+             * For now, we still need legacy fetch to populate XSQLDA data.
+             * This is a temporary measure until full OO message buffer integration.
+             * Mark OO fetch succeeded for future use. */
+            use_oo_fetch = 1;
+            (void)use_oo_fetch; /* Suppress unused warning - reserved for future */
+        }
+#endif
+
         ISC_STATUS fetch_res = isc_dsql_fetch(IB_STATUS, &ib_query->stmt.stmt, 1, ib_query->out_sqlda);
         if (fetch_res) {
             ib_query->has_more_rows = 0;
@@ -495,6 +543,13 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
                     }
                 }
             }
+
+#if FB_API_VER >= 30
+            /* Also close OO cursor if open */
+            if (ib_query->fbs_statement && fbs_is_cursor_open(ib_query->fbs_statement)) {
+                fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
+            }
+#endif
 
             RETURN_FALSE;
         }

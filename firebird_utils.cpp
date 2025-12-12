@@ -1108,3 +1108,16 @@ extern "C" int fbs_is_cursor_open(void* statement_ptr) {
 #if FB_API_VER >= 30
 #include "src/cpp/fb_events.hpp"
 #endif // FB_API_VER >= 30 (Phase 7 Event functions)
+
+/* =============================================================================
+ * Phase 8: Service OO API (FB 3.0+)
+ *
+ * RAII wrapper for IService operations.
+ * The fbsvc_* functions are implemented inline in fb_service.hpp.
+ *
+ * This replaces the legacy isc_service_attach, isc_service_detach,
+ * isc_service_start, and isc_service_query functions.
+ * ============================================================================= */
+#if FB_API_VER >= 30
+#include "src/cpp/fb_service.hpp"
+#endif // FB_API_VER >= 30 (Phase 8 Service functions)

@@ -597,6 +597,95 @@ int fbe_is_queued(void* events_wrapper);
  */
 void fbe_free(void* events_wrapper);
 
+/* =============================================================================
+ * Phase 8: Firebird OO API Service Functions (FB 3.0+)
+ *
+ * These functions provide a C interface to the modern Firebird C++ OO API
+ * for service manager operations. They replace the legacy isc_service_attach,
+ * isc_service_detach, isc_service_start, and isc_service_query functions.
+ * ============================================================================= */
+
+/**
+ * Attach to the service manager using OO API.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param service_name Service name (e.g., "localhost:service_mgr")
+ * @param spb_length Service parameter buffer length
+ * @param spb Service parameter buffer
+ * @param status_vector Output status vector
+ * @return Opaque service wrapper pointer, or NULL on error
+ */
+void* fbsvc_attach(void* master_ptr,
+                   const char* service_name,
+                   unsigned spb_length,
+                   const unsigned char* spb,
+                   ISC_STATUS* status_vector);
+
+/**
+ * Detach from the service manager.
+ *
+ * @param master_ptr IMaster interface pointer (unused, for API consistency)
+ * @param service_wrapper Service wrapper pointer (from fbsvc_attach())
+ * @param status_vector Output status vector
+ * @return 1 on success, 0 on error
+ */
+int fbsvc_detach(void* master_ptr, void* service_wrapper, ISC_STATUS* status_vector);
+
+/**
+ * Start a service task.
+ *
+ * @param master_ptr IMaster interface pointer (unused, for API consistency)
+ * @param service_wrapper Service wrapper pointer
+ * @param spb_length Service parameter buffer length
+ * @param spb Service parameter buffer
+ * @param status_vector Output status vector
+ * @return 1 on success, 0 on error
+ */
+int fbsvc_start(void* master_ptr,
+                void* service_wrapper,
+                unsigned spb_length,
+                const unsigned char* spb,
+                ISC_STATUS* status_vector);
+
+/**
+ * Query service status/results.
+ *
+ * @param master_ptr IMaster interface pointer (unused, for API consistency)
+ * @param service_wrapper Service wrapper pointer
+ * @param send_length Send buffer length
+ * @param send_items Send buffer
+ * @param recv_length Receive items length
+ * @param recv_items Receive items
+ * @param buffer_length Output buffer length
+ * @param buffer Output buffer
+ * @param status_vector Output status vector
+ * @return 1 on success, 0 on error
+ */
+int fbsvc_query(void* master_ptr,
+                void* service_wrapper,
+                unsigned send_length,
+                const unsigned char* send_items,
+                unsigned recv_length,
+                const unsigned char* recv_items,
+                unsigned buffer_length,
+                unsigned char* buffer,
+                ISC_STATUS* status_vector);
+
+/**
+ * Check if attached to service manager.
+ *
+ * @param service_wrapper Service wrapper pointer
+ * @return 1 if attached, 0 otherwise
+ */
+int fbsvc_is_attached(void* service_wrapper);
+
+/**
+ * Free service wrapper (without detach - service must be detached first).
+ *
+ * @param service_wrapper Service wrapper pointer
+ */
+void fbsvc_free(void* service_wrapper);
+
 #endif // FB_API_VER >= 30
 
 

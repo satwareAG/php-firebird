@@ -1182,7 +1182,7 @@ if (ib_query->fbs_statement && fbs_is_cursor_open(ib_query->fbs_statement)) {
 | **Phase 5** | Statement Layer (StatementWrapper, fbs_* functions) | ✅ COMPLETE | 2025-12-12 |
 | **Phase 6** | Blob OO API (BlobWrapper, fbb_* functions) | ✅ COMPLETE | 2025-12-12 |
 | **Phase 7** | Event OO API (EventsWrapper, fbe_* functions) | ✅ COMPLETE | 2025-12-12 |
-| **Phase 8** | Service OO API | 🟡 PLANNED | - |
+| **Phase 8** | Service OO API | ✅ DONE | fb_service.hpp, fbsvc_* functions |
 | **Phase 9+** | Final Legacy Removal & Testing | 🟡 PLANNED | - |
 
 ### 15.2 C Interop Function Families Implemented
@@ -1794,3 +1794,4 @@ Phase 11 (Encode/Decode) ──────┘           │
 | 1.6 | 2025-12-12 | Jane Alesi | Phase 5 Parts 1-4: Statement OO API integration complete (prepare, execute, fetch) |
 | 1.7 | 2025-12-12 | Jane Alesi | Added Section 16: Complete Legacy Code Removal Plan (Phases 6-15) |
 | 1.8 | 2025-12-12 | Jane Alesi | Phase 6 & 7 completion: Blob (fbb_*) and Event (fbe_*) OO API wrappers complete |
+| 1.9 | 2025-12-12 | Jane Alesi | Phase 8 completion: Service (fbsvc_*) OO API wrapper complete (4/4 tests pass) |

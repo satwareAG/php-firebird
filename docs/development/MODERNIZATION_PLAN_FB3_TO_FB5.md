@@ -1397,42 +1397,56 @@ isc_commit_transaction (290)
 
 #### Phase 6: Blob OO API Wrapper
 
-**Goal**: Create `IBlob` wrapper and integrate into blob operations.
+**Status**: 🟡 IN PROGRESS (Struct integration complete, dual-mode pending)
 
-**New Files**:
-- `src/cpp/fb_blob.hpp` - RAII wrapper for IBlob
+**Part 1: Infrastructure** ✅ COMPLETE (Commit `9d8a033`)
+- Created `src/cpp/fb_blob.hpp` - RAII wrapper for IBlob
+- Implemented all C interop functions (`fbb_*`) in `firebird_utils.cpp`
+- Added declarations to `firebird_utils.h`
+
+**Part 2: Struct Integration** ✅ COMPLETE (Commit `c2862f0`)
+- Added `void *fbb_blob` field to `fbird_blob` struct in `php_fbird_includes.h`
+- Initialized `fbb_blob = NULL` at all 7 blob allocation sites in `fbird_blobs.c`:
+  - 4 emalloc'd structs: `fbird_blob_create`, `fbird_blob_open`, `fbird_blob_create_stream`, `fbird_blob_open_stream`
+  - 3 stack-allocated structs: `fbird_blob_info`, `fbird_blob_echo`, `fbird_blob_import`
+- Build verified, core blob tests pass (004.phpt)
+
+**Part 3: Dual-Mode Operation** 🔄 NEXT
+- Modify `_php_fbird_blob_add()` to use `fbb_create()` ALONGSIDE legacy `isc_create_blob()`
+- Modify `_php_fbird_blob_open()` to use `fbb_open()` ALONGSIDE legacy `isc_open_blob()`
+- Keep legacy path functional until connection migration (Phase 12-13)
 
 **C Interop Functions**:
-| Function | Legacy Equivalent | OO API Method |
-|----------|-------------------|---------------|
-| `fbb_create()` | `isc_create_blob` | `IAttachment::createBlob()` |
-| `fbb_open()` | `isc_open_blob` | `IAttachment::openBlob()` |
-| `fbb_put_segment()` | `isc_put_segment` | `IBlob::putSegment()` |
-| `fbb_get_segment()` | `isc_get_segment` | `IBlob::getSegment()` |
-| `fbb_close()` | `isc_close_blob` | `IBlob::close()` |
-| `fbb_cancel()` | `isc_cancel_blob` | `IBlob::cancel()` |
-| `fbb_get_info()` | `isc_blob_info` | `IBlob::getInfo()` |
+| Function | Legacy Equivalent | OO API Method | Status |
+|----------|-------------------|---------------|--------|
+| `fbb_create()` | `isc_create_blob` | `IAttachment::createBlob()` | ✅ Implemented |
+| `fbb_open()` | `isc_open_blob` | `IAttachment::openBlob()` | ✅ Implemented |
+| `fbb_put_segment()` | `isc_put_segment` | `IBlob::putSegment()` | ✅ Implemented |
+| `fbb_get_segment()` | `isc_get_segment` | `IBlob::getSegment()` | ✅ Implemented |
+| `fbb_close()` | `isc_close_blob` | `IBlob::close()` | ✅ Implemented |
+| `fbb_cancel()` | `isc_cancel_blob` | `IBlob::cancel()` | ✅ Implemented |
+| `fbb_get_info()` | `isc_blob_info` | `IBlob::getInfo()` | ✅ Implemented |
+| `fbb_free()` | N/A | Wrapper cleanup | ✅ Implemented |
 
-**Struct Updates**:
+**Struct Update** (Completed):
 ```c
 typedef struct {
     fb_safe_handle bl_handle;      // Legacy blob handle
-    ISC_QUAD bl_qd;
-#if FB_API_VER >= 30
-    void *fbb_blob;                // OO API IBlob* wrapper
-#endif
-} fbird_blob_handle;
+    int type;                      // BLOB_INPUT or BLOB_OUTPUT
+    ISC_QUAD bl_qd;                // Blob ID
+    void *fbb_blob;                // OO API IBlob* wrapper (Phase 6)
+} fbird_blob;
 ```
 
 **Integration Points**:
-- `fbird_blobs.c`: Replace all `isc_*_blob*` calls
-- `fbird_result.c`: Inline blob opening for fetch
-- `fbird_query_bind.c`: Blob creation for binding
+- `fbird_blobs.c`: Replace all `isc_*_blob*` calls (Part 3)
+- `fbird_result.c`: Inline blob opening for fetch (future)
+- `fbird_query_bind.c`: Blob creation for binding (future)
 
 **Test Coverage**:
-- `fbird_blob_001.phpt`, `fbird_blob_002.phpt`, `fbird_blob_003.phpt`
-- `blob_stream_chunked_write.phpt`
-- `test_blob_stream.phpt`
+- `fbird_blob_001.phpt` ✅ PASS
+- `tests/004.phpt` (BLOB test) ✅ PASS
+- `blob_stream_chunked_write.phpt`, `test_blob_stream.phpt` (verify after Part 3)
 
 ---
 

@@ -700,8 +700,92 @@ The existing C++ integration in `firebird_utils.cpp` demonstrates the pattern wo
 
 ---
 
+## 11. Phase 2 Implementation Notes (2025-12-12)
+
+### 11.1 Integration Attempt Summary
+
+**What was created:**
+- `src/cpp/fb_connection.hpp` - Complete ConnectionWrapper class with RAII
+- `src/cpp/fb_status.hpp` - StatusWrapper and Exception handling
+- `src/cpp/fb_dpb_builder.hpp` - DPB Builder with IXpbBuilder
+- `src/cpp/fb_tpb_builder.hpp` - TPB Builder for transactions
+- `src/cpp/fb_core.hpp` - Core types and smart pointer typedefs
+- `src/cpp/fb_version.hpp` - Version detection (FB30/40/50)
+- `src/cpp/fb_metadata.hpp` - Metadata handling utilities
+
+**Header declarations added to `firebird_utils.h`:**
+- `fbc_connect()` - OO API connection
+- `fbc_disconnect()` - OO API disconnection
+- `fbc_drop_database()` - OO API database drop
+- `fbc_is_connected()` - Connection status check
+- `fbc_get_attachment()` - Get raw IAttachment pointer
+- `fbc_get_server_version()` - Get server version code
+
+### 11.2 API Compatibility Issues Discovered
+
+When attempting to integrate `fb_connection.hpp` into `firebird_utils.cpp`, the following errors were encountered with **Firebird 4.0.5 client library**:
+
+| Issue | Description | Affected Code |
+|-------|-------------|---------------|
+| `IStatus::hasData()` | Method not available in FB 4.0 | `fb_status.hpp` lines 52, 102, 136, 150, 236, 270, 325 |
+| `CheckStatusWrapper` template | `clearException`, `checkException`, `setVersionError` static methods not in FB 4.0 `IStatus` | All OO API calls |
+| `IXpbBuilder::clear()` | Signature changed between FB 4.0 and 5.0 | `fb_dpb_builder.hpp` line 248 |
+
+**Root Cause**: The C++ wrapper headers were designed against FB 5.0 API documentation, but the Docker container uses FB 4.0.5 client library which has different template implementations.
+
+### 11.3 Required Fixes Before Integration
+
+1. **Version-aware status checking:**
+   ```cpp
+   // Instead of status->hasData()
+   #if FB_API_VER >= 50
+       if (status->hasData()) { ... }
+   #else
+       // FB 4.0 equivalent check
+       if (status->getState() & IStatus::STATE_ERRORS) { ... }
+   #endif
+   ```
+
+2. **Use CheckStatusWrapper properly:**
+   ```cpp
+   // FB 4.0 uses CheckStatusWrapper which has special handling
+   Firebird::CheckStatusWrapper status(master->getStatus());
+   // This wrapper handles the exception checking internally
+   ```
+
+3. **Test with FB 5.0 Docker container:**
+   ```bash
+   # Use php85-fb5 container which has FB 5.0 client
+   docker compose -f docker/docker-compose.yml run --rm php85-fb5 sh -c "make test"
+   ```
+
+### 11.4 Current State
+
+- ✅ Build succeeds with existing code (no fb_connection.hpp integration)
+- ✅ All 102 tests pass (98 pass, 4 skip, 0 fail)
+- ✅ Header declarations are in place for future use
+- ⏸️ Integration blocked until version compatibility layer added
+- 📝 Infrastructure files ready in `src/cpp/` directory
+
+### 11.5 Next Steps
+
+1. **Option A (Recommended)**: Port status checking to use FB 4.0 compatible patterns
+   - Modify `fb_status.hpp` to use `getState()` instead of `hasData()`
+   - Use `Firebird::CheckStatusWrapper` consistently
+
+2. **Option B**: Target FB 5.0+ only for OO API features
+   - Wrap all OO API code in `#if FB_API_VER >= 50`
+   - Keep legacy `isc_*` API for FB 4.0 and earlier
+
+3. **Option C**: Create adapter layer
+   - Abstract status checking behind version-agnostic interface
+   - Different implementations for FB 4.0 vs 5.0
+
+---
+
 ## Document History
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2025-12-12 | Jane Alesi | Initial plan based on DeepWiki research |
+| 1.1 | 2025-12-12 | Jane Alesi | Added Phase 2 implementation notes and API compatibility findings |

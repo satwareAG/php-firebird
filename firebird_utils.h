@@ -32,6 +32,88 @@ ISC_TIME fbu_encode_time(void *master_ptr, unsigned hours, unsigned minutes,
   unsigned seconds, unsigned fractions);
 ISC_DATE fbu_encode_date(void *master_ptr, unsigned year, unsigned month, unsigned day);
 
+/* =============================================================================
+ * Phase 2: Firebird OO API Connection Functions (FB 3.0+)
+ *
+ * These functions provide a C interface to the modern Firebird C++ OO API.
+ * They use RAII-managed connections internally for safety and proper cleanup.
+ * ============================================================================= */
+
+/**
+ * Create a database connection using the Firebird OO API.
+ *
+ * @param master_ptr Pointer to IMaster interface (from IBG(master_instance))
+ * @param database Database path (null-terminated)
+ * @param db_len Length of database path
+ * @param user Username (null-terminated, may be NULL)
+ * @param user_len Length of username
+ * @param password Password (null-terminated, may be NULL)
+ * @param password_len Length of password
+ * @param charset Character set (null-terminated, may be NULL)
+ * @param charset_len Length of charset
+ * @param role SQL role (null-terminated, may be NULL)
+ * @param role_len Length of role
+ * @param num_buffers Number of page buffers (0 for default)
+ * @param dialect SQL dialect (1, 2, or 3)
+ * @param force_write Force write flag (-1 = not set, 0 = async, 1 = sync)
+ * @param status_vector Output status vector for errors
+ * @return Pointer to connection object, or NULL on failure
+ */
+void* fbc_connect(
+    void* master_ptr,
+    const char* database, size_t db_len,
+    const char* user, size_t user_len,
+    const char* password, size_t password_len,
+    const char* charset, size_t charset_len,
+    const char* role, size_t role_len,
+    int num_buffers,
+    int dialect,
+    int force_write,
+    ISC_STATUS* status_vector
+);
+
+/**
+ * Detach a connection created with fbc_connect().
+ *
+ * @param connection Pointer returned by fbc_connect()
+ * @param status_vector Output status vector for errors
+ * @return 0 on success, non-zero on failure
+ */
+int fbc_disconnect(void* connection, ISC_STATUS* status_vector);
+
+/**
+ * Drop a database (destructive operation).
+ *
+ * @param connection Pointer returned by fbc_connect()
+ * @param status_vector Output status vector for errors
+ * @return 0 on success, non-zero on failure
+ */
+int fbc_drop_database(void* connection, ISC_STATUS* status_vector);
+
+/**
+ * Check if a connection is valid.
+ *
+ * @param connection Pointer returned by fbc_connect()
+ * @return 1 if connected, 0 if not
+ */
+int fbc_is_connected(void* connection);
+
+/**
+ * Get the IAttachment pointer from a connection.
+ *
+ * @param connection Pointer returned by fbc_connect()
+ * @return Raw IAttachment pointer, or NULL
+ */
+void* fbc_get_attachment(void* connection);
+
+/**
+ * Get the server version from a connection.
+ *
+ * @param connection Pointer returned by fbc_connect()
+ * @return Version code (FB30=30, FB40=40, FB50=50), or 0 if invalid
+ */
+unsigned fbc_get_server_version(void* connection);
+
 #endif // FB_API_VER >= 30
 
 

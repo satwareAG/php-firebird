@@ -312,6 +312,10 @@ namespace {
 #endif
 
 #include "src/cpp/fb_core.hpp"
+// NOTE: fb_connection.hpp NOT included yet - requires API compatibility fixes
+// The wrapper uses IStatus::hasData() and CheckStatusWrapper which require
+// Firebird 5.0+ client library or a compatibility layer.
+// See: docs/development/MODERNIZATION_PLAN_FB3_TO_FB5.md Phase 2 notes
 
 namespace fb {
 
@@ -361,6 +365,24 @@ static void fbu_copy_status(const ISC_STATUS* from, ISC_STATUS* to, size_t maxLe
 
     copy_status_vector(from, maxLength, to, maxLength);
 }
+
+// =============================================================================
+// Phase 2: OO API Connection Functions - PENDING
+// =============================================================================
+// The fb_connection.hpp wrapper layer is prepared but NOT YET INTEGRATED.
+// Integration requires fixing Firebird API version compatibility:
+//
+// Issues discovered during build:
+// 1. IStatus::hasData() - Available in FB 5.0+ but not FB 4.0
+// 2. CheckStatusWrapper template methods (clearException, checkException)
+//    have different signatures in FB 4.0
+// 3. IXpbBuilder::clear() signature change between FB 4.0 and 5.0
+//
+// Next steps (documented in MODERNIZATION_PLAN):
+// - Add compile-time version detection in fb_status.hpp
+// - Create adapter layer for different FB versions
+// - Test with Firebird 5.0 Docker container
+// =============================================================================
 
 #endif // FB_API_VER >= 30
 

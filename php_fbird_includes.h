@@ -114,6 +114,10 @@ typedef struct {
 	struct tr_list *tr_list;
 	unsigned short dialect;
 	struct event *event_head;
+	/* Phase 3: OO API connection wrapper (fb::Connection* from fbc_connect())
+	 * When non-NULL, this connection was created via the modern OO API.
+	 * The handle.ptr may be NULL in this case - use fbc_get_attachment() instead. */
+	void *fbc_connection;
 } fbird_db_link;
 
 typedef struct {

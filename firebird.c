@@ -700,6 +700,16 @@ static void _php_fbird_close_link(zend_resource *rsrc) /* {{{ */
 	fbird_db_link *link = (fbird_db_link *) rsrc->ptr;
 
 	_php_fbird_commit_link(link);
+
+#if FB_API_VER >= 30
+	/* Phase 3: Use OO API disconnect if connection was created via OO API */
+	if (link->fbc_connection != NULL) {
+		IBDEBUG("Closing normal link via OO API...");
+		fbc_disconnect(link->fbc_connection, IB_STATUS);
+		link->fbc_connection = NULL;
+		link->handle.ptr = 0;
+	} else
+#endif
 	if (link->handle.ptr != 0) {
 		IBDEBUG("Closing normal link...");
 		isc_detach_database(IB_STATUS, &link->handle.db);
@@ -714,9 +724,21 @@ static void _php_fbird_close_plink(zend_resource *rsrc) /* {{{ */
 	fbird_db_link *link = (fbird_db_link *) rsrc->ptr;
 
 	_php_fbird_commit_link(link);
-	IBDEBUG("Closing permanent link...");
-	if (link->handle.ptr != 0) {
-		isc_detach_database(IB_STATUS, &link->handle.db);
+
+#if FB_API_VER >= 30
+	/* Phase 3: Use OO API disconnect if connection was created via OO API */
+	if (link->fbc_connection != NULL) {
+		IBDEBUG("Closing permanent link via OO API...");
+		fbc_disconnect(link->fbc_connection, IB_STATUS);
+		link->fbc_connection = NULL;
+		link->handle.ptr = 0;
+	} else
+#endif
+	{
+		IBDEBUG("Closing permanent link...");
+		if (link->handle.ptr != 0) {
+			isc_detach_database(IB_STATUS, &link->handle.db);
+		}
 	}
 	IBG(num_persistent)--;
 	IBG(num_links)--;
@@ -1283,6 +1305,7 @@ static void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent) /* 
 		ib_link->dialect = largs[DLECT] ? (unsigned short)largs[DLECT] : SQL_DIALECT_CURRENT;
 		ib_link->tr_list = NULL;
 		ib_link->event_head = NULL;
+		ib_link->fbc_connection = NULL;  /* Phase 3: OO API connection (not yet used) */
 
 		++IBG(num_links);
 	} while (0);

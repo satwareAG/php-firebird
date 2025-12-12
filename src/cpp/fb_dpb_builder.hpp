@@ -52,10 +52,12 @@ public:
         : master_(master), builder_(nullptr), use_builder_(false) {
         if (master_) {
             // Try to create the modern XPB builder
-            StatusWrapper status(master_);
+            // Use CheckStatusWrapper as required by Firebird template API
+            Firebird::IStatus* raw_status = master_->getStatus();
+            Firebird::CheckStatusWrapper check_status(raw_status);
             builder_ = master_->getUtilInterface()->getXpbBuilder(
-                status.get(), Firebird::IXpbBuilder::DPB, nullptr, 0);
-            use_builder_ = (builder_ != nullptr && status.isOk());
+                &check_status, Firebird::IXpbBuilder::DPB, nullptr, 0);
+            use_builder_ = (builder_ != nullptr && !check_status.isDirty());
         }
 
         if (!use_builder_) {
@@ -215,9 +217,10 @@ public:
      * Get the DPB buffer for use with attachDatabase.
      */
     [[nodiscard]] const unsigned char* getBuffer() const noexcept {
-        if (use_builder_ && builder_) {
-            StatusWrapper status(master_);
-            return builder_->getBuffer(status.get());
+        if (use_builder_ && builder_ && master_) {
+            Firebird::IStatus* raw_status = master_->getStatus();
+            Firebird::CheckStatusWrapper check_status(raw_status);
+            return builder_->getBuffer(&check_status);
         }
         return buffer_.empty() ? nullptr : buffer_.data();
     }
@@ -226,9 +229,10 @@ public:
      * Get the DPB buffer length.
      */
     [[nodiscard]] unsigned int getBufferLength() const noexcept {
-        if (use_builder_ && builder_) {
-            StatusWrapper status(master_);
-            return builder_->getBufferLength(status.get());
+        if (use_builder_ && builder_ && master_) {
+            Firebird::IStatus* raw_status = master_->getStatus();
+            Firebird::CheckStatusWrapper check_status(raw_status);
+            return builder_->getBufferLength(&check_status);
         }
         return static_cast<unsigned int>(buffer_.size());
     }
@@ -242,13 +246,14 @@ public:
 
     /**
      * Clear all parameters and reset to initial state.
-     * Note: IXpbBuilder::clear() requires IStatus* in FB 4.0+
+     * Note: IXpbBuilder::clear() requires CheckStatusWrapper for FB template API
      */
     void clear() {
         if (use_builder_ && builder_ && master_) {
-            // FB 4.0 compatible: clear() requires a status parameter
-            StatusWrapper status(master_);
-            builder_->clear(status.get());
+            // FB 4.0 compatible: use CheckStatusWrapper for template API
+            Firebird::IStatus* raw_status = master_->getStatus();
+            Firebird::CheckStatusWrapper check_status(raw_status);
+            builder_->clear(&check_status);
         }
         buffer_.clear();
         buffer_.push_back(isc_dpb_version1);
@@ -262,9 +267,10 @@ private:
 
     // Insert a string parameter
     void insertString(unsigned char tag, std::string_view value) {
-        if (use_builder_ && builder_) {
-            StatusWrapper status(master_);
-            builder_->insertString(status.get(), tag, value.data());
+        if (use_builder_ && builder_ && master_) {
+            Firebird::IStatus* raw_status = master_->getStatus();
+            Firebird::CheckStatusWrapper check_status(raw_status);
+            builder_->insertString(&check_status, tag, value.data());
         } else {
             // Manual buffer construction
             if (value.length() > 255) {
@@ -279,9 +285,10 @@ private:
 
     // Insert a single byte parameter
     void insertByte(unsigned char tag, unsigned char value) {
-        if (use_builder_ && builder_) {
-            StatusWrapper status(master_);
-            builder_->insertInt(status.get(), tag, value);
+        if (use_builder_ && builder_ && master_) {
+            Firebird::IStatus* raw_status = master_->getStatus();
+            Firebird::CheckStatusWrapper check_status(raw_status);
+            builder_->insertInt(&check_status, tag, value);
         } else {
             buffer_.push_back(tag);
             buffer_.push_back(1); // length
@@ -291,9 +298,10 @@ private:
 
     // Insert a short (2-byte) parameter
     void insertShort(unsigned char tag, unsigned short value) {
-        if (use_builder_ && builder_) {
-            StatusWrapper status(master_);
-            builder_->insertInt(status.get(), tag, value);
+        if (use_builder_ && builder_ && master_) {
+            Firebird::IStatus* raw_status = master_->getStatus();
+            Firebird::CheckStatusWrapper check_status(raw_status);
+            builder_->insertInt(&check_status, tag, value);
         } else {
             buffer_.push_back(tag);
             buffer_.push_back(2); // length
@@ -304,9 +312,10 @@ private:
 
     // Insert an int (4-byte) parameter
     void insertInt(unsigned char tag, unsigned int value) {
-        if (use_builder_ && builder_) {
-            StatusWrapper status(master_);
-            builder_->insertInt(status.get(), tag, static_cast<int>(value));
+        if (use_builder_ && builder_ && master_) {
+            Firebird::IStatus* raw_status = master_->getStatus();
+            Firebird::CheckStatusWrapper check_status(raw_status);
+            builder_->insertInt(&check_status, tag, static_cast<int>(value));
         } else {
             buffer_.push_back(tag);
             buffer_.push_back(4); // length

@@ -288,7 +288,7 @@ private:
     std::string database_path_;             ///< Database path for this connection
     unsigned short dialect_ = 3;            ///< SQL dialect
     VersionInfo version_{VersionInfo::FB30}; ///< Client library version
-    mutable StatusWrapper last_status_{nullptr}; ///< Last error status
+    mutable StatusWrapper last_status_{static_cast<Firebird::IStatus*>(nullptr)}; ///< Last error status
 
     // Timeout settings (FB 4.0+)
     unsigned int statement_timeout_ms_ = 0;
@@ -359,22 +359,23 @@ inline Connection Connection::create(Firebird::IMaster* master,
     }
 #endif
 
-    // Create status for attach operation
-    StatusWrapper status(master);
-
     // Create database string (must be null-terminated)
     std::string db_string(params.database);
 
+    // Create CheckStatusWrapper for attach operation (required by Firebird template API)
+    Firebird::IStatus* raw_status = master->getStatus();
+    Firebird::CheckStatusWrapper check_status(raw_status);
+
     // Attach to database using OO API
     Firebird::IAttachment* raw_attachment = provider->attachDatabase(
-        status.get(),
+        &check_status,
         db_string.c_str(),
         dpb.getBufferLength(),
         dpb.getBuffer()
     );
 
-    if (status.hasError() || !raw_attachment) {
-        throw Exception(status.get());
+    if (check_status.isDirty() || !raw_attachment) {
+        throw Exception(raw_status);
     }
 
     // Detect client version
@@ -465,12 +466,14 @@ inline void Connection::detach() {
         return;
     }
 
-    StatusWrapper status(master_);
-    attachment_->detach(status.get());
+    // Use CheckStatusWrapper for Firebird template API
+    Firebird::IStatus* raw_status = master_->getStatus();
+    Firebird::CheckStatusWrapper check_status(raw_status);
+    attachment_->detach(&check_status);
 
-    if (status.hasError()) {
-        last_status_ = std::move(status);
-        throw Exception(last_status_.get());
+    if (check_status.isDirty()) {
+        last_status_ = StatusWrapper(master_);
+        throw Exception(raw_status);
     }
 
     attachment_.reset();
@@ -483,10 +486,11 @@ inline bool Connection::detachNoThrow() noexcept {
 
     try {
         if (master_) {
-            StatusWrapper status(master_);
-            attachment_->detach(status.get());
-            if (status.hasError()) {
-                last_status_ = std::move(status);
+            // Use CheckStatusWrapper for Firebird template API
+            Firebird::IStatus* raw_status = master_->getStatus();
+            Firebird::CheckStatusWrapper check_status(raw_status);
+            attachment_->detach(&check_status);
+            if (check_status.isDirty()) {
                 attachment_.reset();
                 return false;
             }
@@ -508,12 +512,13 @@ inline void Connection::dropDatabase() {
         throw Exception("Master interface not available");
     }
 
-    StatusWrapper status(master_);
-    attachment_->dropDatabase(status.get());
+    // Use CheckStatusWrapper for Firebird template API
+    Firebird::IStatus* raw_status = master_->getStatus();
+    Firebird::CheckStatusWrapper check_status(raw_status);
+    attachment_->dropDatabase(&check_status);
 
-    if (status.hasError()) {
-        last_status_ = std::move(status);
-        throw Exception(last_status_.get());
+    if (check_status.isDirty()) {
+        throw Exception(raw_status);
     }
 
     // After drop, the attachment is invalid
@@ -528,18 +533,19 @@ inline void Connection::copyLastStatus(ISC_STATUS* dest, std::size_t dest_size) 
 #ifdef FB_API_VER
 #if FB_API_VER >= 40
 inline bool Connection::setStatementTimeout(unsigned int milliseconds) noexcept {
-    if (!attachment_ || !version_.hasTimeouts()) {
+    if (!attachment_ || !master_ || !version_.hasTimeouts()) {
         return false;
     }
 
     try {
-        StatusWrapper status(master_);
-        attachment_->setStatementTimeout(status.get(), milliseconds);
-        if (status.isOk()) {
+        // Use CheckStatusWrapper for Firebird template API
+        Firebird::IStatus* raw_status = master_->getStatus();
+        Firebird::CheckStatusWrapper check_status(raw_status);
+        attachment_->setStatementTimeout(&check_status, milliseconds);
+        if (!check_status.isDirty()) {
             statement_timeout_ms_ = milliseconds;
             return true;
         }
-        last_status_ = std::move(status);
     } catch (...) {
         // Silently fail
     }
@@ -551,18 +557,19 @@ inline unsigned int Connection::getStatementTimeout() const noexcept {
 }
 
 inline bool Connection::setIdleTimeout(unsigned int seconds) noexcept {
-    if (!attachment_ || !version_.hasTimeouts()) {
+    if (!attachment_ || !master_ || !version_.hasTimeouts()) {
         return false;
     }
 
     try {
-        StatusWrapper status(master_);
-        attachment_->setIdleTimeout(status.get(), seconds);
-        if (status.isOk()) {
+        // Use CheckStatusWrapper for Firebird template API
+        Firebird::IStatus* raw_status = master_->getStatus();
+        Firebird::CheckStatusWrapper check_status(raw_status);
+        attachment_->setIdleTimeout(&check_status, seconds);
+        if (!check_status.isDirty()) {
             idle_timeout_sec_ = seconds;
             return true;
         }
-        last_status_ = std::move(status);
     } catch (...) {
         // Silently fail
     }

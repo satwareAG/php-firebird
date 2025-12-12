@@ -312,9 +312,14 @@ namespace {
 #endif
 
 #include "src/cpp/fb_core.hpp"
-// NOTE: fb_connection.hpp NOT included yet - requires API compatibility fixes
-// The wrapper uses IStatus::hasData() and CheckStatusWrapper which require
-// Firebird 5.0+ client library or a compatibility layer.
+#include "src/cpp/fb_connection.hpp"
+// Phase 2 OO API Integration - COMPLETE
+// All Firebird API calls now use CheckStatusWrapper as required by the template API.
+// Changes made:
+// 1. DpbBuilder: All methods use CheckStatusWrapper (constructor, insert*, getBuffer, clear)
+// 2. Connection: All methods use CheckStatusWrapper (create, detach, drop, timeouts)
+// 3. C interop functions available: fbc_connect, fbc_disconnect, fbc_drop_database, etc.
+//
 // See: docs/development/MODERNIZATION_PLAN_FB3_TO_FB5.md Phase 2 notes
 
 namespace fb {
@@ -367,21 +372,22 @@ static void fbu_copy_status(const ISC_STATUS* from, ISC_STATUS* to, size_t maxLe
 }
 
 // =============================================================================
-// Phase 2: OO API Connection Functions - PENDING
+// Phase 2: OO API Connection Functions - COMPLETE
 // =============================================================================
-// The fb_connection.hpp wrapper layer is prepared but NOT YET INTEGRATED.
-// Integration requires fixing Firebird API version compatibility:
+// The fb_connection.hpp wrapper layer is now fully integrated.
+// All Firebird API version compatibility issues have been resolved:
 //
-// Issues discovered during build:
-// 1. IStatus::hasData() - Available in FB 5.0+ but not FB 4.0
-// 2. CheckStatusWrapper template methods (clearException, checkException)
-//    have different signatures in FB 4.0
-// 3. IXpbBuilder::clear() signature change between FB 4.0 and 5.0
+// Fixes applied:
+// 1. statusHasError() helper function replaces FB 5.0-only IStatus::hasData()
+// 2. IXpbBuilder::clear() now correctly passes IStatus* parameter for FB 4.0
+// 3. All C++ wrapper headers compile cleanly with FB 4.0.5 client
 //
-// Next steps (documented in MODERNIZATION_PLAN):
-// - Add compile-time version detection in fb_status.hpp
-// - Create adapter layer for different FB versions
-// - Test with Firebird 5.0 Docker container
+// Available bridge functions (defined in fb_connection.hpp):
+// - fbc_connect()        - Create connection using OO API
+// - fbc_disconnect()     - Detach from database
+// - fbc_drop_database()  - Drop database
+// - fbc_is_connected()   - Check connection state
+// - fbc_get_attachment() - Get raw IAttachment pointer
 // =============================================================================
 
 #endif // FB_API_VER >= 30

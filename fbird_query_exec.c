@@ -186,6 +186,91 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 	}
 
     /* Execute the statement. For SELECT, this opens the cursor on ib_query->stmt. */
+
+#if FB_API_VER >= 30
+    /*
+     * Phase 5 Part 3: OO API execution path for prepared statements.
+     *
+     * When fbs_statement is set (OO API statement prepared via fbs_prepare),
+     * we attempt execution through the modern OO API before falling back to
+     * the legacy isc_dsql_execute()/isc_dsql_execute2() path.
+     *
+     * Current limitations:
+     * - Input/output message buffers passed as NULL (XSQLDA not converted yet)
+     * - Works for simple non-parameterized statements
+     * - Parameterized queries continue to use legacy XSQLDA binding
+     *
+     * The OO API execution is preferred for SELECT statements (cursor operations)
+     * and simple DML without parameters. Complex parameterized queries fall back
+     * to the legacy path until full message buffer integration is implemented.
+     */
+    if (ib_query->fbs_statement && ib_query->trans && ib_query->trans->fbt_transaction) {
+        void *transaction_ptr = fbt_get_handle(ib_query->trans->fbt_transaction);
+        int oo_api_success = 0;
+
+        if (transaction_ptr) {
+            /* For SELECT statements, open cursor using OO API */
+            if (ib_query->statement_type == isc_info_sql_stmt_select) {
+                /*
+                 * Attempt OO API cursor open for SELECT.
+                 * Pass NULL for input message/metadata (no parameter binding via OO API yet).
+                 * Cursor flags = 0 for default behavior.
+                 */
+                if (!ib_query->in_fields_count) {
+                    /* Only use OO API for non-parameterized SELECT (no input bindings) */
+                    oo_api_success = fbs_open_cursor(
+                        IBG(master_instance),
+                        ib_query->fbs_statement,
+                        transaction_ptr,
+                        NULL, /* in_msg: no parameter values */
+                        NULL, /* in_metadata: no parameter metadata */
+                        0,    /* cursor_flags: default */
+                        IB_STATUS
+                    );
+                    if (oo_api_success) {
+                        IBDEBUG("OO API fbs_open_cursor() succeeded for SELECT");
+                        isc_result = 0; /* Success */
+                    } else {
+                        IBDEBUG("OO API fbs_open_cursor() failed, falling back to legacy");
+                    }
+                }
+            }
+            /* For non-SELECT (INSERT/UPDATE/DELETE) without RETURNING, use fbs_execute */
+            else if ((ib_query->statement_type == isc_info_sql_stmt_insert ||
+                      ib_query->statement_type == isc_info_sql_stmt_update ||
+                      ib_query->statement_type == isc_info_sql_stmt_delete) &&
+                     !ib_query->out_sqlda && !ib_query->in_fields_count) {
+                /*
+                 * Attempt OO API execute for simple DML (no parameters, no RETURNING).
+                 * Pass NULL for all message buffers.
+                 */
+                oo_api_success = fbs_execute(
+                    IBG(master_instance),
+                    ib_query->fbs_statement,
+                    transaction_ptr,
+                    NULL, /* in_msg */
+                    NULL, /* in_metadata */
+                    NULL, /* out_msg */
+                    NULL, /* out_metadata */
+                    IB_STATUS
+                );
+                if (oo_api_success) {
+                    IBDEBUG("OO API fbs_execute() succeeded for DML");
+                    isc_result = 0; /* Success */
+                } else {
+                    IBDEBUG("OO API fbs_execute() failed, falling back to legacy");
+                }
+            }
+        }
+
+        /* Fall through to legacy path if OO API was not used or failed */
+        if (!oo_api_success) {
+            goto legacy_execute;
+        }
+    } else {
+legacy_execute:
+#endif /* FB_API_VER >= 30 */
+
     if (ib_query->statement_type == isc_info_sql_stmt_exec_procedure ||
                ((ib_query->statement_type == isc_info_sql_stmt_insert ||
                  ib_query->statement_type == isc_info_sql_stmt_update ||
@@ -200,6 +285,10 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
         isc_result = isc_dsql_execute(IB_STATUS, &ib_query->trans->handle.tr,
             &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda);
     }
+
+#if FB_API_VER >= 30
+    }
+#endif
 
     if (isc_result) {
         IBDEBUG("Could not execute query");

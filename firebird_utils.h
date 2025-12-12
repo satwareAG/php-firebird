@@ -374,6 +374,151 @@ int fbs_is_prepared(void* statement_ptr);
  */
 int fbs_is_cursor_open(void* statement_ptr);
 
+/* =============================================================================
+ * Phase 6: Firebird OO API Blob Functions (FB 3.0+)
+ *
+ * These functions provide a C interface to the modern Firebird C++ OO API
+ * for blob operations. They replace the legacy isc_create_blob, isc_open_blob,
+ * isc_put_segment, isc_get_segment, isc_close_blob, and isc_cancel_blob.
+ * ============================================================================= */
+
+/**
+ * Create a new blob for writing.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param attachment_ptr IAttachment pointer (from fbc_get_attachment())
+ * @param transaction_ptr ITransaction pointer (from fbt_get_handle())
+ * @param blob_id Output: blob ID after creation
+ * @param bpb_length BPB (Blob Parameter Block) length
+ * @param bpb BPB data
+ * @param status_vector Output status vector
+ * @return Opaque blob wrapper pointer, or NULL on error
+ */
+void* fbb_create(void* master_ptr,
+                 void* attachment_ptr,
+                 void* transaction_ptr,
+                 ISC_QUAD* blob_id,
+                 unsigned bpb_length,
+                 const unsigned char* bpb,
+                 ISC_STATUS* status_vector);
+
+/**
+ * Open an existing blob for reading.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param attachment_ptr IAttachment pointer
+ * @param transaction_ptr ITransaction pointer
+ * @param blob_id Blob ID to open
+ * @param bpb_length BPB length
+ * @param bpb BPB data
+ * @param status_vector Output status vector
+ * @return Opaque blob wrapper pointer, or NULL on error
+ */
+void* fbb_open(void* master_ptr,
+               void* attachment_ptr,
+               void* transaction_ptr,
+               const ISC_QUAD* blob_id,
+               unsigned bpb_length,
+               const unsigned char* bpb,
+               ISC_STATUS* status_vector);
+
+/**
+ * Write a segment to the blob.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param blob_wrapper Blob wrapper pointer
+ * @param length Segment length
+ * @param buffer Data to write
+ * @param status_vector Output status vector
+ * @return 1 on success, 0 on error
+ */
+int fbb_put_segment(void* master_ptr,
+                    void* blob_wrapper,
+                    unsigned length,
+                    const void* buffer,
+                    ISC_STATUS* status_vector);
+
+/**
+ * Read a segment from the blob.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param blob_wrapper Blob wrapper pointer
+ * @param buffer_length Buffer size
+ * @param buffer Output buffer
+ * @param actual_length Output: actual bytes read
+ * @param status_vector Output status vector
+ * @return 0 on success with more data, 1 on EOF, 2 on segment, -1 on error
+ */
+int fbb_get_segment(void* master_ptr,
+                    void* blob_wrapper,
+                    unsigned buffer_length,
+                    void* buffer,
+                    unsigned* actual_length,
+                    ISC_STATUS* status_vector);
+
+/**
+ * Close the blob (commit writes).
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param blob_wrapper Blob wrapper pointer
+ * @param status_vector Output status vector
+ * @return 1 on success, 0 on error
+ */
+int fbb_close(void* master_ptr, void* blob_wrapper, ISC_STATUS* status_vector);
+
+/**
+ * Cancel the blob (discard writes).
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param blob_wrapper Blob wrapper pointer
+ * @param status_vector Output status vector
+ * @return 1 on success, 0 on error
+ */
+int fbb_cancel(void* master_ptr, void* blob_wrapper, ISC_STATUS* status_vector);
+
+/**
+ * Get blob info.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param blob_wrapper Blob wrapper pointer
+ * @param items_length Info items length
+ * @param items Info items to request
+ * @param buffer_length Output buffer length
+ * @param buffer Output buffer
+ * @param status_vector Output status vector
+ * @return 1 on success, 0 on error
+ */
+int fbb_get_info(void* master_ptr,
+                 void* blob_wrapper,
+                 unsigned items_length,
+                 const unsigned char* items,
+                 unsigned buffer_length,
+                 unsigned char* buffer,
+                 ISC_STATUS* status_vector);
+
+/**
+ * Get blob ID from wrapper.
+ *
+ * @param blob_wrapper Blob wrapper pointer
+ * @param blob_id Output: blob ID
+ */
+void fbb_get_blob_id(void* blob_wrapper, ISC_QUAD* blob_id);
+
+/**
+ * Check if blob is open.
+ *
+ * @param blob_wrapper Blob wrapper pointer
+ * @return 1 if open, 0 if closed or invalid
+ */
+int fbb_is_open(void* blob_wrapper);
+
+/**
+ * Free blob wrapper (without closing - blob must be closed first).
+ *
+ * @param blob_wrapper Blob wrapper pointer
+ */
+void fbb_free(void* blob_wrapper);
+
 #endif // FB_API_VER >= 30
 
 

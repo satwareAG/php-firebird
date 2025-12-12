@@ -1083,3 +1083,13 @@ extern "C" int fbs_is_cursor_open(void* statement_ptr) {
 }
 
 #endif // FB_API_VER >= 30 (Phase 5 Statement functions)
+
+/* =============================================================================
+ * Phase 6: Blob OO API (FB 3.0+)
+ *
+ * RAII wrapper for IBlob operations.
+ * The fbb_* functions are implemented inline in fb_blob.hpp.
+ * ============================================================================= */
+#if FB_API_VER >= 30
+#include "src/cpp/fb_blob.hpp"
+#endif // FB_API_VER >= 30 (Phase 6 Blob functions)

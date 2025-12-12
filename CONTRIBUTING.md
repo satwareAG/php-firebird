@@ -159,6 +159,66 @@ Checks: >
 - **Transaction Management**: ACID compliance and rollback safety
 - **Connection Pooling**: Efficient resource utilization
 
+### Firebird OO API Development (C++ Wrappers)
+
+The extension uses modern C++ OO API wrappers for Firebird 3.0+ with C interop functions. Follow these conventions:
+
+**C Interop Function Families:**
+| Family | Prefix | Purpose | Files |
+|--------|--------|---------|-------|
+| Connection | `fbc_*` | `IAttachment` lifecycle | `fb_connection.hpp` |
+| Transaction | `fbt_*` | `ITransaction` lifecycle | `fb_transaction.hpp` |
+| Statement | `fbs_*` | `IStatement` + `IResultSet` cursor | `fb_statement.hpp` |
+
+**RAII Wrapper Pattern:**
+```cpp
+// All wrappers follow this pattern in src/cpp/
+class ConnectionWrapper {
+    Firebird::IAttachment* attachment_ = nullptr;
+    bool owns_attachment_ = false;
+public:
+    bool connect(Firebird::IMaster* master, ...);
+    void disconnect(ISC_STATUS* status_vector);
+    // Destructor cleans up automatically
+};
+```
+
+**C Interop Function Conventions:**
+```c
+// Extern "C" linkage for C code access
+void* fbc_connect(void* master, const char* database, ...);
+int fbc_disconnect(void* connection, ISC_STATUS* status_vector);
+int fbc_is_connected(void* connection);
+```
+
+**Struct Field Additions:**
+When adding OO API pointers to structs, use `#if FB_API_VER >= 30`:
+```c
+typedef struct {
+    isc_db_handle handle;           // Legacy handle
+#if FB_API_VER >= 30
+    void *fbc_connection;           // OO API wrapper pointer
+#endif
+} fbird_db_link;
+```
+
+**Critical: Initialize OO API Pointers:**
+Always initialize OO API pointer fields to `NULL` in ALL allocation paths:
+```c
+trans->fbt_transaction = NULL;  // MANDATORY to prevent segfaults
+```
+
+**FB 4.0 Compatibility:**
+Use `statusHasError()` helper instead of FB 5.0-only `IStatus::hasData()`:
+```cpp
+// src/cpp/fb_status.hpp
+bool statusHasError(Firebird::IStatus* status) {
+    return (status->getState() & Firebird::IStatus::STATE_ERRORS) != 0;
+}
+```
+
+See [MODERNIZATION_PLAN_FB3_TO_FB5.md](docs/development/MODERNIZATION_PLAN_FB3_TO_FB5.md) for complete implementation details.
+
 ## Testing Strategy
 
 ### Test Categories

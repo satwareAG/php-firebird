@@ -8,6 +8,7 @@ A high-performance PHP extension providing native connectivity to Firebird datab
 
 - **Native Performance**: Direct fbclient library integration
 - **Full Firebird Support**: Compatible with Firebird 2.5, 3.0, 4.0, 5.0+
+- **Modern C++ OO API**: Uses Firebird 3.0+ Object-Oriented API with RAII wrappers
 - **Modern PHP**: Optimized for PHP 8.1+ with typed properties and attributes
 - **Memory Safety**: Built with AddressSanitizer and comprehensive static analysis
 - **Cross-Platform**: Linux, Windows, macOS support

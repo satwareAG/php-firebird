@@ -1127,7 +1127,125 @@ if (ib_query->fbs_statement && fbs_is_cursor_open(ib_query->fbs_statement)) {
 
 **Test Results**: 98 passed, 0 failed, 4 skipped (100% non-skipped)
 
-### 14.7 Complexity Notes
+### 14.8 Phase 5 Completion Summary
+
+**Completed: 2025-12-12**
+
+**Key Accomplishments**:
+- Full Statement OO API integration achieved
+- Complete C++ RAII wrapper for IStatement with cursor management
+- All query lifecycle operations migrated: prepare → execute → fetch → close
+
+**C Interop Function Family (`fbs_*`)**:
+
+| Function | Purpose | Status |
+|----------|---------|--------|
+| `fbs_prepare()` | Prepare SQL via `IAttachment::prepare()` | ✅ Implemented |
+| `fbs_execute()` | Execute non-SELECT via `IStatement::execute()` | ✅ Implemented |
+| `fbs_open_cursor()` | Open cursor via `IStatement::openCursor()` | ✅ Implemented |
+| `fbs_fetch()` | Advance cursor via `IResultSet::fetchNext()` | ✅ Implemented |
+| `fbs_close_cursor()` | Close cursor via `IResultSet::close()` | ✅ Implemented |
+| `fbs_free()` | Release statement via `IStatement::free()` | ✅ Implemented |
+| `fbs_is_cursor_open()` | Check cursor state | ✅ Implemented |
+| `fbs_get_affected_rows()` | Get affected rows count | ✅ Implemented |
+
+**Files Modified**:
+- `php_fbird_includes.h` - Added `fbs_statement` and `fbs_resultset` fields to `fbird_query`
+- `firebird_utils.h` - Added C interop function declarations
+- `firebird_utils.cpp` - Implemented all `fbs_*` functions
+- `fbird_query_prepare.c` - Integrated `fbs_prepare()` into preparation flow
+- `fbird_query_exec.c` - Integrated `fbs_execute()` and `fbs_open_cursor()` into execution flow
+- `fbird_result.c` - Integrated `fbs_fetch()` into fetch flow
+
+**Commits (Phase 5)**:
+- `1b9b033` feat(phase5-part1): add fbs_statement and fbs_resultset fields to fbird_query struct
+- `2b7e9a4` feat(phase5-part2): integrate fbs_prepare into query preparation flow
+- `740c2d9` feat(phase5-part3): integrate fbs_execute and fbs_open_cursor into execution flow
+- `4879aad` feat(phase5-part4): integrate fbs_fetch cursor operations into fbird_result.c
+
+**Validation**:
+- Build: ✅ PHP 8.4.15 + Firebird 4.0.5 client
+- Tests: ✅ 98 passed, 0 failed, 4 skipped (100% non-skipped pass rate)
+
+---
+
+## 15. Overall Modernization Status Summary
+
+### 15.1 Phases Completed
+
+| Phase | Description | Status | Completion Date |
+|-------|-------------|--------|-----------------|
+| **Phase 1** | Core Infrastructure (RAII wrappers, status handling) | ✅ COMPLETE | 2025-12-12 |
+| **Phase 2** | Connection Layer (ConnectionWrapper, FB 4.0 compat) | ✅ COMPLETE | 2025-12-12 |
+| **Phase 3** | Connection Integration (fbc_* functions in firebird.c) | ✅ COMPLETE | 2025-12-12 |
+| **Phase 4** | Transaction Layer (TransactionWrapper, fbt_* functions) | ✅ COMPLETE | 2025-12-12 |
+| **Phase 5** | Statement Layer (StatementWrapper, fbs_* functions) | ✅ COMPLETE | 2025-12-12 |
+| **Phase 6** | Blob/Events/Services | 🟡 PLANNED | - |
+| **Phase 7** | Testing & Documentation | 🟡 PLANNED | - |
+
+### 15.2 C Interop Function Families Implemented
+
+**Connection (`fbc_*`)**: 6 functions
+- `fbc_connect`, `fbc_disconnect`, `fbc_drop_database`, `fbc_is_connected`, `fbc_get_attachment`, `fbc_get_server_version`
+
+**Transaction (`fbt_*`)**: 6 functions
+- `fbt_start`, `fbt_commit`, `fbt_rollback`, `fbt_commit_retaining`, `fbt_rollback_retaining`, `fbt_get_transaction`
+
+**Statement (`fbs_*`)**: 8 functions
+- `fbs_prepare`, `fbs_execute`, `fbs_open_cursor`, `fbs_fetch`, `fbs_close_cursor`, `fbs_free`, `fbs_is_cursor_open`, `fbs_get_affected_rows`
+
+**Total**: 20 C interop functions bridging C extension code to C++ OO API wrappers
+
+### 15.3 C++ RAII Wrapper Classes
+
+| Class | File | Purpose |
+|-------|------|---------|
+| `ConnectionWrapper` | `src/cpp/fb_connection.hpp` | RAII wrapper for IAttachment |
+| `TransactionWrapper` | `src/cpp/fb_transaction.hpp` | RAII wrapper for ITransaction |
+| `StatementWrapper` | `src/cpp/fb_statement.hpp` | RAII wrapper for IStatement + IResultSet cursor |
+| `StatusWrapper` | `src/cpp/fb_status.hpp` | Error handling with `statusHasError()` helper |
+| `DpbBuilder` | `src/cpp/fb_dpb_builder.hpp` | Database Parameter Block construction |
+| `TpbBuilder` | `src/cpp/fb_tpb_builder.hpp` | Transaction Parameter Block construction |
+
+### 15.4 Struct Field Additions
+
+| Struct | Field | Purpose | Added In |
+|--------|-------|---------|----------|
+| `fbird_db_link` | `fbc_connection` | OO API ConnectionWrapper pointer | Phase 3 |
+| `fbird_transaction` | `fbt_transaction` | OO API TransactionWrapper pointer | Phase 4 |
+| `fbird_query` | `fbs_statement` | OO API StatementWrapper pointer | Phase 5 |
+| `fbird_query` | `fbs_resultset` | OO API IResultSet pointer for cursor ops | Phase 5 |
+
+### 15.5 Test Coverage
+
+- **Total Tests**: 102
+- **Passed**: 98
+- **Failed**: 0
+- **Skipped**: 4
+- **Pass Rate**: 100% (non-skipped)
+
+### 15.6 API Compatibility
+
+- **Firebird Client**: 3.0+ (minimum), 4.0.5 (primary development target)
+- **PHP Versions**: 8.1, 8.2, 8.3, 8.4, 8.5-dev
+- **Backward Compatibility**: Legacy `isc_*` API coexists with OO API wrappers
+- **FB 4.0 Specific Fix**: `statusHasError()` helper replaces FB 5.0-only `IStatus::hasData()`
+
+### 15.7 Next Steps (Phase 6+)
+
+**Phase 6: Blob/Events/Services** (Planned)
+- Migrate blob handling to `IBlob` interface
+- Migrate event handling to `IEvents` interface
+- Migrate service API to `IService` interface
+- Add FB 4.0+ service cancellation support
+
+**Phase 7: Testing & Documentation** (Planned)
+- Version-specific test suites (FB 3.0, 4.0, 5.0)
+- Performance benchmarks (legacy vs OO API)
+- Updated README and API documentation
+- Migration guide for users
+
+### 15.7 Complexity Notes
 
 Statement handling is the most complex phase due to:
 - SQLDA management (input/output message buffers)

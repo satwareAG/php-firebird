@@ -14,6 +14,10 @@ This document summarizes the major development phases and milestones of the php-
 | **Phase 5** | Nov-Dec 2025 | Performance optimization research |
 | **Extension Rename** | Dec 2025 | Complete rename from interbase→firebird, ibase_→fbird_ |
 | **Event Timeout** | Dec 2025 | Event handling redesign with timeout and PHP wrapper classes |
+| **OO API Phase 1-2** | Dec 2025 | Core infrastructure + Connection layer (C++ RAII wrappers) |
+| **OO API Phase 3** | Dec 2025 | Connection OO API integration (`fbc_*` functions) |
+| **OO API Phase 4** | Dec 2025 | Transaction OO API integration (`fbt_*` functions) |
+| **OO API Phase 5** | Dec 2025 | Statement OO API integration (`fbs_*` functions) |
 
 ## Major Milestones
 
@@ -91,6 +95,39 @@ Implemented a strategy pattern with multiple polling approaches:
 - Added `IBASE_EVENT_TIMEOUT` alias for compatibility
 
 See [EVENT_TIMEOUT_RFC.md](development/EVENT_TIMEOUT_RFC.md) for full implementation details.
+
+### Firebird OO API Modernization (December 2025)
+
+**Objective:** Migrate from legacy `isc_*` C API to modern C++ Object-Oriented API for Firebird 3.0+.
+
+**Completed Phases (1-5):**
+
+| Phase | What | C Interop Functions |
+|-------|------|---------------------|
+| **Phase 1-2** | Core infrastructure: RAII wrappers, status handling, FB 4.0 compatibility | - |
+| **Phase 3** | Connection layer: `IProvider::attachDatabase()` | `fbc_connect`, `fbc_disconnect`, `fbc_drop_database`, `fbc_is_connected`, `fbc_get_attachment`, `fbc_get_server_version` |
+| **Phase 4** | Transaction layer: `ITransaction` lifecycle | `fbt_start`, `fbt_commit`, `fbt_rollback`, `fbt_commit_retaining`, `fbt_rollback_retaining`, `fbt_get_transaction` |
+| **Phase 5** | Statement layer: `IStatement` + `IResultSet` cursor | `fbs_prepare`, `fbs_execute`, `fbs_open_cursor`, `fbs_fetch`, `fbs_close_cursor`, `fbs_free`, `fbs_is_cursor_open`, `fbs_get_affected_rows` |
+
+**Key Technical Solutions:**
+
+| Problem | Solution |
+|---------|----------|
+| FB 5.0-only `IStatus::hasData()` | Created `statusHasError()` helper using `getState() & STATE_ERRORS` |
+| `IAttachment*` not interchangeable with `isc_db_handle` | Full cascading migration: connection → transaction → statement |
+| Uninitialized OO API pointers causing segfaults | Explicit NULL initialization in all allocation paths |
+
+**C++ RAII Wrapper Classes Created:**
+- `ConnectionWrapper` (`src/cpp/fb_connection.hpp`) - Wraps `IAttachment`
+- `TransactionWrapper` (`src/cpp/fb_transaction.hpp`) - Wraps `ITransaction`
+- `StatementWrapper` (`src/cpp/fb_statement.hpp`) - Wraps `IStatement` + `IResultSet`
+- `StatusWrapper` (`src/cpp/fb_status.hpp`) - Cross-version error handling
+- `DpbBuilder` (`src/cpp/fb_dpb_builder.hpp`) - Database Parameter Block construction
+- `TpbBuilder` (`src/cpp/fb_tpb_builder.hpp`) - Transaction Parameter Block construction
+
+**Test Results:** 98 passed, 0 failed, 4 skipped (100% non-skipped pass rate)
+
+See [MODERNIZATION_PLAN_FB3_TO_FB5.md](development/MODERNIZATION_PLAN_FB3_TO_FB5.md) for full implementation details.
 
 ## Key Architectural Decisions
 

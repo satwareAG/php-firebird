@@ -33,6 +33,7 @@
 
 #include "php_firebird.h"
 #include "php_fbird_includes.h"
+#include "firebird_utils.h"
 
 #define BLOB_CLOSE		1
 #define BLOB_CANCEL		2
@@ -369,6 +370,22 @@ PHP_FUNCTION(fbird_blob_create)
 		RETURN_FALSE;
 	}
 
+#if FB_API_VER >= 30
+	/* Phase 6: Dual-mode - also create blob via OO API if connection is OO-enabled */
+	if (ib_link->fbc_connection) {
+		void *trans_handle = trans->fbt_transaction ? fbt_get_handle(trans->fbt_transaction) : NULL;
+		ib_blob->fbb_blob = fbb_create(
+			IBG(master_instance),
+			fbc_get_attachment(ib_link->fbc_connection),
+			trans_handle,
+			&ib_blob->bl_qd,
+			0, NULL,  /* No BPB */
+			IB_STATUS
+		);
+		/* Note: OO API failure is non-fatal in dual-mode; legacy handle is primary */
+	}
+#endif
+
 	RETVAL_RES(zend_register_resource(ib_blob, le_blob));
 }
 /* }}} */
@@ -405,6 +422,22 @@ PHP_FUNCTION(fbird_blob_open)
 			_php_fbird_error();
 			break;
 		}
+
+#if FB_API_VER >= 30
+		/* Phase 6: Dual-mode - also open blob via OO API if connection is OO-enabled */
+		if (ib_link->fbc_connection) {
+			void *trans_handle = trans->fbt_transaction ? fbt_get_handle(trans->fbt_transaction) : NULL;
+			ib_blob->fbb_blob = fbb_open(
+				IBG(master_instance),
+				fbc_get_attachment(ib_link->fbc_connection),
+				trans_handle,
+				&ib_blob->bl_qd,
+				0, NULL,  /* No BPB */
+				IB_STATUS
+			);
+			/* Note: OO API failure is non-fatal in dual-mode; legacy handle is primary */
+		}
+#endif
 
 		RETVAL_RES(zend_register_resource(ib_blob, le_blob));
 		Z_TRY_ADDREF_P(return_value);
@@ -506,6 +539,15 @@ static void _php_fbird_blob_end(INTERNAL_FUNCTION_PARAMETERS, int bl_end) /* {{{
 		}
 		ib_blob->bl_handle.ptr = 0;
 
+#if FB_API_VER >= 30
+		/* Phase 6: Dual-mode - also close OO API blob if present */
+		if (ib_blob->fbb_blob) {
+			fbb_close(IBG(master_instance), ib_blob->fbb_blob, IB_STATUS);
+			fbb_free(ib_blob->fbb_blob);
+			ib_blob->fbb_blob = NULL;
+		}
+#endif
+
 		RETVAL_NEW_STR(_php_fbird_quad_to_string(ib_blob->bl_qd));
 	} else { /* discard created blob */
 		if (isc_cancel_blob(IB_STATUS, &ib_blob->bl_handle.blob)) {
@@ -513,6 +555,16 @@ static void _php_fbird_blob_end(INTERNAL_FUNCTION_PARAMETERS, int bl_end) /* {{{
 			RETURN_FALSE;
 		}
 		ib_blob->bl_handle.ptr = 0;
+
+#if FB_API_VER >= 30
+		/* Phase 6: Dual-mode - also cancel OO API blob if present */
+		if (ib_blob->fbb_blob) {
+			fbb_cancel(IBG(master_instance), ib_blob->fbb_blob, IB_STATUS);
+			fbb_free(ib_blob->fbb_blob);
+			ib_blob->fbb_blob = NULL;
+		}
+#endif
+
 		RETVAL_TRUE;
 	}
 	zend_list_delete(Z_RES_P(blob_arg));

@@ -1397,7 +1397,7 @@ isc_commit_transaction (290)
 
 #### Phase 6: Blob OO API Wrapper
 
-**Status**: 🟡 IN PROGRESS (Struct integration complete, dual-mode pending)
+**Status**: ✅ COMPLETE (Dual-mode integration verified)
 
 **Part 1: Infrastructure** ✅ COMPLETE (Commit `9d8a033`)
 - Created `src/cpp/fb_blob.hpp` - RAII wrapper for IBlob
@@ -1411,10 +1411,13 @@ isc_commit_transaction (290)
   - 3 stack-allocated structs: `fbird_blob_info`, `fbird_blob_echo`, `fbird_blob_import`
 - Build verified, core blob tests pass (004.phpt)
 
-**Part 3: Dual-Mode Operation** 🔄 NEXT
-- Modify `_php_fbird_blob_add()` to use `fbb_create()` ALONGSIDE legacy `isc_create_blob()`
-- Modify `_php_fbird_blob_open()` to use `fbb_open()` ALONGSIDE legacy `isc_open_blob()`
-- Keep legacy path functional until connection migration (Phase 12-13)
+**Part 3: Dual-Mode Operation** ✅ COMPLETE (2025-12-12)
+- Added `#include "firebird_utils.h"` to `fbird_blobs.c` for `fbb_*` access
+- Modified `PHP_FUNCTION(fbird_blob_create)` to call `fbb_create()` alongside legacy `isc_create_blob()`
+- Modified `PHP_FUNCTION(fbird_blob_open)` to call `fbb_open()` alongside legacy `isc_open_blob()`
+- Modified `_php_fbird_blob_end()` to call `fbb_close()`/`fbb_cancel()` + `fbb_free()` when OO blob exists
+- All 4 blob tests pass: 004.phpt, fbird_blob_001.phpt, blob_stream_chunked_write.phpt, test_blob_stream.phpt
+- Segment operations (put/get) deferred - legacy path used for data transfer in dual-mode
 
 **C Interop Functions**:
 | Function | Legacy Equivalent | OO API Method | Status |

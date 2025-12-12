@@ -96,7 +96,7 @@ jobs:
           case "${MATRIX_FIREBIRD_VERSION}" in
             '2.5')
               FB_SCRIPT_SUFFIX='25'
-              FB_TARBALL_URL="https://github.com/FirebirdSQL/firebird/releases/download/v2.5.9/Firebird-2.5.9.27139-0.amd64.tar.gz"
+              FB_TARBALL_URL="https://github.com/FirebirdSQL/firebird/releases/download/R2_5_9/FirebirdCS-2.5.9.27139-0.amd64.tar.gz"
               ;;
             '3.0')
               FB_SCRIPT_SUFFIX='30'

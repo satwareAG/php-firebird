@@ -1093,3 +1093,18 @@ extern "C" int fbs_is_cursor_open(void* statement_ptr) {
 #if FB_API_VER >= 30
 #include "src/cpp/fb_blob.hpp"
 #endif // FB_API_VER >= 30 (Phase 6 Blob functions)
+
+/* =============================================================================
+ * Phase 7: Event OO API (FB 3.0+)
+ *
+ * RAII wrapper for IEvents operations with IEventCallback.
+ * The fbe_* functions are implemented inline in fb_events.hpp.
+ *
+ * Note: The OO API uses callback-based event handling (IEventCallback)
+ * which differs from the legacy synchronous isc_wait_for_event() approach.
+ * The current implementation continues to use isc_wait_for_event() for the
+ * synchronous polling model, with OO API available for future async support.
+ * ============================================================================= */
+#if FB_API_VER >= 30
+#include "src/cpp/fb_events.hpp"
+#endif // FB_API_VER >= 30 (Phase 7 Event functions)

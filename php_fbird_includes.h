@@ -167,6 +167,11 @@ typedef struct event {
 	unsigned short buffer_size;
 	int callback_count;
 	int max_callbacks;
+	/* Phase 7: OO API event wrapper (fb::EventsWrapper* from fbe_queue())
+	 * When non-NULL, events are queued via the modern OO API.
+	 * Note: The current polling model continues to use isc_wait_for_event()
+	 * for synchronous operation; this field is for future async support. */
+	void *fbe_events;
 } fbird_event;
 
 /* sql variables union

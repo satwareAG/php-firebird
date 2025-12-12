@@ -519,6 +519,84 @@ int fbb_is_open(void* blob_wrapper);
  */
 void fbb_free(void* blob_wrapper);
 
+/* =============================================================================
+ * Phase 7: Firebird OO API Event Functions (FB 3.0+)
+ *
+ * These functions provide a C interface to the modern Firebird C++ OO API
+ * for event operations. They provide async event queuing via IAttachment::queEvents()
+ * and event cancellation via IEvents::cancel().
+ *
+ * Note: The OO API uses callback-based event handling (IEventCallback),
+ * which differs from the legacy synchronous isc_wait_for_event() approach.
+ * The current implementation continues to use isc_wait_for_event() for the
+ * synchronous polling model, with OO API available for future async support.
+ * ============================================================================= */
+
+/**
+ * Queue events for notification using OO API.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param attachment_ptr IAttachment pointer (from fbc_get_attachment())
+ * @param length Event buffer length
+ * @param events Event buffer (from isc_event_block())
+ * @param status_vector Output status vector
+ * @return Opaque events wrapper pointer, or NULL on error
+ */
+void* fbe_queue(void* master_ptr,
+                void* attachment_ptr,
+                unsigned length,
+                const unsigned char* events,
+                ISC_STATUS* status_vector);
+
+/**
+ * Cancel queued events.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param events_wrapper Events wrapper pointer (from fbe_queue())
+ * @param status_vector Output status vector
+ * @return 1 on success, 0 on error
+ */
+int fbe_cancel(void* master_ptr, void* events_wrapper, ISC_STATUS* status_vector);
+
+/**
+ * Check if an event has fired (non-blocking).
+ *
+ * @param events_wrapper Events wrapper pointer
+ * @return 1 if event fired, 0 otherwise
+ */
+int fbe_has_event_fired(void* events_wrapper);
+
+/**
+ * Reset the event fired flag.
+ *
+ * @param events_wrapper Events wrapper pointer
+ */
+void fbe_reset_event_fired(void* events_wrapper);
+
+/**
+ * Get event data from the last fired event.
+ *
+ * @param events_wrapper Events wrapper pointer
+ * @param length Output: length of event data
+ * @return Pointer to event data, or NULL if no event
+ */
+const unsigned char* fbe_get_event_data(void* events_wrapper, unsigned* length);
+
+/**
+ * Check if events are queued.
+ *
+ * @param events_wrapper Events wrapper pointer
+ * @return 1 if queued, 0 otherwise
+ */
+int fbe_is_queued(void* events_wrapper);
+
+/**
+ * Free events wrapper.
+ *
+ * @param events_wrapper Events wrapper pointer
+ */
+void fbe_free(void* events_wrapper);
+
 #endif // FB_API_VER >= 30
 
 

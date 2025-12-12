@@ -28,6 +28,7 @@
 
 #include "php_firebird.h"
 #include "php_fbird_includes.h"
+#include "firebird_utils.h"
 
 #ifndef PHP_WIN32
 #include <signal.h>
@@ -77,6 +78,15 @@ void _php_fbird_free_event(fbird_event *event) /* {{{ */
 	unsigned short i;
 
 	event->state = DEAD;
+
+#if FB_API_VER >= 30
+	/* Phase 7: Free OO API event wrapper if present */
+	if (event->fbe_events) {
+		fbe_cancel(IBG(master_instance), event->fbe_events, NULL);
+		fbe_free(event->fbe_events);
+		event->fbe_events = NULL;
+	}
+#endif
 
 	if (event->link != NULL) {
 		fbird_event **node;
@@ -329,6 +339,7 @@ PHP_FUNCTION(fbird_set_event_handler)
 	event->event_buffer = NULL;
 	event->result_buffer = NULL;
 	event->thread_ctx = NULL; /* Not used in polling model */
+	event->fbe_events = NULL; /* Phase 7: OO API event wrapper (future async support) */
 	event->events = (char **) safe_emalloc(sizeof(char *), 15, 0);
 
 	/* Store callback reference */

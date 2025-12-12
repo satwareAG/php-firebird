@@ -1078,16 +1078,26 @@ static char const dpb_args[] = {
 
 int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db) /* {{{ */
 {
+#if FB_API_VER >= 30
     /*
-     * Build the DPB (database parameter buffer) using binary-safe writes instead
-     * of slprintf(). The previous implementation used slprintf() and then
-     * decremented buf_len by the *requested* length even when the write was
-     * truncated, which could produce a DPB length that was longer than the
-     * actual data and led fbclient to report
+     * Phase 3: OO API connection is available but disabled by default.
      *
-     *   "Invalid clumplet buffer structure: buffer end before end of clumplet"
+     * The OO API IAttachment* is not directly compatible with legacy isc_db_handle
+     * required by existing query/transaction functions (isc_dsql_*, isc_start_transaction, etc.).
      *
-     * when parsing the DPB.
+     * OO API connection will be enabled in Phase 4 when transaction and query layers
+     * are also migrated to OO API. For now, OO API is used only for:
+     * - Disconnect (handles both OO API and legacy connections)
+     * - Drop database (via fbc_drop_database)
+     *
+     * The fbc_connect() function is available for future use and for operations
+     * that need OO API connection (like createDatabase with extended options).
+     */
+    (void)0;  /* Placeholder - OO API connection disabled pending Phase 4 */
+#endif
+
+    /*
+     * Legacy path: Build the DPB (database parameter buffer) using binary-safe writes.
      */
     unsigned char dpb_buffer[257];
     unsigned char *p = dpb_buffer;
@@ -1170,6 +1180,11 @@ int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db) 
 #endif
 
     dpb_len = (short)(p - dpb_buffer);
+
+#if FB_API_VER >= 30
+    /* Clear the OO API connection slot when using legacy path */
+    IBG(status[ISC_STATUS_LENGTH - 1]) = 0;
+#endif
 
     if (isc_attach_database(IB_STATUS, (short)len[DB], args[DB], (isc_db_handle*)db, dpb_len, (char *)dpb_buffer)) {
         _php_fbird_error();
@@ -1305,7 +1320,14 @@ static void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent) /* 
 		ib_link->dialect = largs[DLECT] ? (unsigned short)largs[DLECT] : SQL_DIALECT_CURRENT;
 		ib_link->tr_list = NULL;
 		ib_link->event_head = NULL;
-		ib_link->fbc_connection = NULL;  /* Phase 3: OO API connection (not yet used) */
+
+#if FB_API_VER >= 30
+		/* Phase 3: Retrieve OO API connection pointer from _php_fbird_attach_db() */
+		ib_link->fbc_connection = (void *)(uintptr_t)IBG(status[ISC_STATUS_LENGTH - 1]);
+		IBG(status[ISC_STATUS_LENGTH - 1]) = 0;  /* Clear the temporary storage */
+#else
+		ib_link->fbc_connection = NULL;
+#endif
 
 		++IBG(num_links);
 	} while (0);

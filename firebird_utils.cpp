@@ -390,6 +390,138 @@ static void fbu_copy_status(const ISC_STATUS* from, ISC_STATUS* to, size_t maxLe
 // - fbc_get_attachment() - Get raw IAttachment pointer
 // =============================================================================
 
+// Phase 3: C interop functions for OO API Connection
+// These implementations provide the bridge between C code (firebird.c) and C++ OO API
+
+extern "C" void* fbc_connect(
+    void* master_ptr,
+    const char* database, size_t db_len,
+    const char* user, size_t user_len,
+    const char* password, size_t password_len,
+    const char* charset, size_t charset_len,
+    const char* role, size_t role_len,
+    int num_buffers,
+    int dialect,
+    int force_write,
+    ISC_STATUS* status_vector
+) {
+    // Validate master pointer
+    if (!master_ptr || !database) {
+        return nullptr;
+    }
+
+    try {
+        auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+
+        // Build connection parameters
+        fb::ConnectionParams params;
+        params.database = std::string_view(database, db_len);
+        if (user && user_len > 0) params.user = std::string_view(user, user_len);
+        if (password && password_len > 0) params.password = std::string_view(password, password_len);
+        if (charset && charset_len > 0) params.charset = std::string_view(charset, charset_len);
+        if (role && role_len > 0) params.role = std::string_view(role, role_len);
+        params.dialect = static_cast<unsigned short>(dialect);
+        // Note: num_buffers and force_write could be added to DPB in future
+
+        // Create connection using factory method
+        auto conn = fb::Connection::create(master, params);
+
+        if (!conn.isConnected()) {
+            // Connection failed - copy error status if provided
+            if (status_vector) {
+                conn.copyLastStatus(status_vector, ISC_STATUS_LENGTH);
+            }
+            return nullptr;
+        }
+
+        // Move to heap and return as opaque pointer
+        return reinterpret_cast<void*>(new fb::Connection(std::move(conn)));
+
+    } catch (const fb::Exception& e) {
+        (void)e; // suppress unused variable warning
+        return nullptr;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+extern "C" int fbc_disconnect(void* connection, ISC_STATUS* status_vector) {
+    if (!connection) {
+        return 0;
+    }
+
+    try {
+        auto* conn = reinterpret_cast<fb::Connection*>(connection);
+
+        // Try graceful disconnect
+        bool success = conn->detachNoThrow();
+
+        // Copy status if provided
+        if (status_vector) {
+            conn->copyLastStatus(status_vector, ISC_STATUS_LENGTH);
+        }
+
+        delete conn;
+        return success ? 0 : 1;
+
+    } catch (...) {
+        // Clean up even on exception
+        delete reinterpret_cast<fb::Connection*>(connection);
+        return 1;
+    }
+}
+
+extern "C" int fbc_drop_database(void* connection, ISC_STATUS* status_vector) {
+    if (!connection) {
+        return -1;
+    }
+
+    try {
+        auto* conn = reinterpret_cast<fb::Connection*>(connection);
+
+        // dropDatabase() throws fb::Exception on failure
+        conn->dropDatabase();
+
+        delete conn;
+        return 0;
+
+    } catch (const fb::Exception&) {
+        auto* conn = reinterpret_cast<fb::Connection*>(connection);
+        if (status_vector) {
+            conn->copyLastStatus(status_vector, ISC_STATUS_LENGTH);
+        }
+        delete conn;
+        return -1;
+    } catch (...) {
+        delete reinterpret_cast<fb::Connection*>(connection);
+        return -1;
+    }
+}
+
+extern "C" void* fbc_get_attachment(void* connection) {
+    if (!connection) {
+        return nullptr;
+    }
+    auto* conn = reinterpret_cast<fb::Connection*>(connection);
+    return conn->get();  // Returns IAttachment*
+}
+
+extern "C" int fbc_is_connected(void* connection) {
+    if (!connection) {
+        return 0;
+    }
+    auto* conn = reinterpret_cast<fb::Connection*>(connection);
+    return conn->isConnected() ? 1 : 0;
+}
+
+extern "C" unsigned fbc_get_server_version(void* connection) {
+    if (!connection) {
+        return 0;
+    }
+    auto* conn = reinterpret_cast<fb::Connection*>(connection);
+    return conn->getVersion().getVersion();
+}
+
 #endif // FB_API_VER >= 30
 
 #if FB_API_VER >= 40

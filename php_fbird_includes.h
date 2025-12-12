@@ -220,6 +220,13 @@ typedef struct _ib_query {
     struct _ib_query *parent;
     struct _ib_query *child_head;
     struct _ib_query *child_next;
+    /* Phase 5: OO API statement wrapper (fb::Statement* from fbs_prepare())
+     * When non-NULL, this statement was prepared via the modern OO API.
+     * The stmt.ptr may be 0 in this case - use fbs_get_statement() instead. */
+#if FB_API_VER >= 30
+    void *fbs_statement;
+    void *fbs_resultset;  /* OO API IResultSet* for cursor operations */
+#endif
 } fbird_query;
 
 enum php_fbird_option {

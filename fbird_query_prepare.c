@@ -204,6 +204,21 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc) /* {{{ */
         }
         /* Ensure any open cursor/statement is properly closed on the server
          * to avoid -502 (Attempt to reopen an open cursor) on subsequent uses. */
+#if FB_API_VER >= 30
+        /* Phase 5: Free OO API statement wrapper if used */
+        if (ib_query->fbs_statement) {
+            /* Close any open OO API resultset first */
+            if (ib_query->fbs_resultset) {
+                fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
+                ib_query->fbs_resultset = NULL;
+            }
+            /* Free the OO API statement */
+            if (ib_query->owns_stmt_handle) {
+                fbs_free(ib_query->fbs_statement, IB_STATUS);
+            }
+            ib_query->fbs_statement = NULL;
+        } else
+#endif
         if (ib_query->stmt.stmt) {
             /* Close open cursor if needed */
             if (ib_query->is_open) {
@@ -253,6 +268,11 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
 	ib_query->parent = NULL;
 	ib_query->child_head = NULL;
 	ib_query->child_next = NULL;
+#if FB_API_VER >= 30
+	/* Phase 5: Initialize OO API statement wrapper fields to NULL */
+	ib_query->fbs_statement = NULL;
+	ib_query->fbs_resultset = NULL;
+#endif
 
 	ib_query->res = zend_register_resource(ib_query, le_query);
 	ib_query->link = link;

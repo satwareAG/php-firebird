@@ -1,5 +1,5 @@
 // config.w32 - Windows build configuration for php-firebird extension
-// PHP 8.1+ required
+// PHP 8.1+ required, Firebird 3.0+ required
 
 ARG_WITH('firebird', 'Firebird database support', 'no');
 
@@ -7,6 +7,13 @@ if (PHP_FIREBIRD != 'no') {
     // Check for Firebird client library and header
     if (CHECK_LIB('fbclient_ms.lib', 'firebird', PHP_FIREBIRD + '\\lib') &&
         CHECK_HEADER_ADD_INCLUDE('ibase.h', 'CFLAGS_FIREBIRD', PHP_FIREBIRD + '\\include')) {
+
+        // Verify Firebird 3.0+ OO API availability (FB_API_VER >= 30)
+        // The OO API header (firebird/Interface.h) is required for Firebird 3.0+
+        if (!CHECK_HEADER_ADD_INCLUDE('firebird/Interface.h', 'CFLAGS_FIREBIRD', PHP_FIREBIRD + '\\include')) {
+            ERROR('Firebird 3.0+ required: firebird/Interface.h not found. ' +
+                  'This extension requires Firebird client 3.0 or later with OO API support.');
+        }
 
         // Define all source files
         var firebird_sources = 'firebird.c ' +

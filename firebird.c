@@ -701,16 +701,13 @@ static void _php_fbird_close_link(zend_resource *rsrc) /* {{{ */
 
 	_php_fbird_commit_link(link);
 
-#if FB_API_VER >= 30
-	/* Phase 3: Use OO API disconnect if connection was created via OO API */
+	/* Use OO API disconnect if connection was created via OO API */
 	if (link->fbc_connection != NULL) {
 		IBDEBUG("Closing normal link via OO API...");
 		fbc_disconnect(link->fbc_connection, IB_STATUS);
 		link->fbc_connection = NULL;
 		link->handle.ptr = 0;
-	} else
-#endif
-	if (link->handle.ptr != 0) {
+	} else if (link->handle.ptr != 0) {
 		IBDEBUG("Closing normal link...");
 		isc_detach_database(IB_STATUS, &link->handle.db);
 	}

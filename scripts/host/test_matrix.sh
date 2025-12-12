@@ -2,9 +2,16 @@
 set -e
 
 # Modern implementation of test runner across PHP versions
-# Usage: ./test_matrix.sh [container_name] [test_files...]
-# Example: ./test_matrix.sh php81-dev tests/fbird_blob_001.phpt tests/fbird_blob_002.phpt
-# Example (all versions, specific test): ./test_matrix.sh "" tests/fbird_blob_001.phpt
+# Usage: ./test_matrix.sh [container_name] [firebird_server] [test_files...]
+# Example: ./test_matrix.sh php81-dev
+# Example: ./test_matrix.sh php85-fb5-dev firebird50
+# Example: ./test_matrix.sh php81-dev "" tests/fbird_blob_001.phpt
+# Example (all versions, specific test): ./test_matrix.sh "" "" tests/fbird_blob_001.phpt
+#
+# Arguments:
+#   container_name   - PHP container to test (e.g., php81-dev, php85-fb5-dev)
+#   firebird_server  - Target Firebird server (firebird25, firebird30, firebird40, firebird50)
+#   test_files       - Optional specific test files to run
 
 # Colors
 GREEN='\033[0;32m'
@@ -47,15 +54,35 @@ else
     TARGETS=("php81-dev" "php82-dev" "php83-dev" "php84-dev" "php85-dev" "php85-fb5-dev")
 fi
 
-# Define Test Targets (optional)
-TEST_TARGETS=""
+# 4. Parse Firebird Server Target (optional second argument)
+FIREBIRD_SERVER=""
 if [ -n "$2" ]; then
-    # Capture all arguments starting from position 2
-    TEST_TARGETS="${@:2}"
-    echo "Targeting specific tests: $TEST_TARGETS"
+    case "$2" in
+        firebird25|firebird30|firebird40|firebird50)
+            FIREBIRD_SERVER="$2"
+            echo -e "${BLUE}>> Firebird Server Target: $FIREBIRD_SERVER${NC}"
+            ;;
+        "")
+            # Empty string - use container default
+            ;;
+        *)
+            echo -e "${RED}Error: Invalid Firebird server '$2'${NC}"
+            echo "Valid servers: firebird25, firebird30, firebird40, firebird50"
+            echo "Usage: $0 [container] [firebird_server] [test_files...]"
+            exit 1
+            ;;
+    esac
 fi
 
-# 4. Execute Matrix
+# 5. Define Test Targets (optional, starting from position 3)
+TEST_TARGETS=""
+if [ -n "$3" ]; then
+    # Capture all arguments starting from position 3
+    TEST_TARGETS="${@:3}"
+    echo -e "${BLUE}>> Targeting specific tests: $TEST_TARGETS${NC}"
+fi
+
+# 6. Execute Matrix
 for CONTAINER in "${TARGETS[@]}"; do
     echo -e "\n${BLUE}>> Testing Target: $CONTAINER${NC}"
 
@@ -75,9 +102,16 @@ for CONTAINER in "${TARGETS[@]}"; do
     echo "Fixing permissions..."
     docker compose exec -u root "$CONTAINER" chown -R $CURRENT_UID:$CURRENT_GID /ext
 
+    # Build environment variable options for docker exec
+    ENV_OPTS=""
+    if [ -n "$FIREBIRD_SERVER" ]; then
+        ENV_OPTS="-e FIREBIRD_HOST=$FIREBIRD_SERVER"
+        echo "Using Firebird server: $FIREBIRD_SERVER"
+    fi
+
     # Run Build & Test in single session
     # Optimizes overhead and ensures clean build state
-    echo "Running build and test suite (Target: ${TEST_TARGET:-ALL})..."
+    echo "Running build and test suite (Server: ${FIREBIRD_SERVER:-default}, Tests: ${TEST_TARGETS:-ALL})..."
 
     # Construct command with optional target
     CMD="/ext/scripts/container/build.sh && /ext/scripts/container/test.sh"
@@ -85,7 +119,7 @@ for CONTAINER in "${TARGETS[@]}"; do
         CMD="$CMD $TEST_TARGETS"
     fi
 
-    if docker compose exec "$CONTAINER" bash -c "$CMD"; then
+    if docker compose exec $ENV_OPTS "$CONTAINER" bash -c "$CMD"; then
         echo -e "${GREEN}✓ $CONTAINER passed${NC}"
     else
         echo -e "${RED}✗ $CONTAINER failed${NC}"

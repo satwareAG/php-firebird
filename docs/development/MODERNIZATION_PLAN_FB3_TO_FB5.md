@@ -1264,6 +1264,430 @@ All existing query/statement tests must pass:
 
 ---
 
+## 16. Complete Legacy Code Removal Plan
+
+### 16.1 Overview
+
+**Objective**: Remove ALL legacy `isc_*` API calls and migrate to 100% OO API.
+
+**Current State (Post Phase 5)**:
+- ✅ Connection OO API wrappers (`fbc_*`) implemented but not enabled as primary
+- ✅ Transaction OO API wrappers (`fbt_*`) implemented and integrated
+- ✅ Statement OO API wrappers (`fbs_*`) implemented and integrated
+- ❌ Blobs still use legacy `isc_create_blob`, `isc_open_blob`, etc.
+- ❌ Events still use legacy `isc_wait_for_event`, `isc_event_block`, etc.
+- ❌ Service API still uses legacy `isc_service_*`
+- ❌ Arrays still use legacy `isc_array_*`
+- ❌ Connection still uses `isc_attach_database` as primary path
+
+### 16.2 Legacy API Call Inventory
+
+#### Blobs (`fbird_blobs.c`) - 15 calls
+```
+isc_put_segment (59, 281, 723)
+isc_get_segment (90, 252, 672)
+isc_close_blob (118, 123, 500, 608, 666, 681, 728, 822)
+isc_cancel_blob (176, 509, 773)
+isc_blob_info (307)
+isc_create_blob (365, 717, 762)
+isc_open_blob (401, 599, 667, 811)
+isc_vax_integer (316, 320, 323, 326, 329)
+```
+
+#### Events (`fbird_events.c`) - 8 calls
+```
+isc_event_block (149)
+isc_wait_for_event (220, 230, 449, 510)
+isc_event_counts (226, 456, 548)
+```
+
+#### Service (`fbird_service.c`) - 7 calls
+```
+isc_service_detach (50)
+isc_service_start (180, 317, 496, 604)
+isc_service_attach (271)
+isc_service_query (326)
+```
+
+#### Connection (`firebird.c`) - 5 calls
+```
+isc_attach_database (1180)
+isc_detach_database (712, 733)
+isc_drop_database (1495)
+isc_database_info (1273)
+```
+
+#### Transaction (`firebird.c`) - 6 calls
+```
+isc_start_transaction (2133)
+isc_commit_transaction (2221, 849)
+isc_rollback_transaction (2218, 1350, 1366, 1383, 1389)
+isc_commit_retaining (2227)
+isc_rollback_retaining (2224)
+```
+
+#### Query Execution (`fbird_query_exec.c`) - 11 calls
+```
+isc_dsql_free_statement (92)
+isc_dsql_execute_immediate (124, 157, 841)
+isc_dsql_execute2 (277)
+isc_dsql_execute (281)
+isc_dsql_sql_info (688)
+isc_vax_integer (697, 700, 702)
+isc_start_transaction (1333)
+isc_commit_transaction (849, 1389)
+isc_rollback_transaction (1350, 1366, 1383)
+```
+
+#### Query Preparation (`fbird_query_prepare.c`) - 8 calls
+```
+isc_dsql_free_statement (223, 237)
+isc_dsql_allocate_statement (320)
+isc_dsql_prepare (325)
+isc_dsql_describe (341)
+isc_dsql_describe_bind (363)
+isc_dsql_sql_info (51)
+isc_vax_integer (57, 58)
+```
+
+#### Result Handling (`fbird_result.c`) - 8 calls
+```
+isc_decode_sql_time (282)
+isc_decode_timestamp (289)
+isc_dsql_free_statement (525)
+isc_open_blob (625)
+isc_blob_info (631)
+isc_close_blob (666)
+isc_vax_integer (650, 653)
+isc_array_lookup_bounds (697)
+isc_array_get_slice (715)
+isc_dsql_set_cursor_name (795)
+```
+
+#### Query Binding (`fbird_query_bind.c`) - 6 calls
+```
+isc_encode_timestamp (385)
+isc_encode_sql_date (388)
+isc_encode_sql_time (391)
+isc_create_blob (512)
+isc_close_blob (522)
+isc_array_put_slice (621)
+```
+
+#### Query Array (`fbird_query_array.c`) - 1 call
+```
+isc_array_lookup_bounds (105)
+```
+
+#### Inspection (`fbird_inspection.c`) - 14 calls
+```
+isc_dsql_allocate_statement (34, 127, 268)
+isc_dsql_prepare (43, 136, 274)
+isc_dsql_describe_bind (49, 142)
+isc_dsql_execute (58, 192, 280)
+isc_dsql_free_statement (66, 225, 232, 286, 299)
+isc_dsql_describe (172)
+isc_dsql_fetch (200)
+isc_commit_transaction (290)
+```
+
+### 16.3 Migration Phases
+
+---
+
+#### Phase 6: Blob OO API Wrapper
+
+**Goal**: Create `IBlob` wrapper and integrate into blob operations.
+
+**New Files**:
+- `src/cpp/fb_blob.hpp` - RAII wrapper for IBlob
+
+**C Interop Functions**:
+| Function | Legacy Equivalent | OO API Method |
+|----------|-------------------|---------------|
+| `fbb_create()` | `isc_create_blob` | `IAttachment::createBlob()` |
+| `fbb_open()` | `isc_open_blob` | `IAttachment::openBlob()` |
+| `fbb_put_segment()` | `isc_put_segment` | `IBlob::putSegment()` |
+| `fbb_get_segment()` | `isc_get_segment` | `IBlob::getSegment()` |
+| `fbb_close()` | `isc_close_blob` | `IBlob::close()` |
+| `fbb_cancel()` | `isc_cancel_blob` | `IBlob::cancel()` |
+| `fbb_get_info()` | `isc_blob_info` | `IBlob::getInfo()` |
+
+**Struct Updates**:
+```c
+typedef struct {
+    fb_safe_handle bl_handle;      // Legacy blob handle
+    ISC_QUAD bl_qd;
+#if FB_API_VER >= 30
+    void *fbb_blob;                // OO API IBlob* wrapper
+#endif
+} fbird_blob_handle;
+```
+
+**Integration Points**:
+- `fbird_blobs.c`: Replace all `isc_*_blob*` calls
+- `fbird_result.c`: Inline blob opening for fetch
+- `fbird_query_bind.c`: Blob creation for binding
+
+**Test Coverage**:
+- `fbird_blob_001.phpt`, `fbird_blob_002.phpt`, `fbird_blob_003.phpt`
+- `blob_stream_chunked_write.phpt`
+- `test_blob_stream.phpt`
+
+---
+
+#### Phase 7: Event OO API Wrapper
+
+**Goal**: Create `IEvents` wrapper for event handling.
+
+**New Files**:
+- `src/cpp/fb_events.hpp` - RAII wrapper for IEvents
+
+**C Interop Functions**:
+| Function | Legacy Equivalent | OO API Method |
+|----------|-------------------|---------------|
+| `fbe_create_buffer()` | `isc_event_block` | Manual buffer + `IUtil` |
+| `fbe_queue()` | `isc_que_events` | `IAttachment::queEvents()` |
+| `fbe_wait()` | `isc_wait_for_event` | Custom wait with callback |
+| `fbe_counts()` | `isc_event_counts` | `IUtil::decodeDate()` analogue |
+| `fbe_cancel()` | - | `IEvents::cancel()` |
+
+**Note**: Event handling in OO API uses callback-based `IEventCallback`. 
+May need redesign of event polling mechanism.
+
+**Test Coverage**:
+- `event_poller_wrapper.phpt`
+
+---
+
+#### Phase 8: Service OO API Wrapper
+
+**Goal**: Create `IService` wrapper for service manager operations.
+
+**New Files**:
+- `src/cpp/fb_service.hpp` - RAII wrapper for IService
+
+**C Interop Functions**:
+| Function | Legacy Equivalent | OO API Method |
+|----------|-------------------|---------------|
+| `fbsvc_attach()` | `isc_service_attach` | `IProvider::attachServiceManager()` |
+| `fbsvc_detach()` | `isc_service_detach` | `IService::detach()` |
+| `fbsvc_start()` | `isc_service_start` | `IService::start()` |
+| `fbsvc_query()` | `isc_service_query` | `IService::query()` |
+
+**Struct Updates**:
+```c
+typedef struct fbird_service_mgr {
+    void *handle;                  // Legacy isc_svc_handle
+#if FB_API_VER >= 30
+    void *fbsvc_service;           // OO API IService* wrapper
+#endif
+} fbird_service_mgr;
+```
+
+**Test Coverage**:
+- `fbird_service_001.phpt`, `fbird_service_002.phpt`
+- `fbird_service_db_mgr.phpt`
+- `fbird_service_user.phpt`
+
+---
+
+#### Phase 9: Array OO API Wrapper
+
+**Goal**: Create array handling using OO API.
+
+**New Files**:
+- `src/cpp/fb_array.hpp` - Array utilities
+
+**C Interop Functions**:
+| Function | Legacy Equivalent | OO API Method |
+|----------|-------------------|---------------|
+| `fba_lookup_bounds()` | `isc_array_lookup_bounds` | System table query via IStatement |
+| `fba_get_slice()` | `isc_array_get_slice` | `IAttachment::getSlice()` (FB 4.0+) |
+| `fba_put_slice()` | `isc_array_put_slice` | `IAttachment::putSlice()` (FB 4.0+) |
+
+**Note**: OO API array support varies by version. May need conditional paths.
+
+---
+
+#### Phase 10: Inspection Migration
+
+**Goal**: Migrate `fbird_inspection.c` internal queries to OO API.
+
+**Approach**: Use `fbs_*` functions for internal diagnostic queries.
+
+**Changes**:
+- Use `fbs_prepare()` / `fbs_execute()` for internal SQL execution
+- Update SQL inspection queries to use IStatement metadata
+
+---
+
+#### Phase 11: Type Encoding/Decoding Migration
+
+**Goal**: Replace legacy date/time encoding functions.
+
+**Functions to Replace**:
+```c
+// Encoding (fbird_query_bind.c)
+isc_encode_timestamp → IUtil::encodeTimestamp()
+isc_encode_sql_date → IUtil::encodeDate()
+isc_encode_sql_time → IUtil::encodeTime()
+
+// Decoding (fbird_result.c)
+isc_decode_sql_time → IUtil::decodeTime()
+isc_decode_timestamp → IUtil::decodeTimestamp()
+```
+
+**Note**: Already have `fbu_encode_*` and `fbu_decode_*` in `firebird_utils.cpp`.
+Need to integrate them into query binding and result handling.
+
+---
+
+#### Phase 12: Enable OO API Connections as PRIMARY
+
+**Goal**: Make `fbc_connect()` the default connection path.
+
+**Prerequisites**: Phases 6-11 complete (all subsystems support IAttachment*)
+
+**Changes to `_php_fbird_attach_db()`**:
+```c
+// BEFORE: Legacy is primary, OO API disabled
+if (isc_attach_database(...)) { ... }
+
+// AFTER: OO API is primary
+#if FB_API_VER >= 30
+    link->fbc_connection = fbc_connect(master, database, user, password, ...);
+    if (!link->fbc_connection) {
+        _php_fbird_error();
+        return FAILURE;
+    }
+    // Set legacy handle to invalid marker (NOT used)
+    link->handle.db = NULL;
+#else
+    // FB 2.5 fallback (if ever needed)
+    if (isc_attach_database(...)) { ... }
+#endif
+```
+
+**Conditional Compilation**: Remove all `#if FB_API_VER >= 30` guards for OO API paths - they become unconditional.
+
+---
+
+#### Phase 13: Remove Legacy Fallback Code
+
+**Goal**: Delete all legacy `isc_*` call sites.
+
+**File-by-file removal**:
+
+1. **`firebird.c`**: Remove legacy connect/disconnect/drop paths
+2. **`fbird_blobs.c`**: Remove all `isc_*_blob*` calls
+3. **`fbird_events.c`**: Remove `isc_wait_for_event`, `isc_event_block`
+4. **`fbird_service.c`**: Remove `isc_service_*` calls
+5. **`fbird_query_exec.c`**: Remove legacy execute paths
+6. **`fbird_query_prepare.c`**: Remove legacy prepare paths
+7. **`fbird_result.c`**: Remove legacy fetch/blob/array paths
+8. **`fbird_query_bind.c`**: Remove legacy binding paths
+9. **`fbird_query_array.c`**: Remove legacy array paths
+10. **`fbird_inspection.c`**: Complete OO API rewrite
+
+---
+
+#### Phase 14: Remove Legacy Handle Fields from Structs
+
+**Goal**: Clean up struct definitions.
+
+**`php_fbird_includes.h` changes**:
+
+```c
+// BEFORE
+typedef union {
+    isc_db_handle db;
+    isc_tr_handle tr;
+    isc_stmt_handle stmt;
+    isc_blob_handle blob;
+} fb_safe_handle;
+
+typedef struct {
+    union { void *ptr; isc_db_handle db; } handle;  // REMOVE
+    void *fbc_connection;                            // KEEP (now primary)
+    unsigned short dialect;
+    struct fbird_tr_list *tr_list;
+    struct fbird_event *event_head;
+} fbird_db_link;
+
+// AFTER (Phase 14)
+typedef struct {
+    void *fbc_connection;              // OO API connection (primary)
+    unsigned short dialect;
+    struct fbird_tr_list *tr_list;
+    struct fbird_event *event_head;
+} fbird_db_link;
+```
+
+**Similar cleanup for**:
+- `fbird_transaction` - remove `handle.tr`
+- `fbird_query` - remove `stmt.stmt`
+- `fbird_blob_handle` - remove `bl_handle.blob`
+- `fbird_service_mgr` - remove legacy `handle`
+
+---
+
+#### Phase 15: Final Cleanup and Testing
+
+**Goal**: Ensure complete migration, comprehensive testing, documentation.
+
+**Tasks**:
+1. Remove `fb_safe_handle` union entirely
+2. Remove unused include guards for legacy API
+3. Update all `#if FB_API_VER >= 30` to unconditional code
+4. Run complete test suite against FB 3.0, 4.0, 5.0
+5. Performance benchmarks comparing before/after
+6. Update README with minimum FB 3.0 requirement
+7. Update documentation
+
+**Build System Updates**:
+- Minimum Firebird version: 3.0
+- Remove FB 2.5 compatibility checks
+
+---
+
+### 16.4 Execution Order and Dependencies
+
+```
+Phase 6 (Blob) ────────────────┐
+Phase 7 (Events) ──────────────┼──► Phase 12 (Enable OO Primary)
+Phase 8 (Service) ─────────────┤           │
+Phase 9 (Array) ───────────────┤           ▼
+Phase 10 (Inspection) ─────────┤    Phase 13 (Remove Legacy)
+Phase 11 (Encode/Decode) ──────┘           │
+                                           ▼
+                               Phase 14 (Struct Cleanup)
+                                           │
+                                           ▼
+                               Phase 15 (Final Testing)
+```
+
+### 16.5 Risk Mitigation
+
+| Risk | Mitigation |
+|------|------------|
+| Break existing functionality | Test after each phase |
+| Performance regression | Benchmark before/after each phase |
+| FB 3.0 API differences | Test on FB 3.0, 4.0, 5.0 containers |
+| Complex event handling | Events may require phased approach |
+| Array API availability | Conditional compilation for older FB versions |
+
+### 16.6 Success Criteria
+
+- [ ] Zero `isc_*` API calls in codebase (except type constants)
+- [ ] All 102 tests pass (100% non-skipped)
+- [ ] Build succeeds on FB 3.0, 4.0, 5.0 clients
+- [ ] No performance regression >5%
+- [ ] Clean static analysis (`cppcheck`, `clang-tidy`)
+- [ ] Documentation complete
+
+---
+
 ## Document History
 
 | Version | Date | Author | Changes |
@@ -1275,3 +1699,4 @@ All existing query/statement tests must pass:
 | 1.4 | 2025-12-12 | Jane Alesi | Phase 4 completion: Transaction OO API integration with initialization fix |
 | 1.5 | 2025-12-12 | Jane Alesi | Added Phase 5 plan: Statement/Query infrastructure |
 | 1.6 | 2025-12-12 | Jane Alesi | Phase 5 Parts 1-4: Statement OO API integration complete (prepare, execute, fetch) |
+| 1.7 | 2025-12-12 | Jane Alesi | Added Section 16: Complete Legacy Code Removal Plan (Phases 6-15) |

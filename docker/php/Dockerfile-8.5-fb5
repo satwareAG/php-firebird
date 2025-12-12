@@ -1,0 +1,59 @@
+# PHP 8.5 with Firebird 5.x Client Library
+# For testing extension against the latest Firebird client
+FROM php:8.5-cli AS base
+
+# Install development dependencies (without firebird-dev from apt)
+RUN apt-get update && apt-get install -y \
+    autoconf \
+    build-essential \
+    gcc \
+    g++ \
+    make \
+    libtool \
+    bison \
+    re2c \
+    libicu-dev \
+    libxml2-dev \
+    git \
+    unzip \
+    wget \
+    tzdata \
+    vim \
+    gdb \
+    valgrind \
+    lcov \
+    libtommath1 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Download and install Firebird 5.0.3 client library
+ARG FIREBIRD_VERSION=5.0.3.1683-0
+ARG FIREBIRD_TARBALL=Firebird-${FIREBIRD_VERSION}-linux-x64
+RUN cd /tmp \
+    && wget -q https://github.com/FirebirdSQL/firebird/releases/download/v5.0.3/${FIREBIRD_TARBALL}.tar.gz \
+    && tar xf ${FIREBIRD_TARBALL}.tar.gz \
+    && mkdir -p /opt/firebird \
+    && tar xf ${FIREBIRD_TARBALL}/buildroot.tar.gz -C /opt/firebird --strip-components=3 \
+    && rm -rf /tmp/${FIREBIRD_TARBALL}* \
+    && ldconfig
+
+# Create symlinks for the extension build system
+RUN ln -sf /opt/firebird/lib/libfbclient.so /usr/lib/libfbclient.so \
+    && ln -sf /opt/firebird/lib/libfbclient.so.2 /usr/lib/libfbclient.so.2 \
+    && ln -sf /opt/firebird/include /usr/include/firebird \
+    && echo "/opt/firebird/lib" > /etc/ld.so.conf.d/firebird.conf \
+    && ldconfig
+
+# Install pcntl extension for event handling tests
+RUN docker-php-ext-install pcntl
+
+# Set up entrypoint
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Environment variables for build
+ENV FIREBIRD_HOME=/opt/firebird
+ENV LD_LIBRARY_PATH=/opt/firebird/lib:$LD_LIBRARY_PATH
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["php", "-a"]

@@ -44,7 +44,7 @@ fi
 if [ -n "$1" ]; then
     TARGETS=("$1")
 else
-    TARGETS=("php81-dev" "php82-dev" "php83-dev" "php84-dev" "php85-dev")
+    TARGETS=("php81-dev" "php82-dev" "php83-dev" "php84-dev" "php85-dev" "php85-fb5-dev")
 fi
 
 # Define Test Targets (optional)

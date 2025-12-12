@@ -1016,22 +1016,21 @@ typedef struct {
 
 ## 14. Phase 5 Implementation Notes (2025-12-12)
 
-### 14.1 Status: 🟢 IN PROGRESS
+### 14.1 Status: ✅ COMPLETE
 
-**Started**: 2025-12-12
+**Started**: 2025-12-12  
+**Completed**: 2025-12-12
 
-**Completed So Far**:
+**All Parts Completed**:
+- ✅ **Part 1** (Commit `1b9b033`): Added `fbs_statement` and `fbs_resultset` fields to `fbird_query` struct
+- ✅ **Part 2** (Commit `2b7e9a4`): Integrated `fbs_prepare()` into query preparation flow
+- ✅ **Part 3** (Commit `740c2d9`): Integrated `fbs_execute()` and `fbs_open_cursor()` into execution flow
+- ✅ **Part 4** (Commit `4879aad`): Integrated `fbs_fetch()` cursor operations into `fbird_result.c`
 - ✅ Created `src/cpp/fb_statement.hpp` - RAII wrapper for `IStatement` with cursor management
 - ✅ Added C interop function declarations to `firebird_utils.h`
 - ✅ Implemented C interop functions (`fbs_*`) in `firebird_utils.cpp`
 - ✅ Build verified: PHP 8.4.15 + Firebird 4.0.5 client
-- ✅ All 98 tests pass (4 skipped, 100% non-skipped)
-
-**Remaining**:
-- 🟡 Add `fbs_statement` field to `fbird_query` struct
-- 🟡 Integrate `fbs_prepare()` into `fbird_query_prepare.c`
-- 🟡 Integrate `fbs_execute()` into `fbird_query_exec.c`
-- 🟡 Integrate cursor/fetch operations into `fbird_result.c`
+- ✅ **Test Results**: 98 passed, 0 failed, 4 skipped (100% non-skipped pass rate)
 
 ### 14.2 Objective
 

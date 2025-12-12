@@ -238,26 +238,69 @@ int _php_fbird_blob_get(zval *return_value, fbird_blob *ib_blob, zend_ulong max_
 {
 	if (ib_blob->bl_qd.gds_quad_high || ib_blob->bl_qd.gds_quad_low) { /*not null ?*/
 
-		ISC_STATUS stat;
 		zend_string *bl_data;
 		zend_ulong cur_len;
-		unsigned short seg_len;
 
 		bl_data = zend_string_safe_alloc(1, max_len, 0, 0);
 
-		for (cur_len = stat = 0; (stat == 0 || stat == isc_segment) && cur_len < max_len; cur_len += seg_len) {
+#if FB_API_VER >= 30
+		/* Phase 6 FIX: Use OO API when blob was opened via OO API */
+		if (ib_blob->fbb_blob) {
+			int result;
+			unsigned actual_len;
 
-			unsigned short chunk_size = (max_len-cur_len) > USHRT_MAX ? USHRT_MAX
-				: (unsigned short)(max_len-cur_len);
+			for (cur_len = 0; cur_len < max_len; cur_len += actual_len) {
+				unsigned chunk_size = (max_len - cur_len) > USHRT_MAX ? USHRT_MAX
+					: (unsigned)(max_len - cur_len);
 
-			stat = isc_get_segment(IB_STATUS, &ib_blob->bl_handle.blob, &seg_len, chunk_size, &ZSTR_VAL(bl_data)[cur_len]);
+				result = fbb_get_segment(
+					IBG(master_instance),
+					ib_blob->fbb_blob,
+					chunk_size,
+					&ZSTR_VAL(bl_data)[cur_len],
+					&actual_len,
+					IB_STATUS
+				);
+
+				if (result < 0) {
+					/* Error or EOF */
+					if (IB_STATUS[1] == isc_segstr_eof || IB_STATUS[1] == isc_segment) {
+						/* EOF is not an error */
+						break;
+					}
+					if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
+						zend_string_free(bl_data);
+						_php_fbird_error();
+						return FAILURE;
+					}
+					break;
+				}
+				if (actual_len == 0) {
+					/* EOF */
+					break;
+				}
+			}
+		} else
+#endif
+		{
+			/* Legacy path: use isc_get_segment */
+			ISC_STATUS stat;
+			unsigned short seg_len;
+
+			for (cur_len = stat = 0; (stat == 0 || stat == isc_segment) && cur_len < max_len; cur_len += seg_len) {
+				unsigned short chunk_size = (max_len-cur_len) > USHRT_MAX ? USHRT_MAX
+					: (unsigned short)(max_len-cur_len);
+
+				stat = isc_get_segment(IB_STATUS, &ib_blob->bl_handle.blob, &seg_len, chunk_size, &ZSTR_VAL(bl_data)[cur_len]);
+			}
+
+			if (IB_STATUS[0] == 1 && (stat != 0 && stat != isc_segstr_eof && stat != isc_segment)) {
+				zend_string_free(bl_data);
+				_php_fbird_error();
+				return FAILURE;
+			}
 		}
 
-		if (IB_STATUS[0] == 1 && (stat != 0 && stat != isc_segstr_eof && stat != isc_segment)) {
-			zend_string_free(bl_data);
-			_php_fbird_error();
-			return FAILURE;
-		}
 		ZSTR_VAL(bl_data)[cur_len] = '\0';
 		ZSTR_LEN(bl_data) = cur_len;
 		RETVAL_NEW_STR(bl_data);
@@ -271,19 +314,39 @@ int _php_fbird_blob_get(zval *return_value, fbird_blob *ib_blob, zend_ulong max_
 int _php_fbird_blob_add(zval *string_arg, fbird_blob *ib_blob) /* {{{ */
 {
 	zend_ulong put_cnt = 0, rem_cnt;
-	unsigned short chunk_size;
 
 	convert_to_string_ex(string_arg);
 
-	for (rem_cnt = Z_STRLEN_P(string_arg); rem_cnt > 0; rem_cnt -= chunk_size)  {
+#if FB_API_VER >= 30
+	/* Phase 6 FIX: Use OO API when blob was created via OO API */
+	if (ib_blob->fbb_blob) {
+		for (rem_cnt = Z_STRLEN_P(string_arg); rem_cnt > 0; ) {
+			unsigned chunk_size = rem_cnt > USHRT_MAX ? USHRT_MAX : (unsigned)rem_cnt;
 
-		chunk_size = rem_cnt > USHRT_MAX ? USHRT_MAX : (unsigned short)rem_cnt;
-
-		if (isc_put_segment(IB_STATUS, &ib_blob->bl_handle.blob, chunk_size, &Z_STRVAL_P(string_arg)[put_cnt] )) {
-			_php_fbird_error();
-			return FAILURE;
+			/* fbb_put_segment returns 1 on success, 0 on error */
+			if (fbb_put_segment(IBG(master_instance), ib_blob->fbb_blob, chunk_size,
+					&Z_STRVAL_P(string_arg)[put_cnt], IB_STATUS) == 0) {
+				_php_fbird_error();
+				return FAILURE;
+			}
+			put_cnt += chunk_size;
+			rem_cnt -= chunk_size;
 		}
-		put_cnt += chunk_size;
+	} else
+#endif
+	{
+		/* Legacy path: use isc_put_segment */
+		unsigned short chunk_size;
+
+		for (rem_cnt = Z_STRLEN_P(string_arg); rem_cnt > 0; rem_cnt -= chunk_size)  {
+			chunk_size = rem_cnt > USHRT_MAX ? USHRT_MAX : (unsigned short)rem_cnt;
+
+			if (isc_put_segment(IB_STATUS, &ib_blob->bl_handle.blob, chunk_size, &Z_STRVAL_P(string_arg)[put_cnt] )) {
+				_php_fbird_error();
+				return FAILURE;
+			}
+			put_cnt += chunk_size;
+		}
 	}
 	return SUCCESS;
 }
@@ -364,16 +427,10 @@ PHP_FUNCTION(fbird_blob_create)
 	ib_blob->type = BLOB_INPUT;
 	ib_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
 
-	if (isc_create_blob(IB_STATUS, &ib_link->handle.db, &trans->handle.tr, &ib_blob->bl_handle.blob, &ib_blob->bl_qd)) {
-		_php_fbird_error();
-		efree(ib_blob);
-		RETURN_FALSE;
-	}
-
 #if FB_API_VER >= 30
-	/* Phase 6: Dual-mode - also create blob via OO API if connection is OO-enabled */
-	if (ib_link->fbc_connection) {
-		void *trans_handle = trans->fbt_transaction ? fbt_get_handle(trans->fbt_transaction) : NULL;
+	/* Phase 6 FIX: Use OO API when connection is OO-enabled (legacy isc_* incompatible with OO handles) */
+	if (ib_link->fbc_connection && trans->fbt_transaction) {
+		void *trans_handle = fbt_get_handle(trans->fbt_transaction);
 		ib_blob->fbb_blob = fbb_create(
 			IBG(master_instance),
 			fbc_get_attachment(ib_link->fbc_connection),
@@ -382,9 +439,23 @@ PHP_FUNCTION(fbird_blob_create)
 			0, NULL,  /* No BPB */
 			IB_STATUS
 		);
-		/* Note: OO API failure is non-fatal in dual-mode; legacy handle is primary */
-	}
+		if (ib_blob->fbb_blob == NULL) {
+			_php_fbird_error();
+			efree(ib_blob);
+			RETURN_FALSE;
+		}
+		/* Store OO handle pointer for legacy code paths that check bl_handle */
+		ib_blob->bl_handle.ptr = fbb_get_handle(ib_blob->fbb_blob);
+	} else
 #endif
+	{
+		/* Legacy path: use isc_create_blob */
+		if (isc_create_blob(IB_STATUS, &ib_link->handle.db, &trans->handle.tr, &ib_blob->bl_handle.blob, &ib_blob->bl_qd)) {
+			_php_fbird_error();
+			efree(ib_blob);
+			RETURN_FALSE;
+		}
+	}
 
 	RETVAL_RES(zend_register_resource(ib_blob, le_blob));
 }
@@ -417,16 +488,10 @@ PHP_FUNCTION(fbird_blob_open)
 			break;
 		}
 
-		if (isc_open_blob(IB_STATUS, &ib_link->handle.db, &trans->handle.tr, &ib_blob->bl_handle.blob,
-				&ib_blob->bl_qd)) {
-			_php_fbird_error();
-			break;
-		}
-
 #if FB_API_VER >= 30
-		/* Phase 6: Dual-mode - also open blob via OO API if connection is OO-enabled */
-		if (ib_link->fbc_connection) {
-			void *trans_handle = trans->fbt_transaction ? fbt_get_handle(trans->fbt_transaction) : NULL;
+		/* Phase 6 FIX: Use OO API when connection is OO-enabled (legacy isc_* incompatible with OO handles) */
+		if (ib_link->fbc_connection && trans->fbt_transaction) {
+			void *trans_handle = fbt_get_handle(trans->fbt_transaction);
 			ib_blob->fbb_blob = fbb_open(
 				IBG(master_instance),
 				fbc_get_attachment(ib_link->fbc_connection),
@@ -435,12 +500,24 @@ PHP_FUNCTION(fbird_blob_open)
 				0, NULL,  /* No BPB */
 				IB_STATUS
 			);
-			/* Note: OO API failure is non-fatal in dual-mode; legacy handle is primary */
-		}
+			if (ib_blob->fbb_blob == NULL) {
+				_php_fbird_error();
+				break;
+			}
+			/* Store OO handle pointer for legacy code paths that check bl_handle */
+			ib_blob->bl_handle.ptr = fbb_get_handle(ib_blob->fbb_blob);
+		} else
 #endif
+		{
+			/* Legacy path: use isc_open_blob */
+			if (isc_open_blob(IB_STATUS, &ib_link->handle.db, &trans->handle.tr, &ib_blob->bl_handle.blob,
+					&ib_blob->bl_qd)) {
+				_php_fbird_error();
+				break;
+			}
+		}
 
 		RETVAL_RES(zend_register_resource(ib_blob, le_blob));
-		Z_TRY_ADDREF_P(return_value);
 		return;
 
 	} while (0);
@@ -495,7 +572,7 @@ PHP_FUNCTION(fbird_blob_get)
 		return;
 	}
 
-	ib_blob = (fbird_blob *)zend_fetch_resource_ex(blob_arg, NULL, le_blob);
+	ib_blob = (fbird_blob *)zend_fetch_resource_ex(blob_arg, LE_BLOB, le_blob);
 
 	if (!ib_blob) {
 		RETURN_FALSE;
@@ -531,39 +608,55 @@ static void _php_fbird_blob_end(INTERNAL_FUNCTION_PARAMETERS, int bl_end) /* {{{
 
 	if (bl_end == BLOB_CLOSE) { /* return id here */
 
-		if (ib_blob->bl_qd.gds_quad_high || ib_blob->bl_qd.gds_quad_low) { /*not null ?*/
-			if (isc_close_blob(IB_STATUS, &ib_blob->bl_handle.blob)) {
-				_php_fbird_error();
-				RETURN_FALSE;
-			}
-		}
-		ib_blob->bl_handle.ptr = 0;
-
 #if FB_API_VER >= 30
-		/* Phase 6: Dual-mode - also close OO API blob if present */
+		/* Phase 6 FIX: Use OO API when blob was created/opened via OO API */
 		if (ib_blob->fbb_blob) {
-			fbb_close(IBG(master_instance), ib_blob->fbb_blob, IB_STATUS);
+			if (ib_blob->bl_qd.gds_quad_high || ib_blob->bl_qd.gds_quad_low) { /*not null ?*/
+				/* fbb_close returns 1 on success, 0 on error */
+				if (fbb_close(IBG(master_instance), ib_blob->fbb_blob, IB_STATUS) == 0) {
+					_php_fbird_error();
+					RETURN_FALSE;
+				}
+			}
 			fbb_free(ib_blob->fbb_blob);
 			ib_blob->fbb_blob = NULL;
-		}
+			ib_blob->bl_handle.ptr = 0;
+		} else
 #endif
+		{
+			/* Legacy path: use isc_close_blob */
+			if (ib_blob->bl_qd.gds_quad_high || ib_blob->bl_qd.gds_quad_low) { /*not null ?*/
+				if (isc_close_blob(IB_STATUS, &ib_blob->bl_handle.blob)) {
+					_php_fbird_error();
+					RETURN_FALSE;
+				}
+			}
+			ib_blob->bl_handle.ptr = 0;
+		}
 
 		RETVAL_NEW_STR(_php_fbird_quad_to_string(ib_blob->bl_qd));
 	} else { /* discard created blob */
-		if (isc_cancel_blob(IB_STATUS, &ib_blob->bl_handle.blob)) {
-			_php_fbird_error();
-			RETURN_FALSE;
-		}
-		ib_blob->bl_handle.ptr = 0;
-
 #if FB_API_VER >= 30
-		/* Phase 6: Dual-mode - also cancel OO API blob if present */
+		/* Phase 6 FIX: Use OO API when blob was created/opened via OO API */
 		if (ib_blob->fbb_blob) {
-			fbb_cancel(IBG(master_instance), ib_blob->fbb_blob, IB_STATUS);
+			/* fbb_cancel returns 1 on success, 0 on error */
+			if (fbb_cancel(IBG(master_instance), ib_blob->fbb_blob, IB_STATUS) == 0) {
+				_php_fbird_error();
+				RETURN_FALSE;
+			}
 			fbb_free(ib_blob->fbb_blob);
 			ib_blob->fbb_blob = NULL;
-		}
+			ib_blob->bl_handle.ptr = 0;
+		} else
 #endif
+		{
+			/* Legacy path: use isc_cancel_blob */
+			if (isc_cancel_blob(IB_STATUS, &ib_blob->bl_handle.blob)) {
+				_php_fbird_error();
+				RETURN_FALSE;
+			}
+			ib_blob->bl_handle.ptr = 0;
+		}
 
 		RETVAL_TRUE;
 	}

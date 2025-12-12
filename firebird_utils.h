@@ -513,6 +513,14 @@ void fbb_get_blob_id(void* blob_wrapper, ISC_QUAD* blob_id);
 int fbb_is_open(void* blob_wrapper);
 
 /**
+ * Get the raw IBlob handle from wrapper.
+ *
+ * @param blob_wrapper Blob wrapper pointer
+ * @return Raw IBlob pointer, or NULL if invalid
+ */
+void* fbb_get_handle(void* blob_wrapper);
+
+/**
  * Free blob wrapper (without closing - blob must be closed first).
  *
  * @param blob_wrapper Blob wrapper pointer

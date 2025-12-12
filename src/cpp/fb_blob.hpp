@@ -138,8 +138,13 @@ public:
         try {
             blob_ = attachment->createBlob(&status, transaction, &blob_id_, bpb_length, bpb);
 
-            if (statusHasError(&status)) {
+            // Check both for NULL blob AND error status
+            if (!blob_ || statusHasError(&status)) {
                 copyStatusVector(&status, status_vector);
+                if (!blob_ && status_vector && status_vector[1] == 0) {
+                    // createBlob returned NULL without setting error
+                    status_vector[1] = isc_bad_segstr_handle;
+                }
                 blob_ = nullptr;
                 return false;
             }
@@ -200,8 +205,13 @@ public:
         try {
             blob_ = attachment->openBlob(&status, transaction, &blob_id_, bpb_length, bpb);
 
-            if (statusHasError(&status)) {
+            // Check both for NULL blob AND error status
+            if (!blob_ || statusHasError(&status)) {
                 copyStatusVector(&status, status_vector);
+                if (!blob_ && status_vector && status_vector[1] == 0) {
+                    // openBlob returned NULL without setting error
+                    status_vector[1] = isc_bad_segstr_handle;
+                }
                 blob_ = nullptr;
                 return false;
             }
@@ -675,6 +685,14 @@ void fbb_get_blob_id(void* blob_wrapper, ISC_QUAD* blob_id);
 int fbb_is_open(void* blob_wrapper);
 
 /**
+ * Get raw IBlob handle from wrapper.
+ *
+ * @param blob_wrapper Blob wrapper pointer
+ * @return Raw IBlob pointer, or NULL if invalid
+ */
+void* fbb_get_handle(void* blob_wrapper);
+
+/**
  * Free blob wrapper (without closing - blob must be closed first).
  *
  * @param blob_wrapper Blob wrapper pointer
@@ -880,6 +898,12 @@ inline int fbb_is_open(void* blob_wrapper) {
     if (!blob_wrapper) return 0;
     auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
     return wrapper->isOpen() ? 1 : 0;
+}
+
+inline void* fbb_get_handle(void* blob_wrapper) {
+    if (!blob_wrapper) return nullptr;
+    auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
+    return wrapper->getBlob();
 }
 
 inline void fbb_free(void* blob_wrapper) {

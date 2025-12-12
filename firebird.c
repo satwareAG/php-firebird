@@ -1076,24 +1076,22 @@ static char const dpb_args[] = {
 int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db) /* {{{ */
 {
     /*
-     * Phase 3: OO API connection is available but disabled by default.
+     * Connection uses legacy isc_attach_database() to provide link->handle.db.
      *
-     * The OO API IAttachment* is not directly compatible with legacy isc_db_handle
-     * required by existing query/transaction functions (isc_dsql_*, isc_start_transaction, etc.).
+     * OO API connection (fbc_connect) is NOT used here because many operations
+     * still depend on the legacy handle:
+     * - Blob operations (isc_create_blob2, isc_open_blob2, etc.)
+     * - Event handling (isc_que_events, etc.)
+     * - Service API (isc_service_attach, etc.)
+     * - Many query operations via isc_dsql_* functions
      *
-     * OO API connection will be enabled in Phase 4 when transaction and query layers
-     * are also migrated to OO API. For now, OO API is used only for:
-     * - Disconnect (handles both OO API and legacy connections)
-     * - Drop database (via fbc_drop_database)
+     * Phase 4/5 OO API wrappers (fbt_*, fbs_*) convert legacy handles at runtime
+     * when needed, so legacy connection handles work with OO API transactions/statements.
      *
-     * The fbc_connect() function is available for future use and for operations
-     * that need OO API connection (like createDatabase with extended options).
+     * Future: When ALL operations are migrated to OO API, enable fbc_connect() here.
      */
-    (void)0;  /* Placeholder - OO API connection disabled pending Phase 4 */
 
-    /*
-     * Legacy path: Build the DPB (database parameter buffer) using binary-safe writes.
-     */
+    /* Build the DPB (database parameter buffer) using binary-safe writes. */
     unsigned char dpb_buffer[257];
     unsigned char *p = dpb_buffer;
     unsigned char *end = dpb_buffer + sizeof(dpb_buffer);

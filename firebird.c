@@ -722,20 +722,15 @@ static void _php_fbird_close_plink(zend_resource *rsrc) /* {{{ */
 
 	_php_fbird_commit_link(link);
 
-#if FB_API_VER >= 30
 	/* Phase 3: Use OO API disconnect if connection was created via OO API */
 	if (link->fbc_connection != NULL) {
 		IBDEBUG("Closing permanent link via OO API...");
 		fbc_disconnect(link->fbc_connection, IB_STATUS);
 		link->fbc_connection = NULL;
 		link->handle.ptr = 0;
-	} else
-#endif
-	{
+	} else if (link->handle.ptr != 0) {
 		IBDEBUG("Closing permanent link...");
-		if (link->handle.ptr != 0) {
-			isc_detach_database(IB_STATUS, &link->handle.db);
-		}
+		isc_detach_database(IB_STATUS, &link->handle.db);
 	}
 	IBG(num_persistent)--;
 	IBG(num_links)--;
@@ -750,7 +745,6 @@ static void _php_fbird_free_trans(zend_resource *rsrc) /* {{{ */
 
 	IBDEBUG("Cleaning up transaction resource...");
 
-#if FB_API_VER >= 30
 	/* Phase 4: Use OO API rollback when transaction was created via OO API */
 	if (trans->fbt_transaction != NULL) {
 		IBDEBUG("Rolling back unhandled OO API transaction...");
@@ -759,9 +753,7 @@ static void _php_fbird_free_trans(zend_resource *rsrc) /* {{{ */
 		}
 		trans->fbt_transaction = NULL;
 		trans->handle.ptr = 0;
-	} else
-#endif
-	if (trans->handle.ptr != 0) {
+	} else if (trans->handle.ptr != 0) {
 		IBDEBUG("Rolling back unhandled transaction...");
 		if (isc_rollback_transaction(IB_STATUS, &trans->handle.tr)) {
 			_php_fbird_error();
@@ -922,21 +914,17 @@ static PHP_GINIT_FUNCTION(fbird)
 	fbird_globals->get_master_interface = _php_fbird_get_fbclient_symbol("fb_get_master_interface");
 	fbird_globals->get_statement_interface = _php_fbird_get_fbclient_symbol("fb_get_statement_interface");
 
-#if FB_API_VER >= 30
 	if (fbird_globals->get_master_interface) {
 		fbird_globals->master_instance = ((fb_get_master_interface_t)(fbird_globals->get_master_interface))();
 		fbird_globals->client_version = fbu_get_client_version(fbird_globals->master_instance);
 		fbird_globals->client_major_version = (fbird_globals->client_version >> 8) & 0xFF;
 		fbird_globals->client_minor_version = fbird_globals->client_version & 0xFF;
 	} else {
-#endif
 		fbird_globals->master_instance = NULL;
 		fbird_globals->client_version = -1;
 		fbird_globals->client_major_version = -1;
 		fbird_globals->client_minor_version = -1;
-#if FB_API_VER >= 30
 	}
-#endif
 }
 
 PHP_MINIT_FUNCTION(fbird)
@@ -1087,7 +1075,6 @@ static char const dpb_args[] = {
 
 int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db) /* {{{ */
 {
-#if FB_API_VER >= 30
     /*
      * Phase 3: OO API connection is available but disabled by default.
      *
@@ -1103,7 +1090,6 @@ int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db) 
      * that need OO API connection (like createDatabase with extended options).
      */
     (void)0;  /* Placeholder - OO API connection disabled pending Phase 4 */
-#endif
 
     /*
      * Legacy path: Build the DPB (database parameter buffer) using binary-safe writes.
@@ -1190,10 +1176,8 @@ int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db) 
 
     dpb_len = (short)(p - dpb_buffer);
 
-#if FB_API_VER >= 30
     /* Clear the OO API connection slot when using legacy path */
     IBG(status[ISC_STATUS_LENGTH - 1]) = 0;
-#endif
 
     if (isc_attach_database(IB_STATUS, (short)len[DB], args[DB], (isc_db_handle*)db, dpb_len, (char *)dpb_buffer)) {
         _php_fbird_error();
@@ -1330,13 +1314,9 @@ static void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent) /* 
 		ib_link->tr_list = NULL;
 		ib_link->event_head = NULL;
 
-#if FB_API_VER >= 30
 		/* Phase 3: Retrieve OO API connection pointer from _php_fbird_attach_db() */
 		ib_link->fbc_connection = (void *)(uintptr_t)IBG(status[ISC_STATUS_LENGTH - 1]);
 		IBG(status[ISC_STATUS_LENGTH - 1]) = 0;  /* Clear the temporary storage */
-#else
-		ib_link->fbc_connection = NULL;
-#endif
 
 		++IBG(num_links);
 	} while (0);
@@ -1790,9 +1770,7 @@ PHP_FUNCTION(fbird_trans_start)
 	ib_trans->handle.ptr = tr_handle;
 	ib_trans->link_cnt = 1;
 	ib_trans->affected_rows = 0;
-#if FB_API_VER >= 30
 	ib_trans->fbt_transaction = NULL;  /* Phase 4: Initialize OO API transaction pointer */
-#endif
 	ib_trans->db_link[0] = ib_link;
 
 	/* the first item in the connection-transaction list is reserved for the default transaction */
@@ -2064,9 +2042,7 @@ PHP_FUNCTION(fbird_trans)
 	ib_trans->handle.ptr = tr_handle;
 	ib_trans->link_cnt = link_cnt;
 	ib_trans->affected_rows = 0;
-#if FB_API_VER >= 30
 	ib_trans->fbt_transaction = NULL;  /* Phase 4: Initialize OO API transaction pointer */
-#endif
 	for (i = 0; i < link_cnt; ++i) {
 		fbird_tr_list **l;
 		ib_trans->db_link[i] = ib_link[i];
@@ -2112,9 +2088,7 @@ int _php_fbird_def_trans(fbird_db_link *ib_link, fbird_transaction **trans) /* {
 			tr->handle.ptr = 0;
 			tr->link_cnt = 1;
 			tr->affected_rows = 0;
-#if FB_API_VER >= 30
 			tr->fbt_transaction = NULL;
-#endif
 			tr->db_link[0] = ib_link;
 			ib_link->tr_list->trans = tr;
 		}
@@ -2129,7 +2103,6 @@ int _php_fbird_def_trans(fbird_db_link *ib_link, fbird_transaction **trans) /* {
 				_php_fbird_populate_trans(trans_argl, trans_timeout, last_tpb, &tpb_len);
 			}
 
-#if FB_API_VER >= 30
 			/* Phase 4: Use OO API transaction when connection was created via OO API */
 			if (ib_link->fbc_connection != NULL) {
 				void* attachment = fbc_get_attachment(ib_link->fbc_connection);
@@ -2153,9 +2126,7 @@ int _php_fbird_def_trans(fbird_db_link *ib_link, fbird_transaction **trans) /* {
 
 				/* Store a compatible handle for legacy code paths that may inspect it */
 				tr->handle.ptr = fbt_get_handle(tr->fbt_transaction);
-			} else
-#endif
-			{
+			} else {
 				/* Legacy path: use isc_start_transaction */
 				ISC_STATUS result;
 				if (trans_argl == PHP_IBASE_DEFAULT) {
@@ -2215,7 +2186,6 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit) /* {{
 		}
 	}
 
-#if FB_API_VER >= 30
 	/* Phase 4: Use OO API transaction end when transaction was created via OO API */
 	if (trans->fbt_transaction != NULL) {
 		switch (commit) {
@@ -2243,9 +2213,7 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit) /* {{
 			trans->fbt_transaction = NULL;
 			trans->handle.ptr = 0;
 		}
-	} else
-#endif
-	{
+	} else {
 		/* Legacy path: use isc_* functions */
 		switch (commit) {
 			default: /* == case ROLLBACK: */

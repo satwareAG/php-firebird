@@ -204,7 +204,6 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc) /* {{{ */
         }
         /* Ensure any open cursor/statement is properly closed on the server
          * to avoid -502 (Attempt to reopen an open cursor) on subsequent uses. */
-#if FB_API_VER >= 30
         /* Phase 5: Free OO API statement wrapper if used */
         if (ib_query->fbs_statement) {
             /* Close any open OO API resultset first */
@@ -217,9 +216,7 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc) /* {{{ */
                 fbs_free(ib_query->fbs_statement, IB_STATUS);
             }
             ib_query->fbs_statement = NULL;
-        } else
-#endif
-        if (ib_query->stmt.stmt) {
+        } else if (ib_query->stmt.stmt) {
             /* Close open cursor if needed */
             if (ib_query->is_open) {
                 IBDEBUG("Closing open cursor in dtor");
@@ -268,11 +265,9 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
 	ib_query->parent = NULL;
 	ib_query->child_head = NULL;
 	ib_query->child_next = NULL;
-#if FB_API_VER >= 30
 	/* Phase 5: Initialize OO API statement wrapper fields to NULL */
 	ib_query->fbs_statement = NULL;
 	ib_query->fbs_resultset = NULL;
-#endif
 
 	ib_query->res = zend_register_resource(ib_query, le_query);
 	ib_query->link = link;
@@ -284,7 +279,6 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
 	 * dropping it in the resource destructor. */
 	ib_query->owns_stmt_handle = 1;
 
-#if FB_API_VER >= 30
 	/* Phase 5: Create OO API statement wrapper when OO API connection and
 	 * transaction are available. The OO API wrapper is prepared in parallel
 	 * with the legacy handle - this allows gradual migration of execution
@@ -322,7 +316,6 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
 			}
 		}
 	}
-#endif
 
 	if (isc_dsql_allocate_statement(IB_STATUS, &link->handle.db, &ib_query->stmt.stmt)) {
 		_php_fbird_error();

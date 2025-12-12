@@ -131,9 +131,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 			trans->handle = tr;
 			trans->link_cnt = 1;
 			trans->affected_rows = 0;
-#if FB_API_VER >= 30
 			trans->fbt_transaction = NULL;  /* Phase 4: Initialize OO API transaction pointer */
-#endif
 			trans->db_link[0] = ib_query->link;
 
 			if (ib_query->link->tr_list == NULL) {
@@ -187,7 +185,6 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 
     /* Execute the statement. For SELECT, this opens the cursor on ib_query->stmt. */
 
-#if FB_API_VER >= 30
     /*
      * Phase 5 Part 3: OO API execution path for prepared statements.
      *
@@ -269,7 +266,6 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
         }
     } else {
 legacy_execute:
-#endif /* FB_API_VER >= 30 */
 
     if (ib_query->statement_type == isc_info_sql_stmt_exec_procedure ||
                ((ib_query->statement_type == isc_info_sql_stmt_insert ||
@@ -286,9 +282,7 @@ legacy_execute:
             &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda);
     }
 
-#if FB_API_VER >= 30
     }
-#endif
 
     if (isc_result) {
         IBDEBUG("Could not execute query");
@@ -1347,9 +1341,7 @@ PHP_FUNCTION(fbird_execute_auto)
     trans->handle = tr_handle;
     trans->link_cnt = 1;
     trans->affected_rows = 0;
-#if FB_API_VER >= 30
     trans->fbt_transaction = NULL;  /* Phase 4: Initialize OO API transaction pointer */
-#endif
     trans->db_link[0] = link;
     /* We do NOT register this transaction as a resource because it's strictly local scope */
 

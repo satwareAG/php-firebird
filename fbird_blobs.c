@@ -423,33 +423,28 @@ PHP_FUNCTION(fbird_blob_create)
 	ib_blob->type = BLOB_INPUT;
 	ib_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
 
-	/* OO API path: Use OO API when connection is OO-enabled */
-	if (ib_link->fbc_connection && trans->fbt_transaction) {
-		void *trans_handle = fbt_get_handle(trans->fbt_transaction);
-		ib_blob->fbb_blob = fbb_create(
-			IBG(master_instance),
-			fbc_get_attachment(ib_link->fbc_connection),
-			trans_handle,
-			&ib_blob->bl_qd,
-			0, NULL,  /* No BPB */
-			IB_STATUS
-		);
-		if (ib_blob->fbb_blob == NULL) {
-			_php_fbird_error();
-			efree(ib_blob);
-			RETURN_FALSE;
-		}
-		/* Store OO handle pointer for legacy code paths that check bl_handle */
-		ib_blob->bl_handle.ptr = fbb_get_handle(ib_blob->fbb_blob);
-	} else
-	{
-		/* Legacy path: use isc_create_blob */
-		if (isc_create_blob(IB_STATUS, &ib_link->handle.db, &trans->handle.tr, &ib_blob->bl_handle.blob, &ib_blob->bl_qd)) {
-			_php_fbird_error();
-			efree(ib_blob);
-			RETURN_FALSE;
-		}
+	/*
+	 * Firebird 3.0+ OO API Blob Creation
+	 *
+	 * Uses IBlob interface via fbb_create() wrapper.
+	 * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
+	 */
+	void *trans_handle = fbt_get_handle(trans->fbt_transaction);
+	ib_blob->fbb_blob = fbb_create(
+		IBG(master_instance),
+		fbc_get_attachment(ib_link->fbc_connection),
+		trans_handle,
+		&ib_blob->bl_qd,
+		0, NULL,  /* No BPB */
+		IB_STATUS
+	);
+	if (ib_blob->fbb_blob == NULL) {
+		_php_fbird_error();
+		efree(ib_blob);
+		RETURN_FALSE;
 	}
+	/* Store OO handle pointer for legacy code paths that check bl_handle */
+	ib_blob->bl_handle.ptr = fbb_get_handle(ib_blob->fbb_blob);
 
 	RETVAL_RES(zend_register_resource(ib_blob, le_blob));
 }

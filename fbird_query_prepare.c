@@ -298,102 +298,55 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
 		goto _php_fbird_alloc_query_error;
 	}
 
-	/* XSQLDA allocation and describe operations.
+	/*
+	 * OO API Message Buffer Allocation
 	 *
-	 * OO API (Firebird 3.0+): When fbs_statement is set, metadata is accessed
-	 * through IMessageMetadata interfaces. No XSQLDA required - the OO API
-	 * uses message buffers for data transfer during fetch operations.
-	 *
-	 * Legacy API: Uses XSQLDA structures for metadata and data transfer.
+	 * The OO API uses IMessageMetadata interfaces for metadata access
+	 * and message buffers for data transfer during fetch operations.
+	 * This replaces the legacy XSQLDA-based approach.
 	 */
-	if (!ib_query->fbs_statement) {
-		/* Legacy path: allocate and describe XSQLDA structures */
-		if(ib_query->out_fields_count) {
-			ib_query->out_sqlda = (XSQLDA *) emalloc(XSQLDA_LENGTH(ib_query->out_fields_count));
-			ib_query->out_sqlda->sqln = ib_query->out_fields_count;
-			ib_query->out_sqlda->version = SQLDA_CURRENT_VERSION;
-
-			if (isc_dsql_describe(IB_STATUS, &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, ib_query->out_sqlda)) {
-				IBDEBUG("isc_dsql_describe() failed\n");
-				_php_fbird_error();
-				goto _php_fbird_alloc_query_error;
-			}
-
-			ib_query->out_nullind = safe_emalloc(sizeof(*ib_query->out_nullind), ib_query->out_sqlda->sqld, 0);
-			_php_fbird_alloc_xsqlda_vars(ib_query->out_sqlda, ib_query->out_nullind);
-			if (FAILURE == _php_fbird_alloc_array(&ib_query->out_array, ib_query->out_sqlda,
-				link->handle, trans->handle, &ib_query->out_array_cnt)) {
-				goto _php_fbird_alloc_query_error;
-			}
+	if (ib_query->out_fields_count > 0) {
+		/* Get output metadata and allocate message buffer */
+		ib_query->out_metadata = fbs_get_output_metadata(
+			IBG(master_instance), ib_query->fbs_statement, IB_STATUS);
+		if (!ib_query->out_metadata) {
+			IBDEBUG("fbs_get_output_metadata() failed\n");
+			_php_fbird_error();
+			goto _php_fbird_alloc_query_error;
 		}
 
-		if(ib_query->in_fields_count) {
-			ib_query->in_sqlda = emalloc(XSQLDA_LENGTH(ib_query->in_fields_count));
-			ib_query->in_sqlda->sqln = ib_query->in_fields_count;
-			ib_query->in_sqlda->version = SQLDA_CURRENT_VERSION;
-
-			if (isc_dsql_describe_bind(IB_STATUS, &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda)) {
-				IBDEBUG("isc_dsql_describe_bind() failed\n");
-				_php_fbird_error();
-				goto _php_fbird_alloc_query_error;
-			}
-
-			assert(ib_query->in_sqlda->sqln == ib_query->in_sqlda->sqld);
-			assert(ib_query->in_sqlda->sqld == ib_query->in_fields_count);
-
-			ib_query->bind_buf = safe_emalloc(sizeof(BIND_BUF), ib_query->in_sqlda->sqld, 0);
-			ib_query->in_nullind = safe_emalloc(sizeof(*ib_query->in_nullind), ib_query->in_sqlda->sqld, 0);
-			if (FAILURE == _php_fbird_alloc_array(&ib_query->in_array, ib_query->in_sqlda,
-				link->handle, trans->handle, &ib_query->in_array_cnt)) {
-				goto _php_fbird_alloc_query_error;
-			}
+		/* Get buffer size and allocate */
+		ib_query->out_msg_length = fbm_get_message_length(
+			IBG(master_instance), ib_query->out_metadata);
+		if (ib_query->out_msg_length > 0) {
+			ib_query->out_msg_buffer = safe_emalloc(1, ib_query->out_msg_length, 0);
+			memset(ib_query->out_msg_buffer, 0, ib_query->out_msg_length);
 		}
-	} else {
-		/* OO API path: Allocate message buffers for fetch operations.
-		 * These replace XSQLDA-based data transfer. */
-		if (ib_query->out_fields_count > 0) {
-			/* Get output metadata and allocate message buffer */
-			ib_query->out_metadata = fbs_get_output_metadata(
-				IBG(master_instance), ib_query->fbs_statement, IB_STATUS);
-			if (!ib_query->out_metadata) {
-				IBDEBUG("fbs_get_output_metadata() failed\n");
-				_php_fbird_error();
-				goto _php_fbird_alloc_query_error;
-			}
+		IBDEBUG("OO API output message buffer allocated\n");
+	}
 
-			/* Get buffer size and allocate */
-			ib_query->out_msg_length = fbm_get_message_length(
-				IBG(master_instance), ib_query->out_metadata);
-			if (ib_query->out_msg_length > 0) {
-				ib_query->out_msg_buffer = safe_emalloc(1, ib_query->out_msg_length, 0);
-				memset(ib_query->out_msg_buffer, 0, ib_query->out_msg_length);
-			}
-			IBDEBUG("OO API output message buffer allocated\n");
+	if (ib_query->in_fields_count > 0) {
+		/* Get input metadata and allocate message buffer */
+		ib_query->in_metadata = fbs_get_input_metadata(
+			IBG(master_instance), ib_query->fbs_statement, IB_STATUS);
+		if (!ib_query->in_metadata) {
+			IBDEBUG("fbs_get_input_metadata() failed\n");
+			_php_fbird_error();
+			goto _php_fbird_alloc_query_error;
 		}
 
-		if (ib_query->in_fields_count > 0) {
-			/* Get input metadata and allocate message buffer */
-			ib_query->in_metadata = fbs_get_input_metadata(
-				IBG(master_instance), ib_query->fbs_statement, IB_STATUS);
-			if (!ib_query->in_metadata) {
-				IBDEBUG("fbs_get_input_metadata() failed\n");
-				_php_fbird_error();
-				goto _php_fbird_alloc_query_error;
-			}
-
-			/* Get buffer size and allocate */
-			ib_query->in_msg_length = fbm_get_message_length(
-				IBG(master_instance), ib_query->in_metadata);
-			if (ib_query->in_msg_length > 0) {
-				ib_query->in_msg_buffer = safe_emalloc(1, ib_query->in_msg_length, 0);
-				memset(ib_query->in_msg_buffer, 0, ib_query->in_msg_length);
-			}
-
-			/* Also allocate bind_buf for parameter binding */
-			ib_query->bind_buf = safe_emalloc(sizeof(BIND_BUF), ib_query->in_fields_count, 0);
-			ib_query->in_nullind = safe_emalloc(sizeof(*ib_query->in_nullind), ib_query->in_fields_count, 0);
-			IBDEBUG("OO API input message buffer allocated\n");
+		/* Get buffer size and allocate */
+		ib_query->in_msg_length = fbm_get_message_length(
+			IBG(master_instance), ib_query->in_metadata);
+		if (ib_query->in_msg_length > 0) {
+			ib_query->in_msg_buffer = safe_emalloc(1, ib_query->in_msg_length, 0);
+			memset(ib_query->in_msg_buffer, 0, ib_query->in_msg_length);
 		}
+
+		/* Also allocate bind_buf for parameter binding */
+		ib_query->bind_buf = safe_emalloc(sizeof(BIND_BUF), ib_query->in_fields_count, 0);
+		ib_query->in_nullind = safe_emalloc(sizeof(*ib_query->in_nullind), ib_query->in_fields_count, 0);
+		IBDEBUG("OO API input message buffer allocated\n");
 	}
 
 	*new_query = ib_query;

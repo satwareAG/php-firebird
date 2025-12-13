@@ -797,23 +797,41 @@ cleanup_select_result_query:
 		case isc_info_sql_stmt_delete:
 		case isc_info_sql_stmt_exec_procedure:
 
-			if (isc_dsql_sql_info(IB_STATUS, &ib_query->stmt.stmt, sizeof(info_count),
-					info_count, sizeof(result), result)) {
-				_php_fbird_error();
-				goto _php_fbird_ex_error;
-			}
-
 			affected_rows = 0;
 
-			if (result[0] == isc_info_sql_records) {
-				unsigned i = 3, result_size = isc_vax_integer(&result[1],2);
+			/* OO API path: compute affected rows via statement wrapper.
+			 * Critical: do NOT call isc_dsql_sql_info() with an invalid legacy handle.
+			 * This avoids warnings during SKIPIF/init_db(). */
+			if (ib_query->fbs_statement) {
+				ISC_UINT64 oo_affected = fbs_get_affected_records(
+					IBG(master_instance),
+					ib_query->fbs_statement,
+					IB_STATUS
+				);
 
-				while (result[i] != isc_info_end && i < result_size) {
-					short len = (short)isc_vax_integer(&result[i+1],2);
-					if (result[i] != isc_info_req_select_count) {
-						affected_rows += isc_vax_integer(&result[i+3],len);
+				if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
+					_php_fbird_error();
+					goto _php_fbird_ex_error;
+				}
+
+				affected_rows = (unsigned long)oo_affected;
+			} else if (ib_query->stmt.stmt) {
+				if (isc_dsql_sql_info(IB_STATUS, &ib_query->stmt.stmt, sizeof(info_count),
+						info_count, sizeof(result), result)) {
+					_php_fbird_error();
+					goto _php_fbird_ex_error;
+				}
+
+				if (result[0] == isc_info_sql_records) {
+					unsigned i = 3, result_size = isc_vax_integer(&result[1],2);
+
+					while (result[i] != isc_info_end && i < result_size) {
+						short len = (short)isc_vax_integer(&result[i+1],2);
+						if (result[i] != isc_info_req_select_count) {
+							affected_rows += isc_vax_integer(&result[i+3],len);
+						}
+						i += len+3;
 					}
-					i += len+3;
 				}
 			}
 

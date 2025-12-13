@@ -705,8 +705,10 @@ void fbb_free(void* blob_wrapper);
 
 /*
  * C++ implementation of C interface functions
+ * Define FBB_NO_INLINE_IMPL before including this header to provide
+ * your own implementations in a .cpp file (avoids multiple definition errors).
  */
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(FBB_NO_INLINE_IMPL)
 
 inline void* fbb_create(void* master,
                         void* attachment,

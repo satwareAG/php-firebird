@@ -1239,9 +1239,10 @@ extern "C" int fbs_is_cursor_open(void* statement_ptr) {
  * Phase 6: Blob OO API (FB 3.0+)
  *
  * RAII wrapper for IBlob operations.
- * The fbb_* functions are implemented inline in fb_blob.hpp.
+ * We provide non-inline implementations below, so disable the inline versions.
  * ============================================================================= */
 #if FB_API_VER >= 30
+#define FBB_NO_INLINE_IMPL
 #include "src/cpp/fb_blob.hpp"
 #endif // FB_API_VER >= 30 (Phase 6 Blob functions)
 
@@ -1361,3 +1362,216 @@ extern "C" int fba_put_slice(
 }
 
 #endif // FB_API_VER >= 30 (Phase 9 Array functions)
+
+// Phase 6: Blob OO API - C interop implementations
+// These non-inline implementations are needed because inline functions in headers
+// don't get proper linkage when called from C code.
+
+extern "C" void* fbb_create(
+    void* master_ptr,
+    void* attachment_ptr,
+    void* transaction_ptr,
+    ISC_QUAD* blob_id,
+    unsigned bpb_length,
+    const unsigned char* bpb,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !attachment_ptr || !transaction_ptr || !blob_id) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_req_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return nullptr;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* attachment = static_cast<Firebird::IAttachment*>(attachment_ptr);
+    auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
+
+    auto* wrapper = new (std::nothrow) fb::BlobWrapper();
+    if (!wrapper) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_virmemexh;
+            status_vector[2] = isc_arg_end;
+        }
+        return nullptr;
+    }
+
+    // BlobWrapper::create() stores blob_id internally, retrieve via getBlobId()
+    if (!wrapper->create(master, attachment, transaction, bpb_length, bpb, status_vector)) {
+        delete wrapper;
+        return nullptr;
+    }
+
+    // Copy the generated blob_id back to caller
+    *blob_id = wrapper->getBlobId();
+
+    return wrapper;
+}
+
+extern "C" void* fbb_open(
+    void* master_ptr,
+    void* attachment_ptr,
+    void* transaction_ptr,
+    const ISC_QUAD* blob_id,
+    unsigned bpb_length,
+    const unsigned char* bpb,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !attachment_ptr || !transaction_ptr || !blob_id) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_req_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return nullptr;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* attachment = static_cast<Firebird::IAttachment*>(attachment_ptr);
+    auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
+
+    auto* wrapper = new (std::nothrow) fb::BlobWrapper();
+    if (!wrapper) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_virmemexh;
+            status_vector[2] = isc_arg_end;
+        }
+        return nullptr;
+    }
+
+    if (!wrapper->open(master, attachment, transaction, blob_id, bpb_length, bpb, status_vector)) {
+        delete wrapper;
+        return nullptr;
+    }
+
+    return wrapper;
+}
+
+extern "C" int fbb_put_segment(
+    void* master_ptr,
+    void* blob_wrapper,
+    unsigned length,
+    const void* buffer,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !blob_wrapper) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_segstr_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
+
+    return wrapper->putSegment(master, length, buffer, status_vector) ? 1 : 0;
+}
+
+extern "C" int fbb_get_segment(
+    void* master_ptr,
+    void* blob_wrapper,
+    unsigned buffer_length,
+    void* buffer,
+    unsigned* actual_length,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !blob_wrapper) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_segstr_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return -1;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
+
+    return wrapper->getSegment(master, buffer_length, buffer, actual_length, status_vector);
+}
+
+extern "C" int fbb_close(void* master_ptr, void* blob_wrapper, ISC_STATUS* status_vector) {
+    if (!master_ptr || !blob_wrapper) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_segstr_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
+
+    return wrapper->close(master, status_vector) ? 1 : 0;
+}
+
+extern "C" int fbb_cancel(void* master_ptr, void* blob_wrapper, ISC_STATUS* status_vector) {
+    if (!master_ptr || !blob_wrapper) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_segstr_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
+
+    return wrapper->cancel(master, status_vector) ? 1 : 0;
+}
+
+extern "C" int fbb_get_info(
+    void* master_ptr,
+    void* blob_wrapper,
+    unsigned items_length,
+    const unsigned char* items,
+    unsigned buffer_length,
+    unsigned char* buffer,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !blob_wrapper) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_segstr_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
+
+    return wrapper->getInfo(master, items_length, items, buffer_length, buffer, status_vector) ? 1 : 0;
+}
+
+extern "C" void fbb_get_blob_id(void* blob_wrapper, ISC_QUAD* blob_id) {
+    if (!blob_wrapper || !blob_id) return;
+    auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
+    *blob_id = wrapper->getBlobId();
+}
+
+extern "C" int fbb_is_open(void* blob_wrapper) {
+    if (!blob_wrapper) return 0;
+    auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
+    return wrapper->isOpen() ? 1 : 0;
+}
+
+extern "C" void* fbb_get_handle(void* blob_wrapper) {
+    if (!blob_wrapper) return nullptr;
+    auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
+    return wrapper->getBlob();
+}
+
+extern "C" void fbb_free(void* blob_wrapper) {
+    if (!blob_wrapper) return;
+    auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
+    delete wrapper;
+}

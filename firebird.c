@@ -1076,21 +1076,48 @@ static char const dpb_args[] = {
 int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db) /* {{{ */
 {
     /*
-     * Connection uses legacy isc_attach_database() to provide link->handle.db.
+     * Phase 12: OO API is now the PRIMARY connection path.
      *
-     * OO API connection (fbc_connect) is NOT used here because many operations
-     * still depend on the legacy handle:
-     * - Blob operations (isc_create_blob2, isc_open_blob2, etc.)
-     * - Event handling (isc_que_events, etc.)
-     * - Service API (isc_service_attach, etc.)
-     * - Many query operations via isc_dsql_* functions
+     * All operations (transactions, statements, blobs, events) have been migrated
+     * to use the OO API wrappers (fbc_*, fbt_*, fbs_*, fbb_*, fbe_*).
      *
-     * Phase 4/5 OO API wrappers (fbt_*, fbs_*) convert legacy handles at runtime
-     * when needed, so legacy connection handles work with OO API transactions/statements.
-     *
-     * Future: When ALL operations are migrated to OO API, enable fbc_connect() here.
+     * The fbc_connect() function handles DPB construction internally using
+     * the modern IXpbBuilder interface.
      */
 
+#if FB_API_VER >= 30
+    void* connection = NULL;
+
+    /* Use OO API as primary connection method */
+    connection = fbc_connect(
+        IBG(master_instance),
+        args[DB], len[DB],                          /* database path */
+        args[USER], len[USER],                      /* username */
+        args[PASS], len[PASS],                      /* password */
+        args[CSET], len[CSET],                      /* charset */
+        args[ROLE], len[ROLE],                      /* SQL role */
+        (int)largs[BUF],                            /* num_buffers */
+        largs[DLECT] ? (int)largs[DLECT] : SQL_DIALECT_CURRENT, /* dialect */
+        (int)largs[SYNC],                           /* force_write */
+        IB_STATUS                                   /* status vector */
+    );
+
+    if (!connection) {
+        _php_fbird_error();
+        return FAILURE;
+    }
+
+    /* Store the OO API connection pointer in the status vector's last slot
+     * for retrieval by _php_fbird_connect() - same pattern as before but now mandatory */
+    IBG(status[ISC_STATUS_LENGTH - 1]) = (ISC_STATUS)(uintptr_t)connection;
+
+    /* Set legacy db handle to NULL - legacy path is no longer used */
+    *db = NULL;
+
+    return SUCCESS;
+
+#else
+    /* Fallback for FB 2.5 (should never be reached in practice) */
     /* Build the DPB (database parameter buffer) using binary-safe writes. */
     unsigned char dpb_buffer[257];
     unsigned char *p = dpb_buffer;
@@ -1139,39 +1166,6 @@ int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db) 
         }
     }
 
-#ifdef isc_dpb_set_bind
-    /*
-     * Bind compatibility settings for newer clients. Only send isc_dpb_set_bind
-     * when fbclient exposes the master instance API (runtime capability check).
-     * This avoids sending unknown DPB items to older servers (e.g. Firebird 3),
-     * which can cause "Invalid clumplet buffer structure" during attach.
-     */
-    if (IBG(master_instance)) {
-        const char *compat_buf;
-        unsigned char compat_buf_size;
-
-        /* If fbclient >= 4 then convert INT128/DECFLOAT to VARCHAR
-         * Else (paranoia) include TIME ZONE to legacy mapping, though this
-         * branch should not normally be taken if master_instance is absent. */
-        if (IBG(client_major_version) >= 4) {
-            static const char compat[] = "INT128 TO VARCHAR;DECFLOAT TO VARCHAR";
-            compat_buf = compat;
-            compat_buf_size = (unsigned char)(sizeof(compat) - 1);
-        } else {
-            static const char compat[] = "INT128 TO VARCHAR;DECFLOAT TO VARCHAR;TIME ZONE TO LEGACY";
-            compat_buf = compat;
-            compat_buf_size = (unsigned char)(sizeof(compat) - 1);
-        }
-
-        if ((end - p) >= (2 + (ptrdiff_t)compat_buf_size)) {
-            *p++ = isc_dpb_set_bind;
-            *p++ = compat_buf_size;
-            memcpy(p, compat_buf, compat_buf_size);
-            p += compat_buf_size;
-        }
-    }
-#endif
-
     dpb_len = (short)(p - dpb_buffer);
 
     /* Clear the OO API connection slot when using legacy path */
@@ -1182,6 +1176,7 @@ int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db) 
         return FAILURE;
     }
     return SUCCESS;
+#endif
 }
 /* }}} */
 

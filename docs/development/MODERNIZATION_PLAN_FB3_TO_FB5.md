@@ -1182,11 +1182,18 @@ if (ib_query->fbs_statement && fbs_is_cursor_open(ib_query->fbs_statement)) {
 | **Phase 5** | Statement Layer (StatementWrapper, fbs_* functions) | ✅ COMPLETE | 2025-12-12 |
 | **Phase 6** | Blob OO API (BlobWrapper, fbb_* functions) | ✅ COMPLETE | 2025-12-12 |
 | **Phase 7** | Event OO API (EventsWrapper, fbe_* functions) | ✅ COMPLETE | 2025-12-12 |
-| **Phase 8** | Service OO API | ✅ COMPLETE | fb_service.hpp, fbsvc_* functions |
-| **Phase 9** | Array OO API | ✅ COMPLETE | fb_array.hpp, fba_* functions |
-| **Phase 10** | Inspection Migration | ✅ COMPLETE | 2025-12-13 |
-| **Phase 11** | Type Encoding/Decoding Migration | ✅ COMPLETE | 2025-12-13 |
-| **Phase 12+** | Enable OO API Primary & Final Legacy Removal | 🟡 PLANNED | - |
+| **Phase 8** | Service OO API (ServiceWrapper, fbsvc_* functions) | ✅ COMPLETE | 2025-12-12 |
+| **Phase 9** | Array OO API (ArrayWrapper, fba_* functions) | ✅ COMPLETE | 2025-12-13 |
+| **Phase 10** | Inspection Migration (dual-mode dispatch) | ✅ COMPLETE | 2025-12-13 |
+| **Phase 11** | Type Encoding/Decoding (fbu_decode_*, fbu_encode_*) | ✅ COMPLETE | 2025-12-13 |
+| **Phase 12** | Enable OO API Primary | 🟡 PLANNED | - |
+| **Phase 13** | Remove Legacy Fallback Code | 🟡 PLANNED | - |
+| **Phase 14** | Remove Legacy Handle Fields | 🟡 PLANNED | - |
+| **Phase 15** | Final Cleanup and Testing | 🟡 PLANNED | - |
+
+**Current Test Status**: 94/102 tests passing (8 failures are legacy blob path issues, resolved in Phase 12+)
+
+**API Reference**: See [FIREBIRD_OO_API_REFERENCE.md](./FIREBIRD_OO_API_REFERENCE.md) for interface specifications.
 
 ### 15.2 C Interop Function Families Implemented
 
@@ -1874,3 +1881,4 @@ The failure occurs at the "get data" step with legacy blob operations. The blob 
 | 1.10 | 2025-12-13 | Jane Alesi | Phase 9 completion: Array (fba_*) OO API wrapper complete (94/102 tests pass as expected) |
 | 1.11 | 2025-12-13 | Jane Alesi | Phase 10 completion: Inspection Migration with dual-mode dispatch (commit 0e4e9e1) |
 | 1.12 | 2025-12-13 | Jane Alesi | Phase 11 completion: Type Encoding/Decoding Migration (fbu_decode_*, fbu_encode_timestamp) |
+| 1.13 | 2025-12-13 | Jane Alesi | Documentation consolidation: Updated phases table, added OO API Reference cross-link, test status (94/102) |

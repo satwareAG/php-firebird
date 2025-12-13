@@ -363,7 +363,18 @@ int _php_fbird_alloc_ht_aliases(fbird_query *ib_query)
 #if FB_API_VER >= 40
     if(IBG(master_instance) && IBG(get_statement_interface)) {
         void *statement = NULL;
-        if(((fb_get_statement_interface_t)IBG(get_statement_interface))(IB_STATUS, &statement, &ib_query->stmt.stmt)){
+
+        /* Prefer OO API fbs_statement when available (pure OO API path) */
+        if (ib_query->fbs_statement) {
+            statement = fbs_get_statement(ib_query->fbs_statement);
+        } else if (ib_query->stmt.stmt) {
+            /* Fall back to legacy handle extraction */
+            if(((fb_get_statement_interface_t)IBG(get_statement_interface))(IB_STATUS, &statement, &ib_query->stmt.stmt)){
+                return FAILURE;
+            }
+        }
+
+        if (!statement) {
             return FAILURE;
         }
 

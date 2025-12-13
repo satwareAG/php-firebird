@@ -555,6 +555,12 @@ cleanup_result_query:
    result_query->stmt = ib_query->stmt;
    result_query->query = estrdup(ib_query->query);
 
+   /* Copy OO API structures for fetch operations */
+   result_query->fbs_statement = ib_query->fbs_statement;
+   result_query->out_metadata = ib_query->out_metadata;
+   result_query->out_msg_buffer = ib_query->out_msg_buffer;
+   result_query->out_msg_length = ib_query->out_msg_length;
+
    /* Copy input parameter metadata so fbird_num_params()/fbird_param_info()
     * work on the returned result resource (e.g., fbird_query() path). */
    result_query->in_fields_count = ib_query->in_fields_count;

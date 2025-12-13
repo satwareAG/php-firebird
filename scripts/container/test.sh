@@ -12,14 +12,14 @@ if [ ! -f modules/firebird.so ]; then
     /ext/scripts/container/build.sh
 else
     # Check if extension loads successfully (handles API mismatch leftovers)
-    if ! php -d extension=$(pwd)/modules/firebird.so -r "exit(extension_loaded('firebird') ? 0 : 1);" >/dev/null 2>&1; then
+    if ! php -n -d extension=$(pwd)/modules/firebird.so -r "exit(extension_loaded('firebird') ? 0 : 1);" >/dev/null 2>&1; then
         echo "Extension found but failed to load (possible API mismatch). Rebuilding..."
         /ext/scripts/container/build.sh
     fi
 fi
 
 # Print PHP version and extension information
-php -d extension=$(pwd)/modules/firebird.so -r "
+php -n -d extension=$(pwd)/modules/firebird.so -r "
     echo 'PHP Version: ' . PHP_VERSION . PHP_EOL;
     echo 'Extension loaded: ' . (extension_loaded('firebird') ? 'YES' : 'NO') . PHP_EOL;
     echo 'Extension version: ' . phpversion('firebird') . PHP_EOL;
@@ -35,7 +35,7 @@ if [ -d "tests" ]; then
     else
         TARGET="$@"
     fi
-    TEST_PHP_EXECUTABLE=/usr/local/bin/php php run-tests.php -d extension=$(pwd)/modules/firebird.so $TARGET
+    TEST_PHP_EXECUTABLE=/usr/local/bin/php TEST_PHP_ARGS="-n" php -n run-tests.php -d extension=$(pwd)/modules/firebird.so $TARGET
 else
     echo "No test directory found. Skipping tests."
 fi

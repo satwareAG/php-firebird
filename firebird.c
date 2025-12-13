@@ -1871,6 +1871,13 @@ PHP_FUNCTION(fbird_trans_info)
 		RETURN_FALSE;
 	}
 
+	/* OO API transactions do not have a valid legacy isc_tr_handle.
+	 * Use isc_transaction_info() only when a legacy handle exists. */
+	if (trans->fbt_transaction != NULL) {
+		_php_fbird_module_error("Transaction info via legacy API is not supported for OO API transactions");
+		RETURN_FALSE;
+	}
+
 	if (isc_transaction_info(IB_STATUS, &trans->handle.tr, sizeof(tpb), tpb, sizeof(res_buf), res_buf)) {
 		_php_fbird_error();
 		RETURN_FALSE;

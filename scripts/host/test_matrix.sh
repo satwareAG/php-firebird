@@ -105,8 +105,12 @@ for CONTAINER in "${TARGETS[@]}"; do
     # Build environment variable options for docker exec
     ENV_OPTS=""
     if [ -n "$FIREBIRD_SERVER" ]; then
-        ENV_OPTS="-e FIREBIRD_HOST=$FIREBIRD_SERVER"
-        echo "Using Firebird server: $FIREBIRD_SERVER"
+        # When overriding FIREBIRD_HOST we also force FIREBIRD_DB_DIR to /tmp.
+        # Reason: some PHP containers mount /firebird volumes that are NOT present
+        # (or writable) in the selected Firebird server container, which breaks
+        # CREATE DATABASE during SKIPIF/init_db().
+        ENV_OPTS="-e FIREBIRD_HOST=$FIREBIRD_SERVER -e FIREBIRD_DB_DIR=/tmp"
+        echo "Using Firebird server: $FIREBIRD_SERVER (FIREBIRD_DB_DIR=/tmp)"
     fi
 
     # Run Build & Test in single session

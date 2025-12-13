@@ -122,6 +122,22 @@ public:
                                             const ConnectionParams& params);
 
     /**
+     * Factory method to wrap an existing IAttachment* (e.g., from CREATE DATABASE).
+     * Takes ownership of the attachment pointer.
+     *
+     * @param master Firebird master interface
+     * @param attachment Existing IAttachment* (ownership transferred)
+     * @param database_path Database path string
+     * @param dialect SQL dialect
+     * @return Connection object wrapping the attachment
+     */
+    [[nodiscard]] static Connection createFromAttachment(
+        Firebird::IMaster* master,
+        Firebird::IAttachment* attachment,
+        std::string database_path,
+        unsigned short dialect);
+
+    /**
      * Default constructor creates an invalid (empty) connection.
      */
     Connection() noexcept = default;
@@ -402,6 +418,42 @@ inline Connection Connection::create(Firebird::IMaster* master,
         master,
         std::move(db_string),
         params.dialect,
+        client_version
+    );
+}
+
+inline Connection Connection::createFromAttachment(
+    Firebird::IMaster* master,
+    Firebird::IAttachment* raw_attachment,
+    std::string database_path,
+    unsigned short dialect) {
+
+    if (!master) {
+        throw Exception("Firebird master interface is null");
+    }
+
+    if (!raw_attachment) {
+        throw Exception("Attachment pointer is null");
+    }
+
+    // Detect client version
+    unsigned client_version = 0;
+#ifdef FB_API_VER
+    client_version = FB_API_VER >= 50 ? VersionInfo::FB50 :
+                    FB_API_VER >= 40 ? VersionInfo::FB40 :
+                    VersionInfo::FB30;
+#else
+    client_version = VersionInfo::FB30;
+#endif
+
+    // Wrap in RAII pointer (takes ownership)
+    AttachmentPtr attachment(raw_attachment);
+
+    return Connection(
+        std::move(attachment),
+        master,
+        std::move(database_path),
+        dialect,
         client_version
     );
 }

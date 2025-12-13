@@ -714,59 +714,28 @@ extern "C" void* fbc_create_database(
             return nullptr;
         }
 
-        // Wrap the attachment in a Connection object
-        // Note: We create a minimal Connection-like wrapper here
-        // The attachment is already connected to the new database
-        auto* conn = new (std::nothrow) fb::Connection();
-        if (!conn) {
-            // Out of memory - detach and fail
-            attachment->detach(&check_status);
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_virmemexh;
-                status_vector[2] = isc_arg_end;
+        // Extract database path from CREATE DATABASE statement for Connection
+        // The SQL contains the database path, e.g., "CREATE SCHEMA 'path' ..."
+        std::string db_path;
+        const char* quote_start = strchr(create_sql, '\'');
+        if (quote_start) {
+            const char* quote_end = strchr(quote_start + 1, '\'');
+            if (quote_end) {
+                db_path = std::string(quote_start + 1, quote_end - quote_start - 1);
             }
-            return nullptr;
         }
 
-        // We need to construct a Connection with this attachment
-        // Since Connection::create() isn't designed for this case,
-        // we'll return the raw attachment wrapped in a simple struct
-        // that the C code can use with fbc_get_attachment() and fbc_disconnect()
+        // Use the new factory method to create a proper Connection from the attachment
+        // This transfers ownership of the attachment to the Connection object
+        fb::Connection conn = fb::Connection::createFromAttachment(
+            master,
+            attachment,
+            db_path,
+            static_cast<unsigned short>(dialect)
+        );
 
-        // Actually, let's create a ConnectionParams and connect properly
-        // after committing the implicit transaction from CREATE DATABASE
-
-        // First, commit the implicit transaction (if any)
-        // CREATE DATABASE via executeCreateDatabase starts with a committed database
-        // The attachment is ready to use
-
-        // Store attachment in a simple wrapper that's compatible with fbc_disconnect
-        // We'll create the connection manually
-        delete conn; // Don't use this
-
-        // For now, return the attachment directly wrapped in a structure
-        // that fbc_get_attachment and fbc_disconnect can handle
-        // This requires adding a simpler wrapper class
-
-        // Simpler approach: Return a special wrapper that holds just the attachment
-        struct CreateDbResult {
-            Firebird::IAttachment* attachment;
-            Firebird::IMaster* master;
-        };
-
-        auto* result = new (std::nothrow) CreateDbResult{attachment, master};
-        if (!result) {
-            attachment->detach(&check_status);
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_virmemexh;
-                status_vector[2] = isc_arg_end;
-            }
-            return nullptr;
-        }
-
-        return result;
+        // Move to heap and return as opaque pointer (compatible with fbc_get_attachment)
+        return reinterpret_cast<void*>(new fb::Connection(std::move(conn)));
 
     } catch (const fb::Exception& e) {
         if (status_vector) {

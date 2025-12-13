@@ -38,6 +38,7 @@
 #include "php_fbird_query_bind.h"
 #include "php_fbird_query_array.h"
 #include "firebird_utils.h"
+#include "src/php_fbird_compat.h"
 
 /* le_query is defined in fbird_query_prepare.c */
 
@@ -126,7 +127,48 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 
 		case isc_info_sql_stmt_start_trans:
 
-			/* a SET TRANSACTION statement should be executed with a NULL trans handle */
+			/* OO API path: Use fbt_start() for OO API connections.
+			 * This avoids calling isc_dsql_execute_immediate() with invalid legacy handles.
+			 * Note: SET TRANSACTION SQL parameters are not parsed here - uses default TPB. */
+			if (ib_query->link && ib_query->link->fbc_connection) {
+				void *attachment = fbc_get_attachment(ib_query->link->fbc_connection);
+				void *new_trans = NULL;
+
+				IBDEBUG("OO API: Executing SET TRANSACTION via fbt_start()");
+
+				/* Start transaction with default TPB (READ_WRITE, WAIT, CONCURRENCY) */
+				new_trans = fbt_start(IBG(master_instance), attachment, 0, NULL, IB_STATUS);
+				if (!new_trans) {
+					_php_fbird_error();
+					goto _php_fbird_ex_error;
+				}
+
+				trans = (fbird_transaction *) emalloc(sizeof(fbird_transaction));
+				trans->handle.ptr = NULL; /* No legacy handle for OO API transaction */
+				trans->link_cnt = 1;
+				trans->affected_rows = 0;
+				trans->fbt_transaction = new_trans;
+				trans->db_link[0] = ib_query->link;
+
+				if (ib_query->link->tr_list == NULL) {
+					ib_query->link->tr_list = (fbird_tr_list *) emalloc(sizeof(fbird_tr_list));
+					ib_query->link->tr_list->trans = NULL;
+					ib_query->link->tr_list->next = NULL;
+				}
+
+				/* link the transaction into the connection-transaction list */
+				for (l = &ib_query->link->tr_list; *l != NULL; l = &(*l)->next);
+				*l = (fbird_tr_list *) emalloc(sizeof(fbird_tr_list));
+				(*l)->trans = trans;
+				(*l)->next = NULL;
+
+				RETVAL_RES(zend_register_resource(trans, le_trans));
+				Z_TRY_ADDREF_P(return_value);
+
+				return SUCCESS;
+			}
+
+			/* Legacy API path: a SET TRANSACTION statement should be executed with a NULL trans handle */
 			tr.ptr = NULL;
 
 			if (isc_dsql_execute_immediate(IB_STATUS, &ib_query->link->handle.db, &tr.tr, 0,
@@ -162,6 +204,34 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 		case isc_info_sql_stmt_commit:
 		case isc_info_sql_stmt_rollback:
 
+			/* OO API path: Use fbt_commit()/fbt_rollback() for OO API transactions.
+			 * This avoids calling isc_dsql_execute_immediate() with invalid legacy handles. */
+			if (ib_query->trans && ib_query->trans->fbt_transaction) {
+				int success;
+				if (ib_query->statement_type == isc_info_sql_stmt_commit) {
+					IBDEBUG("OO API: Executing COMMIT via fbt_commit()");
+					success = fbt_commit(ib_query->trans->fbt_transaction, IB_STATUS);
+				} else {
+					IBDEBUG("OO API: Executing ROLLBACK via fbt_rollback()");
+					success = fbt_rollback(ib_query->trans->fbt_transaction, IB_STATUS);
+				}
+				if (!success) {
+					_php_fbird_error();
+					goto _php_fbird_ex_error;
+				}
+				/* Mark transaction as closed */
+				ib_query->trans->fbt_transaction = NULL;
+				ib_query->trans->handle.tr = 0;
+
+				if (ib_query->trans_res != NULL) {
+					zend_list_delete(ib_query->trans_res);
+					ib_query->trans_res = NULL;
+				}
+				RETVAL_TRUE;
+				return SUCCESS;
+			}
+
+			/* Legacy API path: Use isc_dsql_execute_immediate() */
 			if (isc_dsql_execute_immediate(IB_STATUS, &ib_query->link->handle.db,
 					&ib_query->trans->handle.tr, 0, ib_query->query, ib_query->dialect, NULL)) {
 				_php_fbird_error();

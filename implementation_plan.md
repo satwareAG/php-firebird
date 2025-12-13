@@ -1,19 +1,21 @@
 # Implementation Plan
 
-## Current Status (2025-12-13)
+## Current Status (2025-12-13 14:40)
 
 **Scope Clarification:** This driver **MUST ONLY SUPPORT Firebird 2.5 SERVERS**. The client library used is minimum version 3.0 with OO API support.
+
+**Detailed Implementation Plan:** See [docs/development/PHASE12_15_FIREBIRD25_PLAN.md](docs/development/PHASE12_15_FIREBIRD25_PLAN.md)
 
 **Test Results - Firebird 2.5 Matrix (All PHP Versions):**
 
 | PHP Version | Total Tests | Passed | Failed | Skipped | Pass Rate |
 |-------------|-------------|--------|--------|---------|-----------|
-| 8.1.33      | 102         | 47     | 43     | 12      | 52.2%     |
-| 8.2.29      | 102         | 47     | 43     | 12      | 52.2%     |
-| 8.3.28      | 102         | 47     | 43     | 12      | 52.2%     |
-| 8.4.15      | 102         | 47     | 43     | 12      | 52.2%     |
-| 8.5.0       | 102         | 47     | 43     | 12      | 52.2%     |
-| 8.5.0-fb5   | 102         | 47     | 43     | 12      | 52.2%     |
+| 8.1.33      | 102         | 51     | 47     | 4       | 50.0%     |
+| 8.2.29      | 102         | 51     | 47     | 4       | 50.0%     |
+| 8.3.28      | 102         | 51     | 47     | 4       | 50.0%     |
+| 8.4.15      | 102         | 51     | 47     | 4       | 50.0%     |
+| 8.5.0       | 102         | 51     | 47     | 4       | 50.0%     |
+| 8.5.0-fb5   | 102         | 51     | 47     | 4       | 50.0%     |
 
 **Result:** Identical behavior across all PHP versions. Extension builds and loads successfully on PHP 8.1-8.5.
 

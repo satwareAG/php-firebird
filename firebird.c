@@ -650,37 +650,23 @@ static void _php_fbird_commit_link(fbird_db_link *link) /* {{{ */
 		fbird_tr_list *p = l;
 		if (p->trans != 0) {
 			if (i == 0) {
-				/* Default transaction: commit */
+				/* Default transaction: commit via OO API */
 				if (p->trans->fbt_transaction != NULL) {
-					/* OO API path */
 					IBDEBUG("Committing default transaction via OO API...");
 					if (fbt_commit(p->trans->fbt_transaction, IB_STATUS)) {
 						_php_fbird_error();
 					}
 					p->trans->fbt_transaction = NULL;
-				} else if (p->trans->handle.ptr != 0) {
-					/* Legacy path */
-					IBDEBUG("Committing default transaction...");
-					if (isc_commit_transaction(IB_STATUS, &p->trans->handle.tr)) {
-						_php_fbird_error();
-					}
 				}
 				efree(p->trans); /* default transaction is not a registered resource: clean up */
 			} else {
-				/* Non-default transaction: rollback */
+				/* Non-default transaction: rollback via OO API */
 				if (p->trans->fbt_transaction != NULL) {
-					/* OO API path */
 					IBDEBUG("Rolling back other transaction via OO API...");
 					if (fbt_rollback(p->trans->fbt_transaction, IB_STATUS)) {
 						_php_fbird_error();
 					}
 					p->trans->fbt_transaction = NULL;
-				} else if (p->trans->handle.ptr != 0) {
-					/* Legacy path - non-default trans might have been rolled back by other call of this dtor */
-					IBDEBUG("Rolling back other transactions...");
-					if (isc_rollback_transaction(IB_STATUS, &p->trans->handle.tr)) {
-						_php_fbird_error();
-					}
 				}
 				/* set this link pointer to NULL in the transaction */
 				for (j = 0; j < p->trans->link_cnt; ++j) {

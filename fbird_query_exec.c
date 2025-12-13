@@ -44,9 +44,7 @@
 
 static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, zval *args, int bind_n) /* {{{ */
 {
-	int i, rv = FAILURE;
-	static char info_count[] = { isc_info_sql_records };
-	char result[512];
+	int rv = FAILURE;
 	ISC_STATUS isc_result;
 	int argc = ib_query->in_fields_count;
 
@@ -1475,8 +1473,7 @@ PHP_FUNCTION(fbird_execute_auto)
     fbird_query *ib_query;
     zval *bind_args = NULL;
     int bind_n = 0;
-    fb_safe_handle tr_handle = {0};
-    ISC_STATUS result;
+    void *oo_trans = NULL;
 
     RESET_ERRMSG;
 
@@ -1487,25 +1484,32 @@ PHP_FUNCTION(fbird_execute_auto)
     link = (fbird_db_link *)zend_fetch_resource2_ex(link_arg, LE_LINK, le_link, le_plink);
     if (!link) RETURN_FALSE;
 
-    /* Start autonomous transaction */
-    result = isc_start_transaction(IB_STATUS, &tr_handle.tr, 1, &link->handle.db, 0, NULL);
-    if (result) {
+    /* OO API Only: Connection must have OO API handle */
+    if (!link->fbc_connection) {
+        _php_fbird_module_error("fbird_execute_auto requires OO API connection (fbc_connection required)");
+        RETURN_FALSE;
+    }
+
+    /* Start autonomous transaction via OO API */
+    void *attachment = fbc_get_attachment(link->fbc_connection);
+    oo_trans = fbt_start(IBG(master_instance), attachment, 0, NULL, IB_STATUS);
+    if (!oo_trans) {
         _php_fbird_error();
         RETURN_FALSE;
     }
 
-    /* Create temp trans object */
+    /* Create temp trans object with OO API transaction */
     trans = (fbird_transaction *) emalloc(sizeof(fbird_transaction));
-    trans->handle = tr_handle;
+    trans->handle.ptr = NULL; /* No legacy handle for OO API transaction */
     trans->link_cnt = 1;
     trans->affected_rows = 0;
-    trans->fbt_transaction = NULL;  /* Phase 4: Initialize OO API transaction pointer */
+    trans->fbt_transaction = oo_trans;
     trans->db_link[0] = link;
     /* We do NOT register this transaction as a resource because it's strictly local scope */
 
     /* Prepare */
     if (FAILURE == _php_fbird_prepare(&ib_query, link, trans, NULL, sql)) {
-        isc_rollback_transaction(IB_STATUS, &trans->handle.tr);
+        fbt_rollback(oo_trans, IB_STATUS);
         efree(trans);
         RETURN_FALSE;
     }
@@ -1521,7 +1525,7 @@ PHP_FUNCTION(fbird_execute_auto)
         }
 
         zend_list_delete(ib_query->res); // Frees statement
-        isc_rollback_transaction(IB_STATUS, &trans->handle.tr);
+        fbt_rollback(oo_trans, IB_STATUS);
         efree(trans);
         RETURN_FALSE;
     }
@@ -1538,16 +1542,16 @@ PHP_FUNCTION(fbird_execute_auto)
         zend_throw_error(NULL, "fbird_execute_auto cannot be used with SELECT statements (cursor would be closed on commit).");
         zend_list_delete(Z_RES_P(return_value));
         zend_list_delete(ib_query->res);
-        isc_rollback_transaction(IB_STATUS, &trans->handle.tr);
+        fbt_rollback(oo_trans, IB_STATUS);
         efree(trans);
         RETURN_THROWS();
     }
 
-    /* Commit */
-    if (isc_commit_transaction(IB_STATUS, &trans->handle.tr)) {
+    /* Commit via OO API */
+    if (!fbt_commit(oo_trans, IB_STATUS)) {
         _php_fbird_error();
         zend_list_delete(ib_query->res);
-        efree(trans); // Handle invalid now
+        efree(trans);
         RETURN_FALSE;
     }
 

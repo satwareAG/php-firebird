@@ -1341,6 +1341,54 @@ extern "C" int fbs_is_cursor_open(void* statement_ptr) {
     return wrapper->isCursorOpen() ? 1 : 0;
 }
 
+extern "C" int fbs_set_cursor_name(void* master_ptr, void* statement_ptr, const char* cursor_name, ISC_STATUS* status_vector) {
+    if (!master_ptr || !statement_ptr || !cursor_name) {
+        if (status_vector) {
+            status_vector[0] = 1;
+            status_vector[1] = isc_arg_gds;
+            status_vector[2] = isc_bad_stmt_handle;
+            status_vector[3] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+
+    try {
+        Firebird::ThrowStatusWrapper status(master->getStatus());
+        Firebird::IStatement* stmt = wrapper->getStatement();
+        if (!stmt) {
+            if (status_vector) {
+                status_vector[0] = 1;
+                status_vector[1] = isc_arg_gds;
+                status_vector[2] = isc_bad_stmt_handle;
+                status_vector[3] = isc_arg_end;
+            }
+            return 0;
+        }
+
+        stmt->setCursorName(&status, cursor_name);
+
+        if (status_vector) {
+            status_vector[0] = 0;
+            status_vector[1] = 0;
+        }
+        return 1;
+    } catch (const Firebird::FbException& e) {
+        if (status_vector) {
+            const ISC_STATUS* errors = e.getStatus()->getErrors();
+            if (errors) {
+                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
+                    status_vector[i] = errors[i];
+                    if (errors[i] == isc_arg_end) break;
+                }
+            }
+        }
+        return 0;
+    }
+}
+
 extern "C" ISC_INT64 fbs_execute_singleton_int64(
     void* master_ptr,
     void* statement_ptr,

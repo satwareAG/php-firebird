@@ -736,7 +736,13 @@ PHP_FUNCTION(fbird_name_result)
 		RETURN_FALSE;
 	}
 
-	if (isc_dsql_set_cursor_name(IB_STATUS, &ib_query->stmt.stmt, name_arg, 0)) {
+	/* OO API Only: Use fbs_set_cursor_name() for positioned updates */
+	if (!ib_query->fbs_statement) {
+		_php_fbird_module_error("fbird_name_result() requires OO API statement (fbs_statement required)");
+		RETURN_FALSE;
+	}
+
+	if (!fbs_set_cursor_name(IBG(master_instance), ib_query->fbs_statement, name_arg, IB_STATUS)) {
 		_php_fbird_error();
 		RETURN_FALSE;
 	}

@@ -494,6 +494,17 @@ int fbs_is_prepared(void* statement_ptr);
 int fbs_is_cursor_open(void* statement_ptr);
 
 /**
+ * Set cursor name for positioned updates (WHERE CURRENT OF).
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param statement_ptr StatementWrapper pointer
+ * @param cursor_name Cursor name string
+ * @param status_vector Output ISC_STATUS array
+ * @return 1 on success, 0 on error
+ */
+int fbs_set_cursor_name(void* master_ptr, void* statement_ptr, const char* cursor_name, ISC_STATUS* status_vector);
+
+/**
  * Execute a statement that returns a single INT64 value (e.g., GEN_ID()).
  * This is a convenience function that opens a cursor, fetches one row,
  * extracts the first INT64 column, and closes the cursor.

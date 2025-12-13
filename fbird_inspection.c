@@ -368,6 +368,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
 		transaction,
 		in_msg,
 		in_metadata,
+		0,  /* cursor_flags */
 		IB_STATUS
 	)) {
 		_php_fbird_error();
@@ -401,7 +402,6 @@ PHP_FUNCTION(fbird_list_table_blockers)
 			IBG(master_instance),
 			stmt,
 			out_msg,
-			out_metadata,
 			IB_STATUS
 		);
 

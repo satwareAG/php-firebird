@@ -1093,19 +1093,19 @@ static char const dpb_args[] = {
 int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db) /* {{{ */
 {
     /*
-     * Phase 12: OO API is now the PRIMARY connection path.
+     * Firebird 3.0+ OO API Connection
      *
-     * All operations (transactions, statements, blobs, events) have been migrated
-     * to use the OO API wrappers (fbc_*, fbt_*, fbs_*, fbb_*, fbe_*).
+     * All operations (transactions, statements, blobs, events) use the modern
+     * OO API wrappers (fbc_*, fbt_*, fbs_*, fbb_*, fbe_*).
      *
      * The fbc_connect() function handles DPB construction internally using
      * the modern IXpbBuilder interface.
+     *
+     * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
      */
-
-#if FB_API_VER >= 30
     void* connection = NULL;
 
-    /* Use OO API as primary connection method */
+    /* Use OO API as the connection method */
     connection = fbc_connect(
         IBG(master_instance),
         args[DB], len[DB],                          /* database path */
@@ -1125,7 +1125,7 @@ int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db) 
     }
 
     /* Store the OO API connection pointer in the status vector's last slot
-     * for retrieval by _php_fbird_connect() - same pattern as before but now mandatory */
+     * for retrieval by _php_fbird_connect() */
     IBG(status[ISC_STATUS_LENGTH - 1]) = (ISC_STATUS)(uintptr_t)connection;
 
     /* Set legacy db handle to the IAttachment pointer for backward compatibility
@@ -1134,68 +1134,6 @@ int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db) 
     *db = fbc_get_attachment(connection);
 
     return SUCCESS;
-
-#else
-    /* Fallback for FB 2.5 (should never be reached in practice) */
-    /* Build the DPB (database parameter buffer) using binary-safe writes. */
-    unsigned char dpb_buffer[257];
-    unsigned char *p = dpb_buffer;
-    unsigned char *end = dpb_buffer + sizeof(dpb_buffer);
-    short dpb_len;
-    short i;
-
-    /* DPB version */
-    if (p >= end) {
-        _php_fbird_module_error("DPB buffer too small");
-        return FAILURE;
-    }
-    *p++ = isc_dpb_version1;
-
-    /* Textual arguments: user, password, charset, role */
-    for (i = 0; i < (short)sizeof(dpb_args); ++i) {
-        if (dpb_args[i] && args[i] && len[i]) {
-            size_t needed = 2 + len[i]; /* tag + length + payload */
-            if ((size_t)(end - p) < needed) {
-                /* Not enough space, stop appending further items. */
-                break;
-            }
-            *p++ = (unsigned char)dpb_args[i];
-            *p++ = (unsigned char)len[i];
-            memcpy(p, args[i], len[i]);
-            p += len[i];
-        }
-    }
-
-    /* Numeric options: buffers */
-    if (largs[BUF]) {
-        if ((end - p) >= 4) {
-            *p++ = isc_dpb_num_buffers;
-            *p++ = 2; /* length */
-            *p++ = (unsigned char)((largs[BUF] >> 8) & 0xff);
-            *p++ = (unsigned char)(largs[BUF] & 0xff);
-        }
-    }
-
-    /* Numeric options: force write sync/async */
-    if (largs[SYNC]) {
-        if ((end - p) >= 3) {
-            *p++ = isc_dpb_force_write;
-            *p++ = 1; /* length */
-            *p++ = (unsigned char)(largs[SYNC] == isc_spb_prp_wm_sync);
-        }
-    }
-
-    dpb_len = (short)(p - dpb_buffer);
-
-    /* Clear the OO API connection slot when using legacy path */
-    IBG(status[ISC_STATUS_LENGTH - 1]) = 0;
-
-    if (isc_attach_database(IB_STATUS, (short)len[DB], args[DB], (isc_db_handle*)db, dpb_len, (char *)dpb_buffer)) {
-        _php_fbird_error();
-        return FAILURE;
-    }
-    return SUCCESS;
-#endif
 }
 /* }}} */
 

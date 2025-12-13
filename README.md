@@ -19,8 +19,10 @@ A high-performance PHP extension providing native connectivity to Firebird datab
 ### System Requirements
 - **PHP**: 8.1+ with development headers
 - **C++ Compiler**: GCC 7+ or Clang 5+ (C++17 support)
-- **Firebird**: Client libraries (fbclient) and headers (ibase.h)
+- **Firebird**: 3.0+ client libraries (fbclient) and headers
 - **Build Tools**: autotools, make, pkg-config
+
+> **⚠️ Firebird 3.0+ Required**: This extension requires Firebird 3.0 or later. The modern OO API (FB_API_VER >= 30) is mandatory. Firebird 2.5 and earlier versions are not supported.
 
 ### Supported Platforms
 - Linux (Ubuntu 20.04+, Debian 11+, openSUSE 15.3+)

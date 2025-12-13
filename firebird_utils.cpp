@@ -1752,6 +1752,17 @@ extern "C" const char* fbm_get_alias(void* master_ptr, void* metadata_ptr, unsig
     return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? nullptr : alias;
 }
 
+extern "C" const char* fbm_get_relation(void* master_ptr, void* metadata_ptr, unsigned index) {
+    if (!master_ptr || !metadata_ptr) return nullptr;
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
+
+    Firebird::CheckStatusWrapper status(master->getStatus());
+    const char* relation = metadata->getRelation(&status, index);
+    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? nullptr : relation;
+}
+
 extern "C" void fbm_release(void* metadata_ptr) {
     if (!metadata_ptr) return;
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);

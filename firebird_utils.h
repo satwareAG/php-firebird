@@ -982,6 +982,15 @@ const char* fbm_get_field(void* master_ptr, void* metadata_ptr, unsigned index);
 const char* fbm_get_alias(void* master_ptr, void* metadata_ptr, unsigned index);
 
 /**
+ * Get field relation (table) name.
+ * @param master_ptr IMaster pointer
+ * @param metadata_ptr IMessageMetadata pointer
+ * @param index Field index (0-based)
+ * @return Relation name (internal pointer - do not free)
+ */
+const char* fbm_get_relation(void* master_ptr, void* metadata_ptr, unsigned index);
+
+/**
  * Release metadata reference.
  * @param metadata_ptr IMessageMetadata pointer
  */

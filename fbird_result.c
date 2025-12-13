@@ -432,134 +432,69 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
         RETURN_FALSE;
     }
 
-	if (ib_query->out_sqlda == NULL || !ib_query->has_more_rows || !ib_query->is_open) {
+	/* Pure OO API: Check message buffer instead of XSQLDA */
+	if (ib_query->out_metadata == NULL || ib_query->out_msg_buffer == NULL ||
+		!ib_query->has_more_rows || !ib_query->is_open) {
 		RETURN_FALSE;
 	}
 
 	assert(ib_query->out_fields_count > 0);
 
- if (ib_query->statement_type != isc_info_sql_stmt_exec_procedure) {
-        /* Treat DML ... RETURNING as a single buffered row (no fetch). */
-        int is_buffered_returning = (
-            ib_query->out_sqlda &&
-            (ib_query->statement_type == isc_info_sql_stmt_insert ||
-             ib_query->statement_type == isc_info_sql_stmt_update ||
-             ib_query->statement_type == isc_info_sql_stmt_delete) &&
-            ib_query->was_result_once
-        );
-        if (!is_buffered_returning) {
+	/*
+	 * Pure OO API Fetch Path
+	 *
+	 * Uses fbs_fetch() with message buffer for data retrieval.
+	 * Data is extracted from message buffer using OO metadata helpers.
+	 */
+	if (ib_query->statement_type != isc_info_sql_stmt_exec_procedure) {
+		/* Check for buffered RETURNING - data already in buffer from execute */
+		int is_buffered_returning = (
+			ib_query->out_msg_buffer &&
+			(ib_query->statement_type == isc_info_sql_stmt_insert ||
+			 ib_query->statement_type == isc_info_sql_stmt_update ||
+			 ib_query->statement_type == isc_info_sql_stmt_delete) &&
+			ib_query->was_result_once
+		);
 
-        /* Phase 5 Part 4: OO API fetch path when cursor was opened via OO API.
-         * When fbs_statement has an open cursor, use fbs_fetch() to advance it.
-         * Currently uses legacy XSQLDA for data transfer until message buffer integration.
-         */
-        int use_oo_fetch = 0;
-        if (ib_query->fbs_statement && fbs_is_cursor_open(ib_query->fbs_statement)) {
-            /* OO API cursor is open - use OO fetch to advance cursor.
-             * Pass NULL for out_msg since we use legacy XSQLDA for data transfer.
-             * The OO API cursor was opened in Part 3 via fbs_open_cursor().
-             *
-             * Note: fbs_fetch returns 1 = row fetched, 0 = end of data, -1 = error
-             */
-            int oo_fetch_result = fbs_fetch(
-                IBG(master_instance),
-                ib_query->fbs_statement,
-                NULL, /* out_msg: Not using OO message buffer - cursor advancement only */
-                IB_STATUS
-            );
+		if (!is_buffered_returning) {
+			/* OO API fetch via fbs_fetch() with message buffer */
+			if (!ib_query->fbs_statement || !fbs_is_cursor_open(ib_query->fbs_statement)) {
+				_php_fbird_module_error("OO API cursor not open");
+				RETURN_FALSE;
+			}
 
-            if (oo_fetch_result == 0) {
-                /* End of data - no more rows */
-                ib_query->has_more_rows = 0;
-                ib_query->is_open = 0;
+			int fetch_result = fbs_fetch(
+				IBG(master_instance),
+				ib_query->fbs_statement,
+				ib_query->out_msg_buffer,
+				IB_STATUS
+			);
 
-                /* Close the OO cursor */
-                fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
-
-                RETURN_FALSE;
-            } else if (oo_fetch_result == -1) {
-                /* Error during fetch */
-                ib_query->has_more_rows = 0;
-                ib_query->is_open = 0;
-                _php_fbird_error();
-                fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
-                RETURN_FALSE;
-            }
-
-            /* Row fetched successfully via OO API.
-             * For now, we still need legacy fetch to populate XSQLDA data.
-             * This is a temporary measure until full OO message buffer integration.
-             * Mark OO fetch succeeded for future use. */
-            use_oo_fetch = 1;
-            (void)use_oo_fetch; /* Suppress unused warning - reserved for future */
-        }
-
-        ISC_STATUS fetch_res = isc_dsql_fetch(IB_STATUS, &ib_query->stmt.stmt, 1, ib_query->out_sqlda);
-        if (fetch_res) {
-            ib_query->has_more_rows = 0;
-            ib_query->is_open = 0;
-
-            /* Check for EOF (100) - do not report error.
-             * Also suppress "Invalid cursor reference" (-504, isc_dsql_cursor_err = 335544569)
-             * which occurs when fetching from a cursor implicitly closed by a transaction commit.
-             */
-            int suppress_error = (fetch_res == 100);
-
-            if (!suppress_error && IB_STATUS[0] == 1 && IB_STATUS[1]) {
-                /* Suppress specific cursor errors that indicate the cursor was closed
-                 * (e.g. by transaction commit) to allow returning FALSE (EOF) cleanly.
-                 * 335544569: isc_dsql_cursor_err (SQL -504)
-                 * 335544436: Observed error code for "Invalid cursor reference" on some versions
-                 * We do NOT suppress 335544332 (isc_bad_stmt_handle) as that implies
-                 * usage of a freed/corrupted resource which should warn.
-                 */
-                if (IB_STATUS[1] == 335544569 || IB_STATUS[1] == 335544436) {
-                    suppress_error = 1;
-                } else {
-                    _php_fbird_error();
-                }
-            }
-
-            /* Close the cursor. If we suppressed a cursor error, closing might also fail
-             * (e.g. cursor already closed -502), so suppress that too. */
-            if (isc_dsql_free_statement(IB_STATUS, &ib_query->stmt.stmt, DSQL_close)) {
-                /* Check for "Attempt to reclose a closed cursor" (-502)
-                 * iso_dsql_cursor_close_err = 335544573 (check this constant?)
-                 * Actually -502 is isc_dsql_cursor_open_err usually?
-                 * Let's just suppress if we already suppressed the fetch error, OR
-                 * if this specific error matches known safe cases.
-                 */
-                if (!suppress_error) {
-                    /* If closing failed, check if it was due to cursor already being closed/invalid.
-                     * Suppress these to avoid double-fault noise. */
-                    if (IB_STATUS[1] == 335544569
-                        || IB_STATUS[1] == 335544436
-                        || IB_STATUS[1] == 335544573 /* isc_dsql_cursor_close_err */) {
-                        /* Suppress */
-                    } else {
-                        _php_fbird_error();
-                    }
-                }
-            }
-
-            /* Also close OO cursor if open */
-            if (ib_query->fbs_statement && fbs_is_cursor_open(ib_query->fbs_statement)) {
-                fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
-            }
-
-            RETURN_FALSE;
-        }
-        } else {
-            /* Buffered returning: data already in out_sqlda, consume once */
-            ib_query->has_more_rows = 0;
-            ib_query->is_open = 0;
-        }
-    } else {
-        ib_query->has_more_rows = 0;
-        ib_query->is_open = 0;
-    }
-
-	assert(ib_query->out_fields_count == ib_query->out_sqlda->sqld);
+			if (fetch_result == 0) {
+				/* End of data */
+				ib_query->has_more_rows = 0;
+				ib_query->is_open = 0;
+				fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
+				RETURN_FALSE;
+			} else if (fetch_result == -1) {
+				/* Error */
+				ib_query->has_more_rows = 0;
+				ib_query->is_open = 0;
+				_php_fbird_error();
+				fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
+				RETURN_FALSE;
+			}
+			/* fetch_result == 1: row fetched into out_msg_buffer */
+		} else {
+			/* Buffered returning: data already in buffer, consume once */
+			ib_query->has_more_rows = 0;
+			ib_query->is_open = 0;
+		}
+	} else {
+		/* EXEC PROCEDURE - single row already buffered */
+		ib_query->has_more_rows = 0;
+		ib_query->is_open = 0;
+	}
 
 	HashTable *ht_ret;
 	if(!(fetch_type & FETCH_ROW)) {
@@ -575,23 +510,28 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 		ht_ret = zend_array_dup(ib_query->ht_ind);
 	}
 
+	/*
+	 * Pure OO API Data Extraction from Message Buffer
+	 *
+	 * Uses fbm_* helpers to get field metadata and extract data from the
+	 * message buffer that was populated by fbs_fetch().
+	 */
 	for(i = 0; i < ib_query->out_fields_count; ++i) {
-		XSQLVAR *var = &ib_query->out_sqlda->sqlvar[i];
+		/* Get field metadata via OO API */
+		unsigned field_offset = fbm_get_offset(IBG(master_instance), ib_query->out_metadata, (unsigned)i);
+		unsigned null_offset = fbm_get_null_offset(IBG(master_instance), ib_query->out_metadata, (unsigned)i);
+		unsigned field_type = fbm_get_type(IBG(master_instance), ib_query->out_metadata, (unsigned)i);
+		unsigned field_length = fbm_get_length(IBG(master_instance), ib_query->out_metadata, (unsigned)i);
+		int field_scale = fbm_get_scale(IBG(master_instance), ib_query->out_metadata, (unsigned)i);
+		unsigned field_subtype = fbm_get_subtype(IBG(master_instance), ib_query->out_metadata, (unsigned)i);
 
-		// Check if field is NULL using defensive programming
-		bool is_null_field = false;
+		/* Get data and null indicator pointers from message buffer */
+		unsigned char *msg_buffer = (unsigned char *)ib_query->out_msg_buffer;
+		void *field_data = msg_buffer + field_offset;
+		ISC_SHORT *null_indicator = (ISC_SHORT *)(msg_buffer + null_offset);
 
-		if (var->sqltype & 1) {
-			// Nullable field - check null indicator safely
-			if (var->sqlind == NULL) {
-				_php_fbird_module_error("NULL indicator missing for nullable field %ld", i);
-				goto _php_fbird_fetch_error;
-			}
-			is_null_field = (*var->sqlind == -1);
-		} else {
-			// NOT NULL field - should not have null indicator access
-			is_null_field = false;
-		}
+		/* Check if field is NULL */
+		bool is_null_field = (*null_indicator != 0);
 
 		if (is_null_field) {
 			zend_hash_move_forward(ht_ret);
@@ -599,16 +539,18 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 		}
 
 		result = zend_hash_get_current_data(ht_ret);
-        if (!result) {
-            _php_fbird_module_error("Internal error: result array iterator out of sync");
-            RETURN_FALSE;
-        }
+		if (!result) {
+			_php_fbird_module_error("Internal error: result array iterator out of sync");
+			RETURN_FALSE;
+		}
 
-		switch (var->sqltype & ~1) {
+		/* Map OO type to legacy SQL_* type for _php_fbird_var_zval compatibility */
+		int sql_type = field_type;
 
+		switch (field_type) {
 			default:
-				_php_fbird_var_zval(result, var->sqldata, var->sqltype, var->sqllen,
-					var->sqlscale, var->sqlsubtype, flag);
+				_php_fbird_var_zval(result, field_data, sql_type, field_length,
+					field_scale, field_subtype, flag);
 				break;
 			case SQL_BLOB:
 				if (flag & PHP_IBASE_FETCH_BLOBS) { /* fetch blob contents into hash */
@@ -617,10 +559,10 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 					zend_ulong max_len = 0;
 					static char bl_items[] = {isc_info_blob_total_length};
 					char bl_info[20];
-					unsigned short i;
+					unsigned short blob_i;
 
 					blob_handle.bl_handle.ptr = 0;
-					blob_handle.bl_qd = *(ISC_QUAD *) var->sqldata;
+					blob_handle.bl_qd = *(ISC_QUAD *) field_data;
 
 					if (isc_open_blob(IB_STATUS, &ib_query->link->handle.db, &ib_query->trans->handle.tr,
 							&blob_handle.bl_handle.blob, &blob_handle.bl_qd)) {
@@ -669,13 +611,13 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 					}
 
 				} else { /* blob id only */
-					ISC_QUAD bl_qd = *(ISC_QUAD *) var->sqldata;
+					ISC_QUAD bl_qd = *(ISC_QUAD *) field_data;
 					ZVAL_NEW_STR(result, _php_fbird_quad_to_string(bl_qd));
 				}
 				break;
 			case SQL_ARRAY:
 				if (flag & PHP_IBASE_FETCH_ARRAYS) { /* array can be *huge* so only fetch if asked */
-					ISC_QUAD ar_qd = *(ISC_QUAD *) var->sqldata;
+					ISC_QUAD ar_qd = *(ISC_QUAD *) field_data;
 					fbird_array *ib_array = &ib_query->out_array[array_cnt++];
 					/* Use local copy of size - isc_array_get_slice modifies its size parameter
 					 * to reflect actual bytes fetched, which corrupts ar_size for recursive use */
@@ -687,12 +629,14 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 				 * The stored descriptor might have stale data. */
 				ISC_ARRAY_DESC fresh_desc;
 				char rname[64] = {0}, sname[64] = {0};
-				/* Get table/column name from the XSQLVAR - need to find the original var */
-				if (var->relname_length > 0 && var->relname_length < 64) {
-					memcpy(rname, var->relname, var->relname_length);
+				/* Get table/column name from OO metadata */
+				const char *relation_name = fbm_get_relation(IBG(master_instance), ib_query->out_metadata, (unsigned)i);
+				const char *field_name = fbm_get_field(IBG(master_instance), ib_query->out_metadata, (unsigned)i);
+				if (relation_name && strlen(relation_name) < 64) {
+					strncpy(rname, relation_name, 63);
 				}
-				if (var->sqlname_length > 0 && var->sqlname_length < 64) {
-					memcpy(sname, var->sqlname, var->sqlname_length);
+				if (field_name && strlen(field_name) < 64) {
+					strncpy(sname, field_name, 63);
 				}
 				if (isc_array_lookup_bounds(IB_STATUS, &ib_query->link->handle.db,
 						&ib_query->trans->handle.tr, rname, sname, &fresh_desc)) {
@@ -729,8 +673,8 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 					}
 					efree(ar_data);
 
-				} else { /* blob id only */
-					ISC_QUAD ar_qd = *(ISC_QUAD *) var->sqldata;
+				} else { /* array id only */
+					ISC_QUAD ar_qd = *(ISC_QUAD *) field_data;
 					ZVAL_NEW_STR(result, _php_fbird_quad_to_string(ar_qd));
 				}
 				break;

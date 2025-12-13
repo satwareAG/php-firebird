@@ -23,8 +23,8 @@ This document serves as the **authoritative API reference** for the php-firebird
 | **DML with RETURNING** | ✅ FULLY SUPPORTED | `IStatement::execute()` | `outMetadata`, `outBuffer` for output |
 | **EXECUTE PROCEDURE** | ✅ FULLY SUPPORTED | `IStatement::execute()` | Both `in*` and `out*` params |
 | **Parameterized queries** | ✅ FULLY SUPPORTED | Any execute method | `inMetadata`, `inBuffer` |
-| **Batch operations** | ✅ FB 4.0+ | `IStatement::createBatch()` | `IBatch` interface |
-| **Statement timeout** | ✅ FB 4.0+ | `IStatement::setTimeout()` | milliseconds |
+| **Batch operations** | 🚧 Planned (Not exposed) | `IStatement::createBatch()` | `IBatch` interface |
+| **Statement timeout** | 🚧 Planned (Not exposed) | `IStatement::setTimeout()` | milliseconds |
 | **Scrollable cursors** | ✅ FULLY SUPPORTED | `IResultSet::fetch*()` | Multiple fetch methods |
 
 ---
@@ -72,23 +72,8 @@ unsigned getType(IStatus* status);
 // Get number of affected rows after execute
 ISC_UINT64 getAffectedRecords(IStatus* status);
 
-// Get execution plan
-const char* getPlan(IStatus* status, FB_BOOLEAN detailed);
-
 // Free statement resources
 void free(IStatus* status);
-
-// FB 4.0+ Timeout support
-unsigned getTimeout(IStatus* status);
-void setTimeout(IStatus* status, unsigned timeOut);
-
-// FB 4.0+ Batch API
-IBatch* createBatch(
-    IStatus* status,
-    IMessageMetadata* inMetadata,
-    unsigned parLength,
-    const unsigned char* par
-);
 ```
 
 #### Statement Type Constants
@@ -217,12 +202,15 @@ Metadata for parameters and columns. **Replaces SQLDA manipulation.**
 unsigned getCount(IStatus* status);
 const char* getField(IStatus* status, unsigned index);
 const char* getAlias(IStatus* status, unsigned index);
+const char* getRelation(IStatus* status, unsigned index);
 unsigned getType(IStatus* status, unsigned index);
+unsigned getSubType(IStatus* status, unsigned index);
 unsigned getLength(IStatus* status, unsigned index);
 int getScale(IStatus* status, unsigned index);
 unsigned getOffset(IStatus* status, unsigned index);
 unsigned getNullOffset(IStatus* status, unsigned index);
 unsigned getMessageLength(IStatus* status);
+unsigned getCharSet(IStatus* status, unsigned index);
 ```
 
 ---
@@ -285,6 +273,7 @@ class IEventCallback : public IReferenceCounted {
 | `isc_que_events()` | `IAttachment::queEvents()` |
 | `isc_cancel_events()` | `IEvents::cancel()` |
 | `isc_service_attach()` | `IProvider::attachServiceManager()` |
+| `isc_create_database()` | `IUtil::executeCreateDatabase()` |
 
 ---
 
@@ -306,15 +295,16 @@ class IEventCallback : public IReferenceCounted {
 
 | Family | Count | Functions |
 |--------|-------|-----------|
-| `fbc_*` (Connection) | 6 | `fbc_connect`, `fbc_disconnect`, `fbc_drop_database`, `fbc_is_connected`, `fbc_get_attachment`, `fbc_get_server_version` |
-| `fbt_*` (Transaction) | 6 | `fbt_start`, `fbt_commit`, `fbt_rollback`, `fbt_commit_retaining`, `fbt_rollback_retaining`, `fbt_get_transaction` |
-| `fbs_*` (Statement) | 8 | `fbs_prepare`, `fbs_execute`, `fbs_open_cursor`, `fbs_fetch`, `fbs_close_cursor`, `fbs_free`, `fbs_is_cursor_open`, `fbs_get_affected_rows` |
-| `fbb_*` (Blob) | 8 | `fbb_create`, `fbb_open`, `fbb_put_segment`, `fbb_get_segment`, `fbb_close`, `fbb_cancel`, `fbb_get_info`, `fbb_free` |
-| `fbe_*` (Events) | 5 | `fbe_create`, `fbe_queue`, `fbe_cancel`, `fbe_has_event`, `fbe_free` |
-| `fbsvc_*` (Service) | 4 | `fbsvc_attach`, `fbsvc_detach`, `fbsvc_start`, `fbsvc_query` |
+| `fbc_*` (Connection) | 7 | `fbc_connect`, `fbc_disconnect`, `fbc_drop_database`, `fbc_create_database`, `fbc_is_connected`, `fbc_get_attachment`, `fbc_get_server_version` |
+| `fbt_*` (Transaction) | 9 | `fbt_start`, `fbt_commit`, `fbt_rollback`, `fbt_commit_retaining`, `fbt_rollback_retaining`, `fbt_get_transaction`, `fbt_is_active`, `fbt_get_handle`, `fbt_free` |
+| `fbs_*` (Statement) | 14 | `fbs_prepare`, `fbs_execute`, `fbs_open_cursor`, `fbs_fetch`, `fbs_close_cursor`, `fbs_free`, `fbs_is_cursor_open`, `fbs_get_affected_rows`, `fbs_get_input_metadata`, `fbs_get_output_metadata`, `fbs_get_input_count`, `fbs_get_output_count`, `fbs_get_statement`, `fbs_is_prepared` |
+| `fbm_*` (Metadata) | 13 | `fbm_get_message_length`, `fbm_get_count`, `fbm_get_offset`, `fbm_get_null_offset`, `fbm_get_type`, `fbm_get_subtype`, `fbm_get_length`, `fbm_get_scale`, `fbm_get_charset`, `fbm_get_field`, `fbm_get_alias`, `fbm_get_relation`, `fbm_release` |
+| `fbb_*` (Blob) | 11 | `fbb_create`, `fbb_open`, `fbb_put_segment`, `fbb_get_segment`, `fbb_close`, `fbb_cancel`, `fbb_get_info`, `fbb_free`, `fbb_get_blob_id`, `fbb_is_open`, `fbb_get_handle` |
+| `fbe_*` (Events) | 6 | `fbe_queue`, `fbe_cancel`, `fbe_has_event_fired`, `fbe_reset_event_fired`, `fbe_get_event_data`, `fbe_is_queued`, `fbe_free` |
+| `fbsvc_*` (Service) | 6 | `fbsvc_attach`, `fbsvc_detach`, `fbsvc_start`, `fbsvc_query`, `fbsvc_is_attached`, `fbsvc_free` |
 | `fba_*` (Array) | 3 | `fba_lookup_bounds`, `fba_get_slice`, `fba_put_slice` |
 
-**Total**: 40 C interop functions
+**Total**: 69 C interop functions
 
 ---
 
@@ -366,10 +356,11 @@ stmt->execute(status, transaction, inMeta, inBuffer, outMeta, outBuffer);
 | `IStatement::setTimeout()` | ❌ | ✅ | ✅ |
 | `IBatch` interface | ❌ | ✅ | ✅ |
 | `IAttachment::setIdleTimeout()` | ❌ | ✅ | ✅ |
-| Scrollable cursors | ✅ | ✅ | ✅ |
+| `Scrollable cursors` | ✅ | ✅ | ✅ |
 | `IStatus::hasData()` | ❌ | ❌ | ✅ |
 
 **Note**: For FB 4.0 compatibility, use `statusHasError()` helper instead of `IStatus::hasData()`.
+**Note**: Some FB 4.0+ features (timeout, batch) are available in the underlying API but may not yet be exposed via the extension's C interface.
 
 ---
 
@@ -386,3 +377,4 @@ stmt->execute(status, transaction, inMeta, inBuffer, outMeta, outBuffer);
 |---------|------|---------|
 | 1.0 | 2025-12-13 | Initial reference created from IdlFbInterfaces.h inspection |
 | 1.1 | 2025-12-13 | Updated status, consolidated with modernization plan, added cross-references |
+| 1.2 | 2025-12-13 | Updated completeness check: added missing C interop functions (metadata, etc.) and clarified supported features status |

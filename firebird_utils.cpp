@@ -1637,9 +1637,9 @@ extern "C" unsigned fbm_get_message_length(void* master_ptr, void* metadata_ptr)
     auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
-    fb::CheckStatusWrapper status(master);
+    Firebird::CheckStatusWrapper status(master->getStatus());
     unsigned length = metadata->getMessageLength(&status);
-    return status.hasError() ? 0 : length;
+    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : length;
 }
 
 extern "C" unsigned fbm_get_count(void* master_ptr, void* metadata_ptr) {
@@ -1648,9 +1648,9 @@ extern "C" unsigned fbm_get_count(void* master_ptr, void* metadata_ptr) {
     auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
-    fb::CheckStatusWrapper status(master);
+    Firebird::CheckStatusWrapper status(master->getStatus());
     unsigned count = metadata->getCount(&status);
-    return status.hasError() ? 0 : count;
+    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : count;
 }
 
 extern "C" unsigned fbm_get_offset(void* master_ptr, void* metadata_ptr, unsigned index) {
@@ -1659,9 +1659,9 @@ extern "C" unsigned fbm_get_offset(void* master_ptr, void* metadata_ptr, unsigne
     auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
-    fb::CheckStatusWrapper status(master);
+    Firebird::CheckStatusWrapper status(master->getStatus());
     unsigned offset = metadata->getOffset(&status, index);
-    return status.hasError() ? 0 : offset;
+    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : offset;
 }
 
 extern "C" unsigned fbm_get_null_offset(void* master_ptr, void* metadata_ptr, unsigned index) {
@@ -1670,9 +1670,9 @@ extern "C" unsigned fbm_get_null_offset(void* master_ptr, void* metadata_ptr, un
     auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
-    fb::CheckStatusWrapper status(master);
+    Firebird::CheckStatusWrapper status(master->getStatus());
     unsigned offset = metadata->getNullOffset(&status, index);
-    return status.hasError() ? 0 : offset;
+    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : offset;
 }
 
 extern "C" unsigned fbm_get_type(void* master_ptr, void* metadata_ptr, unsigned index) {
@@ -1681,9 +1681,9 @@ extern "C" unsigned fbm_get_type(void* master_ptr, void* metadata_ptr, unsigned 
     auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
-    fb::CheckStatusWrapper status(master);
+    Firebird::CheckStatusWrapper status(master->getStatus());
     unsigned type = metadata->getType(&status, index);
-    return status.hasError() ? 0 : type;
+    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : type;
 }
 
 extern "C" unsigned fbm_get_subtype(void* master_ptr, void* metadata_ptr, unsigned index) {
@@ -1692,9 +1692,9 @@ extern "C" unsigned fbm_get_subtype(void* master_ptr, void* metadata_ptr, unsign
     auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
-    fb::CheckStatusWrapper status(master);
+    Firebird::CheckStatusWrapper status(master->getStatus());
     unsigned subtype = metadata->getSubType(&status, index);
-    return status.hasError() ? 0 : subtype;
+    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : subtype;
 }
 
 extern "C" unsigned fbm_get_length(void* master_ptr, void* metadata_ptr, unsigned index) {
@@ -1703,9 +1703,9 @@ extern "C" unsigned fbm_get_length(void* master_ptr, void* metadata_ptr, unsigne
     auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
-    fb::CheckStatusWrapper status(master);
+    Firebird::CheckStatusWrapper status(master->getStatus());
     unsigned length = metadata->getLength(&status, index);
-    return status.hasError() ? 0 : length;
+    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : length;
 }
 
 extern "C" int fbm_get_scale(void* master_ptr, void* metadata_ptr, unsigned index) {
@@ -1714,9 +1714,9 @@ extern "C" int fbm_get_scale(void* master_ptr, void* metadata_ptr, unsigned inde
     auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
-    fb::CheckStatusWrapper status(master);
+    Firebird::CheckStatusWrapper status(master->getStatus());
     int scale = metadata->getScale(&status, index);
-    return status.hasError() ? 0 : scale;
+    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : scale;
 }
 
 extern "C" unsigned fbm_get_charset(void* master_ptr, void* metadata_ptr, unsigned index) {
@@ -1725,9 +1725,9 @@ extern "C" unsigned fbm_get_charset(void* master_ptr, void* metadata_ptr, unsign
     auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
-    fb::CheckStatusWrapper status(master);
+    Firebird::CheckStatusWrapper status(master->getStatus());
     unsigned charset = metadata->getCharSet(&status, index);
-    return status.hasError() ? 0 : charset;
+    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : charset;
 }
 
 extern "C" const char* fbm_get_field(void* master_ptr, void* metadata_ptr, unsigned index) {
@@ -1736,9 +1736,9 @@ extern "C" const char* fbm_get_field(void* master_ptr, void* metadata_ptr, unsig
     auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
-    fb::CheckStatusWrapper status(master);
+    Firebird::CheckStatusWrapper status(master->getStatus());
     const char* name = metadata->getField(&status, index);
-    return status.hasError() ? nullptr : name;
+    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? nullptr : name;
 }
 
 extern "C" const char* fbm_get_alias(void* master_ptr, void* metadata_ptr, unsigned index) {
@@ -1747,9 +1747,9 @@ extern "C" const char* fbm_get_alias(void* master_ptr, void* metadata_ptr, unsig
     auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
-    fb::CheckStatusWrapper status(master);
+    Firebird::CheckStatusWrapper status(master->getStatus());
     const char* alias = metadata->getAlias(&status, index);
-    return status.hasError() ? nullptr : alias;
+    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? nullptr : alias;
 }
 
 extern "C" void fbm_release(void* metadata_ptr) {

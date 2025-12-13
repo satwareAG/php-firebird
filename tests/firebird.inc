@@ -32,17 +32,17 @@ if ($fbDbDirEnv !== false && $fbDbDirEnv !== '') {
 	$dbDir = rtrim($fbDbDirEnv, '/');
 	$tmp   = @tempnam($dbDir, 'php_fbird_test_');
 	if ($tmp === false) {
-		die('skip: cannot create temporary database file in FIREBIRD_DB_DIR');
+		// FIREBIRD_DB_DIR may be on remote server, fall back to local /tmp
+		$tmp = tempnam(sys_get_temp_dir(), 'php_fbird_test_');
 	}
 	@unlink($tmp);
 	$test_base = !empty($host) ? $host . ':' . $tmp : $tmp;
 } elseif ($fbDbPathEnv !== false && $fbDbPathEnv !== '') {
 	$test_base = !empty($host) ? $host . ':' . $fbDbPathEnv : $fbDbPathEnv;
 } else {
-	unlink($test_base = tempnam(sys_get_temp_dir(), "php_fbird_test"));
-	if (!empty($host)) {
-		$test_base = $host . ':' . $test_base;
-	}
+	$tmp = tempnam(sys_get_temp_dir(), "php_fbird_test");
+	@unlink($tmp);
+	$test_base = !empty($host) ? $host . ':' . $tmp : $tmp;
 }
 
 function init_db()

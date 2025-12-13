@@ -2024,7 +2024,27 @@ PHP_FUNCTION(fbird_trans)
 			efree(ib_link);
 			RETURN_FALSE;
 		}
-		result = isc_start_transaction(IB_STATUS, (isc_tr_handle*)&tr_handle, 1, &ib_link[0]->handle.db, tpb_len, last_tpb);
+		/* Use OO API if connection was created with OO API */
+		if (ib_link[0]->fbc_connection) {
+			void* attachment = fbc_get_attachment(ib_link[0]->fbc_connection);
+			void* oo_trans = fbt_start(IBG(master_instance), attachment, tpb_len, (const unsigned char*)last_tpb, IB_STATUS);
+			if (oo_trans == NULL) {
+				_php_fbird_error();
+				efree(ib_link);
+				RETURN_FALSE;
+			}
+			tr_handle = fbt_get_handle(oo_trans);
+
+			/* Allocate and register transaction with OO API wrapper */
+			ib_trans = (fbird_transaction *) safe_emalloc(link_cnt-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
+			ib_trans->handle.ptr = tr_handle;
+			ib_trans->link_cnt = link_cnt;
+			ib_trans->affected_rows = 0;
+			ib_trans->fbt_transaction = oo_trans;  /* Store OO API transaction */
+			goto register_trans;
+		} else {
+			result = isc_start_transaction(IB_STATUS, (isc_tr_handle*)&tr_handle, 1, &ib_link[0]->handle.db, tpb_len, last_tpb);
+		}
 	}
 
 	/* start the transaction */
@@ -2040,7 +2060,9 @@ PHP_FUNCTION(fbird_trans)
 	ib_trans->handle.ptr = tr_handle;
 	ib_trans->link_cnt = link_cnt;
 	ib_trans->affected_rows = 0;
-	ib_trans->fbt_transaction = NULL;  /* Phase 4: Initialize OO API transaction pointer */
+	ib_trans->fbt_transaction = NULL;  /* Legacy path: no OO API transaction */
+
+register_trans:
 	for (i = 0; i < link_cnt; ++i) {
 		fbird_tr_list **l;
 		ib_trans->db_link[i] = ib_link[i];

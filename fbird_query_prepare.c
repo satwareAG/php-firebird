@@ -299,11 +299,11 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
 	}
 
 	/*
-	 * OO API Message Buffer Allocation
+	 * OO API Message Buffer Allocation (Pure OO API - No Legacy)
 	 *
 	 * The OO API uses IMessageMetadata interfaces for metadata access
 	 * and message buffers for data transfer during fetch operations.
-	 * This replaces the legacy XSQLDA-based approach.
+	 * This is prepared for future migration of the fetch path.
 	 */
 	if (ib_query->out_fields_count > 0) {
 		/* Get output metadata and allocate message buffer */

@@ -419,6 +419,26 @@ void* fbs_get_input_metadata(void* master_ptr, void* statement_ptr, ISC_STATUS* 
 void* fbs_get_output_metadata(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
 
 /**
+ * Get input parameter count from statement.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param statement_ptr StatementWrapper pointer
+ * @param status_vector Output ISC_STATUS array
+ * @return Number of input parameters (0 if none or error)
+ */
+unsigned fbs_get_input_count(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
+
+/**
+ * Get output field count from statement.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param statement_ptr StatementWrapper pointer
+ * @param status_vector Output ISC_STATUS array
+ * @return Number of output fields (0 if none or error)
+ */
+unsigned fbs_get_output_count(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
+
+/**
  * Get raw IStatement pointer.
  *
  * @param statement_ptr StatementWrapper pointer

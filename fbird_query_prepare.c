@@ -43,6 +43,25 @@ int le_query;
 /* Implementation of _php_fbird_set_query_info */
 int _php_fbird_set_query_info(fbird_query *ib_query) /* {{{ */
 {
+#if FB_API_VER >= 30
+	/* Phase 12: Use OO API when statement was prepared via OO API */
+	if (ib_query->fbs_statement) {
+		/* Get statement type via OO API */
+		ib_query->statement_type = fbs_get_type(IBG(master_instance), ib_query->fbs_statement, IB_STATUS);
+		if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
+			_php_fbird_error();
+			return FAILURE;
+		}
+
+		/* Get field counts via OO API helper functions */
+		ib_query->out_fields_count = fbs_get_output_count(IBG(master_instance), ib_query->fbs_statement, IB_STATUS);
+		ib_query->in_fields_count = fbs_get_input_count(IBG(master_instance), ib_query->fbs_statement, IB_STATUS);
+
+		return SUCCESS;
+	}
+#endif
+
+	/* Legacy path: use isc_dsql_sql_info and isc_dsql_describe */
 	char info_req[] = { isc_info_sql_stmt_type };
 	char info_buf[20];
 	XSQLDA sqlda;
@@ -303,79 +322,88 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
 				link->dialect,
 				IB_STATUS
 			);
-			/* Note: OO API preparation may fail independently of legacy API.
-			 * For now, we don't treat this as a fatal error - the legacy path
-			 * will still be used. Future work will make OO API the primary path. */
 			if (!ib_query->fbs_statement) {
-				IBDEBUG("fbs_prepare() failed, falling back to legacy API\n");
-				/* Clear status for legacy attempt */
-				IB_STATUS[0] = 0;
-				IB_STATUS[1] = 0;
-			} else {
-				IBDEBUG("OO API statement prepared successfully\n");
+				IBDEBUG("fbs_prepare() failed\n");
+				_php_fbird_error();
+				goto _php_fbird_alloc_query_error;
 			}
+			IBDEBUG("OO API statement prepared successfully\n");
+		} else {
+			_php_fbird_module_error("OO API connection/transaction pointers are NULL");
+			goto _php_fbird_alloc_query_error;
 		}
-	}
+	} else {
+		/* Legacy API path - only used when OO API is not available */
+		if (isc_dsql_allocate_statement(IB_STATUS, &link->handle.db, &ib_query->stmt.stmt)) {
+			_php_fbird_error();
+			goto _php_fbird_alloc_query_error;
+		}
 
-	if (isc_dsql_allocate_statement(IB_STATUS, &link->handle.db, &ib_query->stmt.stmt)) {
-		_php_fbird_error();
-		goto _php_fbird_alloc_query_error;
-	}
-
-	if (isc_dsql_prepare(IB_STATUS, &ib_query->trans->handle.tr, &ib_query->stmt.stmt,
-			0, query, link->dialect, NULL)) {
-		IBDEBUG("isc_dsql_prepare() failed\n");
-		_php_fbird_error();
-		goto _php_fbird_alloc_query_error;
+		if (isc_dsql_prepare(IB_STATUS, &ib_query->trans->handle.tr, &ib_query->stmt.stmt,
+				0, query, link->dialect, NULL)) {
+			IBDEBUG("isc_dsql_prepare() failed\n");
+			_php_fbird_error();
+			goto _php_fbird_alloc_query_error;
+		}
 	}
 
 	if(_php_fbird_set_query_info(ib_query)){
 		goto _php_fbird_alloc_query_error;
 	}
 
-	if(ib_query->out_fields_count) {
-		ib_query->out_sqlda = (XSQLDA *) emalloc(XSQLDA_LENGTH(ib_query->out_fields_count));
-		ib_query->out_sqlda->sqln = ib_query->out_fields_count;
-		ib_query->out_sqlda->version = SQLDA_CURRENT_VERSION;
+	/* XSQLDA allocation and describe operations.
+	 *
+	 * OO API (Firebird 3.0+): When fbs_statement is set, metadata is accessed
+	 * through IMessageMetadata interfaces. No XSQLDA required - the OO API
+	 * uses message buffers for data transfer during fetch operations.
+	 *
+	 * Legacy API: Uses XSQLDA structures for metadata and data transfer.
+	 */
+	if (!ib_query->fbs_statement) {
+		/* Legacy path: allocate and describe XSQLDA structures */
+		if(ib_query->out_fields_count) {
+			ib_query->out_sqlda = (XSQLDA *) emalloc(XSQLDA_LENGTH(ib_query->out_fields_count));
+			ib_query->out_sqlda->sqln = ib_query->out_fields_count;
+			ib_query->out_sqlda->version = SQLDA_CURRENT_VERSION;
 
-		if (isc_dsql_describe(IB_STATUS, &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, ib_query->out_sqlda)) {
-			IBDEBUG("isc_dsql_describe() failed\n");
-			_php_fbird_error();
-			goto _php_fbird_alloc_query_error;
+			if (isc_dsql_describe(IB_STATUS, &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, ib_query->out_sqlda)) {
+				IBDEBUG("isc_dsql_describe() failed\n");
+				_php_fbird_error();
+				goto _php_fbird_alloc_query_error;
+			}
+
+			ib_query->out_nullind = safe_emalloc(sizeof(*ib_query->out_nullind), ib_query->out_sqlda->sqld, 0);
+			_php_fbird_alloc_xsqlda_vars(ib_query->out_sqlda, ib_query->out_nullind);
+			if (FAILURE == _php_fbird_alloc_array(&ib_query->out_array, ib_query->out_sqlda,
+				link->handle, trans->handle, &ib_query->out_array_cnt)) {
+				goto _php_fbird_alloc_query_error;
+			}
 		}
 
-		/* assert(ib_query->out_sqlda->sqln == ib_query->out_sqlda->sqld); */
-		/* assert(ib_query->out_sqlda->sqld == ib_query->out_fields_count); */
+		if(ib_query->in_fields_count) {
+			ib_query->in_sqlda = emalloc(XSQLDA_LENGTH(ib_query->in_fields_count));
+			ib_query->in_sqlda->sqln = ib_query->in_fields_count;
+			ib_query->in_sqlda->version = SQLDA_CURRENT_VERSION;
 
-		ib_query->out_nullind = safe_emalloc(sizeof(*ib_query->out_nullind), ib_query->out_sqlda->sqld, 0);
-		_php_fbird_alloc_xsqlda_vars(ib_query->out_sqlda, ib_query->out_nullind);
-		if (FAILURE == _php_fbird_alloc_array(&ib_query->out_array, ib_query->out_sqlda,
-			link->handle, trans->handle, &ib_query->out_array_cnt)) {
-			goto _php_fbird_alloc_query_error;
+			if (isc_dsql_describe_bind(IB_STATUS, &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda)) {
+				IBDEBUG("isc_dsql_describe_bind() failed\n");
+				_php_fbird_error();
+				goto _php_fbird_alloc_query_error;
+			}
+
+			assert(ib_query->in_sqlda->sqln == ib_query->in_sqlda->sqld);
+			assert(ib_query->in_sqlda->sqld == ib_query->in_fields_count);
+
+			ib_query->bind_buf = safe_emalloc(sizeof(BIND_BUF), ib_query->in_sqlda->sqld, 0);
+			ib_query->in_nullind = safe_emalloc(sizeof(*ib_query->in_nullind), ib_query->in_sqlda->sqld, 0);
+			if (FAILURE == _php_fbird_alloc_array(&ib_query->in_array, ib_query->in_sqlda,
+				link->handle, trans->handle, &ib_query->in_array_cnt)) {
+				goto _php_fbird_alloc_query_error;
+			}
 		}
 	}
-
-	if(ib_query->in_fields_count) {
-		ib_query->in_sqlda = emalloc(XSQLDA_LENGTH(ib_query->in_fields_count));
-		ib_query->in_sqlda->sqln = ib_query->in_fields_count;
-		ib_query->in_sqlda->version = SQLDA_CURRENT_VERSION;
-
-		if (isc_dsql_describe_bind(IB_STATUS, &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda)) {
-			IBDEBUG("isc_dsql_describe_bind() failed\n");
-			_php_fbird_error();
-			goto _php_fbird_alloc_query_error;
-		}
-
-		assert(ib_query->in_sqlda->sqln == ib_query->in_sqlda->sqld);
-		assert(ib_query->in_sqlda->sqld == ib_query->in_fields_count);
-
-		ib_query->bind_buf = safe_emalloc(sizeof(BIND_BUF), ib_query->in_sqlda->sqld, 0);
-		ib_query->in_nullind = safe_emalloc(sizeof(*ib_query->in_nullind), ib_query->in_sqlda->sqld, 0);
-		if (FAILURE == _php_fbird_alloc_array(&ib_query->in_array, ib_query->in_sqlda,
-			link->handle, trans->handle, &ib_query->in_array_cnt)) {
-			goto _php_fbird_alloc_query_error;
-		}
-	}
+	/* OO API path: Message buffers are allocated at execution/fetch time via
+	 * fbs_get_output_metadata() and IMessageMetadata->getMessageLength(). */
 
 	*new_query = ib_query;
 

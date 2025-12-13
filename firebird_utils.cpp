@@ -589,7 +589,15 @@ extern "C" void* fbc_connect(
         return reinterpret_cast<void*>(new fb::Connection(std::move(conn)));
 
     } catch (const fb::Exception& e) {
-        (void)e; // suppress unused variable warning
+        // Copy error status from exception to output status vector
+        if (status_vector) {
+            const ISC_STATUS* exc_status = e.statusVector();
+            if (exc_status) {
+                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
+                    status_vector[i] = exc_status[i];
+                }
+            }
+        }
         return nullptr;
     } catch (...) {
         return nullptr;
@@ -1231,6 +1239,46 @@ extern "C" int fbs_is_cursor_open(void* statement_ptr) {
 
     auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
     return wrapper->isCursorOpen() ? 1 : 0;
+}
+
+extern "C" unsigned fbs_get_input_count(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector) {
+    if (!master_ptr || !statement_ptr) {
+        return 0;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+
+    auto* metadata = wrapper->getInputMetadata(master, status_vector);
+    if (!metadata) {
+        return 0;
+    }
+
+    Firebird::CheckStatusWrapper status(master->getStatus());
+    unsigned count = metadata->getCount(&status);
+    metadata->release();
+
+    return count;
+}
+
+extern "C" unsigned fbs_get_output_count(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector) {
+    if (!master_ptr || !statement_ptr) {
+        return 0;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+
+    auto* metadata = wrapper->getOutputMetadata(master, status_vector);
+    if (!metadata) {
+        return 0;
+    }
+
+    Firebird::CheckStatusWrapper status(master->getStatus());
+    unsigned count = metadata->getCount(&status);
+    metadata->release();
+
+    return count;
 }
 
 #endif // FB_API_VER >= 30 (Phase 5 Statement functions)

@@ -201,6 +201,8 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
      * and simple DML without parameters. Complex parameterized queries fall back
      * to the legacy path until full message buffer integration is implemented.
      */
+    isc_result = 0; /* Initialize for OO API path which may skip legacy execution */
+
     if (ib_query->fbs_statement && ib_query->trans && ib_query->trans->fbt_transaction) {
         void *transaction_ptr = fbt_get_handle(ib_query->trans->fbt_transaction);
         int oo_api_success = 0;
@@ -260,13 +262,20 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
             }
         }
 
-        /* Fall through to legacy path if OO API was not used or failed */
-        if (!oo_api_success) {
-            goto legacy_execute;
+        /* If OO API succeeded, skip legacy path entirely */
+        if (oo_api_success) {
+            goto execute_done;
         }
-    } else {
-legacy_execute:
+        /* OO API available but not used (e.g., parameterized query) - check if legacy handles exist */
+        if (!ib_query->stmt.stmt || !ib_query->trans->handle.tr) {
+            /* No legacy handles available - OO API path is required but failed/inapplicable */
+            _php_fbird_module_error("Cannot execute: OO API path not available for this query type, and legacy handles not initialized");
+            goto _php_fbird_ex_error;
+        }
+        /* Fall through to legacy path */
+    }
 
+    /* Legacy execution path - only when legacy handles are available */
     if (ib_query->statement_type == isc_info_sql_stmt_exec_procedure ||
                ((ib_query->statement_type == isc_info_sql_stmt_insert ||
                  ib_query->statement_type == isc_info_sql_stmt_update ||
@@ -282,7 +291,7 @@ legacy_execute:
             &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda);
     }
 
-    }
+execute_done:
 
     if (isc_result) {
         IBDEBUG("Could not execute query");
@@ -292,10 +301,21 @@ legacy_execute:
 
     ib_query->trans->affected_rows = 0;
 
-    /* For SELECT statements, mark cursor state as open with rows pending. */
-    if (ib_query->statement_type == isc_info_sql_stmt_select && ib_query->out_sqlda) {
+    /* For SELECT statements, mark cursor state as open with rows pending.
+     * Check both legacy (out_sqlda) and OO API (fbs_statement) paths. */
+    if (ib_query->statement_type == isc_info_sql_stmt_select &&
+        (ib_query->out_sqlda || ib_query->fbs_statement)) {
         ib_query->is_open = 1;
         ib_query->has_more_rows = 1;
+
+        /* OO API SELECT path: return the query resource directly when no SQLDA.
+         * The cursor is open via fbs_open_cursor() and fetching will use fbs_fetch(). */
+        if (ib_query->fbs_statement && !ib_query->out_sqlda) {
+            RETVAL_RES(ib_query->res);
+            Z_TRY_ADDREF_P(return_value);
+            rv = SUCCESS;
+            return rv;
+        }
     }
 
 	/* Handle result sets for SELECT, EXECUTE PROCEDURE, and DML with RETURNING clauses */
@@ -726,8 +746,9 @@ cleanup_select_result_query:
 			break;
 
 		case isc_info_sql_stmt_select:
-			/* SELECT statements - cursor is now open and has potential rows */
-			if (ib_query->out_sqlda) {
+			/* SELECT statements - cursor is now open and has potential rows.
+			 * Check both legacy (out_sqlda) and OO API (fbs_statement) paths. */
+			if (ib_query->out_sqlda || ib_query->fbs_statement) {
 				ib_query->is_open = 1;
 				ib_query->has_more_rows = 1;
 			} else {
@@ -748,9 +769,12 @@ cleanup_select_result_query:
 	rv = SUCCESS;
 
 _php_fbird_ex_error:
-	/* Clear cursor flags on any execution error to prevent inconsistent state */
-	ib_query->is_open = 0;
-	ib_query->has_more_rows = 0;
+	/* Only clear cursor flags on actual execution error, not on success.
+	 * The OO API path sets these flags correctly before reaching here. */
+	if (rv == FAILURE) {
+		ib_query->is_open = 0;
+		ib_query->has_more_rows = 0;
+	}
 	return rv;
 }
 /* }}} */

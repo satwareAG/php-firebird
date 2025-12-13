@@ -694,6 +694,62 @@ int fbsvc_is_attached(void* service_wrapper);
  */
 void fbsvc_free(void* service_wrapper);
 
+/* =============================================================================
+ * Phase 9: Firebird OO API Array Functions (FB 3.0+)
+ *
+ * These functions provide a C interface to the modern Firebird C++ OO API
+ * for array slice operations. They replace the legacy isc_array_get_slice
+ * and isc_array_put_slice functions.
+ *
+ * Note: isc_array_lookup_bounds has no direct OO API equivalent - it performs
+ * a system table query. The existing legacy function continues to be used
+ * for array descriptor lookup.
+ * ============================================================================= */
+
+/**
+ * Get an array slice from the database using OO API.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param attachment_ptr IAttachment pointer (from fbc_get_attachment())
+ * @param transaction_ptr ITransaction pointer (from fbt_get_handle())
+ * @param array_id The ISC_QUAD array identifier
+ * @param desc Array descriptor (ISC_ARRAY_DESC)
+ * @param buffer Output buffer to receive array data
+ * @param buffer_length Buffer length (updated with actual bytes read)
+ * @param status_vector Output status vector
+ * @return 0 on success, non-zero on failure
+ */
+int fba_get_slice(void* master_ptr,
+                  void* attachment_ptr,
+                  void* transaction_ptr,
+                  ISC_QUAD* array_id,
+                  const ISC_ARRAY_DESC* desc,
+                  void* buffer,
+                  ISC_LONG* buffer_length,
+                  ISC_STATUS* status_vector);
+
+/**
+ * Put an array slice to the database using OO API.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param attachment_ptr IAttachment pointer (from fbc_get_attachment())
+ * @param transaction_ptr ITransaction pointer (from fbt_get_handle())
+ * @param array_id The ISC_QUAD array identifier (output for new arrays)
+ * @param desc Array descriptor (ISC_ARRAY_DESC)
+ * @param buffer Input buffer containing array data
+ * @param buffer_length Buffer length
+ * @param status_vector Output status vector
+ * @return 0 on success, non-zero on failure
+ */
+int fba_put_slice(void* master_ptr,
+                  void* attachment_ptr,
+                  void* transaction_ptr,
+                  ISC_QUAD* array_id,
+                  const ISC_ARRAY_DESC* desc,
+                  const void* buffer,
+                  ISC_LONG buffer_length,
+                  ISC_STATUS* status_vector);
+
 #endif // FB_API_VER >= 30
 
 

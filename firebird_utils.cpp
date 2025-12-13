@@ -1121,3 +1121,92 @@ extern "C" int fbs_is_cursor_open(void* statement_ptr) {
 #if FB_API_VER >= 30
 #include "src/cpp/fb_service.hpp"
 #endif // FB_API_VER >= 30 (Phase 8 Service functions)
+
+/* =============================================================================
+ * Phase 9: Array OO API (FB 3.0+)
+ *
+ * Stateless utility functions for array slice operations.
+ * Uses IAttachment::getSlice() and IAttachment::putSlice() methods.
+ *
+ * Note: isc_array_lookup_bounds() has no direct OO API equivalent - it performs
+ * a system table query. The existing legacy function continues to be used
+ * for array descriptor lookup.
+ * ============================================================================= */
+#if FB_API_VER >= 30
+#include "src/cpp/fb_array.hpp"
+
+extern "C" int fba_get_slice(
+    void* master_ptr,
+    void* attachment_ptr,
+    void* transaction_ptr,
+    ISC_QUAD* array_id,
+    const ISC_ARRAY_DESC* desc,
+    void* buffer,
+    ISC_LONG* buffer_length,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !attachment_ptr || !transaction_ptr) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_req_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 1;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* attachment = static_cast<Firebird::IAttachment*>(attachment_ptr);
+    auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
+
+    bool result = fb::ArrayUtils::getSlice(
+        master,
+        attachment,
+        transaction,
+        array_id,
+        desc,
+        buffer,
+        buffer_length,
+        status_vector
+    );
+
+    return result ? 0 : 1;
+}
+
+extern "C" int fba_put_slice(
+    void* master_ptr,
+    void* attachment_ptr,
+    void* transaction_ptr,
+    ISC_QUAD* array_id,
+    const ISC_ARRAY_DESC* desc,
+    const void* buffer,
+    ISC_LONG buffer_length,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !attachment_ptr || !transaction_ptr) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_req_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 1;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* attachment = static_cast<Firebird::IAttachment*>(attachment_ptr);
+    auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
+
+    bool result = fb::ArrayUtils::putSlice(
+        master,
+        attachment,
+        transaction,
+        array_id,
+        desc,
+        buffer,
+        buffer_length,
+        status_vector
+    );
+
+    return result ? 0 : 1;
+}
+
+#endif // FB_API_VER >= 30 (Phase 9 Array functions)

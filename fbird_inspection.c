@@ -12,7 +12,7 @@
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
    +----------------------------------------------------------------------+
-   | Phase 10: Migrated to OO API with fbs_* functions                    |
+   | OO API Only: All legacy isc_* functions removed                      |
    +----------------------------------------------------------------------+
  */
 
@@ -29,13 +29,15 @@
 #endif
 
 /* =============================================================================
- * OO API Helper Functions for Inspection (Phase 10)
+ * OO API Only Helper Functions for Inspection
  *
  * These helpers use fbs_* functions for SQL execution via the modern OO API.
- * They require fbc_connection to be available (enabled in Phase 12).
+ * All connections MUST have fbc_connection (OO API is the only supported path).
  * ============================================================================= */
 
-#if FB_API_VER >= 30
+#if FB_API_VER < 30
+#error "This file requires Firebird 3.0+ OO API (FB_API_VER >= 30)"
+#endif
 
 /**
  * Execute a DELETE statement with one BIGINT parameter using OO API.
@@ -46,13 +48,24 @@
  * @param attachment_id The attachment ID to delete
  * @return SUCCESS or FAILURE
  */
-static int _fbird_exec_kill_oo(fbird_db_link *link, fbird_transaction *trans, ISC_INT64 attachment_id)
+static int _fbird_exec_kill(fbird_db_link *link, fbird_transaction *trans, ISC_INT64 attachment_id)
 {
 	static const char *sql = "DELETE FROM MON$ATTACHMENTS WHERE MON$ATTACHMENT_ID = ?";
 	void *stmt = NULL;
 	void *attachment = NULL;
 	void *transaction = NULL;
 	int result = FAILURE;
+
+	/* OO API Only: Require fbc_connection */
+	if (!link->fbc_connection) {
+		_php_fbird_module_error("fbird_kill_attachment requires OO API connection (fbc_connection required)");
+		return FAILURE;
+	}
+
+	if (!trans->fbt_transaction) {
+		_php_fbird_module_error("fbird_kill_attachment requires OO API transaction (fbt_transaction required)");
+		return FAILURE;
+	}
 
 	/* Get OO API handles */
 	attachment = fbc_get_attachment(link->fbc_connection);
@@ -133,13 +146,24 @@ static int _fbird_exec_kill_oo(fbird_db_link *link, fbird_transaction *trans, IS
  * @param table_name Name of table to drop
  * @return SUCCESS or FAILURE
  */
-static int _fbird_drop_table_oo(fbird_db_link *link, fbird_transaction *trans, const char *table_name)
+static int _fbird_drop_table(fbird_db_link *link, fbird_transaction *trans, const char *table_name)
 {
 	char *drop_sql = NULL;
 	void *stmt = NULL;
 	void *attachment = NULL;
 	void *transaction = NULL;
 	int result = FAILURE;
+
+	/* OO API Only: Require fbc_connection */
+	if (!link->fbc_connection) {
+		_php_fbird_module_error("fbird_drop_table_force requires OO API connection (fbc_connection required)");
+		return FAILURE;
+	}
+
+	if (!trans->fbt_transaction) {
+		_php_fbird_module_error("fbird_drop_table_force requires OO API transaction (fbt_transaction required)");
+		return FAILURE;
+	}
 
 	/* Get OO API handles */
 	attachment = fbc_get_attachment(link->fbc_connection);
@@ -203,124 +227,6 @@ static int _fbird_drop_table_oo(fbird_db_link *link, fbird_transaction *trans, c
 	return result;
 }
 
-#endif /* FB_API_VER >= 30 */
-
-
-/* =============================================================================
- * Legacy Helper Functions (used when OO API not available)
- * ============================================================================= */
-
-/* Helper to execute a delete statement with one integer parameter (legacy) */
-static int _fbird_exec_kill_legacy(fbird_db_link *link, fbird_transaction *trans, ISC_INT64 attachment_id)
-{
-	void *stmt = 0;
-	XSQLDA *sqlda = NULL;
-	static const char *sql = "DELETE FROM MON$ATTACHMENTS WHERE MON$ATTACHMENT_ID = ?";
-	int res = FAILURE;
-	short null_ind = 0;
-
-	if (isc_dsql_allocate_statement(IB_STATUS, &link->handle.db, (isc_stmt_handle*)&stmt)) {
-		_php_fbird_error();
-		return FAILURE;
-	}
-
-	sqlda = (XSQLDA *) emalloc(XSQLDA_LENGTH(1));
-	sqlda->version = SQLDA_CURRENT_VERSION;
-	sqlda->sqln = 1;
-
-	if (isc_dsql_prepare(IB_STATUS, &trans->handle.tr, (isc_stmt_handle*)&stmt, 0, (char *)sql, 3, sqlda)) {
-		_php_fbird_error();
-		goto cleanup;
-	}
-
-	/* Describe bind to get parameter metadata from Firebird */
-	if (isc_dsql_describe_bind(IB_STATUS, (isc_stmt_handle*)&stmt, SQLDA_CURRENT_VERSION, sqlda)) {
-		_php_fbird_error();
-		goto cleanup;
-	}
-
-	/* Bind parameter - use the type Firebird expects (typically BIGINT for MON$ATTACHMENT_ID) */
-	sqlda->sqlvar[0].sqldata = (char *)&attachment_id;
-	sqlda->sqlvar[0].sqlind = &null_ind;
-
-	if (isc_dsql_execute(IB_STATUS, &trans->handle.tr, (isc_stmt_handle*)&stmt, 1, sqlda)) {
-		_php_fbird_error();
-		goto cleanup;
-	}
-
-	res = SUCCESS;
-
-cleanup:
-	isc_dsql_free_statement(IB_STATUS, (isc_stmt_handle*)&stmt, DSQL_drop);
-	if (sqlda) efree(sqlda);
-	return res;
-}
-
-/* Helper to drop table using legacy API */
-static int _fbird_drop_table_legacy(fbird_db_link *link, fbird_transaction *trans, const char *table_name)
-{
-	void *stmt = 0;
-	char *drop_sql = NULL;
-
-	spprintf(&drop_sql, 0, "DROP TABLE %s", table_name);
-
-	/* Allocate a new statement for DROP */
-	if (isc_dsql_allocate_statement(IB_STATUS, &link->handle.db, (isc_stmt_handle*)&stmt)) {
-		_php_fbird_error();
-		goto error;
-	}
-
-	/* Prepare the DROP statement */
-	if (isc_dsql_prepare(IB_STATUS, &trans->handle.tr, (isc_stmt_handle*)&stmt, 0, drop_sql, 3, NULL)) {
-		_php_fbird_error();
-		goto error;
-	}
-
-	/* Execute the DROP statement */
-	if (isc_dsql_execute(IB_STATUS, &trans->handle.tr, (isc_stmt_handle*)&stmt, SQLDA_CURRENT_VERSION, NULL)) {
-		_php_fbird_error();
-		goto error;
-	}
-
-	/* Free the statement */
-	isc_dsql_free_statement(IB_STATUS, (isc_stmt_handle*)&stmt, DSQL_drop);
-	stmt = 0;
-
-	/* DDL requires commit to be visible - commit the transaction */
-	if (isc_commit_transaction(IB_STATUS, &trans->handle.tr)) {
-		_php_fbird_error();
-		goto error;
-	}
-
-	if (drop_sql) efree(drop_sql);
-	return SUCCESS;
-
-error:
-	if (stmt) isc_dsql_free_statement(IB_STATUS, (isc_stmt_handle*)&stmt, DSQL_drop);
-	if (drop_sql) efree(drop_sql);
-	return FAILURE;
-}
-
-
-/* =============================================================================
- * Dual-Mode Dispatcher Functions (Phase 10)
- *
- * These functions check if OO API is available and dispatch to the
- * appropriate implementation (OO API or legacy).
- * ============================================================================= */
-
-static int _fbird_exec_kill(fbird_db_link *link, fbird_transaction *trans, ISC_INT64 attachment_id)
-{
-#if FB_API_VER >= 30
-	/* Check if OO API connection is available */
-	if (link->fbc_connection && trans->fbt_transaction) {
-		return _fbird_exec_kill_oo(link, trans, attachment_id);
-	}
-#endif
-	/* Fallback to legacy */
-	return _fbird_exec_kill_legacy(link, trans, attachment_id);
-}
-
 
 /* {{{ proto bool fbird_kill_attachment(resource link_or_trans, int attachment_id)
    Terminates a specific connection */
@@ -348,7 +254,7 @@ PHP_FUNCTION(fbird_kill_attachment)
 /* }}} */
 
 /* {{{ proto array fbird_list_table_blockers(resource link_or_trans, string table_name)
-   Returns blocking attachment information */
+   Returns blocking attachment information using OO API */
 PHP_FUNCTION(fbird_list_table_blockers)
 {
 	zval *link_arg;
@@ -356,15 +262,16 @@ PHP_FUNCTION(fbird_list_table_blockers)
 	size_t table_name_len;
 	fbird_db_link *link;
 	fbird_transaction *trans;
-	void *stmt = 0;
-	XSQLDA *in_sqlda = NULL, *out_sqlda = NULL;
-	char *param_buf = NULL;
+	void *stmt = NULL;
+	void *attachment = NULL;
+	void *transaction = NULL;
+	void *in_metadata = NULL;
+	void *out_metadata = NULL;
 
 	RESET_ERRMSG;
 
 	/* SQL to find attachments using the table in statements.
-	 * CONTAINING is Firebird's BLOB-aware, case-insensitive substring search.
-	 * It's more reliable than LIKE for BLOB fields like MON$SQL_TEXT. */
+	 * CONTAINING is Firebird's BLOB-aware, case-insensitive substring search. */
 	static const char *sql =
 		"SELECT DISTINCT A.MON$ATTACHMENT_ID, A.MON$USER "
 		"FROM MON$ATTACHMENTS A "
@@ -378,121 +285,172 @@ PHP_FUNCTION(fbird_list_table_blockers)
 
 	PHP_IBASE_LINK_TRANS(link_arg, link, trans);
 
-	/* Note: fbird_list_table_blockers uses complex parameter binding with BLOB search.
-	 * The OO API migration would require IMessageMetadata handling for VARCHAR parameters.
-	 * For Phase 10, we keep the legacy implementation.
-	 * Full migration will be completed in Phase 12 when OO API is the primary path. */
+	/* OO API Only: Require fbc_connection */
+	if (!link->fbc_connection) {
+		_php_fbird_module_error("fbird_list_table_blockers requires OO API connection (fbc_connection required)");
+		RETURN_FALSE;
+	}
 
-	if (isc_dsql_allocate_statement(IB_STATUS, &link->handle.db, (isc_stmt_handle*)&stmt)) {
+	if (!trans->fbt_transaction) {
+		_php_fbird_module_error("fbird_list_table_blockers requires OO API transaction (fbt_transaction required)");
+		RETURN_FALSE;
+	}
+
+	/* Get OO API handles */
+	attachment = fbc_get_attachment(link->fbc_connection);
+	if (!attachment) {
+		RETURN_FALSE;
+	}
+
+	transaction = fbt_get_handle(trans->fbt_transaction);
+	if (!transaction) {
+		RETURN_FALSE;
+	}
+
+	/* Prepare statement */
+	stmt = fbs_prepare(
+		IBG(master_instance),
+		attachment,
+		transaction,
+		sql,
+		0,  /* null-terminated */
+		SQL_DIALECT_V6,
+		IB_STATUS
+	);
+
+	if (!stmt) {
 		_php_fbird_error();
 		RETURN_FALSE;
 	}
 
-	in_sqlda = (XSQLDA *) emalloc(XSQLDA_LENGTH(1));
-	in_sqlda->version = SQLDA_CURRENT_VERSION;
-	in_sqlda->sqln = 1;
-
-	if (isc_dsql_prepare(IB_STATUS, &trans->handle.tr, (isc_stmt_handle*)&stmt, 0, (char *)sql, 3, in_sqlda)) {
+	/* Get input metadata for parameter binding */
+	in_metadata = fbs_get_input_metadata(IBG(master_instance), stmt, IB_STATUS);
+	if (!in_metadata) {
 		_php_fbird_error();
-		goto cleanup_error;
+		fbs_free(stmt, IB_STATUS);
+		RETURN_FALSE;
 	}
 
-	/* Describe bind to get parameter metadata from Firebird */
-	if (isc_dsql_describe_bind(IB_STATUS, (isc_stmt_handle*)&stmt, SQLDA_CURRENT_VERSION, in_sqlda)) {
+	/* Get output metadata for result fetching */
+	out_metadata = fbs_get_output_metadata(IBG(master_instance), stmt, IB_STATUS);
+	if (!out_metadata) {
 		_php_fbird_error();
-		goto cleanup_error;
+		fbs_free(stmt, IB_STATUS);
+		RETURN_FALSE;
 	}
 
-	/* CONTAINING does not need wildcards - just pass table name directly */
-	short in_null_ind = 0;
+	/* Build input message buffer for VARCHAR parameter
+	 * VARCHAR format: 2-byte length + data
+	 * With null indicator at offset determined by metadata
+	 *
+	 * Simple layout for single VARCHAR parameter:
+	 * - bytes 0-1: null indicator (short)
+	 * - bytes 2-3: varchar length (short)
+	 * - bytes 4+:  varchar data
+	 */
+	size_t in_msg_size = 4 + table_name_len + 4; /* null ind + len + data + padding */
+	unsigned char *in_msg = emalloc(in_msg_size);
+	memset(in_msg, 0, in_msg_size);
 
-	/* Bind input using Firebird's expected type from describe_bind */
-	if ((in_sqlda->sqlvar[0].sqltype & ~1) == SQL_VARYING) {
-		/* SQL_VARYING requires 2-byte length prefix */
-		param_buf = emalloc(in_sqlda->sqlvar[0].sqllen + sizeof(short));
-		*(short *)param_buf = (short)table_name_len;
-		memcpy(param_buf + sizeof(short), table_name, table_name_len);
-		in_sqlda->sqlvar[0].sqldata = param_buf;
-	} else {
-		/* SQL_TEXT or other - direct binding */
-		param_buf = emalloc(table_name_len + 1);
-		memcpy(param_buf, table_name, table_name_len);
-		param_buf[table_name_len] = '\0';
-		in_sqlda->sqlvar[0].sqldata = param_buf;
-		in_sqlda->sqlvar[0].sqllen = (short)table_name_len;
-	}
-	in_sqlda->sqlvar[0].sqlind = &in_null_ind;
+	/* Set null indicator (0 = not null) at offset 0 */
+	*(short *)&in_msg[0] = 0;
 
-	/* Prepare output */
-	out_sqlda = (XSQLDA *) emalloc(XSQLDA_LENGTH(2));
-	out_sqlda->version = SQLDA_CURRENT_VERSION;
-	out_sqlda->sqln = 2;
+	/* Set VARCHAR length at offset 2 */
+	*(short *)&in_msg[2] = (short)table_name_len;
 
-	if (isc_dsql_describe(IB_STATUS, (isc_stmt_handle*)&stmt, 1, out_sqlda)) {
+	/* Copy string data at offset 4 */
+	memcpy(&in_msg[4], table_name, table_name_len);
+
+	/* Open cursor for fetching results */
+	if (!fbs_open_cursor(
+		IBG(master_instance),
+		stmt,
+		transaction,
+		in_msg,
+		in_metadata,
+		IB_STATUS
+	)) {
 		_php_fbird_error();
-		goto cleanup_error;
+		efree(in_msg);
+		fbs_free(stmt, IB_STATUS);
+		RETURN_FALSE;
 	}
 
-	/* Allocate buffers for output - MON$ATTACHMENT_ID is BIGINT (64-bit) in Firebird 3+ */
-	ISC_INT64 ret_id;
-	char ret_user[256];
-	short null_ind[2];
+	efree(in_msg);
 
-	out_sqlda->sqlvar[0].sqldata = (char *)&ret_id;
-	out_sqlda->sqlvar[0].sqltype = SQL_INT64;
-	out_sqlda->sqlvar[0].sqllen = sizeof(ISC_INT64);
-	out_sqlda->sqlvar[0].sqlind = &null_ind[0];
-
-	out_sqlda->sqlvar[1].sqldata = ret_user;
-	out_sqlda->sqlvar[1].sqltype = SQL_TEXT;
-	out_sqlda->sqlvar[1].sqllen = 255;
-	out_sqlda->sqlvar[1].sqlind = &null_ind[1];
-
-	if (isc_dsql_execute(IB_STATUS, &trans->handle.tr, (isc_stmt_handle*)&stmt, 1, in_sqlda)) {
-		_php_fbird_error();
-		goto cleanup_error;
-	}
+	/* Prepare output buffer
+	 * Output columns: MON$ATTACHMENT_ID (BIGINT), MON$USER (VARCHAR/CHAR)
+	 *
+	 * Layout:
+	 * - bytes 0-1: null indicator for attachment_id
+	 * - bytes 8-15: attachment_id (BIGINT, aligned to 8)
+	 * - bytes 16-17: null indicator for user
+	 * - bytes 18-19: varchar length for user
+	 * - bytes 20+: user data (up to 255 chars)
+	 */
+	unsigned char out_msg[512];
+	memset(out_msg, 0, sizeof(out_msg));
 
 	array_init(return_value);
 
+	/* Fetch loop */
 	while (1) {
-		if (isc_dsql_fetch(IB_STATUS, (isc_stmt_handle*)&stmt, 1, out_sqlda)) {
-			if (IB_STATUS[1] == 100) break; // EOF
+		memset(out_msg, 0, sizeof(out_msg));
+
+		int fetch_result = fbs_fetch(
+			IBG(master_instance),
+			stmt,
+			out_msg,
+			out_metadata,
+			IB_STATUS
+		);
+
+		if (fetch_result == 0) {
+			/* EOF - no more rows */
+			break;
+		} else if (fetch_result < 0) {
+			/* Error */
 			_php_fbird_error();
-			/* Return partial result but free resources */
-			goto cleanup;
+			fbs_close_cursor(stmt, IB_STATUS);
+			fbs_free(stmt, IB_STATUS);
+			/* Return partial result */
+			return;
 		}
 
+		/* Extract attachment_id (BIGINT at offset 8, null indicator at offset 0) */
+		short null_ind_id = *(short *)&out_msg[0];
+		ISC_INT64 attachment_id = *(ISC_INT64 *)&out_msg[8];
+
+		/* Extract user (VARCHAR at offset 16+, null indicator at offset 16) */
+		short null_ind_user = *(short *)&out_msg[16];
+		short user_len = *(short *)&out_msg[18];
+		char *user_data = (char *)&out_msg[20];
+
+		/* Build result row */
 		zval row;
 		array_init(&row);
-		add_assoc_long(&row, "attachment_id", ret_id);
 
-		/* Trim user field */
-		ret_user[out_sqlda->sqlvar[1].sqllen] = '\0';
-
-		/* Trim trailing spaces manually */
-		for (int i = out_sqlda->sqlvar[1].sqllen - 1; i >= 0; i--) {
-			if (ret_user[i] == ' ') ret_user[i] = '\0';
-			else break;
+		if (null_ind_id == 0) {
+			add_assoc_long(&row, "attachment_id", (zend_long)attachment_id);
+		} else {
+			add_assoc_null(&row, "attachment_id");
 		}
 
-		add_assoc_string(&row, "user", ret_user);
+		if (null_ind_user == 0 && user_len > 0) {
+			/* Trim trailing spaces */
+			while (user_len > 0 && user_data[user_len - 1] == ' ') {
+				user_len--;
+			}
+			add_assoc_stringl(&row, "user", user_data, user_len);
+		} else {
+			add_assoc_null(&row, "user");
+		}
+
 		add_next_index_zval(return_value, &row);
 	}
 
-cleanup:
-	isc_dsql_free_statement(IB_STATUS, (isc_stmt_handle*)&stmt, DSQL_drop);
-	if (in_sqlda) efree(in_sqlda);
-	if (out_sqlda) efree(out_sqlda);
-	if (param_buf) efree(param_buf);
-	return;
-
-cleanup_error:
-	isc_dsql_free_statement(IB_STATUS, (isc_stmt_handle*)&stmt, DSQL_drop);
-	if (in_sqlda) efree(in_sqlda);
-	if (out_sqlda) efree(out_sqlda);
-	if (param_buf) efree(param_buf);
-	RETURN_FALSE;
+	fbs_close_cursor(stmt, IB_STATUS);
+	fbs_free(stmt, IB_STATUS);
 }
 /* }}} */
 
@@ -519,16 +477,7 @@ PHP_FUNCTION(fbird_drop_table_force)
 	 * For now, we skip the blocker-killing step and just do the DROP.
 	 * In most cases, DDL will fail cleanly if there are active locks. */
 
-#if FB_API_VER >= 30
-	/* Check if OO API connection is available */
-	if (link->fbc_connection && trans->fbt_transaction) {
-		result = _fbird_drop_table_oo(link, trans, table_name);
-	} else {
-		result = _fbird_drop_table_legacy(link, trans, table_name);
-	}
-#else
-	result = _fbird_drop_table_legacy(link, trans, table_name);
-#endif
+	result = _fbird_drop_table(link, trans, table_name);
 
 	if (result == SUCCESS) {
 		RETURN_TRUE;

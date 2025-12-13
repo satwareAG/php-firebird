@@ -4,10 +4,62 @@
 
 **Goal:** Achieve 80%+ test pass rate on Firebird 2.5 servers using Firebird client >= 3.0 (OO API).
 
-**Current State:** 51/102 tests passing (50%), 47 failing, 4 skipped
+**Current State:** 53/98 tests passing (54.1%), 45 failing (45.9%)
 **Target:** 80+ tests passing (80%+)
 
-**Root Cause Identified:** Legacy `isc_*` API calls are used with invalid handles when the connection was created via OO API. The OO API stores connection/transaction pointers in wrapper objects, not in legacy `isc_db_handle`/`isc_tr_handle` fields.
+**Root Cause Identified:** The extension exclusively uses the OO API (Firebird 3.0+ client library) but the parameter binding system still populates legacy XSQLDA structures. These values are never transferred to the OO API message buffers, causing segfaults on parameterized query execution.
+
+---
+
+## Architecture Decision: OO API Only
+
+### Policy Statement
+
+**The php-firebird extension ONLY supports the OO (Object-Oriented) API introduced in Firebird 3.0+ client libraries.** This is a deliberate architectural decision, not a limitation.
+
+### Client vs Server Compatibility
+
+| Component | Version | Notes |
+|-----------|---------|-------|
+| **Firebird Client Library** | 3.0+ (tested: 4.0.5) | REQUIRED - provides OO API |
+| **Firebird Server** | 2.5, 3.0, 4.0, 5.0 | All supported via OO API client |
+
+**Key Insight:** The Firebird 3.0+ client's OO API maintains backward compatibility with older Firebird 2.5 servers. The client negotiates the appropriate wire protocol automatically.
+
+### Why OO API Only?
+
+1. **Simplified Maintenance:** Single code path instead of dual legacy/OO paths
+2. **Modern Architecture:** OO API provides cleaner interfaces for attachments, transactions, statements
+3. **Resource Management:** Better handle lifecycle management through opaque pointers
+4. **Future-Proof:** Legacy `isc_*` API is deprecated and will be removed in future Firebird versions
+5. **Consistent Behavior:** Same API semantics across all server versions
+
+### Docker Test Infrastructure
+
+Our Docker test infrastructure demonstrates this architecture:
+
+```yaml
+# docker-compose.yml
+services:
+  php84-dev:
+    # Uses Firebird 4.0.5 CLIENT library
+    # Connects to firebird25 SERVER
+    
+  firebird25:
+    image: jacobalberty/firebird:2.5-ss
+    # Firebird 2.5 server - accessed via FB 4.0.5 client OO API
+```
+
+### Legacy API Removal
+
+The following legacy `isc_*` functions are being systematically removed or guarded:
+- `isc_dsql_execute_immediate()` → Use OO API statement execution
+- `isc_dsql_execute()` / `isc_dsql_execute2()` → Use `fbs_execute()` / `fbs_open_cursor()`
+- `isc_start_transaction()` → Use `fbt_start()`
+- `isc_commit_transaction()` / `isc_rollback_transaction()` → Use `fbt_commit()` / `fbt_rollback()`
+- `isc_dsql_prepare()` → Use `fbs_prepare()`
+
+**Note:** Some legacy functions like `isc_array_get_slice()` may remain temporarily until OO API equivalents are fully implemented.
 
 ---
 

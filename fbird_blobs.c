@@ -243,59 +243,44 @@ int _php_fbird_blob_get(zval *return_value, fbird_blob *ib_blob, zend_ulong max_
 
 		bl_data = zend_string_safe_alloc(1, max_len, 0, 0);
 
-		/* OO API path: Use OO API when blob was opened via OO API */
-		if (ib_blob->fbb_blob) {
-			int result;
-			unsigned actual_len;
+		/*
+		 * Firebird 3.0+ OO API Blob Read
+		 *
+		 * Uses IBlob::getSegment() via fbb_get_segment() wrapper.
+		 * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
+		 */
+		int result;
+		unsigned actual_len;
 
-			for (cur_len = 0; cur_len < max_len; cur_len += actual_len) {
-				unsigned chunk_size = (max_len - cur_len) > USHRT_MAX ? USHRT_MAX
-					: (unsigned)(max_len - cur_len);
+		for (cur_len = 0; cur_len < max_len; cur_len += actual_len) {
+			unsigned chunk_size = (max_len - cur_len) > USHRT_MAX ? USHRT_MAX
+				: (unsigned)(max_len - cur_len);
 
-				result = fbb_get_segment(
-					IBG(master_instance),
-					ib_blob->fbb_blob,
-					chunk_size,
-					&ZSTR_VAL(bl_data)[cur_len],
-					&actual_len,
-					IB_STATUS
-				);
+			result = fbb_get_segment(
+				IBG(master_instance),
+				ib_blob->fbb_blob,
+				chunk_size,
+				&ZSTR_VAL(bl_data)[cur_len],
+				&actual_len,
+				IB_STATUS
+			);
 
-				if (result < 0) {
-					/* Error or EOF */
-					if (IB_STATUS[1] == isc_segstr_eof || IB_STATUS[1] == isc_segment) {
-						/* EOF is not an error */
-						break;
-					}
-					if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
-						zend_string_free(bl_data);
-						_php_fbird_error();
-						return FAILURE;
-					}
+			if (result < 0) {
+				/* Error or EOF */
+				if (IB_STATUS[1] == isc_segstr_eof || IB_STATUS[1] == isc_segment) {
+					/* EOF is not an error */
 					break;
 				}
-				if (actual_len == 0) {
-					/* EOF */
-					break;
+				if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
+					zend_string_free(bl_data);
+					_php_fbird_error();
+					return FAILURE;
 				}
+				break;
 			}
-		} else
-		{
-			/* Legacy path: use isc_get_segment */
-			ISC_STATUS stat;
-			unsigned short seg_len;
-
-			for (cur_len = stat = 0; (stat == 0 || stat == isc_segment) && cur_len < max_len; cur_len += seg_len) {
-				unsigned short chunk_size = (max_len-cur_len) > USHRT_MAX ? USHRT_MAX
-					: (unsigned short)(max_len-cur_len);
-
-				stat = isc_get_segment(IB_STATUS, &ib_blob->bl_handle.blob, &seg_len, chunk_size, &ZSTR_VAL(bl_data)[cur_len]);
-			}
-
-			if (IB_STATUS[0] == 1 && (stat != 0 && stat != isc_segstr_eof && stat != isc_segment)) {
-				zend_string_free(bl_data);
-				_php_fbird_error();
-				return FAILURE;
+			if (actual_len == 0) {
+				/* EOF */
+				break;
 			}
 		}
 
@@ -315,34 +300,23 @@ int _php_fbird_blob_add(zval *string_arg, fbird_blob *ib_blob) /* {{{ */
 
 	convert_to_string_ex(string_arg);
 
-	/* OO API path: Use OO API when blob was created via OO API */
-	if (ib_blob->fbb_blob) {
-		for (rem_cnt = Z_STRLEN_P(string_arg); rem_cnt > 0; ) {
-			unsigned chunk_size = rem_cnt > USHRT_MAX ? USHRT_MAX : (unsigned)rem_cnt;
+	/*
+	 * Firebird 3.0+ OO API Blob Write
+	 *
+	 * Uses IBlob::putSegment() via fbb_put_segment() wrapper.
+	 * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
+	 */
+	for (rem_cnt = Z_STRLEN_P(string_arg); rem_cnt > 0; ) {
+		unsigned chunk_size = rem_cnt > USHRT_MAX ? USHRT_MAX : (unsigned)rem_cnt;
 
-			/* fbb_put_segment returns 1 on success, 0 on error */
-			if (fbb_put_segment(IBG(master_instance), ib_blob->fbb_blob, chunk_size,
-					&Z_STRVAL_P(string_arg)[put_cnt], IB_STATUS) == 0) {
-				_php_fbird_error();
-				return FAILURE;
-			}
-			put_cnt += chunk_size;
-			rem_cnt -= chunk_size;
+		/* fbb_put_segment returns 1 on success, 0 on error */
+		if (fbb_put_segment(IBG(master_instance), ib_blob->fbb_blob, chunk_size,
+				&Z_STRVAL_P(string_arg)[put_cnt], IB_STATUS) == 0) {
+			_php_fbird_error();
+			return FAILURE;
 		}
-	} else
-	{
-		/* Legacy path: use isc_put_segment */
-		unsigned short chunk_size;
-
-		for (rem_cnt = Z_STRLEN_P(string_arg); rem_cnt > 0; rem_cnt -= chunk_size)  {
-			chunk_size = rem_cnt > USHRT_MAX ? USHRT_MAX : (unsigned short)rem_cnt;
-
-			if (isc_put_segment(IB_STATUS, &ib_blob->bl_handle.blob, chunk_size, &Z_STRVAL_P(string_arg)[put_cnt] )) {
-				_php_fbird_error();
-				return FAILURE;
-			}
-			put_cnt += chunk_size;
-		}
+		put_cnt += chunk_size;
+		rem_cnt -= chunk_size;
 	}
 	return SUCCESS;
 }
@@ -477,32 +451,27 @@ PHP_FUNCTION(fbird_blob_open)
 			break;
 		}
 
-		/* OO API path: Use OO API when connection is OO-enabled */
-		if (ib_link->fbc_connection && trans->fbt_transaction) {
-			void *trans_handle = fbt_get_handle(trans->fbt_transaction);
-			ib_blob->fbb_blob = fbb_open(
-				IBG(master_instance),
-				fbc_get_attachment(ib_link->fbc_connection),
-				trans_handle,
-				&ib_blob->bl_qd,
-				0, NULL,  /* No BPB */
-				IB_STATUS
-			);
-			if (ib_blob->fbb_blob == NULL) {
-				_php_fbird_error();
-				break;
-			}
-			/* Store OO handle pointer for legacy code paths that check bl_handle */
-			ib_blob->bl_handle.ptr = fbb_get_handle(ib_blob->fbb_blob);
-		} else
-		{
-			/* Legacy path: use isc_open_blob */
-			if (isc_open_blob(IB_STATUS, &ib_link->handle.db, &trans->handle.tr, &ib_blob->bl_handle.blob,
-					&ib_blob->bl_qd)) {
-				_php_fbird_error();
-				break;
-			}
+		/*
+		 * Firebird 3.0+ OO API Blob Open
+		 *
+		 * Uses IBlob interface via fbb_open() wrapper.
+		 * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
+		 */
+		void *trans_handle = fbt_get_handle(trans->fbt_transaction);
+		ib_blob->fbb_blob = fbb_open(
+			IBG(master_instance),
+			fbc_get_attachment(ib_link->fbc_connection),
+			trans_handle,
+			&ib_blob->bl_qd,
+			0, NULL,  /* No BPB */
+			IB_STATUS
+		);
+		if (ib_blob->fbb_blob == NULL) {
+			_php_fbird_error();
+			break;
 		}
+		/* Store OO handle pointer for legacy code paths that check bl_handle */
+		ib_blob->bl_handle.ptr = fbb_get_handle(ib_blob->fbb_blob);
 
 		RETVAL_RES(zend_register_resource(ib_blob, le_blob));
 		return;

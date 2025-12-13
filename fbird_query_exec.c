@@ -89,7 +89,15 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
       * before re-execution. The cursor may already have been closed by various means
       * (fbird_free_result, transaction commit, EOF reached, etc.) - this is expected
       * and should not generate warnings. We unconditionally reset the is_open flag. */
-     (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt.stmt, DSQL_close);
+
+     /* Only close via legacy API if we have a valid legacy handle.
+      * For OO API cursors (fbs_statement), cursor close is handled separately. */
+     if (ib_query->stmt.stmt) {
+         (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt.stmt, DSQL_close);
+     } else if (ib_query->fbs_statement) {
+         /* OO API cursor close - use fbs_close_cursor() */
+         fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
+     }
      ib_query->is_open = 0;
      ib_query->has_more_rows = 0;
  }
@@ -258,6 +266,29 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
                     isc_result = 0; /* Success */
                 } else {
                     IBDEBUG("OO API fbs_execute() failed, falling back to legacy");
+                }
+            }
+            /* For DDL statements (CREATE, DROP, ALTER, etc.), use fbs_execute */
+            else if (ib_query->statement_type == isc_info_sql_stmt_ddl) {
+                /*
+                 * DDL statements have no input/output parameters.
+                 * Execute directly via OO API.
+                 */
+                oo_api_success = fbs_execute(
+                    IBG(master_instance),
+                    ib_query->fbs_statement,
+                    transaction_ptr,
+                    NULL, /* in_msg */
+                    NULL, /* in_metadata */
+                    NULL, /* out_msg */
+                    NULL, /* out_metadata */
+                    IB_STATUS
+                );
+                if (oo_api_success) {
+                    IBDEBUG("OO API fbs_execute() succeeded for DDL");
+                    isc_result = 0; /* Success */
+                } else {
+                    IBDEBUG("OO API fbs_execute() failed for DDL, falling back to legacy");
                 }
             }
         }

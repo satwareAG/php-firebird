@@ -21,8 +21,22 @@
 extern "C" {
 #endif
 
-
-#if FB_API_VER >= 30
+/* =============================================================================
+ * Firebird 3.0+ OO API Required
+ *
+ * This extension requires Firebird 3.0 or later. The modern OO API introduced
+ * in Firebird 3.0 (FB_API_VER >= 30) is mandatory. Legacy isc_* functions are
+ * no longer supported.
+ *
+ * Rationale:
+ * - IAttachment* (OO API) is NOT compatible with isc_db_handle (legacy)
+ * - Hybrid approach (mixing OO API with legacy) does not work
+ * - OO API provides better error handling, resource management, and features
+ * - Firebird 2.5 reached EOL - no reason to maintain backward compatibility
+ * ============================================================================= */
+#if FB_API_VER < 30
+#error "This extension requires Firebird 3.0 or later (FB_API_VER >= 30). Legacy API is not supported."
+#endif
 
 #include <ibase.h>
 #include "php_fbird_includes.h"
@@ -838,9 +852,9 @@ int fba_put_slice(void* master_ptr,
                   ISC_LONG buffer_length,
                   ISC_STATUS* status_vector);
 
-#endif // FB_API_VER >= 30
-
-
+/* =============================================================================
+ * FB 4.0+ Extended Features (Timezone support, enhanced metadata)
+ * ============================================================================= */
 #if FB_API_VER >= 40
 void fbu_decode_time_tz(void *master_ptr, const ISC_TIME_TZ* time_tz, unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions,
 	unsigned time_zone_buffer_length, char* time_zone_buffer);
@@ -973,7 +987,7 @@ const char* fbm_get_alias(void* master_ptr, void* metadata_ptr, unsigned index);
  */
 void fbm_release(void* metadata_ptr);
 
-#endif // FB_API_VER >= 30
+#endif // FB_API_VER >= 40
 
 
 #ifdef __cplusplus

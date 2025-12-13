@@ -564,51 +564,39 @@ static void _php_fbird_blob_end(INTERNAL_FUNCTION_PARAMETERS, int bl_end) /* {{{
 
 	if (bl_end == BLOB_CLOSE) { /* return id here */
 
-		/* OO API path: Use OO API when blob was created/opened via OO API */
-		if (ib_blob->fbb_blob) {
-			if (ib_blob->bl_qd.gds_quad_high || ib_blob->bl_qd.gds_quad_low) { /*not null ?*/
-				/* fbb_close returns 1 on success, 0 on error */
-				if (fbb_close(IBG(master_instance), ib_blob->fbb_blob, IB_STATUS) == 0) {
-					_php_fbird_error();
-					RETURN_FALSE;
-				}
+		/*
+		 * Firebird 3.0+ OO API Blob Close
+		 *
+		 * Uses IBlob::close() via fbb_close() wrapper.
+		 * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
+		 */
+		if (ib_blob->bl_qd.gds_quad_high || ib_blob->bl_qd.gds_quad_low) { /*not null ?*/
+			/* fbb_close returns 1 on success, 0 on error */
+			if (fbb_close(IBG(master_instance), ib_blob->fbb_blob, IB_STATUS) == 0) {
+				_php_fbird_error();
+				RETURN_FALSE;
 			}
-			fbb_free(ib_blob->fbb_blob);
-			ib_blob->fbb_blob = NULL;
-			ib_blob->bl_handle.ptr = 0;
-		} else
-		{
-			/* Legacy path: use isc_close_blob */
-			if (ib_blob->bl_qd.gds_quad_high || ib_blob->bl_qd.gds_quad_low) { /*not null ?*/
-				if (isc_close_blob(IB_STATUS, &ib_blob->bl_handle.blob)) {
-					_php_fbird_error();
-					RETURN_FALSE;
-				}
-			}
-			ib_blob->bl_handle.ptr = 0;
 		}
+		fbb_free(ib_blob->fbb_blob);
+		ib_blob->fbb_blob = NULL;
+		ib_blob->bl_handle.ptr = 0;
 
 		RETVAL_NEW_STR(_php_fbird_quad_to_string(ib_blob->bl_qd));
 	} else { /* discard created blob */
-		/* OO API path: Use OO API when blob was created/opened via OO API */
-		if (ib_blob->fbb_blob) {
-			/* fbb_cancel returns 1 on success, 0 on error */
-			if (fbb_cancel(IBG(master_instance), ib_blob->fbb_blob, IB_STATUS) == 0) {
-				_php_fbird_error();
-				RETURN_FALSE;
-			}
-			fbb_free(ib_blob->fbb_blob);
-			ib_blob->fbb_blob = NULL;
-			ib_blob->bl_handle.ptr = 0;
-		} else
-		{
-			/* Legacy path: use isc_cancel_blob */
-			if (isc_cancel_blob(IB_STATUS, &ib_blob->bl_handle.blob)) {
-				_php_fbird_error();
-				RETURN_FALSE;
-			}
-			ib_blob->bl_handle.ptr = 0;
+		/*
+		 * Firebird 3.0+ OO API Blob Cancel
+		 *
+		 * Uses IBlob::cancel() via fbb_cancel() wrapper.
+		 * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
+		 */
+		/* fbb_cancel returns 1 on success, 0 on error */
+		if (fbb_cancel(IBG(master_instance), ib_blob->fbb_blob, IB_STATUS) == 0) {
+			_php_fbird_error();
+			RETURN_FALSE;
 		}
+		fbb_free(ib_blob->fbb_blob);
+		ib_blob->fbb_blob = NULL;
+		ib_blob->bl_handle.ptr = 0;
 
 		RETVAL_TRUE;
 	}

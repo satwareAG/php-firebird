@@ -1114,10 +1114,12 @@ int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db) 
      * for retrieval by _php_fbird_connect() */
     IBG(status[ISC_STATUS_LENGTH - 1]) = (ISC_STATUS)(uintptr_t)connection;
 
-    /* Set legacy db handle to the IAttachment pointer for backward compatibility
-     * with code paths that still use ib_link->handle.db. The IAttachment pointer
-     * is cast-compatible with isc_db_handle for many legacy operations. */
-    *db = fbc_get_attachment(connection);
+    /* OO API Mode: Do NOT store IAttachment* in the legacy db handle slot.
+     * The OO connection is stored in fbc_connection via the status vector.
+     * Legacy handle.db is left NULL to prevent accidental isc_* API calls
+     * with OO API pointers, which would cause undefined behavior.
+     * Code paths must check fbird_link_is_oo() and use appropriate API. */
+    *db = NULL;
 
     return SUCCESS;
 }

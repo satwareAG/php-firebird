@@ -33,6 +33,74 @@ ISC_TIME fbu_encode_time(void *master_ptr, unsigned hours, unsigned minutes,
 ISC_DATE fbu_encode_date(void *master_ptr, unsigned year, unsigned month, unsigned day);
 
 /* =============================================================================
+ * Phase 11: Type Encoding/Decoding Functions (FB 3.0+)
+ *
+ * These functions replace the legacy isc_encode_* and isc_decode_* functions
+ * with modern OO API equivalents using IUtil interface.
+ * ============================================================================= */
+
+/**
+ * Encode timestamp from components using OO API.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param year Year (1-9999)
+ * @param month Month (1-12)
+ * @param day Day (1-31)
+ * @param hours Hours (0-23)
+ * @param minutes Minutes (0-59)
+ * @param seconds Seconds (0-59)
+ * @param fractions Fractions of second (0-9999, tenths of milliseconds)
+ * @return Encoded ISC_TIMESTAMP, or {0,0} on error
+ */
+ISC_TIMESTAMP fbu_encode_timestamp(void *master_ptr, unsigned year, unsigned month, unsigned day,
+    unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions);
+
+/**
+ * Decode ISC_TIME to time components using OO API.
+ * Replaces legacy isc_decode_sql_time().
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param time ISC_TIME value to decode
+ * @param hours Output: hours (0-23)
+ * @param minutes Output: minutes (0-59)
+ * @param seconds Output: seconds (0-59)
+ * @param fractions Output: fractions of second (0-9999)
+ */
+void fbu_decode_time(void *master_ptr, ISC_TIME time,
+    unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions);
+
+/**
+ * Decode ISC_DATE to date components using OO API.
+ * Replaces legacy isc_decode_sql_date().
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param date ISC_DATE value to decode
+ * @param year Output: year (1-9999)
+ * @param month Output: month (1-12)
+ * @param day Output: day (1-31)
+ */
+void fbu_decode_date(void *master_ptr, ISC_DATE date,
+    unsigned* year, unsigned* month, unsigned* day);
+
+/**
+ * Decode ISC_TIMESTAMP to date and time components using OO API.
+ * Replaces legacy isc_decode_timestamp().
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param timestamp ISC_TIMESTAMP value to decode
+ * @param year Output: year (1-9999)
+ * @param month Output: month (1-12)
+ * @param day Output: day (1-31)
+ * @param hours Output: hours (0-23)
+ * @param minutes Output: minutes (0-59)
+ * @param seconds Output: seconds (0-59)
+ * @param fractions Output: fractions of second (0-9999)
+ */
+void fbu_decode_timestamp(void *master_ptr, const ISC_TIMESTAMP* timestamp,
+    unsigned* year, unsigned* month, unsigned* day,
+    unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions);
+
+/* =============================================================================
  * Phase 2: Firebird OO API Connection Functions (FB 3.0+)
  *
  * These functions provide a C interface to the modern Firebird C++ OO API.

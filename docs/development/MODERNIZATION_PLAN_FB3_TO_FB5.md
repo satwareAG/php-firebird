@@ -1182,8 +1182,11 @@ if (ib_query->fbs_statement && fbs_is_cursor_open(ib_query->fbs_statement)) {
 | **Phase 5** | Statement Layer (StatementWrapper, fbs_* functions) | ✅ COMPLETE | 2025-12-12 |
 | **Phase 6** | Blob OO API (BlobWrapper, fbb_* functions) | ✅ COMPLETE | 2025-12-12 |
 | **Phase 7** | Event OO API (EventsWrapper, fbe_* functions) | ✅ COMPLETE | 2025-12-12 |
-| **Phase 8** | Service OO API | ✅ DONE | fb_service.hpp, fbsvc_* functions |
-| **Phase 9+** | Final Legacy Removal & Testing | 🟡 PLANNED | - |
+| **Phase 8** | Service OO API | ✅ COMPLETE | fb_service.hpp, fbsvc_* functions |
+| **Phase 9** | Array OO API | ✅ COMPLETE | fb_array.hpp, fba_* functions |
+| **Phase 10** | Inspection Migration | ✅ COMPLETE | 2025-12-13 |
+| **Phase 11** | Type Encoding/Decoding Migration | ✅ COMPLETE | 2025-12-13 |
+| **Phase 12+** | Enable OO API Primary & Final Legacy Removal | 🟡 PLANNED | - |
 
 ### 15.2 C Interop Function Families Implemented
 
@@ -1639,22 +1642,35 @@ typedef struct fbird_service_mgr {
 
 #### Phase 11: Type Encoding/Decoding Migration
 
-**Goal**: Replace legacy date/time encoding functions.
+**Status**: ✅ COMPLETE (2025-12-13)
 
-**Functions to Replace**:
-```c
-// Encoding (fbird_query_bind.c)
-isc_encode_timestamp → IUtil::encodeTimestamp()
-isc_encode_sql_date → IUtil::encodeDate()
-isc_encode_sql_time → IUtil::encodeTime()
+**Goal**: Implement OO API wrappers for type encoding/decoding functions.
 
-// Decoding (fbird_result.c)
-isc_decode_sql_time → IUtil::decodeTime()
-isc_decode_timestamp → IUtil::decodeTimestamp()
-```
+**Functions Implemented in `firebird_utils.cpp`**:
 
-**Note**: Already have `fbu_encode_*` and `fbu_decode_*` in `firebird_utils.cpp`.
-Need to integrate them into query binding and result handling.
+| Function | Legacy Equivalent | OO API Method | Status |
+|----------|-------------------|---------------|--------|
+| `fbu_encode_timestamp()` | `isc_encode_timestamp` | `IUtil::encodeDate()` + `IUtil::encodeTime()` | ✅ Implemented |
+| `fbu_decode_time()` | `isc_decode_sql_time` | `IUtil::decodeTime()` | ✅ Implemented |
+| `fbu_decode_date()` | `isc_decode_sql_date` | `IUtil::decodeDate()` | ✅ Implemented |
+| `fbu_decode_timestamp()` | `isc_decode_timestamp` | `IUtil::decodeDate()` + `IUtil::decodeTime()` | ✅ Implemented |
+
+**Existing Functions** (already in codebase):
+- `fbu_encode_time()` - Uses `IUtil::encodeTime()`
+- `fbu_encode_date()` - Uses `IUtil::encodeDate()`
+
+**Implementation Details**:
+- All functions use `FirebirdMasterWrapper` for RAII access to IMaster
+- Input validation via `string_utils::is_valid_date_component()` and `is_valid_time_component()`
+- Output parameters initialized to zero for safety (handles NULL outputs gracefully)
+- Exception-safe with try-catch blocks
+- FB 4.0 compatibility via existing OO API patterns
+
+**Files Modified**:
+- `firebird_utils.h` - Added function declarations
+- `firebird_utils.cpp` - Implemented all `fbu_decode_*` and `fbu_encode_timestamp` functions
+
+**Note**: Integration into `fbird_query_bind.c` and `fbird_result.c` can proceed in Phase 12 or future refactoring.
 
 ---
 
@@ -1857,3 +1873,4 @@ The failure occurs at the "get data" step with legacy blob operations. The blob 
 | 1.9 | 2025-12-12 | Jane Alesi | Phase 8 completion: Service (fbsvc_*) OO API wrapper complete (4/4 tests pass) |
 | 1.10 | 2025-12-13 | Jane Alesi | Phase 9 completion: Array (fba_*) OO API wrapper complete (94/102 tests pass as expected) |
 | 1.11 | 2025-12-13 | Jane Alesi | Phase 10 completion: Inspection Migration with dual-mode dispatch (commit 0e4e9e1) |
+| 1.12 | 2025-12-13 | Jane Alesi | Phase 11 completion: Type Encoding/Decoding Migration (fbu_decode_*, fbu_encode_timestamp) |

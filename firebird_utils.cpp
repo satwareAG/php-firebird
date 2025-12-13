@@ -363,6 +363,157 @@ extern "C" ISC_DATE fbu_encode_date(void *master_ptr, unsigned year, unsigned mo
     return result.value_or(0);
 }
 
+// =============================================================================
+// Phase 11: Type Encoding/Decoding Functions (FB 3.0+)
+// =============================================================================
+
+extern "C" ISC_TIMESTAMP fbu_encode_timestamp(void *master_ptr, unsigned year, unsigned month, unsigned day,
+    unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions)
+{
+    ISC_TIMESTAMP result = {0, 0};
+
+    if (!master_ptr) {
+        return result;
+    }
+
+    // Validate components
+    if (!string_utils::is_valid_date_component(year, month, day) ||
+        !string_utils::is_valid_time_component(hours, minutes, seconds, fractions)) {
+        return result;
+    }
+
+    try {
+        FirebirdMasterWrapper master(master_ptr);
+        auto* util = master.getUtil();
+
+        if (!util) {
+            return result;
+        }
+
+        result.timestamp_date = util->encodeDate(year, month, day);
+        result.timestamp_time = util->encodeTime(hours, minutes, seconds, fractions);
+
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+extern "C" void fbu_decode_time(void *master_ptr, ISC_TIME time,
+    unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions)
+{
+    // Initialize outputs to zero for safety
+    if (hours) *hours = 0;
+    if (minutes) *minutes = 0;
+    if (seconds) *seconds = 0;
+    if (fractions) *fractions = 0;
+
+    if (!master_ptr) {
+        return;
+    }
+
+    try {
+        FirebirdMasterWrapper master(master_ptr);
+        auto* util = master.getUtil();
+
+        if (!util) {
+            return;
+        }
+
+        // Temporary storage (in case caller passes null for some outputs)
+        unsigned h = 0, m = 0, s = 0, f = 0;
+        util->decodeTime(time, &h, &m, &s, &f);
+
+        if (hours) *hours = h;
+        if (minutes) *minutes = m;
+        if (seconds) *seconds = s;
+        if (fractions) *fractions = f;
+
+    } catch (...) {
+        // Error case - outputs already initialized to zero
+    }
+}
+
+extern "C" void fbu_decode_date(void *master_ptr, ISC_DATE date,
+    unsigned* year, unsigned* month, unsigned* day)
+{
+    // Initialize outputs to zero for safety
+    if (year) *year = 0;
+    if (month) *month = 0;
+    if (day) *day = 0;
+
+    if (!master_ptr) {
+        return;
+    }
+
+    try {
+        FirebirdMasterWrapper master(master_ptr);
+        auto* util = master.getUtil();
+
+        if (!util) {
+            return;
+        }
+
+        // Temporary storage (in case caller passes null for some outputs)
+        unsigned y = 0, m = 0, d = 0;
+        util->decodeDate(date, &y, &m, &d);
+
+        if (year) *year = y;
+        if (month) *month = m;
+        if (day) *day = d;
+
+    } catch (...) {
+        // Error case - outputs already initialized to zero
+    }
+}
+
+extern "C" void fbu_decode_timestamp(void *master_ptr, const ISC_TIMESTAMP* timestamp,
+    unsigned* year, unsigned* month, unsigned* day,
+    unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions)
+{
+    // Initialize all outputs to zero for safety
+    if (year) *year = 0;
+    if (month) *month = 0;
+    if (day) *day = 0;
+    if (hours) *hours = 0;
+    if (minutes) *minutes = 0;
+    if (seconds) *seconds = 0;
+    if (fractions) *fractions = 0;
+
+    if (!master_ptr || !timestamp) {
+        return;
+    }
+
+    try {
+        FirebirdMasterWrapper master(master_ptr);
+        auto* util = master.getUtil();
+
+        if (!util) {
+            return;
+        }
+
+        // Decode date portion
+        unsigned y = 0, mon = 0, d = 0;
+        util->decodeDate(timestamp->timestamp_date, &y, &mon, &d);
+
+        // Decode time portion
+        unsigned h = 0, min = 0, s = 0, f = 0;
+        util->decodeTime(timestamp->timestamp_time, &h, &min, &s, &f);
+
+        // Assign to outputs
+        if (year) *year = y;
+        if (month) *month = mon;
+        if (day) *day = d;
+        if (hours) *hours = h;
+        if (minutes) *minutes = min;
+        if (seconds) *seconds = s;
+        if (fractions) *fractions = f;
+
+    } catch (...) {
+        // Error case - outputs already initialized to zero
+    }
+}
+
 // C++17: Modern status copying (replaces manual memcpy)
 static void fbu_copy_status(const ISC_STATUS* from, ISC_STATUS* to, size_t maxLength)
 {

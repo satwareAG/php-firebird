@@ -293,11 +293,11 @@ PHP_FUNCTION(fbird_num_params)
 		RETURN_FALSE;
 	}
 
-	if (ib_query->in_sqlda == NULL) {
-		RETURN_LONG(0);
-	} else {
-		RETURN_LONG(ib_query->in_sqlda->sqld);
-	}
+	/*
+	 * Firebird 3.0+ OO API - use cached parameter count from IMessageMetadata
+	 * Set during query preparation via fbs_get_input_count()
+	 */
+	RETURN_LONG(ib_query->in_fields_count);
 }
 /* }}} */
 
@@ -328,7 +328,6 @@ PHP_FUNCTION(fbird_param_info)
 PHP_FUNCTION(fbird_num_fields)
 {
 	zval *result;
-	XSQLDA *sqlda;
 	fbird_query *ib_query;
 
 	RESET_ERRMSG;
@@ -341,13 +340,11 @@ PHP_FUNCTION(fbird_num_fields)
 		RETURN_FALSE;
 	}
 
-	sqlda = ib_query->out_sqlda;
-
-	if (sqlda == NULL) {
-		RETURN_LONG(0);
-	} else {
-		RETURN_LONG(sqlda->sqld);
-	}
+	/*
+	 * Firebird 3.0+ OO API - use cached field count from IMessageMetadata
+	 * Set during query preparation via fbs_get_output_count()
+	 */
+	RETURN_LONG(ib_query->out_fields_count);
 }
 /* }}} */
 

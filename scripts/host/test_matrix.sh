@@ -83,6 +83,9 @@ if [ -n "$3" ]; then
 fi
 
 # 6. Execute Matrix
+FAILED_CONTAINERS=()
+PASSED_CONTAINERS=()
+
 for CONTAINER in "${TARGETS[@]}"; do
     echo -e "\n${BLUE}>> Testing Target: $CONTAINER${NC}"
 
@@ -94,7 +97,8 @@ for CONTAINER in "${TARGETS[@]}"; do
             echo -e "${RED}Failed to start container $CONTAINER.${NC}"
             echo "Available services:"
             docker compose ps --services
-            exit 1
+            FAILED_CONTAINERS+=("$CONTAINER (failed to start)")
+            continue
         fi
     fi
 
@@ -125,10 +129,21 @@ for CONTAINER in "${TARGETS[@]}"; do
 
     if docker compose exec $ENV_OPTS "$CONTAINER" bash -c "$CMD"; then
         echo -e "${GREEN}✓ $CONTAINER passed${NC}"
+        PASSED_CONTAINERS+=("$CONTAINER")
     else
         echo -e "${RED}✗ $CONTAINER failed${NC}"
-        exit 1
+        FAILED_CONTAINERS+=("$CONTAINER")
     fi
 done
 
-echo -e "\n${GREEN}=== All Targeted Versions Passed ===${NC}"
+echo -e "\n${BLUE}=== Test Matrix Summary ===${NC}"
+echo -e "Passed (${#PASSED_CONTAINERS[@]}): ${PASSED_CONTAINERS[*]}"
+echo -e "Failed (${#FAILED_CONTAINERS[@]}): ${FAILED_CONTAINERS[*]}"
+
+if [ ${#FAILED_CONTAINERS[@]} -eq 0 ]; then
+    echo -e "\n${GREEN}=== All Targeted Versions Passed ===${NC}"
+    exit 0
+else
+    echo -e "\n${RED}=== Some Versions Failed ===${NC}"
+    exit 1
+fi

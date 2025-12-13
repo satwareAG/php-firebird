@@ -43,8 +43,7 @@ int le_query;
 /* Implementation of _php_fbird_set_query_info */
 int _php_fbird_set_query_info(fbird_query *ib_query) /* {{{ */
 {
-#if FB_API_VER >= 30
-	/* Phase 12: Use OO API when statement was prepared via OO API */
+	/* OO API path: Use OO API when statement was prepared via OO API */
 	if (ib_query->fbs_statement) {
 		/* Get statement type via OO API */
 		ib_query->statement_type = fbs_get_type(IBG(master_instance), ib_query->fbs_statement, IB_STATUS);
@@ -59,7 +58,6 @@ int _php_fbird_set_query_info(fbird_query *ib_query) /* {{{ */
 
 		return SUCCESS;
 	}
-#endif
 
 	/* Legacy path: use isc_dsql_sql_info and isc_dsql_describe */
 	char info_req[] = { isc_info_sql_stmt_type };

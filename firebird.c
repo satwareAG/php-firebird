@@ -650,7 +650,16 @@ static void _php_fbird_commit_link(fbird_db_link *link) /* {{{ */
 		fbird_tr_list *p = l;
 		if (p->trans != 0) {
 			if (i == 0) {
-				if (p->trans->handle.ptr != 0) {
+				/* Default transaction: commit */
+				if (p->trans->fbt_transaction != NULL) {
+					/* OO API path */
+					IBDEBUG("Committing default transaction via OO API...");
+					if (fbt_commit(p->trans->fbt_transaction, IB_STATUS)) {
+						_php_fbird_error();
+					}
+					p->trans->fbt_transaction = NULL;
+				} else if (p->trans->handle.ptr != 0) {
+					/* Legacy path */
 					IBDEBUG("Committing default transaction...");
 					if (isc_commit_transaction(IB_STATUS, &p->trans->handle.tr)) {
 						_php_fbird_error();
@@ -658,8 +667,16 @@ static void _php_fbird_commit_link(fbird_db_link *link) /* {{{ */
 				}
 				efree(p->trans); /* default transaction is not a registered resource: clean up */
 			} else {
-				if (p->trans->handle.ptr != 0) {
-					/* non-default trans might have been rolled back by other call of this dtor */
+				/* Non-default transaction: rollback */
+				if (p->trans->fbt_transaction != NULL) {
+					/* OO API path */
+					IBDEBUG("Rolling back other transaction via OO API...");
+					if (fbt_rollback(p->trans->fbt_transaction, IB_STATUS)) {
+						_php_fbird_error();
+					}
+					p->trans->fbt_transaction = NULL;
+				} else if (p->trans->handle.ptr != 0) {
+					/* Legacy path - non-default trans might have been rolled back by other call of this dtor */
 					IBDEBUG("Rolling back other transactions...");
 					if (isc_rollback_transaction(IB_STATUS, &p->trans->handle.tr)) {
 						_php_fbird_error();
@@ -1111,8 +1128,10 @@ int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db) 
      * for retrieval by _php_fbird_connect() - same pattern as before but now mandatory */
     IBG(status[ISC_STATUS_LENGTH - 1]) = (ISC_STATUS)(uintptr_t)connection;
 
-    /* Set legacy db handle to NULL - legacy path is no longer used */
-    *db = NULL;
+    /* Set legacy db handle to the IAttachment pointer for backward compatibility
+     * with code paths that still use ib_link->handle.db. The IAttachment pointer
+     * is cast-compatible with isc_db_handle for many legacy operations. */
+    *db = fbc_get_attachment(connection);
 
     return SUCCESS;
 
@@ -1752,19 +1771,49 @@ PHP_FUNCTION(fbird_trans_start)
 		_php_fbird_populate_trans(trans_argl, trans_timeout, last_tpb, &tpb_len);
 	}
 
-	result = isc_start_transaction(IB_STATUS, (isc_tr_handle*)&tr_handle, 1, &ib_link->handle.db, tpb_len, last_tpb);
+	/* Phase 12: Use OO API when connection was created via OO API */
+	if (ib_link->fbc_connection != NULL) {
+		void* attachment = fbc_get_attachment(ib_link->fbc_connection);
+		if (attachment == NULL) {
+			_php_fbird_module_error("Failed to get attachment from OO API connection");
+			RETURN_FALSE;
+		}
 
-	if (result) {
-		_php_fbird_error();
-		RETURN_FALSE;
+		ib_trans = (fbird_transaction *) safe_emalloc(1-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
+		ib_trans->fbt_transaction = fbt_start(
+			IBG(master_instance),
+			attachment,
+			tpb_len,
+			tpb_len > 0 ? (const unsigned char*)last_tpb : NULL,
+			IB_STATUS
+		);
+
+		if (ib_trans->fbt_transaction == NULL) {
+			efree(ib_trans);
+			_php_fbird_error();
+			RETURN_FALSE;
+		}
+
+		ib_trans->handle.ptr = fbt_get_handle(ib_trans->fbt_transaction);
+		ib_trans->link_cnt = 1;
+		ib_trans->affected_rows = 0;
+		ib_trans->db_link[0] = ib_link;
+	} else {
+		/* Legacy path */
+		result = isc_start_transaction(IB_STATUS, (isc_tr_handle*)&tr_handle, 1, &ib_link->handle.db, tpb_len, last_tpb);
+
+		if (result) {
+			_php_fbird_error();
+			RETURN_FALSE;
+		}
+
+		ib_trans = (fbird_transaction *) safe_emalloc(1-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
+		ib_trans->handle.ptr = tr_handle;
+		ib_trans->link_cnt = 1;
+		ib_trans->affected_rows = 0;
+		ib_trans->fbt_transaction = NULL;
+		ib_trans->db_link[0] = ib_link;
 	}
-
-	ib_trans = (fbird_transaction *) safe_emalloc(1-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
-	ib_trans->handle.ptr = tr_handle;
-	ib_trans->link_cnt = 1;
-	ib_trans->affected_rows = 0;
-	ib_trans->fbt_transaction = NULL;  /* Phase 4: Initialize OO API transaction pointer */
-	ib_trans->db_link[0] = ib_link;
 
 	/* the first item in the connection-transaction list is reserved for the default transaction */
 	if (ib_link->tr_list == NULL) {

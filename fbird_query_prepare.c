@@ -43,61 +43,22 @@ int le_query;
 /* Implementation of _php_fbird_set_query_info */
 int _php_fbird_set_query_info(fbird_query *ib_query) /* {{{ */
 {
-	/* OO API path: Use OO API when statement was prepared via OO API */
-	if (ib_query->fbs_statement) {
-		/* Get statement type via OO API */
-		ib_query->statement_type = fbs_get_type(IBG(master_instance), ib_query->fbs_statement, IB_STATUS);
-		if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
-			_php_fbird_error();
-			return FAILURE;
-		}
+	/*
+	 * Firebird 3.0+ OO API - uses IStatement interface methods
+	 *
+	 * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
+	 */
 
-		/* Get field counts via OO API helper functions */
-		ib_query->out_fields_count = fbs_get_output_count(IBG(master_instance), ib_query->fbs_statement, IB_STATUS);
-		ib_query->in_fields_count = fbs_get_input_count(IBG(master_instance), ib_query->fbs_statement, IB_STATUS);
-
-		return SUCCESS;
-	}
-
-	/* Legacy path: use isc_dsql_sql_info and isc_dsql_describe */
-	char info_req[] = { isc_info_sql_stmt_type };
-	char info_buf[20];
-	XSQLDA sqlda;
-
-	/* Get statement type */
-	if (isc_dsql_sql_info(IB_STATUS, &ib_query->stmt.stmt, sizeof(info_req), info_req, sizeof(info_buf), info_buf)) {
+	/* Get statement type via OO API */
+	ib_query->statement_type = fbs_get_type(IBG(master_instance), ib_query->fbs_statement, IB_STATUS);
+	if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
 		_php_fbird_error();
 		return FAILURE;
 	}
 
-	if (info_buf[0] == isc_info_sql_stmt_type) {
-		int len = isc_vax_integer(&info_buf[1], 2);
-		ib_query->statement_type = isc_vax_integer(&info_buf[3], len);
-	} else {
-		ib_query->statement_type = isc_info_sql_stmt_select; /* fallback/default */
-	}
-
-	/* Get field counts via describe */
-	memset(&sqlda, 0, sizeof(XSQLDA));
-	sqlda.version = SQLDA_CURRENT_VERSION;
-	sqlda.sqln = 0;
-	sqlda.sqld = 0;
-
-	if (isc_dsql_describe(IB_STATUS, &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, &sqlda)) {
-		_php_fbird_error();
-		return FAILURE;
-	}
-	ib_query->out_fields_count = sqlda.sqld;
-
-	memset(&sqlda, 0, sizeof(XSQLDA));
-	sqlda.version = SQLDA_CURRENT_VERSION;
-	sqlda.sqln = 0;
-	sqlda.sqld = 0;
-	if (isc_dsql_describe_bind(IB_STATUS, &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, &sqlda)) {
-		_php_fbird_error();
-		return FAILURE;
-	}
-	ib_query->in_fields_count = sqlda.sqld;
+	/* Get field counts via OO API helper functions */
+	ib_query->out_fields_count = fbs_get_output_count(IBG(master_instance), ib_query->fbs_statement, IB_STATUS);
+	ib_query->in_fields_count = fbs_get_input_count(IBG(master_instance), ib_query->fbs_statement, IB_STATUS);
 
 	return SUCCESS;
 }
@@ -303,54 +264,35 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
 	 * dropping it in the resource destructor. */
 	ib_query->owns_stmt_handle = 1;
 
-	/* Phase 5: Create OO API statement wrapper when OO API connection and
-	 * transaction are available. The OO API wrapper is prepared in parallel
-	 * with the legacy handle - this allows gradual migration of execution
-	 * and fetch operations to the OO API while maintaining compatibility
-	 * with existing describe operations.
+	/*
+	 * Firebird 3.0+ OO API Statement Preparation
 	 *
-	 * Key insight from Phase 3-4: IAttachment* (OO API) is NOT interchangeable
-	 * with isc_db_handle (legacy). When both connection and transaction use
-	 * OO API, statement operations should also use OO API for consistency.
+	 * Uses IStatement interface via fbs_prepare() wrapper.
+	 * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
 	 */
-	if (link->fbc_connection && trans->fbt_transaction) {
-		void *attachment_ptr = fbc_get_attachment(link->fbc_connection);
-		void *transaction_ptr = fbt_get_handle(trans->fbt_transaction);
+	void *attachment_ptr = fbc_get_attachment(link->fbc_connection);
+	void *transaction_ptr = fbt_get_handle(trans->fbt_transaction);
 
-		if (attachment_ptr && transaction_ptr) {
-			ib_query->fbs_statement = fbs_prepare(
-				IBG(master_instance),
-				attachment_ptr,
-				transaction_ptr,
-				query,
-				0,  /* sql_length: 0 = null-terminated */
-				link->dialect,
-				IB_STATUS
-			);
-			if (!ib_query->fbs_statement) {
-				IBDEBUG("fbs_prepare() failed\n");
-				_php_fbird_error();
-				goto _php_fbird_alloc_query_error;
-			}
-			IBDEBUG("OO API statement prepared successfully\n");
-		} else {
-			_php_fbird_module_error("OO API connection/transaction pointers are NULL");
-			goto _php_fbird_alloc_query_error;
-		}
-	} else {
-		/* Legacy API path - only used when OO API is not available */
-		if (isc_dsql_allocate_statement(IB_STATUS, &link->handle.db, &ib_query->stmt.stmt)) {
-			_php_fbird_error();
-			goto _php_fbird_alloc_query_error;
-		}
-
-		if (isc_dsql_prepare(IB_STATUS, &ib_query->trans->handle.tr, &ib_query->stmt.stmt,
-				0, query, link->dialect, NULL)) {
-			IBDEBUG("isc_dsql_prepare() failed\n");
-			_php_fbird_error();
-			goto _php_fbird_alloc_query_error;
-		}
+	if (!attachment_ptr || !transaction_ptr) {
+		_php_fbird_module_error("OO API connection/transaction pointers are NULL");
+		goto _php_fbird_alloc_query_error;
 	}
+
+	ib_query->fbs_statement = fbs_prepare(
+		IBG(master_instance),
+		attachment_ptr,
+		transaction_ptr,
+		query,
+		0,  /* sql_length: 0 = null-terminated */
+		link->dialect,
+		IB_STATUS
+	);
+	if (!ib_query->fbs_statement) {
+		IBDEBUG("fbs_prepare() failed\n");
+		_php_fbird_error();
+		goto _php_fbird_alloc_query_error;
+	}
+	IBDEBUG("OO API statement prepared successfully\n");
 
 	if(_php_fbird_set_query_info(ib_query)){
 		goto _php_fbird_alloc_query_error;

@@ -188,24 +188,16 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc) /* {{{ */
             child = next;
         }
         /* Ensure any open cursor/statement is properly closed on the server
-         * to avoid -502 (Attempt to reopen an open cursor) on subsequent uses. */
-        /* Phase 5: Free OO API statement wrapper if used */
+         * to avoid -502 (Attempt to reopen an open cursor) on subsequent uses.
+         *
+         * OO API Only: All statements use fbs_statement (no legacy stmt.stmt fallback)
+         */
         if (ib_query->fbs_statement) {
-            /* Close any open OO API resultset first */
-            if (ib_query->fbs_resultset) {
+            /* Close any open cursor first */
+            if (ib_query->fbs_resultset || ib_query->is_open) {
+                IBDEBUG("Closing open cursor in dtor (OO API)");
                 fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
                 ib_query->fbs_resultset = NULL;
-            }
-            /* Free the OO API statement */
-            if (ib_query->owns_stmt_handle) {
-                fbs_free(ib_query->fbs_statement, IB_STATUS);
-            }
-            ib_query->fbs_statement = NULL;
-        } else if (ib_query->stmt.stmt) {
-            /* Close open cursor if needed */
-            if (ib_query->is_open) {
-                IBDEBUG("Closing open cursor in dtor");
-                (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt.stmt, DSQL_close);
                 ib_query->is_open = 0;
                 ib_query->has_more_rows = 0;
                 /* If this is a child result that reused the parent's statement handle,
@@ -216,11 +208,12 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc) /* {{{ */
                     ib_query->parent->has_more_rows = 0;
                 }
             }
-            /* Drop the statement handle only if this resource OWNS it.
+            /* Free the OO API statement only if this resource OWNS it.
              * Result clones created for SELECT reuse parent's handle and must NOT drop it. */
             if (ib_query->owns_stmt_handle) {
-                (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt.stmt, DSQL_drop);
+                fbs_free(ib_query->fbs_statement, IB_STATUS);
             }
+            ib_query->fbs_statement = NULL;
         }
         _php_fbird_free_query(ib_query);
     }

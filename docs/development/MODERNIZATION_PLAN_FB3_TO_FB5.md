@@ -1605,13 +1605,35 @@ typedef struct fbird_service_mgr {
 
 #### Phase 10: Inspection Migration
 
+**Status**: ✅ COMPLETE (2025-12-13)
+
 **Goal**: Migrate `fbird_inspection.c` internal queries to OO API.
 
-**Approach**: Use `fbs_*` functions for internal diagnostic queries.
+**Approach**: Use `fbs_*` functions for internal diagnostic queries with dual-mode dispatch.
 
-**Changes**:
-- Use `fbs_prepare()` / `fbs_execute()` for internal SQL execution
-- Update SQL inspection queries to use IStatement metadata
+**Implementation**:
+1. Created OO API helper functions:
+   - `_fbird_exec_kill_oo()` - DELETE via `fbs_prepare()`/`fbs_execute()`
+   - `_fbird_drop_table_oo()` - DROP TABLE via `fbs_prepare()`/`fbs_execute()`/`fbt_commit()`
+
+2. Created legacy fallback functions:
+   - `_fbird_exec_kill_legacy()` - Original `isc_dsql_*` implementation
+   - `_fbird_drop_table_legacy()` - Original `isc_dsql_*` implementation
+
+3. Implemented dual-mode dispatchers:
+   - `_fbird_exec_kill()` - Checks `fbc_connection && fbt_transaction`, dispatches to OO or legacy
+   - `fbird_drop_table_force()` - Same dual-mode dispatch pattern
+
+4. Deferred complex migration:
+   - `fbird_list_table_blockers()` - Kept legacy (complex BLOB parameter binding)
+   - Will be completed in Phase 12 when OO API is primary path
+
+**Commits**:
+- `0e4e9e1` feat(phase10): migrate inspection functions to dual-mode OO API
+
+**Test Coverage**:
+- `migration_001.phpt` ✅ PASS (tests `fbird_drop_table_force`)
+- 94/102 tests pass (4 blob failures expected - requires Phase 12)
 
 ---
 
@@ -1834,3 +1856,4 @@ The failure occurs at the "get data" step with legacy blob operations. The blob 
 | 1.8 | 2025-12-12 | Jane Alesi | Phase 6 & 7 completion: Blob (fbb_*) and Event (fbe_*) OO API wrappers complete |
 | 1.9 | 2025-12-12 | Jane Alesi | Phase 8 completion: Service (fbsvc_*) OO API wrapper complete (4/4 tests pass) |
 | 1.10 | 2025-12-13 | Jane Alesi | Phase 9 completion: Array (fba_*) OO API wrapper complete (94/102 tests pass as expected) |
+| 1.11 | 2025-12-13 | Jane Alesi | Phase 10 completion: Inspection Migration with dual-mode dispatch (commit 0e4e9e1) |

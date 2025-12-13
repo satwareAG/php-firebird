@@ -108,21 +108,17 @@ void _php_fbird_field_info(zval *return_value, fbird_query *ib_query, int is_out
 
 	array_init(return_value);
 
-	/* Enhanced parameter metadata building with fallbacks for missing bind description data */
-#if FB_API_VER >= 40
-	if(IBG(master_instance) && IBG(get_statement_interface)) {
-		void *statement = NULL;
-		if(((fb_get_statement_interface_t)IBG(get_statement_interface))(IB_STATUS, &statement, &ib_query->stmt.stmt)){
-			_php_fbird_error();
-			RETURN_FALSE;
-		}
-
-		if(fbu_insert_field_info(IBG(master_instance), IB_STATUS, is_outvar, num, return_value, statement)){
-			_php_fbird_error();
-			RETURN_FALSE;
-		}
-	} else {
-#endif
+	/* Enhanced parameter metadata building with fallbacks for missing bind description data
+	 *
+	 * Note: With OO API migration, we always use the XSQLDA-based fallback path.
+	 * The out_sqlda and in_sqlda are now populated from OO API metadata during prepare,
+	 * so the XSQLDA data path provides complete field information.
+	 *
+	 * The legacy fbu_insert_field_info() path using get_statement_interface is disabled
+	 * because it requires ib_query->stmt.stmt (legacy isc_stmt_handle) which is no longer
+	 * available in OO API mode.
+	 */
+	{
 		// Old API with enhanced parameter support
 		/* Handle name - provide fallback for parameters where sqlname might be empty */
 		const char *field_name = (var->sqlname[0] != '\0') ? var->sqlname : "";
@@ -143,9 +139,7 @@ void _php_fbird_field_info(zval *return_value, fbird_query *ib_query, int is_out
 		const char *relation_name = (var->relname[0] != '\0') ? var->relname : "";
 		add_index_stringl(return_value, 2, relation_name, strlen(relation_name));
 		add_assoc_stringl(return_value, "relation", relation_name, strlen(relation_name));
-#if FB_API_VER >= 40
 	}
-#endif
 
 	len = slprintf(buf, 16, "%d", var->sqllen);
 	add_index_stringl(return_value, 3, buf, len);
@@ -360,66 +354,21 @@ int _php_fbird_alloc_ht_aliases(fbird_query *ib_query)
 	ALLOC_HASHTABLE(ib_query->ht_aliases);
 	zend_hash_init(ib_query->ht_aliases, ib_query->out_fields_count, NULL, ZVAL_PTR_DTOR, 0);
 
-#if FB_API_VER >= 40
-    if(IBG(master_instance) && IBG(get_statement_interface)) {
-        void *statement = NULL;
+	/* Guard: If out_sqlda is NULL, we cannot populate aliases */
+	if (!ib_query->out_sqlda) {
+		return SUCCESS;  /* Return success with empty alias table */
+	}
 
-        /* Prefer OO API fbs_statement when available (pure OO API path) */
-        if (ib_query->fbs_statement) {
-            statement = fbs_get_statement(ib_query->fbs_statement);
-        } else if (ib_query->stmt.stmt) {
-            /* Fall back to legacy handle extraction */
-            if(((fb_get_statement_interface_t)IBG(get_statement_interface))(IB_STATUS, &statement, &ib_query->stmt.stmt)){
-                return FAILURE;
-            }
-        }
-
-        if (!statement) {
-            return FAILURE;
-        }
-
-        if(fbu_insert_aliases(IBG(master_instance), IB_STATUS, ib_query, statement)){
-            return FAILURE;
-        }
-        /* If this is a DML ... RETURNING statement (or SQL text contains RETURNING), preserve OLD./NEW. prefixes
-         * by rebuilding the alias table with inferred prefixes when present. */
-        if ((ib_query->statement_type == isc_info_sql_stmt_insert ||
-             ib_query->statement_type == isc_info_sql_stmt_update ||
-             ib_query->statement_type == isc_info_sql_stmt_delete) ||
-            _php_fbird_sql_has_returning(ib_query->query)) {
-            HashTable *ht2;
-            ALLOC_HASHTABLE(ht2);
-            zend_hash_init(ht2, ib_query->out_fields_count, NULL, ZVAL_PTR_DTOR, 0);
-
-            for (size_t i = 0; i < ib_query->out_fields_count; i++) {
-                XSQLVAR *var = &ib_query->out_sqlda->sqlvar[i];
-                const char *base_alias = (var->aliasname && var->aliasname[0])
-                    ? var->aliasname
-                    : (var->sqlname ? var->sqlname : "");
-
-                /* Prefer full alias inference (e.g., OLD.I / NEW.I) when present */
-                char full[METADATALENGTH + 6 + 1] = {0};
-                if (_php_fbird_infer_returning_full_alias(ib_query->query, i, full, sizeof(full))) {
-                    _php_fbird_insert_alias(ht2, full);
-                } else {
-                    char pref[5] = {0};
-                    if (_php_fbird_infer_returning_prefix(ib_query->query, i, pref, sizeof(pref)) && pref[0] != '\0') {
-                        char buf[METADATALENGTH + 5 + 1];
-                        snprintf(buf, sizeof(buf), "%s%s", pref, base_alias);
-                        _php_fbird_insert_alias(ht2, buf);
-                    } else {
-                        _php_fbird_insert_alias(ht2, base_alias);
-                    }
-                }
-            }
-
-            /* Replace the original alias table */
-            zend_array_destroy(ib_query->ht_aliases);
-            ib_query->ht_aliases = ht2;
-        }
-    } else {
-#endif
-        // Old API
+	/* OO API migration: Use XSQLDA-based alias extraction.
+	 * The out_sqlda is now populated from OO API metadata during prepare,
+	 * so the XSQLDA data path provides complete alias information.
+	 *
+	 * The legacy fbu_insert_aliases() path using get_statement_interface is disabled
+	 * because it requires ib_query->stmt.stmt (legacy isc_stmt_handle) which is no longer
+	 * available in OO API mode.
+	 */
+	{
+		// XSQLDA-based alias extraction
         for(size_t i = 0; i < ib_query->out_fields_count; i++){
             XSQLVAR *var = &ib_query->out_sqlda->sqlvar[i];
 
@@ -449,9 +398,7 @@ int _php_fbird_alloc_ht_aliases(fbird_query *ib_query)
 
             _php_fbird_insert_alias(ib_query->ht_aliases, base_alias);
         }
-#if FB_API_VER >= 40
-    }
-#endif
+	}
 
 	return SUCCESS;
 }

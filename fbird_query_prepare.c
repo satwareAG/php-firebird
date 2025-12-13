@@ -115,7 +115,10 @@ void _php_fbird_free_xsqlda(XSQLDA *sqlda) /* {{{ */
 		IBDEBUG("Freeing XSQLDA...");
 		var = sqlda->sqlvar;
 		for (i = 0; i < sqlda->sqld; i++, var++) {
-			efree(var->sqldata);
+			/* Only free if sqldata was allocated (may be NULL for OO API metadata-only XSQLDA) */
+			if (var->sqldata) {
+				efree(var->sqldata);
+			}
 		}
 		efree(sqlda);
 	}
@@ -316,6 +319,67 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
 			memset(ib_query->out_msg_buffer, 0, ib_query->out_msg_length);
 		}
 		IBDEBUG("OO API output message buffer allocated\n");
+
+		/* Allocate out_sqlda from OO API metadata for compatibility with fbird_field_info().
+		 * The field inspection logic uses XSQLDA structures, so we populate from OO API metadata. */
+		ib_query->out_sqlda = (XSQLDA *) emalloc(XSQLDA_LENGTH(ib_query->out_fields_count));
+		ib_query->out_sqlda->version = SQLDA_VERSION1;
+		ib_query->out_sqlda->sqln = ib_query->out_fields_count;
+		ib_query->out_sqlda->sqld = ib_query->out_fields_count;
+
+		/* Populate each XSQLVAR from OO API output metadata */
+		for (int i = 0; i < ib_query->out_fields_count; i++) {
+			XSQLVAR *var = &ib_query->out_sqlda->sqlvar[i];
+			const char *str_val;
+
+			/* Get type and length from metadata */
+			var->sqltype = fbm_get_type(IBG(master_instance), ib_query->out_metadata, i);
+			var->sqllen = fbm_get_length(IBG(master_instance), ib_query->out_metadata, i);
+			var->sqlscale = fbm_get_scale(IBG(master_instance), ib_query->out_metadata, i);
+			var->sqlsubtype = fbm_get_subtype(IBG(master_instance), ib_query->out_metadata, i);
+
+			/* Get field name */
+			str_val = fbm_get_field(IBG(master_instance), ib_query->out_metadata, i);
+			if (str_val && *str_val) {
+				strncpy(var->sqlname, str_val, sizeof(var->sqlname) - 1);
+				var->sqlname[sizeof(var->sqlname) - 1] = '\0';
+				var->sqlname_length = (short)strlen(var->sqlname);
+			} else {
+				var->sqlname[0] = '\0';
+				var->sqlname_length = 0;
+			}
+
+			/* Get relation (table) name */
+			str_val = fbm_get_relation(IBG(master_instance), ib_query->out_metadata, i);
+			if (str_val && *str_val) {
+				strncpy(var->relname, str_val, sizeof(var->relname) - 1);
+				var->relname[sizeof(var->relname) - 1] = '\0';
+				var->relname_length = (short)strlen(var->relname);
+			} else {
+				var->relname[0] = '\0';
+				var->relname_length = 0;
+			}
+
+			/* Owner name not available in OO API metadata - leave empty */
+			var->ownname[0] = '\0';
+			var->ownname_length = 0;
+
+			/* Get alias name */
+			str_val = fbm_get_alias(IBG(master_instance), ib_query->out_metadata, i);
+			if (str_val && *str_val) {
+				strncpy(var->aliasname, str_val, sizeof(var->aliasname) - 1);
+				var->aliasname[sizeof(var->aliasname) - 1] = '\0';
+				var->aliasname_length = (short)strlen(var->aliasname);
+			} else {
+				var->aliasname[0] = '\0';
+				var->aliasname_length = 0;
+			}
+
+			/* Initialize data pointers to NULL (will be set during fetch) */
+			var->sqldata = NULL;
+			var->sqlind = NULL;
+		}
+		IBDEBUG("OO API out_sqlda populated from metadata\n");
 	}
 
 	if (ib_query->in_fields_count > 0) {

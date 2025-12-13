@@ -742,7 +742,7 @@ static void _php_fbird_free_trans(zend_resource *rsrc) /* {{{ */
 
 	IBDEBUG("Cleaning up transaction resource...");
 
-	/* Phase 4: Use OO API rollback when transaction was created via OO API */
+	/* OO API Only: All transactions use fbt_rollback() */
 	if (trans->fbt_transaction != NULL) {
 		IBDEBUG("Rolling back unhandled OO API transaction...");
 		if (fbt_rollback(trans->fbt_transaction, IB_STATUS)) {
@@ -750,11 +750,6 @@ static void _php_fbird_free_trans(zend_resource *rsrc) /* {{{ */
 		}
 		trans->fbt_transaction = NULL;
 		trans->handle.ptr = 0;
-	} else if (trans->handle.ptr != 0) {
-		IBDEBUG("Rolling back unhandled transaction...");
-		if (isc_rollback_transaction(IB_STATUS, &trans->handle.tr)) {
-			_php_fbird_error();
-		}
 	}
 
 	/* now remove this transaction from all the connection-transaction lists */
@@ -1427,7 +1422,7 @@ PHP_FUNCTION(fbird_drop_db)
 		RETURN_FALSE;
 	}
 
-	/* Use OO API when connection was created via OO API */
+	/* OO API Only: All connections use fbc_drop_database() */
 	if (ib_link->fbc_connection != NULL) {
 		IBDEBUG("Dropping database via OO API...");
 		drop_result = fbc_drop_database(ib_link->fbc_connection, IB_STATUS);
@@ -1438,12 +1433,6 @@ PHP_FUNCTION(fbird_drop_db)
 		/* fbc_drop_database() already frees the connection wrapper */
 		ib_link->fbc_connection = NULL;
 		ib_link->handle.ptr = 0;
-	} else {
-		/* Legacy path */
-		if (isc_drop_database(IB_STATUS, &ib_link->handle.db)) {
-			_php_fbird_error();
-			RETURN_FALSE;
-		}
 	}
 
 	/* drop_database() doesn't invalidate the transaction handles */
@@ -1709,49 +1698,37 @@ PHP_FUNCTION(fbird_trans_start)
 		_php_fbird_populate_trans(trans_argl, trans_timeout, last_tpb, &tpb_len);
 	}
 
-	/* Phase 12: Use OO API when connection was created via OO API */
-	if (ib_link->fbc_connection != NULL) {
-		void* attachment = fbc_get_attachment(ib_link->fbc_connection);
-		if (attachment == NULL) {
-			_php_fbird_module_error("Failed to get attachment from OO API connection");
-			RETURN_FALSE;
-		}
-
-		ib_trans = (fbird_transaction *) safe_emalloc(1-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
-		ib_trans->fbt_transaction = fbt_start(
-			IBG(master_instance),
-			attachment,
-			tpb_len,
-			tpb_len > 0 ? (const unsigned char*)last_tpb : NULL,
-			IB_STATUS
-		);
-
-		if (ib_trans->fbt_transaction == NULL) {
-			efree(ib_trans);
-			_php_fbird_error();
-			RETURN_FALSE;
-		}
-
-		ib_trans->handle.ptr = fbt_get_handle(ib_trans->fbt_transaction);
-		ib_trans->link_cnt = 1;
-		ib_trans->affected_rows = 0;
-		ib_trans->db_link[0] = ib_link;
-	} else {
-		/* Legacy path */
-		result = isc_start_transaction(IB_STATUS, (isc_tr_handle*)&tr_handle, 1, &ib_link->handle.db, tpb_len, last_tpb);
-
-		if (result) {
-			_php_fbird_error();
-			RETURN_FALSE;
-		}
-
-		ib_trans = (fbird_transaction *) safe_emalloc(1-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
-		ib_trans->handle.ptr = tr_handle;
-		ib_trans->link_cnt = 1;
-		ib_trans->affected_rows = 0;
-		ib_trans->fbt_transaction = NULL;
-		ib_trans->db_link[0] = ib_link;
+	/* OO API Only: All connections use fbt_start() */
+	if (ib_link->fbc_connection == NULL) {
+		_php_fbird_module_error("Connection has no OO API handle");
+		RETURN_FALSE;
 	}
+
+	void* attachment = fbc_get_attachment(ib_link->fbc_connection);
+	if (attachment == NULL) {
+		_php_fbird_module_error("Failed to get attachment from OO API connection");
+		RETURN_FALSE;
+	}
+
+	ib_trans = (fbird_transaction *) safe_emalloc(1-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
+	ib_trans->fbt_transaction = fbt_start(
+		IBG(master_instance),
+		attachment,
+		tpb_len,
+		tpb_len > 0 ? (const unsigned char*)last_tpb : NULL,
+		IB_STATUS
+	);
+
+	if (ib_trans->fbt_transaction == NULL) {
+		efree(ib_trans);
+		_php_fbird_error();
+		RETURN_FALSE;
+	}
+
+	ib_trans->handle.ptr = fbt_get_handle(ib_trans->fbt_transaction);
+	ib_trans->link_cnt = 1;
+	ib_trans->affected_rows = 0;
+	ib_trans->db_link[0] = ib_link;
 
 	/* the first item in the connection-transaction list is reserved for the default transaction */
 	if (ib_link->tr_list == NULL) {
@@ -1805,69 +1782,61 @@ static void _php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAMETERS, const char *
 
 	len = spprintf(&query, 0, format, name);
 
-	/* OO API path: Use fbs_prepare() + fbs_execute() for OO API transactions.
-	 * This avoids calling isc_dsql_execute_immediate() with invalid legacy handles. */
-	if (trans->fbt_transaction) {
-		fbird_db_link *link = trans->db_link[0];
-		void *attachment = NULL;
-		void *transaction_ptr = NULL;
-		void *stmt = NULL;
-
-		IBDEBUG("OO API: Executing savepoint statement via fbs_prepare/execute");
-
-		/* Get attachment from connection */
-		if (!link->fbc_connection) {
-			_php_fbird_module_error("OO API transaction without OO API connection");
-			efree(query);
-			RETURN_FALSE;
-		}
-		attachment = fbc_get_attachment(link->fbc_connection);
-		if (!attachment) {
-			_php_fbird_module_error("Failed to get attachment from connection");
-			efree(query);
-			RETURN_FALSE;
-		}
-
-		/* Get transaction handle */
-		transaction_ptr = fbt_get_handle(trans->fbt_transaction);
-		if (!transaction_ptr) {
-			_php_fbird_module_error("Failed to get transaction handle");
-			efree(query);
-			RETURN_FALSE;
-		}
-
-		/* Prepare the savepoint statement */
-		stmt = fbs_prepare(IBG(master_instance), attachment, transaction_ptr,
-			query, (unsigned)len, SQL_DIALECT_CURRENT, IB_STATUS);
-		if (!stmt) {
-			_php_fbird_error();
-			efree(query);
-			RETURN_FALSE;
-		}
-
-		/* Execute the savepoint statement (no input/output parameters) */
-		if (!fbs_execute(IBG(master_instance), stmt, transaction_ptr,
-				NULL, NULL, NULL, NULL, IB_STATUS)) {
-			_php_fbird_error();
-			fbs_free(stmt, IB_STATUS);
-			efree(query);
-			RETURN_FALSE;
-		}
-
-		/* Free the statement */
-		fbs_free(stmt, IB_STATUS);
+	/* OO API Only: All transactions use fbs_prepare() + fbs_execute() */
+	if (trans->fbt_transaction == NULL) {
+		_php_fbird_module_error("Transaction has no OO API handle");
 		efree(query);
-		RETURN_TRUE;
+		RETURN_FALSE;
 	}
 
-	/* Legacy API path: Use isc_dsql_execute_immediate() */
-	if (isc_dsql_execute_immediate(IB_STATUS, &trans->db_link[0]->handle.db, &trans->handle.tr, 0, query,
-			SQL_DIALECT_CURRENT, NULL)) {
+	fbird_db_link *link = trans->db_link[0];
+	void *attachment = NULL;
+	void *transaction_ptr = NULL;
+	void *stmt = NULL;
+
+	IBDEBUG("OO API: Executing savepoint statement via fbs_prepare/execute");
+
+	/* Get attachment from connection */
+	if (!link->fbc_connection) {
+		_php_fbird_module_error("OO API transaction without OO API connection");
+		efree(query);
+		RETURN_FALSE;
+	}
+	attachment = fbc_get_attachment(link->fbc_connection);
+	if (!attachment) {
+		_php_fbird_module_error("Failed to get attachment from connection");
+		efree(query);
+		RETURN_FALSE;
+	}
+
+	/* Get transaction handle */
+	transaction_ptr = fbt_get_handle(trans->fbt_transaction);
+	if (!transaction_ptr) {
+		_php_fbird_module_error("Failed to get transaction handle");
+		efree(query);
+		RETURN_FALSE;
+	}
+
+	/* Prepare the savepoint statement */
+	stmt = fbs_prepare(IBG(master_instance), attachment, transaction_ptr,
+		query, (unsigned)len, SQL_DIALECT_CURRENT, IB_STATUS);
+	if (!stmt) {
 		_php_fbird_error();
 		efree(query);
 		RETURN_FALSE;
 	}
 
+	/* Execute the savepoint statement (no input/output parameters) */
+	if (!fbs_execute(IBG(master_instance), stmt, transaction_ptr,
+			NULL, NULL, NULL, NULL, IB_STATUS)) {
+		_php_fbird_error();
+		fbs_free(stmt, IB_STATUS);
+		efree(query);
+		RETURN_FALSE;
+	}
+
+	/* Free the statement */
+	fbs_free(stmt, IB_STATUS);
 	efree(query);
 	RETURN_TRUE;
 }
@@ -2240,43 +2209,33 @@ int _php_fbird_def_trans(fbird_db_link *ib_link, fbird_transaction **trans) /* {
 				_php_fbird_populate_trans(trans_argl, trans_timeout, last_tpb, &tpb_len);
 			}
 
-			/* Phase 4: Use OO API transaction when connection was created via OO API */
-			if (ib_link->fbc_connection != NULL) {
-				void* attachment = fbc_get_attachment(ib_link->fbc_connection);
-				if (attachment == NULL) {
-					_php_fbird_module_error("Failed to get attachment from OO API connection");
-					return FAILURE;
-				}
-
-				tr->fbt_transaction = fbt_start(
-					IBG(master_instance),
-					attachment,
-					tpb_len,
-					tpb_len > 0 ? (const unsigned char*)last_tpb : NULL,
-					IB_STATUS
-				);
-
-				if (tr->fbt_transaction == NULL) {
-					_php_fbird_error();
-					return FAILURE;
-				}
-
-				/* Store a compatible handle for legacy code paths that may inspect it */
-				tr->handle.ptr = fbt_get_handle(tr->fbt_transaction);
-			} else {
-				/* Legacy path: use isc_start_transaction */
-				ISC_STATUS result;
-				if (trans_argl == PHP_IBASE_DEFAULT) {
-					result = isc_start_transaction(IB_STATUS, &tr->handle.tr, 1, &ib_link->handle.db, 0, NULL);
-				} else {
-					result = isc_start_transaction(IB_STATUS, &tr->handle.tr, 1, &ib_link->handle.db, tpb_len, last_tpb);
-				}
-
-				if (result) {
-					_php_fbird_error();
-					return FAILURE;
-				}
+			/* OO API Only: All connections use fbt_start() */
+			if (ib_link->fbc_connection == NULL) {
+				_php_fbird_module_error("Connection has no OO API handle");
+				return FAILURE;
 			}
+
+			void* attachment = fbc_get_attachment(ib_link->fbc_connection);
+			if (attachment == NULL) {
+				_php_fbird_module_error("Failed to get attachment from OO API connection");
+				return FAILURE;
+			}
+
+			tr->fbt_transaction = fbt_start(
+				IBG(master_instance),
+				attachment,
+				tpb_len,
+				tpb_len > 0 ? (const unsigned char*)last_tpb : NULL,
+				IB_STATUS
+			);
+
+			if (tr->fbt_transaction == NULL) {
+				_php_fbird_error();
+				return FAILURE;
+			}
+
+			/* Store a compatible handle for legacy code paths that may inspect it */
+			tr->handle.ptr = fbt_get_handle(tr->fbt_transaction);
 		}
 		*trans = tr;
 	}
@@ -2323,54 +2282,36 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit) /* {{
 		}
 	}
 
-	/* Phase 4: Use OO API transaction end when transaction was created via OO API */
-	if (trans->fbt_transaction != NULL) {
-		switch (commit) {
-			default: /* == case ROLLBACK: */
-				result = fbt_rollback(trans->fbt_transaction, IB_STATUS);
-				break;
-			case COMMIT:
-				result = fbt_commit(trans->fbt_transaction, IB_STATUS);
-				break;
-			case (ROLLBACK | RETAIN):
-				result = fbt_rollback_retaining(trans->fbt_transaction, IB_STATUS);
-				break;
-			case (COMMIT | RETAIN):
-				result = fbt_commit_retaining(trans->fbt_transaction, IB_STATUS);
-				break;
-		}
+	/* OO API Only: All transactions use fbt_* functions */
+	if (trans->fbt_transaction == NULL) {
+		_php_fbird_module_error("Transaction has no OO API handle");
+		RETURN_FALSE;
+	}
 
-		if (result) {
-			_php_fbird_error();
-			RETURN_FALSE;
-		}
+	switch (commit) {
+		default: /* == case ROLLBACK: */
+			result = fbt_rollback(trans->fbt_transaction, IB_STATUS);
+			break;
+		case COMMIT:
+			result = fbt_commit(trans->fbt_transaction, IB_STATUS);
+			break;
+		case (ROLLBACK | RETAIN):
+			result = fbt_rollback_retaining(trans->fbt_transaction, IB_STATUS);
+			break;
+		case (COMMIT | RETAIN):
+			result = fbt_commit_retaining(trans->fbt_transaction, IB_STATUS);
+			break;
+	}
 
-		/* Clear handle for non-retained operations */
-		if ((commit & RETAIN) == 0) {
-			trans->fbt_transaction = NULL;
-			trans->handle.ptr = 0;
-		}
-	} else {
-		/* Legacy path: use isc_* functions */
-		switch (commit) {
-			default: /* == case ROLLBACK: */
-				result = isc_rollback_transaction(IB_STATUS, &trans->handle.tr);
-				break;
-			case COMMIT:
-				result = isc_commit_transaction(IB_STATUS, &trans->handle.tr);
-				break;
-			case (ROLLBACK | RETAIN):
-				result = isc_rollback_retaining(IB_STATUS, &trans->handle.tr);
-				break;
-			case (COMMIT | RETAIN):
-				result = isc_commit_retaining(IB_STATUS, &trans->handle.tr);
-				break;
-		}
+	if (result) {
+		_php_fbird_error();
+		RETURN_FALSE;
+	}
 
-		if (result) {
-			_php_fbird_error();
-			RETURN_FALSE;
-		}
+	/* Clear handle for non-retained operations */
+	if ((commit & RETAIN) == 0) {
+		trans->fbt_transaction = NULL;
+		trans->handle.ptr = 0;
 	}
 
 	/* Don't try to destroy implicitly opened transaction from list... */

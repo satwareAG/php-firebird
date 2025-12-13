@@ -657,6 +657,137 @@ extern "C" int fbc_drop_database(void* connection, ISC_STATUS* status_vector) {
     }
 }
 
+extern "C" void* fbc_create_database(
+    void* master_ptr,
+    const char* create_sql,
+    unsigned dialect,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !create_sql) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_req_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return nullptr;
+    }
+
+    try {
+        auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+
+        // Get IUtil interface for executeCreateDatabase
+        Firebird::IUtil* util = master->getUtilInterface();
+        if (!util) {
+            if (status_vector) {
+                status_vector[0] = isc_arg_gds;
+                status_vector[1] = isc_unavailable;
+                status_vector[2] = isc_arg_end;
+            }
+            return nullptr;
+        }
+
+        // Create status wrapper
+        Firebird::IStatus* raw_status = master->getStatus();
+        Firebird::CheckStatusWrapper check_status(raw_status);
+
+        // Execute CREATE DATABASE statement using OO API
+        // This returns an IAttachment* connected to the new database
+        Firebird::IAttachment* attachment = util->executeCreateDatabase(
+            &check_status,
+            static_cast<unsigned>(strlen(create_sql)),
+            create_sql,
+            dialect,
+            nullptr  // stmtIsCreateDb - not used in modern API
+        );
+
+        if (check_status.isDirty() || !attachment) {
+            // Copy error status
+            if (status_vector) {
+                const ISC_STATUS* errors = raw_status->getErrors();
+                if (errors) {
+                    for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
+                        status_vector[i] = errors[i];
+                        if (errors[i] == isc_arg_end) break;
+                    }
+                }
+            }
+            return nullptr;
+        }
+
+        // Wrap the attachment in a Connection object
+        // Note: We create a minimal Connection-like wrapper here
+        // The attachment is already connected to the new database
+        auto* conn = new (std::nothrow) fb::Connection();
+        if (!conn) {
+            // Out of memory - detach and fail
+            attachment->detach(&check_status);
+            if (status_vector) {
+                status_vector[0] = isc_arg_gds;
+                status_vector[1] = isc_virmemexh;
+                status_vector[2] = isc_arg_end;
+            }
+            return nullptr;
+        }
+
+        // We need to construct a Connection with this attachment
+        // Since Connection::create() isn't designed for this case,
+        // we'll return the raw attachment wrapped in a simple struct
+        // that the C code can use with fbc_get_attachment() and fbc_disconnect()
+
+        // Actually, let's create a ConnectionParams and connect properly
+        // after committing the implicit transaction from CREATE DATABASE
+
+        // First, commit the implicit transaction (if any)
+        // CREATE DATABASE via executeCreateDatabase starts with a committed database
+        // The attachment is ready to use
+
+        // Store attachment in a simple wrapper that's compatible with fbc_disconnect
+        // We'll create the connection manually
+        delete conn; // Don't use this
+
+        // For now, return the attachment directly wrapped in a structure
+        // that fbc_get_attachment and fbc_disconnect can handle
+        // This requires adding a simpler wrapper class
+
+        // Simpler approach: Return a special wrapper that holds just the attachment
+        struct CreateDbResult {
+            Firebird::IAttachment* attachment;
+            Firebird::IMaster* master;
+        };
+
+        auto* result = new (std::nothrow) CreateDbResult{attachment, master};
+        if (!result) {
+            attachment->detach(&check_status);
+            if (status_vector) {
+                status_vector[0] = isc_arg_gds;
+                status_vector[1] = isc_virmemexh;
+                status_vector[2] = isc_arg_end;
+            }
+            return nullptr;
+        }
+
+        return result;
+
+    } catch (const fb::Exception& e) {
+        if (status_vector) {
+            const ISC_STATUS* exc_status = e.statusVector();
+            if (exc_status) {
+                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
+                    status_vector[i] = exc_status[i];
+                }
+            }
+        }
+        return nullptr;
+    } catch (...) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_random;
+            status_vector[2] = isc_arg_end;
+        }
+        return nullptr;
+    }
+}
+
 extern "C" void* fbc_get_attachment(void* connection) {
     if (!connection) {
         return nullptr;

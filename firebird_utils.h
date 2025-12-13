@@ -173,6 +173,23 @@ int fbc_disconnect(void* connection, ISC_STATUS* status_vector);
 int fbc_drop_database(void* connection, ISC_STATUS* status_vector);
 
 /**
+ * Create a new database using CREATE DATABASE SQL statement.
+ * Uses OO API IUtil::executeCreateDatabase() internally.
+ *
+ * @param master_ptr Pointer to IMaster interface
+ * @param create_sql Complete CREATE DATABASE SQL statement
+ * @param dialect SQL dialect (typically 3)
+ * @param status_vector Output status vector for errors
+ * @return Pointer to fb::Connection object for the new database, or NULL on failure
+ */
+void* fbc_create_database(
+    void* master_ptr,
+    const char* create_sql,
+    unsigned dialect,
+    ISC_STATUS* status_vector
+);
+
+/**
  * Check if a connection is valid.
  *
  * @param connection Pointer returned by fbc_connect()

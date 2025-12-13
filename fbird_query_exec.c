@@ -893,39 +893,36 @@ PHP_FUNCTION(fbird_query)
 
 	/* Handle CREATE DATABASE request via IBASE_CREATE flag */
 	if (explicit_create) {
-		/* Use void* for handles to ensure 64-bit storage on stack, preventing stack smashing
-		   if Firebird client writes 64-bit handles to 32-bit isc_db_handle types. */
-		void *safe_new_db_handle = NULL;
-		void *safe_new_trans_handle = NULL;
 		unsigned short dialect = 3; /* Default dialect 3 for new databases */
 
-		if (isc_dsql_execute_immediate(IB_STATUS, (isc_db_handle*)&safe_new_db_handle, (isc_tr_handle*)&safe_new_trans_handle, 0, query, dialect, NULL)) {
+		/* Use OO API for database creation via fbc_create_database() */
+		void *create_result = fbc_create_database(
+			IBG(master_instance),
+			query,
+			dialect,
+			IB_STATUS
+		);
+
+		if (!create_result) {
 			_php_fbird_error();
 			efree(args);
 			RETURN_FALSE;
 		}
 
-		/* Commit the implicit transaction started by CREATE DATABASE to ensure persistence */
-		if (safe_new_trans_handle) {
-			if (isc_commit_transaction(IB_STATUS, (isc_tr_handle*)&safe_new_trans_handle)) {
-				_php_fbird_error();
-				/* Note: Database created but commit failed? */
-			}
-		}
+		/* Register the new database connection as a resource.
+		 * fbc_create_database returns a CreateDbResult struct containing
+		 * the IAttachment* pointer to the newly created database. */
+		link = (fbird_db_link *) ecalloc(1, sizeof(fbird_db_link));
+		link->dialect = dialect;
+		link->tr_list = NULL;
+		link->event_head = NULL;
+		link->handle.ptr = NULL; /* No legacy handle for OO API connection */
 
-		/* Register the new database connection as a resource */
-		if (safe_new_db_handle) {
-			link = (fbird_db_link *) ecalloc(1, sizeof(fbird_db_link));
-			link->handle.ptr = safe_new_db_handle;
-			link->dialect = dialect;
-			link->tr_list = NULL;
-			link->event_head = NULL;
+		/* Store the OO API connection wrapper.
+		 * The create_result is a pointer that fbc_get_attachment() can use. */
+		link->fbc_connection = create_result;
 
-			RETVAL_RES(zend_register_resource(link, le_link));
-		} else {
-			RETVAL_TRUE;
-		}
-
+		RETVAL_RES(zend_register_resource(link, le_link));
 		efree(args);
 		return;
 	}

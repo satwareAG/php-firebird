@@ -704,15 +704,12 @@ static void _php_fbird_close_link(zend_resource *rsrc) /* {{{ */
 
 	_php_fbird_commit_link(link);
 
-	/* Use OO API disconnect if connection was created via OO API */
+	/* OO API Only: All connections use fbc_disconnect() */
 	if (link->fbc_connection != NULL) {
 		IBDEBUG("Closing normal link via OO API...");
 		fbc_disconnect(link->fbc_connection, IB_STATUS);
 		link->fbc_connection = NULL;
 		link->handle.ptr = 0;
-	} else if (link->handle.ptr != 0) {
-		IBDEBUG("Closing normal link...");
-		isc_detach_database(IB_STATUS, &link->handle.db);
 	}
 	IBG(num_links)--;
 	efree(link);
@@ -725,15 +722,12 @@ static void _php_fbird_close_plink(zend_resource *rsrc) /* {{{ */
 
 	_php_fbird_commit_link(link);
 
-	/* Phase 3: Use OO API disconnect if connection was created via OO API */
+	/* OO API Only: All connections use fbc_disconnect() */
 	if (link->fbc_connection != NULL) {
 		IBDEBUG("Closing permanent link via OO API...");
 		fbc_disconnect(link->fbc_connection, IB_STATUS);
 		link->fbc_connection = NULL;
 		link->handle.ptr = 0;
-	} else if (link->handle.ptr != 0) {
-		IBDEBUG("Closing permanent link...");
-		isc_detach_database(IB_STATUS, &link->handle.db);
 	}
 	IBG(num_persistent)--;
 	IBG(num_links)--;
@@ -1811,6 +1805,62 @@ static void _php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAMETERS, const char *
 
 	len = spprintf(&query, 0, format, name);
 
+	/* OO API path: Use fbs_prepare() + fbs_execute() for OO API transactions.
+	 * This avoids calling isc_dsql_execute_immediate() with invalid legacy handles. */
+	if (trans->fbt_transaction) {
+		fbird_db_link *link = trans->db_link[0];
+		void *attachment = NULL;
+		void *transaction_ptr = NULL;
+		void *stmt = NULL;
+
+		IBDEBUG("OO API: Executing savepoint statement via fbs_prepare/execute");
+
+		/* Get attachment from connection */
+		if (!link->fbc_connection) {
+			_php_fbird_module_error("OO API transaction without OO API connection");
+			efree(query);
+			RETURN_FALSE;
+		}
+		attachment = fbc_get_attachment(link->fbc_connection);
+		if (!attachment) {
+			_php_fbird_module_error("Failed to get attachment from connection");
+			efree(query);
+			RETURN_FALSE;
+		}
+
+		/* Get transaction handle */
+		transaction_ptr = fbt_get_handle(trans->fbt_transaction);
+		if (!transaction_ptr) {
+			_php_fbird_module_error("Failed to get transaction handle");
+			efree(query);
+			RETURN_FALSE;
+		}
+
+		/* Prepare the savepoint statement */
+		stmt = fbs_prepare(IBG(master_instance), attachment, transaction_ptr,
+			query, (unsigned)len, SQL_DIALECT_CURRENT, IB_STATUS);
+		if (!stmt) {
+			_php_fbird_error();
+			efree(query);
+			RETURN_FALSE;
+		}
+
+		/* Execute the savepoint statement (no input/output parameters) */
+		if (!fbs_execute(IBG(master_instance), stmt, transaction_ptr,
+				NULL, NULL, NULL, NULL, IB_STATUS)) {
+			_php_fbird_error();
+			fbs_free(stmt, IB_STATUS);
+			efree(query);
+			RETURN_FALSE;
+		}
+
+		/* Free the statement */
+		fbs_free(stmt, IB_STATUS);
+		efree(query);
+		RETURN_TRUE;
+	}
+
+	/* Legacy API path: Use isc_dsql_execute_immediate() */
 	if (isc_dsql_execute_immediate(IB_STATUS, &trans->db_link[0]->handle.db, &trans->handle.tr, 0, query,
 			SQL_DIALECT_CURRENT, NULL)) {
 		_php_fbird_error();

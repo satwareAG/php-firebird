@@ -184,7 +184,9 @@ typedef struct {
 #endif
 		short sval;
 		float fval;
+		double dval;        /* Added for SQL_DOUBLE binding */
 		ISC_LONG lval;
+		ISC_INT64 i64val;   /* Added for SQL_INT64 binding */
 		ISC_QUAD qval;
 		ISC_TIMESTAMP tsval;
 		ISC_DATE dtval;

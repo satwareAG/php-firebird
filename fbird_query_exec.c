@@ -259,6 +259,26 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 			IBDEBUG("Could not bind input XSQLDA");
 			goto _php_fbird_ex_error;
 		}
+
+		/* Verify OO API message buffer infrastructure is available.
+		 * If in_metadata or in_msg_buffer is not set, OO API execution
+		 * with parameters is not possible - report clear error. */
+		if (!ib_query->in_metadata) {
+			_php_fbird_module_error("OO API input metadata not available for parameterized query");
+			goto _php_fbird_ex_error;
+		}
+		if (!ib_query->in_msg_buffer) {
+			_php_fbird_module_error("OO API input message buffer not allocated for parameterized query");
+			goto _php_fbird_ex_error;
+		}
+
+		/* Transfer bound XSQLDA values to OO API message buffer.
+		 * This is required because the OO API uses flat message buffers
+		 * with offsets from IMessageMetadata, not XSQLDA structures. */
+		if (_php_fbird_xsqlda_to_msg_buffer(ib_query) == FAILURE) {
+			IBDEBUG("Could not transfer XSQLDA to message buffer");
+			goto _php_fbird_ex_error;
+		}
 	}
 
     /* Execute the statement. For SELECT, this opens the cursor on ib_query->stmt. */

@@ -30,6 +30,7 @@
  * @return SUCCESS on success, FAILURE on error.
  */
 int _php_fbird_bind(fbird_query *ib_query, zval *b_vars);
+int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query);
 
 /**
  * Safely copy data from source SQLVAR to destination SQLVAR with bounds checking.

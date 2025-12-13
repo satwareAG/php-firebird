@@ -282,6 +282,174 @@ int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 }
 /* }}} */
 
+/**
+ * Transfer bound XSQLDA values to OO API message buffer.
+ *
+ * After _php_fbird_bind() populates the XSQLDA structure with PHP values,
+ * this function copies those values to the flat message buffer format
+ * required by the OO API (fbs_execute, fbs_open_cursor).
+ *
+ * The OO API uses IMessageMetadata to describe buffer layout:
+ * - fbm_get_offset() returns data position for each parameter
+ * - fbm_get_null_offset() returns null indicator position
+ * - fbm_get_length() returns data length for each parameter
+ *
+ * @param ib_query Query structure with populated in_sqlda and allocated in_msg_buffer
+ * @return SUCCESS or FAILURE
+ */
+int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query) /* {{{ */
+{
+	/* Validate prerequisites */
+	if (!ib_query->in_msg_buffer || !ib_query->in_metadata || !ib_query->in_sqlda) {
+		return SUCCESS; /* Nothing to transfer - no input parameters */
+	}
+
+	if (ib_query->in_fields_count == 0) {
+		return SUCCESS; /* No parameters */
+	}
+
+	void *master = IBG(master_instance);
+	if (!master) {
+		_php_fbird_module_error("OO API master instance not available");
+		return FAILURE;
+	}
+
+	/* Transfer each parameter from XSQLDA to message buffer */
+	for (int i = 0; i < ib_query->in_fields_count; i++) {
+		XSQLVAR *var = &ib_query->in_sqlda->sqlvar[i];
+
+		/* Get offsets from metadata */
+		unsigned data_offset = fbm_get_offset(master, ib_query->in_metadata, i);
+		unsigned null_offset = fbm_get_null_offset(master, ib_query->in_metadata, i);
+		unsigned meta_length = fbm_get_length(master, ib_query->in_metadata, i);
+
+		/* Set null indicator in message buffer */
+		short *null_ptr = (short *)(ib_query->in_msg_buffer + null_offset);
+		if (var->sqlind && *var->sqlind == -1) {
+			*null_ptr = -1; /* NULL value */
+			continue; /* Skip data transfer for NULL values */
+		}
+		*null_ptr = 0; /* Not NULL */
+
+		/* Get destination pointer in message buffer */
+		unsigned char *dest = ib_query->in_msg_buffer + data_offset;
+
+		/* Transfer data based on SQL type */
+		if (!var->sqldata) {
+			/* No data - shouldn't happen for non-NULL values */
+			_php_fbird_module_error("Parameter %d: sqldata is NULL for non-NULL value", i + 1);
+			return FAILURE;
+		}
+
+		/* Copy data from XSQLDA to message buffer */
+		switch (var->sqltype & ~1) {
+			case SQL_TEXT:
+				/* Fixed-length character field */
+				if ((unsigned)var->sqllen <= meta_length) {
+					memcpy(dest, var->sqldata, var->sqllen);
+					/* Pad with spaces if needed (TEXT fields are space-padded) */
+					if ((unsigned)var->sqllen < meta_length) {
+						memset(dest + var->sqllen, ' ', meta_length - var->sqllen);
+					}
+				} else {
+					/* Truncate if source is longer */
+					memcpy(dest, var->sqldata, meta_length);
+				}
+				break;
+
+			case SQL_VARYING:
+				/* Variable-length character field: 2-byte length prefix + data */
+				{
+					short str_len = *(short *)var->sqldata;
+					/* Ensure we don't exceed buffer */
+					if ((unsigned)(str_len + sizeof(short)) <= meta_length + sizeof(short)) {
+						/* Copy length prefix + string data */
+						memcpy(dest, var->sqldata, str_len + sizeof(short));
+					} else {
+						/* Truncate */
+						*(short *)dest = (short)(meta_length);
+						memcpy(dest + sizeof(short), var->sqldata + sizeof(short), meta_length);
+					}
+				}
+				break;
+
+			case SQL_SHORT:
+				*(short *)dest = *(short *)var->sqldata;
+				break;
+
+			case SQL_LONG:
+				*(ISC_LONG *)dest = *(ISC_LONG *)var->sqldata;
+				break;
+
+			case SQL_INT64:
+				*(ISC_INT64 *)dest = *(ISC_INT64 *)var->sqldata;
+				break;
+
+			case SQL_FLOAT:
+				*(float *)dest = *(float *)var->sqldata;
+				break;
+
+			case SQL_DOUBLE:
+				*(double *)dest = *(double *)var->sqldata;
+				break;
+
+			case SQL_TIMESTAMP:
+				*(ISC_TIMESTAMP *)dest = *(ISC_TIMESTAMP *)var->sqldata;
+				break;
+
+			case SQL_TYPE_DATE:
+				*(ISC_DATE *)dest = *(ISC_DATE *)var->sqldata;
+				break;
+
+			case SQL_TYPE_TIME:
+				*(ISC_TIME *)dest = *(ISC_TIME *)var->sqldata;
+				break;
+
+			case SQL_BLOB:
+			case SQL_ARRAY:
+				*(ISC_QUAD *)dest = *(ISC_QUAD *)var->sqldata;
+				break;
+
+#ifdef SQL_BOOLEAN
+			case SQL_BOOLEAN:
+				*(FB_BOOLEAN *)dest = *(FB_BOOLEAN *)var->sqldata;
+				break;
+#endif
+
+#if FB_API_VER >= 40
+			case SQL_TIMESTAMP_TZ:
+				*(ISC_TIMESTAMP_TZ *)dest = *(ISC_TIMESTAMP_TZ *)var->sqldata;
+				break;
+
+			case SQL_TIME_TZ:
+				*(ISC_TIME_TZ *)dest = *(ISC_TIME_TZ *)var->sqldata;
+				break;
+
+			case SQL_INT128:
+			case SQL_DEC16:
+			case SQL_DEC34:
+				/* Copy the raw bytes - these are fixed-size types */
+				memcpy(dest, var->sqldata, meta_length);
+				break;
+#endif
+
+			default:
+				/* For unknown types, try raw copy based on metadata length */
+				if (meta_length > 0 && (unsigned)var->sqllen <= meta_length) {
+					memcpy(dest, var->sqldata, var->sqllen);
+				} else {
+					_php_fbird_module_error("Parameter %d: unsupported SQL type %d",
+						i + 1, var->sqltype & ~1);
+					return FAILURE;
+				}
+				break;
+		}
+	}
+
+	return SUCCESS;
+}
+/* }}} */
+
 int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 {
 	BIND_BUF *buf = ib_query->bind_buf;
@@ -345,6 +513,41 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 
 		switch (var->sqltype & ~1) {
 			struct tm t;
+
+			case SQL_SHORT:
+				{
+					zend_long lval = zval_get_long(b_var);
+					buf[i].val.sval = (short)lval;
+				}
+				continue;
+
+			case SQL_LONG:
+				{
+					zend_long lval = zval_get_long(b_var);
+					buf[i].val.lval = (ISC_LONG)lval;
+				}
+				continue;
+
+			case SQL_INT64:
+				{
+					zend_long lval = zval_get_long(b_var);
+					buf[i].val.i64val = (ISC_INT64)lval;
+				}
+				continue;
+
+			case SQL_FLOAT:
+				{
+					double dval = zval_get_double(b_var);
+					buf[i].val.fval = (float)dval;
+				}
+				continue;
+
+			case SQL_DOUBLE:
+				{
+					double dval = zval_get_double(b_var);
+					buf[i].val.dval = dval;
+				}
+				continue;
 
 			case SQL_TIMESTAMP:
 			case SQL_TYPE_DATE:

@@ -2011,7 +2011,79 @@ PHP_FUNCTION(fbird_trans)
 		}
 
 		if (link_cnt > 0) {
-			result = isc_start_multiple(IB_STATUS, (isc_tr_handle*)&tr_handle, link_cnt, teb);
+			/* Check if ANY link uses OO API (don't mix legacy and OO in multi-db trans) */
+			int has_oo_api = 0;
+			int has_legacy = 0;
+			for (int j = 0; j < link_cnt; j++) {
+				if (ib_link[j]->fbc_connection != NULL) {
+					has_oo_api = 1;
+				} else if (ib_link[j]->handle.db != 0) {
+					has_legacy = 1;
+				}
+			}
+
+			if (has_oo_api && has_legacy) {
+				/* Mixed OO API and legacy connections not supported in multi-db transaction */
+				efree(tpb);
+				efree(teb);
+				efree(ib_link);
+				_php_fbird_module_error("Cannot mix OO API and legacy connections in multi-database transaction");
+				RETURN_FALSE;
+			}
+
+			if (has_oo_api) {
+				/* Use OO API for transaction start */
+				if (link_cnt == 1) {
+					/* Single OO API connection - use fbt_start */
+					void* attachment = fbc_get_attachment(ib_link[0]->fbc_connection);
+					if (attachment == NULL) {
+						efree(tpb);
+						efree(teb);
+						efree(ib_link);
+						_php_fbird_module_error("Failed to get attachment from OO API connection");
+						RETURN_FALSE;
+					}
+
+					void* oo_trans = fbt_start(
+						IBG(master_instance),
+						attachment,
+						teb[0].tpb_len,
+						teb[0].tpb_len > 0 ? (const unsigned char*)teb[0].tpb_ptr : NULL,
+						IB_STATUS
+					);
+
+					if (oo_trans == NULL) {
+						efree(tpb);
+						efree(teb);
+						efree(ib_link);
+						_php_fbird_error();
+						RETURN_FALSE;
+					}
+
+					tr_handle = fbt_get_handle(oo_trans);
+
+					/* Allocate and register transaction with OO API wrapper */
+					ib_trans = (fbird_transaction *) safe_emalloc(link_cnt-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
+					ib_trans->handle.ptr = tr_handle;
+					ib_trans->link_cnt = link_cnt;
+					ib_trans->affected_rows = 0;
+					ib_trans->fbt_transaction = oo_trans;
+
+					efree(tpb);
+					efree(teb);
+					goto register_trans;
+				} else {
+					/* Multi-database OO API transactions not yet supported */
+					efree(tpb);
+					efree(teb);
+					efree(ib_link);
+					_php_fbird_module_error("Multi-database transactions with OO API connections not yet supported");
+					RETURN_FALSE;
+				}
+			} else {
+				/* Legacy path: all connections use legacy API */
+				result = isc_start_multiple(IB_STATUS, (isc_tr_handle*)&tr_handle, link_cnt, teb);
+			}
 		}
 
 		efree(tpb);

@@ -2261,7 +2261,7 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit) /* {{
 
 	/* OO API Only: All transactions use fbt_* functions */
 	if (trans->fbt_transaction == NULL) {
-		_php_fbird_module_error("Transaction has no OO API handle");
+		_php_fbird_module_error("invalid transaction handle (expecting explicit transaction start) ");
 		RETURN_FALSE;
 	}
 

@@ -493,6 +493,24 @@ int fbs_is_prepared(void* statement_ptr);
  */
 int fbs_is_cursor_open(void* statement_ptr);
 
+/**
+ * Execute a statement that returns a single INT64 value (e.g., GEN_ID()).
+ * This is a convenience function that opens a cursor, fetches one row,
+ * extracts the first INT64 column, and closes the cursor.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param statement_ptr StatementWrapper pointer (from fbs_prepare())
+ * @param transaction_ptr ITransaction pointer
+ * @param status_vector Output ISC_STATUS array
+ * @return The INT64 value from the first column, or 0 on error
+ */
+ISC_INT64 fbs_execute_singleton_int64(
+    void* master_ptr,
+    void* statement_ptr,
+    void* transaction_ptr,
+    ISC_STATUS* status_vector
+);
+
 /* =============================================================================
  * Phase 6: Firebird OO API Blob Functions (FB 3.0+)
  *

@@ -1341,6 +1341,82 @@ extern "C" int fbs_is_cursor_open(void* statement_ptr) {
     return wrapper->isCursorOpen() ? 1 : 0;
 }
 
+extern "C" ISC_INT64 fbs_execute_singleton_int64(
+    void* master_ptr,
+    void* statement_ptr,
+    void* transaction_ptr,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !statement_ptr || !transaction_ptr) {
+        if (status_vector) {
+            status_vector[0] = 1;
+            status_vector[1] = isc_arg_gds;
+            status_vector[2] = isc_bad_db_handle;
+            status_vector[3] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
+
+    Firebird::CheckStatusWrapper status(master->getStatus());
+
+    /* Get output metadata to determine buffer size and field offset */
+    auto* outMetadata = wrapper->getOutputMetadata(master, status_vector);
+    if (!outMetadata) {
+        return 0;
+    }
+
+    unsigned msgLen = outMetadata->getMessageLength(&status);
+    unsigned fieldOffset = outMetadata->getOffset(&status, 0);
+    unsigned nullOffset = outMetadata->getNullOffset(&status, 0);
+
+    /* Allocate message buffer */
+    unsigned char* outMsg = new unsigned char[msgLen];
+    memset(outMsg, 0, msgLen);
+
+    /* Open cursor */
+    if (!wrapper->openCursor(master, transaction, nullptr, nullptr, 0, status_vector)) {
+        outMetadata->release();
+        delete[] outMsg;
+        return 0;
+    }
+
+    /* Fetch the single row */
+    int fetchResult = wrapper->fetchNext(master, outMsg, status_vector);
+    if (fetchResult != 1) {
+        /* fetchResult: 1 = success, 0 = EOF, -1 = error */
+        wrapper->closeCursor(status_vector);
+        outMetadata->release();
+        delete[] outMsg;
+        return 0;
+    }
+
+    /* Check null indicator */
+    ISC_SHORT nullFlag = *reinterpret_cast<ISC_SHORT*>(outMsg + nullOffset);
+    ISC_INT64 result = 0;
+
+    if (nullFlag == 0) {
+        /* Field is not null - extract the INT64 value */
+        result = *reinterpret_cast<ISC_INT64*>(outMsg + fieldOffset);
+    }
+
+    /* Close cursor and cleanup */
+    wrapper->closeCursor(status_vector);
+    outMetadata->release();
+    delete[] outMsg;
+
+    /* Clear any error status since we succeeded */
+    if (status_vector) {
+        status_vector[0] = 1;
+        status_vector[1] = 0;
+    }
+
+    return result;
+}
+
 extern "C" unsigned fbs_get_input_count(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector) {
     if (!master_ptr || !statement_ptr) {
         return 0;

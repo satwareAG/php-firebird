@@ -2025,78 +2025,63 @@ PHP_FUNCTION(fbird_trans)
 		}
 
 		if (link_cnt > 0) {
-			/* Check if ANY link uses OO API (don't mix legacy and OO in multi-db trans) */
-			int has_oo_api = 0;
-			int has_legacy = 0;
+			/* OO API Only: Verify all connections have OO API handles */
 			for (int j = 0; j < link_cnt; j++) {
-				if (ib_link[j]->fbc_connection != NULL) {
-					has_oo_api = 1;
-				} else if (ib_link[j]->handle.db != 0) {
-					has_legacy = 1;
-				}
-			}
-
-			if (has_oo_api && has_legacy) {
-				/* Mixed OO API and legacy connections not supported in multi-db transaction */
-				efree(tpb);
-				efree(teb);
-				efree(ib_link);
-				_php_fbird_module_error("Cannot mix OO API and legacy connections in multi-database transaction");
-				RETURN_FALSE;
-			}
-
-			if (has_oo_api) {
-				/* Use OO API for transaction start */
-				if (link_cnt == 1) {
-					/* Single OO API connection - use fbt_start */
-					void* attachment = fbc_get_attachment(ib_link[0]->fbc_connection);
-					if (attachment == NULL) {
-						efree(tpb);
-						efree(teb);
-						efree(ib_link);
-						_php_fbird_module_error("Failed to get attachment from OO API connection");
-						RETURN_FALSE;
-					}
-
-					void* oo_trans = fbt_start(
-						IBG(master_instance),
-						attachment,
-						teb[0].tpb_len,
-						teb[0].tpb_len > 0 ? (const unsigned char*)teb[0].tpb_ptr : NULL,
-						IB_STATUS
-					);
-
-					if (oo_trans == NULL) {
-						efree(tpb);
-						efree(teb);
-						efree(ib_link);
-						_php_fbird_error();
-						RETURN_FALSE;
-					}
-
-					tr_handle = fbt_get_handle(oo_trans);
-
-					/* Allocate and register transaction with OO API wrapper */
-					ib_trans = (fbird_transaction *) safe_emalloc(link_cnt-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
-					ib_trans->handle.ptr = tr_handle;
-					ib_trans->link_cnt = link_cnt;
-					ib_trans->affected_rows = 0;
-					ib_trans->fbt_transaction = oo_trans;
-
-					efree(tpb);
-					efree(teb);
-					goto register_trans;
-				} else {
-					/* Multi-database OO API transactions not yet supported */
+				if (ib_link[j]->fbc_connection == NULL) {
 					efree(tpb);
 					efree(teb);
 					efree(ib_link);
-					_php_fbird_module_error("Multi-database transactions with OO API connections not yet supported");
+					_php_fbird_module_error("Connection %d has no OO API handle", j);
 					RETURN_FALSE;
 				}
+			}
+
+			if (link_cnt == 1) {
+				/* Single OO API connection - use fbt_start */
+				void* attachment = fbc_get_attachment(ib_link[0]->fbc_connection);
+				if (attachment == NULL) {
+					efree(tpb);
+					efree(teb);
+					efree(ib_link);
+					_php_fbird_module_error("Failed to get attachment from OO API connection");
+					RETURN_FALSE;
+				}
+
+				void* oo_trans = fbt_start(
+					IBG(master_instance),
+					attachment,
+					teb[0].tpb_len,
+					teb[0].tpb_len > 0 ? (const unsigned char*)teb[0].tpb_ptr : NULL,
+					IB_STATUS
+				);
+
+				if (oo_trans == NULL) {
+					efree(tpb);
+					efree(teb);
+					efree(ib_link);
+					_php_fbird_error();
+					RETURN_FALSE;
+				}
+
+				tr_handle = fbt_get_handle(oo_trans);
+
+				/* Allocate and register transaction with OO API wrapper */
+				ib_trans = (fbird_transaction *) safe_emalloc(link_cnt-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
+				ib_trans->handle.ptr = tr_handle;
+				ib_trans->link_cnt = link_cnt;
+				ib_trans->affected_rows = 0;
+				ib_trans->fbt_transaction = oo_trans;
+
+				efree(tpb);
+				efree(teb);
+				goto register_trans;
 			} else {
-				/* Legacy path: all connections use legacy API */
-				result = isc_start_multiple(IB_STATUS, (isc_tr_handle*)&tr_handle, link_cnt, teb);
+				/* Multi-database OO API transactions not yet supported */
+				efree(tpb);
+				efree(teb);
+				efree(ib_link);
+				_php_fbird_module_error("Multi-database transactions with OO API connections not yet supported");
+				RETURN_FALSE;
 			}
 		}
 
@@ -2110,43 +2095,35 @@ PHP_FUNCTION(fbird_trans)
 			efree(ib_link);
 			RETURN_FALSE;
 		}
-		/* Use OO API if connection was created with OO API */
-		if (ib_link[0]->fbc_connection) {
-			void* attachment = fbc_get_attachment(ib_link[0]->fbc_connection);
-			void* oo_trans = fbt_start(IBG(master_instance), attachment, tpb_len, (const unsigned char*)last_tpb, IB_STATUS);
-			if (oo_trans == NULL) {
-				_php_fbird_error();
-				efree(ib_link);
-				RETURN_FALSE;
-			}
-			tr_handle = fbt_get_handle(oo_trans);
-
-			/* Allocate and register transaction with OO API wrapper */
-			ib_trans = (fbird_transaction *) safe_emalloc(link_cnt-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
-			ib_trans->handle.ptr = tr_handle;
-			ib_trans->link_cnt = link_cnt;
-			ib_trans->affected_rows = 0;
-			ib_trans->fbt_transaction = oo_trans;  /* Store OO API transaction */
-			goto register_trans;
-		} else {
-			result = isc_start_transaction(IB_STATUS, (isc_tr_handle*)&tr_handle, 1, &ib_link[0]->handle.db, tpb_len, last_tpb);
+		/* OO API Only: All connections must have OO API handle */
+		if (ib_link[0]->fbc_connection == NULL) {
+			efree(ib_link);
+			_php_fbird_module_error("Connection has no OO API handle");
+			RETURN_FALSE;
 		}
-	}
 
-	/* start the transaction */
-	/* cppcheck-suppress uninitvar */
-	if (result) {
-		_php_fbird_error();
-		efree(ib_link);
-		RETURN_FALSE;
-	}
+		void* attachment = fbc_get_attachment(ib_link[0]->fbc_connection);
+		if (attachment == NULL) {
+			efree(ib_link);
+			_php_fbird_module_error("Failed to get attachment from OO API connection");
+			RETURN_FALSE;
+		}
 
-	/* register the transaction in our own data structures */
-	ib_trans = (fbird_transaction *) safe_emalloc(link_cnt-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
-	ib_trans->handle.ptr = tr_handle;
-	ib_trans->link_cnt = link_cnt;
-	ib_trans->affected_rows = 0;
-	ib_trans->fbt_transaction = NULL;  /* Legacy path: no OO API transaction */
+		void* oo_trans = fbt_start(IBG(master_instance), attachment, tpb_len, (const unsigned char*)last_tpb, IB_STATUS);
+		if (oo_trans == NULL) {
+			_php_fbird_error();
+			efree(ib_link);
+			RETURN_FALSE;
+		}
+		tr_handle = fbt_get_handle(oo_trans);
+
+		/* Allocate and register transaction with OO API wrapper */
+		ib_trans = (fbird_transaction *) safe_emalloc(link_cnt-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
+		ib_trans->handle.ptr = tr_handle;
+		ib_trans->link_cnt = link_cnt;
+		ib_trans->affected_rows = 0;
+		ib_trans->fbt_transaction = oo_trans;
+	}
 
 register_trans:
 	for (i = 0; i < link_cnt; ++i) {
@@ -2395,8 +2372,10 @@ PHP_FUNCTION(fbird_gen_id)
 	zend_long inc = 1;
 	fbird_db_link *ib_link = NULL;
 	fbird_transaction *trans = NULL;
-	XSQLDA out_sqlda;
 	ISC_INT64 result = 0;
+	void *attachment = NULL;
+	void *transaction_ptr = NULL;
+	void *stmt = NULL;
 
 	RESET_ERRMSG;
 
@@ -2417,24 +2396,54 @@ PHP_FUNCTION(fbird_gen_id)
 
 	PHP_IBASE_LINK_TRANS(link, ib_link, trans);
 
+	/* OO API Only: Verify connection has OO API handle */
+	if (ib_link->fbc_connection == NULL) {
+		_php_fbird_module_error("Connection has no OO API handle");
+		RETURN_FALSE;
+	}
+
+	/* OO API Only: Verify transaction has OO API handle */
+	if (trans->fbt_transaction == NULL) {
+		_php_fbird_module_error("Transaction has no OO API handle");
+		RETURN_FALSE;
+	}
+
 	snprintf(query, sizeof(query), "SELECT GEN_ID(%s,%ld) FROM rdb$database", generator, inc);
 
-	/* allocate a minimal descriptor area */
-	out_sqlda.sqln = out_sqlda.sqld = 1;
-	out_sqlda.version = SQLDA_CURRENT_VERSION;
+	/* Get attachment from connection */
+	attachment = fbc_get_attachment(ib_link->fbc_connection);
+	if (!attachment) {
+		_php_fbird_module_error("Failed to get attachment from connection");
+		RETURN_FALSE;
+	}
 
-	/* allocate the field for the result */
-	out_sqlda.sqlvar[0].sqltype = SQL_INT64;
-	out_sqlda.sqlvar[0].sqlscale = 0;
-	out_sqlda.sqlvar[0].sqllen = sizeof(result);
-	out_sqlda.sqlvar[0].sqldata = (void*) &result;
+	/* Get transaction handle */
+	transaction_ptr = fbt_get_handle(trans->fbt_transaction);
+	if (!transaction_ptr) {
+		_php_fbird_module_error("Failed to get transaction handle");
+		RETURN_FALSE;
+	}
 
-	/* execute the query */
-	if (isc_dsql_exec_immed2(IB_STATUS, &ib_link->handle.db, &trans->handle.tr, 0, query,
-			SQL_DIALECT_CURRENT, NULL, &out_sqlda)) {
+	/* Prepare the query via OO API */
+	stmt = fbs_prepare(IBG(master_instance), attachment, transaction_ptr,
+		query, (unsigned)strlen(query), SQL_DIALECT_CURRENT, IB_STATUS);
+	if (!stmt) {
 		_php_fbird_error();
 		RETURN_FALSE;
 	}
+
+	/* Execute the statement and fetch the result via OO API */
+	result = fbs_execute_singleton_int64(IBG(master_instance), stmt, transaction_ptr, IB_STATUS);
+
+	/* Check for errors (result 0 could be valid, check status) */
+	if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
+		_php_fbird_error();
+		fbs_free(stmt, IB_STATUS);
+		RETURN_FALSE;
+	}
+
+	/* Free the statement */
+	fbs_free(stmt, IB_STATUS);
 
 	/* don't return the generator value as a string unless it doesn't fit in a long */
 #if SIZEOF_ZEND_LONG < 8

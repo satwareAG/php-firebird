@@ -81,30 +81,42 @@ static ssize_t fbird_blob_stream_read(php_stream *stream, char *buf, size_t coun
 	fbird_blob_stream_data *data = (fbird_blob_stream_data *)stream->abstract;
 	fbird_blob *ib_blob = data->ib_blob;
 	size_t total_read = 0;
-	unsigned short seg_len;
-	ISC_STATUS stat;
+	unsigned actual_len;
+	int result;
 
-	if (!ib_blob || !ib_blob->bl_handle.ptr) {
+	if (!ib_blob || (!ib_blob->fbb_blob && !ib_blob->bl_handle.ptr)) {
 		return 0;
 	}
 
-	/* Firebird reads in segments. We need to loop until count is satisfied or EOF */
+	/*
+	 * Firebird 3.0+ OO API Blob Read (Stream)
+	 *
+	 * Uses IBlob::getSegment() via fbb_get_segment() wrapper.
+	 * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
+	 */
 	while (count > 0) {
-		/* We can try to read up to count bytes, but Firebird reads segments.
-		   However, isc_get_segment's buffer size argument limits the read. */
-		unsigned short chunk_size = count > USHRT_MAX ? USHRT_MAX : (unsigned short)count;
+		unsigned chunk_size = count > USHRT_MAX ? USHRT_MAX : (unsigned)count;
 
-		stat = isc_get_segment(IB_STATUS, &ib_blob->bl_handle.blob, &seg_len, chunk_size, buf);
+		result = fbb_get_segment(
+			IBG(master_instance),
+			ib_blob->fbb_blob,
+			chunk_size,
+			buf,
+			&actual_len,
+			IB_STATUS
+		);
 
-		if (stat == 0 || stat == isc_segment) {
-			/* Success or incomplete segment read */
-			buf += seg_len;
-			count -= seg_len;
-			total_read += seg_len;
-		} else if (stat == isc_segstr_eof) {
-			/* End of blob */
+		if (result >= 0 && actual_len > 0) {
+			/* Success - got some data */
+			buf += actual_len;
+			count -= actual_len;
+			total_read += actual_len;
+		}
+		if (result == 1) {
+			/* EOF */
 			break;
-		} else {
+		}
+		if (result < 0) {
 			/* Error */
 			break;
 		}
@@ -118,19 +130,20 @@ static int fbird_blob_stream_close(php_stream *stream, int close_handle)
 	fbird_blob_stream_data *data = (fbird_blob_stream_data *)stream->abstract;
 	fbird_blob *ib_blob = data->ib_blob;
 
+	/*
+	 * Firebird 3.0+ OO API Blob Close (Stream)
+	 *
+	 * Uses IBlob::close() via fbb_close() wrapper.
+	 * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
+	 */
 	if (ib_blob) {
-		if (ib_blob->bl_handle.ptr != 0) {
-			if (ib_blob->type == BLOB_INPUT) {
-				/* If writing, close properly safely */
-				if (isc_close_blob(IB_STATUS, &ib_blob->bl_handle.blob)) {
-					_php_fbird_error();
-				}
-			} else {
-				/* If reading, just close */
-				if (isc_close_blob(IB_STATUS, &ib_blob->bl_handle.blob)) {
-					_php_fbird_error();
-				}
+		if (ib_blob->fbb_blob) {
+			/* fbb_close returns 1 on success, 0 on error */
+			if (fbb_close(IBG(master_instance), ib_blob->fbb_blob, IB_STATUS) == 0) {
+				_php_fbird_error();
 			}
+			fbb_free(ib_blob->fbb_blob);
+			ib_blob->fbb_blob = NULL;
 		}
 		efree(ib_blob);
 		data->ib_blob = NULL;
@@ -179,8 +192,15 @@ static void _php_fbird_free_blob(zend_resource *rsrc) /* {{{ */
 {
 	fbird_blob *ib_blob = (fbird_blob *)rsrc->ptr;
 
-	if (ib_blob->bl_handle.ptr != 0) { /* blob open*/
-		if (isc_cancel_blob(IB_STATUS, &ib_blob->bl_handle.blob)) {
+	/*
+	 * Firebird 3.0+ OO API Blob Cancel (Resource Cleanup)
+	 *
+	 * Uses IBlob::cancel() via fbb_cancel() wrapper.
+	 * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
+	 */
+	if (ib_blob->fbb_blob != NULL) { /* blob open */
+		/* fbb_cancel returns 1 on success, 0 on error */
+		if (fbb_cancel(IBG(master_instance), ib_blob->fbb_blob, IB_STATUS) == 0) {
 			/* If the blob handle is invalid (e.g. transaction committed/rolled back),
 			 * we can safely ignore the error as there's nothing to cancel/close. */
 			if (IB_STATUS[1] != isc_bad_segstr_handle) {
@@ -188,6 +208,8 @@ static void _php_fbird_free_blob(zend_resource *rsrc) /* {{{ */
 					"writing to it. Use fbird_blob_close() before calling fbird_close()");
 			}
 		}
+		fbb_free(ib_blob->fbb_blob);
+		ib_blob->fbb_blob = NULL;
 	}
 	efree(ib_blob);
 }
@@ -328,23 +350,32 @@ int _php_fbird_blob_add(zval *string_arg, fbird_blob *ib_blob) /* {{{ */
 }
 /* }}} */
 
-static int _php_fbird_blob_info(fb_safe_handle bl_handle, IBASE_BLOBINFO *bl_info) /* {{{ */
+static int _php_fbird_blob_info_oo(void *fbb_blob, IBASE_BLOBINFO *bl_info) /* {{{ */
 {
-	static char bl_items[] = {
+	/*
+	 * Firebird 3.0+ OO API Blob Info
+	 *
+	 * Uses IBlob::getInfo() via fbb_get_info() wrapper.
+	 * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
+	 */
+	static unsigned char bl_items[] = {
 		isc_info_blob_num_segments,
 		isc_info_blob_max_segment,
 		isc_info_blob_total_length,
 		isc_info_blob_type
 	};
 
-	char bl_inf[sizeof(zend_long)*8], *p;
+	unsigned char bl_inf[sizeof(zend_long)*8];
+	unsigned char *p;
 
 	bl_info->max_segment = 0;
 	bl_info->num_segments = 0;
 	bl_info->total_length = 0;
 	bl_info->bl_stream = 0;
 
-	if (isc_blob_info(IB_STATUS, &bl_handle.blob, sizeof(bl_items), bl_items, sizeof(bl_inf), bl_inf)) {
+	/* fbb_get_info returns 1 on success, 0 on error */
+	if (fbb_get_info(IBG(master_instance), fbb_blob, sizeof(bl_items), bl_items,
+			sizeof(bl_inf), bl_inf, IB_STATUS) == 0) {
 		_php_fbird_error();
 		return FAILURE;
 	}
@@ -353,20 +384,20 @@ static int _php_fbird_blob_info(fb_safe_handle bl_handle, IBASE_BLOBINFO *bl_inf
 		unsigned short item_len;
 		int item = *p++;
 
-		item_len = (short) isc_vax_integer(p, 2);
+		item_len = (unsigned short)isc_vax_integer((char *)p, 2);
 		p += 2;
 		switch (item) {
 			case isc_info_blob_num_segments:
-				bl_info->num_segments = isc_vax_integer(p, item_len);
+				bl_info->num_segments = isc_vax_integer((char *)p, item_len);
 				break;
 			case isc_info_blob_max_segment:
-				bl_info->max_segment = isc_vax_integer(p, item_len);
+				bl_info->max_segment = isc_vax_integer((char *)p, item_len);
 				break;
 			case isc_info_blob_total_length:
-				bl_info->total_length = isc_vax_integer(p, item_len);
+				bl_info->total_length = isc_vax_integer((char *)p, item_len);
 				break;
 			case isc_info_blob_type:
-				bl_info->bl_stream = isc_vax_integer(p, item_len);
+				bl_info->bl_stream = isc_vax_integer((char *)p, item_len);
 				break;
 			case isc_info_truncated:
 			case isc_info_error:  /* hmm. don't think so...*/
@@ -671,8 +702,12 @@ PHP_FUNCTION(fbird_blob_info)
 	}
 
 	if (ext_blob) {
-		// Using an open stream
-		if (_php_fbird_blob_info(ext_blob->bl_handle, &bl_info)) {
+		/*
+		 * Firebird 3.0+ OO API Blob Info (from stream)
+		 *
+		 * Uses IBlob::getInfo() via fbb_get_info() wrapper.
+		 */
+		if (_php_fbird_blob_info_oo(ext_blob->fbb_blob, &bl_info)) {
 			RETURN_FALSE;
 		}
 	} else {
@@ -689,19 +724,36 @@ PHP_FUNCTION(fbird_blob_info)
 		}
 
 		if (ib_blob.bl_qd.gds_quad_high || ib_blob.bl_qd.gds_quad_low) { /* not null ? */
-			if (isc_open_blob(IB_STATUS, &ib_link->handle.db, &trans->handle.tr, &ib_blob.bl_handle.blob,
-					&ib_blob.bl_qd)) {
+			/*
+			 * Firebird 3.0+ OO API Blob Open/Info/Close
+			 *
+			 * Uses IBlob interface via fbb_open(), fbb_get_info(), fbb_close() wrappers.
+			 */
+			void *trans_handle = fbt_get_handle(trans->fbt_transaction);
+			ib_blob.fbb_blob = fbb_open(
+				IBG(master_instance),
+				fbc_get_attachment(ib_link->fbc_connection),
+				trans_handle,
+				&ib_blob.bl_qd,
+				0, NULL,
+				IB_STATUS
+			);
+			if (!ib_blob.fbb_blob) {
 				_php_fbird_error();
 				RETURN_FALSE;
 			}
 
-			if (_php_fbird_blob_info(ib_blob.bl_handle, &bl_info)) {
+			if (_php_fbird_blob_info_oo(ib_blob.fbb_blob, &bl_info)) {
+				fbb_free(ib_blob.fbb_blob);
 				RETURN_FALSE;
 			}
-			if (isc_close_blob(IB_STATUS, &ib_blob.bl_handle.blob)) {
+			if (fbb_close(IBG(master_instance), ib_blob.fbb_blob, IB_STATUS) == 0) {
+				fbb_free(ib_blob.fbb_blob);
 				_php_fbird_error();
 				RETURN_FALSE;
 			}
+			fbb_free(ib_blob.fbb_blob);
+			ib_blob.fbb_blob = NULL;
 		} else { /* null blob */
 			bl_info.max_segment = 0;
 			bl_info.num_segments = 0;
@@ -744,7 +796,8 @@ PHP_FUNCTION(fbird_blob_echo)
 	fbird_transaction *trans = NULL;
 	fbird_blob ib_blob_id = { {0}, BLOB_OUTPUT, {0, 0}, NULL };  /* Phase 6: explicit fbb_blob init */
 	char bl_data[IBASE_BLOB_SEG];
-	unsigned short seg_len;
+	unsigned actual_len;
+	int result;
 
 	RESET_ERRMSG;
 	PARSE_PARAMETERS;
@@ -757,23 +810,50 @@ PHP_FUNCTION(fbird_blob_echo)
 	}
 
 	do {
-		if (isc_open_blob(IB_STATUS, &ib_link->handle.db, &trans->handle.tr, &ib_blob_id.bl_handle.blob,
-				&ib_blob_id.bl_qd)) {
+		/*
+		 * Firebird 3.0+ OO API Blob Echo
+		 *
+		 * Uses IBlob interface via fbb_open(), fbb_get_segment(), fbb_close() wrappers.
+		 */
+		void *trans_handle = fbt_get_handle(trans->fbt_transaction);
+		ib_blob_id.fbb_blob = fbb_open(
+			IBG(master_instance),
+			fbc_get_attachment(ib_link->fbc_connection),
+			trans_handle,
+			&ib_blob_id.bl_qd,
+			0, NULL,
+			IB_STATUS
+		);
+		if (!ib_blob_id.fbb_blob) {
 			break;
 		}
 
-		while (!isc_get_segment(IB_STATUS, &ib_blob_id.bl_handle.blob, &seg_len, sizeof(bl_data), bl_data)
-				|| IB_STATUS[1] == isc_segment) {
-			PHPWRITE(bl_data, seg_len);
-		}
+		/* Read and output blob segments */
+		do {
+			result = fbb_get_segment(
+				IBG(master_instance),
+				ib_blob_id.fbb_blob,
+				sizeof(bl_data),
+				bl_data,
+				&actual_len,
+				IB_STATUS
+			);
+			if (result >= 0 && actual_len > 0) {
+				PHPWRITE(bl_data, actual_len);
+			}
+		} while (result == 0 || result == 2);  /* 0 = success with more, 2 = segment */
 
-		if (IB_STATUS[0] && (IB_STATUS[1] != isc_segstr_eof)) {
+		if (result < 0 && result != 1) {  /* 1 = EOF is OK */
+			fbb_close(IBG(master_instance), ib_blob_id.fbb_blob, IB_STATUS);
+			fbb_free(ib_blob_id.fbb_blob);
 			break;
 		}
 
-		if (isc_close_blob(IB_STATUS, &ib_blob_id.bl_handle.blob)) {
+		if (fbb_close(IBG(master_instance), ib_blob_id.fbb_blob, IB_STATUS) == 0) {
+			fbb_free(ib_blob_id.fbb_blob);
 			break;
 		}
+		fbb_free(ib_blob_id.fbb_blob);
 		RETURN_TRUE;
 	} while (0);
 
@@ -788,7 +868,7 @@ PHP_FUNCTION(fbird_blob_import)
 {
 	zval *link = NULL, *file;
 	int size;
-	unsigned short b;
+	unsigned b;
 	fbird_blob ib_blob = { {0}, 0, {0, 0}, NULL };  /* Phase 6: explicit fbb_blob init */
 	fbird_db_link *ib_link;
 	fbird_transaction *trans = NULL;
@@ -807,20 +887,39 @@ PHP_FUNCTION(fbird_blob_import)
 	php_stream_from_zval(stream, file);
 
 	do {
-		if (isc_create_blob(IB_STATUS, &ib_link->handle.db, &trans->handle.tr, &ib_blob.bl_handle.blob,
-				&ib_blob.bl_qd)) {
+		/*
+		 * Firebird 3.0+ OO API Blob Import
+		 *
+		 * Uses IBlob interface via fbb_create(), fbb_put_segment(), fbb_close() wrappers.
+		 */
+		void *trans_handle = fbt_get_handle(trans->fbt_transaction);
+		ib_blob.fbb_blob = fbb_create(
+			IBG(master_instance),
+			fbc_get_attachment(ib_link->fbc_connection),
+			trans_handle,
+			&ib_blob.bl_qd,
+			0, NULL,
+			IB_STATUS
+		);
+		if (!ib_blob.fbb_blob) {
 			break;
 		}
 
-		for (size = 0; (b = php_stream_read(stream, bl_data, sizeof(bl_data))); size += b) {
-			if (isc_put_segment(IB_STATUS, &ib_blob.bl_handle.blob, b, bl_data)) {
+		for (size = 0; (b = (unsigned)php_stream_read(stream, bl_data, sizeof(bl_data))) > 0; size += b) {
+			/* fbb_put_segment returns 1 on success, 0 on error */
+			if (fbb_put_segment(IBG(master_instance), ib_blob.fbb_blob, b, bl_data, IB_STATUS) == 0) {
+				fbb_cancel(IBG(master_instance), ib_blob.fbb_blob, IB_STATUS);
+				fbb_free(ib_blob.fbb_blob);
 				break;
 			}
 		}
 
-		if (isc_close_blob(IB_STATUS, &ib_blob.bl_handle.blob)) {
+		/* fbb_close returns 1 on success, 0 on error */
+		if (fbb_close(IBG(master_instance), ib_blob.fbb_blob, IB_STATUS) == 0) {
+			fbb_free(ib_blob.fbb_blob);
 			break;
 		}
+		fbb_free(ib_blob.fbb_blob);
 		RETURN_NEW_STR(_php_fbird_quad_to_string(ib_blob.bl_qd));
 	} while (0);
 
@@ -853,18 +952,35 @@ PHP_FUNCTION(fbird_blob_create_stream)
 	ib_blob->type = BLOB_INPUT;
 	ib_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
 
-	if (isc_create_blob(IB_STATUS, &ib_link->handle.db, &trans->handle.tr, &ib_blob->bl_handle.blob, &ib_blob->bl_qd)) {
+	/*
+	 * Firebird 3.0+ OO API Blob Create (Stream)
+	 *
+	 * Uses IBlob interface via fbb_create() wrapper.
+	 */
+	void *trans_handle = fbt_get_handle(trans->fbt_transaction);
+	ib_blob->fbb_blob = fbb_create(
+		IBG(master_instance),
+		fbc_get_attachment(ib_link->fbc_connection),
+		trans_handle,
+		&ib_blob->bl_qd,
+		0, NULL,
+		IB_STATUS
+	);
+	if (!ib_blob->fbb_blob) {
 		_php_fbird_error();
 		efree(ib_blob);
 		RETURN_FALSE;
 	}
+	/* Store OO handle pointer for legacy code paths that check bl_handle */
+	ib_blob->bl_handle.ptr = fbb_get_handle(ib_blob->fbb_blob);
 
 	data = emalloc(sizeof(fbird_blob_stream_data));
 	data->ib_blob = ib_blob;
 
 	stream = php_stream_alloc(&fbird_blob_stream_ops, data, NULL, "w");
 	if (!stream) {
-		isc_cancel_blob(IB_STATUS, &ib_blob->bl_handle.blob);
+		fbb_cancel(IBG(master_instance), ib_blob->fbb_blob, IB_STATUS);
+		fbb_free(ib_blob->fbb_blob);
 		efree(ib_blob);
 		efree(data);
 		RETURN_FALSE;
@@ -903,18 +1019,35 @@ PHP_FUNCTION(fbird_blob_open_stream)
 		RETURN_FALSE;
 	}
 
-	if (isc_open_blob(IB_STATUS, &ib_link->handle.db, &trans->handle.tr, &ib_blob->bl_handle.blob, &ib_blob->bl_qd)) {
+	/*
+	 * Firebird 3.0+ OO API Blob Open (Stream)
+	 *
+	 * Uses IBlob interface via fbb_open() wrapper.
+	 */
+	void *trans_handle = fbt_get_handle(trans->fbt_transaction);
+	ib_blob->fbb_blob = fbb_open(
+		IBG(master_instance),
+		fbc_get_attachment(ib_link->fbc_connection),
+		trans_handle,
+		&ib_blob->bl_qd,
+		0, NULL,
+		IB_STATUS
+	);
+	if (!ib_blob->fbb_blob) {
 		_php_fbird_error();
 		efree(ib_blob);
 		RETURN_FALSE;
 	}
+	/* Store OO handle pointer for legacy code paths that check bl_handle */
+	ib_blob->bl_handle.ptr = fbb_get_handle(ib_blob->fbb_blob);
 
 	data = emalloc(sizeof(fbird_blob_stream_data));
 	data->ib_blob = ib_blob;
 
 	stream = php_stream_alloc(&fbird_blob_stream_ops, data, NULL, "r");
 	if (!stream) {
-		isc_close_blob(IB_STATUS, &ib_blob->bl_handle.blob);
+		fbb_close(IBG(master_instance), ib_blob->fbb_blob, IB_STATUS);
+		fbb_free(ib_blob->fbb_blob);
 		efree(ib_blob);
 		efree(data);
 		RETURN_FALSE;

@@ -864,6 +864,115 @@ int fbu_insert_field_info(void *master_ptr, ISC_STATUS* status, int is_outvar, i
 int fbu_insert_aliases(void *master_ptr, ISC_STATUS* status, fbird_query *ib_query,
   void *statement_ptr);
 
+/**
+ * Metadata C interop functions for OO API message buffer operations.
+ * These functions provide access to IMessageMetadata interface for
+ * allocating message buffers and extracting field values during fetch.
+ */
+
+/**
+ * Get message buffer size from metadata.
+ * @param master_ptr IMaster pointer
+ * @param metadata_ptr IMessageMetadata pointer (from fbs_get_output_metadata)
+ * @return Buffer size in bytes, or 0 on error
+ */
+unsigned fbm_get_message_length(void* master_ptr, void* metadata_ptr);
+
+/**
+ * Get field count from metadata.
+ * @param master_ptr IMaster pointer
+ * @param metadata_ptr IMessageMetadata pointer
+ * @return Number of fields
+ */
+unsigned fbm_get_count(void* master_ptr, void* metadata_ptr);
+
+/**
+ * Get field data offset in message buffer.
+ * @param master_ptr IMaster pointer
+ * @param metadata_ptr IMessageMetadata pointer
+ * @param index Field index (0-based)
+ * @return Byte offset of field data in buffer
+ */
+unsigned fbm_get_offset(void* master_ptr, void* metadata_ptr, unsigned index);
+
+/**
+ * Get null indicator offset in message buffer.
+ * @param master_ptr IMaster pointer
+ * @param metadata_ptr IMessageMetadata pointer
+ * @param index Field index (0-based)
+ * @return Byte offset of null indicator in buffer
+ */
+unsigned fbm_get_null_offset(void* master_ptr, void* metadata_ptr, unsigned index);
+
+/**
+ * Get field SQL type.
+ * @param master_ptr IMaster pointer
+ * @param metadata_ptr IMessageMetadata pointer
+ * @param index Field index (0-based)
+ * @return SQL type code (SQL_TEXT, SQL_VARYING, SQL_LONG, etc.)
+ */
+unsigned fbm_get_type(void* master_ptr, void* metadata_ptr, unsigned index);
+
+/**
+ * Get field subtype (for blobs, char sets).
+ * @param master_ptr IMaster pointer
+ * @param metadata_ptr IMessageMetadata pointer
+ * @param index Field index (0-based)
+ * @return Subtype value
+ */
+unsigned fbm_get_subtype(void* master_ptr, void* metadata_ptr, unsigned index);
+
+/**
+ * Get field data length.
+ * @param master_ptr IMaster pointer
+ * @param metadata_ptr IMessageMetadata pointer
+ * @param index Field index (0-based)
+ * @return Data length in bytes
+ */
+unsigned fbm_get_length(void* master_ptr, void* metadata_ptr, unsigned index);
+
+/**
+ * Get field scale (for numeric types).
+ * @param master_ptr IMaster pointer
+ * @param metadata_ptr IMessageMetadata pointer
+ * @param index Field index (0-based)
+ * @return Scale value (negative for decimal places)
+ */
+int fbm_get_scale(void* master_ptr, void* metadata_ptr, unsigned index);
+
+/**
+ * Get field charset ID.
+ * @param master_ptr IMaster pointer
+ * @param metadata_ptr IMessageMetadata pointer
+ * @param index Field index (0-based)
+ * @return Charset ID
+ */
+unsigned fbm_get_charset(void* master_ptr, void* metadata_ptr, unsigned index);
+
+/**
+ * Get field name.
+ * @param master_ptr IMaster pointer
+ * @param metadata_ptr IMessageMetadata pointer
+ * @param index Field index (0-based)
+ * @return Field name (internal pointer - do not free)
+ */
+const char* fbm_get_field(void* master_ptr, void* metadata_ptr, unsigned index);
+
+/**
+ * Get field alias.
+ * @param master_ptr IMaster pointer
+ * @param metadata_ptr IMessageMetadata pointer
+ * @param index Field index (0-based)
+ * @return Field alias (internal pointer - do not free)
+ */
+const char* fbm_get_alias(void* master_ptr, void* metadata_ptr, unsigned index);
+
+/**
+ * Release metadata reference.
+ * @param metadata_ptr IMessageMetadata pointer
+ */
+void fbm_release(void* metadata_ptr);
+
 #endif // FB_API_VER >= 30
 
 

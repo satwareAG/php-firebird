@@ -237,6 +237,14 @@ typedef struct _ib_query {
      * The stmt.ptr may be 0 in this case - use fbs_get_statement() instead. */
     void *fbs_statement;
     void *fbs_resultset;  /* OO API IResultSet* for cursor operations */
+    /* OO API message buffer for fetch operations (Phase 12+)
+     * These replace XSQLDA-based data transfer when using OO API. */
+    void *out_metadata;     /* IMessageMetadata* from fbs_get_output_metadata() */
+    void *out_msg_buffer;   /* Message buffer for fetch (allocated based on metadata) */
+    unsigned out_msg_length; /* Message buffer size */
+    void *in_metadata;      /* IMessageMetadata* for input parameters */
+    void *in_msg_buffer;    /* Message buffer for input parameters */
+    unsigned in_msg_length; /* Input message buffer size */
 } fbird_query;
 
 enum php_fbird_option {

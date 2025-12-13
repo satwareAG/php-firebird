@@ -178,6 +178,13 @@ void _php_fbird_free_query(fbird_query *ib_query) /* {{{ */
 	if(ib_query->ht_aliases)zend_array_destroy(ib_query->ht_aliases);
 	if(ib_query->ht_ind)zend_array_destroy(ib_query->ht_ind);
 
+	/* OO API message buffers (Phase 12+)
+	 * Note: Metadata objects are released by fbs_free() when statement is freed,
+	 * but we need to free the message buffers we allocated with safe_emalloc. */
+	if (ib_query->out_msg_buffer) efree(ib_query->out_msg_buffer);
+	if (ib_query->in_msg_buffer) efree(ib_query->in_msg_buffer);
+	/* Metadata references are released when statement is freed - no efree needed here */
+
 	efree(ib_query);
 }
 /* }}} */
@@ -401,9 +408,53 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
 				goto _php_fbird_alloc_query_error;
 			}
 		}
+	} else {
+		/* OO API path: Allocate message buffers for fetch operations.
+		 * These replace XSQLDA-based data transfer. */
+		if (ib_query->out_fields_count > 0) {
+			/* Get output metadata and allocate message buffer */
+			ib_query->out_metadata = fbs_get_output_metadata(
+				IBG(master_instance), ib_query->fbs_statement, IB_STATUS);
+			if (!ib_query->out_metadata) {
+				IBDEBUG("fbs_get_output_metadata() failed\n");
+				_php_fbird_error();
+				goto _php_fbird_alloc_query_error;
+			}
+
+			/* Get buffer size and allocate */
+			ib_query->out_msg_length = fbm_get_message_length(
+				IBG(master_instance), ib_query->out_metadata);
+			if (ib_query->out_msg_length > 0) {
+				ib_query->out_msg_buffer = safe_emalloc(1, ib_query->out_msg_length, 0);
+				memset(ib_query->out_msg_buffer, 0, ib_query->out_msg_length);
+			}
+			IBDEBUG("OO API output message buffer allocated\n");
+		}
+
+		if (ib_query->in_fields_count > 0) {
+			/* Get input metadata and allocate message buffer */
+			ib_query->in_metadata = fbs_get_input_metadata(
+				IBG(master_instance), ib_query->fbs_statement, IB_STATUS);
+			if (!ib_query->in_metadata) {
+				IBDEBUG("fbs_get_input_metadata() failed\n");
+				_php_fbird_error();
+				goto _php_fbird_alloc_query_error;
+			}
+
+			/* Get buffer size and allocate */
+			ib_query->in_msg_length = fbm_get_message_length(
+				IBG(master_instance), ib_query->in_metadata);
+			if (ib_query->in_msg_length > 0) {
+				ib_query->in_msg_buffer = safe_emalloc(1, ib_query->in_msg_length, 0);
+				memset(ib_query->in_msg_buffer, 0, ib_query->in_msg_length);
+			}
+
+			/* Also allocate bind_buf for parameter binding */
+			ib_query->bind_buf = safe_emalloc(sizeof(BIND_BUF), ib_query->in_fields_count, 0);
+			ib_query->in_nullind = safe_emalloc(sizeof(*ib_query->in_nullind), ib_query->in_fields_count, 0);
+			IBDEBUG("OO API input message buffer allocated\n");
+		}
 	}
-	/* OO API path: Message buffers are allocated at execution/fetch time via
-	 * fbs_get_output_metadata() and IMessageMetadata->getMessageLength(). */
 
 	*new_query = ib_query;
 

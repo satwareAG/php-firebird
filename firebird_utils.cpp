@@ -1143,7 +1143,7 @@ extern "C" void* fbs_prepare(
     unsigned dialect,
     ISC_STATUS* status_vector
 ) {
-    if (!master_ptr || !attachment_ptr || !sql) {
+    if (!master_ptr || !attachment_ptr || !transaction_ptr || !sql) {
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
             status_vector[1] = isc_bad_req_handle;

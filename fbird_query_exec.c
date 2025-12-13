@@ -219,53 +219,55 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
             /* For SELECT statements, open cursor using OO API */
             if (ib_query->statement_type == isc_info_sql_stmt_select) {
                 /*
-                 * Attempt OO API cursor open for SELECT.
-                 * Pass NULL for input message/metadata (no parameter binding via OO API yet).
-                 * Cursor flags = 0 for default behavior.
+                 * OO API cursor open for SELECT.
+                 * Uses IMessageMetadata for parameter binding (Firebird 3.0+ OO API).
+                 * Input parameters are passed via in_msg_buffer/in_metadata.
                  */
-                if (!ib_query->in_fields_count) {
-                    /* Only use OO API for non-parameterized SELECT (no input bindings) */
-                    oo_api_success = fbs_open_cursor(
-                        IBG(master_instance),
-                        ib_query->fbs_statement,
-                        transaction_ptr,
-                        NULL, /* in_msg: no parameter values */
-                        NULL, /* in_metadata: no parameter metadata */
-                        0,    /* cursor_flags: default */
-                        IB_STATUS
-                    );
-                    if (oo_api_success) {
-                        IBDEBUG("OO API fbs_open_cursor() succeeded for SELECT");
-                        isc_result = 0; /* Success */
-                    } else {
-                        IBDEBUG("OO API fbs_open_cursor() failed, falling back to legacy");
-                    }
+                oo_api_success = fbs_open_cursor(
+                    IBG(master_instance),
+                    ib_query->fbs_statement,
+                    transaction_ptr,
+                    ib_query->in_msg_buffer,  /* in_msg: parameter values */
+                    ib_query->in_metadata,    /* in_metadata: parameter metadata */
+                    0,    /* cursor_flags: default */
+                    IB_STATUS
+                );
+                if (oo_api_success) {
+                    IBDEBUG("OO API fbs_open_cursor() succeeded for SELECT");
+                    isc_result = 0; /* Success */
+                } else {
+                    /* OO API cursor open failed - report error immediately, no fallback */
+                    _php_fbird_error();
+                    goto _php_fbird_ex_error;
                 }
             }
             /* For non-SELECT (INSERT/UPDATE/DELETE) without RETURNING, use fbs_execute */
             else if ((ib_query->statement_type == isc_info_sql_stmt_insert ||
                       ib_query->statement_type == isc_info_sql_stmt_update ||
                       ib_query->statement_type == isc_info_sql_stmt_delete) &&
-                     !ib_query->out_sqlda && !ib_query->in_fields_count) {
+                     !ib_query->out_sqlda) {
                 /*
-                 * Attempt OO API execute for simple DML (no parameters, no RETURNING).
-                 * Pass NULL for all message buffers.
+                 * OO API execute for DML (no RETURNING).
+                 * Uses IMessageMetadata for parameter binding (Firebird 3.0+ OO API).
+                 * Input parameters are passed via in_msg_buffer/in_metadata.
                  */
                 oo_api_success = fbs_execute(
                     IBG(master_instance),
                     ib_query->fbs_statement,
                     transaction_ptr,
-                    NULL, /* in_msg */
-                    NULL, /* in_metadata */
-                    NULL, /* out_msg */
-                    NULL, /* out_metadata */
+                    ib_query->in_msg_buffer,  /* in_msg: parameter values */
+                    ib_query->in_metadata,    /* in_metadata: parameter metadata */
+                    NULL, /* out_msg: no output for DML without RETURNING */
+                    NULL, /* out_metadata: no output for DML without RETURNING */
                     IB_STATUS
                 );
                 if (oo_api_success) {
                     IBDEBUG("OO API fbs_execute() succeeded for DML");
                     isc_result = 0; /* Success */
                 } else {
-                    IBDEBUG("OO API fbs_execute() failed, falling back to legacy");
+                    /* OO API execution failed - report error immediately, no fallback */
+                    _php_fbird_error();
+                    goto _php_fbird_ex_error;
                 }
             }
             /* For DDL statements (CREATE, DROP, ALTER, etc.), use fbs_execute */
@@ -288,39 +290,92 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
                     IBDEBUG("OO API fbs_execute() succeeded for DDL");
                     isc_result = 0; /* Success */
                 } else {
-                    IBDEBUG("OO API fbs_execute() failed for DDL, falling back to legacy");
+                    /* OO API execution failed - report error immediately, no fallback */
+                    _php_fbird_error();
+                    goto _php_fbird_ex_error;
                 }
+            }
+            /* For EXECUTE PROCEDURE - use fbs_execute with input and output buffers */
+            else if (ib_query->statement_type == isc_info_sql_stmt_exec_procedure) {
+                /*
+                 * OO API execute for EXECUTE PROCEDURE.
+                 * Uses IMessageMetadata for parameter binding (Firebird 3.0+ OO API).
+                 * Input parameters are passed via in_msg_buffer/in_metadata.
+                 * Output parameters are returned via out_msg_buffer/out_metadata.
+                 */
+                oo_api_success = fbs_execute(
+                    IBG(master_instance),
+                    ib_query->fbs_statement,
+                    transaction_ptr,
+                    ib_query->in_msg_buffer,   /* in_msg: input parameter values */
+                    ib_query->in_metadata,     /* in_metadata: input parameter metadata */
+                    ib_query->out_msg_buffer,  /* out_msg: output parameter values */
+                    ib_query->out_metadata,    /* out_metadata: output parameter metadata */
+                    IB_STATUS
+                );
+                if (oo_api_success) {
+                    IBDEBUG("OO API fbs_execute() succeeded for EXECUTE PROCEDURE");
+                    isc_result = 0; /* Success */
+                } else {
+                    /* OO API execution failed - report error immediately, no fallback */
+                    _php_fbird_error();
+                    goto _php_fbird_ex_error;
+                }
+            }
+            /* For DML with RETURNING - use fbs_execute with input and output buffers */
+            else if ((ib_query->statement_type == isc_info_sql_stmt_insert ||
+                      ib_query->statement_type == isc_info_sql_stmt_update ||
+                      ib_query->statement_type == isc_info_sql_stmt_delete) &&
+                     ib_query->out_sqlda) {
+                /*
+                 * OO API execute for DML with RETURNING clause.
+                 * Uses IMessageMetadata for parameter binding (Firebird 3.0+ OO API).
+                 * Input parameters are passed via in_msg_buffer/in_metadata.
+                 * RETURNING clause outputs are returned via out_msg_buffer/out_metadata.
+                 */
+                oo_api_success = fbs_execute(
+                    IBG(master_instance),
+                    ib_query->fbs_statement,
+                    transaction_ptr,
+                    ib_query->in_msg_buffer,   /* in_msg: input parameter values */
+                    ib_query->in_metadata,     /* in_metadata: input parameter metadata */
+                    ib_query->out_msg_buffer,  /* out_msg: RETURNING clause values */
+                    ib_query->out_metadata,    /* out_metadata: RETURNING clause metadata */
+                    IB_STATUS
+                );
+                if (oo_api_success) {
+                    IBDEBUG("OO API fbs_execute() succeeded for DML with RETURNING");
+                    isc_result = 0; /* Success */
+                } else {
+                    /* OO API execution failed - report error immediately, no fallback */
+                    _php_fbird_error();
+                    goto _php_fbird_ex_error;
+                }
+            }
+            /* Unhandled statement type for OO API */
+            else {
+                _php_fbird_module_error("Statement type %d not supported via OO API",
+                    ib_query->statement_type);
+                goto _php_fbird_ex_error;
             }
         }
 
-        /* If OO API succeeded, skip legacy path entirely */
+        /* If OO API succeeded, skip to done */
         if (oo_api_success) {
             goto execute_done;
         }
-        /* OO API available but not used (e.g., parameterized query) - check if legacy handles exist */
-        if (!ib_query->stmt.stmt || !ib_query->trans->handle.tr) {
-            /* No legacy handles available - OO API path is required but failed/inapplicable */
-            _php_fbird_module_error("Cannot execute: OO API path not available for this query type, and legacy handles not initialized");
-            goto _php_fbird_ex_error;
-        }
-        /* Fall through to legacy path */
+        /* Should not reach here - all paths either succeed or error out above */
+        _php_fbird_module_error("OO API execution path did not complete");
+        goto _php_fbird_ex_error;
     }
 
-    /* Legacy execution path - only when legacy handles are available */
-    if (ib_query->statement_type == isc_info_sql_stmt_exec_procedure ||
-               ((ib_query->statement_type == isc_info_sql_stmt_insert ||
-                 ib_query->statement_type == isc_info_sql_stmt_update ||
-                 ib_query->statement_type == isc_info_sql_stmt_delete) &&
-                 ib_query->out_sqlda)) {
-        /* Use execute2 when output variables are expected (EXECUTE PROCEDURE
-         * and DML ... RETURNING). */
-        isc_result = isc_dsql_execute2(IB_STATUS, &ib_query->trans->handle.tr,
-            &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda, ib_query->out_sqlda);
-    } else {
-        /* SELECT and DML without RETURNING */
-        isc_result = isc_dsql_execute(IB_STATUS, &ib_query->trans->handle.tr,
-            &ib_query->stmt.stmt, SQLDA_CURRENT_VERSION, ib_query->in_sqlda);
-    }
+    /*
+     * Non-OO API path: This connection does not have OO API transaction.
+     * This should only happen for legacy connections (without fbt_transaction).
+     * For now, report an error as we're removing legacy API support.
+     */
+    _php_fbird_module_error("Legacy API execution not supported. Connection must use OO API (fbt_transaction required)");
+    goto _php_fbird_ex_error;
 
 execute_done:
 

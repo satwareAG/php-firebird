@@ -339,7 +339,37 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
 		/* Also allocate bind_buf for parameter binding */
 		ib_query->bind_buf = safe_emalloc(sizeof(BIND_BUF), ib_query->in_fields_count, 0);
 		ib_query->in_nullind = safe_emalloc(sizeof(*ib_query->in_nullind), ib_query->in_fields_count, 0);
-		IBDEBUG("OO API input message buffer allocated\n");
+
+		/* Allocate in_sqlda from OO API metadata for compatibility with _php_fbird_bind().
+		 * The binding logic still uses XSQLDA structures internally, so we need to
+		 * populate in_sqlda with metadata from the OO API. */
+		ib_query->in_sqlda = (XSQLDA *) emalloc(XSQLDA_LENGTH(ib_query->in_fields_count));
+		ib_query->in_sqlda->version = SQLDA_VERSION1;
+		ib_query->in_sqlda->sqln = ib_query->in_fields_count;
+		ib_query->in_sqlda->sqld = ib_query->in_fields_count;
+
+		/* Populate each XSQLVAR from OO API metadata */
+		for (int i = 0; i < ib_query->in_fields_count; i++) {
+			XSQLVAR *var = &ib_query->in_sqlda->sqlvar[i];
+
+			/* Get type and length from metadata */
+			var->sqltype = fbm_get_type(IBG(master_instance), ib_query->in_metadata, i);
+			var->sqllen = fbm_get_length(IBG(master_instance), ib_query->in_metadata, i);
+			var->sqlscale = fbm_get_scale(IBG(master_instance), ib_query->in_metadata, i);
+			var->sqlsubtype = fbm_get_subtype(IBG(master_instance), ib_query->in_metadata, i);
+
+			/* sqldata and sqlind will be set by _php_fbird_bind() to point to bind_buf */
+			var->sqldata = NULL;
+			var->sqlind = NULL;
+
+			/* Clear name fields - not needed for input parameters */
+			var->sqlname_length = 0;
+			var->relname_length = 0;
+			var->ownname_length = 0;
+			var->aliasname_length = 0;
+		}
+
+		IBDEBUG("OO API input SQLDA and message buffer allocated\n");
 	}
 
 	*new_query = ib_query;

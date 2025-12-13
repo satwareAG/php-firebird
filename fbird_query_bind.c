@@ -322,6 +322,10 @@ int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query) /* {{{ */
 		unsigned data_offset = fbm_get_offset(master, ib_query->in_metadata, i);
 		unsigned null_offset = fbm_get_null_offset(master, ib_query->in_metadata, i);
 		unsigned meta_length = fbm_get_length(master, ib_query->in_metadata, i);
+		/* IMPORTANT: use metadata type, not XSQLVAR type.
+		 * _php_fbird_bind() may change var->sqltype (e.g., to SQL_TEXT for string fallback),
+		 * but the OO API message buffer format must match the original parameter type. */
+		unsigned meta_type = fbm_get_type(master, ib_query->in_metadata, i) & ~1;
 
 		/* Set null indicator in message buffer */
 		short *null_ptr = (short *)(ib_query->in_msg_buffer + null_offset);
@@ -341,8 +345,9 @@ int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query) /* {{{ */
 			return FAILURE;
 		}
 
-		/* Copy data from XSQLDA to message buffer */
-		switch (var->sqltype & ~1) {
+		/* Copy data from XSQLDA to message buffer using METADATA type (not var->sqltype)
+		 * to ensure correct format for the OO API */
+		switch (meta_type) {
 			case SQL_TEXT:
 				/* Fixed-length character field */
 				if ((unsigned)var->sqllen <= meta_length) {
@@ -358,17 +363,38 @@ int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query) /* {{{ */
 				break;
 
 			case SQL_VARYING:
-				/* Variable-length character field: 2-byte length prefix + data */
+				/* Variable-length character field: 2-byte length prefix + data
+				 *
+				 * Handle two cases:
+				 * 1. Data is already in VARY format (var->sqltype == SQL_VARYING): has 2-byte length prefix
+				 * 2. Data is raw string (var->sqltype == SQL_TEXT): no length prefix, need to add one
+				 *
+				 * The bind code may convert non-string values to SQL_TEXT format (raw string),
+				 * but the OO API expects SQL_VARYING format with length prefix. */
 				{
-					short str_len = *(short *)var->sqldata;
-					/* Ensure we don't exceed buffer */
-					if ((unsigned)(str_len + sizeof(short)) <= meta_length + sizeof(short)) {
-						/* Copy length prefix + string data */
-						memcpy(dest, var->sqldata, str_len + sizeof(short));
+					unsigned var_type = (unsigned)(var->sqltype & ~1);
+
+					if (var_type == SQL_VARYING) {
+						/* Data already has VARY format (2-byte length + data) */
+						short str_len = *(short *)var->sqldata;
+						if ((unsigned)(str_len + sizeof(short)) <= meta_length + sizeof(short)) {
+							memcpy(dest, var->sqldata, str_len + sizeof(short));
+						} else {
+							/* Truncate */
+							*(short *)dest = (short)(meta_length);
+							memcpy(dest + sizeof(short), var->sqldata + sizeof(short), meta_length);
+						}
 					} else {
-						/* Truncate */
-						*(short *)dest = (short)(meta_length);
-						memcpy(dest + sizeof(short), var->sqldata + sizeof(short), meta_length);
+						/* Data is raw string without length prefix (SQL_TEXT format)
+						 * Need to convert to VARY format for OO API */
+						short str_len = (short)var->sqllen;
+						if ((unsigned)str_len > meta_length) {
+							str_len = (short)meta_length; /* Truncate */
+						}
+						/* Write length prefix */
+						*(short *)dest = str_len;
+						/* Copy string data */
+						memcpy(dest + sizeof(short), var->sqldata, str_len);
 					}
 				}
 				break;

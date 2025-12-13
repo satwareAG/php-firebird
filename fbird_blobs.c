@@ -48,16 +48,22 @@ static ssize_t fbird_blob_stream_write(php_stream *stream, const char *buf, size
 	fbird_blob_stream_data *data = (fbird_blob_stream_data *)stream->abstract;
 	fbird_blob *ib_blob = data->ib_blob;
 	size_t total_written = 0;
-	unsigned short chunk_size;
+	unsigned chunk_size;
 
-	if (!ib_blob || !ib_blob->bl_handle.ptr) {
+	if (!ib_blob || (!ib_blob->fbb_blob && !ib_blob->bl_handle.ptr)) {
 		return 0;
 	}
 
+	/*
+	 * Firebird 3.0+ OO API Blob Write (Stream)
+	 *
+	 * Uses IBlob::putSegment() via fbb_put_segment() wrapper.
+	 * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
+	 */
 	while (count > 0) {
-		chunk_size = count > USHRT_MAX ? USHRT_MAX : (unsigned short)count;
+		chunk_size = count > USHRT_MAX ? USHRT_MAX : (unsigned)count;
 
-		if (isc_put_segment(IB_STATUS, &ib_blob->bl_handle.blob, chunk_size, (char *)buf)) {
+		if (fbb_put_segment(IBG(master_instance), ib_blob->fbb_blob, chunk_size, buf, IB_STATUS) == 0) {
 			/* Error handling */
 			return total_written; /* Return what we managed to write */
 		}

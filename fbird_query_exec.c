@@ -91,12 +91,8 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
       * (fbird_free_result, transaction commit, EOF reached, etc.) - this is expected
       * and should not generate warnings. We unconditionally reset the is_open flag. */
 
-     /* Only close via legacy API if we have a valid legacy handle.
-      * For OO API cursors (fbs_statement), cursor close is handled separately. */
-     if (ib_query->stmt.stmt) {
-         (void) isc_dsql_free_statement(IB_STATUS, &ib_query->stmt.stmt, DSQL_close);
-     } else if (ib_query->fbs_statement) {
-         /* OO API cursor close - use fbs_close_cursor() */
+     /* OO API Only: Close cursor via fbs_close_cursor() */
+     if (ib_query->fbs_statement) {
          fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
      }
      ib_query->is_open = 0;
@@ -168,38 +164,9 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 				return SUCCESS;
 			}
 
-			/* Legacy API path: a SET TRANSACTION statement should be executed with a NULL trans handle */
-			tr.ptr = NULL;
-
-			if (isc_dsql_execute_immediate(IB_STATUS, &ib_query->link->handle.db, &tr.tr, 0,
-					ib_query->query, ib_query->dialect, NULL)) {
-				_php_fbird_error();
-				goto _php_fbird_ex_error;
-			}
-
-			trans = (fbird_transaction *) emalloc(sizeof(fbird_transaction));
-			trans->handle = tr;
-			trans->link_cnt = 1;
-			trans->affected_rows = 0;
-			trans->fbt_transaction = NULL;  /* Phase 4: Initialize OO API transaction pointer */
-			trans->db_link[0] = ib_query->link;
-
-			if (ib_query->link->tr_list == NULL) {
-				ib_query->link->tr_list = (fbird_tr_list *) emalloc(sizeof(fbird_tr_list));
-				ib_query->link->tr_list->trans = NULL;
-				ib_query->link->tr_list->next = NULL;
-			}
-
-			/* link the transaction into the connection-transaction list */
-			for (l = &ib_query->link->tr_list; *l != NULL; l = &(*l)->next);
-			*l = (fbird_tr_list *) emalloc(sizeof(fbird_tr_list));
-			(*l)->trans = trans;
-			(*l)->next = NULL;
-
-			RETVAL_RES(zend_register_resource(trans, le_trans));
-			Z_TRY_ADDREF_P(return_value);
-
-			return SUCCESS;
+			/* OO API Only: Connection must have OO API handle for SET TRANSACTION */
+			_php_fbird_module_error("SET TRANSACTION requires OO API connection (fbc_connection required)");
+			goto _php_fbird_ex_error;
 
 		case isc_info_sql_stmt_commit:
 		case isc_info_sql_stmt_rollback:
@@ -231,23 +198,9 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 				return SUCCESS;
 			}
 
-			/* Legacy API path: Use isc_dsql_execute_immediate() */
-			if (isc_dsql_execute_immediate(IB_STATUS, &ib_query->link->handle.db,
-					&ib_query->trans->handle.tr, 0, ib_query->query, ib_query->dialect, NULL)) {
-				_php_fbird_error();
-				goto _php_fbird_ex_error;
-			}
-
-			if (ib_query->trans->handle.tr == 0 && ib_query->trans_res != NULL) {
-				/* transaction was released by the query and was a registered resource,
-				   so we have to release it */
-				zend_list_delete(ib_query->trans_res);
-				ib_query->trans_res = NULL;
-			}
-
-			RETVAL_TRUE;
-
-			return SUCCESS;
+			/* OO API Only: Transaction must have OO API handle for COMMIT/ROLLBACK */
+			_php_fbird_module_error("COMMIT/ROLLBACK requires OO API transaction (fbt_transaction required)");
+			goto _php_fbird_ex_error;
 
 		default:
 			RETVAL_FALSE;
@@ -889,9 +842,7 @@ cleanup_select_result_query:
 
 			affected_rows = 0;
 
-			/* OO API path: compute affected rows via statement wrapper.
-			 * Critical: do NOT call isc_dsql_sql_info() with an invalid legacy handle.
-			 * This avoids warnings during SKIPIF/init_db(). */
+			/* OO API Only: compute affected rows via statement wrapper. */
 			if (ib_query->fbs_statement) {
 				ISC_UINT64 oo_affected = fbs_get_affected_records(
 					IBG(master_instance),
@@ -905,24 +856,10 @@ cleanup_select_result_query:
 				}
 
 				affected_rows = (unsigned long)oo_affected;
-			} else if (ib_query->stmt.stmt) {
-				if (isc_dsql_sql_info(IB_STATUS, &ib_query->stmt.stmt, sizeof(info_count),
-						info_count, sizeof(result), result)) {
-					_php_fbird_error();
-					goto _php_fbird_ex_error;
-				}
-
-				if (result[0] == isc_info_sql_records) {
-					unsigned i = 3, result_size = isc_vax_integer(&result[1],2);
-
-					while (result[i] != isc_info_end && i < result_size) {
-						short len = (short)isc_vax_integer(&result[i+1],2);
-						if (result[i] != isc_info_req_select_count) {
-							affected_rows += isc_vax_integer(&result[i+3],len);
-						}
-						i += len+3;
-					}
-				}
+			} else {
+				/* No OO API statement - cannot get affected rows */
+				_php_fbird_module_error("Cannot get affected rows: OO API statement required");
+				goto _php_fbird_ex_error;
 			}
 
 			ib_query->trans->affected_rows = affected_rows;

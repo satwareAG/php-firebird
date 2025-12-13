@@ -1423,6 +1423,7 @@ PHP_FUNCTION(fbird_drop_db)
 	fbird_db_link *ib_link;
 	fbird_tr_list *l;
 	zend_resource *link_res;
+	int drop_result;
 
 	RESET_ERRMSG;
 
@@ -1444,14 +1445,31 @@ PHP_FUNCTION(fbird_drop_db)
 		RETURN_FALSE;
 	}
 
-	if (isc_drop_database(IB_STATUS, &ib_link->handle.db)) {
-		_php_fbird_error();
-		RETURN_FALSE;
+	/* Use OO API when connection was created via OO API */
+	if (ib_link->fbc_connection != NULL) {
+		IBDEBUG("Dropping database via OO API...");
+		drop_result = fbc_drop_database(ib_link->fbc_connection, IB_STATUS);
+		if (drop_result != 0) {
+			_php_fbird_error();
+			RETURN_FALSE;
+		}
+		/* fbc_drop_database() already frees the connection wrapper */
+		ib_link->fbc_connection = NULL;
+		ib_link->handle.ptr = 0;
+	} else {
+		/* Legacy path */
+		if (isc_drop_database(IB_STATUS, &ib_link->handle.db)) {
+			_php_fbird_error();
+			RETURN_FALSE;
+		}
 	}
 
-	/* isc_drop_database() doesn't invalidate the transaction handles */
+	/* drop_database() doesn't invalidate the transaction handles */
 	for (l = ib_link->tr_list; l != NULL; l = l->next) {
-		if (l->trans != NULL) l->trans->handle.ptr = 0;
+		if (l->trans != NULL) {
+			l->trans->handle.ptr = 0;
+			l->trans->fbt_transaction = NULL;
+		}
 	}
 
 	zend_list_delete(link_res);

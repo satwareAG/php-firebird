@@ -27,6 +27,7 @@
 
 #include "php.h"
 #include "php_ini.h"
+#include <ctype.h>
 
 #if HAVE_FIREBIRD
 
@@ -839,24 +840,126 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 						continue;
 					}
 
-					/* Convert the PHP array argument into a contiguous element buffer */
-					void* attachment_ptr = fbc_get_attachment(ib_query->link->fbc_connection);
-					void* transaction_ptr = fbt_get_handle(ib_query->trans->fbt_transaction);
+				/* Convert the PHP array argument into a contiguous element buffer */
+				void* attachment_ptr = fbc_get_attachment(ib_query->link->fbc_connection);
+				void* transaction_ptr = fbt_get_handle(ib_query->trans->fbt_transaction);
 
-					ISC_ARRAY_DESC ar_desc;
-					if (isc_array_lookup_bounds(
-							IB_STATUS,
-							&ib_query->link->handle.db,
-							&ib_query->trans->handle.tr,
-							ib_query->in_sqlda->sqlvar[i].relname,
-							ib_query->in_sqlda->sqlvar[i].sqlname,
-							&ar_desc
-						) != 0) {
-						_php_fbird_error();
-						rv = FAILURE;
-						++array_cnt;
-						continue;
+				/* Get table and column names for array lookup.
+				 * OO API input metadata doesn't provide relname/sqlname for anonymous params.
+				 * If empty, try to parse from SQL (INSERT INTO table (col,...) VALUES (?,...)). */
+				char arr_relname[32] = "";
+				char arr_sqlname[32] = "";
+
+				if (ib_query->in_sqlda->sqlvar[i].relname_length > 0) {
+					strncpy(arr_relname, ib_query->in_sqlda->sqlvar[i].relname, sizeof(arr_relname) - 1);
+				}
+				if (ib_query->in_sqlda->sqlvar[i].sqlname_length > 0) {
+					strncpy(arr_sqlname, ib_query->in_sqlda->sqlvar[i].sqlname, sizeof(arr_sqlname) - 1);
+				}
+
+				/* Parse SQL to extract table/column names if not available from metadata */
+				if ((arr_relname[0] == '\0' || arr_sqlname[0] == '\0') && ib_query->query) {
+					const char *sql = ib_query->query;
+					const char *insert_pos, *table_start, *table_end;
+					const char *cols_start, *cols_end;
+
+					/* Skip whitespace and find INSERT INTO */
+					while (*sql && (*sql == ' ' || *sql == '\t' || *sql == '\n' || *sql == '\r')) sql++;
+					insert_pos = sql;
+
+					if (strncasecmp(insert_pos, "INSERT", 6) == 0) {
+						insert_pos += 6;
+						while (*insert_pos && (*insert_pos == ' ' || *insert_pos == '\t' || *insert_pos == '\n')) insert_pos++;
+
+						if (strncasecmp(insert_pos, "INTO", 4) == 0) {
+							insert_pos += 4;
+							while (*insert_pos && (*insert_pos == ' ' || *insert_pos == '\t' || *insert_pos == '\n')) insert_pos++;
+
+							/* Extract table name */
+							table_start = insert_pos;
+							table_end = table_start;
+							while (*table_end && *table_end != ' ' && *table_end != '\t' &&
+							       *table_end != '\n' && *table_end != '(') {
+								table_end++;
+							}
+
+							if (arr_relname[0] == '\0' && table_end > table_start) {
+								size_t len = table_end - table_start;
+								if (len >= sizeof(arr_relname)) len = sizeof(arr_relname) - 1;
+								memcpy(arr_relname, table_start, len);
+								arr_relname[len] = '\0';
+							}
+
+							/* Find column list (col1, col2, ...) */
+							cols_start = strchr(table_end, '(');
+							if (cols_start) {
+								cols_start++; /* skip '(' */
+								cols_end = strchr(cols_start, ')');
+								if (cols_end && arr_sqlname[0] == '\0') {
+									/* Parse column names and find column at position i */
+									int col_idx = 0;
+									const char *col_ptr = cols_start;
+
+									while (col_ptr < cols_end && col_idx <= i) {
+										/* Skip whitespace */
+										while (col_ptr < cols_end && (*col_ptr == ' ' || *col_ptr == '\t' || *col_ptr == '\n')) col_ptr++;
+
+										/* Find column name start/end */
+										const char *col_name_start = col_ptr;
+										while (col_ptr < cols_end && *col_ptr != ',' && *col_ptr != ' ' &&
+										       *col_ptr != '\t' && *col_ptr != '\n') {
+											col_ptr++;
+										}
+										const char *col_name_end = col_ptr;
+
+										if (col_idx == i && col_name_end > col_name_start) {
+											size_t len = col_name_end - col_name_start;
+											if (len >= sizeof(arr_sqlname)) len = sizeof(arr_sqlname) - 1;
+											memcpy(arr_sqlname, col_name_start, len);
+											arr_sqlname[len] = '\0';
+											break;
+										}
+
+										/* Skip to next column */
+										while (col_ptr < cols_end && (*col_ptr == ' ' || *col_ptr == '\t' || *col_ptr == '\n')) col_ptr++;
+										if (col_ptr < cols_end && *col_ptr == ',') {
+											col_ptr++;
+											col_idx++;
+										}
+									}
+								}
+							}
+						}
 					}
+				}
+
+				if (arr_relname[0] == '\0' || arr_sqlname[0] == '\0') {
+					_php_fbird_module_error("Parameter %d: cannot determine table/column name for array binding. Use explicit INSERT INTO table (columns...) VALUES (...).", i + 1);
+					rv = FAILURE;
+					++array_cnt;
+					continue;
+				}
+
+				/* Firebird stores identifiers UPPERCASE in system tables - convert parsed names */
+				for (char *p = arr_relname; *p; p++) *p = toupper((unsigned char)*p);
+				for (char *p = arr_sqlname; *p; p++) *p = toupper((unsigned char)*p);
+
+				ISC_ARRAY_DESC ar_desc;
+				/* OO API: Query array descriptor from system tables */
+				if (fba_lookup_bounds(
+						IBG(master_instance),
+						attachment_ptr,
+						transaction_ptr,
+						arr_relname,
+						arr_sqlname,
+						&ar_desc,
+						IB_STATUS
+					) != 0) {
+					_php_fbird_error();
+					rv = FAILURE;
+					++array_cnt;
+					continue;
+				}
 
 					/* Compute element size and total byte size for the slice buffer */
 					ISC_LONG elem_size = 0;

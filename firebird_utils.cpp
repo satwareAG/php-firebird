@@ -1692,7 +1692,13 @@ extern "C" int fba_lookup_bounds(
     ISC_ARRAY_DESC* desc,
     ISC_STATUS* status_vector
 ) {
+    fprintf(stderr, "fba_lookup_bounds: master=%p attach=%p trans=%p rel='%s' field='%s'\n",
+        master_ptr, attachment_ptr, transaction_ptr,
+        relation_name ? relation_name : "NULL",
+        field_name ? field_name : "NULL");
+
     if (!master_ptr || !attachment_ptr || !transaction_ptr || !relation_name || !field_name || !desc) {
+        fprintf(stderr, "fba_lookup_bounds: NULL parameter check failed\n");
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
             status_vector[1] = isc_bad_req_handle;
@@ -1731,13 +1737,16 @@ extern "C" int fba_lookup_bounds(
             "FROM RDB$RELATION_FIELDS rf "
             "WHERE rf.RDB$RELATION_NAME = ? AND rf.RDB$FIELD_NAME = ?";
 
+        fprintf(stderr, "fba_lookup_bounds: preparing Query1...\n");
         Firebird::IStatement* stmt1 = attachment->prepare(&st, transaction, 0, sql1, 3, 0);
         if (fb::statusHasError(raw_status) || !stmt1) {
+            fprintf(stderr, "fba_lookup_bounds: Query1 prepare FAILED\n");
             if (status_vector) {
                 copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
             }
             return 1;
         }
+        fprintf(stderr, "fba_lookup_bounds: Query1 prepare OK, stmt1=%p\n", (void*)stmt1);
 
         Firebird::IMessageMetadata* inMeta1 = stmt1->getInputMetadata(&st);
         Firebird::IMessageMetadata* outMeta1 = stmt1->getOutputMetadata(&st);
@@ -1778,8 +1787,10 @@ extern "C" int fba_lookup_bounds(
             }
         }
 
+        fprintf(stderr, "fba_lookup_bounds: Query1 openCursor...\n");
         Firebird::IResultSet* rs1 = stmt1->openCursor(&st, transaction, inMeta1, inBuf1.get(), outMeta1, 0);
         if (fb::statusHasError(raw_status) || !rs1) {
+            fprintf(stderr, "fba_lookup_bounds: Query1 openCursor FAILED\n");
             if (status_vector) {
                 copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
             }
@@ -1789,8 +1800,11 @@ extern "C" int fba_lookup_bounds(
             return 1;
         }
 
+        fprintf(stderr, "fba_lookup_bounds: Query1 fetchNext...\n");
         const int fetch1 = rs1->fetchNext(&st, outBuf1.get());
+        fprintf(stderr, "fba_lookup_bounds: Query1 fetch1=%d\n", fetch1);
         if (fb::statusHasError(raw_status) || fetch1 != 0) {
+            fprintf(stderr, "fba_lookup_bounds: Query1 fetch FAILED (fetch1=%d, hasError=%d)\n", fetch1, fb::statusHasError(raw_status));
             if (status_vector) {
                 copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
             }
@@ -1835,22 +1849,30 @@ extern "C" int fba_lookup_bounds(
         outMeta1->release();
         stmt1->free(&st);
 
+        fprintf(stderr, "fba_lookup_bounds: fieldSource='%s' fieldId=%d\n", fieldSource.c_str(), (int)fieldId);
+
         /* Query 2: field type/len/scale/subtype */
         const char* sql2 =
             "SELECT f.RDB$FIELD_TYPE, f.RDB$FIELD_LENGTH, f.RDB$FIELD_SCALE, f.RDB$FIELD_SUB_TYPE "
             "FROM RDB$FIELDS f WHERE f.RDB$FIELD_NAME = ?";
 
+        fprintf(stderr, "fba_lookup_bounds: Query2 prepare...\n");
         Firebird::IStatement* stmt2 = attachment->prepare(&st, transaction, 0, sql2, 3, 0);
+        fprintf(stderr, "fba_lookup_bounds: Query2 prepare hasError=%d stmt2=%p\n", fb::statusHasError(raw_status), (void*)stmt2);
         if (fb::statusHasError(raw_status) || !stmt2) {
+            fprintf(stderr, "fba_lookup_bounds: Query2 prepare FAILED\n");
             if (status_vector) {
                 copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
             }
             return 1;
         }
 
+        fprintf(stderr, "fba_lookup_bounds: Query2 getMetadata...\n");
         Firebird::IMessageMetadata* inMeta2 = stmt2->getInputMetadata(&st);
         Firebird::IMessageMetadata* outMeta2 = stmt2->getOutputMetadata(&st);
+        fprintf(stderr, "fba_lookup_bounds: Query2 inMeta2=%p outMeta2=%p\n", (void*)inMeta2, (void*)outMeta2);
         if (fb::statusHasError(raw_status) || !inMeta2 || !outMeta2) {
+            fprintf(stderr, "fba_lookup_bounds: Query2 metadata FAILED\n");
             if (status_vector) {
                 copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
             }
@@ -1885,8 +1907,10 @@ extern "C" int fba_lookup_bounds(
             }
         }
 
+        fprintf(stderr, "fba_lookup_bounds: Query2 openCursor...\n");
         Firebird::IResultSet* rs2 = stmt2->openCursor(&st, transaction, inMeta2, inBuf2.get(), outMeta2, 0);
         if (fb::statusHasError(raw_status) || !rs2) {
+            fprintf(stderr, "fba_lookup_bounds: Query2 openCursor FAILED\n");
             if (status_vector) {
                 copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
             }
@@ -1896,8 +1920,11 @@ extern "C" int fba_lookup_bounds(
             return 1;
         }
 
+        fprintf(stderr, "fba_lookup_bounds: Query2 fetchNext...\n");
         const int fetch2 = rs2->fetchNext(&st, outBuf2.get());
+        fprintf(stderr, "fba_lookup_bounds: Query2 fetch2=%d\n", fetch2);
         if (fb::statusHasError(raw_status) || fetch2 != 0) {
+            fprintf(stderr, "fba_lookup_bounds: Query2 fetch FAILED\n");
             if (status_vector) {
                 copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
             }
@@ -1922,6 +1949,9 @@ extern "C" int fba_lookup_bounds(
         outMeta2->release();
         stmt2->free(&st);
 
+        fprintf(stderr, "fba_lookup_bounds: fieldType=%d fieldLen=%d fieldScale=%d fieldSubType=%d\n",
+            (int)fieldType, (int)fieldLen, (int)fieldScale, (int)fieldSubType);
+
         /* Query 3: bounds per dimension.
          * Firebird 4.0 RDB$FIELD_DIMENSIONS only has:
          *   RDB$FIELD_NAME, RDB$DIMENSION, RDB$LOWER_BOUND, RDB$UPPER_BOUND.
@@ -1934,17 +1964,23 @@ extern "C" int fba_lookup_bounds(
             "WHERE fd.RDB$FIELD_NAME = ? "
             "ORDER BY fd.RDB$DIMENSION";
 
+        fprintf(stderr, "fba_lookup_bounds: Query3 prepare...\n");
         Firebird::IStatement* stmt3 = attachment->prepare(&st, transaction, 0, sql3, 3, 0);
+        fprintf(stderr, "fba_lookup_bounds: Query3 prepare hasError=%d stmt3=%p\n", fb::statusHasError(raw_status), (void*)stmt3);
         if (fb::statusHasError(raw_status) || !stmt3) {
+            fprintf(stderr, "fba_lookup_bounds: Query3 prepare FAILED\n");
             if (status_vector) {
                 copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
             }
             return 1;
         }
 
+        fprintf(stderr, "fba_lookup_bounds: Query3 getMetadata...\n");
         Firebird::IMessageMetadata* inMeta3 = stmt3->getInputMetadata(&st);
         Firebird::IMessageMetadata* outMeta3 = stmt3->getOutputMetadata(&st);
+        fprintf(stderr, "fba_lookup_bounds: Query3 inMeta3=%p outMeta3=%p\n", (void*)inMeta3, (void*)outMeta3);
         if (fb::statusHasError(raw_status) || !inMeta3 || !outMeta3) {
+            fprintf(stderr, "fba_lookup_bounds: Query3 metadata FAILED\n");
             if (status_vector) {
                 copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
             }
@@ -1978,8 +2014,11 @@ extern "C" int fba_lookup_bounds(
             }
         }
 
+        fprintf(stderr, "fba_lookup_bounds: Query3 openCursor...\n");
         Firebird::IResultSet* rs3 = stmt3->openCursor(&st, transaction, inMeta3, inBuf3.get(), outMeta3, 0);
+        fprintf(stderr, "fba_lookup_bounds: Query3 openCursor hasError=%d rs3=%p\n", fb::statusHasError(raw_status), (void*)rs3);
         if (fb::statusHasError(raw_status) || !rs3) {
+            fprintf(stderr, "fba_lookup_bounds: Query3 openCursor FAILED\n");
             if (status_vector) {
                 copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
             }
@@ -2032,8 +2071,11 @@ extern "C" int fba_lookup_bounds(
         desc->array_desc_dimensions = 0;
 
         /* Iterate bounds rows */
+        fprintf(stderr, "fba_lookup_bounds: Query3 fetch loop starting...\n");
+        int dim_count = 0;
         while (true) {
             const int f = rs3->fetchNext(&st, outBuf3.get());
+            fprintf(stderr, "fba_lookup_bounds: Query3 fetch=%d hasError=%d\n", f, fb::statusHasError(raw_status));
             if (fb::statusHasError(raw_status)) {
                 if (status_vector) {
                     copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
@@ -2056,12 +2098,17 @@ extern "C" int fba_lookup_bounds(
             const ISC_LONG low = *reinterpret_cast<ISC_LONG*>(outBuf3.get() + lowOff);
             const ISC_LONG up = *reinterpret_cast<ISC_LONG*>(outBuf3.get() + upOff);
 
-            if (dim < 1 || dim > 16) {
+            fprintf(stderr, "fba_lookup_bounds: dim=%d low=%d up=%d (offs: dim=%u low=%u up=%u)\n",
+                (int)dim, (int)low, (int)up, dimOff, lowOff, upOff);
+
+            /* Firebird stores RDB$DIMENSION as 0-based (0..N-1) */
+            if (dim < 0 || dim >= 16) {
+                fprintf(stderr, "fba_lookup_bounds: skipping dim=%d (out of range 0-15)\n", (int)dim);
                 continue;
             }
 
-            /* Firebird stores dimensions 1..N; ISC_ARRAY_DESC uses 0-based array_desc_bounds */
-            const unsigned idx = (unsigned)(dim - 1);
+            /* RDB$DIMENSION is already 0-based; ISC_ARRAY_DESC uses 0-based array_desc_bounds */
+            const unsigned idx = (unsigned)dim;
             desc->array_desc_bounds[idx].array_bound_lower = low;
             desc->array_desc_bounds[idx].array_bound_upper = up;
 
@@ -2076,6 +2123,7 @@ extern "C" int fba_lookup_bounds(
         stmt3->free(&st);
 
         if (desc->array_desc_dimensions == 0) {
+            fprintf(stderr, "fba_lookup_bounds: no dimensions found!\n");
             if (status_vector) {
                 status_vector[0] = isc_arg_gds;
                 status_vector[1] = isc_bad_req_handle;
@@ -2083,6 +2131,10 @@ extern "C" int fba_lookup_bounds(
             }
             return 1;
         }
+
+        fprintf(stderr, "fba_lookup_bounds: SUCCESS dtype=%d len=%d dims=%d bounds[0]=%d-%d\n",
+            desc->array_desc_dtype, desc->array_desc_length, desc->array_desc_dimensions,
+            desc->array_desc_bounds[0].array_bound_lower, desc->array_desc_bounds[0].array_bound_upper);
 
         if (status_vector) {
             status_vector[0] = 1;

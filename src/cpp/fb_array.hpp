@@ -43,7 +43,7 @@
 #include "fb_status.hpp"
 
 // SDL constants (Slice Description Language)
-// These are internal Firebird constants for array slice operations
+// Values from Firebird source: jrd/sdl.cpp op_* constants
 #ifndef isc_sdl_version1
 #define isc_sdl_version1    1
 #endif
@@ -57,25 +57,31 @@
 #define isc_sdl_field       4
 #endif
 #ifndef isc_sdl_struct
-#define isc_sdl_struct      9
-#endif
-#ifndef isc_sdl_do2
-#define isc_sdl_do2         12
-#endif
-#ifndef isc_sdl_element
-#define isc_sdl_element     14
+#define isc_sdl_struct      6   // was incorrectly 9
 #endif
 #ifndef isc_sdl_variable
-#define isc_sdl_variable    15
+#define isc_sdl_variable    7   // was incorrectly 15
 #endif
 #ifndef isc_sdl_scalar
-#define isc_sdl_scalar      18
+#define isc_sdl_scalar      8   // was incorrectly 18
 #endif
 #ifndef isc_sdl_tiny_integer
-#define isc_sdl_tiny_integer 19
+#define isc_sdl_tiny_integer 9  // was incorrectly 19
 #endif
 #ifndef isc_sdl_long_integer
-#define isc_sdl_long_integer 26
+#define isc_sdl_long_integer 11 // was incorrectly 26
+#endif
+#ifndef isc_sdl_do1
+#define isc_sdl_do1         35
+#endif
+#ifndef isc_sdl_do2
+#define isc_sdl_do2         34
+#endif
+#ifndef isc_sdl_do3
+#define isc_sdl_do3         33
+#endif
+#ifndef isc_sdl_element
+#define isc_sdl_element     36  // was incorrectly 14
 #endif
 
 namespace fb {
@@ -294,6 +300,17 @@ inline bool ArrayUtils::putSlice(
         Firebird::IStatus* raw_status = master->getStatus();
         Firebird::CheckStatusWrapper check_status(raw_status);
 
+        // Debug
+        fprintf(stderr, "putSlice: attach=%p trans=%p array_id=%08x:%08x sdl_len=%u buf_len=%d\n",
+                (void*)attachment, (void*)transaction,
+                array_id->gds_quad_high, array_id->gds_quad_low,
+                sdl_length, (int)buffer_length);
+        fprintf(stderr, "putSlice: buffer first 20 bytes: ");
+        for (int i = 0; i < 20 && i < buffer_length; i++) {
+            fprintf(stderr, "%02x ", ((unsigned char*)buffer)[i]);
+        }
+        fprintf(stderr, "\n");
+
         // Call IAttachment::putSlice
         attachment->putSlice(
             &check_status,
@@ -306,6 +323,8 @@ inline bool ArrayUtils::putSlice(
             static_cast<int>(buffer_length),
             static_cast<unsigned char*>(const_cast<void*>(buffer))
         );
+
+        fprintf(stderr, "putSlice: returned, checking status...\n");
 
         if (statusHasError(raw_status)) {
             if (status_vector) {
@@ -331,13 +350,15 @@ inline bool ArrayUtils::putSlice(
 /**
  * Build SDL (Slice Description Language) from ISC_ARRAY_DESC.
  *
- * SDL format (simplified for whole-array operations):
+ * SDL format for whole-array operations:
  * - Version byte (isc_sdl_version1)
- * - Struct info (isc_sdl_struct, 1 element)
+ * - Struct definition (isc_sdl_struct, count)
+ *   - Scalar type (isc_sdl_scalar, index, dtype)
  * - Relation name (isc_sdl_relation)
  * - Field name (isc_sdl_field)
- * - Dimension loop (isc_sdl_do2, isc_sdl_variable, lower, upper)
- * - Element reference (isc_sdl_element, 1)
+ * - Dimension loop (isc_sdl_do2, dim, lower, upper)
+ * - Element reference (isc_sdl_element, dims, scalar)
+ *   - Scalar (isc_sdl_scalar, 0, dtype)
  *   - Variable reference for each dimension
  * - End (isc_sdl_eoc)
  */
@@ -355,17 +376,7 @@ inline bool ArrayUtils::buildSdlFromDesc(
     // Version
     *sdl++ = isc_sdl_version1;
 
-    // Struct with 1 element
-    *sdl++ = isc_sdl_struct;
-    *sdl++ = 1;
-
-    // Data type definition using isc_sdl_scalar
-    // (simplified - uses scalar for basic type, then actual type byte)
-    *sdl++ = isc_sdl_scalar;
-    *sdl++ = 0;  // Index 0 in struct
-    *sdl++ = desc->array_desc_dtype;
-
-    // Relation name
+    // Relation name - identify the table (Firebird looks up element type from metadata)
     unsigned char rname_len = 0;
     while (rname_len < sizeof(desc->array_desc_relation_name) &&
            desc->array_desc_relation_name[rname_len] &&
@@ -422,9 +433,12 @@ inline bool ArrayUtils::buildSdlFromDesc(
         }
     }
 
-    // Element reference
+    // Element reference: specifies what value to put at each array position
+    // Format: isc_sdl_element, dims_count, then for each dim a variable ref
     *sdl++ = isc_sdl_element;
     *sdl++ = static_cast<unsigned char>(desc->array_desc_dimensions);
+
+    // Dimension variable references
     for (unsigned short dim = 0; dim < desc->array_desc_dimensions; dim++) {
         *sdl++ = isc_sdl_variable;
         *sdl++ = static_cast<unsigned char>(dim);
@@ -434,6 +448,16 @@ inline bool ArrayUtils::buildSdlFromDesc(
     *sdl++ = isc_sdl_eoc;
 
     *sdl_length = static_cast<unsigned>(sdl - sdl_buffer);
+
+    // Debug: dump SDL
+    fprintf(stderr, "buildSdlFromDesc: rel='%.32s' field='%.32s' dims=%d len=%u SDL=",
+            desc->array_desc_relation_name, desc->array_desc_field_name,
+            desc->array_desc_dimensions, *sdl_length);
+    for (unsigned i = 0; i < *sdl_length && i < 64; i++) {
+        fprintf(stderr, "%02x ", sdl_buffer[i]);
+    }
+    fprintf(stderr, "\n");
+
     return true;
 }
 

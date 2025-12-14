@@ -961,23 +961,31 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 					continue;
 				}
 
-					/* Compute element size and total byte size for the slice buffer */
+					/* Compute element size and SQL type for the slice buffer */
 					ISC_LONG elem_size = 0;
+					int arr_el_type = SQL_TEXT; /* default for text/unknown */
 					switch (ar_desc.array_desc_dtype) {
 						case blr_text:
 						case blr_text2:
+							elem_size = (ISC_LONG)ar_desc.array_desc_length;
+							arr_el_type = SQL_TEXT;
+							break;
 						case blr_varying:
 						case blr_varying2:
 							elem_size = (ISC_LONG)ar_desc.array_desc_length;
+							arr_el_type = SQL_VARYING;
 							break;
 						case blr_short:
 							elem_size = (ISC_LONG)sizeof(short);
+							arr_el_type = SQL_SHORT;
 							break;
 						case blr_long:
 							elem_size = (ISC_LONG)sizeof(ISC_LONG);
+							arr_el_type = SQL_LONG;
 							break;
 						case blr_int64:
 							elem_size = (ISC_LONG)sizeof(ISC_INT64);
+							arr_el_type = SQL_INT64;
 							break;
 						default:
 							_php_fbird_module_error("Parameter %d: unsupported array element dtype %d", i + 1, ar_desc.array_desc_dtype);
@@ -993,7 +1001,7 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 
 					ISC_LONG slice_len = elem_size * elements;
 					void* array_data = ecalloc(1, (size_t)slice_len);
-					if (FAILURE == _php_fbird_bind_array(b_var, (char*)array_data, (zend_ulong)slice_len, (fbird_array*)&(fbird_array){.ar_desc = ar_desc, .ar_size = slice_len, .el_type = SQL_TEXT, .el_size = (unsigned short)elem_size}, 0)) {
+					if (FAILURE == _php_fbird_bind_array(b_var, (char*)array_data, (zend_ulong)slice_len, (fbird_array*)&(fbird_array){.ar_desc = ar_desc, .ar_size = slice_len, .el_type = arr_el_type, .el_size = (unsigned short)elem_size}, 0)) {
 						_php_fbird_module_error("Parameter %d: failed to bind array argument", i + 1);
 						efree(array_data);
 						rv = FAILURE;

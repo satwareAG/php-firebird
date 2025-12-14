@@ -71,6 +71,9 @@
 #ifndef isc_sdl_long_integer
 #define isc_sdl_long_integer 11 // was incorrectly 26
 #endif
+#ifndef isc_sdl_short_integer
+#define isc_sdl_short_integer 10
+#endif
 #ifndef isc_sdl_do1
 #define isc_sdl_do1         35
 #endif
@@ -373,10 +376,62 @@ inline bool ArrayUtils::buildSdlFromDesc(
 
     unsigned char* sdl = sdl_buffer;
 
-    // Version
+    const auto stuffSdlWord = [&](ISC_USHORT word) {
+        *sdl++ = static_cast<unsigned char>(word & 0xFF);
+        *sdl++ = static_cast<unsigned char>((word >> 8) & 0xFF);
+    };
+
+    const auto stuffLiteral = [&](ISC_LONG literal) {
+        if (literal >= -128 && literal <= 127) {
+            *sdl++ = isc_sdl_tiny_integer;
+            *sdl++ = static_cast<unsigned char>(static_cast<int8_t>(literal));
+            return;
+        }
+
+        if (literal >= -32768 && literal <= 32767) {
+            *sdl++ = isc_sdl_short_integer;
+            *sdl++ = static_cast<unsigned char>(literal & 0xFF);
+            *sdl++ = static_cast<unsigned char>((literal >> 8) & 0xFF);
+            return;
+        }
+
+        *sdl++ = isc_sdl_long_integer;
+        *sdl++ = static_cast<unsigned char>(literal & 0xFF);
+        *sdl++ = static_cast<unsigned char>((literal >> 8) & 0xFF);
+        *sdl++ = static_cast<unsigned char>((literal >> 16) & 0xFF);
+        *sdl++ = static_cast<unsigned char>((literal >> 24) & 0xFF);
+    };
+
+    // Canonical layout matches Firebird `isc_array_gen_sdl()` (src/yvalve/array.cpp).
+
+    // 1) Version
     *sdl++ = isc_sdl_version1;
 
-    // Relation name - identify the table (Firebird looks up element type from metadata)
+    // 2) Element descriptor: struct(1) + blr dtype [+ scale/len]
+    *sdl++ = isc_sdl_struct;
+    *sdl++ = 1;
+    *sdl++ = static_cast<unsigned char>(desc->array_desc_dtype);
+
+    switch (desc->array_desc_dtype) {
+    case blr_short:
+    case blr_long:
+    case blr_int64:
+    case blr_quad:
+    case blr_int128:
+        *sdl++ = static_cast<unsigned char>(desc->array_desc_scale);
+        break;
+
+    case blr_text:
+    case blr_cstring:
+    case blr_varying:
+        stuffSdlWord(static_cast<ISC_USHORT>(desc->array_desc_length));
+        break;
+
+    default:
+        break;
+    }
+
+    // 3) Relation
     unsigned char rname_len = 0;
     while (rname_len < sizeof(desc->array_desc_relation_name) &&
            desc->array_desc_relation_name[rname_len] &&
@@ -388,7 +443,7 @@ inline bool ArrayUtils::buildSdlFromDesc(
     std::memcpy(sdl, desc->array_desc_relation_name, rname_len);
     sdl += rname_len;
 
-    // Field name
+    // 4) Field
     unsigned char fname_len = 0;
     while (fname_len < sizeof(desc->array_desc_field_name) &&
            desc->array_desc_field_name[fname_len] &&
@@ -400,51 +455,36 @@ inline bool ArrayUtils::buildSdlFromDesc(
     std::memcpy(sdl, desc->array_desc_field_name, fname_len);
     sdl += fname_len;
 
-    // Dimension loops (for each dimension)
+    // 5) Dimension loops
     for (unsigned short dim = 0; dim < desc->array_desc_dimensions; dim++) {
-        ISC_LONG lower = desc->array_desc_bounds[dim].array_bound_lower;
-        ISC_LONG upper = desc->array_desc_bounds[dim].array_bound_upper;
+        const ISC_LONG lower = desc->array_desc_bounds[dim].array_bound_lower;
+        const ISC_LONG upper = desc->array_desc_bounds[dim].array_bound_upper;
 
-        *sdl++ = isc_sdl_do2;
-        *sdl++ = static_cast<unsigned char>(dim);
-
-        // Lower bound
-        if (lower >= -128 && lower <= 127) {
-            *sdl++ = isc_sdl_tiny_integer;
-            *sdl++ = static_cast<unsigned char>(lower);
+        if (lower == 1) {
+            *sdl++ = isc_sdl_do1;
+            *sdl++ = static_cast<unsigned char>(dim);
         } else {
-            *sdl++ = isc_sdl_long_integer;
-            *sdl++ = static_cast<unsigned char>(lower & 0xFF);
-            *sdl++ = static_cast<unsigned char>((lower >> 8) & 0xFF);
-            *sdl++ = static_cast<unsigned char>((lower >> 16) & 0xFF);
-            *sdl++ = static_cast<unsigned char>((lower >> 24) & 0xFF);
+            *sdl++ = isc_sdl_do2;
+            *sdl++ = static_cast<unsigned char>(dim);
+            stuffLiteral(lower);
         }
 
-        // Upper bound
-        if (upper >= -128 && upper <= 127) {
-            *sdl++ = isc_sdl_tiny_integer;
-            *sdl++ = static_cast<unsigned char>(upper);
-        } else {
-            *sdl++ = isc_sdl_long_integer;
-            *sdl++ = static_cast<unsigned char>(upper & 0xFF);
-            *sdl++ = static_cast<unsigned char>((upper >> 8) & 0xFF);
-            *sdl++ = static_cast<unsigned char>((upper >> 16) & 0xFF);
-            *sdl++ = static_cast<unsigned char>((upper >> 24) & 0xFF);
-        }
+        stuffLiteral(upper);
     }
 
-    // Element reference: specifies what value to put at each array position
-    // Format: isc_sdl_element, dims_count, then for each dim a variable ref
+    // 6) Element expression
     *sdl++ = isc_sdl_element;
+    *sdl++ = 1;
+    *sdl++ = isc_sdl_scalar;
+    *sdl++ = 0;
     *sdl++ = static_cast<unsigned char>(desc->array_desc_dimensions);
 
-    // Dimension variable references
     for (unsigned short dim = 0; dim < desc->array_desc_dimensions; dim++) {
         *sdl++ = isc_sdl_variable;
         *sdl++ = static_cast<unsigned char>(dim);
     }
 
-    // End of SDL
+    // 7) End
     *sdl++ = isc_sdl_eoc;
 
     *sdl_length = static_cast<unsigned>(sdl - sdl_buffer);

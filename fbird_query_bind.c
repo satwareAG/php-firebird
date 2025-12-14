@@ -972,7 +972,8 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 							break;
 						case blr_varying:
 						case blr_varying2:
-							elem_size = (ISC_LONG)ar_desc.array_desc_length;
+							/* Native VARCHAR array support: IBVARY (2-byte length + data) */
+							elem_size = (ISC_LONG)ar_desc.array_desc_length + (ISC_LONG)sizeof(ISC_SHORT);
 							arr_el_type = SQL_VARYING;
 							break;
 						case blr_short:

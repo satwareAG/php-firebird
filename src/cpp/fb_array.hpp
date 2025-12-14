@@ -230,6 +230,13 @@ inline bool ArrayUtils::getSlice(
         Firebird::IStatus* raw_status = master->getStatus();
         Firebird::CheckStatusWrapper check_status(raw_status);
 
+#ifdef FBIRD_ARRAY_DEBUG
+        fprintf(stderr, "getSlice: attach=%p trans=%p array_id=%08x:%08x sdl_len=%u buf_len=%d\n",
+                (void*)attachment, (void*)transaction,
+                array_id->gds_quad_high, array_id->gds_quad_low,
+                sdl_length, (int)*buffer_length);
+#endif
+
         // Call IAttachment::getSlice
         int result = attachment->getSlice(
             &check_status,
@@ -242,6 +249,15 @@ inline bool ArrayUtils::getSlice(
             static_cast<int>(*buffer_length),
             static_cast<unsigned char*>(buffer)
         );
+
+#ifdef FBIRD_ARRAY_DEBUG
+        fprintf(stderr, "getSlice: returned result=%d, checking status...\n", result);
+        fprintf(stderr, "getSlice: buffer first 20 bytes: ");
+        for (int i = 0; i < 20 && i < (int)*buffer_length; i++) {
+            fprintf(stderr, "%02x ", ((unsigned char*)buffer)[i]);
+        }
+        fprintf(stderr, "\n");
+#endif
 
         if (statusHasError(raw_status)) {
             if (status_vector) {

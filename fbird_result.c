@@ -403,12 +403,10 @@ static int _php_fbird_arr_zval(zval *ar_zval, char *data, zend_ulong data_size, 
 			return FAILURE;
 		}
 
-		/* fix for peculiar handling of VARCHAR arrays;
-		   truncate the field to the cstring length */
-		if (ib_array->ar_desc.array_desc_dtype == blr_varying ||
-			ib_array->ar_desc.array_desc_dtype == blr_varying2) {
-			Z_STRLEN_P(ar_zval) = strlen(Z_STRVAL_P(ar_zval));
-		}
+		/* Native VARCHAR array support:
+		 * _php_fbird_var_zval(SQL_VARYING) already uses IBVARY.vary_length,
+		 * so no extra truncation is needed here.
+		 */
 	}
 	return SUCCESS;
 }
@@ -693,13 +691,12 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 							local_array.el_type = SQL_TYPE_TIME;
 							local_array.el_size = sizeof(ISC_TIME);
 							break;
-						case blr_varying:
-						case blr_varying2:
-							/* Keep legacy workaround: treat VARCHAR arrays as TEXT */
-							local_array.el_type = SQL_TEXT;
-							local_array.el_size = fresh_desc.array_desc_length;
-							local_array.ar_desc.array_desc_dtype = blr_text;
-							break;
+					case blr_varying:
+					case blr_varying2:
+						/* Native VARCHAR array support (IBVARY: 2-byte length + data) */
+						local_array.el_type = SQL_VARYING;
+						local_array.el_size = fresh_desc.array_desc_length + sizeof(ISC_SHORT);
+						break;
 						default:
 							_php_fbird_module_error("Unsupported array dtype %d", fresh_desc.array_desc_dtype);
 							goto _php_fbird_fetch_error;

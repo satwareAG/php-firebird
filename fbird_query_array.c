@@ -173,27 +173,16 @@ int _php_fbird_alloc_array(fbird_array **ib_arrayp, XSQLDA *sqlda, /* {{{ */
 #endif
 			case blr_varying:
 			case blr_varying2:
-				/*
-				 * WORKAROUND: Treat VARCHAR arrays as TEXT (CHAR)
-				 * Firebird's isc_array_put_slice/get_slice appear to mishandle SQL_VARYING
-				 * stride alignment or format in some versions (PHP buffer corruption).
-				 * Treating them as SQL_TEXT logic works reliably:
-				 * - Write as blank-padded text (Firebird converts to VARCHAR storage)
-				 * - Read as blank-padded text (Firebird converts from VARCHAR)
-				 *
-				 * We modify the descriptor in place so put_slice sees blr_text.
-				 *
-				 * NOTE: Previous UTF8 heuristic was REMOVED as it was incorrect.
-				 * ISC_ARRAY_DESC has no charset field, so we cannot reliably detect UTF8.
-				 * The heuristic (dividing by 4 if length divisible by 4) caused truncation
-				 * for non-UTF8 VARCHAR arrays like VARCHAR(1000) with charset NONE.
-				 *
-				 * For UTF8 databases, users may need to handle character/byte conversion
-				 * at the application level if truncation occurs.
+				/* Native VARCHAR array support.
+				 * Firebird slice buffers use IBVARY layout: 2-byte length prefix + data.
+				 * So element size is declared length + sizeof(ISC_SHORT).
 				 */
-				a->el_type = SQL_TEXT;
-				a->el_size = ar_desc->array_desc_length;
-				ar_desc->array_desc_dtype = blr_text;
+				a->el_type = SQL_VARYING;
+				a->el_size = ar_desc->array_desc_length + sizeof(ISC_SHORT);
+				/* IMPORTANT: for blr_varying, Firebird expects element buffer:
+				 * [2-byte length prefix][raw bytes].
+				 * Keep ar_desc_dtype as blr_varying so SDL matches the field.
+				 */
 				break;
 			case blr_quad:
 			case blr_blob_id:

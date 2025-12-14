@@ -299,6 +299,29 @@ void* fbt_get_handle(void* transaction);
  */
 void fbt_free(void* transaction);
 
+/**
+ * Retrieve transaction information via the OO API.
+ * Wraps Firebird::ITransaction::getInfo().
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param transaction_ptr ITransaction pointer (from fbt_get_handle())
+ * @param items_length Info items length
+ * @param items Info items to request
+ * @param buffer_length Output buffer length
+ * @param buffer Output buffer
+ * @param status_vector Output status vector
+ * @return 1 on success, 0 on error
+ */
+int fbt_get_info(
+    void* master_ptr,
+    void* transaction_ptr,
+    unsigned items_length,
+    const unsigned char* items,
+    unsigned buffer_length,
+    unsigned char* buffer,
+    ISC_STATUS* status_vector
+);
+
 /* =============================================================================
  * Phase 5: Firebird OO API Statement Functions (FB 3.0+)
  *

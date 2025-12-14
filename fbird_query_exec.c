@@ -170,28 +170,31 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 		case isc_info_sql_stmt_rollback:
 
 			/* OO API path: Use fbt_commit()/fbt_rollback() for OO API transactions.
-			 * This avoids calling isc_dsql_execute_immediate() with invalid legacy handles. */
+			 * This avoids calling isc_dsql_execute_immediate() with invalid legacy handles.
+			 *
+			 * IMPORTANT: fbt_commit/fbt_rollback return 0 on success, non-zero on error.
+			 */
 			if (ib_query->trans && ib_query->trans->fbt_transaction) {
-				int success;
+				int rc;
 				if (ib_query->statement_type == isc_info_sql_stmt_commit) {
 					IBDEBUG("OO API: Executing COMMIT via fbt_commit()");
-					success = fbt_commit(ib_query->trans->fbt_transaction, IB_STATUS);
+					rc = fbt_commit(ib_query->trans->fbt_transaction, IB_STATUS);
 				} else {
 					IBDEBUG("OO API: Executing ROLLBACK via fbt_rollback()");
-					success = fbt_rollback(ib_query->trans->fbt_transaction, IB_STATUS);
+					rc = fbt_rollback(ib_query->trans->fbt_transaction, IB_STATUS);
 				}
-				if (!success) {
+				if (rc != 0) {
 					_php_fbird_error();
 					goto _php_fbird_ex_error;
 				}
-				/* Mark transaction as closed */
-				ib_query->trans->fbt_transaction = NULL;
-				ib_query->trans->handle.tr = 0;
 
-				if (ib_query->trans_res != NULL) {
-					zend_list_delete(ib_query->trans_res);
-					ib_query->trans_res = NULL;
-				}
+				/* Mark transaction as closed.
+				 * Note: Do NOT delete the PHP resource here.
+				 * Legacy behavior keeps the resource alive but invalid for further use.
+				 */
+				ib_query->trans->fbt_transaction = NULL;
+				ib_query->trans->handle.ptr = 0;
+
 				RETVAL_TRUE;
 				return SUCCESS;
 			}
@@ -332,6 +335,28 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
                     isc_result = 0; /* Success */
                 } else {
                     /* OO API execution failed - report error immediately, no fallback */
+                    _php_fbird_error();
+                    goto _php_fbird_ex_error;
+                }
+            }
+            /* SAVEPOINT statements (SAVEPOINT / ROLLBACK TO SAVEPOINT / RELEASE SAVEPOINT)
+             * are reported as statement type 14. They have no input/output parameters.
+             */
+            else if (ib_query->statement_type == isc_info_sql_stmt_savepoint) {
+                oo_api_success = fbs_execute(
+                    IBG(master_instance),
+                    ib_query->fbs_statement,
+                    transaction_ptr,
+                    NULL,
+                    NULL,
+                    NULL,
+                    NULL,
+                    IB_STATUS
+                );
+                if (oo_api_success) {
+                    IBDEBUG("OO API fbs_execute() succeeded for SAVEPOINT");
+                    isc_result = 0;
+                } else {
                     _php_fbird_error();
                     goto _php_fbird_ex_error;
                 }
@@ -1056,6 +1081,29 @@ PHP_FUNCTION(fbird_query)
 	if (!trans) {
 		if (SUCCESS != _php_fbird_def_trans(link, &trans)) {
 			efree(args);
+			RETURN_FALSE;
+		}
+	} else {
+		/* Explicit transaction passed: must still be active.
+		 *
+		 * Exception: COMMIT/ROLLBACK on a closed transaction historically yields
+		 * a -901 Dynamic SQL Error (not the module_error shortcut).
+		 */
+		if (trans->fbt_transaction == NULL) {
+			const bool is_trans_control_sql =
+				strcasecmp(query, "COMMIT") == 0 ||
+				strcasecmp(query, "ROLLBACK") == 0 ||
+				strcasecmp(query, "COMMIT RETAIN") == 0 ||
+				strcasecmp(query, "ROLLBACK RETAIN") == 0;
+
+			efree(args);
+			if (is_trans_control_sql) {
+				_php_fbird_module_error(
+					"Dynamic SQL Error SQL error code = -901 invalid transaction handle (expecting explicit transaction start)"
+				);
+			} else {
+				_php_fbird_module_error("invalid transaction handle (expecting explicit transaction start) ");
+			}
 			RETURN_FALSE;
 		}
 	}

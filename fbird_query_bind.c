@@ -816,23 +816,61 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 				if (Z_STRLEN_P(b_var) != BLOB_ID_LEN ||
 					!_php_fbird_string_to_quad(Z_STRVAL_P(b_var), &buf[i].val.qval)) {
 
+					/* OO API only: create a blob, write the string into it, then bind by blob id (ISC_QUAD). */
 					fbird_blob ib_blob = { 0 };
 					ib_blob.type = BLOB_INPUT;
+					ib_blob.fbb_blob = NULL;
 
-					if (isc_create_blob(IB_STATUS, &ib_query->link->handle.db,
-							&ib_query->trans->handle.tr, &ib_blob.bl_handle.blob, &ib_blob.bl_qd)) {
+					if (!ib_query->link || !ib_query->link->fbc_connection) {
+						_php_fbird_module_error("Parameter %d: OO API connection required for BLOB binding", i + 1);
+						return FAILURE;
+					}
+					if (!ib_query->trans || !ib_query->trans->fbt_transaction) {
+						_php_fbird_module_error("Parameter %d: OO API transaction required for BLOB binding", i + 1);
+						return FAILURE;
+					}
+
+					void *attachment_ptr = fbc_get_attachment(ib_query->link->fbc_connection);
+					void *transaction_ptr = fbt_get_handle(ib_query->trans->fbt_transaction);
+					if (!attachment_ptr || !transaction_ptr) {
+						_php_fbird_module_error("Parameter %d: invalid OO API connection/transaction for BLOB binding", i + 1);
+						return FAILURE;
+					}
+
+					ib_blob.fbb_blob = fbb_create(
+						IBG(master_instance),
+						attachment_ptr,
+						transaction_ptr,
+						&ib_blob.bl_qd,
+						0,
+						NULL,
+						IB_STATUS
+					);
+					if (!ib_blob.fbb_blob) {
 						_php_fbird_error();
 						return FAILURE;
 					}
+
+					/* Keep legacy handle pointer in sync for checks in blob helpers. */
+					ib_blob.bl_handle.ptr = fbb_get_handle(ib_blob.fbb_blob);
 
 					if (_php_fbird_blob_add(b_var, &ib_blob) != SUCCESS) {
+						/* Try to cancel and free to avoid leaking the server-side blob. */
+						fbb_cancel(IBG(master_instance), ib_blob.fbb_blob, IB_STATUS);
+						fbb_free(ib_blob.fbb_blob);
 						return FAILURE;
 					}
 
-					if (isc_close_blob(IB_STATUS, &ib_blob.bl_handle.blob)) {
+					/* fbb_close returns 1 on success, 0 on error */
+					if (fbb_close(IBG(master_instance), ib_blob.fbb_blob, IB_STATUS) == 0) {
 						_php_fbird_error();
+						fbb_free(ib_blob.fbb_blob);
 						return FAILURE;
 					}
+					fbb_free(ib_blob.fbb_blob);
+					ib_blob.fbb_blob = NULL;
+					ib_blob.bl_handle.ptr = 0;
+
 					buf[i].val.qval = ib_blob.bl_qd;
 				}
 				continue;

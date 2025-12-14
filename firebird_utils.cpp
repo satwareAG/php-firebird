@@ -1193,6 +1193,18 @@ extern "C" void* fbs_prepare(
     unsigned dialect,
     ISC_STATUS* status_vector
 ) {
+    /* CRITICAL: Always initialize the caller-provided ISC_STATUS vector.
+     * Some callers (and our C layer) treat a non-zero status[1] as an error.
+     * If a previous call set an error, and a later call succeeds but doesn't
+     * touch the status vector, stale errors can leak into subsequent operations.
+     *
+     * Fixes: tests/003.phpt (stale "validation error" after suppressed query)
+     */
+    if (status_vector) {
+        status_vector[0] = 1;
+        status_vector[1] = 0;
+    }
+
     if (!master_ptr || !attachment_ptr || !transaction_ptr || !sql) {
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
@@ -1235,6 +1247,11 @@ extern "C" int fbs_execute(
     void* out_metadata,
     ISC_STATUS* status_vector
 ) {
+    if (status_vector) {
+        status_vector[0] = 1;
+        status_vector[1] = 0;
+    }
+
     if (!master_ptr || !statement_ptr) {
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
@@ -1262,6 +1279,11 @@ extern "C" int fbs_open_cursor(
     unsigned cursor_flags,
     ISC_STATUS* status_vector
 ) {
+    if (status_vector) {
+        status_vector[0] = 1;
+        status_vector[1] = 0;
+    }
+
     if (!master_ptr || !statement_ptr) {
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
@@ -1285,6 +1307,11 @@ extern "C" int fbs_fetch(
     void* out_msg,
     ISC_STATUS* status_vector
 ) {
+    if (status_vector) {
+        status_vector[0] = 1;
+        status_vector[1] = 0;
+    }
+
     if (!master_ptr || !statement_ptr) {
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
@@ -1321,6 +1348,10 @@ extern "C" int fbs_free(void* statement_ptr, ISC_STATUS* status_vector) {
 }
 
 extern "C" unsigned fbs_get_type(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector) {
+    if (status_vector) {
+        status_vector[0] = 1;
+        status_vector[1] = 0;
+    }
     if (!master_ptr || !statement_ptr) {
         return 0;
     }
@@ -1343,6 +1374,10 @@ extern "C" ISC_UINT64 fbs_get_affected_records(void* master_ptr, void* statement
 }
 
 extern "C" void* fbs_get_input_metadata(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector) {
+    if (status_vector) {
+        status_vector[0] = 1;
+        status_vector[1] = 0;
+    }
     if (!master_ptr || !statement_ptr) {
         return nullptr;
     }
@@ -1354,6 +1389,10 @@ extern "C" void* fbs_get_input_metadata(void* master_ptr, void* statement_ptr, I
 }
 
 extern "C" void* fbs_get_output_metadata(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector) {
+    if (status_vector) {
+        status_vector[0] = 1;
+        status_vector[1] = 0;
+    }
     if (!master_ptr || !statement_ptr) {
         return nullptr;
     }
@@ -1516,6 +1555,10 @@ extern "C" ISC_INT64 fbs_execute_singleton_int64(
 }
 
 extern "C" unsigned fbs_get_input_count(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector) {
+    if (status_vector) {
+        status_vector[0] = 1;
+        status_vector[1] = 0;
+    }
     if (!master_ptr || !statement_ptr) {
         return 0;
     }
@@ -1536,6 +1579,10 @@ extern "C" unsigned fbs_get_input_count(void* master_ptr, void* statement_ptr, I
 }
 
 extern "C" unsigned fbs_get_output_count(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector) {
+    if (status_vector) {
+        status_vector[0] = 1;
+        status_vector[1] = 0;
+    }
     if (!master_ptr || !statement_ptr) {
         return 0;
     }

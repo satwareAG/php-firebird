@@ -127,6 +127,14 @@ public:
 
         try {
             Firebird::IStatus* fb_status = master->getStatus();
+            /* CRITICAL: Clear status before call.
+             * Firebird's IMaster::getStatus() may return a reusable IStatus instance.
+             * If previous calls populated errors, they can leak into subsequent calls
+             * unless we explicitly reset it.
+             *
+             * Fixes: tests/003.phpt (stale validation error after suppressed query)
+             */
+            fb_status->init();
             Firebird::CheckStatusWrapper status(fb_status);
 
             // Prepare the statement
@@ -181,6 +189,7 @@ public:
 
         try {
             Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
             Firebird::CheckStatusWrapper status(fb_status);
 
             statement_->execute(
@@ -232,6 +241,7 @@ public:
 
         try {
             Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
             Firebird::CheckStatusWrapper status(fb_status);
 
             // Close any existing cursor first
@@ -290,6 +300,7 @@ public:
 
         try {
             Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
             Firebird::CheckStatusWrapper status(fb_status);
 
             int fetch_result = result_set_->fetchNext(
@@ -386,6 +397,7 @@ public:
 
         try {
             Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
             Firebird::CheckStatusWrapper status(fb_status);
 
             auto* meta = statement_->getInputMetadata(&status);
@@ -418,6 +430,7 @@ public:
 
         try {
             Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
             Firebird::CheckStatusWrapper status(fb_status);
 
             auto* meta = statement_->getOutputMetadata(&status);
@@ -450,6 +463,7 @@ public:
 
         try {
             Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
             Firebird::CheckStatusWrapper status(fb_status);
 
             unsigned stmt_type = statement_->getType(&status);
@@ -482,6 +496,7 @@ public:
 
         try {
             Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
             Firebird::CheckStatusWrapper status(fb_status);
 
             ISC_UINT64 count = statement_->getAffectedRecords(&status);

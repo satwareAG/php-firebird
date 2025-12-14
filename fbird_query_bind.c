@@ -28,6 +28,8 @@
 #include "php.h"
 #include "php_ini.h"
 #include <ctype.h>
+#include <limits.h>
+#include <math.h>
 
 #if HAVE_FIREBIRD
 
@@ -485,6 +487,28 @@ int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query) /* {{{ */
 }
 /* }}} */
 
+static int _php_fbird_scale_double_to_int64(double dval, int sqlscale, ISC_INT64 *out) /* {{{ */
+{
+	if (!out) {
+		return FAILURE;
+	}
+	if (sqlscale >= 0) {
+		/* No scale (or positive scale) - caller shouldn't use this helper. */
+		*out = (ISC_INT64)dval;
+		return SUCCESS;
+	}
+
+	/* Firebird stores NUMERIC/DECIMAL as scaled integers (scale is negative). */
+	const double factor = pow(10.0, (double)(-sqlscale));
+	const double scaled = dval * factor;
+
+	/* Use rounding to preserve decimals (instead of truncation). */
+	long long ll = llround(scaled);
+	*out = (ISC_INT64)ll;
+	return SUCCESS;
+}
+/* }}} */
+
 int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 {
 	BIND_BUF *buf = ib_query->bind_buf;
@@ -551,22 +575,70 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 
 			case SQL_SHORT:
 				{
-					zend_long lval = zval_get_long(b_var);
-					buf[i].val.sval = (short)lval;
+					if (var->sqlscale < 0) {
+						ISC_INT64 scaled = 0;
+						double dval = zval_get_double(b_var);
+						if (_php_fbird_scale_double_to_int64(dval, var->sqlscale, &scaled) != SUCCESS) {
+							rv = FAILURE;
+							continue;
+						}
+						if (scaled < SHRT_MIN || scaled > SHRT_MAX) {
+							_php_fbird_module_error(
+								"Parameter %d: scaled value out of range for SHORT (%lld)",
+								i + 1,
+								(long long)scaled
+							);
+							rv = FAILURE;
+							continue;
+						}
+						buf[i].val.sval = (short)scaled;
+					} else {
+						zend_long lval = zval_get_long(b_var);
+						buf[i].val.sval = (short)lval;
+					}
 				}
 				continue;
 
 			case SQL_LONG:
 				{
-					zend_long lval = zval_get_long(b_var);
-					buf[i].val.lval = (ISC_LONG)lval;
+					if (var->sqlscale < 0) {
+						ISC_INT64 scaled = 0;
+						double dval = zval_get_double(b_var);
+						if (_php_fbird_scale_double_to_int64(dval, var->sqlscale, &scaled) != SUCCESS) {
+							rv = FAILURE;
+							continue;
+						}
+						if (scaled < INT_MIN || scaled > INT_MAX) {
+							_php_fbird_module_error(
+								"Parameter %d: scaled value out of range for LONG (%lld)",
+								i + 1,
+								(long long)scaled
+							);
+							rv = FAILURE;
+							continue;
+						}
+						buf[i].val.lval = (ISC_LONG)scaled;
+					} else {
+						zend_long lval = zval_get_long(b_var);
+						buf[i].val.lval = (ISC_LONG)lval;
+					}
 				}
 				continue;
 
 			case SQL_INT64:
 				{
-					zend_long lval = zval_get_long(b_var);
-					buf[i].val.i64val = (ISC_INT64)lval;
+					if (var->sqlscale < 0) {
+						double dval = zval_get_double(b_var);
+						ISC_INT64 scaled = 0;
+						if (_php_fbird_scale_double_to_int64(dval, var->sqlscale, &scaled) != SUCCESS) {
+							rv = FAILURE;
+							continue;
+						}
+						buf[i].val.i64val = scaled;
+					} else {
+						zend_long lval = zval_get_long(b_var);
+						buf[i].val.i64val = (ISC_INT64)lval;
+					}
 				}
 				continue;
 

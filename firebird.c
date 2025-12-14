@@ -1892,15 +1892,33 @@ PHP_FUNCTION(fbird_trans_info)
 		RETURN_FALSE;
 	}
 
-	/* OO API transactions do not have a valid legacy isc_tr_handle.
-	 * Use isc_transaction_info() only when a legacy handle exists. */
+	/*
+	 * Firebird 3.0+ OO API
+	 *
+	 * OO API transactions do not have a valid legacy isc_tr_handle.
+	 * For OO API transactions, trans->handle.ptr stores the raw ITransaction*
+	 * (from fbt_get_handle()).
+	 */
 	if (trans->fbt_transaction != NULL) {
-		_php_fbird_module_error("Transaction info via legacy API is not supported for OO API transactions");
-		RETURN_FALSE;
-	}
+		if (trans->handle.ptr == NULL) {
+			_php_fbird_module_error("Transaction has no valid OO API handle");
+			RETURN_FALSE;
+		}
 
-	if (isc_transaction_info(IB_STATUS, &trans->handle.tr, sizeof(tpb), tpb, sizeof(res_buf), res_buf)) {
-		_php_fbird_error();
+		if (fbt_get_info(
+				IBG(master_instance),
+				trans->handle.ptr,
+				sizeof(tpb),
+				(const unsigned char*)tpb,
+				sizeof(res_buf),
+				(unsigned char*)res_buf,
+				IB_STATUS
+			) == 0) {
+			_php_fbird_error();
+			RETURN_FALSE;
+		}
+	} else {
+		_php_fbird_module_error("Transaction has no OO API handle");
 		RETURN_FALSE;
 	}
 

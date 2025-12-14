@@ -1005,7 +1005,9 @@ extern "C" int fbt_get_info(
         transaction->getInfo(&status, items_length, items, buffer_length, buffer);
 
         if (fb::statusHasError(fb_status)) {
-            fb::copyStatusVector(fb_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            if (status_vector) {
+                copy_status_vector(fb_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
             return 0;
         }
 

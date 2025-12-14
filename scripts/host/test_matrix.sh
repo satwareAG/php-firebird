@@ -42,7 +42,7 @@ export CURRENT_GID=$(id -g)
 # Bring up containers (ensure up-to-date)
 # We use --wait to ensure healthchecks pass before testing (if configured)
 # But php-dev containers typically default to running state.
-if ! docker compose up -d; then
+if ! docker compose up -d --remove-orphans; then
     echo -e "${RED}Failed to start Docker environment.${NC}"
     exit 1
 fi

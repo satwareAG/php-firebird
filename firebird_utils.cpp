@@ -1722,7 +1722,10 @@ extern "C" int fba_lookup_bounds(
         Firebird::IStatus* raw_status = master->getStatus();
         Firebird::CheckStatusWrapper st(raw_status);
 
-        /* Query 1: relation/field ids + array field source */
+        /* Query 1: array field source + relation field id.
+         * We need RDB$FIELD_SOURCE (domain name) and RDB$FIELD_ID (field position in relation).
+         * Note: RDB$FIELD_DIMENSIONS links via (RDB$FIELD_NAME, RDB$DIMENSION) only, so we
+         * can use RDB$FIELD_ID later only to sanity-check, not as join key. */
         const char* sql1 =
             "SELECT rf.RDB$FIELD_SOURCE, rf.RDB$FIELD_ID "
             "FROM RDB$RELATION_FIELDS rf "
@@ -1919,11 +1922,16 @@ extern "C" int fba_lookup_bounds(
         outMeta2->release();
         stmt2->free(&st);
 
-        /* Query 3: bounds per dimension */
+        /* Query 3: bounds per dimension.
+         * Firebird 4.0 RDB$FIELD_DIMENSIONS only has:
+         *   RDB$FIELD_NAME, RDB$DIMENSION, RDB$LOWER_BOUND, RDB$UPPER_BOUND.
+         * There is no FIELD_ID/RELATION_FIELD/RELATION_NAME column.
+         * The FIELD_NAME here is the domain name (RDB$FIELD_SOURCE).
+         */
         const char* sql3 =
             "SELECT fd.RDB$DIMENSION, fd.RDB$LOWER_BOUND, fd.RDB$UPPER_BOUND "
             "FROM RDB$FIELD_DIMENSIONS fd "
-            "WHERE fd.RDB$FIELD_NAME = ? AND fd.RDB$RELATION_FIELD = ? "
+            "WHERE fd.RDB$FIELD_NAME = ? "
             "ORDER BY fd.RDB$DIMENSION";
 
         Firebird::IStatement* stmt3 = attachment->prepare(&st, transaction, 0, sql3, 3, 0);
@@ -1951,9 +1959,8 @@ extern "C" int fba_lookup_bounds(
         std::unique_ptr<unsigned char[]> inBuf3(new unsigned char[inLen3]());
         std::unique_ptr<unsigned char[]> outBuf3(new unsigned char[outLen3]());
 
-        /* Bind: fieldSource + fieldId */
+        /* Bind: fieldSource */
         {
-            /* param 0: fieldSource */
             const unsigned type0 = inMeta3->getType(&st, 0) & ~1u;
             const unsigned off0 = inMeta3->getOffset(&st, 0);
             const unsigned null0 = inMeta3->getNullOffset(&st, 0);
@@ -1969,12 +1976,6 @@ extern "C" int fba_lookup_bounds(
                     std::memset(inBuf3.get() + off0 + valLen0, ' ', max0 - valLen0);
                 }
             }
-
-            /* param 1: fieldId */
-            const unsigned off1 = inMeta3->getOffset(&st, 1);
-            const unsigned null1 = inMeta3->getNullOffset(&st, 1);
-            *reinterpret_cast<ISC_SHORT*>(inBuf3.get() + null1) = 0;
-            *reinterpret_cast<ISC_SHORT*>(inBuf3.get() + off1) = fieldId;
         }
 
         Firebird::IResultSet* rs3 = stmt3->openCursor(&st, transaction, inMeta3, inBuf3.get(), outMeta3, 0);

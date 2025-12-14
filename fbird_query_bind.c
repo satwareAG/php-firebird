@@ -844,14 +844,13 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 					void* transaction_ptr = fbt_get_handle(ib_query->trans->fbt_transaction);
 
 					ISC_ARRAY_DESC ar_desc;
-					if (fba_lookup_bounds(
-							IBG(master_instance),
-							attachment_ptr,
-							transaction_ptr,
+					if (isc_array_lookup_bounds(
+							IB_STATUS,
+							&ib_query->link->handle.db,
+							&ib_query->trans->handle.tr,
 							ib_query->in_sqlda->sqlvar[i].relname,
 							ib_query->in_sqlda->sqlvar[i].sqlname,
-							&ar_desc,
-							IB_STATUS
+							&ar_desc
 						) != 0) {
 						_php_fbird_error();
 						rv = FAILURE;

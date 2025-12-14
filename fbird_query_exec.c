@@ -261,7 +261,8 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 
         if (transaction_ptr) {
             /* For SELECT statements, open cursor using OO API */
-            if (ib_query->statement_type == isc_info_sql_stmt_select) {
+            if (ib_query->statement_type == isc_info_sql_stmt_select ||
+                ib_query->statement_type == isc_info_sql_stmt_select_for_upd) {
                 /*
                  * OO API cursor open for SELECT.
                  * Uses IMessageMetadata for parameter binding (Firebird 3.0+ OO API).
@@ -388,35 +389,57 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
                     goto _php_fbird_ex_error;
                 }
             }
-            /* For DML with RETURNING - use fbs_execute with input and output buffers */
+            /* For DML with RETURNING - open cursor, fetch 1 row into out_msg_buffer, close cursor */
             else if ((ib_query->statement_type == isc_info_sql_stmt_insert ||
                       ib_query->statement_type == isc_info_sql_stmt_update ||
                       ib_query->statement_type == isc_info_sql_stmt_delete) &&
                      ib_query->out_sqlda) {
                 /*
-                 * OO API execute for DML with RETURNING clause.
-                 * Uses IMessageMetadata for parameter binding (Firebird 3.0+ OO API).
-                 * Input parameters are passed via in_msg_buffer/in_metadata.
-                 * RETURNING clause outputs are returned via out_msg_buffer/out_metadata.
+                 * OO API handling for DML with RETURNING clause.
+                 *
+                 * This behaves like legacy isc_dsql_execute2():
+                 * - execute statement
+                 * - copy one result row into out_msg_buffer
+                 * - close cursor immediately
+                 *
+                 * RETURNING typically yields exactly one row.
                  */
-                oo_api_success = fbs_execute(
+                oo_api_success = fbs_open_cursor(
                     IBG(master_instance),
                     ib_query->fbs_statement,
                     transaction_ptr,
-                    ib_query->in_msg_buffer,   /* in_msg: input parameter values */
-                    ib_query->in_metadata,     /* in_metadata: input parameter metadata */
-                    ib_query->out_msg_buffer,  /* out_msg: RETURNING clause values */
-                    ib_query->out_metadata,    /* out_metadata: RETURNING clause metadata */
+                    ib_query->in_msg_buffer,
+                    ib_query->in_metadata,
+                    0,
                     IB_STATUS
                 );
-                if (oo_api_success) {
-                    IBDEBUG("OO API fbs_execute() succeeded for DML with RETURNING");
-                    isc_result = 0; /* Success */
-                } else {
-                    /* OO API execution failed - report error immediately, no fallback */
+
+                if (!oo_api_success) {
                     _php_fbird_error();
                     goto _php_fbird_ex_error;
                 }
+
+                int fetch_result = fbs_fetch(
+                    IBG(master_instance),
+                    ib_query->fbs_statement,
+                    ib_query->out_msg_buffer,
+                    IB_STATUS
+                );
+
+                if (fetch_result == -1) {
+                    _php_fbird_error();
+                    fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
+                    goto _php_fbird_ex_error;
+                }
+
+                /* Always close cursor for DML RETURNING (like execute2) */
+                fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
+
+                /* fetch_result: 1=row copied into out_msg_buffer, 0=no data */
+                if (fetch_result == 1) {
+                    ib_query->was_result_once = 1;
+                }
+                isc_result = 0;
             }
             /* Unhandled statement type for OO API */
             else {
@@ -455,7 +478,8 @@ execute_done:
 
     /* For SELECT statements, mark cursor state as open with rows pending.
      * Check both legacy (out_sqlda) and OO API (fbs_statement) paths. */
-    if (ib_query->statement_type == isc_info_sql_stmt_select &&
+    if ((ib_query->statement_type == isc_info_sql_stmt_select ||
+         ib_query->statement_type == isc_info_sql_stmt_select_for_upd) &&
         (ib_query->out_sqlda || ib_query->fbs_statement)) {
         ib_query->is_open = 1;
         ib_query->has_more_rows = 1;
@@ -908,7 +932,8 @@ cleanup_select_result_query:
 			break;
 
 		case isc_info_sql_stmt_select:
-			/* SELECT statements - cursor is now open and has potential rows.
+		case isc_info_sql_stmt_select_for_upd:
+			/* SELECT statements (including SELECT ... FOR UPDATE) - cursor is now open and has potential rows.
 			 * Check both legacy (out_sqlda) and OO API (fbs_statement) paths. */
 			if (ib_query->out_sqlda || ib_query->fbs_statement) {
 				ib_query->is_open = 1;

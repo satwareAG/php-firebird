@@ -48,9 +48,17 @@ int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 	}
 
 	if (!src_var->sqldata) {
-		_php_fbird_module_error("EXECUTE PROCEDURE: Source sqldata is NULL for field %d in query: %s",
-            field_index, query_context ? query_context : "unknown");
-		return FAILURE;
+		/*
+		 * OO API note:
+		 * For EXECUTE PROCEDURE and DML ... RETURNING, the extension can operate
+		 * with a message buffer (IMessageMetadata + out_msg_buffer) instead of
+		 * legacy SQLDA row buffers. In that mode, sqldata pointers remain NULL.
+		 *
+		 * Treat missing sqldata as "no legacy row-buffer to copy" (success),
+		 * and let fetch logic read from the message buffer.
+		 */
+		dest_var->sqldata = NULL;
+		return SUCCESS;
 	}
 
 	/* Verify sqltype consistency between source and destination */

@@ -900,6 +900,29 @@ int fba_get_slice(void* master_ptr,
                   ISC_STATUS* status_vector);
 
 /**
+ * Lookup array descriptor/bounds using OO API.
+ *
+ * This replaces isc_array_lookup_bounds() by querying system tables
+ * via IStatement/IResultSet.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param attachment_ptr IAttachment pointer (from fbc_get_attachment())
+ * @param transaction_ptr ITransaction pointer (from fbt_get_handle())
+ * @param relation_name Table name (case-insensitive)
+ * @param field_name Column name (case-insensitive)
+ * @param desc Output descriptor (ISC_ARRAY_DESC)
+ * @param status_vector Output status vector
+ * @return 0 on success, non-zero on failure
+ */
+int fba_lookup_bounds(void* master_ptr,
+                      void* attachment_ptr,
+                      void* transaction_ptr,
+                      const char* relation_name,
+                      const char* field_name,
+                      ISC_ARRAY_DESC* desc,
+                      ISC_STATUS* status_vector);
+
+/**
  * Put an array slice to the database using OO API.
  *
  * @param master_ptr IMaster interface pointer

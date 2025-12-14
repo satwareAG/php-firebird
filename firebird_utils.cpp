@@ -1683,6 +1683,422 @@ extern "C" int fba_put_slice(
     return result ? 0 : 1;
 }
 
+extern "C" int fba_lookup_bounds(
+    void* master_ptr,
+    void* attachment_ptr,
+    void* transaction_ptr,
+    const char* relation_name,
+    const char* field_name,
+    ISC_ARRAY_DESC* desc,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !attachment_ptr || !transaction_ptr || !relation_name || !field_name || !desc) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_req_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 1;
+    }
+
+    /*
+     * Array descriptor lookup via OO API.
+     *
+     * There is no direct IAttachment method for lookup_bounds(). We query
+     * Firebird system tables to reconstruct ISC_ARRAY_DESC.
+     *
+     * This implementation supports the extension test suite use case:
+     * - one-dimensional arrays with lower bound = 1
+     * - element type: blr_text / blr_varying / blr_long / blr_short / blr_int64
+     *
+     * It can be extended to multi-dimensional arrays later.
+     */
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* attachment = static_cast<Firebird::IAttachment*>(attachment_ptr);
+    auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
+
+    try {
+        Firebird::IStatus* raw_status = master->getStatus();
+        Firebird::CheckStatusWrapper st(raw_status);
+
+        /* Query 1: relation/field ids + array field source */
+        const char* sql1 =
+            "SELECT rf.RDB$FIELD_SOURCE, rf.RDB$FIELD_ID "
+            "FROM RDB$RELATION_FIELDS rf "
+            "WHERE rf.RDB$RELATION_NAME = ? AND rf.RDB$FIELD_NAME = ?";
+
+        Firebird::IStatement* stmt1 = attachment->prepare(&st, transaction, 0, sql1, 3, 0);
+        if (fb::statusHasError(raw_status) || !stmt1) {
+            if (status_vector) {
+                copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
+            return 1;
+        }
+
+        Firebird::IMessageMetadata* inMeta1 = stmt1->getInputMetadata(&st);
+        Firebird::IMessageMetadata* outMeta1 = stmt1->getOutputMetadata(&st);
+        if (fb::statusHasError(raw_status) || !inMeta1 || !outMeta1) {
+            if (status_vector) {
+                copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
+            if (inMeta1) inMeta1->release();
+            if (outMeta1) outMeta1->release();
+            stmt1->free(&st);
+            return 1;
+        }
+
+        const unsigned inLen1 = inMeta1->getMessageLength(&st);
+        const unsigned outLen1 = outMeta1->getMessageLength(&st);
+        std::unique_ptr<unsigned char[]> inBuf1(new unsigned char[inLen1]());
+        std::unique_ptr<unsigned char[]> outBuf1(new unsigned char[outLen1]());
+
+        /* Bind relation_name + field_name (both SQL_TEXT/VARYING) */
+        for (unsigned p = 0; p < inMeta1->getCount(&st); ++p) {
+            const unsigned type = inMeta1->getType(&st, p) & ~1u;
+            const unsigned off = inMeta1->getOffset(&st, p);
+            const unsigned nullOff = inMeta1->getNullOffset(&st, p);
+            *reinterpret_cast<ISC_SHORT*>(inBuf1.get() + nullOff) = 0;
+
+            const char* val = (p == 0) ? relation_name : field_name;
+            const unsigned maxLen = inMeta1->getLength(&st, p);
+            const unsigned valLen = (unsigned) std::min<size_t>(std::strlen(val), maxLen);
+
+            if (type == SQL_VARYING) {
+                *reinterpret_cast<ISC_SHORT*>(inBuf1.get() + off) = (ISC_SHORT)valLen;
+                std::memcpy(inBuf1.get() + off + sizeof(ISC_SHORT), val, valLen);
+            } else {
+                std::memcpy(inBuf1.get() + off, val, valLen);
+                if (valLen < maxLen) {
+                    std::memset(inBuf1.get() + off + valLen, ' ', maxLen - valLen);
+                }
+            }
+        }
+
+        Firebird::IResultSet* rs1 = stmt1->openCursor(&st, transaction, inMeta1, inBuf1.get(), outMeta1, 0);
+        if (fb::statusHasError(raw_status) || !rs1) {
+            if (status_vector) {
+                copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
+            inMeta1->release();
+            outMeta1->release();
+            stmt1->free(&st);
+            return 1;
+        }
+
+        const int fetch1 = rs1->fetchNext(&st, outBuf1.get());
+        if (fb::statusHasError(raw_status) || fetch1 != 0) {
+            if (status_vector) {
+                copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
+            rs1->close(&st);
+            inMeta1->release();
+            outMeta1->release();
+            stmt1->free(&st);
+            return 1;
+        }
+
+        /* Extract RDB$FIELD_SOURCE (TEXT) and RDB$FIELD_ID (SHORT) */
+        const unsigned fsOff = outMeta1->getOffset(&st, 0);
+        const unsigned fsNullOff = outMeta1->getNullOffset(&st, 0);
+        const unsigned fsLen = outMeta1->getLength(&st, 0);
+        const unsigned fidOff = outMeta1->getOffset(&st, 1);
+        const unsigned fidNullOff = outMeta1->getNullOffset(&st, 1);
+
+        if (*reinterpret_cast<ISC_SHORT*>(outBuf1.get() + fsNullOff) != 0 ||
+            *reinterpret_cast<ISC_SHORT*>(outBuf1.get() + fidNullOff) != 0) {
+            if (status_vector) {
+                status_vector[0] = isc_arg_gds;
+                status_vector[1] = isc_bad_req_handle;
+                status_vector[2] = isc_arg_end;
+            }
+            rs1->close(&st);
+            inMeta1->release();
+            outMeta1->release();
+            stmt1->free(&st);
+            return 1;
+        }
+
+        std::string fieldSource(reinterpret_cast<char*>(outBuf1.get() + fsOff), fsLen);
+        /* Trim trailing spaces */
+        while (!fieldSource.empty() && fieldSource.back() == ' ') {
+            fieldSource.pop_back();
+        }
+
+        const ISC_SHORT fieldId = *reinterpret_cast<ISC_SHORT*>(outBuf1.get() + fidOff);
+
+        rs1->close(&st);
+        inMeta1->release();
+        outMeta1->release();
+        stmt1->free(&st);
+
+        /* Query 2: field type/len/scale/subtype */
+        const char* sql2 =
+            "SELECT f.RDB$FIELD_TYPE, f.RDB$FIELD_LENGTH, f.RDB$FIELD_SCALE, f.RDB$FIELD_SUB_TYPE "
+            "FROM RDB$FIELDS f WHERE f.RDB$FIELD_NAME = ?";
+
+        Firebird::IStatement* stmt2 = attachment->prepare(&st, transaction, 0, sql2, 3, 0);
+        if (fb::statusHasError(raw_status) || !stmt2) {
+            if (status_vector) {
+                copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
+            return 1;
+        }
+
+        Firebird::IMessageMetadata* inMeta2 = stmt2->getInputMetadata(&st);
+        Firebird::IMessageMetadata* outMeta2 = stmt2->getOutputMetadata(&st);
+        if (fb::statusHasError(raw_status) || !inMeta2 || !outMeta2) {
+            if (status_vector) {
+                copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
+            if (inMeta2) inMeta2->release();
+            if (outMeta2) outMeta2->release();
+            stmt2->free(&st);
+            return 1;
+        }
+
+        const unsigned inLen2 = inMeta2->getMessageLength(&st);
+        const unsigned outLen2 = outMeta2->getMessageLength(&st);
+        std::unique_ptr<unsigned char[]> inBuf2(new unsigned char[inLen2]());
+        std::unique_ptr<unsigned char[]> outBuf2(new unsigned char[outLen2]());
+
+        /* Bind fieldSource */
+        {
+            const unsigned type = inMeta2->getType(&st, 0) & ~1u;
+            const unsigned off = inMeta2->getOffset(&st, 0);
+            const unsigned nullOff = inMeta2->getNullOffset(&st, 0);
+            const unsigned maxLen = inMeta2->getLength(&st, 0);
+            *reinterpret_cast<ISC_SHORT*>(inBuf2.get() + nullOff) = 0;
+
+            const unsigned valLen = (unsigned) std::min<size_t>(fieldSource.size(), maxLen);
+            if (type == SQL_VARYING) {
+                *reinterpret_cast<ISC_SHORT*>(inBuf2.get() + off) = (ISC_SHORT)valLen;
+                std::memcpy(inBuf2.get() + off + sizeof(ISC_SHORT), fieldSource.data(), valLen);
+            } else {
+                std::memcpy(inBuf2.get() + off, fieldSource.data(), valLen);
+                if (valLen < maxLen) {
+                    std::memset(inBuf2.get() + off + valLen, ' ', maxLen - valLen);
+                }
+            }
+        }
+
+        Firebird::IResultSet* rs2 = stmt2->openCursor(&st, transaction, inMeta2, inBuf2.get(), outMeta2, 0);
+        if (fb::statusHasError(raw_status) || !rs2) {
+            if (status_vector) {
+                copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
+            inMeta2->release();
+            outMeta2->release();
+            stmt2->free(&st);
+            return 1;
+        }
+
+        const int fetch2 = rs2->fetchNext(&st, outBuf2.get());
+        if (fb::statusHasError(raw_status) || fetch2 != 0) {
+            if (status_vector) {
+                copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
+            rs2->close(&st);
+            inMeta2->release();
+            outMeta2->release();
+            stmt2->free(&st);
+            return 1;
+        }
+
+        const ISC_SHORT fieldType = *reinterpret_cast<ISC_SHORT*>(
+            outBuf2.get() + outMeta2->getOffset(&st, 0));
+        const ISC_SHORT fieldLen = *reinterpret_cast<ISC_SHORT*>(
+            outBuf2.get() + outMeta2->getOffset(&st, 1));
+        const ISC_SHORT fieldScale = *reinterpret_cast<ISC_SHORT*>(
+            outBuf2.get() + outMeta2->getOffset(&st, 2));
+        const ISC_SHORT fieldSubType = *reinterpret_cast<ISC_SHORT*>(
+            outBuf2.get() + outMeta2->getOffset(&st, 3));
+
+        rs2->close(&st);
+        inMeta2->release();
+        outMeta2->release();
+        stmt2->free(&st);
+
+        /* Query 3: bounds per dimension */
+        const char* sql3 =
+            "SELECT fd.RDB$DIMENSION, fd.RDB$LOWER_BOUND, fd.RDB$UPPER_BOUND "
+            "FROM RDB$FIELD_DIMENSIONS fd "
+            "WHERE fd.RDB$FIELD_NAME = ? AND fd.RDB$FIELD_ID = ? "
+            "ORDER BY fd.RDB$DIMENSION";
+
+        Firebird::IStatement* stmt3 = attachment->prepare(&st, transaction, 0, sql3, 3, 0);
+        if (fb::statusHasError(raw_status) || !stmt3) {
+            if (status_vector) {
+                copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
+            return 1;
+        }
+
+        Firebird::IMessageMetadata* inMeta3 = stmt3->getInputMetadata(&st);
+        Firebird::IMessageMetadata* outMeta3 = stmt3->getOutputMetadata(&st);
+        if (fb::statusHasError(raw_status) || !inMeta3 || !outMeta3) {
+            if (status_vector) {
+                copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
+            if (inMeta3) inMeta3->release();
+            if (outMeta3) outMeta3->release();
+            stmt3->free(&st);
+            return 1;
+        }
+
+        const unsigned inLen3 = inMeta3->getMessageLength(&st);
+        const unsigned outLen3 = outMeta3->getMessageLength(&st);
+        std::unique_ptr<unsigned char[]> inBuf3(new unsigned char[inLen3]());
+        std::unique_ptr<unsigned char[]> outBuf3(new unsigned char[outLen3]());
+
+        /* Bind: fieldSource + fieldId */
+        {
+            /* param 0: fieldSource */
+            const unsigned type0 = inMeta3->getType(&st, 0) & ~1u;
+            const unsigned off0 = inMeta3->getOffset(&st, 0);
+            const unsigned null0 = inMeta3->getNullOffset(&st, 0);
+            const unsigned max0 = inMeta3->getLength(&st, 0);
+            *reinterpret_cast<ISC_SHORT*>(inBuf3.get() + null0) = 0;
+            const unsigned valLen0 = (unsigned) std::min<size_t>(fieldSource.size(), max0);
+            if (type0 == SQL_VARYING) {
+                *reinterpret_cast<ISC_SHORT*>(inBuf3.get() + off0) = (ISC_SHORT)valLen0;
+                std::memcpy(inBuf3.get() + off0 + sizeof(ISC_SHORT), fieldSource.data(), valLen0);
+            } else {
+                std::memcpy(inBuf3.get() + off0, fieldSource.data(), valLen0);
+                if (valLen0 < max0) {
+                    std::memset(inBuf3.get() + off0 + valLen0, ' ', max0 - valLen0);
+                }
+            }
+
+            /* param 1: fieldId */
+            const unsigned off1 = inMeta3->getOffset(&st, 1);
+            const unsigned null1 = inMeta3->getNullOffset(&st, 1);
+            *reinterpret_cast<ISC_SHORT*>(inBuf3.get() + null1) = 0;
+            *reinterpret_cast<ISC_SHORT*>(inBuf3.get() + off1) = fieldId;
+        }
+
+        Firebird::IResultSet* rs3 = stmt3->openCursor(&st, transaction, inMeta3, inBuf3.get(), outMeta3, 0);
+        if (fb::statusHasError(raw_status) || !rs3) {
+            if (status_vector) {
+                copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
+            inMeta3->release();
+            outMeta3->release();
+            stmt3->free(&st);
+            return 1;
+        }
+
+        /* Start filling descriptor */
+        std::memset(desc, 0, sizeof(*desc));
+        std::memcpy(desc->array_desc_relation_name, relation_name,
+                    std::min<size_t>(std::strlen(relation_name), sizeof(desc->array_desc_relation_name)));
+        std::memcpy(desc->array_desc_field_name, field_name,
+                    std::min<size_t>(std::strlen(field_name), sizeof(desc->array_desc_field_name)));
+
+        /* Map RDB$FIELD_TYPE to blr_* (minimal mapping for test suite) */
+        switch (fieldType) {
+            case 7:  /* SMALLINT */
+                desc->array_desc_dtype = blr_short;
+                break;
+            case 8:  /* INTEGER */
+                desc->array_desc_dtype = blr_long;
+                break;
+            case 16: /* BIGINT */
+                desc->array_desc_dtype = blr_int64;
+                break;
+            case 14: /* CHAR */
+                desc->array_desc_dtype = blr_text;
+                break;
+            case 37: /* VARCHAR */
+                desc->array_desc_dtype = blr_varying;
+                break;
+            default:
+                /* Unsupported element type for now */
+                if (status_vector) {
+                    status_vector[0] = isc_arg_gds;
+                    status_vector[1] = isc_dsql_datatype_err;
+                    status_vector[2] = isc_arg_end;
+                }
+                rs3->close(&st);
+                inMeta3->release();
+                outMeta3->release();
+                stmt3->free(&st);
+                return 1;
+        }
+
+        desc->array_desc_length = fieldLen;
+        desc->array_desc_scale = fieldScale;
+        desc->array_desc_dimensions = 0;
+
+        /* Iterate bounds rows */
+        while (true) {
+            const int f = rs3->fetchNext(&st, outBuf3.get());
+            if (fb::statusHasError(raw_status)) {
+                if (status_vector) {
+                    copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+                }
+                rs3->close(&st);
+                inMeta3->release();
+                outMeta3->release();
+                stmt3->free(&st);
+                return 1;
+            }
+            if (f != 0) {
+                break; /* EOF */
+            }
+
+            const unsigned dimOff = outMeta3->getOffset(&st, 0);
+            const unsigned lowOff = outMeta3->getOffset(&st, 1);
+            const unsigned upOff = outMeta3->getOffset(&st, 2);
+
+            const ISC_SHORT dim = *reinterpret_cast<ISC_SHORT*>(outBuf3.get() + dimOff);
+            const ISC_LONG low = *reinterpret_cast<ISC_LONG*>(outBuf3.get() + lowOff);
+            const ISC_LONG up = *reinterpret_cast<ISC_LONG*>(outBuf3.get() + upOff);
+
+            if (dim < 1 || dim > 16) {
+                continue;
+            }
+
+            /* Firebird stores dimensions 1..N; ISC_ARRAY_DESC uses 0-based array_desc_bounds */
+            const unsigned idx = (unsigned)(dim - 1);
+            desc->array_desc_bounds[idx].array_bound_lower = low;
+            desc->array_desc_bounds[idx].array_bound_upper = up;
+
+            if (idx + 1 > desc->array_desc_dimensions) {
+                desc->array_desc_dimensions = (ISC_USHORT)(idx + 1);
+            }
+        }
+
+        rs3->close(&st);
+        inMeta3->release();
+        outMeta3->release();
+        stmt3->free(&st);
+
+        if (desc->array_desc_dimensions == 0) {
+            if (status_vector) {
+                status_vector[0] = isc_arg_gds;
+                status_vector[1] = isc_bad_req_handle;
+                status_vector[2] = isc_arg_end;
+            }
+            return 1;
+        }
+
+        if (status_vector) {
+            status_vector[0] = 1;
+            status_vector[1] = 0;
+        }
+        return 0;
+
+    } catch (...) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_except2;
+            status_vector[2] = isc_arg_end;
+        }
+        return 1;
+    }
+}
+
 #endif // FB_API_VER >= 30 (Phase 9 Array functions)
 
 // Phase 6: Blob OO API - C interop implementations

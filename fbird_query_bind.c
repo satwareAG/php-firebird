@@ -817,41 +817,96 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 						rv = FAILURE;
 					}
 				} else {
-					/* convert the array data into something IB can understand */
-					/* Bounds check before accessing in_array to prevent out-of-bounds access */
-					if (array_cnt >= ib_query->in_array_cnt) {
-						_php_fbird_module_error("Parameter %d: array index out of bounds", i+1);
+					/* OO API Only: Store array slice via IAttachment::putSlice() */
+					if (!ib_query->link || !ib_query->link->fbc_connection) {
+						_php_fbird_module_error("Parameter %d: OO API connection required for array binding", i + 1);
 						rv = FAILURE;
 						++array_cnt;
 						continue;
 					}
-					fbird_array *ar = &ib_query->in_array[array_cnt];
-					void *array_data = ecalloc(1, ar->ar_size);
-					ISC_QUAD array_id = { 0, 0 };
-
-					if (FAILURE == _php_fbird_bind_array(b_var, array_data, ar->ar_size,
-							ar, 0)) {
-						_php_fbird_module_error("Parameter %d: failed to bind array argument", i+1);
-						efree(array_data);
+					if (!ib_query->trans || !ib_query->trans->fbt_transaction) {
+						_php_fbird_module_error("Parameter %d: OO API transaction required for array binding", i + 1);
 						rv = FAILURE;
+						++array_cnt;
 						continue;
 					}
 
-					/* FIX: Use temporary ISC_LONG for slice length to avoid pointer type mismatch on 64-bit systems.
-					 *
-					 * Problem: ar->ar_size is zend_ulong (8 bytes on 64-bit) but isc_array_put_slice() expects
-					 * ISC_LONG* (4 bytes). Passing &ar->ar_size directly causes incorrect slice length
-					 * interpretation and potential memory corruption.
-					 *
-					 * Solution: Copy to temporary ISC_LONG, pass address of temporary.
-					 */
-					ISC_LONG slice_len = (ISC_LONG)ar->ar_size;
+					/* Convert the PHP array argument into a contiguous element buffer */
+					void* attachment_ptr = fbc_get_attachment(ib_query->link->fbc_connection);
+					void* transaction_ptr = fbt_get_handle(ib_query->trans->fbt_transaction);
 
-					if (isc_array_put_slice(IB_STATUS, &ib_query->link->handle.db, &ib_query->trans->handle.tr,
-							&array_id, &ar->ar_desc, array_data, &slice_len)) {
+					ISC_ARRAY_DESC ar_desc;
+					if (fba_lookup_bounds(
+							IBG(master_instance),
+							attachment_ptr,
+							transaction_ptr,
+							ib_query->in_sqlda->sqlvar[i].relname,
+							ib_query->in_sqlda->sqlvar[i].sqlname,
+							&ar_desc,
+							IB_STATUS
+						) != 0) {
+						_php_fbird_error();
+						rv = FAILURE;
+						++array_cnt;
+						continue;
+					}
+
+					/* Compute element size and total byte size for the slice buffer */
+					ISC_LONG elem_size = 0;
+					switch (ar_desc.array_desc_dtype) {
+						case blr_text:
+						case blr_text2:
+						case blr_varying:
+						case blr_varying2:
+							elem_size = (ISC_LONG)ar_desc.array_desc_length;
+							break;
+						case blr_short:
+							elem_size = (ISC_LONG)sizeof(short);
+							break;
+						case blr_long:
+							elem_size = (ISC_LONG)sizeof(ISC_LONG);
+							break;
+						case blr_int64:
+							elem_size = (ISC_LONG)sizeof(ISC_INT64);
+							break;
+						default:
+							_php_fbird_module_error("Parameter %d: unsupported array element dtype %d", i + 1, ar_desc.array_desc_dtype);
+							rv = FAILURE;
+							++array_cnt;
+							continue;
+					}
+
+					ISC_LONG elements = 1;
+					for (int d = 0; d < ar_desc.array_desc_dimensions; d++) {
+						elements *= 1 + ar_desc.array_desc_bounds[d].array_bound_upper - ar_desc.array_desc_bounds[d].array_bound_lower;
+					}
+
+					ISC_LONG slice_len = elem_size * elements;
+					void* array_data = ecalloc(1, (size_t)slice_len);
+					if (FAILURE == _php_fbird_bind_array(b_var, (char*)array_data, (zend_ulong)slice_len, (fbird_array*)&(fbird_array){.ar_desc = ar_desc, .ar_size = slice_len, .el_type = SQL_TEXT, .el_size = (unsigned short)elem_size}, 0)) {
+						_php_fbird_module_error("Parameter %d: failed to bind array argument", i + 1);
+						efree(array_data);
+						rv = FAILURE;
+						++array_cnt;
+						continue;
+					}
+
+					ISC_QUAD array_id = {0, 0};
+					if (fba_put_slice(
+							IBG(master_instance),
+							attachment_ptr,
+							transaction_ptr,
+							&array_id,
+							&ar_desc,
+							array_data,
+							slice_len,
+							IB_STATUS
+						) != 0) {
 						_php_fbird_error();
 						efree(array_data);
-						return FAILURE;
+						rv = FAILURE;
+						++array_cnt;
+						continue;
 					}
 
 					buf[i].val.qval = array_id;

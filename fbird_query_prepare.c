@@ -434,10 +434,35 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
 			var->sqldata = NULL;
 			var->sqlind = NULL;
 
-			/* Clear name fields - not needed for input parameters */
-			var->sqlname_length = 0;
-			var->relname_length = 0;
+			/* Populate relation/field names for input parameters.
+			 * Needed for array binding (descriptor lookup via system tables).
+			 * For ordinary scalar params, these may be empty and are ignored. */
+			const char *str_val;
+
+			str_val = fbm_get_field(IBG(master_instance), ib_query->in_metadata, i);
+			if (str_val && *str_val) {
+				strncpy(var->sqlname, str_val, sizeof(var->sqlname) - 1);
+				var->sqlname[sizeof(var->sqlname) - 1] = '\0';
+				var->sqlname_length = (short)strlen(var->sqlname);
+			} else {
+				var->sqlname[0] = '\0';
+				var->sqlname_length = 0;
+			}
+
+			str_val = fbm_get_relation(IBG(master_instance), ib_query->in_metadata, i);
+			if (str_val && *str_val) {
+				strncpy(var->relname, str_val, sizeof(var->relname) - 1);
+				var->relname[sizeof(var->relname) - 1] = '\0';
+				var->relname_length = (short)strlen(var->relname);
+			} else {
+				var->relname[0] = '\0';
+				var->relname_length = 0;
+			}
+
+			/* Owner/alias names not needed for input parameters */
+			var->ownname[0] = '\0';
 			var->ownname_length = 0;
+			var->aliasname[0] = '\0';
 			var->aliasname_length = 0;
 		}
 

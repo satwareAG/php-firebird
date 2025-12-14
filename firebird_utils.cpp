@@ -1923,7 +1923,7 @@ extern "C" int fba_lookup_bounds(
         const char* sql3 =
             "SELECT fd.RDB$DIMENSION, fd.RDB$LOWER_BOUND, fd.RDB$UPPER_BOUND "
             "FROM RDB$FIELD_DIMENSIONS fd "
-            "WHERE fd.RDB$FIELD_NAME = ? AND fd.RDB$FIELD_ID = ? "
+            "WHERE fd.RDB$FIELD_NAME = ? AND fd.RDB$RELATION_FIELD = ? "
             "ORDER BY fd.RDB$DIMENSION";
 
         Firebird::IStatement* stmt3 = attachment->prepare(&st, transaction, 0, sql3, 3, 0);

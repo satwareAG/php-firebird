@@ -303,7 +303,7 @@ inline bool ArrayUtils::putSlice(
         Firebird::IStatus* raw_status = master->getStatus();
         Firebird::CheckStatusWrapper check_status(raw_status);
 
-        // Debug
+#ifdef FBIRD_ARRAY_DEBUG
         fprintf(stderr, "putSlice: attach=%p trans=%p array_id=%08x:%08x sdl_len=%u buf_len=%d\n",
                 (void*)attachment, (void*)transaction,
                 array_id->gds_quad_high, array_id->gds_quad_low,
@@ -313,6 +313,7 @@ inline bool ArrayUtils::putSlice(
             fprintf(stderr, "%02x ", ((unsigned char*)buffer)[i]);
         }
         fprintf(stderr, "\n");
+#endif
 
         // Call IAttachment::putSlice
         attachment->putSlice(
@@ -327,7 +328,9 @@ inline bool ArrayUtils::putSlice(
             static_cast<unsigned char*>(const_cast<void*>(buffer))
         );
 
+#ifdef FBIRD_ARRAY_DEBUG
         fprintf(stderr, "putSlice: returned, checking status...\n");
+#endif
 
         if (statusHasError(raw_status)) {
             if (status_vector) {
@@ -489,7 +492,7 @@ inline bool ArrayUtils::buildSdlFromDesc(
 
     *sdl_length = static_cast<unsigned>(sdl - sdl_buffer);
 
-    // Debug: dump SDL
+#ifdef FBIRD_ARRAY_DEBUG
     fprintf(stderr, "buildSdlFromDesc: rel='%.32s' field='%.32s' dims=%d len=%u SDL=",
             desc->array_desc_relation_name, desc->array_desc_field_name,
             desc->array_desc_dimensions, *sdl_length);
@@ -497,6 +500,7 @@ inline bool ArrayUtils::buildSdlFromDesc(
         fprintf(stderr, "%02x ", sdl_buffer[i]);
     }
     fprintf(stderr, "\n");
+#endif
 
     return true;
 }

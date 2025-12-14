@@ -618,55 +618,112 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 			case SQL_ARRAY:
 				if (flag & PHP_IBASE_FETCH_ARRAYS) { /* array can be *huge* so only fetch if asked */
 					ISC_QUAD ar_qd = *(ISC_QUAD *) field_data;
-					fbird_array *ib_array = &ib_query->out_array[array_cnt++];
-					/* Use local copy of size - isc_array_get_slice modifies its size parameter
-					 * to reflect actual bytes fetched, which corrupts ar_size for recursive use */
-					ISC_LONG fetch_size = ib_array->ar_size;
-					/* Use ecalloc to zero-initialize - check if corruption is from uninitialized memory */
+
+					/* OO API-only: do NOT use ib_query->out_array.
+					 * In the OO fetch path we don't populate XSQLDA-backed out_array descriptors,
+					 * so dereferencing it can crash. Build a temporary fbird_array from metadata
+					 * for each fetched array column. */
+					fbird_array local_array;
+					memset(&local_array, 0, sizeof(local_array));
+
+					ISC_ARRAY_DESC fresh_desc;
+					char rname[64] = {0}, sname[64] = {0};
+
+					/* Get table/column name from OO metadata */
+					const char *relation_name = fbm_get_relation(IBG(master_instance), ib_query->out_metadata, (unsigned)i);
+					const char *field_name = fbm_get_field(IBG(master_instance), ib_query->out_metadata, (unsigned)i);
+					if (relation_name && strlen(relation_name) < sizeof(rname)) {
+						strncpy(rname, relation_name, sizeof(rname) - 1);
+					}
+					if (field_name && strlen(field_name) < sizeof(sname)) {
+						strncpy(sname, field_name, sizeof(sname) - 1);
+					}
+
+					void* attachment_ptr = fbc_get_attachment(ib_query->link->fbc_connection);
+					void* transaction_ptr = fbt_get_handle(ib_query->trans->fbt_transaction);
+					if (!attachment_ptr || !transaction_ptr) {
+						_php_fbird_module_error("OO API array fetch requires attachment+transaction handles");
+						goto _php_fbird_fetch_error;
+					}
+
+					if (fba_lookup_bounds(IBG(master_instance), attachment_ptr, transaction_ptr,
+							rname, sname, &fresh_desc, IB_STATUS) != 0) {
+						_php_fbird_error();
+						goto _php_fbird_fetch_error;
+					}
+
+					/* Build a temporary fbird_array descriptor from fresh_desc */
+					local_array.ar_desc = fresh_desc;
+
+					switch (fresh_desc.array_desc_dtype) {
+						case blr_text:
+						case blr_text2:
+							local_array.el_type = SQL_TEXT;
+							local_array.el_size = fresh_desc.array_desc_length;
+							break;
+						case blr_short:
+							local_array.el_type = SQL_SHORT;
+							local_array.el_size = sizeof(short);
+							break;
+						case blr_long:
+							local_array.el_type = SQL_LONG;
+							local_array.el_size = sizeof(ISC_LONG);
+							break;
+						case blr_int64:
+							local_array.el_type = SQL_INT64;
+							local_array.el_size = sizeof(ISC_INT64);
+							break;
+						case blr_float:
+							local_array.el_type = SQL_FLOAT;
+							local_array.el_size = sizeof(float);
+							break;
+						case blr_double:
+							local_array.el_type = SQL_DOUBLE;
+							local_array.el_size = sizeof(double);
+							break;
+						case blr_timestamp:
+							local_array.el_type = SQL_TIMESTAMP;
+							local_array.el_size = sizeof(ISC_TIMESTAMP);
+							break;
+						case blr_sql_date:
+							local_array.el_type = SQL_TYPE_DATE;
+							local_array.el_size = sizeof(ISC_DATE);
+							break;
+						case blr_sql_time:
+							local_array.el_type = SQL_TYPE_TIME;
+							local_array.el_size = sizeof(ISC_TIME);
+							break;
+						case blr_varying:
+						case blr_varying2:
+							/* Keep legacy workaround: treat VARCHAR arrays as TEXT */
+							local_array.el_type = SQL_TEXT;
+							local_array.el_size = fresh_desc.array_desc_length;
+							local_array.ar_desc.array_desc_dtype = blr_text;
+							break;
+						default:
+							_php_fbird_module_error("Unsupported array dtype %d", fresh_desc.array_desc_dtype);
+							goto _php_fbird_fetch_error;
+					}
+
+					/* Calculate total array size */
+					zend_ulong ar_size = 1;
+					for (unsigned short dim = 0; dim < local_array.ar_desc.array_desc_dimensions; dim++) {
+						ar_size *= 1 + local_array.ar_desc.array_desc_bounds[dim].array_bound_upper -
+							local_array.ar_desc.array_desc_bounds[dim].array_bound_lower;
+					}
+					local_array.ar_size = (ISC_LONG)(local_array.el_size * ar_size);
+
+					ISC_LONG fetch_size = local_array.ar_size;
 					void *ar_data = ecalloc(1, (size_t)fetch_size);
 
-				/* Fetch a fresh array descriptor to ensure we have correct metadata.
-				 * The stored descriptor might have stale data. */
-				ISC_ARRAY_DESC fresh_desc;
-				char rname[64] = {0}, sname[64] = {0};
-				/* Get table/column name from OO metadata */
-				const char *relation_name = fbm_get_relation(IBG(master_instance), ib_query->out_metadata, (unsigned)i);
-				const char *field_name = fbm_get_field(IBG(master_instance), ib_query->out_metadata, (unsigned)i);
-				if (relation_name && strlen(relation_name) < 64) {
-					strncpy(rname, relation_name, 63);
-				}
-				if (field_name && strlen(field_name) < 64) {
-					strncpy(sname, field_name, 63);
-				}
-				if (isc_array_lookup_bounds(IB_STATUS, &ib_query->link->handle.db,
-						&ib_query->trans->handle.tr, rname, sname, &fresh_desc)) {
-					_php_fbird_error();
-					efree(ar_data);
-					goto _php_fbird_fetch_error;
-				}
-				/* WORKAROUND: If we treated this as SQL_TEXT in alloc_array (for VARCHAR),
-				 * we must tell get_slice to return text (not varying structure).
-				 *
-				 * NOTE: Previous UTF8 heuristic was REMOVED as it was incorrect.
-				 * ISC_ARRAY_DESC has no charset field, so we cannot reliably detect UTF8.
-				 * The heuristic (dividing by 4 if length divisible by 4) caused truncation
-				 * for non-UTF8 VARCHAR arrays like VARCHAR(1000) with charset NONE. */
-				if (ib_array->el_type == SQL_TEXT &&
-					(fresh_desc.array_desc_dtype == blr_varying || fresh_desc.array_desc_dtype == blr_varying2)) {
-					fresh_desc.array_desc_dtype = blr_text;
-				}
+					if (fba_get_slice(IBG(master_instance), attachment_ptr, transaction_ptr,
+							&ar_qd, &local_array.ar_desc, ar_data, &fetch_size, IB_STATUS) != 0) {
+						_php_fbird_error();
+						efree(ar_data);
+						goto _php_fbird_fetch_error;
+					}
 
-				if (isc_array_get_slice(IB_STATUS, &ib_query->link->handle.db,
-						&ib_query->trans->handle.tr, &ar_qd, &fresh_desc,
-						ar_data, &fetch_size)) {
-					_php_fbird_error();
-					efree(ar_data);
-					goto _php_fbird_fetch_error;
-				}
-
-					/* Use ORIGINAL ar_size for recursive processing (structure size),
-					 * not the potentially modified fetch_size */
-					if (FAILURE == _php_fbird_arr_zval(result, ar_data, ib_array->ar_size, ib_array,
+					if (FAILURE == _php_fbird_arr_zval(result, ar_data, local_array.ar_size, &local_array,
 							0, flag)) {
 						efree(ar_data);
 						goto _php_fbird_fetch_error;

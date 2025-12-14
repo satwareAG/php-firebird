@@ -40,7 +40,15 @@
 #include <cstring>
 #include <cstdint>
 
+#include <firebird/impl/blr.h>
+
 #include "fb_status.hpp"
+
+// Charset ids for BLR *2 types (blr_text2/blr_varying2).
+// 0 = NONE/ASCII in Firebird.
+#ifndef FBIRD_ARRAY_DEFAULT_CHARSET_ID
+#define FBIRD_ARRAY_DEFAULT_CHARSET_ID 0
+#endif
 
 // SDL constants (Slice Description Language)
 // Values from Firebird source: jrd/sdl.cpp op_* constants
@@ -427,27 +435,48 @@ inline bool ArrayUtils::buildSdlFromDesc(
     *sdl++ = isc_sdl_version1;
 
     // 2) Element descriptor: struct(1) + blr dtype [+ scale/len]
+    //
+    // IMPORTANT:
+    // - For arrays of VARCHAR/CHAR with charset info, Firebird supports *2 types:
+    //   blr_text2 / blr_varying2 / blr_cstring2 where the BLR stream includes
+    //   a charset id (word) before the length (word).
+    // - Our descriptor (ISC_ARRAY_DESC) does not carry charset id, but Firebird
+    //   uses this information from field metadata.
+    //
+    // To match Firebird's expectations for varying arrays (and avoid silent
+    // corruption where length is preserved but bytes are zeroed), we emit the
+    // *2 BLR codes with a default charset id (NONE = 0) when dealing with
+    // blr_varying.
     *sdl++ = isc_sdl_struct;
     *sdl++ = 1;
-    *sdl++ = static_cast<unsigned char>(desc->array_desc_dtype);
 
-    switch (desc->array_desc_dtype) {
-    case blr_short:
-    case blr_long:
-    case blr_int64:
-    case blr_quad:
-    case blr_int128:
-        *sdl++ = static_cast<unsigned char>(desc->array_desc_scale);
-        break;
+    const unsigned char dtype = static_cast<unsigned char>(desc->array_desc_dtype);
 
-    case blr_text:
-    case blr_cstring:
-    case blr_varying:
+    if (dtype == blr_varying) {
+        *sdl++ = blr_varying2;
+        stuffSdlWord(static_cast<ISC_USHORT>(FBIRD_ARRAY_DEFAULT_CHARSET_ID));
         stuffSdlWord(static_cast<ISC_USHORT>(desc->array_desc_length));
-        break;
+    } else {
+        *sdl++ = dtype;
 
-    default:
-        break;
+        switch (dtype) {
+        case blr_short:
+        case blr_long:
+        case blr_int64:
+        case blr_quad:
+        case blr_int128:
+            *sdl++ = static_cast<unsigned char>(desc->array_desc_scale);
+            break;
+
+        case blr_text:
+        case blr_cstring:
+        case blr_varying:
+            stuffSdlWord(static_cast<ISC_USHORT>(desc->array_desc_length));
+            break;
+
+        default:
+            break;
+        }
     }
 
     // 3) Relation
@@ -492,6 +521,8 @@ inline bool ArrayUtils::buildSdlFromDesc(
     }
 
     // 6) Element expression
+    // Canonical layout per Firebird's `gen_sdl` in `src/yvalve/array.cpp`:
+    //   isc_sdl_element, 1, isc_sdl_scalar, 0, <dims>, isc_sdl_variable, <dim>...
     *sdl++ = isc_sdl_element;
     *sdl++ = 1;
     *sdl++ = isc_sdl_scalar;
@@ -509,10 +540,12 @@ inline bool ArrayUtils::buildSdlFromDesc(
     *sdl_length = static_cast<unsigned>(sdl - sdl_buffer);
 
 #ifdef FBIRD_ARRAY_DEBUG
-    fprintf(stderr, "buildSdlFromDesc: rel='%.32s' field='%.32s' dims=%d len=%u SDL=",
+    fprintf(stderr,
+            "buildSdlFromDesc: rel='%.32s' field='%.32s' dtype=%u dims=%d len=%u SDL=",
             desc->array_desc_relation_name, desc->array_desc_field_name,
+            (unsigned)desc->array_desc_dtype,
             desc->array_desc_dimensions, *sdl_length);
-    for (unsigned i = 0; i < *sdl_length && i < 64; i++) {
+    for (unsigned i = 0; i < *sdl_length && i < 128; i++) {
         fprintf(stderr, "%02x ", sdl_buffer[i]);
     }
     fprintf(stderr, "\n");

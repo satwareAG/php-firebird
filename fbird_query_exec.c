@@ -719,11 +719,21 @@ cleanup_result_query:
    result_query->stmt = ib_query->stmt;
    result_query->query = estrdup(ib_query->query);
 
-   /* Copy OO API structures for fetch operations */
+   /* Copy OO API structures for fetch operations
+    *
+    * IMPORTANT: Snapshot the message buffer.
+    * The parent query owns and frees ib_query->out_msg_buffer.
+    * Child SELECT results must have their own copy to avoid double-free / UAF
+    * when both parent and child resources are destroyed.
+    */
    result_query->fbs_statement = ib_query->fbs_statement;
    result_query->out_metadata = ib_query->out_metadata;
-   result_query->out_msg_buffer = ib_query->out_msg_buffer;
    result_query->out_msg_length = ib_query->out_msg_length;
+   result_query->out_msg_buffer = NULL;
+   if (ib_query->out_msg_buffer && ib_query->out_msg_length > 0) {
+       result_query->out_msg_buffer = safe_emalloc(1, ib_query->out_msg_length, 0);
+       memcpy(result_query->out_msg_buffer, ib_query->out_msg_buffer, ib_query->out_msg_length);
+   }
 
    /* Copy input parameter metadata so fbird_num_params()/fbird_param_info()
     * work on the returned result resource (e.g., fbird_query() path). */

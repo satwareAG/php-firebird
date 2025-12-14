@@ -34,6 +34,7 @@
 #include "php_firebird.h"
 #include "php_fbird_includes.h"
 #include "php_fbird_query_internal.h"
+#include "Zend/zend_smart_str.h"
 #include "firebird_utils.h"
 
 #define ISC_LONG_MIN    INT_MIN
@@ -555,58 +556,95 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 
 					fbird_blob blob_handle;
 					zend_ulong max_len = 0;
-					static char bl_items[] = {isc_info_blob_total_length};
-					char bl_info[20];
-					unsigned short blob_i;
 
-					blob_handle.bl_handle.ptr = 0;
-					blob_handle.bl_qd = *(ISC_QUAD *) field_data;
+					memset(&blob_handle, 0, sizeof(blob_handle));
+					blob_handle.type = BLOB_OUTPUT;
+					blob_handle.bl_qd = *(ISC_QUAD *)field_data;
+					blob_handle.fbb_blob = NULL;
 
-					if (isc_open_blob(IB_STATUS, &ib_query->link->handle.db, &ib_query->trans->handle.tr,
-							&blob_handle.bl_handle.blob, &blob_handle.bl_qd)) {
+					if (!ib_query->link || !ib_query->link->fbc_connection) {
+						_php_fbird_module_error("OO API connection required to fetch BLOB contents");
+						goto _php_fbird_fetch_error;
+					}
+					if (!ib_query->trans || !ib_query->trans->fbt_transaction) {
+						_php_fbird_module_error("OO API transaction required to fetch BLOB contents");
+						goto _php_fbird_fetch_error;
+					}
+
+					void *attachment_ptr = fbc_get_attachment(ib_query->link->fbc_connection);
+					void *transaction_ptr = fbt_get_handle(ib_query->trans->fbt_transaction);
+					if (!attachment_ptr || !transaction_ptr) {
+						_php_fbird_module_error("Invalid OO API attachment/transaction for BLOB fetch");
+						goto _php_fbird_fetch_error;
+					}
+
+					blob_handle.fbb_blob = fbb_open(
+						IBG(master_instance),
+						attachment_ptr,
+						transaction_ptr,
+						&blob_handle.bl_qd,
+						0,
+						NULL,
+						IB_STATUS
+					);
+					if (!blob_handle.fbb_blob) {
 						_php_fbird_error();
 						goto _php_fbird_fetch_error;
 					}
 
-					if (isc_blob_info(IB_STATUS, &blob_handle.bl_handle.blob, sizeof(bl_items),
-							bl_items, sizeof(bl_info), bl_info)) {
+					/* Keep legacy handle pointer in sync for blob helpers. */
+					blob_handle.bl_handle.ptr = fbb_get_handle(blob_handle.fbb_blob);
+
+					/* Determine total length via getInfo so we can allocate exact buffer. */
+					static unsigned char bl_items[] = { isc_info_blob_total_length };
+					unsigned char bl_info[32];
+
+					if (fbb_get_info(
+							IBG(master_instance),
+							blob_handle.fbb_blob,
+							sizeof(bl_items),
+							bl_items,
+							sizeof(bl_info),
+							bl_info,
+							IB_STATUS
+						) == 0) {
 						_php_fbird_error();
 						goto _php_fbird_fetch_error;
 					}
 
-					/* find total length of blob's data */
-					for (i = 0; i < sizeof(bl_info); ) {
+					for (unsigned j = 0; j < sizeof(bl_info); ) {
 						unsigned short item_len;
-						char item = bl_info[i++];
+						unsigned char item = bl_info[j++];
 
 						if (item == isc_info_end || item == isc_info_truncated ||
-							item == isc_info_error || i >= sizeof(bl_info)) {
-
-							_php_fbird_module_error("Could not determine BLOB size (internal error)"
-								);
+							item == isc_info_error || j >= sizeof(bl_info)) {
+							_php_fbird_module_error("Could not determine BLOB size (internal error)");
 							goto _php_fbird_fetch_error;
 						}
 
-						item_len = (unsigned short) isc_vax_integer(&bl_info[i], 2);
+						item_len = (unsigned short)isc_vax_integer((char *)&bl_info[j], 2);
 
 						if (item == isc_info_blob_total_length) {
-							max_len = isc_vax_integer(&bl_info[i+2], item_len);
+							max_len = (zend_ulong)isc_vax_integer((char *)&bl_info[j + 2], item_len);
 							break;
 						}
-						i += item_len+2;
+						j += item_len + 2;
 					}
 
 					if (max_len == 0) {
 						ZVAL_STRING(result, "");
-					} else if (SUCCESS != _php_fbird_blob_get(result, &blob_handle,
-							max_len)) {
+					} else if (SUCCESS != _php_fbird_blob_get(result, &blob_handle, max_len)) {
 						goto _php_fbird_fetch_error;
 					}
 
-					if (isc_close_blob(IB_STATUS, &blob_handle.bl_handle.blob)) {
+					/* fbb_close returns 1 on success, 0 on error */
+					if (fbb_close(IBG(master_instance), blob_handle.fbb_blob, IB_STATUS) == 0) {
 						_php_fbird_error();
 						goto _php_fbird_fetch_error;
 					}
+					fbb_free(blob_handle.fbb_blob);
+					blob_handle.fbb_blob = NULL;
+					blob_handle.bl_handle.ptr = 0;
 
 				} else { /* blob id only */
 					ISC_QUAD bl_qd = *(ISC_QUAD *) field_data;

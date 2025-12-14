@@ -510,26 +510,45 @@ execute_done:
 			/* Initialize error cleanup flag */
 			int cleanup_needed = 1;
 
-			/* Copy essential fields from the original query */
-			result_query->link = ib_query->link;
-			result_query->trans = ib_query->trans;
-			result_query->trans_res = ib_query->trans_res;
-   result_query->dialect = ib_query->dialect;
-   result_query->statement_type = ib_query->statement_type;
-   result_query->out_fields_count = ib_query->out_fields_count;
-   result_query->was_result_once = 1;
+            /* Copy essential fields from the original query */
+            result_query->link = ib_query->link;
+            result_query->trans = ib_query->trans;
+            result_query->trans_res = ib_query->trans_res;
+            result_query->dialect = ib_query->dialect;
+            result_query->statement_type = ib_query->statement_type;
+            result_query->out_fields_count = ib_query->out_fields_count;
 
-   /* Reuse the original statement handle for metadata operations.
-    * This is safe for EXECUTE PROCEDURE and DML RETURNING because
-    * there is no open cursor to conflict with, and it enables
-    * alias resolution via the newer Firebird API which requires
-    * a valid statement handle. */
-   result_query->stmt = ib_query->stmt;
-   /* Keep a copy of SQL text for symmetry with SELECT path and
-    * potential debug/logging uses in helper routines. */
-   if (ib_query->query) {
-       result_query->query = estrdup(ib_query->query);
-   }
+            /* OO API snapshot support (EXECUTE PROCEDURE + DML RETURNING)
+             *
+             * The OO API writes result values into a flat message buffer.
+             * For one-shot results, we must snapshot that buffer into the
+             * returned result resource so subsequent executions don't
+             * overwrite it.
+             */
+            result_query->fbs_statement = ib_query->fbs_statement;
+            result_query->out_metadata = ib_query->out_metadata;
+            result_query->out_msg_length = ib_query->out_msg_length;
+            result_query->out_msg_buffer = NULL;
+            if (ib_query->out_msg_buffer && ib_query->out_msg_length > 0) {
+                result_query->out_msg_buffer = safe_emalloc(1, ib_query->out_msg_length, 0);
+                memcpy(result_query->out_msg_buffer, ib_query->out_msg_buffer, ib_query->out_msg_length);
+            }
+
+            /* Flag used by fbird_fetch_*() to detect buffered RETURNING rows.
+             * For EXECUTE PROCEDURE it is ignored, but keep it consistent. */
+            result_query->was_result_once = ib_query->was_result_once;
+
+            /* Reuse the original statement handle for metadata operations.
+             * This is safe for EXECUTE PROCEDURE and DML RETURNING because
+             * there is no open cursor to conflict with, and it enables
+             * alias resolution via the newer Firebird API which requires
+             * a valid statement handle. */
+            result_query->stmt = ib_query->stmt;
+            /* Keep a copy of SQL text for symmetry with SELECT path and
+             * potential debug/logging uses in helper routines. */
+            if (ib_query->query) {
+                result_query->query = estrdup(ib_query->query);
+            }
 
 			/* Validate source SQLDA before processing */
 			if (ib_query->out_sqlda && ib_query->out_fields_count > 0) {

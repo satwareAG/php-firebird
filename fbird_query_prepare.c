@@ -320,12 +320,20 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
 		}
 		IBDEBUG("OO API output message buffer allocated\n");
 
-		/* Allocate out_sqlda from OO API metadata for compatibility with fbird_field_info().
-		 * The field inspection logic uses XSQLDA structures, so we populate from OO API metadata. */
+		/* Allocate out_sqlda from OO API metadata for compatibility with fbird_field_info()
+		 * and for query clone logic in _php_fbird_exec(). */
 		ib_query->out_sqlda = (XSQLDA *) emalloc(XSQLDA_LENGTH(ib_query->out_fields_count));
 		ib_query->out_sqlda->version = SQLDA_VERSION1;
 		ib_query->out_sqlda->sqln = ib_query->out_fields_count;
 		ib_query->out_sqlda->sqld = ib_query->out_fields_count;
+
+		/* Allocate null-indicator array used by result cloning.
+		 * Legacy code expects ib_query->out_nullind to exist when out_sqlda exists.
+		 * In OO-only mode, we still need the array even though actual NULL flags are
+		 * read from out_msg_buffer via IMessageMetadata. */
+		ib_query->out_nullind = safe_emalloc(sizeof(*ib_query->out_nullind),
+			ib_query->out_fields_count, 0);
+		memset(ib_query->out_nullind, 0, sizeof(*ib_query->out_nullind) * ib_query->out_fields_count);
 
 		/* Populate each XSQLVAR from OO API output metadata */
 		for (int i = 0; i < ib_query->out_fields_count; i++) {

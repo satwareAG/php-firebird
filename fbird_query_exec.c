@@ -711,17 +711,19 @@ cleanup_result_query:
 				memcpy(result_query->out_nullind, ib_query->out_nullind,
 					sizeof(*result_query->out_nullind) * ib_query->out_fields_count);
 
-				/* Deep copy data for each field using safer copying mechanism */
+				/* Copy row buffers only when legacy path populated sqldata.
+				 * In OO API mode, out_sqlda is metadata-only and fetch uses out_msg_buffer.
+				 */
 				for (int i = 0; i < ib_query->out_fields_count; i++) {
 					XSQLVAR *orig_var = &ib_query->out_sqlda->sqlvar[i];
 					XSQLVAR *result_var = &result_query->out_sqlda->sqlvar[i];
 
-					/* Reset sqldata pointer - will be set by safe copy function */
 					result_var->sqldata = NULL;
 
-					/* Use safer copying function with comprehensive validation */
-					if (FAILURE == _php_fbird_safe_copy_sqlvar_data(result_var, orig_var, i, ib_query->query)) {
-						goto cleanup_select_result_query;
+					if (orig_var->sqldata) {
+						if (FAILURE == _php_fbird_safe_copy_sqlvar_data(result_var, orig_var, i, ib_query->query)) {
+							goto cleanup_select_result_query;
+						}
 					}
 				}
 

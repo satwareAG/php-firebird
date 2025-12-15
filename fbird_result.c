@@ -400,17 +400,21 @@ static int _php_fbird_arr_zval(zval *ar_zval, char *data, zend_ulong data_size, 
 		 * This is acceptable as array CHAR fields are less common and
 		 * historical behavior is preserved. */
 
-		/* For SQL_VARYING, we must pass el_size (declared_length + 2) not array_desc_length.
-		 * The buffer contains IBVARY format (2-byte length prefix + data), and
-		 * _php_fbird_var_zval expects the full element size to properly read the structure.
-		 * For other types, array_desc_length equals el_size, so this works for all. */
-		zend_long element_length = (ib_array->el_type == SQL_VARYING)
-			? ib_array->el_size
-			: ib_array->ar_desc.array_desc_length;
+		if (ib_array->el_type == SQL_VARYING) {
+			/* VARCHAR array workaround: Data is null-terminated string (cstring format).
+			 * See fb_array.hpp for explanation of dtype_cstring bug workaround.
+			 * Element size = declared_length + 1 (for null terminator).
+			 * Read the string using strlen() to find the actual length. */
+			size_t str_len = strnlen(data, ib_array->el_size - 1);
+			ZVAL_STRINGL(ar_zval, data, str_len);
+		} else {
+			/* For other types, use the standard conversion function */
+			zend_long element_length = ib_array->ar_desc.array_desc_length;
 
-		if (FAILURE == _php_fbird_var_zval(ar_zval, data, ib_array->el_type,
-				element_length, ib_array->ar_desc.array_desc_scale, 0, flag)) {
-			return FAILURE;
+			if (FAILURE == _php_fbird_var_zval(ar_zval, data, ib_array->el_type,
+					element_length, ib_array->ar_desc.array_desc_scale, 0, flag)) {
+				return FAILURE;
+			}
 		}
 
 		/* Native VARCHAR array support:
@@ -740,9 +744,11 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 							break;
 					case blr_varying:
 					case blr_varying2:
-						/* Native VARCHAR array support (IBVARY: 2-byte length + data) */
+						/* VARCHAR array workaround: Use null-terminated strings.
+						 * See fb_array.hpp for explanation of dtype_cstring bug workaround.
+						 * Element size = declared_length + 1 (for null terminator). */
 						local_array.el_type = SQL_VARYING;
-						local_array.el_size = fresh_desc.array_desc_length + sizeof(ISC_SHORT);
+						local_array.el_size = fresh_desc.array_desc_length + 1;
 						break;
 						default:
 							_php_fbird_module_error("Unsupported array dtype %d", fresh_desc.array_desc_dtype);

@@ -18,7 +18,7 @@ fi
 phpize
 
 # Configure with Firebird paths
-CPPFLAGS="-I/usr/include/firebird -DFBIRD_ARRAY_DEBUG" ./configure \
+CPPFLAGS="-I/usr/include/firebird" ./configure \
     --with-firebird=/usr
 
 # Build

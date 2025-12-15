@@ -1082,8 +1082,10 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 							break;
 						case blr_varying:
 						case blr_varying2:
-							/* Native VARCHAR array support: IBVARY (2-byte length + data) */
-							elem_size = (ISC_LONG)ar_desc.array_desc_length + (ISC_LONG)sizeof(ISC_SHORT);
+							/* VARCHAR array workaround: Use null-terminated strings.
+							 * See fb_array.hpp for explanation of dtype_cstring bug workaround.
+							 * Element size = declared_length + 1 (for null terminator) */
+							elem_size = (ISC_LONG)ar_desc.array_desc_length + 1;
 							arr_el_type = SQL_VARYING;
 							break;
 						case blr_short:
@@ -1097,6 +1099,26 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 						case blr_int64:
 							elem_size = (ISC_LONG)sizeof(ISC_INT64);
 							arr_el_type = SQL_INT64;
+							break;
+						case blr_float:
+							elem_size = (ISC_LONG)sizeof(float);
+							arr_el_type = SQL_FLOAT;
+							break;
+						case blr_double:
+							elem_size = (ISC_LONG)sizeof(double);
+							arr_el_type = SQL_DOUBLE;
+							break;
+						case blr_timestamp:
+							elem_size = (ISC_LONG)sizeof(ISC_TIMESTAMP);
+							arr_el_type = SQL_TIMESTAMP;
+							break;
+						case blr_sql_date:
+							elem_size = (ISC_LONG)sizeof(ISC_DATE);
+							arr_el_type = SQL_TYPE_DATE;
+							break;
+						case blr_sql_time:
+							elem_size = (ISC_LONG)sizeof(ISC_TIME);
+							arr_el_type = SQL_TYPE_TIME;
 							break;
 						default:
 							_php_fbird_module_error("Parameter %d: unsupported array element dtype %d", i + 1, ar_desc.array_desc_dtype);

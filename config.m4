@@ -82,7 +82,7 @@ if test "$PHP_FIREBIRD" != "no"; then
   dnl Usage:
   dnl   CPPFLAGS="-DFBIRD_ARRAY_DEBUG" ./configure --with-firebird=/usr
   dnl
-  PHP_NEW_EXTENSION(firebird, firebird.c fbird_query_exec.c fbird_query_prepare.c fbird_query_bind.c fbird_query_array.c fbird_result.c fbird_metadata.c fbird_service.c fbird_events.c fbird_blobs.c fbird_inspection.c, $ext_shared,, -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DFBIRD_ARRAY_DEBUG,[cxx])
+  PHP_NEW_EXTENSION(firebird, firebird.c fbird_query_exec.c fbird_query_prepare.c fbird_query_bind.c fbird_query_array.c fbird_result.c fbird_metadata.c fbird_service.c fbird_events.c fbird_blobs.c fbird_inspection.c, $ext_shared,, -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1,[cxx])
   PHP_SUBST(FIREBIRD_SHARED_LIBADD)
 
   PHP_REQUIRE_CXX()

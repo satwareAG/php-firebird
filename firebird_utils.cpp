@@ -2156,11 +2156,26 @@ extern "C" int fba_lookup_bounds(
             case 8:  /* INTEGER */
                 desc->array_desc_dtype = blr_long;
                 break;
-            case 16: /* BIGINT */
-                desc->array_desc_dtype = blr_int64;
+            case 10: /* FLOAT */
+                desc->array_desc_dtype = blr_float;
+                break;
+            case 12: /* DATE */
+                desc->array_desc_dtype = blr_sql_date;
+                break;
+            case 13: /* TIME */
+                desc->array_desc_dtype = blr_sql_time;
                 break;
             case 14: /* CHAR */
                 desc->array_desc_dtype = blr_text;
+                break;
+            case 16: /* BIGINT / NUMERIC / DECIMAL */
+                desc->array_desc_dtype = blr_int64;
+                break;
+            case 27: /* DOUBLE PRECISION */
+                desc->array_desc_dtype = blr_double;
+                break;
+            case 35: /* TIMESTAMP */
+                desc->array_desc_dtype = blr_timestamp;
                 break;
             case 37: /* VARCHAR */
                 desc->array_desc_dtype = blr_varying;

@@ -173,16 +173,18 @@ int _php_fbird_alloc_array(fbird_array **ib_arrayp, XSQLDA *sqlda, /* {{{ */
 #endif
 			case blr_varying:
 			case blr_varying2:
-				/* Native VARCHAR array support.
-				 * Firebird slice buffers use IBVARY layout: 2-byte length prefix + data.
-				 * So element size is declared length + sizeof(ISC_SHORT).
+				/* VARCHAR array workaround for Firebird dtype_cstring bug:
+				 *
+				 * Firebird's sdl_desc() sets dtype_cstring for blr_varying, but internal
+				 * array storage uses IBVARY format. This mismatch corrupts data during
+				 * getSlice (length preserved, character data zeroed).
+				 *
+				 * WORKAROUND: Use blr_cstring in SDL (see fb_array.hpp) and format
+				 * user buffer as null-terminated strings instead of IBVARY.
+				 * Element size = declared_length + 1 (for null terminator).
 				 */
 				a->el_type = SQL_VARYING;
-				a->el_size = ar_desc->array_desc_length + sizeof(ISC_SHORT);
-				/* IMPORTANT: for blr_varying, Firebird expects element buffer:
-				 * [2-byte length prefix][raw bytes].
-				 * Keep ar_desc_dtype as blr_varying so SDL matches the field.
-				 */
+				a->el_size = ar_desc->array_desc_length + 1;  /* +1 for null terminator */
 				break;
 			case blr_quad:
 			case blr_blob_id:
@@ -564,24 +566,26 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {{{ */
 #endif
 				case SQL_VARYING:
 					{
-						/* VARCHAR arrays use IBVARY format: 2-byte length prefix + character data.
-						 * buf_size = el_size = array_desc_length + sizeof(short)
+						/* VARCHAR array workaround: Use null-terminated strings.
+						 * buf_size = el_size = array_desc_length + 1 (for null terminator)
+						 *
+						 * See fb_array.hpp for explanation of dtype_cstring bug workaround.
 						 *
 						 * Use zval_get_string() to get copy without modifying original zval.
 						 * This fixes PHP 8.x issue where convert_to_string() modifies in-place,
 						 * causing all array elements to contain the last value */
 						zend_string *str = zval_get_string(val);
 						size_t str_len = ZSTR_LEN(str);
-						size_t max_len = buf_size - sizeof(short);
+						size_t max_len = buf_size - 1;  /* Reserve space for null terminator */
 						if (str_len > max_len) {
 							str_len = max_len;
 						}
-						/* Write length prefix */
-						*(short *)buf = (short)str_len;
-						/* Copy string data after length prefix */
+						/* Copy string data */
 						if (str_len > 0) {
-							memcpy(buf + sizeof(short), ZSTR_VAL(str), str_len);
+							memcpy(buf, ZSTR_VAL(str), str_len);
 						}
+						/* Null-terminate */
+						buf[str_len] = '\0';
 						zend_string_release(str);
 					}
 					break;

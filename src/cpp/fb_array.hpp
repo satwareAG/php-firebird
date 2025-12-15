@@ -453,19 +453,31 @@ inline bool ArrayUtils::buildSdlFromDesc(
     const unsigned char dtype = static_cast<unsigned char>(desc->array_desc_dtype);
 
     if (dtype == blr_varying) {
-        /* For VARCHAR arrays, use charset-aware blr_varying2 ONLY for non-NONE charsets.
-         * The charset id is stored in array_desc_flags by fba_lookup_bounds().
-         * For charset NONE (0), use blr_varying without charset to avoid Firebird slice bugs. */
+        /*
+         * VARCHAR arrays: Use blr_cstring format for user buffer.
+         *
+         * BACKGROUND: Firebird's sdl_desc() sets dtype_cstring for blr_varying,
+         * but internal array storage uses IBVARY (2-byte length + data).
+         * This mismatch corrupts data when MOV_move interprets IBVARY as null-terminated.
+         *
+         * WORKAROUND: Use blr_cstring explicitly in SDL. This tells Firebird to:
+         * - Accept null-terminated strings in the user buffer (putSlice)
+         * - Return null-terminated strings to the user buffer (getSlice)
+         * - Handle IBVARY conversion internally
+         *
+         * The max length for blr_cstring = declared_length + 1 (for null terminator)
+         */
+        *sdl++ = blr_cstring;
+        /* Length = max chars + 1 for null terminator */
+        stuffSdlWord(static_cast<ISC_USHORT>(desc->array_desc_length + 1));
+    } else if (dtype == blr_varying2) {
+        /*
+         * VARCHAR with charset: Use blr_cstring2
+         */
         const ISC_USHORT charset_id = static_cast<ISC_USHORT>(desc->array_desc_flags);
-        if (charset_id != 0) {
-            *sdl++ = blr_varying2;
-            stuffSdlWord(charset_id);
-            stuffSdlWord(static_cast<ISC_USHORT>(desc->array_desc_length));
-        } else {
-            /* charset NONE: use blr_varying (no charset) */
-            *sdl++ = blr_varying;
-            stuffSdlWord(static_cast<ISC_USHORT>(desc->array_desc_length));
-        }
+        *sdl++ = blr_cstring2;
+        stuffSdlWord(charset_id);
+        stuffSdlWord(static_cast<ISC_USHORT>(desc->array_desc_length + 1));
     } else {
         *sdl++ = dtype;
 

@@ -354,50 +354,62 @@ int _php_fbird_alloc_ht_aliases(fbird_query *ib_query)
 	ALLOC_HASHTABLE(ib_query->ht_aliases);
 	zend_hash_init(ib_query->ht_aliases, ib_query->out_fields_count, NULL, ZVAL_PTR_DTOR, 0);
 
-	/* Guard: If out_sqlda is NULL, we cannot populate aliases */
-	if (!ib_query->out_sqlda) {
-		return SUCCESS;  /* Return success with empty alias table */
-	}
-
-	/* OO API migration: Use XSQLDA-based alias extraction.
-	 * The out_sqlda is now populated from OO API metadata during prepare,
-	 * so the XSQLDA data path provides complete alias information.
+	/* OO API alias extraction - supports long field names (63 chars in FB 4.0+)
 	 *
-	 * The legacy fbu_insert_aliases() path using get_statement_interface is disabled
-	 * because it requires ib_query->stmt.stmt (legacy isc_stmt_handle) which is no longer
-	 * available in OO API mode.
+	 * Prior approach used XSQLVAR.aliasname which is limited to 31 chars.
+	 * The OO API's fbm_get_alias() returns the full name, so we read directly
+	 * from IMessageMetadata to support Firebird 4.0+ long identifiers.
 	 */
-	{
-		// XSQLDA-based alias extraction
-        for(size_t i = 0; i < ib_query->out_fields_count; i++){
-            XSQLVAR *var = &ib_query->out_sqlda->sqlvar[i];
+	for(size_t i = 0; i < ib_query->out_fields_count; i++){
+		const char *base_alias = "";
+		const char *base_field = "";
 
-            const char *base_alias = (var->aliasname && var->aliasname[0])
-                ? var->aliasname
-                : (var->sqlname ? var->sqlname : "");
+		/* Prefer OO API metadata for full-length names (supports 63+ chars) */
+		if (ib_query->out_metadata) {
+			const char *alias_str = fbm_get_alias(IBG(master_instance), ib_query->out_metadata, (unsigned)i);
+			const char *field_str = fbm_get_field(IBG(master_instance), ib_query->out_metadata, (unsigned)i);
 
-            /* For DML ... RETURNING (or when SQL text contains RETURNING), preserve prefixes when present */
-            if ((ib_query->statement_type == isc_info_sql_stmt_insert ||
-                 ib_query->statement_type == isc_info_sql_stmt_update ||
-                 ib_query->statement_type == isc_info_sql_stmt_delete) ||
-                _php_fbird_sql_has_returning(ib_query->query)) {
-                char full[METADATALENGTH + 6 + 1] = {0};
-                if (_php_fbird_infer_returning_full_alias(ib_query->query, i, full, sizeof(full))) {
-                    _php_fbird_insert_alias(ib_query->ht_aliases, full);
-                    continue;
-                } else {
-                    char pref[5] = {0};
-                    if (_php_fbird_infer_returning_prefix(ib_query->query, i, pref, sizeof(pref)) && pref[0] != '\0') {
-                        char buf[METADATALENGTH + 5 + 1];
-                        snprintf(buf, sizeof(buf), "%s%s", pref, base_alias);
-                        _php_fbird_insert_alias(ib_query->ht_aliases, buf);
-                        continue;
-                    }
-                }
-            }
+			if (alias_str && alias_str[0]) {
+				base_alias = alias_str;
+			}
+			if (field_str && field_str[0]) {
+				base_field = field_str;
+			}
+		} else if (ib_query->out_sqlda) {
+			/* Fallback to XSQLDA (limited to 31 chars) */
+			XSQLVAR *var = &ib_query->out_sqlda->sqlvar[i];
+			if (var->aliasname && var->aliasname[0]) {
+				base_alias = var->aliasname;
+			}
+			if (var->sqlname && var->sqlname[0]) {
+				base_field = var->sqlname;
+			}
+		}
 
-            _php_fbird_insert_alias(ib_query->ht_aliases, base_alias);
-        }
+		/* Use alias if available, otherwise fall back to field name */
+		const char *effective_alias = (base_alias[0]) ? base_alias : base_field;
+
+		/* For DML ... RETURNING (or when SQL text contains RETURNING), preserve prefixes when present */
+		if ((ib_query->statement_type == isc_info_sql_stmt_insert ||
+			 ib_query->statement_type == isc_info_sql_stmt_update ||
+			 ib_query->statement_type == isc_info_sql_stmt_delete) ||
+			_php_fbird_sql_has_returning(ib_query->query)) {
+			char full[METADATALENGTH + 6 + 1] = {0};
+			if (_php_fbird_infer_returning_full_alias(ib_query->query, i, full, sizeof(full))) {
+				_php_fbird_insert_alias(ib_query->ht_aliases, full);
+				continue;
+			} else {
+				char pref[5] = {0};
+				if (_php_fbird_infer_returning_prefix(ib_query->query, i, pref, sizeof(pref)) && pref[0] != '\0') {
+					char buf[METADATALENGTH + 5 + 1];
+					snprintf(buf, sizeof(buf), "%s%s", pref, effective_alias);
+					_php_fbird_insert_alias(ib_query->ht_aliases, buf);
+					continue;
+				}
+			}
+		}
+
+		_php_fbird_insert_alias(ib_query->ht_aliases, effective_alias);
 	}
 
 	return SUCCESS;

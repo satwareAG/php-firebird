@@ -1651,16 +1651,24 @@ PHP_FUNCTION(fbird_execute_auto)
         RETURN_THROWS();
     }
 
+    /* Free statement BEFORE committing transaction to avoid
+     * fbs_free() issues when the transaction is already gone.
+     * Save the result value before deleting the query resource. */
+    zval saved_result;
+    ZVAL_COPY_VALUE(&saved_result, return_value);
+    zend_list_delete(ib_query->res);
+
     /* Commit via OO API */
     if (!fbt_commit(oo_trans, IB_STATUS)) {
         _php_fbird_error();
-        zend_list_delete(ib_query->res);
         efree(trans);
         RETURN_FALSE;
     }
 
-    zend_list_delete(ib_query->res);
     efree(trans);
+
+    /* Restore return value (affected rows count) */
+    ZVAL_COPY_VALUE(return_value, &saved_result);
 
     /* Return value is already set by _php_fbird_exec (TRUE/affected_rows) */
 }

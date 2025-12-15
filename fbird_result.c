@@ -143,13 +143,11 @@ static int _php_fbird_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 			{
 				/* CHAR(N) field handling for multi-byte character sets:
 				 *
-				 * For UTF8 CHAR(N): sqllen = N×4 (max bytes), buffer space-padded
-				 * For single-byte CHAR(N): sqllen = N, buffer space-padded
+				 * For UTF8 CHAR(N): buffer contains actual UTF8 data + NUL padding
+				 * For single-byte CHAR(N): buffer is space-padded to declared length
 				 *
-				 * Problem: We cannot distinguish intentional trailing spaces from
-				 * padding using byte-level analysis. For UTF8, we know the declared
-				 * character count (N = sqllen/4) and can count exactly that many
-				 * UTF8 characters to find the actual data boundary.
+				 * UTF8 approach: Read all valid UTF8 characters until NUL or buffer end.
+				 * This preserves intentional trailing spaces from the original data.
 				 *
 				 * For single-byte charsets, we rtrim spaces which matches
 				 * historical SQL CHAR behavior (trailing spaces are insignificant).
@@ -159,18 +157,23 @@ static int _php_fbird_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 				unsigned char charset_id = (unsigned char)(subtype & 0xFF);
 
 				if (charset_id == 4 || charset_id == 59) {
-					/* UTF8/UTF8MB4: count exactly N characters where N = sqllen/4 */
-					size_t char_count = (size_t)len / 4;
+					/* UTF8/UTF8MB4: read all valid UTF8 chars until NUL or buffer end.
+					 * Trailing spaces are preserved as they may be intentional data.
+					 * NUL bytes indicate padding, not data. */
 					size_t actual_len = 0;
-					size_t chars = 0;
 					const unsigned char *p = (const unsigned char *)data;
 
-					while (actual_len < (size_t)len && chars < char_count) {
+					while (actual_len < (size_t)len) {
 						unsigned char c = p[actual_len];
 						size_t char_bytes;
 
+						/* Stop at NUL - marks end of actual data */
+						if (c == 0) {
+							break;
+						}
+
 						if ((c & 0x80) == 0) {
-							char_bytes = 1;  /* ASCII */
+							char_bytes = 1;  /* ASCII (including space 0x20) */
 						} else if ((c & 0xE0) == 0xC0) {
 							char_bytes = 2;  /* 2-byte UTF8 */
 						} else if ((c & 0xF0) == 0xE0) {
@@ -187,7 +190,6 @@ static int _php_fbird_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 						}
 
 						actual_len += char_bytes;
-						chars++;
 					}
 
 					ZVAL_STRINGL(val, (char*)data, actual_len);

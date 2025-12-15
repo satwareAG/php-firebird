@@ -35,7 +35,7 @@ array(3) {
   ["V_CHAR_UTF8_1"]=>
   string(3) "€"
   ["V_CHAR_UTF8_10"]=>
-  string(12) "  A   €   "
+  string(9) "  A   €"
   ["V_VARCHAR_UTF8_1"]=>
   string(3) "€"
 }

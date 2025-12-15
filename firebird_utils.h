@@ -965,6 +965,8 @@ int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* timestamp_tz,
 	unsigned year, unsigned month, unsigned day,
 	unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions,
 	const char* time_zone);
+#endif // FB_API_VER >= 40
+
 int fbu_insert_field_info(void *master_ptr, ISC_STATUS* status, int is_outvar, int num,
   zval *into_array, void *statement_ptr);
 int fbu_insert_aliases(void *master_ptr, ISC_STATUS* status, fbird_query *ib_query,
@@ -1087,8 +1089,6 @@ const char* fbm_get_relation(void* master_ptr, void* metadata_ptr, unsigned inde
  * @param metadata_ptr IMessageMetadata pointer
  */
 void fbm_release(void* metadata_ptr);
-
-#endif // FB_API_VER >= 40
 
 
 #ifdef __cplusplus

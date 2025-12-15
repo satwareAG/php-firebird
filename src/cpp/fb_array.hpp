@@ -453,9 +453,19 @@ inline bool ArrayUtils::buildSdlFromDesc(
     const unsigned char dtype = static_cast<unsigned char>(desc->array_desc_dtype);
 
     if (dtype == blr_varying) {
-        *sdl++ = blr_varying2;
-        stuffSdlWord(static_cast<ISC_USHORT>(FBIRD_ARRAY_DEFAULT_CHARSET_ID));
-        stuffSdlWord(static_cast<ISC_USHORT>(desc->array_desc_length));
+        /* For VARCHAR arrays, use charset-aware blr_varying2 ONLY for non-NONE charsets.
+         * The charset id is stored in array_desc_flags by fba_lookup_bounds().
+         * For charset NONE (0), use blr_varying without charset to avoid Firebird slice bugs. */
+        const ISC_USHORT charset_id = static_cast<ISC_USHORT>(desc->array_desc_flags);
+        if (charset_id != 0) {
+            *sdl++ = blr_varying2;
+            stuffSdlWord(charset_id);
+            stuffSdlWord(static_cast<ISC_USHORT>(desc->array_desc_length));
+        } else {
+            /* charset NONE: use blr_varying (no charset) */
+            *sdl++ = blr_varying;
+            stuffSdlWord(static_cast<ISC_USHORT>(desc->array_desc_length));
+        }
     } else {
         *sdl++ = dtype;
 

@@ -1920,9 +1920,9 @@ extern "C" int fba_lookup_bounds(
         fprintf(stderr, "fba_lookup_bounds: fieldSource='%s' fieldId=%d\n", fieldSource.c_str(), (int)fieldId);
 #endif
 
-        /* Query 2: field type/len/scale/subtype */
+        /* Query 2: field type/len/scale/subtype/charset */
         const char* sql2 =
-            "SELECT f.RDB$FIELD_TYPE, f.RDB$FIELD_LENGTH, f.RDB$FIELD_SCALE, f.RDB$FIELD_SUB_TYPE "
+            "SELECT f.RDB$FIELD_TYPE, f.RDB$FIELD_LENGTH, f.RDB$FIELD_SCALE, f.RDB$FIELD_SUB_TYPE, f.RDB$CHARACTER_SET_ID "
             "FROM RDB$FIELDS f WHERE f.RDB$FIELD_NAME = ?";
 
 #ifdef FBIRD_ARRAY_DEBUG
@@ -2034,6 +2034,8 @@ extern "C" int fba_lookup_bounds(
             outBuf2.get() + outMeta2->getOffset(&st, 2));
         const ISC_SHORT fieldSubType = *reinterpret_cast<ISC_SHORT*>(
             outBuf2.get() + outMeta2->getOffset(&st, 3));
+        const ISC_SHORT fieldCharsetId = *reinterpret_cast<ISC_SHORT*>(
+            outBuf2.get() + outMeta2->getOffset(&st, 4));
 
         rs2->close(&st);
         inMeta2->release();
@@ -2041,8 +2043,8 @@ extern "C" int fba_lookup_bounds(
         stmt2->free(&st);
 
 #ifdef FBIRD_ARRAY_DEBUG
-        fprintf(stderr, "fba_lookup_bounds: fieldType=%d fieldLen=%d fieldScale=%d fieldSubType=%d\n",
-            (int)fieldType, (int)fieldLen, (int)fieldScale, (int)fieldSubType);
+        fprintf(stderr, "fba_lookup_bounds: fieldType=%d fieldLen=%d fieldScale=%d fieldSubType=%d charsetId=%d\n",
+            (int)fieldType, (int)fieldLen, (int)fieldScale, (int)fieldSubType, (int)fieldCharsetId);
 #endif
 
         /* Query 3: bounds per dimension.
@@ -2180,6 +2182,10 @@ extern "C" int fba_lookup_bounds(
         desc->array_desc_length = fieldLen;
         desc->array_desc_scale = fieldScale;
         desc->array_desc_dimensions = 0;
+        /* Store charset id in flags field for VARCHAR/CHAR types.
+         * This is used by buildSdlFromDesc() to emit blr_varying2 with correct charset.
+         * The flags field is otherwise unused in our implementation. */
+        desc->array_desc_flags = fieldCharsetId;
 
         /* Iterate bounds rows */
 #ifdef FBIRD_ARRAY_DEBUG

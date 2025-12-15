@@ -219,18 +219,30 @@ static int _fbird_drop_table(fbird_db_link *link, fbird_transaction *trans, cons
 
 	/* Commit for DDL visibility
 	 * IMPORTANT: After commit, the transaction handle becomes invalid.
-	 * We must clean up the PHP resource to prevent use-after-free. */
-	if (!fbt_commit(trans->fbt_transaction, IB_STATUS)) {
+	 * We must clean up the PHP resource to prevent use-after-free.
+	 *
+	 * fbt_commit returns 0 on success, -1 on error. */
+	if (fbt_commit(trans->fbt_transaction, IB_STATUS) != 0) {
 		_php_fbird_error();
 		return FAILURE;
 	}
 
 	/* Mark transaction as committed - prevents dangling pointer access
-	 * When fbt_commit succeeds, the underlying ITransaction is released.
-	 * Setting fbt_transaction to NULL prevents cleanup code from trying
-	 * to rollback/free an already-released transaction. */
-	fbt_free(trans->fbt_transaction);
+	 * When fbt_commit succeeds, the underlying ITransaction is released
+	 * AND the wrapper is deleted by fbt_commit(). Setting both fbt_transaction
+	 * and handle.ptr to NULL/0 prevents:
+	 * 1. Cleanup code from trying to rollback/free already-released transaction
+	 * 2. _php_fbird_def_trans from thinking transaction is still valid
+	 *
+	 * If handle.ptr is non-zero, _php_fbird_def_trans thinks the transaction
+	 * is reusable and returns it without starting a new one. Next API call
+	 * using trans->fbt_transaction will then dereference NULL and crash.
+	 *
+	 * NOTE: Do NOT call fbt_free() here - fbt_commit() already deletes
+	 * the wrapper. Calling fbt_free() after fbt_commit() causes double-free
+	 * segfaults (discovered via migration_001.phpt XFAIL investigation). */
 	trans->fbt_transaction = NULL;
+	trans->handle.ptr = 0;
 
 	return SUCCESS;
 }

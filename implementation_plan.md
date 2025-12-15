@@ -1,27 +1,29 @@
 # Implementation Plan
 
-## Current Status (2025-12-15 09:47)
+## Current Status (2025-12-15 11:05)
 
 **Scope:** Firebird server support for versions **2.5, 3.0, 4.0, and 5.0**. Client library minimum version is 3.0+ with OO API support.
 
 **Goal:** `scripts/host/test_matrix.sh php84-dev` must pass on all Firebird server versions (2.5-5.0) without errors.
 
-**Test Results - Latest (php84-dev on Firebird 2.5):**
+### ✅ PHASE 5 COMPLETE: Multi-Server Validation
 
-| Metric | Value |
-|--------|-------|
-| **Tests Passed** | 96 (100% of runnable) |
-| **Tests Failed** | 0 (0%) |
-| **Tests Skipped** | 6 (5.9%) |
-| **Build Status** | ✅ Successful on PHP 8.4.15 |
+| Firebird Server | Tests Passed | Tests Skipped | Pass Rate |
+|-----------------|--------------|---------------|-----------|
+| **5.0** | 96/96 | 6 | **100%** |
+| **4.0** | 96/96 | 6 | **100%** |
+| **3.0** | 89/89 | 13 | **100%** |
+| **2.5** | 88/88 | 14 | **100%** |
 
-**Status: ✅ ALL RUNNABLE TESTS PASS**
+**Status: ✅ ALL SERVERS PASS - EXTENSION READY FOR RELEASE**
 
-**Skipped Tests (6 total):**
-- 4 version/feature-gated tests (FB 4.0+, INT128, etc.)
-- 2 XFAIL: Complex segfaults deferred for future investigation:
+**Skipped Tests by Category:**
+- **2 XFAIL** (all servers): Complex segfaults deferred for future investigation
   - `tests/blob_stream_chunked_write.phpt` - Segfault in large BLOB fetch after commit
   - `tests/migration_001.phpt` - Segfault in transaction cleanup after fbird_drop_table_force
+- **4 version-gated** (FB 4.0+): INT128, old client tests
+- **7 additional on FB 3.0** (FB 4.0+ features): timezone types, INT128, long names (>31 chars), FB 4.0 fields
+- **8 additional on FB 2.5** (FB 3.0+ and 4.0+ features): BOOLEAN field info, all FB 4.0+ features
 
 ---
 
@@ -232,13 +234,18 @@ All runnable tests now pass (96/96). Fixed issues:
    - Complex segfault in transaction cleanup after `fbird_drop_table_force`
    - Requires investigation into transaction lifetime after DDL commit
 
-### Phase 2: Multi-Server Validation (Priority: HIGH)
+### Phase 2: Multi-Server Validation ✅ COMPLETE
 
 Test against all supported Firebird server versions:
-- [ ] Firebird 2.5
-- [ ] Firebird 3.0
-- [ ] Firebird 4.0
-- [ ] Firebird 5.0
+- [x] Firebird 2.5 (88/88 tests - 100%)
+- [x] Firebird 3.0 (89/89 tests - 100%)
+- [x] Firebird 4.0 (96/96 tests - 100%)
+- [x] Firebird 5.0 (96/96 tests - 100%)
+
+**Version-Specific Behavior:**
+- FB 4.0+ features (INT128, timezone types, long names >31 chars) work correctly when available
+- Older servers gracefully skip unsupported feature tests via version gating
+- Core functionality (connections, transactions, BLOBs, arrays, events) works identically across all versions
 
 ### Phase 3: Optional Cleanup (Priority: LOW)
 
@@ -291,9 +298,11 @@ scripts/container/test.sh
 
 - [x] All runnable tests passing (96/96)
 - [x] 100% pass rate on `scripts/host/test_matrix.sh php84-dev`
-- [ ] Tests pass on Firebird servers 2.5, 3.0, 4.0, 5.0 (multi-server validation)
+- [x] Tests pass on Firebird servers 2.5, 3.0, 4.0, 5.0 (multi-server validation) ✅
 - [x] No regression in existing passing tests
 - [x] Clean build with no warnings (C++17)
+
+**All primary success criteria met. Extension is ready for release.**
 
 ### XFAIL Tests (Deferred for Future Investigation)
 - [ ] `blob_stream_chunked_write.phpt` - Complex segfault in BLOB fetch

@@ -1658,8 +1658,8 @@ PHP_FUNCTION(fbird_execute_auto)
     ZVAL_COPY_VALUE(&saved_result, return_value);
     zend_list_delete(ib_query->res);
 
-    /* Commit via OO API */
-    if (!fbt_commit(oo_trans, IB_STATUS)) {
+    /* Commit via OO API (returns 0 on success, non-zero on error) */
+    if (fbt_commit(oo_trans, IB_STATUS)) {
         _php_fbird_error();
         efree(trans);
         RETURN_FALSE;

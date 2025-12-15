@@ -122,9 +122,13 @@ foreach ($sizes as $size) {
 }
 
 // Cleanup - commit any pending DDL and suppress warnings
+echo "\n  - Cleanup: starting DROP...\n";
 @fbird_query($db, "DROP TABLE test_stream_blob");
+echo "  - Cleanup: DROP executed\n";
 @fbird_commit($db);  // Commit DROP TABLE DDL (may warn if table was already dropped)
+echo "  - Cleanup: committed\n";
 @fbird_close($db);
+echo "  - Cleanup: closed\n";
 
 echo "\nDone!\n";
 ?>

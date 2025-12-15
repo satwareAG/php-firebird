@@ -322,6 +322,10 @@ int _php_fbird_blob_get(zval *return_value, fbird_blob *ib_blob, zend_ulong max_
 				/* No data returned despite success code - treat as EOF */
 				break;
 			}
+			/* Safety: cap actual_len to prevent buffer overflow if Firebird misbehaves */
+			if (actual_len > chunk_size) {
+				actual_len = chunk_size;
+			}
 			cur_len += actual_len;
 		}
 

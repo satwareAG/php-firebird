@@ -1,6 +1,6 @@
 # Implementation Plan
 
-## Current Status (2025-12-15 11:05)
+## Current Status (2025-12-15 11:52)
 
 **Scope:** Firebird server support for versions **2.5, 3.0, 4.0, and 5.0**. Client library minimum version is 3.0+ with OO API support.
 
@@ -103,19 +103,16 @@
 | `fbird_udf.c` | `isc_decode_sql_date/time` | ⚠️ Utility |
 | `fbird_service.c` | `IBASE_SVC_ERROR` macro | ⚠️ Internal |
 
-### `IBASE_` / `PHP_IBASE_` Constants
+### Internal Constants (Renamed 2025-12-15)
 
-| Constant Pattern | Files | Assessment |
-|------------------|-------|------------|
-| `PHP_IBASE_UNIXTIME` | fbird_result.c | ⚠️ Keep (internal flag) |
-| `PHP_IBASE_FETCH_BLOBS` | fbird_result.c | ⚠️ Keep (internal flag) |
-| `PHP_IBASE_FETCH_ARRAYS` | fbird_result.c | ⚠️ Keep (internal flag) |
-| `PHP_IBASE_CREATE` | fbird_query_exec.c | ⚠️ Keep (internal flag) |
-| `PHP_IBASE_EVENT_TIMEOUT` | fbird_events.c | ⚠️ Keep (internal flag) |
-| `IBASE_DEBUG` | php_fbird_includes.h | ⚠️ Keep (debug macro) |
-| `IBASE_MSGSIZE` | php_fbird_includes.h | ⚠️ Keep (buffer size constant) |
-| `IBASE_BLOB_SEG` | php_fbird_includes.h | ⚠️ Keep (blob segment size) |
-| `IBASE_SVC_ERROR` | fbird_service.c | ⚠️ Keep (error handling macro) |
+| Old Constant | New Constant | Files | Status |
+|--------------|--------------|-------|--------|
+| `PHP_IBASE_*` enum | `PHP_FBIRD_*` | php_fbird_includes.h | ✅ Renamed |
+| `IBASE_MSGSIZE` | `FBIRD_MSGSIZE` | php_fbird_includes.h | ✅ Renamed |
+| `IBASE_BLOB_SEG` | `FBIRD_BLOB_SEG` | php_fbird_includes.h | ✅ Renamed |
+| `PHP_IBASE_LINK_TRANS` | `PHP_FBIRD_LINK_TRANS` | php_fbird_includes.h | ✅ Renamed |
+| `IBASE_DEBUG` | (unchanged) | php_fbird_includes.h | ⚠️ Keep (debug macro) |
+| `IBASE_SVC_ERROR` | (unchanged) | fbird_service.c | ⚠️ Keep (error macro) |
 
 ### `ibase_` Function Prefixes
 
@@ -247,11 +244,12 @@ Test against all supported Firebird server versions:
 - Older servers gracefully skip unsupported feature tests via version gating
 - Core functionality (connections, transactions, BLOBs, arrays, events) works identically across all versions
 
-### Phase 3: Optional Cleanup (Priority: LOW)
+### Phase 3: Optional Cleanup ✅ COMPLETE
 
-1. Rename `PHP_IBASE_*` constants to `PHP_FBIRD_*` (cosmetic)
-2. Rename `IBASE_*` macros to `FBIRD_*` (cosmetic)
-3. Update documentation to reflect OO API-only architecture
+1. ✅ Renamed `PHP_IBASE_*` constants to `PHP_FBIRD_*` (commit `00d72f4`)
+2. ✅ Renamed `IBASE_MSGSIZE` → `FBIRD_MSGSIZE`, `IBASE_BLOB_SEG` → `FBIRD_BLOB_SEG`
+3. ✅ Renamed `PHP_IBASE_LINK_TRANS` macro → `PHP_FBIRD_LINK_TRANS`
+4. Documentation reflects OO API-only architecture (implementation_plan.md updated)
 
 ---
 

@@ -1,312 +1,298 @@
 # Implementation Plan
 
-## Current Status (2025-12-13 14:40)
+## Current Status (2025-12-15 09:20)
+
+**Scope:** Firebird server support for versions **2.5, 3.0, 4.0, and 5.0**. Client library minimum version is 3.0+ with OO API support.
+
+**Goal:** `scripts/host/test_matrix.sh php84-dev` must pass on all Firebird server versions (2.5-5.0) without errors.
+
+**Test Results - Latest (php84-dev on Firebird 2.5):**
+
+| Metric | Value |
+|--------|-------|
+| **Tests Passed** | 93 (94.9%) |
+| **Tests Failed** | 5 (5.1%) |
+| **Tests Skipped** | 4 (3.9%) |
+| **Build Status** | ✅ Successful on PHP 8.4.15 |
+
+**5 Remaining Failing Tests:**
+
+1. `tests/blob_stream_chunked_write.phpt` - BLOB creation from PHP stream with chunked writes
+2. `tests/datatype_char_utf8.phpt` - CHAR(1) and UTF8 data type handling
+3. `tests/execute_safety_001.phpt` - API Safety: fbird_execute_statement vs fbird_execute_query error validation
+4. `tests/long_names_001.phpt` - Long names (Firebird 4.0+)
+5. `tests/migration_001.phpt` - Migration reliability: fbird_drop_table_force logic
+
+---
+
+## Recent Commits (2025-12-13 to 2025-12-15)
+
+**50+ commits implementing major OO API migration:**
+
+### Array Type Support
+- ✅ `bc68b66` - Add FLOAT/DOUBLE/TIMESTAMP/DATE/TIME type support for arrays
+- ✅ `9a4208e` - Add charset awareness to VARCHAR array handling
+- ✅ `1815519` - Enable conditional debug builds for array slice operations
+- ✅ `6347f5b` - Correct element size calculation for SQL_VARYING types in arrays
+- ✅ `e2562b1` - Implement native VARCHAR array support
+- ✅ `8c37e28` - Add `FBIRD_ARRAY_DEBUG` macro for conditional debug logging
+- ✅ `507b9e7` - Enhance SDL generation logic and correct SDL constants
+- ✅ `26475e8` - Correct SDL constants and improve debugging for array slice ops
+- ✅ `d7a7635` - Add detailed debug logging to `fba_lookup_bounds`
+- ✅ `b071639` - Simplify array binding logic and update field dimension query
+- ✅ `710fffc` - Add `fba_lookup_bounds` for array descriptor retrieval
+
+### BLOB Operations
+- ✅ `510c7f1` - Refactor and enhance OO API blob fetching logic
+- ✅ `40ab08a` - Additional OO API blob fetching improvements
+- ✅ `bdf360e` - Add OO API support for binding strings as blobs
+
+### Query Execution & Binding
+- ✅ `b1014a1` - Add support for scaled numeric/decimal parameters
+- ✅ `48add01` - Enhance input binding with relation/field name population for arrays
+- ✅ `f74286d` - Enhance SELECT and DML handling for OO API compliance
+- ✅ `cfd51dc` - Enhance parameter binding and error handling
+- ✅ `0ecc8bc` - Allocate and populate `in_sqlda` for OO API input binding
+- ✅ `2bffb95` - Add XSQLDA to message buffer transfer for parameterized queries
+
+### OO API-Only Enforcement
+- ✅ `2a6ab92` - Remove legacy `isc_*` functions, enforce OO API-only paths
+- ✅ `8a3a554` - Convert fbird_execute_auto() to OO API only
+- ✅ `d593b03` - Remove legacy API calls for query execution
+- ✅ `a433c23` - Remove legacy `isc_*` API calls, enforce exclusive OO API usage
+- ✅ `a463458` - Unify connection handling by enforcing `fbc_disconnect` usage
+- ✅ `bacb3b0` - Prevent misuse of legacy `isc_*` API with OO API connections
+
+### Transaction Handling
+- ✅ `c2d4e1c` - Implement OO API transaction handling for SET TRANSACTION, COMMIT, ROLLBACK
+- ✅ `4b4bc1c` - Add `fbt_get_info` for transaction info retrieval
+- ✅ `b863b99` - Prevent legacy transaction info API calls for OO transactions
+
+### Statement/Result Handling
+- ✅ `48add01` - Add support for OO API result snapshots in EXECUTE PROCEDURE and DML RETURNING
+- ✅ `c5b4bb1` - Allocate `out_nullind` for result cloning
+- ✅ `fd6e07a` - Disable legacy stmt.stmt references in metadata functions
+- ✅ `a4f5920` - Add `fbs_set_cursor_name` for positioned updates
+- ✅ `6e2af7f` - Simplify cursor and statement cleanup
+- ✅ `817027c` - Add `fbs_execute_singleton_int64` for single value retrieval
+
+### Infrastructure & Testing
+- ✅ `33afeab` - Add `--remove-orphans` flag to Docker compose up command
+- ✅ `ae82afb` - Resolve test file arguments to support relative paths
+- ✅ `6150096` - Enhance test_matrix.sh to summarize passed and failed containers
+- ✅ `5945b57` - Update phases table, reference link, and test status
+
+---
+
+## Legacy Remnant Audit (2025-12-15)
+
+### Files with `isc_` References
+
+**Assessment Categories:**
+- ✅ **OK** = Constants/types (not API calls)
+- ⚠️ **Utility** = Helper functions (stable, keep)
+- ❌ **Legacy API** = Must migrate to OO API
+
+| File | `isc_` Usage | Assessment |
+|------|--------------|------------|
+| `fbird_result.c` | `isc_decode_sql_time/date`, `isc_vax_integer`, `isc_info_*` | ⚠️ Utility + ✅ OK |
+| `fbird_query_bind.c` | `isc_encode_timestamp/sql_date/sql_time` | ⚠️ Utility |
+| `fbird_metadata.c` | `isc_info_sql_stmt_*` constants | ✅ OK |
+| `fbird_udf.c` | `isc_decode_sql_date/time` | ⚠️ Utility |
+| `fbird_service.c` | `IBASE_SVC_ERROR` macro | ⚠️ Internal |
+
+### `IBASE_` / `PHP_IBASE_` Constants
+
+| Constant Pattern | Files | Assessment |
+|------------------|-------|------------|
+| `PHP_IBASE_UNIXTIME` | fbird_result.c | ⚠️ Keep (internal flag) |
+| `PHP_IBASE_FETCH_BLOBS` | fbird_result.c | ⚠️ Keep (internal flag) |
+| `PHP_IBASE_FETCH_ARRAYS` | fbird_result.c | ⚠️ Keep (internal flag) |
+| `PHP_IBASE_CREATE` | fbird_query_exec.c | ⚠️ Keep (internal flag) |
+| `PHP_IBASE_EVENT_TIMEOUT` | fbird_events.c | ⚠️ Keep (internal flag) |
+| `IBASE_DEBUG` | php_fbird_includes.h | ⚠️ Keep (debug macro) |
+| `IBASE_MSGSIZE` | php_fbird_includes.h | ⚠️ Keep (buffer size constant) |
+| `IBASE_BLOB_SEG` | php_fbird_includes.h | ⚠️ Keep (blob segment size) |
+| `IBASE_SVC_ERROR` | fbird_service.c | ⚠️ Keep (error handling macro) |
+
+### `ibase_` Function Prefixes
+
+**Result:** ✅ None found. All functions have been renamed to `fbird_*`.
+
+### Recommendation
+
+**No critical legacy API calls remain.** The remaining `isc_*` references are:
+1. **Date/time utilities** (`isc_decode_*`, `isc_encode_*`) - Stable, used by OO API too
+2. **Byte-order utility** (`isc_vax_integer`) - Required for info buffer parsing
+3. **Constants** (`isc_info_*`, `isc_tpb_*`) - Just symbolic values, not API calls
+
+**Internal constants** (`PHP_IBASE_*`, `IBASE_*`) are implementation details that don't affect the public API. Renaming them to `PHP_FBIRD_*` / `FBIRD_*` is optional cosmetic work.
+
+---
+
+## Test Categories - Current Status
+
+| Category | Status | Notes |
+|----------|--------|-------|
+| Basic Connectivity | ✅ 100% | All connection tests pass |
+| Blob Operations | ✅ 95%+ | Most blob tests pass, 1 edge case failing |
+| Service Manager | ✅ 100% | All service tests pass |
+| Query Execution | ✅ 95%+ | OO API primary path working |
+| Transaction SQL | ✅ 100% | SET TRANSACTION, COMMIT, ROLLBACK via OO API |
+| Savepoints | ✅ 100% | Working via OO API |
+| Arrays | ✅ 90%+ | FLOAT/DOUBLE/TIMESTAMP/DATE/TIME/VARCHAR support |
+| Field/Parameter Metadata | ✅ 95%+ | OO API metadata functions working |
+| RETURNING Clause | ✅ 100% | Working via OO API result snapshots |
+| Events | ✅ 100% | Working via OO API |
+| UTF8/Charset | ⚠️ Failing | 1 test failing (datatype_char_utf8.phpt) |
+
+---
+
+## Architecture Overview
+
+### API Mode Design
+
+The extension uses a tagged handle system to ensure legacy and OO handles cannot be mixed:
+
+```c
+typedef enum fbird_api_mode {
+    FBIRD_API_MODE_LEGACY = 0,  // Legacy isc_* handles (fallback only)
+    FBIRD_API_MODE_OO = 1       // OO API wrappers (primary)
+} fbird_api_mode;
+```
 
-**Scope Clarification:** This driver **MUST ONLY SUPPORT Firebird 2.5 SERVERS**. The client library used is minimum version 3.0 with OO API support.
+### C++ RAII Wrappers (src/cpp/)
 
-**Detailed Implementation Plan:** See [docs/development/PHASE12_15_FIREBIRD25_PLAN.md](docs/development/PHASE12_15_FIREBIRD25_PLAN.md)
-
-**Test Results - Firebird 2.5 Matrix (All PHP Versions):**
-
-| PHP Version | Total Tests | Passed | Failed | Skipped | Pass Rate |
-|-------------|-------------|--------|--------|---------|-----------|
-| 8.1.33      | 102         | 51     | 47     | 4       | 50.0%     |
-| 8.2.29      | 102         | 51     | 47     | 4       | 50.0%     |
-| 8.3.28      | 102         | 51     | 47     | 4       | 50.0%     |
-| 8.4.15      | 102         | 51     | 47     | 4       | 50.0%     |
-| 8.5.0       | 102         | 51     | 47     | 4       | 50.0%     |
-| 8.5.0-fb5   | 102         | 51     | 47     | 4       | 50.0%     |
-
-**Result:** Identical behavior across all PHP versions. Extension builds and loads successfully on PHP 8.1-8.5.
-
-**Completed Fixes (This Session):**
-
-1. ✅ **SKIPIF Warning Issue** - Fixed test runner BORKs caused by "invalid statement handle" warnings
-   - Root cause: `_php_fbird_exec()` unconditionally called `isc_dsql_sql_info()` with invalid OO statement handles
-   - Fix: Check for `ib_query->fbs_statement` and use `fbs_get_affected_records()` for OO path
-   - Files modified: `fbird_query_exec.c`
-
-2. ✅ **Transaction Info Guard** - Prevented incorrect legacy API calls for OO transactions
-   - Added error guard in `PHP_FUNCTION(fbird_trans_info)` for OO transactions
-   - Files modified: `firebird.c`
-
-3. ✅ **Test Infrastructure** - Fixed test harness issues
-   - PHP 8.5-fb5 double-loading: Use `-n` flag to prevent loading from php.ini
-   - Volume mount conflicts: Force `FIREBIRD_DB_DIR=/tmp` when overriding server
-   - Files modified: `scripts/container/test.sh`, `scripts/host/test_matrix.sh`
-
-4. ✅ **Test Matrix Enhancement** - Script now continues through all PHP versions
-   - Modified to collect pass/fail status for all containers
-   - Provides summary report at end
-   - Files modified: `scripts/host/test_matrix.sh`
-
-**Test Categories - Current Status:**
-
-- ✅ **Basic Connectivity** (002.phpt) - PASSING
-- ✅ **Blob Operations** (Most blob tests) - PASSING
-- ✅ **Service Manager** (All service tests) - PASSING  
-- ⚠️ **Query Execution** (Simple SELECTs work, complex binding fails)
-- ❌ **Transaction SQL** (COMMIT/ROLLBACK via SQL) - Uses legacy `isc_dsql_execute_immediate()`
-- ❌ **Savepoints** - Uses `isc_dsql_execute_immediate()`
-- ❌ **Arrays** - Uses `isc_array_get_slice/put_slice`
-- ❌ **Field/Parameter Metadata** - Incomplete OO migration
-- ❌ **RETURNING Clause** - Incomplete implementation
-
-**Known Remaining Issues (43 Failed Tests):**
-
-1. **Query Binding/Parameters** (tests/006.phpt, bug45373.phpt, issue77_001.phpt)
-2. **Field Metadata** (fbird_field_info_001.phpt, fbird_field_info_004.phpt)
-3. **Parameter Metadata** (fbird_param_info_001.phpt, fbird_param_info_004.phpt)
-4. **Transaction SQL** (fbird_trans_008-014.phpt, savepoint_001.phpt)
-5. **Array Handling** (tests/007*.phpt) - Uses legacy `isc_array_*` functions
-6. **RETURNING Clause** (returning_001.phpt)
-7. **Event Handling** (tests/008.phpt)
-
-[Overview]
-Make php-firebird support **Firebird 2.5 servers ONLY** while using Firebird client library >= 3.0 (with OO API support), completing the "Phase 12–15" modernization roadmap, and restoring a green Docker test matrix.
-
-The repository currently contains a nearly complete Firebird 3.0+ Object-Oriented (OO) API wrapper stack (Connection/Transaction/Statement/Blob/Events/Service/Array + metadata helpers) and a C extension layer that has begun switching execution to those wrappers. However, the current runtime behavior shows 43 test failures, primarily due to incomplete migration of legacy-dependent operations.
-
-This plan delivers the Phase 12–15 intent with the explicit product requirement:
-
-- **Target Servers:** Firebird 2.5 ONLY (not 3.0, 4.0, or 5.0)
-- **Client Library:** Minimum Firebird 3.0 with OO API support
-- **Architecture:** OO API as primary path, with legacy API guards for unsupported operations
-
-The roadmap ends with a cleaned-up, reviewable OO implementation for Firebird 2.5 server connections using modern client libraries (Phase 14), and final validation across PHP 8.1-8.5 (Phase 15).
-
-[Types]
-Introduce explicit typed "handle kind" tagging so that legacy and OO handles cannot be accidentally mixed.
-
-1) **New enums (C layer)**
-
-- `typedef enum fbird_api_mode { FBIRD_API_MODE_LEGACY = 0, FBIRD_API_MODE_OO = 1 } fbird_api_mode;`
-  - Meaning:
-    - `LEGACY`: `isc_*` handles are valid and must be used (legacy fallback only).
-    - `OO`: `fbc_*`, `fbt_*`, `fbs_*`, `fbb_*`, `fbe_*`, `fbsvc_*`, `fba_*`, `fbm_*` wrappers are valid and must be used (primary).
-
-Validation rules:
-- `FBIRD_API_MODE_OO` is only compiled/available when `FB_API_VER >= 30`.
-- When `mode == FBIRD_API_MODE_OO`, any attempt to call an `isc_*` API using a legacy handle **must be blocked** (guard + controlled error) unless that call site has been migrated to an OO equivalent.
-
-2) **fbird_db_link (php_fbird_includes.h)**
-
-Existing fields (current):
-- `fb_safe_handle handle;`
-- `fbird_tr_list *tr_list;`
-- `unsigned short dialect;`
-- `fbird_event *event_head;`
-- `void *fbc_connection;` (OO connection wrapper)
-
-Planned adjustments:
-- Add `fbird_api_mode api_mode;`
-- For OO connections (Firebird 2.5 server with FB 3.0+ client):
-  - `fbc_connection != NULL`
-  - `api_mode == FBIRD_API_MODE_OO`
-  - `handle.db` must be treated as **legacy-only**. It must **not** be set to an `IAttachment*` cast.
-- For legacy fallback (if needed):
-  - `fbc_connection == NULL`
-  - `api_mode == FBIRD_API_MODE_LEGACY`
-  - `handle.db` is a valid `isc_db_handle`.
-
-3) **fbird_transaction (php_fbird_includes.h)**
-
-Existing fields (current):
-- `fb_safe_handle handle;`
-- `unsigned short link_cnt;`
-- `unsigned long affected_rows;`
-- `void *fbt_transaction;` (OO transaction wrapper)
-
-Planned adjustments:
-- Add `fbird_api_mode api_mode;`
-- For OO transactions:
-  - `fbt_transaction != NULL`
-  - `api_mode == FBIRD_API_MODE_OO`
-  - `handle.tr` is legacy-only and must not be used for isc_* calls.
-- For legacy fallback:
-  - `fbt_transaction == NULL`
-  - `api_mode == FBIRD_API_MODE_LEGACY`
-  - `handle.tr` is valid `isc_tr_handle`.
-
-4) **fbird_query (php_fbird_includes.h)**
-
-Existing fields (current):
-- `fb_safe_handle stmt;`
-- `XSQLDA *in_sqlda, *out_sqlda;`
-- `void *fbs_statement;` (OO statement wrapper)
-- `void *fbs_resultset;` (OO IResultSet)
-- `void *in_metadata/out_metadata; void *in_msg_buffer/out_msg_buffer; ...`
-- `zend_bool owns_stmt_handle;`
-
-Planned adjustments:
-- Add `fbird_api_mode api_mode;`
-- Enforce:
-  - `api_mode == FBIRD_API_MODE_OO` iff `fbs_statement != NULL`.
-  - `api_mode == FBIRD_API_MODE_LEGACY` iff `stmt.stmt != 0`.
-  - No code may rely on `stmt.stmt` when `api_mode == OO`.
-
-5) **Compatibility guard helpers (new header)**
-
-Create a new C header to centralize these rules:
-
-- `static inline int fbird_link_is_oo(const fbird_db_link* link);`
-- `static inline int fbird_trans_is_oo(const fbird_transaction* trans);`
-- `static inline int fbird_query_is_oo(const fbird_query* q);`
-
-And typed "get handle" helpers:
-
-- `static inline void* fbird_get_attachment(const fbird_db_link* link);` → returns `IAttachment*` (OO) or NULL.
-- `static inline void* fbird_get_itransaction(const fbird_transaction* trans);` → returns `ITransaction*` (OO) or NULL.
-
-All helpers must be safe for both compile modes (FB2.5 build must compile without any Firebird OO headers).
-
-[Files]
-Implement Phase 12–15 by updating core C code paths to be OO-primary for Firebird 2.5 while providing legacy fallbacks where needed.
-
-New files to be created:
-- `src/php_fbird_compat.h`
-  - Purpose: centralized `api_mode` tagging, guard macros, and typed helper accessors for link/trans/query.
-- `docs/development/PHASE12_15_EXECUTION_PLAN.md`
-  - Purpose: operational checklist for the migration, mapping "Phase 12–15" items to concrete files/functions/tests.
-  - (Optional but recommended for maintainability; keep concise and link from MODERNIZATION_PLAN.)
-
-Existing files to be modified (core):
-- `firebird.c`
-  - Stop storing `IAttachment*` in `isc_db_handle` slots.
-  - Tag `fbird_db_link.api_mode` correctly.
-  - Ensure `fbird_trans_*` and `fbird_commit_*` behavior remains identical across modes.
-  - Migrate `fbird_trans_info()` to OO API when `fbt_transaction != NULL`.
-- `fbird_query_prepare.c`
-  - Reinstate dual-mode prepare logic:
-    - OO prepare when `link->fbc_connection != NULL` (primary for FB2.5 server).
-    - Legacy prepare when `link->fbc_connection == NULL` (fallback only).
-  - Ensure `fbird_query.api_mode` is set.
-- `fbird_query_exec.c` ✅ **PARTIALLY COMPLETE**
-  - ✅ Removed unconditional OO dependence on `isc_dsql_sql_info()` by using `fbs_get_affected_records()`
-  - ⚠️ Legacy execution path still needed for fallback scenarios
-- `fbird_result.c`
-  - Ensure fetch/close flows respect `api_mode`.
-  - Remove legacy-only blob/array implicit operations from the OO path (or gate them with mode checks).
-- `fbird_blobs.c`, `fbird_events.c`, `fbird_service.c`, `fbird_query_bind.c`, `fbird_query_array.c`, `fbird_metadata.c`, `fbird_inspection.c`
-  - Audit for any remaining `isc_*` calls that can be reached on OO mode and migrate/gate them.
-
-Existing files to be modified (build/test infra):
-- `config.m4`
-  - Ensure builds for Firebird 2.5 server support using FB 3.0+ client library.
-  - Require C++17 and compile `firebird_utils.cpp` and `src/cpp/*`.
-- `docker/docker-compose.yml`
-  - Keep `firebird25` service as primary test target.
-  - Keep `firebird30`, `firebird40`, `firebird50` services for client library compatibility verification only.
-  - Ensure PHP containers can target each server via `FIREBIRD_HOST`.
-- `scripts/host/test_matrix.sh` ✅ **COMPLETE**
-  - ✅ Enhanced to run all PHP containers and collect results
-  - ✅ Provides summary report of passed/failed containers
-  - ✅ Continues through all versions instead of stopping at first failure
-- `tests/skipif.inc`, `tests/firebird.inc` ✅ **RESOLVED**
-  - ✅ SKIPIF now clean (no warnings causing BORKs)
-  - ✅ `FIREBIRD_DB_DIR=/tmp` strategy works for all PHP containers
-
-Files to be deleted or moved:
-- None in this phase.
-
-[Functions]
-Complete Phase 12–15 by converting remaining legacy-dependent operations in the OO path to OO equivalents.
-
-New functions (C, new header `src/php_fbird_compat.h`):
-- `fbird_api_mode fbird_detect_link_mode(const fbird_db_link* link);`
-- `int fbird_require_oo(const fbird_db_link* link, const char* what);`
-- `int fbird_require_legacy(const fbird_db_link* link, const char* what);`
-- `void* fbird_get_attachment_checked(const fbird_db_link* link);`
-- `void* fbird_get_itransaction_checked(const fbird_transaction* trans);`
-
-Modified functions (exact names + changes):
-
-1) `int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db)` (firebird.c)
-- Current behavior: uses `fbc_connect()` and writes `*db = fbc_get_attachment(connection)`.
-- Required changes:
-  - Keep using `fbc_connect()` for OO API.
-  - Set `*db` to NULL (do **not** store `IAttachment*` into `isc_db_handle` slots).
-
-2) `_php_fbird_connect()` (firebird.c)
-- After allocating `fbird_db_link`, set:
-  - `ib_link->api_mode = FBIRD_API_MODE_OO` when connection created via OO.
-  - `ib_link->api_mode = FBIRD_API_MODE_LEGACY` for fallback (if implemented).
-
-3) `int _php_fbird_def_trans(fbird_db_link *ib_link, fbird_transaction **trans)` (firebird.c)
-- Ensure the created default transaction inherits `api_mode` from the link.
-
-4) `static int _php_fbird_exec(...)` (fbird_query_exec.c) ✅ **PARTIALLY COMPLETE**
-- ✅ Removed OO dependence on `isc_dsql_sql_info()` by using `fbs_get_affected_records()`.
-- ✅ Affected rows now calculated correctly for OO statements.
-- ⚠️ Still needs: Legacy execution branch for fallback scenarios (if needed).
-
-5) `int _php_fbird_set_query_info(fbird_query *ib_query)` (fbird_query_prepare.c)
-- Ensure it never uses legacy calls for OO statements.
-- Provide parallel legacy implementation if needed for fallback mode.
-
-6) `PHP_FUNCTION(fbird_trans_info)` (firebird.c) ✅ **PARTIALLY COMPLETE**
-- ✅ Current: Guards OO transactions with error message.
-- ⚠️ Still needs: Full OO implementation using `ITransaction::getInfo()` via `fbt_get_info(...)`.
-
-Removed functions:
-- None (public API remains stable).
-
-[Classes]
-Use existing RAII wrappers for OO API, and add small missing "info/query" wrapper capabilities to eliminate remaining legacy dependencies.
-
-New/extended classes (C++):
-- Extend `fb::StatementWrapper` (src/cpp/fb_statement.hpp)
-  - Ensure it exposes:
-    - ✅ `unsigned getType(IMaster*, ISC_STATUS*) noexcept;` - Already implemented
-    - ✅ `ISC_UINT64 getAffectedRecords(IMaster*, ISC_STATUS*) noexcept;` - Already implemented  
-    - `bool free(ISC_STATUS*) noexcept;` (already implied by `fbs_free()` usage)
-  - Ensure the methods do not leak/release metadata incorrectly and are compatible with FB 3.0+ client connecting to FB 2.5 server.
-
-- Add `fb::Transaction::getInfo(...)` support (src/cpp/fb_transaction.hpp)
-  - New method:
-    - `std::vector<unsigned char> getInfo(const unsigned char* items, unsigned itemsLength, unsigned bufferSizeHint);`
-  - New C interop:
-    - `int fbt_get_info(void* master_ptr, void* transaction_ptr, const unsigned char* items, unsigned items_len, unsigned char* out_buf, unsigned out_buf_len, ISC_STATUS* status_vector);`
-
-No existing classes should be removed in this phase.
-
-[Dependencies]
-No new third-party dependencies are required.
-
-Build-time conditional dependencies:
-- **FB 3.0+ client (targeting FB 2.5 servers):** requires Firebird OO API headers (`firebird/Interface.h`) and a C++17 compiler; this is already in place in current Docker images.
-
-Optional tooling:
-- Keep existing `clang-tidy`, `cppcheck`, PHPStan, and `phpcs` configurations unchanged.
-
-[Testing]
-Run the full Docker matrix against Firebird 2.5 server and enforce that SKIPIF never emits warnings.
-
-1) Matrix axes
-- PHP containers: `php81-dev`, `php82-dev`, `php83-dev`, `php84-dev`, `php85-dev`, `php85-fb5-dev`. ✅ **VERIFIED**
-- Firebird server: `firebird25` (primary target). ✅ **VERIFIED**  
-- Optional verification: Test against `firebird30`, `firebird40`, `firebird50` for client library compatibility (not required for production).
-
-2) Required validations ✅ **IN PROGRESS**
-- For each PHP version against firebird25:
-  - ✅ `scripts/container/build.sh` - Clean build on all versions
-  - ⚠️ `scripts/container/test.sh` - 47/90 tests passing (52.2%)
-  - ✅ No BORK in SKIPIF
-
-3) Test additions/adjustments ✅ **COMPLETE**
-- ✅ Regression test: `fbird_query()` works during SKIPIF/init context (no warnings).
-- ✅ Database path strategy (`FIREBIRD_DB_DIR=/tmp`) works for all PHP containers.
-
-[Implementation Order]
-Execute changes in a dependency-safe sequence that restores test execution early and then completes the Phase 12–15 cleanup.
-
-1. ✅ Fix SKIPIF warning issues - Remove OO dependence on `isc_dsql_sql_info()`.
-2. ✅ Fix test infrastructure - Prevent double-loading, volume mount conflicts.
-3. ✅ Run full firebird25 matrix - Verify consistent behavior across PHP versions.
-4. ⚠️ **NEXT:** Introduce `src/php_fbird_compat.h` and add `api_mode` fields to `fbird_db_link`, `fbird_transaction`, `fbird_query`.
-5. Fix `_php_fbird_attach_db()` and `_php_fbird_connect()` to correctly set mode and to stop casting `IAttachment*` into `isc_db_handle`.
-6. Complete transaction SQL migration (fbird_trans_008-014.phpt) - Move from `isc_dsql_execute_immediate()` to OO API.
-7. Fix field/parameter metadata functions - Complete OO migration.
-8. Fix query binding/parameter handling - Address complex binding failures.
-9. Fix array handling - Migrate from `isc_array_*` to OO API equivalents.
-10. Final Phase 15 verification: Target 80+% test pass rate on firebird25 + static analysis.
+| Wrapper | Interface | Purpose |
+|---------|-----------|---------|
+| `fb_connection.hpp` | IAttachment | Connection management |
+| `fb_transaction.hpp` | ITransaction | Transaction management |
+| `fb_statement.hpp` | IStatement | Statement prepare/execute |
+| `fb_blob.hpp` | IBlob | BLOB read/write |
+| `fb_events.hpp` | IEvents | Event handling |
+| `fb_service.hpp` | IService | Service manager |
+| `fb_array.hpp` | IAttachment | Array operations |
+| `fb_dpb_builder.hpp` | IXpbBuilder | DPB construction |
+| `fb_tpb_builder.hpp` | IXpbBuilder | TPB construction |
+
+### Key C Interop Functions
+
+```c
+// Connection
+void* fbc_connect(IMaster*, const char* db, const char* user, const char* pass, ...);
+void fbc_disconnect(void* connection);
+void* fbc_get_attachment(void* connection);
+
+// Transaction
+void* fbt_start(IMaster*, IAttachment*, unsigned tpb_len, const unsigned char* tpb);
+int fbt_commit(void* transaction);
+int fbt_rollback(void* transaction);
+int fbt_get_info(void* master, void* transaction, const unsigned char* items, ...);
+
+// Statement
+void* fbs_prepare(IMaster*, IAttachment*, ITransaction*, const char* sql);
+int fbs_execute(void* statement, ITransaction*, void* in_msg, void* out_msg);
+void* fbs_open_cursor(void* statement, ITransaction*, void* in_msg);
+ISC_UINT64 fbs_get_affected_records(IMaster*, void* statement);
+
+// Blob
+void* fbb_create(IMaster*, IAttachment*, ITransaction*, ISC_QUAD*);
+void* fbb_open(IMaster*, IAttachment*, ITransaction*, ISC_QUAD*);
+int fbb_put_segment(void* blob, const void* data, unsigned len);
+int fbb_get_segment(void* blob, void* buf, unsigned buf_len, unsigned* actual_len);
+int fbb_close(void* blob);
+
+// Array
+int fba_lookup_bounds(IMaster*, IAttachment*, ITransaction*, const char* rel, const char* field, ISC_ARRAY_DESC*);
+int fba_get_slice(IMaster*, IAttachment*, ITransaction*, ISC_QUAD*, ISC_ARRAY_DESC*, void*, ISC_LONG*);
+int fba_put_slice(IMaster*, IAttachment*, ITransaction*, ISC_QUAD*, ISC_ARRAY_DESC*, void*, ISC_LONG*);
+```
+
+---
+
+## Remaining Tasks
+
+### Phase 1: Fix 5 Failing Tests (Priority: HIGH)
+
+1. **datatype_char_utf8.phpt** - UTF8 CHAR(1) handling
+   - Issue: CHAR fields may need charset-aware length calculation
+   - Investigation: Check `fbird_result.c` char field handling
+
+2. **execute_safety_001.phpt** - API error validation
+   - Issue: Error messages may differ from expected
+   - Investigation: Compare actual vs expected error strings
+
+3. **long_names_001.phpt** - FB 4.0+ long metadata names
+   - Issue: Metadata names >31 chars (FB 4.0+ feature)
+   - Investigation: May need FB version check in test
+
+4. **blob_stream_chunked_write.phpt** - Stream wrapper edge case
+   - Issue: Chunked write completion handling
+   - Investigation: Check blob write finalization
+
+5. **migration_001.phpt** - Table drop force logic
+   - Issue: `fbird_drop_table_force` reliability
+   - Investigation: Error handling in cascade drop
+
+### Phase 2: Multi-Server Validation (Priority: HIGH)
+
+Test against all supported Firebird server versions:
+- [ ] Firebird 2.5
+- [ ] Firebird 3.0
+- [ ] Firebird 4.0
+- [ ] Firebird 5.0
+
+### Phase 3: Optional Cleanup (Priority: LOW)
+
+1. Rename `PHP_IBASE_*` constants to `PHP_FBIRD_*` (cosmetic)
+2. Rename `IBASE_*` macros to `FBIRD_*` (cosmetic)
+3. Update documentation to reflect OO API-only architecture
+
+---
+
+## Build & Test Commands
+
+```bash
+# Full test matrix (all PHP versions)
+scripts/host/test_matrix.sh
+
+# Single PHP version test
+scripts/host/test_matrix.sh php84-dev
+
+# Build extension
+scripts/container/build.sh
+
+# Run tests
+scripts/container/test.sh
+```
+
+---
+
+## Firebird OO API Reference
+
+**Documentation:** See `docs/development/FIREBIRD_OO_API_REFERENCE.md`
+
+**Key Interfaces:**
+- `IAttachment` - Database connection
+- `ITransaction` - Transaction management
+- `IStatement` - SQL statement preparation/execution
+- `IResultSet` - Query result iteration
+- `IBlob` - BLOB operations
+- `IEvents` - Event monitoring
+- `IService` - Service manager
+- `IUtil` - Utility functions (date/time encoding)
+- `IXpbBuilder` - Parameter block construction
+
+**Date/Time Utilities (from IUtil):**
+- Basic: `isc_decode_sql_date/time`, `isc_encode_sql_date/time` (still used)
+- Time Zones (FB4+): `decodeTimeTz`, `encodeTimeTz`, `decodeTimeStampTz`, `encodeTimeStampTz`
+
+---
+
+## Success Criteria
+
+- [ ] All 5 failing tests fixed
+- [ ] 100% pass rate on `scripts/host/test_matrix.sh php84-dev`
+- [ ] Tests pass on Firebird servers 2.5, 3.0, 4.0, 5.0
+- [ ] No regression in existing passing tests
+- [ ] Clean build with no warnings (C++17)

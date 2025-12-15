@@ -3,9 +3,6 @@ Migration reliability: fbird_drop_table_force logic
 --SKIPIF--
 <?php
 include("skipif.inc");
-// XFAIL: Known segfault after fbt_commit in _fbird_drop_table invalidates transaction handle
-// TODO: Fix transaction lifetime management in fbird_drop_table_force
-die("skip XFAIL: segfault in transaction cleanup after forced table drop");
 ?>
 --FILE--
 <?php

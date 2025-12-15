@@ -281,15 +281,22 @@ int _php_fbird_blob_get(zval *return_value, fbird_blob *ib_blob, zend_ulong max_
 		 * Firebird 3.0+ OO API Blob Read
 		 *
 		 * Uses IBlob::getSegment() via fbb_get_segment() wrapper.
-		 * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
+		 * Return codes from fbb_get_segment:
+		 *   0 = success, more data available
+		 *   1 = EOF (end of blob, no more data)
+		 *   2 = partial segment (data returned, more in current segment)
+		 *  -1 = error
+		 *
+		 * Note: Legacy isc_segstr_eof/isc_segment codes are NOT used by OO API.
 		 */
 		int result;
-		unsigned actual_len;
+		unsigned actual_len = 0;
 
-		for (cur_len = 0; cur_len < max_len; cur_len += actual_len) {
+		for (cur_len = 0; cur_len < max_len; ) {
 			unsigned chunk_size = (max_len - cur_len) > USHRT_MAX ? USHRT_MAX
 				: (unsigned)(max_len - cur_len);
 
+			actual_len = 0;  /* Reset before each call */
 			result = fbb_get_segment(
 				IBG(master_instance),
 				ib_blob->fbb_blob,
@@ -299,23 +306,23 @@ int _php_fbird_blob_get(zval *return_value, fbird_blob *ib_blob, zend_ulong max_
 				IB_STATUS
 			);
 
+			/* Handle OO API return codes */
+			if (result == 1) {
+				/* EOF - end of blob reached, this is normal completion */
+				break;
+			}
 			if (result < 0) {
-				/* Error or EOF */
-				if (IB_STATUS[1] == isc_segstr_eof || IB_STATUS[1] == isc_segment) {
-					/* EOF is not an error */
-					break;
-				}
-				if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
-					zend_string_free(bl_data);
-					_php_fbird_error();
-					return FAILURE;
-				}
-				break;
+				/* Error */
+				zend_string_free(bl_data);
+				_php_fbird_error();
+				return FAILURE;
 			}
+			/* result == 0 (success) or result == 2 (partial segment): data was read */
 			if (actual_len == 0) {
-				/* EOF */
+				/* No data returned despite success code - treat as EOF */
 				break;
 			}
+			cur_len += actual_len;
 		}
 
 		ZSTR_VAL(bl_data)[cur_len] = '\0';

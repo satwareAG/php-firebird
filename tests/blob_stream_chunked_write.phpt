@@ -12,11 +12,6 @@ in some scenarios with PHP Firebird extension 6.2.0.
 --SKIPIF--
 <?php
 include("skipif.inc");
-// XFAIL: Memory corruption when fetching large BLOBs after transaction commit
-// Root cause: Complex interaction between result set BLOB auto-fetch and OO API
-// Safety checks added to blob_add/blob_get prevent direct API segfaults
-// TODO: Investigate fbird_fetch_assoc($result, FBIRD_TEXT) code path
-die("skip XFAIL: heap corruption in large BLOB fetch after transaction commit");
 ?>
 --FILE--
 <?php

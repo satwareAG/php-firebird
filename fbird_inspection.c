@@ -213,18 +213,26 @@ static int _fbird_drop_table(fbird_db_link *link, fbird_transaction *trans, cons
 		return FAILURE;
 	}
 
-	/* Commit for DDL visibility */
+	/* Free statement before commit */
+	fbs_free(stmt, IB_STATUS);
+	efree(drop_sql);
+
+	/* Commit for DDL visibility
+	 * IMPORTANT: After commit, the transaction handle becomes invalid.
+	 * We must clean up the PHP resource to prevent use-after-free. */
 	if (!fbt_commit(trans->fbt_transaction, IB_STATUS)) {
 		_php_fbird_error();
-		fbs_free(stmt, IB_STATUS);
-		efree(drop_sql);
 		return FAILURE;
 	}
 
-	result = SUCCESS;
-	fbs_free(stmt, IB_STATUS);
-	efree(drop_sql);
-	return result;
+	/* Mark transaction as committed - prevents dangling pointer access
+	 * When fbt_commit succeeds, the underlying ITransaction is released.
+	 * Setting fbt_transaction to NULL prevents cleanup code from trying
+	 * to rollback/free an already-released transaction. */
+	fbt_free(trans->fbt_transaction);
+	trans->fbt_transaction = NULL;
+
+	return SUCCESS;
 }
 
 

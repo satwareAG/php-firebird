@@ -275,7 +275,14 @@ int _php_fbird_blob_get(zval *return_value, fbird_blob *ib_blob, zend_ulong max_
 		zend_string *bl_data;
 		zend_ulong cur_len;
 
-		bl_data = zend_string_safe_alloc(1, max_len, 0, 0);
+		/*
+		 * Allocate buffer with space for a trailing NUL.
+		 * zend_string_alloc() allocates (len + 1) bytes for ZSTR_VAL().
+		 *
+		 * This prevents a 1-byte heap overwrite when cur_len reaches max_len
+		 * and we write the terminator at ZSTR_VAL(bl_data)[cur_len].
+		 */
+		bl_data = zend_string_alloc(max_len, 0);
 
 		/*
 		 * Firebird 3.0+ OO API Blob Read

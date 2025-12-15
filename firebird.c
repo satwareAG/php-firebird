@@ -682,9 +682,15 @@ static void _php_fbird_commit_link(fbird_db_link *link) /* {{{ */
 	}
 	link->tr_list = NULL;
 
-	for (e = link->event_head; e; e = e->event_next) {
+	/*
+	 * IMPORTANT: _php_fbird_free_event() unlinks and efree()s the current node.
+	 * Never follow e->event_next after freeing e.
+	 */
+	for (e = link->event_head; e; ) {
+		fbird_event *next = e->event_next;
 		_php_fbird_free_event(e);
-		e->link = NULL;
+		/* e is freed inside _php_fbird_free_event(); only use cached next */
+		e = next;
 	}
 }
 

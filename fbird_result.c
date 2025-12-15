@@ -648,8 +648,17 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 
 					if (max_len == 0) {
 						ZVAL_STRING(result, "");
-					} else if (SUCCESS != _php_fbird_blob_get(result, &blob_handle, max_len)) {
-						goto _php_fbird_fetch_error;
+					} else {
+						/*
+						 * SAFETY: _php_fbird_blob_get() expects max_len bytes of data plus a trailing NUL.
+						 * It uses zend_string_alloc(max_len, ...) semantics (len+1) internally.
+						 *
+						 * If getInfo reports total_length == max_len, we must ensure the reader side
+						 * has room for the terminator and does not overwrite Zend heap metadata.
+						 */
+						if (SUCCESS != _php_fbird_blob_get(result, &blob_handle, max_len)) {
+							goto _php_fbird_fetch_error;
+						}
 					}
 
 					/* fbb_close returns 1 on success, 0 on error */

@@ -1026,7 +1026,7 @@ PHP_FUNCTION(fbird_query)
 		ZVAL_DEREF(arg); /* Handle references */
 
 		/* Handle IBASE_CREATE (0) passed as first argument */
-		if (i == 0 && Z_TYPE_P(arg) == IS_LONG && Z_LVAL_P(arg) == PHP_IBASE_CREATE) {
+		if (i == 0 && Z_TYPE_P(arg) == IS_LONG && Z_LVAL_P(arg) == PHP_FBIRD_CREATE) {
 			explicit_create = 1;
 			i++;
 			continue;

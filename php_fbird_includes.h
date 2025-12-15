@@ -77,14 +77,14 @@ extern int le_link, le_plink, le_trans;
 #define LE_QUERY "Firebird query"
 #define LE_SCVH  "Firebird service manager handle"
 
-#define IBASE_MSGSIZE 512
-#define MAX_ERRMSG (IBASE_MSGSIZE*2)
+#define FBIRD_MSGSIZE 512
+#define MAX_ERRMSG (FBIRD_MSGSIZE*2)
 
 #define IB_DEF_DATE_FMT "%Y-%m-%d"
 #define IB_DEF_TIME_FMT "%H:%M:%S"
 
 /* this value should never be > USHRT_MAX */
-#define IBASE_BLOB_SEG 4096
+#define FBIRD_BLOB_SEG 4096
 
 ZEND_BEGIN_MODULE_GLOBALS(fbird)
 	ISC_STATUS status[256];
@@ -250,40 +250,40 @@ typedef struct _ib_query {
 } fbird_query;
 
 enum php_fbird_option {
-	PHP_IBASE_DEFAULT            = 0,
-	PHP_IBASE_CREATE             = 0,
+	PHP_FBIRD_DEFAULT            = 0,
+	PHP_FBIRD_CREATE             = 0,
 	/* fetch flags */
-	PHP_IBASE_FETCH_BLOBS        = 1,
-	PHP_IBASE_FETCH_ARRAYS       = 2,
-	PHP_IBASE_UNIXTIME           = 4,
+	PHP_FBIRD_FETCH_BLOBS        = 1,
+	PHP_FBIRD_FETCH_ARRAYS       = 2,
+	PHP_FBIRD_UNIXTIME           = 4,
 	/* transaction access mode */
-	PHP_IBASE_WRITE              = 1,
-	PHP_IBASE_READ               = 2,
+	PHP_FBIRD_WRITE              = 1,
+	PHP_FBIRD_READ               = 2,
 	/* transaction isolation level */
-	PHP_IBASE_CONCURRENCY        = 4,
-	PHP_IBASE_COMMITTED          = 8,
-		PHP_IBASE_REC_NO_VERSION = 32,
-		PHP_IBASE_REC_VERSION    = 64,
-	PHP_IBASE_CONSISTENCY        = 16,
+	PHP_FBIRD_CONCURRENCY        = 4,
+	PHP_FBIRD_COMMITTED          = 8,
+		PHP_FBIRD_REC_NO_VERSION = 32,
+		PHP_FBIRD_REC_VERSION    = 64,
+	PHP_FBIRD_CONSISTENCY        = 16,
 	/* transaction lock resolution */
-	PHP_IBASE_WAIT               = 128,
-	PHP_IBASE_NOWAIT             = 256,
-		PHP_IBASE_LOCK_TIMEOUT   = 512,
+	PHP_FBIRD_WAIT               = 128,
+	PHP_FBIRD_NOWAIT             = 256,
+		PHP_FBIRD_LOCK_TIMEOUT   = 512,
 
 	/* Table reservation lock types */
-	PHP_IBASE_LOCK_SHARED        = 1024,
-	PHP_IBASE_LOCK_PROTECTED     = 2048,
-	PHP_IBASE_LOCK_EXCLUSIVE     = 4096, // Not used explicitly in legacy, but good for completeness
+	PHP_FBIRD_LOCK_SHARED        = 1024,
+	PHP_FBIRD_LOCK_PROTECTED     = 2048,
+	PHP_FBIRD_LOCK_EXCLUSIVE     = 4096, // Not used explicitly in legacy, but good for completeness
 
 	/* Table reservation access types */
-	PHP_IBASE_LOCK_READ          = 8192,
-	PHP_IBASE_LOCK_WRITE         = 16384,
+	PHP_FBIRD_LOCK_READ          = 8192,
+	PHP_FBIRD_LOCK_WRITE         = 16384,
 
 	/* Firebird 4.0+ features */
-	PHP_IBASE_READ_CONSISTENCY   = 32768,
+	PHP_FBIRD_READ_CONSISTENCY   = 32768,
 
 	/* Event timeout return value */
-	PHP_IBASE_EVENT_TIMEOUT      = -2
+	PHP_FBIRD_EVENT_TIMEOUT      = -2
 };
 
 #define IBG(v) ZEND_MODULE_GLOBALS_ACCESSOR(fbird, v)
@@ -314,7 +314,7 @@ void _php_fbird_module_error(const char *, ...)
 	PHP_ATTRIBUTE_FORMAT(printf,1,2);
 
 /* determine if a resource is a link or transaction handle */
-#define PHP_IBASE_LINK_TRANS(zv, lh, th)                                                    \
+#define PHP_FBIRD_LINK_TRANS(zv, lh, th)                                                    \
 		do {                                                                                \
 			if (!zv) {                                                                      \
 				lh = (fbird_db_link *)zend_fetch_resource2(                                 \
@@ -384,4 +384,4 @@ typedef ISC_STATUS (ISC_EXPORT *fb_get_statement_interface_t)(
 
 typedef void* (ISC_EXPORT *fb_get_master_interface_t)(void);
 
-#endif /* PHP_IBASE_INCLUDES_H */
+#endif /* PHP_FBIRD_INCLUDES_H */

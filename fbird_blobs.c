@@ -264,6 +264,12 @@ typedef struct { /* {{{ */
 
 int _php_fbird_blob_get(zval *return_value, fbird_blob *ib_blob, zend_ulong max_len) /* {{{ */
 {
+	/* Safety check: verify blob handle is valid before any operation */
+	if (!ib_blob || !ib_blob->fbb_blob) {
+		_php_fbird_module_error("BLOB handle is invalid or has been closed");
+		return FAILURE;
+	}
+
 	if (ib_blob->bl_qd.gds_quad_high || ib_blob->bl_qd.gds_quad_low) { /*not null ?*/
 
 		zend_string *bl_data;
@@ -325,6 +331,12 @@ int _php_fbird_blob_get(zval *return_value, fbird_blob *ib_blob, zend_ulong max_
 int _php_fbird_blob_add(zval *string_arg, fbird_blob *ib_blob) /* {{{ */
 {
 	zend_ulong put_cnt = 0, rem_cnt;
+
+	/* Safety check: verify blob handle is valid before any operation */
+	if (!ib_blob || !ib_blob->fbb_blob) {
+		_php_fbird_module_error("BLOB handle is invalid or has been closed");
+		return FAILURE;
+	}
 
 	convert_to_string_ex(string_arg);
 
@@ -427,7 +439,7 @@ PHP_FUNCTION(fbird_blob_create)
 		RETURN_FALSE;
 	}
 
-	PHP_IBASE_LINK_TRANS(link, ib_link, trans);
+	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
 
 	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
 	ib_blob->bl_handle.ptr = 0;
@@ -475,7 +487,7 @@ PHP_FUNCTION(fbird_blob_open)
 	RESET_ERRMSG;
 	PARSE_PARAMETERS;
 
-	PHP_IBASE_LINK_TRANS(link, ib_link, trans);
+	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
 
 	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
 	ib_blob->bl_handle.ptr = 0;
@@ -716,7 +728,7 @@ PHP_FUNCTION(fbird_blob_info)
 			// Fetch default link if not provided
 			link = IBG(default_link) ? (zval *)IBG(default_link) : NULL;
 		}
-		PHP_IBASE_LINK_TRANS(link, ib_link, trans);
+		PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
 
 		if (! _php_fbird_string_to_quad(blob_id, &ib_blob.bl_qd)) {
 			_php_fbird_module_error("Unrecognized BLOB ID");
@@ -795,14 +807,14 @@ PHP_FUNCTION(fbird_blob_echo)
 	fbird_db_link *ib_link;
 	fbird_transaction *trans = NULL;
 	fbird_blob ib_blob_id = { {0}, BLOB_OUTPUT, {0, 0}, NULL };  /* Phase 6: explicit fbb_blob init */
-	char bl_data[IBASE_BLOB_SEG];
+	char bl_data[FBIRD_BLOB_SEG];
 	unsigned actual_len;
 	int result;
 
 	RESET_ERRMSG;
 	PARSE_PARAMETERS;
 
-	PHP_IBASE_LINK_TRANS(link, ib_link, trans);
+	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
 
 	if (! _php_fbird_string_to_quad(blob_id, &ib_blob_id.bl_qd)) {
 		_php_fbird_module_error("Unrecognized BLOB ID");
@@ -872,7 +884,7 @@ PHP_FUNCTION(fbird_blob_import)
 	fbird_blob ib_blob = { {0}, 0, {0, 0}, NULL };  /* Phase 6: explicit fbb_blob init */
 	fbird_db_link *ib_link;
 	fbird_transaction *trans = NULL;
-	char bl_data[IBASE_BLOB_SEG];
+	char bl_data[FBIRD_BLOB_SEG];
 	php_stream *stream;
 
 	RESET_ERRMSG;
@@ -882,7 +894,7 @@ PHP_FUNCTION(fbird_blob_import)
 		RETURN_FALSE;
 	}
 
-	PHP_IBASE_LINK_TRANS(link, ib_link, trans);
+	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
 
 	php_stream_from_zval(stream, file);
 
@@ -945,7 +957,7 @@ PHP_FUNCTION(fbird_blob_create_stream)
 		RETURN_FALSE;
 	}
 
-	PHP_IBASE_LINK_TRANS(link, ib_link, trans);
+	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
 
 	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
 	ib_blob->bl_handle.ptr = 0;
@@ -1006,7 +1018,7 @@ PHP_FUNCTION(fbird_blob_open_stream)
 	RESET_ERRMSG;
 	PARSE_PARAMETERS;
 
-	PHP_IBASE_LINK_TRANS(link, ib_link, trans);
+	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
 
 	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
 	ib_blob->bl_handle.ptr = 0;

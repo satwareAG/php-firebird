@@ -812,34 +812,34 @@ static PHP_INI_DISP(php_fbird_trans_displayer)
 	if (value) {
 		zend_long trans_argl = atol(value);
 
-		if (trans_argl != PHP_IBASE_DEFAULT) {
+		if (trans_argl != PHP_FBIRD_DEFAULT) {
 			/* access mode */
-			if (PHP_IBASE_READ == (trans_argl & PHP_IBASE_READ)) {
+			if (PHP_FBIRD_READ == (trans_argl & PHP_FBIRD_READ)) {
 				PUTS_TP("IBASE_READ");
-			} else if (PHP_IBASE_WRITE == (trans_argl & PHP_IBASE_WRITE)) {
+			} else if (PHP_FBIRD_WRITE == (trans_argl & PHP_FBIRD_WRITE)) {
 				PUTS_TP("IBASE_WRITE");
 			}
 
 			/* isolation level */
-			if (PHP_IBASE_COMMITTED == (trans_argl & PHP_IBASE_COMMITTED)) {
+			if (PHP_FBIRD_COMMITTED == (trans_argl & PHP_FBIRD_COMMITTED)) {
 				PUTS_TP("IBASE_COMMITTED");
-				if (PHP_IBASE_REC_VERSION == (trans_argl & PHP_IBASE_REC_VERSION)) {
+				if (PHP_FBIRD_REC_VERSION == (trans_argl & PHP_FBIRD_REC_VERSION)) {
 					PUTS_TP("IBASE_REC_VERSION");
-				} else if (PHP_IBASE_REC_NO_VERSION == (trans_argl & PHP_IBASE_REC_NO_VERSION)) {
+				} else if (PHP_FBIRD_REC_NO_VERSION == (trans_argl & PHP_FBIRD_REC_NO_VERSION)) {
 					PUTS_TP("IBASE_REC_NO_VERSION");
 				}
-			} else if (PHP_IBASE_CONSISTENCY == (trans_argl & PHP_IBASE_CONSISTENCY)) {
+			} else if (PHP_FBIRD_CONSISTENCY == (trans_argl & PHP_FBIRD_CONSISTENCY)) {
 				PUTS_TP("IBASE_CONSISTENCY");
-			} else if (PHP_IBASE_CONCURRENCY == (trans_argl & PHP_IBASE_CONCURRENCY)) {
+			} else if (PHP_FBIRD_CONCURRENCY == (trans_argl & PHP_FBIRD_CONCURRENCY)) {
 				PUTS_TP("IBASE_CONCURRENCY");
 			}
 
 			/* lock resolution */
-			if (PHP_IBASE_NOWAIT == (trans_argl & PHP_IBASE_NOWAIT)) {
+			if (PHP_FBIRD_NOWAIT == (trans_argl & PHP_FBIRD_NOWAIT)) {
 				PUTS_TP("IBASE_NOWAIT");
-			} else if (PHP_IBASE_WAIT == (trans_argl & PHP_IBASE_WAIT)) {
+			} else if (PHP_FBIRD_WAIT == (trans_argl & PHP_FBIRD_WAIT)) {
 				PUTS_TP("IBASE_WAIT");
-				if (PHP_IBASE_LOCK_TIMEOUT == (trans_argl & PHP_IBASE_LOCK_TIMEOUT)) {
+				if (PHP_FBIRD_LOCK_TIMEOUT == (trans_argl & PHP_FBIRD_LOCK_TIMEOUT)) {
 					PUTS_TP("IBASE_LOCK_TIMEOUT");
 				}
 			}
@@ -932,36 +932,36 @@ PHP_MINIT_FUNCTION(fbird)
 	le_trans = zend_register_list_destructors_ex(_php_fbird_free_trans, NULL, LE_TRANS, module_number);
 
 	/* Primary FBIRD_* constants (new naming convention) */
-	REGISTER_LONG_CONSTANT("FBIRD_DEFAULT", PHP_IBASE_DEFAULT, CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FBIRD_CREATE", PHP_IBASE_CREATE, CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FBIRD_TEXT", PHP_IBASE_FETCH_BLOBS, CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FBIRD_FETCH_BLOBS", PHP_IBASE_FETCH_BLOBS, CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FBIRD_FETCH_ARRAYS", PHP_IBASE_FETCH_ARRAYS, CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FBIRD_UNIXTIME", PHP_IBASE_UNIXTIME, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_DEFAULT", PHP_FBIRD_DEFAULT, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_CREATE", PHP_FBIRD_CREATE, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_TEXT", PHP_FBIRD_FETCH_BLOBS, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_FETCH_BLOBS", PHP_FBIRD_FETCH_BLOBS, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_FETCH_ARRAYS", PHP_FBIRD_FETCH_ARRAYS, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_UNIXTIME", PHP_FBIRD_UNIXTIME, CONST_PERSISTENT);
 	REGISTER_LONG_CONSTANT("FBIRD_VER", PHP_FIREBIRD_VER, CONST_PERSISTENT);
 
 	/* transactions */
-	REGISTER_LONG_CONSTANT("FBIRD_WRITE", PHP_IBASE_WRITE, CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FBIRD_READ", PHP_IBASE_READ, CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FBIRD_COMMITTED", PHP_IBASE_COMMITTED, CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FBIRD_CONSISTENCY", PHP_IBASE_CONSISTENCY, CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FBIRD_CONCURRENCY", PHP_IBASE_CONCURRENCY, CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FBIRD_REC_VERSION", PHP_IBASE_REC_VERSION, CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FBIRD_REC_NO_VERSION", PHP_IBASE_REC_NO_VERSION, CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FBIRD_NOWAIT", PHP_IBASE_NOWAIT, CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FBIRD_WAIT", PHP_IBASE_WAIT, CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FBIRD_LOCK_TIMEOUT", PHP_IBASE_LOCK_TIMEOUT, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_WRITE", PHP_FBIRD_WRITE, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_READ", PHP_FBIRD_READ, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_COMMITTED", PHP_FBIRD_COMMITTED, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_CONSISTENCY", PHP_FBIRD_CONSISTENCY, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_CONCURRENCY", PHP_FBIRD_CONCURRENCY, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_REC_VERSION", PHP_FBIRD_REC_VERSION, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_REC_NO_VERSION", PHP_FBIRD_REC_NO_VERSION, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_NOWAIT", PHP_FBIRD_NOWAIT, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_WAIT", PHP_FBIRD_WAIT, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_LOCK_TIMEOUT", PHP_FBIRD_LOCK_TIMEOUT, CONST_PERSISTENT);
 
 	/* Table reservation constants */
-	REGISTER_LONG_CONSTANT("FBIRD_LOCK_SHARED", PHP_IBASE_LOCK_SHARED, CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FBIRD_LOCK_PROTECTED", PHP_IBASE_LOCK_PROTECTED, CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FBIRD_LOCK_EXCLUSIVE", PHP_IBASE_LOCK_EXCLUSIVE, CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FBIRD_LOCK_READ", PHP_IBASE_LOCK_READ, CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FBIRD_LOCK_WRITE", PHP_IBASE_LOCK_WRITE, CONST_PERSISTENT);
-	REGISTER_LONG_CONSTANT("FBIRD_READ_CONSISTENCY", PHP_IBASE_READ_CONSISTENCY, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_LOCK_SHARED", PHP_FBIRD_LOCK_SHARED, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_LOCK_PROTECTED", PHP_FBIRD_LOCK_PROTECTED, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_LOCK_EXCLUSIVE", PHP_FBIRD_LOCK_EXCLUSIVE, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_LOCK_READ", PHP_FBIRD_LOCK_READ, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_LOCK_WRITE", PHP_FBIRD_LOCK_WRITE, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_READ_CONSISTENCY", PHP_FBIRD_READ_CONSISTENCY, CONST_PERSISTENT);
 
 	/* Event constants */
-	REGISTER_LONG_CONSTANT("FBIRD_EVENT_TIMEOUT", PHP_IBASE_EVENT_TIMEOUT, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_EVENT_TIMEOUT", PHP_FBIRD_EVENT_TIMEOUT, CONST_PERSISTENT);
 
 
 	php_fbird_query_minit(INIT_FUNC_ARGS_PASSTHRU);
@@ -1460,7 +1460,7 @@ void _php_fbird_populate_trans(zend_long trans_argl, zend_long trans_timeout, ch
 	unsigned char *end = p + TPB_MAX_SIZE;
 
 	/* No explicit flags: leave TPB empty so Firebird uses its defaults. */
-	if (trans_argl == PHP_IBASE_DEFAULT) {
+	if (trans_argl == PHP_FBIRD_DEFAULT) {
 		*len = 0;
 		return;
 	}
@@ -1469,32 +1469,32 @@ void _php_fbird_populate_trans(zend_long trans_argl, zend_long trans_timeout, ch
 	if (p < end) *p++ = isc_tpb_version3;
 
 	/* access mode */
-	if (trans_argl & PHP_IBASE_READ) {
+	if (trans_argl & PHP_FBIRD_READ) {
 		if (p < end) *p++ = isc_tpb_read;
-	} else if (trans_argl & PHP_IBASE_WRITE) {
+	} else if (trans_argl & PHP_FBIRD_WRITE) {
 		if (p < end) *p++ = isc_tpb_write;
 	}
 
 	/* isolation level */
-	if (trans_argl & PHP_IBASE_COMMITTED) {
+	if (trans_argl & PHP_FBIRD_COMMITTED) {
 		if (p < end) *p++ = isc_tpb_read_committed;
-		if (trans_argl & PHP_IBASE_REC_VERSION) {
+		if (trans_argl & PHP_FBIRD_REC_VERSION) {
 			if (p < end) *p++ = isc_tpb_rec_version;
-		} else if (trans_argl & PHP_IBASE_REC_NO_VERSION) {
+		} else if (trans_argl & PHP_FBIRD_REC_NO_VERSION) {
 			if (p < end) *p++ = isc_tpb_no_rec_version;
 		}
-	} else if (trans_argl & PHP_IBASE_CONSISTENCY) {
+	} else if (trans_argl & PHP_FBIRD_CONSISTENCY) {
 		if (p < end) *p++ = isc_tpb_consistency;
-	} else if (trans_argl & PHP_IBASE_CONCURRENCY) {
+	} else if (trans_argl & PHP_FBIRD_CONCURRENCY) {
 		if (p < end) *p++ = isc_tpb_concurrency;
 	}
 
 	/* lock resolution */
-	if (trans_argl & PHP_IBASE_NOWAIT) {
+	if (trans_argl & PHP_FBIRD_NOWAIT) {
 		if (p < end) *p++ = isc_tpb_nowait;
-	} else if (trans_argl & PHP_IBASE_WAIT) {
+	} else if (trans_argl & PHP_FBIRD_WAIT) {
 		if (p < end) *p++ = isc_tpb_wait;
-		if (trans_argl & PHP_IBASE_LOCK_TIMEOUT) {
+		if (trans_argl & PHP_FBIRD_LOCK_TIMEOUT) {
 			if (trans_timeout <= 0 || trans_timeout > 0x7FFF) {
 				php_error_docref(NULL, E_WARNING, "Invalid timeout parameter (must be 0-32767)");
 			} else {
@@ -1526,9 +1526,9 @@ void _php_fbird_populate_trans_from_array(zval *options, zend_long *trans_timeou
 	/* access mode */
 	if ((tmp = zend_hash_str_find(Z_ARRVAL_P(options), "access_mode", sizeof("access_mode") - 1)) != NULL) {
 		if (Z_TYPE_P(tmp) == IS_LONG) {
-			if (Z_LVAL_P(tmp) & PHP_IBASE_READ) {
+			if (Z_LVAL_P(tmp) & PHP_FBIRD_READ) {
 				*p++ = isc_tpb_read;
-			} else if (Z_LVAL_P(tmp) & PHP_IBASE_WRITE) {
+			} else if (Z_LVAL_P(tmp) & PHP_FBIRD_WRITE) {
 				*p++ = isc_tpb_write;
 			}
 		}
@@ -1538,16 +1538,16 @@ void _php_fbird_populate_trans_from_array(zval *options, zend_long *trans_timeou
 	if ((tmp = zend_hash_str_find(Z_ARRVAL_P(options), "isolation", sizeof("isolation") - 1)) != NULL) {
 		if (Z_TYPE_P(tmp) == IS_LONG) {
 			zend_long iso = Z_LVAL_P(tmp);
-			if (iso & PHP_IBASE_COMMITTED) {
+			if (iso & PHP_FBIRD_COMMITTED) {
 				*p++ = isc_tpb_read_committed;
-				if (iso & PHP_IBASE_REC_VERSION) {
+				if (iso & PHP_FBIRD_REC_VERSION) {
 					*p++ = isc_tpb_rec_version;
-				} else if (iso & PHP_IBASE_REC_NO_VERSION) {
+				} else if (iso & PHP_FBIRD_REC_NO_VERSION) {
 					*p++ = isc_tpb_no_rec_version;
 				}
-			} else if (iso & PHP_IBASE_CONSISTENCY) {
+			} else if (iso & PHP_FBIRD_CONSISTENCY) {
 				*p++ = isc_tpb_consistency;
-			} else if (iso & PHP_IBASE_CONCURRENCY) {
+			} else if (iso & PHP_FBIRD_CONCURRENCY) {
 				*p++ = isc_tpb_concurrency;
 			}
 		}
@@ -1557,9 +1557,9 @@ void _php_fbird_populate_trans_from_array(zval *options, zend_long *trans_timeou
 	if ((tmp = zend_hash_str_find(Z_ARRVAL_P(options), "lock_resolution", sizeof("lock_resolution") - 1)) != NULL) {
 		if (Z_TYPE_P(tmp) == IS_LONG) {
 			zend_long res = Z_LVAL_P(tmp);
-			if (res & PHP_IBASE_NOWAIT) {
+			if (res & PHP_FBIRD_NOWAIT) {
 				*p++ = isc_tpb_nowait;
-			} else if (res & PHP_IBASE_WAIT) {
+			} else if (res & PHP_FBIRD_WAIT) {
 				*p++ = isc_tpb_wait;
 			}
 		}
@@ -1613,9 +1613,9 @@ void _php_fbird_populate_trans_from_array(zval *options, zend_long *trans_timeou
 					unsigned char tlen = (unsigned char) ZSTR_LEN(table_name);
 
 					// Basic Direction (Read/Write)
-					if (lock_mode & PHP_IBASE_LOCK_WRITE) {
+					if (lock_mode & PHP_FBIRD_LOCK_WRITE) {
 						if (p < end) *p++ = isc_tpb_lock_write;
-					} else if (lock_mode & PHP_IBASE_LOCK_READ) {
+					} else if (lock_mode & PHP_FBIRD_LOCK_READ) {
 						if (p < end) *p++ = isc_tpb_lock_read;
 					} else {
 						// Default to WRITE if only mode bits are set (common assumption) or SKIP?
@@ -1635,11 +1635,11 @@ void _php_fbird_populate_trans_from_array(zval *options, zend_long *trans_timeou
 					}
 
 					// Lock Mode (Shared/Protected/Exclusive)
-					if (lock_mode & PHP_IBASE_LOCK_PROTECTED) {
+					if (lock_mode & PHP_FBIRD_LOCK_PROTECTED) {
 						if (p < end) *p++ = isc_tpb_protected;
-					} else if (lock_mode & PHP_IBASE_LOCK_EXCLUSIVE) {
+					} else if (lock_mode & PHP_FBIRD_LOCK_EXCLUSIVE) {
 						if (p < end) *p++ = isc_tpb_exclusive;
-					} else if (lock_mode & PHP_IBASE_LOCK_SHARED) {
+					} else if (lock_mode & PHP_FBIRD_LOCK_SHARED) {
 						if (p < end) *p++ = isc_tpb_shared;
 					} else {
 						// Default to SHARED if no mode specified
@@ -2024,10 +2024,10 @@ PHP_FUNCTION(fbird_trans)
 
 				convert_to_long_ex(&args[i]);
 				trans_argl = Z_LVAL(args[i]);
-				if (trans_argl != PHP_IBASE_DEFAULT) {
+				if (trans_argl != PHP_FBIRD_DEFAULT) {
 					// Skip conflicting parameters
-					if (PHP_IBASE_NOWAIT != (trans_argl & PHP_IBASE_NOWAIT) && PHP_IBASE_WAIT == (trans_argl & PHP_IBASE_WAIT)) {
-						if (PHP_IBASE_LOCK_TIMEOUT == (trans_argl & PHP_IBASE_LOCK_TIMEOUT)) {
+					if (PHP_FBIRD_NOWAIT != (trans_argl & PHP_FBIRD_NOWAIT) && PHP_FBIRD_WAIT == (trans_argl & PHP_FBIRD_WAIT)) {
+						if (PHP_FBIRD_LOCK_TIMEOUT == (trans_argl & PHP_FBIRD_LOCK_TIMEOUT)) {
 							if((i + 1 < argn) && (Z_TYPE(args[i + 1]) == IS_LONG)){
 								i++;
 								convert_to_long_ex(&args[i]);
@@ -2199,7 +2199,7 @@ int _php_fbird_def_trans(fbird_db_link *ib_link, fbird_transaction **trans) /* {
 			unsigned short tpb_len = 0;
 
 			/* Build TPB if non-default parameters */
-			if (trans_argl != PHP_IBASE_DEFAULT) {
+			if (trans_argl != PHP_FBIRD_DEFAULT) {
 				zend_long trans_timeout = IBG(default_lock_timeout);
 				_php_fbird_populate_trans(trans_argl, trans_timeout, last_tpb, &tpb_len);
 			}
@@ -2412,7 +2412,7 @@ PHP_FUNCTION(fbird_gen_id)
 		RETURN_FALSE;
 	}
 
-	PHP_IBASE_LINK_TRANS(link, ib_link, trans);
+	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
 
 	/* OO API Only: Verify connection has OO API handle */
 	if (ib_link->fbc_connection == NULL) {

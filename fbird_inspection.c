@@ -243,7 +243,7 @@ PHP_FUNCTION(fbird_kill_attachment)
 		return;
 	}
 
-	PHP_IBASE_LINK_TRANS(link_arg, link, trans);
+	PHP_FBIRD_LINK_TRANS(link_arg, link, trans);
 
 	if (_fbird_exec_kill(link, trans, (ISC_INT64) attachment_id) == FAILURE) {
 		RETURN_FALSE;
@@ -283,7 +283,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
 		return;
 	}
 
-	PHP_IBASE_LINK_TRANS(link_arg, link, trans);
+	PHP_FBIRD_LINK_TRANS(link_arg, link, trans);
 
 	/* OO API Only: Require fbc_connection */
 	if (!link->fbc_connection) {
@@ -471,7 +471,7 @@ PHP_FUNCTION(fbird_drop_table_force)
 		return;
 	}
 
-	PHP_IBASE_LINK_TRANS(link_arg, link, trans);
+	PHP_FBIRD_LINK_TRANS(link_arg, link, trans);
 
 	/* Note: Blocker detection via MON$SQL_TEXT requires complex BLOB handling.
 	 * For now, we skip the blocker-killing step and just do the DROP.

@@ -539,7 +539,7 @@ PHP_FUNCTION(fbird_poll_event)
 
 		/* Check if timeout occurred */
 		if (fbird_timeout_occurred) {
-			RETURN_LONG(PHP_IBASE_EVENT_TIMEOUT);
+			RETURN_LONG(PHP_FBIRD_EVENT_TIMEOUT);
 		}
 	}
 #endif

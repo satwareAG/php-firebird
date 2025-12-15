@@ -292,7 +292,7 @@ static int _php_fbird_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 				isc_decode_timestamp(&ts, &t);
 			}
 
-			if (((type & ~1) != SQL_TIME_TZ) && (flag & PHP_IBASE_UNIXTIME)) {
+			if (((type & ~1) != SQL_TIME_TZ) && (flag & PHP_FBIRD_UNIXTIME)) {
 				ZVAL_LONG(val, fbird_mktime_with_tz(&t, timeZoneBuffer));
 			} else {
 				char timeBuf[80] = {0};
@@ -343,7 +343,7 @@ format_date_time:
                 /* TIME/TIME_TZ: Skip unix conversion, always return formatted string */
                 l = strftime(string_data, sizeof(string_data), format, &t);
                 ZVAL_STRINGL(val, string_data, l);
-            } else if (flag & PHP_IBASE_UNIXTIME) {
+            } else if (flag & PHP_FBIRD_UNIXTIME) {
                 /* TIMESTAMP/DATE: Deterministic behavior — convert to epoch
                  * using PHP's configured timezone (date.timezone). This avoids
                  * dependence on the host OS timezone. */
@@ -567,7 +567,7 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 					field_scale, field_subtype, flag);
 				break;
 			case SQL_BLOB:
-				if (flag & PHP_IBASE_FETCH_BLOBS) { /* fetch blob contents into hash */
+				if (flag & PHP_FBIRD_FETCH_BLOBS) { /* fetch blob contents into hash */
 
 					fbird_blob blob_handle;
 					zend_ulong max_len = 0;
@@ -667,7 +667,7 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 				}
 				break;
 			case SQL_ARRAY:
-				if (flag & PHP_IBASE_FETCH_ARRAYS) { /* array can be *huge* so only fetch if asked */
+				if (flag & PHP_FBIRD_FETCH_ARRAYS) { /* array can be *huge* so only fetch if asked */
 					ISC_QUAD ar_qd = *(ISC_QUAD *) field_data;
 
 					/* OO API-only: do NOT use ib_query->out_array.

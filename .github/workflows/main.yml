@@ -460,5 +460,23 @@ jobs:
           echo "Checking Firebird client library..."
           ls -la /opt/firebird-client/lib/libfbclient.so* 2>/dev/null || echo "libfbclient not found in client dir"
 
+          # Debug: Verify extension loads and can connect
+          echo "DEBUG: Testing extension loading..."
+          php -d "extension=$(pwd)/modules/firebird.so" -m | grep -i fbird || echo "Extension not listed"
+
+          echo "DEBUG: Testing connection..."
+          php -d "extension=$(pwd)/modules/firebird.so" -r '
+            echo "Extension loaded, testing service attach...\n";
+            if ($se = @fbird_service_attach("localhost", "SYSDBA", "masterkey")) {
+              echo "SUCCESS: Connected to Firebird service manager\n";
+              $ver = fbird_server_info($se, FBIRD_SVC_SERVER_VERSION);
+              echo "Server version: $ver\n";
+              fbird_service_detach($se);
+            } else {
+              echo "FAILED: Cannot connect to service manager\n";
+              echo "Error: " . fbird_errmsg() . "\n";
+            }
+          ' 2>&1 || echo "Connection test failed"
+
           # Run tests using PHP's run-tests.php mechanism via make test.
           make test

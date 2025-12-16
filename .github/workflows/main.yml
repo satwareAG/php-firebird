@@ -460,6 +460,14 @@ jobs:
           echo "Checking Firebird client library..."
           ls -la /opt/firebird-client/lib/libfbclient.so* 2>/dev/null || echo "libfbclient not found in client dir"
 
+          # CRITICAL: Make the Firebird client library available system-wide
+          # Test subprocesses don't inherit LD_LIBRARY_PATH reliably, so we
+          # add the library to ldconfig search path
+          echo "/opt/firebird-client/lib" > /etc/ld.so.conf.d/firebird-client.conf
+          ldconfig
+          echo "Library search paths updated:"
+          ldconfig -p | grep -i fbclient || echo "libfbclient not in ldconfig"
+
           # Debug: Verify extension loads and can connect
           echo "DEBUG: Testing extension loading..."
           php -d "extension=$(pwd)/modules/firebird.so" -m | grep -i fbird || echo "Extension not listed"

@@ -22,7 +22,7 @@ jobs:
       image: php:${{ matrix.php-version }}-cli-bookworm
 
     strategy:
-      fail-fast: true
+      fail-fast: false  # Temporarily disabled to diagnose intermittent failures
       matrix:
         php-version: ['8.1', '8.2', '8.3', '8.4', '8.5']
         firebird-version: ['2.5', '3.0', '4.0', '5.0']
@@ -134,6 +134,19 @@ jobs:
             echo "Found buildroot.tar.gz, extracting..."
             cd "${FB_EXTRACTED}"
             tar xzf buildroot.tar.gz
+
+            # Debug: show what was extracted
+            echo "DEBUG: Listing opt/firebird/include/ contents:"
+            ls -la opt/firebird/include/ 2>/dev/null || echo "opt/firebird/include/ not found"
+
+            echo "DEBUG: Checking for ibase.h in source:"
+            if [ -f "opt/firebird/include/ibase.h" ]; then
+              echo "  ibase.h found: $(ls -la opt/firebird/include/ibase.h)"
+            else
+              echo "  ibase.h NOT FOUND in opt/firebird/include/"
+              echo "  Available files:"
+              find opt/firebird/include/ -type f -name "*.h" 2>/dev/null | head -20
+            fi
 
             # The files are in opt/firebird/ within buildroot
             if [ -d "opt/firebird/include" ]; then

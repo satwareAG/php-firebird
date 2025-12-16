@@ -188,22 +188,39 @@ jobs:
             fi
 
             # The files are in opt/firebird/ within buildroot
+            # Use rsync-like copy with -a to preserve directory structure
             if [ -d "opt/firebird/include" ]; then
-              cp -r opt/firebird/include "${FB_CLIENT_DIR}/"
+              mkdir -p "${FB_CLIENT_DIR}/include"
+              cp -a opt/firebird/include/* "${FB_CLIENT_DIR}/include/"
             fi
             if [ -d "opt/firebird/lib" ]; then
               mkdir -p "${FB_CLIENT_DIR}/lib"
-              cp -r opt/firebird/lib/* "${FB_CLIENT_DIR}/lib/"
+              cp -a opt/firebird/lib/* "${FB_CLIENT_DIR}/lib/"
             fi
 
             # Verify firebird/impl/blr.h exists (required for compilation)
             if [ ! -f "${FB_CLIENT_DIR}/include/firebird/impl/blr.h" ]; then
-              echo "WARNING: firebird/impl/blr.h not found, checking source..."
-              if [ -f "opt/firebird/include/firebird/impl/blr.h" ]; then
-                echo "Found in source, copying..."
-                cp -r opt/firebird/include/firebird "${FB_CLIENT_DIR}/include/"
+              echo "WARNING: firebird/impl/blr.h not found in ${FB_CLIENT_DIR}/include/"
+              echo "Checking source directories..."
+              find opt/firebird/include -name "blr.h" 2>/dev/null || echo "blr.h not in source"
+
+              # Try explicit copy of firebird subdirectory
+              if [ -d "opt/firebird/include/firebird" ]; then
+                echo "Found firebird/ subdir in source, copying..."
+                cp -a opt/firebird/include/firebird "${FB_CLIENT_DIR}/include/"
+              fi
+
+              # Final verification
+              if [ ! -f "${FB_CLIENT_DIR}/include/firebird/impl/blr.h" ]; then
+                echo "ERROR: blr.h still missing after copy attempts"
+                ls -laR "${FB_CLIENT_DIR}/include/" | head -50
+                exit 1
               fi
             fi
+
+            echo "Header structure verification:"
+            ls -la "${FB_CLIENT_DIR}/include/firebird/" || echo "No firebird/ subdir"
+            ls -la "${FB_CLIENT_DIR}/include/firebird/impl/" || echo "No firebird/impl/ subdir"
           else
             # Fallback: try direct structure
             echo "No buildroot.tar.gz found, trying direct structure..."

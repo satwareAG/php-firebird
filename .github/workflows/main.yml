@@ -100,16 +100,32 @@ jobs:
 
           echo "Installing Firebird ${FB_CLIENT_VERSION} client for compilation..."
 
-          # Download FB 3.0 client tarball
+          # Download FB 3.0 client tarball with size verification
+          # Expected size for Firebird-3.0.12.33787-0.amd64.tar.gz is ~9MB
+          EXPECTED_MIN_SIZE=8000000  # ~8MB minimum
+
           for attempt in 1 2 3 4 5; do
             echo "Downloading FB client (attempt ${attempt}/5)..."
             if curl -fsSL --retry 3 --retry-delay 5 "${FB_CLIENT_URL}" -o "/tmp/${FB_CLIENT_TARBALL}"; then
-              echo "Successfully downloaded FB client"
-              break
+              # Verify file size
+              ACTUAL_SIZE=$(stat -f%z "/tmp/${FB_CLIENT_TARBALL}" 2>/dev/null || stat -c%s "/tmp/${FB_CLIENT_TARBALL}" 2>/dev/null || echo "0")
+              if [ "${ACTUAL_SIZE}" -gt "${EXPECTED_MIN_SIZE}" ]; then
+                echo "Successfully downloaded FB client (${ACTUAL_SIZE} bytes)"
+                break
+              else
+                echo "Downloaded file too small (${ACTUAL_SIZE} < ${EXPECTED_MIN_SIZE}), retrying..."
+                rm -f "/tmp/${FB_CLIENT_TARBALL}"
+              fi
             fi
             echo "Download failed, retrying in 10s..."
             sleep 10
           done
+
+          # Final verification
+          if [ ! -f "/tmp/${FB_CLIENT_TARBALL}" ]; then
+            echo "ERROR: Failed to download FB client tarball" >&2
+            exit 1
+          fi
 
           # Extract and set up client libraries
           # The Firebird tarball is an installer package that contains buildroot.tar.gz
@@ -148,6 +164,19 @@ jobs:
               find opt/firebird/include/ -type f -name "*.h" 2>/dev/null | head -20
             fi
 
+            # Verify extraction was complete - ibase.h is required
+            if [ ! -f "opt/firebird/include/ibase.h" ]; then
+              echo "ERROR: Incomplete extraction - ibase.h missing from buildroot" >&2
+              echo "Re-extracting buildroot.tar.gz..."
+              rm -rf opt/
+              tar xzf buildroot.tar.gz
+              if [ ! -f "opt/firebird/include/ibase.h" ]; then
+                echo "ERROR: Second extraction also failed" >&2
+                ls -la opt/firebird/include/ 2>/dev/null || echo "Include directory missing"
+                exit 1
+              fi
+            fi
+
             # The files are in opt/firebird/ within buildroot
             if [ -d "opt/firebird/include" ]; then
               cp -r opt/firebird/include "${FB_CLIENT_DIR}/"
@@ -155,6 +184,15 @@ jobs:
             if [ -d "opt/firebird/lib" ]; then
               mkdir -p "${FB_CLIENT_DIR}/lib"
               cp -r opt/firebird/lib/* "${FB_CLIENT_DIR}/lib/"
+            fi
+
+            # Verify firebird/impl/blr.h exists (required for compilation)
+            if [ ! -f "${FB_CLIENT_DIR}/include/firebird/impl/blr.h" ]; then
+              echo "WARNING: firebird/impl/blr.h not found, checking source..."
+              if [ -f "opt/firebird/include/firebird/impl/blr.h" ]; then
+                echo "Found in source, copying..."
+                cp -r opt/firebird/include/firebird "${FB_CLIENT_DIR}/include/"
+              fi
             fi
           else
             # Fallback: try direct structure

@@ -202,53 +202,17 @@ jobs:
             fi
 
             # Verify firebird/impl/blr.h exists (required for compilation)
-            # Note: blr.h may be in different locations across FB versions:
-            # - FB 3.0+: firebird/impl/blr.h  OR  just blr.h in include/
-            # - Some builds may have ibase.h include blr definitions directly
-            echo "DEBUG: Searching for all blr.h files in source..."
-            find opt/firebird/include -name "*.h" -exec grep -l "blr_" {} \; 2>/dev/null | head -10 || echo "No blr files found"
-
-            echo "DEBUG: Full include directory structure:"
-            find opt/firebird/include -type f -name "*.h" 2>/dev/null | head -30
-
-            if [ ! -f "${FB_CLIENT_DIR}/include/firebird/impl/blr.h" ]; then
-              echo "INFO: firebird/impl/blr.h not in FB 3.0.12 - this is expected"
-              echo "The extension may need blr.h from a different location or version"
-
-              # Check if blr.h is at root include level
-              if [ -f "opt/firebird/include/blr.h" ]; then
-                echo "Found blr.h at root level, creating compatible structure..."
-                mkdir -p "${FB_CLIENT_DIR}/include/firebird/impl"
-                cp "opt/firebird/include/blr.h" "${FB_CLIENT_DIR}/include/firebird/impl/blr.h"
-              elif [ -f "opt/firebird/include/firebird/blr.h" ]; then
-                echo "Found blr.h in firebird/, creating impl/ structure..."
-                mkdir -p "${FB_CLIENT_DIR}/include/firebird/impl"
-                cp "opt/firebird/include/firebird/blr.h" "${FB_CLIENT_DIR}/include/firebird/impl/blr.h"
-              else
-                # Check if blr definitions are in ibase.h (older versions)
-                if grep -q "blr_" "opt/firebird/include/ibase.h" 2>/dev/null; then
-                  echo "blr_ definitions found in ibase.h - creating stub blr.h..."
-                  mkdir -p "${FB_CLIENT_DIR}/include/firebird/impl"
-                  # Create minimal blr.h that includes from ibase.h location
-                  cat > "${FB_CLIENT_DIR}/include/firebird/impl/blr.h" << 'BLRHDR'
-/* Stub blr.h for Firebird 3.0.x compatibility */
-/* BLR definitions are in ibase.h for this version */
-#ifndef FB_BLR_H
-#define FB_BLR_H
-/* This stub exists because FB 3.0.12 doesn't have firebird/impl/blr.h */
-/* The actual BLR constants are defined in ibase.h */
-#endif /* FB_BLR_H */
-BLRHDR
-                  echo "Created stub blr.h"
-                else
-                  echo "WARNING: No BLR definitions found, compilation may fail"
-                fi
-              fi
-            fi
-
+            # FB 4.0+ includes this header in the proper location
             echo "Header structure verification:"
             ls -la "${FB_CLIENT_DIR}/include/firebird/" 2>/dev/null || echo "No firebird/ subdir"
             ls -la "${FB_CLIENT_DIR}/include/firebird/impl/" 2>/dev/null || echo "No firebird/impl/ subdir"
+
+            if [ ! -f "${FB_CLIENT_DIR}/include/firebird/impl/blr.h" ]; then
+              echo "ERROR: firebird/impl/blr.h not found - FB 4.0 client should have it"
+              find "${FB_CLIENT_DIR}/include" -name "*.h" 2>/dev/null | head -30
+              exit 1
+            fi
+            echo "SUCCESS: firebird/impl/blr.h found"
           else
             # Fallback: try direct structure
             echo "No buildroot.tar.gz found, trying direct structure..."

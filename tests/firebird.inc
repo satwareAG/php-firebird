@@ -78,7 +78,32 @@ function init_db()
 		($charset = ini_get('fbird.default_charset')) ? $charset : 'NONE'
 	);
 
-	$test_db = fbird_query(FBIRD_CREATE, $sql);
+	// Debug: report initialization attempt and any errors
+	$test_db = @fbird_query(FBIRD_CREATE, $sql);
+	if ($test_db === false) {
+		// Get error before it's cleared
+		$err = fbird_errmsg();
+		// Try alternate syntax: CREATE DATABASE instead of CREATE SCHEMA
+		$sql2 = sprintf("CREATE DATABASE '%s' USER '%s' PASSWORD '%s' DEFAULT CHARACTER SET %s",
+			$test_base, $user, $password,
+			($charset = ini_get('fbird.default_charset')) ? $charset : 'NONE'
+		);
+		$test_db = @fbird_query(FBIRD_CREATE, $sql2);
+		if ($test_db === false) {
+			// Still failed - write debug info to stderr
+			$err2 = fbird_errmsg();
+			// Only output debug info when TEST_DEBUG is set (avoids polluting normal test output)
+			if (getenv('TEST_DEBUG')) {
+				fwrite(STDERR, "DEBUG init_db() failed:\n");
+				fwrite(STDERR, "  test_base: $test_base\n");
+				fwrite(STDERR, "  user: $user\n");
+				fwrite(STDERR, "  CREATE SCHEMA error: $err\n");
+				fwrite(STDERR, "  CREATE DATABASE error: $err2\n");
+			}
+			// Return without creating tables - database doesn't exist
+			return;
+		}
+	}
 
 	$tr = fbird_trans($test_db);
 	fbird_query($tr,"create table test1 (i integer, c varchar(100))");

@@ -409,6 +409,49 @@ jobs:
           chmod 777 /opt/firebird/data
           echo "Created /opt/firebird/data for test database storage"
 
+          # Configure Firebird to allow database creation in common paths.
+          # Modern Firebird (3.0+) restricts database access via DatabaseAccess.
+          # Default "None" blocks all database creation. We need "Full" or specific paths.
+          FB_CONF="/opt/firebird/firebird.conf"
+          if [ -f "$FB_CONF" ]; then
+            echo "Configuring Firebird DatabaseAccess to allow test directories..."
+            # Backup original config
+            cp "$FB_CONF" "${FB_CONF}.backup"
+            # Set DatabaseAccess to Full to allow any path (for testing only)
+            if grep -q "^#*\s*DatabaseAccess" "$FB_CONF"; then
+              sed -i 's/^#*\s*DatabaseAccess.*/DatabaseAccess = Full/' "$FB_CONF"
+            else
+              echo "DatabaseAccess = Full" >> "$FB_CONF"
+            fi
+            # Also ensure TempDirectories includes /tmp
+            if grep -q "^#*\s*TempDirectories" "$FB_CONF"; then
+              sed -i 's/^#*\s*TempDirectories.*/TempDirectories = \/tmp/' "$FB_CONF"
+            else
+              echo "TempDirectories = /tmp" >> "$FB_CONF"
+            fi
+            echo "Firebird config updated. Restarting server..."
+            # Restart Firebird to apply config changes
+            if [ -x /etc/init.d/firebird ]; then
+              /etc/init.d/firebird restart || true
+            elif [ -x /opt/firebird/bin/fbguard ]; then
+              # Kill existing and restart
+              pkill -f fbserver || true
+              pkill -f fbguard || true
+              sleep 2
+              /opt/firebird/bin/fbguard -daemon || true
+            fi
+            # Wait for server to be ready again
+            for i in $(seq 1 30); do
+              if nc -z 127.0.0.1 3050; then
+                echo "Firebird restarted and ready"
+                break
+              fi
+              sleep 1
+            done
+          else
+            echo "WARNING: firebird.conf not found at $FB_CONF"
+          fi
+
       - name: Build PHP extension (firebird)
         env:
           # Force config.m4 to use the Firebird 3.0+ client at /opt/firebird-client

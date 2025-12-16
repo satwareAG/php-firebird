@@ -2304,15 +2304,19 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit) /* {{
 			break;
 	}
 
-	if (result) {
-		_php_fbird_error();
-		RETURN_FALSE;
-	}
-
-	/* Clear handle for non-retained operations */
+	/* Clear handle for non-retained operations BEFORE checking result.
+	 * The fbt_* functions ALWAYS delete the wrapper (even on error),
+	 * so we must clear our pointer to avoid dangling references.
+	 * Fixes: #9, #10 - SIGSEGV due to use-after-free of transaction wrapper
+	 */
 	if ((commit & RETAIN) == 0) {
 		trans->fbt_transaction = NULL;
 		trans->handle.ptr = 0;
+	}
+
+	if (result) {
+		_php_fbird_error();
+		RETURN_FALSE;
 	}
 
 	/* Don't try to destroy implicitly opened transaction from list... */

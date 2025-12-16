@@ -82,6 +82,74 @@ jobs:
           # Install pcntl extension (required for EventPoller tests)
           docker-php-ext-install pcntl
 
+      # ========================================================================
+      # Install Firebird 3.0+ client libraries for compilation
+      # ========================================================================
+      # The extension requires Firebird 3.0+ client libraries (OO API) for
+      # compilation. We install FB 3.0 client first, then the target server
+      # version for testing. The FB 3.0+ client can connect to all server
+      # versions (2.5-5.0) via backward-compatible wire protocol.
+      - name: Install Firebird 3.0+ client for compilation
+        run: |
+          set -eu
+
+          FB_CLIENT_VERSION="3.0.12"
+          FB_CLIENT_TARBALL="Firebird-${FB_CLIENT_VERSION}.33787-0.amd64.tar.gz"
+          FB_CLIENT_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_CLIENT_VERSION}/${FB_CLIENT_TARBALL}"
+          FB_CLIENT_DIR="/opt/firebird-client"
+
+          echo "Installing Firebird ${FB_CLIENT_VERSION} client for compilation..."
+
+          # Download FB 3.0 client tarball
+          for attempt in 1 2 3 4 5; do
+            echo "Downloading FB client (attempt ${attempt}/5)..."
+            if curl -fsSL --retry 3 --retry-delay 5 "${FB_CLIENT_URL}" -o "/tmp/${FB_CLIENT_TARBALL}"; then
+              echo "Successfully downloaded FB client"
+              break
+            fi
+            echo "Download failed, retrying in 10s..."
+            sleep 10
+          done
+
+          # Extract and set up client libraries
+          mkdir -p "${FB_CLIENT_DIR}"
+          cd /tmp
+          tar xzf "${FB_CLIENT_TARBALL}"
+
+          # Find the extracted directory (name may vary)
+          FB_EXTRACTED=$(find . -maxdepth 1 -type d -name 'Firebird*' | head -1)
+          if [ -z "${FB_EXTRACTED}" ]; then
+            echo "ERROR: Could not find extracted Firebird directory" >&2
+            exit 1
+          fi
+
+          # Copy headers and libraries
+          cp -r "${FB_EXTRACTED}/include" "${FB_CLIENT_DIR}/"
+          mkdir -p "${FB_CLIENT_DIR}/lib"
+          cp -r "${FB_EXTRACTED}/lib/"* "${FB_CLIENT_DIR}/lib/" 2>/dev/null || true
+
+          # Also look in alternative locations
+          if [ -d "${FB_EXTRACTED}/opt/firebird/include" ]; then
+            cp -r "${FB_EXTRACTED}/opt/firebird/include/"* "${FB_CLIENT_DIR}/include/"
+          fi
+          if [ -d "${FB_EXTRACTED}/opt/firebird/lib" ]; then
+            cp -r "${FB_EXTRACTED}/opt/firebird/lib/"* "${FB_CLIENT_DIR}/lib/"
+          fi
+
+          # Verify required files exist
+          if [ ! -f "${FB_CLIENT_DIR}/include/ibase.h" ]; then
+            echo "ERROR: ibase.h not found in ${FB_CLIENT_DIR}/include" >&2
+            find "${FB_CLIENT_DIR}" -name "*.h" -o -name "*.so*" 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "Firebird client installed successfully:"
+          ls -la "${FB_CLIENT_DIR}/include/" | head -10
+          ls -la "${FB_CLIENT_DIR}/lib/" | head -10
+
+      # ========================================================================
+      # Install Firebird server for testing
+      # ========================================================================
       - name: Install Firebird server via IBSurgeon script
         env:
           # Map matrix.firebird-version to firebirdlinuxinstall script suffix.
@@ -243,8 +311,9 @@ jobs:
 
       - name: Build PHP extension (firebird)
         env:
-          # Force config.m4 to use the Firebird installation at /opt/firebird
-          # instead of probing a system fb_config.
+          # Force config.m4 to use the Firebird 3.0+ client at /opt/firebird-client
+          # for compilation. This ensures we always compile against FB 3.0+ OO API
+          # headers, regardless of which server version we're testing against.
           FB_CONFIG: "no"
         run: |
           set -eu
@@ -252,14 +321,27 @@ jobs:
           # Enable pipefail where supported without breaking plain /bin/sh.
           if (set -o pipefail) 2>/dev/null; then :; fi
 
-          export PATH="/opt/firebird/bin:${PATH}"
-          export LD_LIBRARY_PATH="/opt/firebird/lib:${LD_LIBRARY_PATH:-}"
-          export CFLAGS="-I/opt/firebird/include ${CFLAGS:-}"
-          export LDFLAGS="-L/opt/firebird/lib ${LDFLAGS:-}"
+          # Use FB 3.0+ client from /opt/firebird-client for compilation
+          # The client library can connect to any server version (2.5-5.0)
+          export PATH="/opt/firebird/bin:/opt/firebird-client/bin:${PATH}"
+          export LD_LIBRARY_PATH="/opt/firebird-client/lib:${LD_LIBRARY_PATH:-}"
+          export CFLAGS="-I/opt/firebird-client/include ${CFLAGS:-}"
+          export LDFLAGS="-L/opt/firebird-client/lib ${LDFLAGS:-}"
+
+          # Verify FB 3.0+ client headers are available
+          echo "Checking Firebird client installation..."
+          if [ ! -f /opt/firebird-client/include/ibase.h ]; then
+            echo "ERROR: ibase.h not found in /opt/firebird-client/include" >&2
+            exit 1
+          fi
+
+          # Check FB_API_VER in header
+          FB_API_VER=$(grep -o 'FB_API_VER[[:space:]]*[0-9]*' /opt/firebird-client/include/ibase.h | head -1 | grep -o '[0-9]*' || echo "unknown")
+          echo "Firebird client FB_API_VER: ${FB_API_VER}"
 
           php -v
           phpize
-          ./configure --with-firebird=/opt/firebird
+          ./configure --with-firebird=/opt/firebird-client
           make -j"$(nproc)"
 
       - name: Run PHPT tests
@@ -274,11 +356,17 @@ jobs:
           NO_INTERACTION: 1
           REPORT_EXIT_STATUS: 1
           TEST_PHP_EXECUTABLE: php
+          # Use FB 3.0+ client library at runtime (same as compilation)
+          LD_LIBRARY_PATH: "/opt/firebird-client/lib"
         run: |
           set -eu
 
           # Enable pipefail where supported without breaking plain /bin/sh.
           if (set -o pipefail) 2>/dev/null; then :; fi
+
+          # Verify runtime library is available
+          echo "Checking Firebird client library..."
+          ls -la /opt/firebird-client/lib/libfbclient.so* 2>/dev/null || echo "libfbclient not found in client dir"
 
           # Run tests using PHP's run-tests.php mechanism via make test.
           make test

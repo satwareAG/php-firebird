@@ -1,7 +1,5 @@
 --TEST--
 Migration reliability: fbird_drop_table_force logic
---XFAIL--
-Known segfault in transaction cleanup after fbird_drop_table_force DDL commit (Issue #9)
 --SKIPIF--
 <?php
 include("skipif.inc");

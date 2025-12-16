@@ -850,7 +850,10 @@ extern "C" int fbt_commit(void* transaction, ISC_STATUS* status_vector) {
             trans->copyLastStatus(status_vector, ISC_STATUS_LENGTH);
         }
 
-        delete trans;
+        /* Do NOT delete wrapper here - let PHP resource destructor call fbt_free().
+         * The wrapper stays valid (but inactive) so any PHP code holding a reference
+         * won't dereference freed memory. fbt_is_active() will return false.
+         * This fixes Issue #9: segfault in transaction cleanup after DDL commit. */
         return 0;
 
     } catch (const fb::Exception&) {
@@ -858,10 +861,10 @@ extern "C" int fbt_commit(void* transaction, ISC_STATUS* status_vector) {
         if (status_vector) {
             trans->copyLastStatus(status_vector, ISC_STATUS_LENGTH);
         }
-        delete trans;
+        /* On error, still don't delete - let PHP handle cleanup */
         return -1;
     } catch (...) {
-        delete reinterpret_cast<fb::Transaction*>(transaction);
+        /* On unknown exception, still don't delete */
         return -1;
     }
 }
@@ -880,7 +883,8 @@ extern "C" int fbt_rollback(void* transaction, ISC_STATUS* status_vector) {
             trans->copyLastStatus(status_vector, ISC_STATUS_LENGTH);
         }
 
-        delete trans;
+        /* Do NOT delete wrapper here - let PHP resource destructor call fbt_free().
+         * Consistent with fbt_commit() behavior for Issue #9 fix. */
         return 0;
 
     } catch (const fb::Exception&) {
@@ -888,10 +892,10 @@ extern "C" int fbt_rollback(void* transaction, ISC_STATUS* status_vector) {
         if (status_vector) {
             trans->copyLastStatus(status_vector, ISC_STATUS_LENGTH);
         }
-        delete trans;
+        /* On error, still don't delete - let PHP handle cleanup */
         return -1;
     } catch (...) {
-        delete reinterpret_cast<fb::Transaction*>(transaction);
+        /* On unknown exception, still don't delete */
         return -1;
     }
 }

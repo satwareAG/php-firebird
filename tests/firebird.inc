@@ -40,7 +40,31 @@ if ($fbDbDirEnv !== false && $fbDbDirEnv !== '') {
 } elseif ($fbDbPathEnv !== false && $fbDbPathEnv !== '') {
 	$test_base = !empty($host) ? $host . ':' . $fbDbPathEnv : $fbDbPathEnv;
 } else {
-	$tmp = tempnam(sys_get_temp_dir(), "php_fbird_test");
+	/*
+	 * Firebird server restricts database creation paths via DatabaseAccess
+	 * configuration. Try common Firebird data directories first, then fall
+	 * back to system temp dir. CI environments (IBSurgeon installs) typically
+	 * allow /opt/firebird/data but may block /tmp.
+	 */
+	$candidateDirs = [
+		'/opt/firebird/data',
+		'/var/lib/firebird/data',
+		'/var/lib/firebird',
+		sys_get_temp_dir()
+	];
+	$tmp = false;
+	foreach ($candidateDirs as $dir) {
+		if (is_dir($dir) && is_writable($dir)) {
+			$tmp = @tempnam($dir, 'php_fbird_test_');
+			if ($tmp !== false) {
+				break;
+			}
+		}
+	}
+	if ($tmp === false) {
+		// Last resort - try system temp anyway
+		$tmp = tempnam(sys_get_temp_dir(), 'php_fbird_test_');
+	}
 	@unlink($tmp);
 	$test_base = !empty($host) ? $host . ':' . $tmp : $tmp;
 }

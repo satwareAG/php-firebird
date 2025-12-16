@@ -478,5 +478,10 @@ jobs:
             }
           ' 2>&1 || echo "Connection test failed"
 
-          # Run tests using PHP's run-tests.php mechanism via make test.
-          make test
+          # Run tests using PHP's run-tests.php mechanism.
+          # We run tests directly via PHP instead of make test to ensure:
+          # 1. Extension is explicitly loaded
+          # 2. LD_LIBRARY_PATH is passed correctly
+          # 3. Environment variables are inherited
+          export TEST_PHP_ARGS="-d extension=$(pwd)/modules/firebird.so"
+          php run-tests.php -q -p "$(which php)" -d "extension=$(pwd)/modules/firebird.so" tests/

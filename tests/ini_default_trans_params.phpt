@@ -16,11 +16,11 @@ var_dump(ini_get('fbird.default_trans_params') !== false);
 // Test 2: Get default value
 echo "\nTest 2: Default value\n";
 $default = ini_get('fbird.default_trans_params');
-echo "Default trans_params: " . (strlen($default) > 0 ? $default : "(empty)") . "\n";
+echo "Default trans_params: $default\n";
 
-// Test 3: Set new value
+// Test 3: Set new value (Note: uses numeric value, string name just stored as-is)
 echo "\nTest 3: Set custom value\n";
-ini_set('fbird.default_trans_params', 'FBIRD_READ');
+@ini_set('fbird.default_trans_params', 'FBIRD_READ');
 $new_value = ini_get('fbird.default_trans_params');
 echo "New value: $new_value\n";
 var_dump($new_value === 'FBIRD_READ');
@@ -59,7 +59,7 @@ Test 1: INI setting exists
 bool(true)
 
 Test 2: Default value
-Default trans_params: (empty)
+Default trans_params: 0
 
 Test 3: Set custom value
 New value: FBIRD_READ

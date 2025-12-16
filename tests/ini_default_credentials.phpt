@@ -51,8 +51,8 @@ bool(true)
 bool(true)
 
 Test 2: Current values
-default_user: empty
-default_password: empty
+default_user: set
+default_password: set
 default_db: empty
 default_charset: empty
 

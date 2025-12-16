@@ -20,7 +20,7 @@ var_dump(function_exists('fbird_list_table_blockers'));
 
 // Test 2: List blockers on clean connection (should be empty or return expected format)
 echo "\nTest 2: List blockers\n";
-$blockers = fbird_list_table_blockers("test1", $db);
+$blockers = fbird_list_table_blockers($db, "test1");
 var_dump(is_array($blockers) || $blockers === false);
 
 // Test 3: If array, check structure

@@ -1,7 +1,7 @@
 --TEST--
 Test: BLOB creation from PHP stream with chunked writes
 --XFAIL--
-Known segfault in large BLOB fetch after commit - deferred for future investigation (Issue #10)
+Intermittent heap corruption during large BLOB fetch - memory corruption depends on runtime layout (Issue #10)
 --DESCRIPTION--
 This test replicates the doctrine-firebird-driver pattern:
 1. Create blob from transaction
@@ -169,5 +169,10 @@ Testing with 65536 bytes:
   - Blob closed, ID: 0x%s
   - SUCCESS: Data inserted and committed
   - VERIFIED: Retrieved 65536 bytes
+
+  - Cleanup: starting DROP...
+  - Cleanup: DROP executed
+  - Cleanup: committed
+  - Cleanup: closed
 
 Done!

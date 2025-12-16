@@ -112,6 +112,8 @@ jobs:
           done
 
           # Extract and set up client libraries
+          # The Firebird tarball is an installer package that contains buildroot.tar.gz
+          # We need to extract that to get the actual headers and libraries
           mkdir -p "${FB_CLIENT_DIR}"
           cd /tmp
           tar xzf "${FB_CLIENT_TARBALL}"
@@ -120,20 +122,49 @@ jobs:
           FB_EXTRACTED=$(find . -maxdepth 1 -type d -name 'Firebird*' | head -1)
           if [ -z "${FB_EXTRACTED}" ]; then
             echo "ERROR: Could not find extracted Firebird directory" >&2
+            ls -la /tmp/
             exit 1
           fi
 
-          # Copy headers and libraries
-          cp -r "${FB_EXTRACTED}/include" "${FB_CLIENT_DIR}/"
-          mkdir -p "${FB_CLIENT_DIR}/lib"
-          cp -r "${FB_EXTRACTED}/lib/"* "${FB_CLIENT_DIR}/lib/" 2>/dev/null || true
+          echo "Extracted directory: ${FB_EXTRACTED}"
+          ls -la "${FB_EXTRACTED}/"
 
-          # Also look in alternative locations
-          if [ -d "${FB_EXTRACTED}/opt/firebird/include" ]; then
-            cp -r "${FB_EXTRACTED}/opt/firebird/include/"* "${FB_CLIENT_DIR}/include/"
-          fi
-          if [ -d "${FB_EXTRACTED}/opt/firebird/lib" ]; then
-            cp -r "${FB_EXTRACTED}/opt/firebird/lib/"* "${FB_CLIENT_DIR}/lib/"
+          # The installer package contains buildroot.tar.gz with the actual files
+          if [ -f "${FB_EXTRACTED}/buildroot.tar.gz" ]; then
+            echo "Found buildroot.tar.gz, extracting..."
+            cd "${FB_EXTRACTED}"
+            tar xzf buildroot.tar.gz
+
+            # The files are in opt/firebird/ within buildroot
+            if [ -d "opt/firebird/include" ]; then
+              cp -r opt/firebird/include "${FB_CLIENT_DIR}/"
+            fi
+            if [ -d "opt/firebird/lib" ]; then
+              mkdir -p "${FB_CLIENT_DIR}/lib"
+              cp -r opt/firebird/lib/* "${FB_CLIENT_DIR}/lib/"
+            fi
+          else
+            # Fallback: try direct structure
+            echo "No buildroot.tar.gz found, trying direct structure..."
+
+            # Copy headers and libraries if they exist directly
+            if [ -d "${FB_EXTRACTED}/include" ]; then
+              cp -r "${FB_EXTRACTED}/include" "${FB_CLIENT_DIR}/"
+            fi
+            if [ -d "${FB_EXTRACTED}/lib" ]; then
+              mkdir -p "${FB_CLIENT_DIR}/lib"
+              cp -r "${FB_EXTRACTED}/lib/"* "${FB_CLIENT_DIR}/lib/" 2>/dev/null || true
+            fi
+
+            # Also look in opt/firebird/ subdirectory
+            if [ -d "${FB_EXTRACTED}/opt/firebird/include" ]; then
+              mkdir -p "${FB_CLIENT_DIR}/include"
+              cp -r "${FB_EXTRACTED}/opt/firebird/include/"* "${FB_CLIENT_DIR}/include/"
+            fi
+            if [ -d "${FB_EXTRACTED}/opt/firebird/lib" ]; then
+              mkdir -p "${FB_CLIENT_DIR}/lib"
+              cp -r "${FB_EXTRACTED}/opt/firebird/lib/"* "${FB_CLIENT_DIR}/lib/"
+            fi
           fi
 
           # Verify required files exist

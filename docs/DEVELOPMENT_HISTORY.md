@@ -18,6 +18,7 @@ This document summarizes the major development phases and milestones of the php-
 | **OO API Phase 3** | Dec 2025 | Connection OO API integration (`fbc_*` functions) |
 | **OO API Phase 4** | Dec 2025 | Transaction OO API integration (`fbt_*` functions) |
 | **OO API Phase 5** | Dec 2025 | Statement OO API integration (`fbs_*` functions) |
+| **Issue #9 Fix** | Dec 2025 | Transaction cleanup segfault fix (use-after-free in DDL) |
 
 ## Major Milestones
 
@@ -129,6 +130,26 @@ See [EVENT_TIMEOUT_RFC.md](development/EVENT_TIMEOUT_RFC.md) for full implementa
 
 See [MODERNIZATION_PLAN_FB3_TO_FB5.md](development/MODERNIZATION_PLAN_FB3_TO_FB5.md) for full implementation details.
 
+### Issue #9: Transaction Cleanup Segfault Fix (December 2025)
+
+**Problem Identified:**
+When `fbird_drop_table_force()` committed a DDL transaction, the subsequent `fbird_close()` call caused a SIGSEGV (segmentation fault). 
+
+**Root Cause Analysis:**
+The `fbt_commit()` function in `firebird_utils.cpp` was calling `delete this` on the C++ TransactionWrapper after committing. However, the PHP resource system still held a reference to the deleted wrapper pointer, causing a use-after-free when `fbird_close()` attempted to clean up the transaction.
+
+**Solution Implemented:**
+1. **firebird_utils.cpp**: Modified `fbt_commit()` and `fbt_rollback()` to NOT delete the wrapper after operations - deferred to PHP resource destructor
+2. **fbird_inspection.c**: Added explicit `fbt_free()` call in `_fbird_drop_table()` after `fbt_commit()` to prevent memory leaks
+
+**Files Modified:**
+- `firebird_utils.cpp` - Removed `delete this` from `fbt_commit()` and `fbt_rollback()`
+- `fbird_inspection.c` - Added `fbt_free(trans_wrapper)` after DDL commit
+- `tests/migration_001.phpt` - Removed `--XFAIL--` marker (test now passes)
+
+**Test Validation:** All 104 tests pass, 0 failures
+
+
 ## Key Architectural Decisions
 
 ### PHP Version Support
@@ -166,9 +187,9 @@ BC intentionally not maintained for constants to clearly signal the new driver w
 
 ## Test Coverage
 
-- **Total tests:** 85 PHPT test files
-- **Pass rate:** 100%
-- **Coverage areas:** Connection, transactions, queries, blobs, services, metadata
+- **Total tests:** 109 PHPT test files (105 executed, 4 skipped)
+- **Pass rate:** 99% (104 passed, 1 expected fail)
+- **Coverage areas:** Connection, transactions, queries, blobs, services, metadata, inspection functions
 
 ---
 

@@ -139,7 +139,12 @@ jobs:
 
       - name: Run cppcheck
         run: |
+          # Define FB_API_VER to satisfy Firebird version check during static analysis
+          # The extension requires FB 3.0+ (FB_API_VER >= 30), we simulate FB 4.0 headers
+          CPPCHECK_DEFINES="-DFB_API_VER=40 -DHAVE_CONFIG_H -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1"
+
           cppcheck \
+            $CPPCHECK_DEFINES \
             --enable=warning,style,performance,portability \
             --suppress=missingIncludeSystem \
             --suppress=missingInclude \
@@ -152,6 +157,7 @@ jobs:
 
           # Check for errors (exit code 0 = no errors)
           cppcheck \
+            $CPPCHECK_DEFINES \
             --enable=warning,performance,portability \
             --suppress=missingIncludeSystem \
             --suppress=missingInclude \

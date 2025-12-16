@@ -16,7 +16,7 @@ NC='\033[0m'
 WORKFLOW_MAIN=".github/workflows/main.yml"
 WORKFLOW_QUALITY=".github/workflows/code-quality.yml"
 JOB_NAME="linux-matrix-build"
-JOB_QUALITY="code-quality"
+JOB_QUALITY="c-analysis"
 
 # Default Matrix Target
 DEFAULT_PHP="8.4"

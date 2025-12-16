@@ -149,6 +149,16 @@ jobs:
           if [ -f "${FB_EXTRACTED}/buildroot.tar.gz" ]; then
             echo "Found buildroot.tar.gz, extracting..."
             cd "${FB_EXTRACTED}"
+
+            # Verify buildroot.tar.gz integrity
+            BUILDROOT_SIZE=$(stat -c%s buildroot.tar.gz 2>/dev/null || stat -f%z buildroot.tar.gz 2>/dev/null || echo "0")
+            echo "DEBUG: buildroot.tar.gz size: ${BUILDROOT_SIZE} bytes"
+
+            # List a few files from the tarball to verify integrity
+            echo "DEBUG: First 10 files in buildroot.tar.gz:"
+            tar tzf buildroot.tar.gz 2>/dev/null | head -10 || echo "Failed to list tarball contents"
+
+            # Extract with verbose output to see what's happening
             tar xzf buildroot.tar.gz
 
             # Debug: show what was extracted

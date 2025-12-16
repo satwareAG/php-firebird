@@ -3,10 +3,11 @@ fbird.enable_exceptions INI setting
 --EXTENSIONS--
 firebird
 --SKIPIF--
-<?php require_once 'skipif.inc'; ?>
+<?php include("skipif.inc"); ?>
 --FILE--
 <?php
-require_once 'firebird.inc';
+
+require("firebird.inc");
 
 echo "=== fbird.enable_exceptions INI test ===\n";
 
@@ -16,7 +17,10 @@ var_dump(ini_get('fbird.enable_exceptions'));
 
 // Test 2: Check that warnings are generated (default mode)
 echo "\nTest 2: Warning mode (default)\n";
-$db = init_db();
+$db = fbird_connect($test_base, $user, $password);
+if (!$db) {
+    die("Could not connect to test database");
+}
 
 // Force an error - invalid SQL
 $result = @fbird_query($db, "SELECT * FROM nonexistent_table_xyz_123");

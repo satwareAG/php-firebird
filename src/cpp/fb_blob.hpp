@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: PHP-3.01
+ * SPDX-FileCopyrightText: The PHP Group and contributors (see CREDITS) */
+
 /**
  * @file fb_blob.hpp
  * @brief RAII wrapper for Firebird IBlob interface (Phase 6)

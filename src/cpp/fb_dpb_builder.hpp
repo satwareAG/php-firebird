@@ -1,13 +1,5 @@
-/*
-  +----------------------------------------------------------------------+
-  | Copyright (c) The PHP Group                                          |
-  +----------------------------------------------------------------------+
-  | This source file is subject to version 3.01 of the PHP license,      |
-  | that is bundled with this package in the file LICENSE, and is        |
-  | available through the world-wide-web at the following url:           |
-  | https://www.php.net/license/3_01.txt                                 |
-  +----------------------------------------------------------------------+
-*/
+/* SPDX-License-Identifier: PHP-3.01
+ * SPDX-FileCopyrightText: The PHP Group and contributors (see CREDITS) */
 
 #ifndef FB_DPB_BUILDER_HPP
 #define FB_DPB_BUILDER_HPP

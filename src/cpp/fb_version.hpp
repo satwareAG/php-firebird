@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: PHP-3.01
+ * SPDX-FileCopyrightText: The PHP Group and contributors (see CREDITS) */
+
 #ifndef FB_VERSION_HPP
 #define FB_VERSION_HPP
 

@@ -445,33 +445,292 @@ $conn7 = fbird_pconnect($db, $user, $pass);
 
 ---
 
-### 📝 DOCUMENTATION ONLY
+### 📝 DOCUMENTATION ONLY - Deep Analysis
+
+The following 3 issues require updates to PHP.net documentation (https://www.php.net/manual/) and IDE stubs,
+not code changes to the extension. Below is a comprehensive analysis of each issue with specific documentation
+errors identified and proposed corrections.
+
+---
 
 #### Issue #90: Inconsistent arguments for ibase_query() and ibase_prepare()
-**Status:** 📝 **DOCUMENTATION ISSUE**
 
-**Original Issue:** PHP manual documentation is incorrect/incomplete for function signatures.
+**Status:** 📝 **DOCUMENTATION ISSUE**  
+**Upstream URL:** https://github.com/FirebirdSQL/php-firebird/issues/90  
+**Reporter:** mlazdans (Oct 29, 2025)  
+**Priority:** High (affects daily usage)
 
-**satwareAG Status:**
-- Function signatures unchanged from upstream
-- This is a php.net documentation issue, not driver code issue
-- Consider adding docblocks or updating stubs
+##### Problem Summary
 
-**Action:** Update PHP documentation via php-doc process, not driver changes.
+The PHP documentation has **3 distinct errors** for these functions:
+
+1. **`ibase_query()`** - Documentation shows only `$link_identifier`, but it actually accepts `$trans_identifier` as well
+2. **`ibase_prepare()`** - Documentation has `string $trans` when it should be `resource $trans_identifier` (TYPE ERROR)
+3. **`ibase_prepare()`** - Cannot use `ibase_prepare($trans_id, ...)` pattern that works with `ibase_query()`
+
+##### Current PHP.net Documentation
+
+**ibase_query()** (php.net/manual/en/function.ibase-query.php):
+```php
+ibase_query(resource $link_identifier = ?, string $query, int $bind_args = ?): resource
+```
+
+**ibase_prepare()** (php.net/manual/en/function.ibase-prepare.php):
+```php
+ibase_prepare(string $query): resource
+ibase_prepare(resource $link_identifier, string $query): resource
+ibase_prepare(resource $link_identifier, string $trans, string $query): resource  // BUG: $trans is string, not resource!
+```
+
+##### Actual Implementation (satwareAG fork - fbird_query_exec.c)
+
+Both functions use **flexible argument parsing** that detects resource types at runtime:
+
+```c
+// fbird_query() implementation (lines 999-1080)
+// - Can accept link OR transaction resource
+// - Auto-detects via zend_fetch_resource_ex()
+// - Supports patterns: ($query), ($link, $query), ($trans, $query), ($link, $trans, $query), ($trans, $link, $query)
+
+// fbird_prepare() implementation (lines 1191-1280)
+// - Similar flexible parsing
+// - If transaction provided without link, infers link from transaction
+```
+
+##### Correct Documentation
+
+**fbird_query() / ibase_query()** should document:
+```php
+fbird_query(string $query [, mixed ...$bind_args]): resource|int|bool
+fbird_query(resource $link_identifier, string $query [, mixed ...$bind_args]): resource|int|bool
+fbird_query(resource $trans_identifier, string $query [, mixed ...$bind_args]): resource|int|bool
+fbird_query(resource $link_identifier, resource $trans_identifier, string $query [, mixed ...$bind_args]): resource|int|bool
+```
+
+**fbird_prepare() / ibase_prepare()** should document:
+```php
+fbird_prepare(string $query): resource|false
+fbird_prepare(resource $link_identifier, string $query): resource|false
+fbird_prepare(resource $trans_identifier, string $query): resource|false  // NEW - currently undocumented!
+fbird_prepare(resource $link_identifier, resource $trans_identifier, string $query): resource|false
+```
+
+##### Proposed php-doc XML Corrections
+
+**File:** `reference/ibase/functions/ibase-query.xml`
+
+```xml
+<!-- Add multiple methodsynopsis blocks showing all valid signatures -->
+<methodsynopsis>
+ <type class="union"><type>resource</type><type>int</type><type>bool</type></type>
+ <methodname>ibase_query</methodname>
+ <methodparam><type>string</type><parameter>query</parameter></methodparam>
+ <methodparam rep="repeat" choice="opt"><type>mixed</type><parameter>bind_args</parameter></methodparam>
+</methodsynopsis>
+
+<methodsynopsis>
+ <type class="union"><type>resource</type><type>int</type><type>bool</type></type>
+ <methodname>ibase_query</methodname>
+ <methodparam><type>resource</type><parameter>link_identifier</parameter></methodparam>
+ <methodparam><type>string</type><parameter>query</parameter></methodparam>
+ <methodparam rep="repeat" choice="opt"><type>mixed</type><parameter>bind_args</parameter></methodparam>
+</methodsynopsis>
+
+<methodsynopsis>
+ <type class="union"><type>resource</type><type>int</type><type>bool</type></type>
+ <methodname>ibase_query</methodname>
+ <methodparam><type>resource</type><parameter>trans_identifier</parameter></methodparam>
+ <methodparam><type>string</type><parameter>query</parameter></methodparam>
+ <methodparam rep="repeat" choice="opt"><type>mixed</type><parameter>bind_args</parameter></methodparam>
+</methodsynopsis>
+```
+
+**File:** `reference/ibase/functions/ibase-prepare.xml`
+
+```xml
+<!-- FIX: Change string $trans to resource $trans_identifier -->
+<methodsynopsis>
+ <type class="union"><type>resource</type><type>false</type></type>
+ <methodname>ibase_prepare</methodname>
+ <methodparam><type>resource</type><parameter>link_identifier</parameter></methodparam>
+ <methodparam><type>resource</type><parameter>trans_identifier</parameter></methodparam>  <!-- WAS: string $trans -->
+ <methodparam><type>string</type><parameter>query</parameter></methodparam>
+</methodsynopsis>
+
+<!-- ADD: Missing signature for transaction-only -->
+<methodsynopsis>
+ <type class="union"><type>resource</type><type>false</type></type>
+ <methodname>ibase_prepare</methodname>
+ <methodparam><type>resource</type><parameter>trans_identifier</parameter></methodparam>
+ <methodparam><type>string</type><parameter>query</parameter></methodparam>
+</methodsynopsis>
+```
+
+##### IDE Stub Corrections (phpstorm-stubs)
+
+**File:** `interbase/interbase.php` (JetBrains/phpstorm-stubs repository)
+
+```php
+/**
+ * Execute a query on an InterBase/Firebird database
+ * @link https://php.net/manual/en/function.ibase-query.php
+ * @param resource|string $link_or_trans_or_query Link, transaction, or query string
+ * @param string|resource $query_or_trans_or_bind Query string, transaction, or bind arg
+ * @param mixed ...$bind_args Optional bind arguments
+ * @return resource|int|bool Result set, affected rows, or false on error
+ */
+function ibase_query($link_or_trans_or_query, $query_or_trans_or_bind = null, ...$bind_args) {}
+
+/**
+ * Prepare a query for later binding and execution
+ * @link https://php.net/manual/en/function.ibase-prepare.php
+ * @param resource|string $link_or_trans_or_query Link, transaction, or query string
+ * @param resource|string $trans_or_query Transaction or query string
+ * @param string $query Query string (when both link and trans provided)
+ * @return resource|false Prepared query handle or false on error
+ */
+function ibase_prepare($link_or_trans_or_query, $trans_or_query = null, $query = null) {}
+```
+
+##### Action Items
+
+| Action | Target | Priority |
+|--------|--------|----------|
+| Fix `string $trans` → `resource $trans_identifier` | php/doc-en | High |
+| Add transaction-only signatures to ibase_query() | php/doc-en | High |
+| Add transaction-only signature to ibase_prepare() | php/doc-en | High |
+| Update phpstorm-stubs | JetBrains/phpstorm-stubs | Medium |
 
 ---
 
 #### Issue #72: Update PHP docs and stubs for ibase_service_attach()
-**Status:** 📝 **DOCUMENTATION ISSUE**
 
-**Original Issue:** Parameters are now optional for embedded connections.
+**Status:** 📝 **DOCUMENTATION ISSUE**  
+**Upstream URL:** https://github.com/FirebirdSQL/php-firebird/issues/72  
+**Reporter:** mlazdans (Oct 13, 2025)  
+**Assignee:** MartinKoeditz  
+**Priority:** Medium (affects embedded Firebird usage)
 
-**satwareAG Status:**
-- Function signature allows optional parameters
-- Needs php.net documentation update
-- Consider IDE stub files
+##### Problem Summary
 
-**Action:** Create PR to php/doc-en repository.
+The PHP documentation shows all 3 parameters as **required** when they are actually **all optional**
+for embedded Firebird connections.
+
+##### Current PHP.net Documentation
+
+**ibase_service_attach()** (php.net/manual/en/function.ibase-service-attach.php):
+```php
+ibase_service_attach(string $host, string $dba_username, string $dba_password): resource|false
+```
+
+All parameters shown as **required** (no `= ?` optional marker).
+
+##### Actual Implementation (satwareAG fork - fbird_service.c)
+
+```c
+// fbird_service.c, PHP_FUNCTION(fbird_service_attach)
+if (SUCCESS != zend_parse_parameters(ZEND_NUM_ARGS(), "|s!s!s!",
+        &host, &hlen, &user, &ulen, &pass, &plen)) {
+    RETURN_FALSE;
+}
+
+// "|" prefix means ALL following parameters are optional
+// "s!" means nullable string
+
+/* Fall back to INI defaults if user/password not provided (Issue #71) */
+if (ulen == 0) {
+    char *ini_user = INI_STR("fbird.default_user");
+    if (ini_user && *ini_user) {
+        user = ini_user;
+        ulen = strlen(ini_user);
+    }
+}
+```
+
+##### Correct Documentation
+
+**fbird_service_attach() / ibase_service_attach()** should document:
+```php
+/**
+ * Connect to the service manager
+ * 
+ * @param string|null $host The name or IP address of the database host.
+ *                          If omitted or null, connects to local embedded service manager.
+ * @param string|null $dba_username The DBA username. If omitted, falls back to
+ *                                  fbird.default_user INI directive.
+ * @param string|null $dba_password The DBA password. If omitted, falls back to
+ *                                  fbird.default_password INI directive.
+ * @return resource|false Service handle on success, false on failure
+ */
+fbird_service_attach(?string $host = null, ?string $dba_username = null, ?string $dba_password = null): resource|false
+```
+
+##### Use Cases Enabled by Optional Parameters
+
+```php
+// Remote connection with explicit credentials
+$svc = fbird_service_attach('10.1.1.199', 'SYSDBA', 'masterkey');
+
+// Local embedded connection with INI defaults
+// php.ini: fbird.default_user=SYSDBA, fbird.default_password=masterkey
+$svc = fbird_service_attach();  // Uses local service_mgr + INI defaults
+
+// Local embedded with explicit credentials
+$svc = fbird_service_attach(null, 'SYSDBA', 'masterkey');
+
+// Remote with INI defaults for credentials
+$svc = fbird_service_attach('10.1.1.199');  // Uses INI defaults for user/pass
+```
+
+##### Proposed php-doc XML Correction
+
+**File:** `reference/ibase/functions/ibase-service-attach.xml`
+
+```xml
+<methodsynopsis>
+ <type class="union"><type>resource</type><type>false</type></type>
+ <methodname>ibase_service_attach</methodname>
+ <methodparam choice="opt"><type class="union"><type>string</type><type>null</type></type><parameter>host</parameter><initializer>&null;</initializer></methodparam>
+ <methodparam choice="opt"><type class="union"><type>string</type><type>null</type></type><parameter>dba_username</parameter><initializer>&null;</initializer></methodparam>
+ <methodparam choice="opt"><type class="union"><type>string</type><type>null</type></type><parameter>dba_password</parameter><initializer>&null;</initializer></methodparam>
+</methodsynopsis>
+
+<!-- Add to description -->
+<para>
+ If <parameter>host</parameter> is omitted or &null;, connects to the local
+ embedded service manager (<literal>service_mgr</literal>).
+</para>
+<para>
+ If <parameter>dba_username</parameter> or <parameter>dba_password</parameter>
+ are omitted or &null;, the function falls back to the
+ <link linkend="ini.fbird.default-user">fbird.default_user</link> and
+ <link linkend="ini.fbird.default-password">fbird.default_password</link>
+ INI directives respectively.
+</para>
+```
+
+##### IDE Stub Correction
+
+```php
+/**
+ * Connect to the service manager
+ * @link https://php.net/manual/en/function.ibase-service-attach.php
+ * @param string|null $host [optional] Host name/IP. Null for local embedded.
+ * @param string|null $dba_username [optional] Username. Falls back to fbird.default_user INI.
+ * @param string|null $dba_password [optional] Password. Falls back to fbird.default_password INI.
+ * @return resource|false Service handle or false on error
+ */
+function ibase_service_attach(?string $host = null, ?string $dba_username = null, ?string $dba_password = null) {}
+```
+
+##### Action Items
+
+| Action | Target | Priority |
+|--------|--------|----------|
+| Change all params to optional | php/doc-en | High |
+| Add INI fallback documentation | php/doc-en | High |
+| Add local connection example | php/doc-en | Medium |
+| Update phpstorm-stubs | JetBrains/phpstorm-stubs | Medium |
 
 ---
 
@@ -519,15 +778,210 @@ $svc = fbird_service_attach('localhost', 'CUSTOM_USER', 'custom_pass');
 ---
 
 #### Issue #63: Confusing PHP documentation for ibase_trans()
-**Status:** 📝 **DOCUMENTATION ISSUE**
 
-**Original Issue:** Parameter order for `ibase_trans()` is confusing in documentation.
+**Status:** 📝 **DOCUMENTATION ISSUE**  
+**Upstream URL:** https://github.com/FirebirdSQL/php-firebird/issues/63  
+**Reporter:** mlazdans (Mar 2, 2025)  
+**Assignee:** MartinKoeditz (PR created, not yet merged)  
+**Priority:** High (silent failure leads to data corruption risk)
 
-**satwareAG Analysis:**
-- Order matters: trans_args must come BEFORE link_identifier
-- Driver behavior is correct, documentation misleading
+##### Problem Summary
 
-**Action:** Update php.net docs to clarify correct parameter order.
+The PHP documentation shows **two conflicting signatures** implying parameter order doesn't matter,
+but in reality **order is critical**: `trans_args` MUST come BEFORE `link_identifier`, otherwise
+the transaction arguments are **silently ignored**.
+
+##### Current PHP.net Documentation
+
+**ibase_trans()** (php.net/manual/en/function.ibase-trans.php):
+```php
+ibase_trans(int $trans_args = ?, resource $link_identifier = ?): resource
+ibase_trans(resource $link_identifier = ?, int $trans_args = ?): resource  // MISLEADING!
+```
+
+The documentation shows two signatures suggesting either order works.
+
+##### Actual Behavior (CRITICAL)
+
+```php
+// ❌ WRONG - trans_args SILENTLY IGNORED (appears to work but uses default transaction!)
+$tr = ibase_trans($db, IBASE_READ);
+ibase_query($tr, "INSERT INTO TEST_TABLE (COL) VALUES(123)");  // INSERTS despite IBASE_READ!
+ibase_commit($tr);  // Commits! Data modified despite "read-only" transaction
+
+// ✅ CORRECT - trans_args actually applied
+$tr = ibase_trans(IBASE_READ, $db);
+ibase_query($tr, "INSERT INTO TEST_TABLE (COL) VALUES(123)");  // Fails as expected!
+```
+
+**This is dangerous:** Code appears to work but silently uses default transaction isolation,
+which could lead to data corruption in concurrent scenarios.
+
+##### Actual Implementation (satwareAG fork - firebird.c)
+
+```c
+// PHP_FUNCTION(fbird_trans) implementation
+// The function processes arguments in ORDER, and non-resource arguments
+// specify modifiers for the NEXT resource argument that follows.
+
+/* enumerate all the arguments: assume every non-resource argument
+   specifies modifiers for the link ids that follow it */
+for (i = 0; i < argn; ++i) {
+    if (Z_TYPE(args[i]) == IS_RESOURCE) {
+        // This is a connection link
+        // Apply the PREVIOUSLY collected trans_args to this link
+        memcpy(&tpb[TPB_MAX_SIZE * link_cnt], last_tpb, TPB_MAX_SIZE);
+        // ...
+    } else {
+        // This is trans_args - populate last_tpb for the NEXT link
+        convert_to_long_ex(&args[i]);
+        trans_argl = Z_LVAL(args[i]);
+        _php_fbird_populate_trans(trans_argl, trans_timeout, last_tpb, &tpb_len);
+    }
+}
+```
+
+The key insight: **Non-resource arguments set modifiers for the FOLLOWING resource arguments.**
+
+##### Correct Usage Patterns
+
+```php
+// Pattern 1: Single connection with transaction args
+// trans_args BEFORE link
+$tr = fbird_trans(FBIRD_READ | FBIRD_CONSISTENCY, $db);
+
+// Pattern 2: Default transaction (no trans_args)
+$tr = fbird_trans($db);
+
+// Pattern 3: Multi-database transaction with different args per connection
+// args1 applies to db1, args2 applies to db2
+$tr = fbird_trans(FBIRD_WRITE, $db1, FBIRD_READ, $db2);
+
+// Pattern 4: Same args for all connections
+// FBIRD_READ applies to BOTH db1 and db2
+$tr = fbird_trans(FBIRD_READ, $db1, $db2);
+
+// Pattern 5: Complex multi-database with WAIT + LOCK_TIMEOUT (only for first)
+$tr = fbird_trans(FBIRD_READ | FBIRD_WAIT | FBIRD_LOCK_TIMEOUT, 5, $db1, FBIRD_WRITE, $db2);
+```
+
+##### Correct Documentation
+
+**fbird_trans() / ibase_trans()** should document:
+
+```php
+/**
+ * Begin a transaction
+ * 
+ * Arguments are processed in ORDER. Non-resource arguments (trans_args)
+ * specify modifiers for the NEXT resource argument (link_identifier) that follows.
+ * 
+ * @param int $trans_args [optional] Transaction parameters for the FOLLOWING link.
+ *                        Combination of FBIRD_READ, FBIRD_WRITE, FBIRD_COMMITTED,
+ *                        FBIRD_CONSISTENCY, FBIRD_CONCURRENCY, FBIRD_REC_VERSION,
+ *                        FBIRD_REC_NO_VERSION, FBIRD_WAIT, FBIRD_NOWAIT.
+ * @param resource $link_identifier Database link. If omitted, uses default.
+ * @param mixed ...$more_args_and_links Additional trans_args and links for multi-database transactions.
+ * @return resource|false Transaction handle or false on error
+ * 
+ * IMPORTANT: trans_args must come BEFORE the link_identifier they apply to!
+ * 
+ * Examples:
+ *   fbird_trans(FBIRD_READ, $db)           - Read-only transaction
+ *   fbird_trans($db)                       - Default transaction  
+ *   fbird_trans(FBIRD_WRITE, $db1, $db2)   - Same args for both
+ *   fbird_trans(FBIRD_READ, $db1, FBIRD_WRITE, $db2) - Different args
+ */
+fbird_trans(int $trans_args = FBIRD_DEFAULT, resource ...$links_and_args): resource|false
+```
+
+##### Proposed php-doc XML Correction
+
+**File:** `reference/ibase/functions/ibase-trans.xml`
+
+```xml
+<!-- Remove the misleading second signature -->
+<!-- Replace with a single variadic signature showing correct order -->
+<methodsynopsis>
+ <type class="union"><type>resource</type><type>false</type></type>
+ <methodname>ibase_trans</methodname>
+ <methodparam choice="opt"><type>int</type><parameter>trans_args</parameter><initializer>IBASE_DEFAULT</initializer></methodparam>
+ <methodparam choice="opt" rep="repeat"><type class="union"><type>resource</type><type>int</type></type><parameter>links_and_args</parameter></methodparam>
+</methodsynopsis>
+
+<!-- Add clear warning about parameter order -->
+<warning>
+ <para>
+  <emphasis>Parameter order matters!</emphasis> Transaction arguments
+  (<parameter>trans_args</parameter>) must appear <emphasis>before</emphasis>
+  the <parameter>link_identifier</parameter> they apply to. If a link
+  identifier appears before transaction arguments, the arguments will be
+  <emphasis>silently ignored</emphasis> and the default transaction
+  parameters will be used instead.
+ </para>
+ <para>
+  <emphasis>Correct:</emphasis> <literal>ibase_trans(IBASE_READ, $db)</literal>
+ </para>
+ <para>
+  <emphasis>Incorrect:</emphasis> <literal>ibase_trans($db, IBASE_READ)</literal>
+  (IBASE_READ is ignored!)
+ </para>
+</warning>
+
+<!-- Update description to explain multi-database transactions -->
+<para>
+ For multi-database transactions, arguments are processed left to right.
+ Each transaction argument applies to all subsequent link identifiers until
+ another transaction argument is encountered.
+</para>
+<example>
+ <title>Multi-database transaction with different isolation levels</title>
+ <programlisting role="php">
+<![CDATA[
+<?php
+// db1 gets IBASE_READ, db2 gets IBASE_WRITE
+$tr = ibase_trans(IBASE_READ, $db1, IBASE_WRITE, $db2);
+
+// Both db1 and db2 get IBASE_READ
+$tr = ibase_trans(IBASE_READ, $db1, $db2);
+?>
+]]>
+ </programlisting>
+</example>
+```
+
+##### IDE Stub Correction
+
+```php
+/**
+ * Begin a transaction
+ * 
+ * IMPORTANT: Transaction arguments must come BEFORE the link they apply to!
+ * ibase_trans(IBASE_READ, $db) is correct.
+ * ibase_trans($db, IBASE_READ) silently ignores IBASE_READ!
+ * 
+ * @link https://php.net/manual/en/function.ibase-trans.php
+ * @param int $trans_args [optional] Transaction parameters (IBASE_READ, IBASE_WRITE, etc.)
+ * @param resource ...$links_and_args Links and optional additional trans_args for multi-db
+ * @return resource|false Transaction handle or false on error
+ */
+function ibase_trans(int $trans_args = IBASE_DEFAULT, ...$links_and_args) {}
+```
+
+##### Upstream Status
+
+MartinKoeditz created a PR for PHP docs (April 2025) but it has **not been merged** as of November 2025.
+The upstream extension also added a check to warn about incorrect order (commit `eba7584`).
+
+##### Action Items
+
+| Action | Target | Priority | Status |
+|--------|--------|----------|--------|
+| Follow up on MartinKoeditz's pending PHP docs PR | php/doc-en | High | PR exists, not merged |
+| Add prominent warning about parameter order | php/doc-en | High | In pending PR |
+| Remove misleading second signature | php/doc-en | High | In pending PR |
+| Add multi-database transaction examples | php/doc-en | Medium | In pending PR |
+| Update phpstorm-stubs with correct signature | JetBrains/phpstorm-stubs | Medium | TODO |
 
 ---
 
@@ -659,6 +1113,500 @@ docker exec -it php-firebird-php-1 php run-tests.php -P tests/007.phpt
 # Run with memory leak detection (debug build required)
 docker exec -it php-firebird-php-1 php -d zend.assertions=1 run-tests.php -m tests/008.phpt
 ```
+
+---
+
+## Appendix A: Cross-Extension Parameter Best Practices Analysis
+
+**Research Date:** 2025-12-17  
+**Purpose:** Ensure php-firebird parameter implementations follow industry best practices by comparing with PostgreSQL, MySQLi, and PDO extensions.
+
+---
+
+### A.1 Executive Summary
+
+Deep analysis of PHP database extensions reveals that **php-firebird's flexible parameter handling is actually MORE powerful than other extensions**, not a bug. The ability to pass transaction resources directly to `fbird_query()` and `fbird_prepare()` is a unique feature that other extensions lack.
+
+| Feature | PostgreSQL | MySQLi | PDO | php-firebird |
+|---------|------------|--------|-----|--------------|
+| **Connection reuse** | PGSQL_CONNECT_FORCE_NEW | Always new | Always new | FBIRD_CONNECT_FORCE_NEW ✅ |
+| **Transaction in query()** | ❌ No | ❌ No | ❌ No | ✅ **Yes** (unique!) |
+| **Transaction in prepare()** | ❌ No | ❌ No | ❌ No | ✅ **Yes** (unique!) |
+| **Default connection** | ✅ Yes (last) | ❌ No | N/A (OOP) | ✅ Yes (last) |
+| **Optional params** | ✅ Partial | ❌ Required | N/A | ✅ Full |
+| **INI fallback** | ❌ No | ❌ No | ❌ No | ✅ Yes |
+
+**Key Finding:** php-firebird's transaction-aware query/prepare functions are a **feature advantage**, not a documentation error. The documentation should highlight this capability.
+
+---
+
+### A.2 PostgreSQL (pgsql) Extension Analysis
+
+#### A.2.1 pg_connect() - Connection Management
+
+```php
+pg_connect(string $connection_string, int $flags = 0): PgSql\Connection|false
+```
+
+**Key Features:**
+- Connection reuse by default (same connection string = same connection)
+- `PGSQL_CONNECT_FORCE_NEW` (value: 1) forces new connection
+- `PGSQL_CONNECT_ASYNC` (value: 2) for asynchronous connections
+- Connection string contains all parameters (host, port, dbname, user, password)
+
+**Best Practice Applied to php-firebird:**
+- ✅ Already implemented: `FBIRD_CONNECT_FORCE_NEW` flag (Fork Issue #11)
+- ✅ Connection reuse is correct default behavior
+- ✅ Pattern match: PostgreSQL is the gold standard for connection handling
+
+#### A.2.2 pg_query() - Query Execution
+
+```php
+pg_query(PgSql\Connection $connection = ?, string $query): PgSql\Result|false
+```
+
+**Key Features:**
+- Connection is OPTIONAL (uses last connection if omitted)
+- Single query parameter (no transaction support)
+- Returns result or false
+
+**Comparison with fbird_query():**
+| Aspect | pg_query() | fbird_query() |
+|--------|------------|---------------|
+| Connection optional | ✅ Yes | ✅ Yes |
+| Transaction support | ❌ No | ✅ **Yes** (unique feature!) |
+| Bind args | ❌ No (use pg_query_params) | ✅ Yes (variadic) |
+
+**Verdict:** fbird_query() is MORE flexible than pg_query() by supporting both connection AND transaction resources.
+
+#### A.2.3 pg_prepare() - Prepared Statements
+
+```php
+pg_prepare(PgSql\Connection $connection = ?, string $stmtname, string $query): PgSql\Result|false
+```
+
+**Key Features:**
+- Named statements (unique per connection)
+- NO transaction parameter
+- Requires separate pg_execute() call
+
+**Comparison with fbird_prepare():**
+| Aspect | pg_prepare() | fbird_prepare() |
+|--------|--------------|-----------------|
+| Connection optional | ✅ Yes | ✅ Yes |
+| Transaction support | ❌ No | ✅ **Yes** (unique feature!) |
+| Statement naming | Required | Not supported |
+| Execution | pg_execute() | fbird_execute() |
+
+**Verdict:** fbird_prepare() has unique transaction awareness that pg_prepare() lacks.
+
+---
+
+### A.3 MySQLi Extension Analysis
+
+#### A.3.1 mysqli_connect() - Connection Management
+
+```php
+mysqli_connect(
+    ?string $hostname = null,
+    ?string $username = null,
+    ?string $password = null,
+    ?string $database = null,
+    ?int $port = null,
+    ?string $socket = null
+): mysqli|false
+```
+
+**Key Features:**
+- Always creates new connection (no reuse)
+- No force-new flag needed (always new)
+- All parameters optional
+
+**Comparison with fbird_connect():**
+| Aspect | mysqli_connect() | fbird_connect() |
+|--------|------------------|-----------------|
+| Connection reuse | ❌ Never | ✅ By default |
+| Force new flag | N/A | ✅ FBIRD_CONNECT_FORCE_NEW |
+| Optional params | ✅ All | ✅ All |
+| INI fallback | ❌ No | ✅ Yes (fbird.default_user/password) |
+
+**Verdict:** fbird_connect() follows PostgreSQL's superior connection reuse pattern.
+
+#### A.3.2 mysqli_query() - Query Execution
+
+```php
+mysqli_query(mysqli $mysql, string $query, int $result_mode = MYSQLI_STORE_RESULT): mysqli_result|bool
+```
+
+**Key Features:**
+- Connection is REQUIRED (no default)
+- No transaction support
+- Result mode parameter for memory optimization
+
+**Comparison with fbird_query():**
+| Aspect | mysqli_query() | fbird_query() |
+|--------|----------------|---------------|
+| Connection required | ✅ Yes | ❌ Optional |
+| Transaction support | ❌ No | ✅ **Yes** (unique feature!) |
+| Result mode | ✅ Yes | ❌ No |
+| Bind args | ❌ No | ✅ Yes (variadic) |
+
+#### A.3.3 mysqli_prepare() - Prepared Statements
+
+```php
+mysqli_prepare(mysqli $mysql, string $query): mysqli_stmt|false
+```
+
+**Key Features:**
+- Connection is REQUIRED
+- NO transaction parameter
+- Returns statement object for binding
+
+**Comparison:**
+| Aspect | mysqli_prepare() | fbird_prepare() |
+|--------|------------------|-----------------|
+| Connection required | ✅ Yes | ❌ Optional |
+| Transaction support | ❌ No | ✅ **Yes** (unique feature!) |
+
+#### A.3.4 MySQLi Transaction Management
+
+```php
+mysqli_begin_transaction(mysqli $mysql, int $flags = 0, ?string $name = null): bool
+mysqli_commit(mysqli $mysql, int $flags = 0, ?string $name = null): bool
+mysqli_rollback(mysqli $mysql, int $flags = 0, ?string $name = null): bool
+```
+
+**Key Features:**
+- Explicit transaction start required
+- Transaction flags: `MYSQLI_TRANS_START_READ_ONLY`, `MYSQLI_TRANS_START_READ_WRITE`
+- Named savepoints supported
+
+**Comparison with fbird_trans():**
+| Aspect | MySQLi | php-firebird |
+|--------|--------|--------------|
+| Explicit start | ✅ begin_transaction() | ✅ fbird_trans() |
+| Transaction flags | ✅ Yes (flags param) | ✅ Yes (trans_args) |
+| Read-only mode | ✅ MYSQLI_TRANS_START_READ_ONLY | ✅ FBIRD_READ |
+| Multi-database | ❌ No | ✅ **Yes** (unique!) |
+| Savepoints | ✅ mysqli_savepoint() | ✅ fbird_savepoint() (SQL) |
+
+**Verdict:** fbird_trans() supports multi-database transactions that MySQLi cannot.
+
+---
+
+### A.4 PDO Extension Analysis
+
+#### A.4.1 PDO Connection Management
+
+```php
+new PDO(string $dsn, ?string $username = null, ?string $password = null, ?array $options = null)
+```
+
+**Key Features:**
+- Always creates new connection
+- DSN-based connection string
+- Driver-specific options
+
+**PDO_FIREBIRD DSN Examples:**
+```php
+// Local database
+$pdo = new PDO('firebird:dbname=/path/to/DATABASE.FDB', 'SYSDBA', 'masterkey');
+
+// Remote with port
+$pdo = new PDO('firebird:dbname=hostname/port:/path/to/DATABASE.FDB', 'user', 'pass');
+
+// With dialect
+$pdo = new PDO('firebird:dbname=localhost:/data/test.fdb;charset=utf-8;dialect=1');
+```
+
+#### A.4.2 PDO::prepare() - Prepared Statements
+
+```php
+PDO::prepare(string $query, array $options = []): PDOStatement|false
+```
+
+**Key Features:**
+- No connection parameter (uses current object)
+- No transaction parameter
+- Options for cursor type, etc.
+
+**Comparison:**
+| Aspect | PDO::prepare() | fbird_prepare() |
+|--------|----------------|-----------------|
+| Connection | Implicit (object) | Optional (resource/default) |
+| Transaction | ❌ No | ✅ **Yes** (unique feature!) |
+| Bind style | Named (:name) or ? | ✅ Both supported |
+
+#### A.4.3 PDO Transaction Management
+
+```php
+PDO::beginTransaction(): bool
+PDO::commit(): bool
+PDO::rollBack(): bool
+PDO::inTransaction(): bool
+```
+
+**Key Features:**
+- Automatic autocommit management
+- No transaction flags or isolation level in beginTransaction()
+- Driver-specific attributes for isolation level
+
+**PDO_FIREBIRD Transaction Constants:**
+```php
+Pdo\Firebird::TRANSACTION_ISOLATION_LEVEL  // Attribute key
+Pdo\Firebird::READ_COMMITTED               // Default isolation
+Pdo\Firebird::REPEATABLE_READ              // Snapshot
+Pdo\Firebird::SERIALIZABLE                 // Snapshot table stability
+Pdo\Firebird::WRITABLE_TRANSACTION         // READ WRITE vs READ ONLY
+```
+
+**Usage:**
+```php
+$pdo->setAttribute(Pdo\Firebird::TRANSACTION_ISOLATION_LEVEL, Pdo\Firebird::SERIALIZABLE);
+$pdo->setAttribute(Pdo\Firebird::WRITABLE_TRANSACTION, false);  // READ ONLY
+$pdo->beginTransaction();
+```
+
+**Comparison with fbird_trans():**
+| Aspect | PDO_FIREBIRD | fbird_trans() |
+|--------|--------------|---------------|
+| Isolation levels | ✅ Via setAttribute() | ✅ Via trans_args |
+| Read-only mode | ✅ WRITABLE_TRANSACTION | ✅ FBIRD_READ |
+| Lock timeout | ❌ No | ✅ FBIRD_LOCK_TIMEOUT |
+| Multi-database | ❌ No | ✅ **Yes** (unique!) |
+| Table reservations | ❌ No | ✅ **Yes** (unique!) |
+
+**Verdict:** fbird_trans() is significantly more powerful than PDO's transaction API.
+
+---
+
+### A.5 Key Findings and Best Practice Recommendations
+
+#### A.5.1 fbird_trans() - Variadic Parameter Semantics
+
+**Current Behavior (CORRECT):**
+```php
+// Pattern: trans_args BEFORE link they apply to
+$tr = fbird_trans(FBIRD_READ | FBIRD_CONSISTENCY, $db);
+
+// Multi-database: different args per connection (UNIQUE FEATURE!)
+$tr = fbird_trans(FBIRD_READ, $db1, FBIRD_WRITE, $db2);
+```
+
+**Best Practice Verdict:** ✅ **DESIGN IS CORRECT**
+
+php-firebird's variadic fbird_trans() is MORE powerful than any other PHP database extension:
+- PostgreSQL: No multi-database transactions
+- MySQLi: No multi-database transactions
+- PDO: No multi-database transactions, limited isolation control
+
+**Documentation Requirement:**
+The parameter order semantics MUST be clearly documented because no other extension works this way. The current documentation issue (#63) correctly identifies this need.
+
+#### A.5.2 fbird_query() / fbird_prepare() - Transaction Support
+
+**Current Behavior (UNIQUE FEATURE):**
+```php
+// Standard: link-based query
+$result = fbird_query($link, "SELECT * FROM test");
+
+// Advanced: transaction-based query (UNIQUE!)
+$tr = fbird_trans(FBIRD_READ, $link);
+$result = fbird_query($tr, "SELECT * FROM test");  // Query uses specific transaction!
+fbird_commit($tr);
+```
+
+**Best Practice Verdict:** ✅ **THIS IS A FEATURE, NOT A BUG**
+
+No other PHP database extension supports this pattern:
+- PostgreSQL pg_query(): NO transaction parameter
+- MySQLi mysqli_query(): NO transaction parameter
+- PDO PDOStatement: NO transaction parameter
+
+**Why This Matters:**
+1. **Fine-grained control:** Execute specific queries in specific transactions
+2. **Isolation flexibility:** Read queries in READ ONLY transaction, writes in READ WRITE
+3. **Multi-database transactions:** Query can span databases in same transaction
+4. **Performance:** Avoid starting new transactions for simple reads
+
+**Documentation Requirement:**
+This feature should be **HIGHLIGHTED** as an advantage, not hidden:
+```php
+// PHP official docs should show:
+// Signature 1: Basic query
+fbird_query(string $query [, mixed ...$bind_args]): resource|int|bool
+
+// Signature 2: Connection-specific query  
+fbird_query(resource $link_identifier, string $query [, mixed ...$bind_args]): resource|int|bool
+
+// Signature 3: Transaction-specific query (UNIQUE FEATURE!)
+fbird_query(resource $trans_identifier, string $query [, mixed ...$bind_args]): resource|int|bool
+
+// Signature 4: Full control
+fbird_query(resource $link_identifier, resource $trans_identifier, string $query [, mixed ...$bind_args]): resource|int|bool
+```
+
+#### A.5.3 fbird_service_attach() - Optional Parameters with INI Fallback
+
+**Current Behavior (CORRECT):**
+```php
+// All parameters optional with INI fallback
+fbird_service_attach(?string $host = null, ?string $user = null, ?string $pass = null)
+
+// Falls back to:
+// - fbird.default_user INI directive
+// - fbird.default_password INI directive
+```
+
+**Best Practice Comparison:**
+| Extension | Optional Credentials | INI Fallback |
+|-----------|---------------------|--------------|
+| PostgreSQL | ❌ In connection string | ✅ .pgpass file |
+| MySQLi | ✅ All optional | ❌ No INI fallback |
+| PDO | ✅ Optional | ❌ No INI fallback |
+| php-firebird | ✅ All optional | ✅ **INI fallback** |
+
+**Verdict:** ✅ **DESIGN IS CORRECT AND SUPERIOR**
+
+php-firebird's INI fallback pattern is more convenient than other extensions. PostgreSQL achieves similar convenience via `.pgpass` file, but php-firebird's INI approach is more PHP-native.
+
+**Documentation Requirement:**
+The optional nature and INI fallback MUST be documented clearly (Issue #72).
+
+---
+
+### A.6 Documentation Priority Matrix
+
+Based on this analysis, here is the prioritized documentation update plan:
+
+| Issue | Function | Problem | Documentation Change | Priority |
+|-------|----------|---------|---------------------|----------|
+| **#63** | fbird_trans() | Parameter order misleading | Remove second signature, add WARNING about order | **CRITICAL** |
+| **#90** | fbird_query/prepare() | Missing transaction signatures | ADD transaction signatures as FEATURE | **HIGH** |
+| **#90** | fbird_prepare() | Wrong type: `string $trans` | FIX to `resource $trans_identifier` | **HIGH** |
+| **#72** | fbird_service_attach() | All params shown as required | Change to optional, document INI fallback | **MEDIUM** |
+
+---
+
+### A.7 Proposed PHP.net Documentation Updates
+
+#### A.7.1 fbird_query() Documentation (Issue #90)
+
+**Current php.net (INCOMPLETE):**
+```xml
+<methodsynopsis>
+ <type class="union"><type>resource</type><type>int</type><type>bool</type></type>
+ <methodname>ibase_query</methodname>
+ <methodparam choice="opt"><type>resource</type><parameter>link_identifier</parameter></methodparam>
+ <methodparam><type>string</type><parameter>query</parameter></methodparam>
+ <methodparam choice="opt" rep="repeat"><type>mixed</type><parameter>bind_args</parameter></methodparam>
+</methodsynopsis>
+```
+
+**Proposed (COMPLETE):**
+```xml
+<!-- Signature 1: Query only (uses default link) -->
+<methodsynopsis>
+ <type class="union"><type>resource</type><type>int</type><type>bool</type></type>
+ <methodname>ibase_query</methodname>
+ <methodparam><type>string</type><parameter>query</parameter></methodparam>
+ <methodparam choice="opt" rep="repeat"><type>mixed</type><parameter>bind_args</parameter></methodparam>
+</methodsynopsis>
+
+<!-- Signature 2: Connection-specific -->
+<methodsynopsis>
+ <type class="union"><type>resource</type><type>int</type><type>bool</type></type>
+ <methodname>ibase_query</methodname>
+ <methodparam><type>resource</type><parameter>link_identifier</parameter></methodparam>
+ <methodparam><type>string</type><parameter>query</parameter></methodparam>
+ <methodparam choice="opt" rep="repeat"><type>mixed</type><parameter>bind_args</parameter></methodparam>
+</methodsynopsis>
+
+<!-- Signature 3: Transaction-specific (UNIQUE FEATURE) -->
+<methodsynopsis>
+ <type class="union"><type>resource</type><type>int</type><type>bool</type></type>
+ <methodname>ibase_query</methodname>
+ <methodparam><type>resource</type><parameter>trans_identifier</parameter></methodparam>
+ <methodparam><type>string</type><parameter>query</parameter></methodparam>
+ <methodparam choice="opt" rep="repeat"><type>mixed</type><parameter>bind_args</parameter></methodparam>
+</methodsynopsis>
+
+<!-- Description addition -->
+<note>
+ <title>Transaction-Specific Queries</title>
+ <para>
+  Unlike other PHP database extensions (mysqli, pgsql, PDO), ibase_query() can accept
+  a <parameter>trans_identifier</parameter> resource to execute the query within a
+  specific transaction. The function auto-detects whether the resource is a connection
+  or transaction based on the resource type.
+ </para>
+</note>
+```
+
+#### A.7.2 fbird_trans() Documentation (Issue #63)
+
+**Proposed WARNING block:**
+```xml
+<warning>
+ <title>Parameter Order is Critical</title>
+ <para>
+  Transaction arguments (<parameter>trans_args</parameter>) must appear 
+  <emphasis>before</emphasis> the <parameter>link_identifier</parameter> they apply to.
+  Arguments are processed left-to-right, with each integer argument setting modifiers
+  for all subsequent connection resources.
+ </para>
+ <para>
+  <emphasis>Correct:</emphasis> <literal>ibase_trans(IBASE_READ, $db)</literal>
+ </para>
+ <para>
+  <emphasis>Incorrect:</emphasis> <literal>ibase_trans($db, IBASE_READ)</literal>
+  — The <constant>IBASE_READ</constant> flag is silently ignored!
+ </para>
+</warning>
+
+<example>
+ <title>Multi-database transaction with different isolation levels</title>
+ <para>
+  This unique feature of Firebird/InterBase is not available in other PHP database
+  extensions like mysqli, pgsql, or PDO.
+ </para>
+ <programlisting role="php">
+<![CDATA[
+<?php
+// db1 gets IBASE_READ (read-only), db2 gets IBASE_WRITE
+$tr = ibase_trans(IBASE_READ, $db1, IBASE_WRITE, $db2);
+
+// Same isolation for both connections
+$tr = ibase_trans(IBASE_COMMITTED | IBASE_REC_VERSION, $db1, $db2);
+
+// Lock timeout only for first connection
+$tr = ibase_trans(IBASE_WRITE | IBASE_WAIT | IBASE_LOCK_TIMEOUT, 10, $db1, IBASE_WRITE, $db2);
+?>
+]]>
+ </programlisting>
+</example>
+```
+
+---
+
+### A.8 Conclusion
+
+This deep research confirms that **php-firebird's parameter handling represents best practices** and in many cases **exceeds the capabilities of other PHP database extensions**:
+
+1. **fbird_connect():** Matches PostgreSQL's superior connection reuse pattern with FORCE_NEW escape hatch ✅
+2. **fbird_trans():** UNIQUE multi-database transaction support that no other extension offers ✅
+3. **fbird_query()/fbird_prepare():** UNIQUE transaction-aware queries not available in mysqli/pgsql/PDO ✅
+4. **fbird_service_attach():** Superior convenience with optional params + INI fallback ✅
+
+The only issues are **documentation clarity**, not implementation bugs. The PHP.net documentation should be updated to:
+1. Highlight these unique features as advantages
+2. Clarify the critical parameter ordering for fbird_trans()
+3. Fix the type error in fbird_prepare() documentation
+4. Mark service_attach parameters as optional
+
+---
+
+*Appendix generated 2025-12-17 as part of satwareAG/php-firebird deep parameter analysis*
 
 ---
 

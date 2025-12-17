@@ -14,7 +14,7 @@ This document analyzes all 19 open issues from the upstream FirebirdSQL/php-fire
 | Status | Count | Issues |
 |--------|-------|--------|
 | ✅ **FIXED** in satwareAG fork | 11 | #82, #85, #86, #98, #99, #25, #66, #45, #42, #22, #53 |
-| 📝 **BY DESIGN** (documented) | 1 | #97 |
+| ⚠️ **BY DESIGN** (enhancement needed) | 1 | #97 - Default OK, but needs `FBIRD_CONNECT_FORCE_NEW` flag |
 | 📝 **DOCUMENTATION ONLY** | 4 | #90, #72, #71, #63 |
 | 🚀 **FEATURE REQUEST** | 2 | #83, #12 |
 | ❓ **NOT APPLICABLE** | 1 | #70 |
@@ -237,17 +237,124 @@ if(hlen > 0){
 
 ---
 
-### 📝 BY DESIGN (Documented)
+### 📝 BY DESIGN (Documented) - Critical Evaluation
 
 #### Issue #97: Impossible to make multiple connections with same args
-**Status:** 📝 **BY DESIGN - NOT A BUG**
+**Status:** 📝 **BY DESIGN - Partially Correct, ENHANCEMENT NEEDED**
 
 **Original Issue:** Multiple `ibase_connect()` calls with identical arguments return same resource.
 
-**satwareAG Analysis (2025-12-17):**
-This is **intentional behavior** - connection pooling via hash-based lookup in `EG(regular_list)`.
+---
 
-**Implementation (firebird.c):**
+##### Critical Evaluation (2025-12-17)
+
+This section provides a comprehensive analysis of whether the connection reuse design decision is good or bad by comparing with other PHP database extensions.
+
+###### Comparison with Other PHP Extensions
+
+| Extension | Default Behavior | Escape Hatch Flag | Verdict |
+|-----------|-----------------|-------------------|---------|
+| **pg_connect()** | Reuses with same connection string | `PGSQL_CONNECT_FORCE_NEW` | ✅ Best design |
+| **mysqli_connect()** | Always creates new connection | N/A (no reuse) | Predictable |
+| **PDO** | Always creates new connection | N/A (no reuse) | Predictable |
+| **fbird_connect()** | Reuses with same args | **❌ None** | **Missing escape hatch** |
+
+**Key Finding:** PostgreSQL's `pg_connect()` has the EXACT same default behavior as php-firebird, BUT provides `PGSQL_CONNECT_FORCE_NEW` as an escape hatch. The Official PHP documentation states:
+
+> *"If a second call is made to pg_connect() with the same connection_string as an existing connection, the existing connection will be returned unless you pass PGSQL_CONNECT_FORCE_NEW as flags."*
+
+---
+
+###### Analysis: Is Connection Reuse Good or Bad?
+
+**Arguments FOR connection reuse (current behavior):**
+- ✅ Reduces connection overhead for typical use cases
+- ✅ Prevents accidental connection exhaustion
+- ✅ Matches historical ibase_connect() behavior
+- ✅ Matches PostgreSQL pg_connect() default behavior
+- ✅ Memory efficient - single connection object shared
+
+**Arguments AGAINST connection reuse WITHOUT escape hatch:**
+- ❌ **Violates Principle of Least Surprise** - mysqli and PDO don't reuse
+- ❌ **No escape hatch** - unlike pg_connect() which has PGSQL_CONNECT_FORCE_NEW
+- ❌ **Breaks legitimate use cases:**
+  - Connection-specific transaction isolation levels
+  - Long-running queries in parallel
+  - Connection-specific temporary tables
+  - Connection-specific session variables (`RDB$CONFIG`)
+  - Testing scenarios requiring independent connection state
+  - Data import with separate commit boundaries
+- ❌ **Current workarounds are hacky** - changing charset/role just to get new connection is not intuitive
+
+---
+
+###### Verdict: PARTIALLY CORRECT, NEEDS ENHANCEMENT
+
+| Aspect | Assessment |
+|--------|------------|
+| **Default behavior (reuse)** | ✅ **CORRECT** - Matches PostgreSQL, reduces overhead |
+| **Missing escape hatch** | ❌ **INCOMPLETE** - PostgreSQL provides PGSQL_CONNECT_FORCE_NEW |
+| **Overall design** | ⚠️ **NEEDS ENHANCEMENT** |
+
+**The design decision to reuse connections by default is CORRECT** - it matches PostgreSQL's well-established pattern and provides sensible defaults for most applications.
+
+**However, the design is INCOMPLETE** because it provides no mechanism for developers to explicitly request a new connection when needed. PostgreSQL solved this problem years ago with `PGSQL_CONNECT_FORCE_NEW`.
+
+---
+
+###### Recommendation: Add FBIRD_CONNECT_FORCE_NEW Flag
+
+**Priority:** Medium (Enhancement, not bug fix)
+
+**Proposed Implementation:**
+
+```c
+// php_firebird.h - Add new constant
+#define FBIRD_CONNECT_FORCE_NEW 1
+
+// firebird.c - PHP_FUNCTION(fbird_connect)
+// Check for FBIRD_CONNECT_FORCE_NEW flag before hash lookup
+if (!(flags & FBIRD_CONNECT_FORCE_NEW)) {
+    // Existing hash lookup code
+    if ((le = zend_hash_str_find_ptr(&EG(regular_list), hash, sizeof(hash)-1)) != NULL) {
+        // Return existing connection
+    }
+}
+// Always continue to create new connection if flag set or no existing found
+```
+
+**New Function Signature:**
+```php
+fbird_connect(
+    string $database = null,
+    string $username = null,
+    string $password = null,
+    string $charset = null,
+    int $buffers = null,
+    int $dialect = null,
+    string $role = null,
+    int $sync = null,
+    int $flags = 0              // NEW: Optional flags parameter
+): resource|false
+```
+
+**Usage After Enhancement:**
+```php
+// Same parameters = same connection (default, backward compatible)
+$conn1 = fbird_connect($db, $user, $pass);
+$conn2 = fbird_connect($db, $user, $pass);  // Returns SAME resource
+
+// Force new connection when needed (NEW!)
+$conn3 = fbird_connect($db, $user, $pass, null, null, null, null, null, FBIRD_CONNECT_FORCE_NEW);
+
+// For common case, could also add helper constant with positioned args
+define('FBIRD_NO_FLAGS', 0);
+```
+
+---
+
+###### Current Implementation (firebird.c)
+
 ```c
 // Hash-based connection reuse (firebird.c)
 if ((le = zend_hash_str_find_ptr(&EG(regular_list), hash, sizeof(hash)-1)) != NULL) {
@@ -257,29 +364,46 @@ if ((le = zend_hash_str_find_ptr(&EG(regular_list), hash, sizeof(hash)-1)) != NU
 zend_hash_str_update_mem(&EG(regular_list), hash, sizeof(hash)-1, ...);
 ```
 
-**Correct Usage:**
+---
+
+###### Current Workarounds (Until Enhancement Implemented)
+
 ```php
 // Same parameters = same connection (by design)
 $conn1 = fbird_connect($db, $user, $pass);
 $conn2 = fbird_connect($db, $user, $pass);  // Returns SAME resource
 
-// For truly separate connections:
-// 1. Use different parameters (charset, role, etc.)
+// Workaround 1: Use different parameters (hacky but works)
 $conn3 = fbird_connect($db, $user, $pass, 'UTF8');
+$conn4 = fbird_connect($db, $user, $pass, 'ISO8859_1');
 
-// 2. Use persistent connections
-$conn4 = fbird_pconnect($db, $user, $pass);
+// Workaround 2: Use different role
+$conn5 = fbird_connect($db, $user, $pass, null, null, null, 'ADMIN');
+$conn6 = fbird_connect($db, $user, $pass, null, null, null, 'USER');
+
+// Workaround 3: Use persistent connections (different pool)
+$conn7 = fbird_pconnect($db, $user, $pass);
 ```
 
-**Design Rationale:**
-- Reduces connection overhead for typical use cases
-- Matches historical ibase_connect() behavior
-- Prevents accidental connection exhaustion
-- Explicit design choice, not a bug
+---
 
-**Future Enhancement (Optional):**
-- Consider adding `FBIRD_FORCE_NEW` flag for explicit new connections
-- Document behavior clearly in README
+###### Action Items
+
+| Action | Priority | Status |
+|--------|----------|--------|
+| Document current behavior in README | High | 📋 TODO |
+| Add `FBIRD_CONNECT_FORCE_NEW` constant | Medium | 📋 TODO (optional enhancement) |
+| Add `flags` parameter to `fbird_connect()` | Medium | 📋 TODO (optional enhancement) |
+| Update workaround documentation | Low | ✅ Done above |
+
+---
+
+###### References
+
+- [PHP pg_connect() documentation](https://www.php.net/manual/en/function.pg-connect.php)
+- [PHP mysqli_connect() documentation](https://www.php.net/manual/en/mysqli.construct.php)
+- [PHP PDO connection management](https://www.php.net/manual/en/pdo.connections.php)
+- [Upstream Issue #97](https://github.com/FirebirdSQL/php-firebird/issues/97)
 
 ---
 
@@ -385,13 +509,17 @@ $conn4 = fbird_pconnect($db, $user, $pass);
 
 ## Recommended Priority Actions
 
-### Low Priority (Documentation/Features)
-1. **Issues #90,#72,#71,#63** - PHP documentation updates (php.net)
-2. **Issue #83** - Benchmark suite expansion
-3. **Issue #12** - PECL publishing (post-release)
+### Medium Priority (Enhancement)
+1. **Issue #97** - Add `FBIRD_CONNECT_FORCE_NEW` flag
+   - **Verdict:** Default reuse behavior is CORRECT (matches PostgreSQL)
+   - **Gap:** Missing escape hatch that PostgreSQL provides via `PGSQL_CONNECT_FORCE_NEW`
+   - **Effort:** Low-medium (add constant, add flags parameter, modify hash lookup)
+   - **Benefit:** Complete feature parity with PostgreSQL pattern
 
-### Optional Enhancement
-4. **Issue #97** - Consider adding `FBIRD_FORCE_NEW` flag (current behavior documented)
+### Low Priority (Documentation/Features)
+2. **Issues #90,#72,#71,#63** - PHP documentation updates (php.net)
+3. **Issue #83** - Benchmark suite expansion
+4. **Issue #12** - PECL publishing (post-release)
 
 ### All Core Issues Completed (✅ FIXED)
 - **Issue #22** - ibase_close: Verified FIXED (2025-12-17) - second close returns false
@@ -401,7 +529,7 @@ $conn4 = fbird_pconnect($db, $user, $pass);
 - **Issue #25** - UTF-8 CHAR padding: Verified FIXED (2025-12-17)
 - **Issues #66, #45** - Event handling PHP 8.4+: Verified FIXED via polling model
 - **Issues #82, #85, #86, #98** - Infrastructure and documentation: Complete
-- **Issue #97** - Connection reuse: Documented as BY DESIGN (2025-12-17)
+- **Issue #97** - Connection reuse: Evaluated - default correct, enhancement recommended (2025-12-17)
 
 ---
 

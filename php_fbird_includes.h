@@ -59,12 +59,12 @@
 
 #define IB_STATUS (IBG(status))
 
-#ifdef IBASE_DEBUG
-#define IBDEBUG(a) php_printf("::: %s (%s:%d)\n", a, __FILE__, __LINE__);
+#ifdef FBIRD_DEBUG
+#define FBDEBUG(a) php_printf("::: %s (%s:%d)\n", a, __FILE__, __LINE__);
 #endif
 
-#ifndef IBDEBUG
-#define IBDEBUG(a)
+#ifndef FBDEBUG
+#define FBDEBUG(a)
 #endif
 
 extern int le_link, le_plink, le_trans;
@@ -288,7 +288,7 @@ enum php_fbird_option {
 
 #define IBG(v) ZEND_MODULE_GLOBALS_ACCESSOR(fbird, v)
 
-#if defined(ZTS) && defined(COMPILE_DL_INTERBASE)
+#if defined(ZTS) && defined(COMPILE_DL_FIREBIRD)
 ZEND_TSRMLS_CACHE_EXTERN()
 #endif
 

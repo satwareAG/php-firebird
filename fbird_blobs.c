@@ -260,7 +260,7 @@ typedef struct { /* {{{ */
 	ISC_LONG  total_length;		/* Total length of blob */
 	int		  bl_stream;		/* blob is stream ? */
 /* }}} */
-} IBASE_BLOBINFO;
+} FBIRD_BLOBINFO;
 
 int _php_fbird_blob_get(zval *return_value, fbird_blob *ib_blob, zend_ulong max_len) /* {{{ */
 {
@@ -380,7 +380,7 @@ int _php_fbird_blob_add(zval *string_arg, fbird_blob *ib_blob) /* {{{ */
 }
 /* }}} */
 
-static int _php_fbird_blob_info_oo(void *fbb_blob, IBASE_BLOBINFO *bl_info) /* {{{ */
+static int _php_fbird_blob_info_oo(void *fbb_blob, FBIRD_BLOBINFO *bl_info) /* {{{ */
 {
 	/*
 	 * Firebird 3.0+ OO API Blob Info
@@ -709,7 +709,7 @@ PHP_FUNCTION(fbird_blob_info)
 	fbird_db_link *ib_link;
 	fbird_transaction *trans = NULL;
 	fbird_blob ib_blob = { {0}, BLOB_INPUT, {0, 0}, NULL };  /* Phase 6: explicit fbb_blob init */
-	IBASE_BLOBINFO bl_info;
+	FBIRD_BLOBINFO bl_info;
 	php_stream *stream = NULL;
 	fbird_blob *ext_blob = NULL;
 

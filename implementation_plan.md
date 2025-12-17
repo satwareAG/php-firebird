@@ -106,7 +106,7 @@ These tests are expected to fail and are counted as "expected failures" by the P
 | `fbird_udf.c` | `isc_decode_sql_date/time` | ⚠️ Utility |
 | `fbird_service.c` | `IBASE_SVC_ERROR` macro | ⚠️ Internal |
 
-### Internal Constants (Renamed 2025-12-15)
+### Internal Constants/Macros (Renamed 2025-12-17)
 
 | Old Constant | New Constant | Files | Status |
 |--------------|--------------|-------|--------|
@@ -114,8 +114,12 @@ These tests are expected to fail and are counted as "expected failures" by the P
 | `IBASE_MSGSIZE` | `FBIRD_MSGSIZE` | php_fbird_includes.h | ✅ Renamed |
 | `IBASE_BLOB_SEG` | `FBIRD_BLOB_SEG` | php_fbird_includes.h | ✅ Renamed |
 | `PHP_IBASE_LINK_TRANS` | `PHP_FBIRD_LINK_TRANS` | php_fbird_includes.h | ✅ Renamed |
-| `IBASE_DEBUG` | (unchanged) | php_fbird_includes.h | ⚠️ Keep (debug macro) |
-| `IBASE_SVC_ERROR` | (unchanged) | fbird_service.c | ⚠️ Keep (error macro) |
+| `IBASE_DEBUG` | `FBIRD_DEBUG` | php_fbird_includes.h | ✅ Renamed |
+| `IBDEBUG()` | `FBDEBUG()` | php_fbird_includes.h, all .c | ✅ Renamed |
+| `COMPILE_DL_INTERBASE` | `COMPILE_DL_FIREBIRD` | php_fbird_includes.h | ✅ Renamed |
+| `IBASE_SVC_ERROR` | `FBIRD_SVC_ERROR` | fbird_service.c | ✅ Renamed |
+| `IBASE_BLOBINFO` | `FBIRD_BLOBINFO` | fbird_blobs.c | ✅ Renamed |
+| phpinfo `IBASE_*` strings | `FBIRD_*` | firebird.c | ✅ Renamed |
 
 ### `ibase_` Function Prefixes
 

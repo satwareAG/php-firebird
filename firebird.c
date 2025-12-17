@@ -616,11 +616,11 @@ typedef struct {
 void _php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAMETERS, /* {{{ */
 	zval *link_id, fbird_db_link **ib_link, fbird_transaction **trans)
 {
-	IBDEBUG("Transaction or database link?");
+	FBDEBUG("Transaction or database link?");
 	if (Z_RES_P(link_id)->type == le_trans) {
 		/* Transaction resource: make sure it refers to one link only, then
 		   fetch it; database link is stored in ib_trans->db_link[]. */
-		IBDEBUG("Type is le_trans");
+		FBDEBUG("Type is le_trans");
 		*trans = (fbird_transaction *)zend_fetch_resource_ex(link_id, LE_TRANS, le_trans);
 		if ((*trans)->link_cnt > 1) {
 			_php_fbird_module_error("Link id is ambiguous: transaction spans multiple connections."
@@ -630,7 +630,7 @@ void _php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAMETERS, /* {{{ */
 		*ib_link = (*trans)->db_link[0];
 		return;
 	}
-	IBDEBUG("Type is le_[p]link or id not found");
+	FBDEBUG("Type is le_[p]link or id not found");
 	/* Database link resource, use default transaction. */
 	*trans = NULL;
 	*ib_link = (fbird_db_link *)zend_fetch_resource2_ex(link_id, LE_LINK, le_link, le_plink);
@@ -644,7 +644,7 @@ static void _php_fbird_commit_link(fbird_db_link *link) /* {{{ */
 	unsigned short i = 0, j;
 	fbird_tr_list *l;
 	fbird_event *e;
-	IBDEBUG("Checking transactions to close...");
+	FBDEBUG("Checking transactions to close...");
 
 	for (l = link->tr_list; l != NULL; ++i) {
 		fbird_tr_list *p = l;
@@ -652,7 +652,7 @@ static void _php_fbird_commit_link(fbird_db_link *link) /* {{{ */
 			if (i == 0) {
 				/* Default transaction: commit via OO API */
 				if (p->trans->fbt_transaction != NULL) {
-					IBDEBUG("Committing default transaction via OO API...");
+					FBDEBUG("Committing default transaction via OO API...");
 					if (fbt_commit(p->trans->fbt_transaction, IB_STATUS)) {
 						_php_fbird_error();
 					}
@@ -662,7 +662,7 @@ static void _php_fbird_commit_link(fbird_db_link *link) /* {{{ */
 			} else {
 				/* Non-default transaction: rollback via OO API */
 				if (p->trans->fbt_transaction != NULL) {
-					IBDEBUG("Rolling back other transaction via OO API...");
+					FBDEBUG("Rolling back other transaction via OO API...");
 					if (fbt_rollback(p->trans->fbt_transaction, IB_STATUS)) {
 						_php_fbird_error();
 					}
@@ -712,7 +712,7 @@ static void _php_fbird_close_link(zend_resource *rsrc) /* {{{ */
 
 	/* OO API Only: All connections use fbc_disconnect() */
 	if (link->fbc_connection != NULL) {
-		IBDEBUG("Closing normal link via OO API...");
+		FBDEBUG("Closing normal link via OO API...");
 		fbc_disconnect(link->fbc_connection, IB_STATUS);
 		link->fbc_connection = NULL;
 		link->handle.ptr = 0;
@@ -730,7 +730,7 @@ static void _php_fbird_close_plink(zend_resource *rsrc) /* {{{ */
 
 	/* OO API Only: All connections use fbc_disconnect() */
 	if (link->fbc_connection != NULL) {
-		IBDEBUG("Closing permanent link via OO API...");
+		FBDEBUG("Closing permanent link via OO API...");
 		fbc_disconnect(link->fbc_connection, IB_STATUS);
 		link->fbc_connection = NULL;
 		link->handle.ptr = 0;
@@ -746,11 +746,11 @@ static void _php_fbird_free_trans(zend_resource *rsrc) /* {{{ */
 	fbird_transaction *trans = (fbird_transaction *)rsrc->ptr;
 	unsigned short i;
 
-	IBDEBUG("Cleaning up transaction resource...");
+	FBDEBUG("Cleaning up transaction resource...");
 
 	/* OO API Only: All transactions use fbt_rollback() */
 	if (trans->fbt_transaction != NULL) {
-		IBDEBUG("Rolling back unhandled OO API transaction...");
+		FBDEBUG("Rolling back unhandled OO API transaction...");
 		if (fbt_rollback(trans->fbt_transaction, IB_STATUS)) {
 			_php_fbird_error();
 		}
@@ -821,36 +821,36 @@ static PHP_INI_DISP(php_fbird_trans_displayer)
 		if (trans_argl != PHP_FBIRD_DEFAULT) {
 			/* access mode */
 			if (PHP_FBIRD_READ == (trans_argl & PHP_FBIRD_READ)) {
-				PUTS_TP("IBASE_READ");
+				PUTS_TP("FBIRD_READ");
 			} else if (PHP_FBIRD_WRITE == (trans_argl & PHP_FBIRD_WRITE)) {
-				PUTS_TP("IBASE_WRITE");
+				PUTS_TP("FBIRD_WRITE");
 			}
 
 			/* isolation level */
 			if (PHP_FBIRD_COMMITTED == (trans_argl & PHP_FBIRD_COMMITTED)) {
-				PUTS_TP("IBASE_COMMITTED");
+				PUTS_TP("FBIRD_COMMITTED");
 				if (PHP_FBIRD_REC_VERSION == (trans_argl & PHP_FBIRD_REC_VERSION)) {
-					PUTS_TP("IBASE_REC_VERSION");
+					PUTS_TP("FBIRD_REC_VERSION");
 				} else if (PHP_FBIRD_REC_NO_VERSION == (trans_argl & PHP_FBIRD_REC_NO_VERSION)) {
-					PUTS_TP("IBASE_REC_NO_VERSION");
+					PUTS_TP("FBIRD_REC_NO_VERSION");
 				}
 			} else if (PHP_FBIRD_CONSISTENCY == (trans_argl & PHP_FBIRD_CONSISTENCY)) {
-				PUTS_TP("IBASE_CONSISTENCY");
+				PUTS_TP("FBIRD_CONSISTENCY");
 			} else if (PHP_FBIRD_CONCURRENCY == (trans_argl & PHP_FBIRD_CONCURRENCY)) {
-				PUTS_TP("IBASE_CONCURRENCY");
+				PUTS_TP("FBIRD_CONCURRENCY");
 			}
 
 			/* lock resolution */
 			if (PHP_FBIRD_NOWAIT == (trans_argl & PHP_FBIRD_NOWAIT)) {
-				PUTS_TP("IBASE_NOWAIT");
+				PUTS_TP("FBIRD_NOWAIT");
 			} else if (PHP_FBIRD_WAIT == (trans_argl & PHP_FBIRD_WAIT)) {
-				PUTS_TP("IBASE_WAIT");
+				PUTS_TP("FBIRD_WAIT");
 				if (PHP_FBIRD_LOCK_TIMEOUT == (trans_argl & PHP_FBIRD_LOCK_TIMEOUT)) {
-					PUTS_TP("IBASE_LOCK_TIMEOUT");
+					PUTS_TP("FBIRD_LOCK_TIMEOUT");
 				}
 			}
 		} else {
-			PUTS_TP("IBASE_DEFAULT");
+			PUTS_TP("FBIRD_DEFAULT");
 		}
 	}
 }
@@ -1030,12 +1030,12 @@ PHP_MINFO_FUNCTION(fbird)
 		"static");
 #endif
 
-	php_info_print_table_row(2, "Interbase extension version", PHP_FIREBIRD_VER_STR);
+	php_info_print_table_row(2, "Firebird extension version", PHP_FIREBIRD_VER_STR);
 
 #ifdef FB_API_VER
 	snprintf( (s = tmp), sizeof(tmp), "Firebird API version %d", FB_API_VER);
 #elif (SQLDA_CURRENT_VERSION > 1)
-	s =  "Interbase 7.0 and up";
+	s =  "Firebird 3.0 and up";
 #endif
 	php_info_print_table_row(2, "Compile-time Client Library Version", s);
 
@@ -1430,7 +1430,7 @@ PHP_FUNCTION(fbird_drop_db)
 
 	/* OO API Only: All connections use fbc_drop_database() */
 	if (ib_link->fbc_connection != NULL) {
-		IBDEBUG("Dropping database via OO API...");
+		FBDEBUG("Dropping database via OO API...");
 		drop_result = fbc_drop_database(ib_link->fbc_connection, IB_STATUS);
 		if (drop_result != 0) {
 			_php_fbird_error();
@@ -1800,7 +1800,7 @@ static void _php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAMETERS, const char *
 	void *transaction_ptr = NULL;
 	void *stmt = NULL;
 
-	IBDEBUG("OO API: Executing savepoint statement via fbs_prepare/execute");
+	FBDEBUG("OO API: Executing savepoint statement via fbs_prepare/execute");
 
 	/* Get attachment from connection */
 	if (!link->fbc_connection) {
@@ -2039,7 +2039,7 @@ PHP_FUNCTION(fbird_trans)
 								convert_to_long_ex(&args[i]);
 								trans_timeout = Z_LVAL(args[i]);
 							} else {
-								php_error_docref(NULL, E_WARNING, "IBASE_LOCK_TIMEOUT expects next argument to be timeout value");
+								php_error_docref(NULL, E_WARNING, "FBIRD_LOCK_TIMEOUT expects next argument to be timeout value");
 							}
 						}
 					}

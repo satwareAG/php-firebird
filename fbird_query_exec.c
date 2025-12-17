@@ -64,7 +64,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 	 * Firebird return cryptic errors for parameter mismatches.
 	 *
 	 * Test coverage: tests/bug45373.phpt
-	 * Documentation: docs/development/IBASE_QUERY_EXEC_FIXES.md
+	 * Documentation: docs/development/FBIRD_QUERY_EXEC_FIXES.md
 	 */
 	if (bind_n < 0 || argc < 0) {
 		php_error_docref(NULL, E_WARNING, "Invalid parameter count: bind_n=%d, argc=%d", bind_n, argc);
@@ -83,7 +83,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
  /* Cursor lifecycle management: before any re-execution, close an open cursor
   * unconditionally to match legacy semantics and avoid -502 reopen errors. */
  if (ib_query->statement_type != isc_info_sql_stmt_exec_procedure && ib_query->is_open) {
-     IBDEBUG("Closing open cursor before re-execution");
+     FBDEBUG("Closing open cursor before re-execution");
      /* Be tolerant: silently ignore ALL errors when attempting to close the cursor
       * before re-execution. The cursor may already have been closed by various means
       * (fbird_free_result, transaction commit, EOF reached, etc.) - this is expected
@@ -128,7 +128,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 				void *attachment = fbc_get_attachment(ib_query->link->fbc_connection);
 				void *new_trans = NULL;
 
-				IBDEBUG("OO API: Executing SET TRANSACTION via fbt_start()");
+				FBDEBUG("OO API: Executing SET TRANSACTION via fbt_start()");
 
 				/* Start transaction with default TPB (READ_WRITE, WAIT, CONCURRENCY) */
 				new_trans = fbt_start(IBG(master_instance), attachment, 0, NULL, IB_STATUS);
@@ -177,10 +177,10 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 			if (ib_query->trans && ib_query->trans->fbt_transaction) {
 				int rc;
 				if (ib_query->statement_type == isc_info_sql_stmt_commit) {
-					IBDEBUG("OO API: Executing COMMIT via fbt_commit()");
+					FBDEBUG("OO API: Executing COMMIT via fbt_commit()");
 					rc = fbt_commit(ib_query->trans->fbt_transaction, IB_STATUS);
 				} else {
-					IBDEBUG("OO API: Executing ROLLBACK via fbt_rollback()");
+					FBDEBUG("OO API: Executing ROLLBACK via fbt_rollback()");
 					rc = fbt_rollback(ib_query->trans->fbt_transaction, IB_STATUS);
 				}
 				if (rc != 0) {
@@ -208,9 +208,9 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 	}
 
 	if (ib_query->in_fields_count) { /* has placeholders */
-		IBDEBUG("Query wants XSQLDA for input");
+		FBDEBUG("Query wants XSQLDA for input");
 		if (_php_fbird_bind(ib_query, args) == FAILURE) {
-			IBDEBUG("Could not bind input XSQLDA");
+			FBDEBUG("Could not bind input XSQLDA");
 			goto _php_fbird_ex_error;
 		}
 
@@ -230,7 +230,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 		 * This is required because the OO API uses flat message buffers
 		 * with offsets from IMessageMetadata, not XSQLDA structures. */
 		if (_php_fbird_xsqlda_to_msg_buffer(ib_query) == FAILURE) {
-			IBDEBUG("Could not transfer XSQLDA to message buffer");
+			FBDEBUG("Could not transfer XSQLDA to message buffer");
 			goto _php_fbird_ex_error;
 		}
 	}
@@ -278,7 +278,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
                     IB_STATUS
                 );
                 if (oo_api_success) {
-                    IBDEBUG("OO API fbs_open_cursor() succeeded for SELECT");
+                    FBDEBUG("OO API fbs_open_cursor() succeeded for SELECT");
                     isc_result = 0; /* Success */
                 } else {
                     /* OO API cursor open failed - report error immediately, no fallback */
@@ -307,7 +307,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
                     IB_STATUS
                 );
                 if (oo_api_success) {
-                    IBDEBUG("OO API fbs_execute() succeeded for DML");
+                    FBDEBUG("OO API fbs_execute() succeeded for DML");
                     isc_result = 0; /* Success */
                 } else {
                     /* OO API execution failed - report error immediately, no fallback */
@@ -332,7 +332,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
                     IB_STATUS
                 );
                 if (oo_api_success) {
-                    IBDEBUG("OO API fbs_execute() succeeded for DDL");
+                    FBDEBUG("OO API fbs_execute() succeeded for DDL");
                     isc_result = 0; /* Success */
                 } else {
                     /* OO API execution failed - report error immediately, no fallback */
@@ -355,7 +355,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
                     IB_STATUS
                 );
                 if (oo_api_success) {
-                    IBDEBUG("OO API fbs_execute() succeeded for SAVEPOINT");
+                    FBDEBUG("OO API fbs_execute() succeeded for SAVEPOINT");
                     isc_result = 0;
                 } else {
                     _php_fbird_error();
@@ -381,7 +381,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
                     IB_STATUS
                 );
                 if (oo_api_success) {
-                    IBDEBUG("OO API fbs_execute() succeeded for EXECUTE PROCEDURE");
+                    FBDEBUG("OO API fbs_execute() succeeded for EXECUTE PROCEDURE");
                     isc_result = 0; /* Success */
                 } else {
                     /* OO API execution failed - report error immediately, no fallback */
@@ -469,7 +469,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 execute_done:
 
     if (isc_result) {
-        IBDEBUG("Could not execute query");
+        FBDEBUG("Could not execute query");
         _php_fbird_error();
         goto _php_fbird_ex_error;
     }
@@ -1025,7 +1025,7 @@ PHP_FUNCTION(fbird_query)
 		zval *arg = &args[i];
 		ZVAL_DEREF(arg); /* Handle references */
 
-		/* Handle IBASE_CREATE (0) passed as first argument */
+		/* Handle FBIRD_CREATE (0) passed as first argument */
 		if (i == 0 && Z_TYPE_P(arg) == IS_LONG && Z_LVAL_P(arg) == PHP_FBIRD_CREATE) {
 			explicit_create = 1;
 			i++;
@@ -1060,7 +1060,7 @@ PHP_FUNCTION(fbird_query)
 				}
 			}
 		}
-		/* Skip non-string, non-resource arguments (e.g. IBASE_CREATE/0 placeholder) */
+		/* Skip non-string, non-resource arguments (e.g. FBIRD_CREATE/0 placeholder) */
 		i++;
 	}
 
@@ -1070,7 +1070,7 @@ PHP_FUNCTION(fbird_query)
 		RETURN_FALSE;
 	}
 
-	/* Handle CREATE DATABASE request via IBASE_CREATE flag */
+	/* Handle CREATE DATABASE request via FBIRD_CREATE flag */
 	if (explicit_create) {
 		unsigned short dialect = 3; /* Default dialect 3 for new databases */
 

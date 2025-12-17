@@ -77,7 +77,7 @@ static void _php_fbird_free_service(zend_resource *rsrc) /* {{{ */
 
 /* the svc api seems to get confused after an error has occurred,
    so invalidate the handle on errors */
-#define IBASE_SVC_ERROR(svm) \
+#define FBIRD_SVC_ERROR(svm) \
 	do { zend_list_delete(svm->res); _php_fbird_error(); } while (0)
 
 
@@ -171,7 +171,7 @@ static void _php_fbird_user(INTERNAL_FUNCTION_PARAMETERS, char operation) /* {{{
 		RETURN_FALSE;
 	}
 
-	svm = (fbird_service *)zend_fetch_resource_ex(res, "Interbase service manager handle",
+	svm = (fbird_service *)zend_fetch_resource_ex(res, "Firebird service manager handle",
 		le_service);
 
 	buf[0] = operation;
@@ -191,7 +191,7 @@ static void _php_fbird_user(INTERNAL_FUNCTION_PARAMETERS, char operation) /* {{{
 
 	/* now start the job */
 	if (isc_service_start(IB_STATUS, (isc_svc_handle *)&svm->handle, NULL, spb_len, buf)) {
-		IBASE_SVC_ERROR(svm);
+		FBIRD_SVC_ERROR(svm);
 		RETURN_FALSE;
 	}
 
@@ -331,7 +331,7 @@ static void _php_fbird_service_query(INTERNAL_FUNCTION_PARAMETERS, /* {{{ */
 		static char action[] = { isc_action_svc_display_user };
 
 		if (isc_service_start(IB_STATUS, (isc_svc_handle *)&svm->handle, NULL, sizeof(action), action)) {
-			IBASE_SVC_ERROR(svm);
+			FBIRD_SVC_ERROR(svm);
 			RETURN_FALSE;
 		}
 	}
@@ -342,7 +342,7 @@ query_loop:
 	if (isc_service_query(IB_STATUS, (isc_svc_handle *)&svm->handle, NULL, sizeof(spb), spb,
 			1, &info_action, sizeof(res_buf), res_buf)) {
 
-		IBASE_SVC_ERROR(svm);
+		FBIRD_SVC_ERROR(svm);
 		RETURN_FALSE;
 	}
 	while (*result != isc_info_end) {
@@ -491,7 +491,7 @@ static void _php_fbird_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operati
 	}
 
 	svm = (fbird_service *)zend_fetch_resource_ex(res,
-		"Interbase service manager handle", le_service);
+		"Firebird service manager handle", le_service);
 
 	/* fill the param buffer */
 	spb_len = slprintf(buf, sizeof(buf), "%c%c%c%c%s%c%c%c%s%c%c%c%c%c",
@@ -510,7 +510,7 @@ static void _php_fbird_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operati
 
 	/* now start the backup/restore job */
 	if (isc_service_start(IB_STATUS, (isc_svc_handle *)&svm->handle, NULL, (unsigned short)spb_len, buf)) {
-		IBASE_SVC_ERROR(svm);
+		FBIRD_SVC_ERROR(svm);
 		RETURN_FALSE;
 	}
 
@@ -555,7 +555,7 @@ static void _php_fbird_service_action(INTERNAL_FUNCTION_PARAMETERS, char svc_act
 	}
 
 	svm = (fbird_service *)zend_fetch_resource_ex(res,
-		"Interbase service manager handle", le_service);
+		"Firebird service manager handle", le_service);
 
 	if (svc_action == isc_action_svc_db_stats) {
 		switch (action) {
@@ -618,7 +618,7 @@ options_argument:
 	}
 
 	if (isc_service_start(IB_STATUS, (isc_svc_handle *)&svm->handle, NULL, (unsigned short)spb_len, buf)) {
-		IBASE_SVC_ERROR(svm);
+		FBIRD_SVC_ERROR(svm);
 		RETURN_FALSE;
 	}
 
@@ -661,7 +661,7 @@ PHP_FUNCTION(fbird_server_info)
 	}
 
 	svm = (fbird_service *)zend_fetch_resource_ex(res,
-		"Interbase service manager handle", le_service);
+		"Firebird service manager handle", le_service);
 
 	_php_fbird_service_query(INTERNAL_FUNCTION_PARAM_PASSTHRU, svm, (char)action);
 }

@@ -110,9 +110,9 @@ void _php_fbird_free_xsqlda(XSQLDA *sqlda) /* {{{ */
 	int i;
 	XSQLVAR *var;
 
-	IBDEBUG("Free XSQLDA?");
+	FBDEBUG("Free XSQLDA?");
 	if (sqlda) {
-		IBDEBUG("Freeing XSQLDA...");
+		FBDEBUG("Freeing XSQLDA...");
 		var = sqlda->sqlvar;
 		for (i = 0; i < sqlda->sqld; i++, var++) {
 			/* Only free if sqldata was allocated (may be NULL for OO API metadata-only XSQLDA) */
@@ -127,7 +127,7 @@ void _php_fbird_free_xsqlda(XSQLDA *sqlda) /* {{{ */
 
 void _php_fbird_free_query(fbird_query *ib_query) /* {{{ */
 {
-	IBDEBUG("Freeing query...");
+	FBDEBUG("Freeing query...");
 
 	if(ib_query->in_nullind)efree(ib_query->in_nullind);
 	if(ib_query->out_nullind)efree(ib_query->out_nullind);
@@ -156,7 +156,7 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc) /* {{{ */
     fbird_query *ib_query = (fbird_query *)rsrc->ptr;
 
     if (ib_query != NULL) {
-        IBDEBUG("Preparing to free query by dtor...");
+        FBDEBUG("Preparing to free query by dtor...");
 
         /* If this is a child result, unlink it from the parent's list to prevent
          * use-after-free if the parent is subsequently freed.
@@ -198,7 +198,7 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc) /* {{{ */
         if (ib_query->fbs_statement) {
             /* Close any open cursor first */
             if (ib_query->fbs_resultset || ib_query->is_open) {
-                IBDEBUG("Closing open cursor in dtor (OO API)");
+                FBDEBUG("Closing open cursor in dtor (OO API)");
                 fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
                 ib_query->fbs_resultset = NULL;
                 ib_query->is_open = 0;
@@ -284,11 +284,11 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
 		IB_STATUS
 	);
 	if (!ib_query->fbs_statement) {
-		IBDEBUG("fbs_prepare() failed\n");
+		FBDEBUG("fbs_prepare() failed\n");
 		_php_fbird_error();
 		goto _php_fbird_alloc_query_error;
 	}
-	IBDEBUG("OO API statement prepared successfully\n");
+	FBDEBUG("OO API statement prepared successfully\n");
 
 	if(_php_fbird_set_query_info(ib_query)){
 		goto _php_fbird_alloc_query_error;
@@ -306,7 +306,7 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
 		ib_query->out_metadata = fbs_get_output_metadata(
 			IBG(master_instance), ib_query->fbs_statement, IB_STATUS);
 		if (!ib_query->out_metadata) {
-			IBDEBUG("fbs_get_output_metadata() failed\n");
+			FBDEBUG("fbs_get_output_metadata() failed\n");
 			_php_fbird_error();
 			goto _php_fbird_alloc_query_error;
 		}
@@ -318,7 +318,7 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
 			ib_query->out_msg_buffer = safe_emalloc(1, ib_query->out_msg_length, 0);
 			memset(ib_query->out_msg_buffer, 0, ib_query->out_msg_length);
 		}
-		IBDEBUG("OO API output message buffer allocated\n");
+		FBDEBUG("OO API output message buffer allocated\n");
 
 		/* Allocate out_sqlda from OO API metadata for compatibility with fbird_field_info()
 		 * and for query clone logic in _php_fbird_exec(). */
@@ -387,7 +387,7 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
 			var->sqldata = NULL;
 			var->sqlind = NULL;
 		}
-		IBDEBUG("OO API out_sqlda populated from metadata\n");
+		FBDEBUG("OO API out_sqlda populated from metadata\n");
 	}
 
 	if (ib_query->in_fields_count > 0) {
@@ -395,7 +395,7 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
 		ib_query->in_metadata = fbs_get_input_metadata(
 			IBG(master_instance), ib_query->fbs_statement, IB_STATUS);
 		if (!ib_query->in_metadata) {
-			IBDEBUG("fbs_get_input_metadata() failed\n");
+			FBDEBUG("fbs_get_input_metadata() failed\n");
 			_php_fbird_error();
 			goto _php_fbird_alloc_query_error;
 		}
@@ -466,7 +466,7 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
 			var->aliasname_length = 0;
 		}
 
-		IBDEBUG("OO API input SQLDA and message buffer allocated\n");
+		FBDEBUG("OO API input SQLDA and message buffer allocated\n");
 	}
 
 	*new_query = ib_query;

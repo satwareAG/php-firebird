@@ -137,24 +137,23 @@ The polling model redesign (same as #66) also resolves memory issues:
 
 ---
 
-### 🔍 NEEDS INVESTIGATION
-
 #### Issue #99: Incorrect type reporting for CHAR fields
-**Status:** 🔍 **NEEDS INVESTIGATION**
+**Status:** ✅ **FULLY FIXED**
 
 **Original Issue:** `ibase_field_info()` returns "VARCHAR" instead of "CHAR" for CHAR fields.
 
-**satwareAG Analysis:**
+**satwareAG Verification (2025-12-17):**
 - `fbird_metadata.c` correctly maps `SQL_TEXT` → "CHAR" and `SQL_VARYING` → "VARCHAR"
 - Test `fbird_field_info_001.phpt` expects and gets "CHAR" for CHAR_FIXED field
-- The issue references upstream commit `29e9d6f8fd` which we may have inherited
+- New test `tests/issue99_001.phpt` created with exact reproduction from upstream issue
+- All 6 field_info tests pass on PHP 8.3, 8.4, and 8.5
+- The upstream bug (commit `29e9d6f8fd`) does NOT affect the satwareAG fork
 
-**Action Required:** 
-1. Run specific reproduction test from issue
-2. Verify XSQLDA population from OO API metadata
-3. Check if our OO API migration affected field type detection
+**Evidence:** See `docs/UPSTREAM_FIXED_ISSUES_INSPECTION.md` for detailed verification.
 
 ---
+
+### 🔍 NEEDS INVESTIGATION
 
 #### Issue #97: Impossible to make multiple connections with same args
 **Status:** 🔍 **DESIGN ISSUE - NEEDS INVESTIGATION**

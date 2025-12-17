@@ -275,29 +275,92 @@ TEST 5/5 [tests/timezone_003.phpt]  PASS
 
 ## Issue #99: Incorrect Type Reporting for CHAR Fields
 
+**Upstream Issue**: https://github.com/FirebirdSQL/php-firebird/issues/99  
 **Upstream Request**: `ibase_field_info()` returns "VARCHAR" instead of "CHAR" for CHAR fields.
+
+### Original Problem
+
+The upstream issue reported that the following code:
+
+```php
+ibase_query("CREATE TABLE FIELDSTEST (CHAR_FIXED CHAR(10) DEFAULT 'ABCDE')");
+ibase_commit();
+$q = ibase_prepare("SELECT * FROM FIELDSTEST");
+var_dump(ibase_field_info($q, 0)["type"]);
+```
+
+**Expected**: `string(4) "CHAR"`  
+**Actual (upstream bug)**: `string(7) "VARCHAR"`
+
+The bug was related to commit `29e9d6f8fd` in the upstream repository which reportedly broke the type detection.
+
+### Root Cause Analysis
+
+The type mapping in `fbird_metadata.c` (function `_php_fbird_field_info()`) uses the `XSQLVAR.sqltype` field to determine the SQL type name. The mapping is:
+
+```c
+switch (var->sqltype & ~1) {
+    case SQL_TEXT:
+        s = "CHAR";      // Fixed-length character field
+        break;
+    case SQL_VARYING:
+        s = "VARCHAR";   // Variable-length character field
+        break;
+    // ... other types
+}
+```
+
+In the satwareAG fork, this mapping is **correct** and has not been affected by the upstream bug.
 
 ### Verification Results - ✅ FIXED
 
-**Test File**: `tests/fbird_field_info_001.phpt`
+#### Test Coverage
 
-**Evidence**:
+Multiple tests verify correct CHAR vs VARCHAR type reporting:
+
+| Test File | Purpose | Status |
+|-----------|---------|--------|
+| `tests/fbird_field_info_001.phpt` | Basic field types including CHAR/VARCHAR | ✅ PASS |
+| `tests/fbird_field_info_002.phpt` | Firebird 3.0+ field types | ✅ PASS |
+| `tests/fbird_field_info_003.phpt` | Firebird 4.0+ field types | ✅ PASS |
+| `tests/fbird_field_info_004.phpt` | UTF8 charset field types | ✅ PASS |
+| `tests/issue99_001.phpt` | Exact reproduction from upstream issue | ✅ PASS |
+
+#### Test Evidence (fbird_field_info_001.phpt)
+
 ```
-CHAR_FIXED/CHAR/10
-VARCHAR_FIELD/VARCHAR/50
+CHAR_FIXED/CHAR/10         # CHAR field correctly reports as "CHAR"
+VARCHAR_FIELD/VARCHAR/50   # VARCHAR field correctly reports as "VARCHAR"
+CHAR_UTF8/CHAR/40          # UTF8 CHAR field correctly reports as "CHAR"
+VARCHAR_UTF8/VARCHAR/200   # UTF8 VARCHAR field correctly reports as "VARCHAR"
+BINARY_FIXED/CHAR/16       # Binary CHAR field correctly reports as "CHAR"
+VARBINARY_FIELD/VARCHAR/100 # Binary VARCHAR field correctly reports as "VARCHAR"
 ```
 
-The test explicitly verifies that:
-- CHAR fields return type `"CHAR"`
-- VARCHAR fields return type `"VARCHAR"`
+#### Test Evidence (issue99_001.phpt - Exact Reproduction)
+
+```
+Field name: CHAR_FIXED
+Field type: CHAR
+Field length: 10
+TEST PASSED: CHAR field correctly reports as CHAR
+
+--- Comparison Test ---
+CHAR_COL type: CHAR
+VARCHAR_COL type: VARCHAR
+COMPARISON TEST PASSED: Types are correctly differentiated
+```
+
+### PHP Version Matrix Results
+
+| PHP Version | Test Result |
+|-------------|-------------|
+| PHP 8.3.28 | ✅ PASS (all 5 field_info tests) |
+| PHP 8.4.15 | ✅ PASS (all 4 applicable tests) |
+| PHP 8.5.0 | ✅ PASS (all 4 applicable tests) |
 
 **Verification Date**: 2025-12-17  
-**Test Result**: PASS (PHP 8.3, Firebird 4.0)
-
-**Implementation**: `fbird_metadata.c` correctly maps:
-- `SQL_TEXT` → "CHAR"
-- `SQL_VARYING` → "VARCHAR"
-
+**Test Environment**: Docker matrix with Firebird 4.0  
 **Status**: ✅ COMPLETE - No further action needed.
 
 ---

@@ -19,6 +19,8 @@ This document summarizes the major development phases and milestones of the php-
 | **OO API Phase 4** | Dec 2025 | Transaction OO API integration (`fbt_*` functions) |
 | **OO API Phase 5** | Dec 2025 | Statement OO API integration (`fbs_*` functions) |
 | **Issue #9 Fix** | Dec 2025 | Transaction cleanup segfault fix (use-after-free in DDL) |
+| **Issue #10 Fix** | Dec 2025 | BLOB fetch segfault fix (zend_list_close() fix) |
+| **TPB Comprehensive** | Dec 2025 | Full TPB support: all transaction flags, table reservation, Firebird 4.0+ features |
 
 ## Major Milestones
 
@@ -202,11 +204,40 @@ BC intentionally not maintained for constants to clearly signal the new driver w
 - GitHub Actions: Cross-platform validation (Windows, macOS, Linux)
 - Docker: Multi-PHP version testing (8.1-8.5)
 
+### TPB Comprehensive Support (December 2025)
+
+**Objective:** Provide full Transaction Parameter Block (TPB) support for all Firebird transaction features.
+
+**Features Implemented and Verified:**
+- **Access Modes**: `FBIRD_READ`, `FBIRD_WRITE`
+- **Isolation Levels**: `FBIRD_CONCURRENCY` (SNAPSHOT), `FBIRD_COMMITTED` (READ COMMITTED), `FBIRD_CONSISTENCY` (SERIALIZABLE)
+- **Record Versioning**: `FBIRD_REC_VERSION`, `FBIRD_REC_NO_VERSION`
+- **Lock Resolution**: `FBIRD_WAIT`, `FBIRD_NOWAIT`, `FBIRD_LOCK_TIMEOUT`
+- **Table Reservation**: `FBIRD_LOCK_SHARED`, `FBIRD_LOCK_PROTECTED`, `FBIRD_LOCK_EXCLUSIVE`, `FBIRD_LOCK_READ`, `FBIRD_LOCK_WRITE`
+- **Firebird 4.0+**: `FBIRD_READ_CONSISTENCY` (read consistency for READ COMMITTED isolation)
+
+**Bug Fixed:**
+The `fbxpb_build_tpb()` function was manually inserting `isc_tpb_version3` but the IXpbBuilder OO API already adds it automatically. This caused duplicate version bytes in TPB (e.g., `03 03 09 02` instead of `03 09 02`), leading to transaction failures or unexpected behavior.
+
+**API Patterns:**
+1. **Flag-first API**: `fbird_trans(FLAGS, $db)` - Simple, combinable flags with `|`
+2. **Array options API**: `fbird_trans_start($db, $options)` - Full TPB control including table reservation
+3. **Transaction inspection**: `fbird_trans_info($trans)` - Returns transaction ID, state, isolation level
+
+**Test Coverage:**
+- `tests/trans_tpb_comprehensive.phpt` - 16 transaction tests covering all TPB features
+- All tests pass with 100% success rate
+
+**Files Modified:**
+- `firebird_utils.cpp` - Fixed `fbxpb_build_tpb()` to not manually insert version byte
+- `firebird.c` - Transaction API functions
+- `php_fbird_includes.h` - Transaction flag constants
+
 ## Test Coverage
 
-- **Total tests:** 109 PHPT test files (105 executed, 4 skipped)
-- **Pass rate:** 100% (105 passed, 0 failures, 0 expected failures)
-- **Coverage areas:** Connection, transactions, queries, blobs, services, metadata, inspection functions
+- **Total tests:** 110 PHPT test files
+- **Pass rate:** 100% (all non-skipped tests pass)
+- **Coverage areas:** Connection, transactions (comprehensive TPB), queries, blobs, services, metadata, inspection, savepoints
 
 ---
 

@@ -191,6 +191,73 @@ fbird_close($db);
 ?>
 ```
 
+### Advanced Transactions with TPB (Transaction Parameter Block)
+
+The extension provides comprehensive transaction control via the Transaction Parameter Block (TPB):
+
+```php
+<?php
+$db = fbird_connect('/path/to/database.fdb', 'SYSDBA', 'masterkey');
+
+// Simple: Use flag-first API for common configurations
+// Read-only transaction with SNAPSHOT isolation (CONCURRENCY)
+$readTrans = fbird_trans(FBIRD_READ | FBIRD_CONCURRENCY, $db);
+
+// Read-write with READ COMMITTED + record versioning + wait
+$writeTrans = fbird_trans(FBIRD_WRITE | FBIRD_COMMITTED | FBIRD_REC_VERSION | FBIRD_WAIT, $db);
+
+// Advanced: Use array options for full TPB control
+$options = [
+    'access_mode' => FBIRD_WRITE,
+    'isolation' => FBIRD_COMMITTED,
+    'lock_resolution' => FBIRD_WAIT,
+    'lock_timeout' => 10,  // 10 second timeout
+    'tables' => [
+        'USERS' => FBIRD_LOCK_PROTECTED | FBIRD_LOCK_WRITE,
+        'LOGS' => FBIRD_LOCK_SHARED | FBIRD_LOCK_READ
+    ]
+];
+$trans = fbird_trans_start($db, $options);
+
+// Query using the transaction
+fbird_query($trans, "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?", 123);
+
+// Inspect transaction state
+$info = fbird_trans_info($trans);
+print_r($info);
+// Output: ['id' => 12345, 'state' => 'ACTIVE', 'isolation' => 'READ_COMMITTED', ...]
+
+fbird_commit($trans);
+fbird_close($db);
+?>
+```
+
+**Transaction Flags (combinable with `|`):**
+
+| Flag | Description |
+|------|-------------|
+| `FBIRD_READ` | Read-only access mode |
+| `FBIRD_WRITE` | Read-write access mode (default) |
+| `FBIRD_CONCURRENCY` | SNAPSHOT isolation (repeatable read) |
+| `FBIRD_COMMITTED` | READ COMMITTED isolation |
+| `FBIRD_CONSISTENCY` | SERIALIZABLE isolation (table-level locks) |
+| `FBIRD_REC_VERSION` | Read latest committed version (with COMMITTED) |
+| `FBIRD_REC_NO_VERSION` | Read only version at transaction start |
+| `FBIRD_WAIT` | Wait for locked records |
+| `FBIRD_NOWAIT` | Fail immediately on lock conflict |
+| `FBIRD_LOCK_TIMEOUT` | Enable lock timeout (set value via array API) |
+| `FBIRD_READ_CONSISTENCY` | Firebird 4.0+ read consistency mode |
+
+**Table Reservation Flags (for `tables` array option):**
+
+| Flag | Description |
+|------|-------------|
+| `FBIRD_LOCK_SHARED` | Shared lock (other transactions can read) |
+| `FBIRD_LOCK_PROTECTED` | Protected lock (other transactions blocked) |
+| `FBIRD_LOCK_EXCLUSIVE` | Exclusive lock (no other access) |
+| `FBIRD_LOCK_READ` | Lock for reading |
+| `FBIRD_LOCK_WRITE` | Lock for writing |
+
 ### Prepared Statements Example
 
 ```php
@@ -493,11 +560,26 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development guidelines inclu
 - `fbird_fetch_object()` - Fetch a row as object
 
 ### Transaction Functions
-- `fbird_trans()` - Begin a transaction
+- `fbird_trans()` - Begin a transaction (flag-first API: `fbird_trans(FLAGS, $db)`)
+- `fbird_trans_start()` - Begin a transaction with array options (full TPB control)
 - `fbird_commit()` - Commit a transaction
-- `fbird_commit_ret()` - Commit and retain
+- `fbird_commit_ret()` - Commit and retain transaction context
 - `fbird_rollback()` - Roll back a transaction
-- `fbird_rollback_ret()` - Rollback and retain
+- `fbird_rollback_ret()` - Rollback and retain transaction context
+- `fbird_trans_info()` - Return transaction information (ID, state, isolation)
+
+### Savepoint Functions
+- `fbird_savepoint()` - Create a named savepoint
+- `fbird_rollback_savepoint()` - Rollback to a named savepoint
+- `fbird_release_savepoint()` - Release a named savepoint
+
+### Transaction Constants
+- **Access Modes**: `FBIRD_READ`, `FBIRD_WRITE`
+- **Isolation Levels**: `FBIRD_CONCURRENCY`, `FBIRD_COMMITTED`, `FBIRD_CONSISTENCY`
+- **Record Versioning**: `FBIRD_REC_VERSION`, `FBIRD_REC_NO_VERSION`
+- **Lock Resolution**: `FBIRD_WAIT`, `FBIRD_NOWAIT`, `FBIRD_LOCK_TIMEOUT`
+- **Table Reservation**: `FBIRD_LOCK_SHARED`, `FBIRD_LOCK_PROTECTED`, `FBIRD_LOCK_EXCLUSIVE`, `FBIRD_LOCK_READ`, `FBIRD_LOCK_WRITE`
+- **Firebird 4.0+**: `FBIRD_READ_CONSISTENCY`
 
 ### BLOB Functions
 - `fbird_blob_create()` - Create blob for adding data

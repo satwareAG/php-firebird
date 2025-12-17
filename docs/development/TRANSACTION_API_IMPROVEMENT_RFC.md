@@ -1,10 +1,12 @@
 # RFC: Comprehensive Transaction API Exposure
 
-**Status:** Implemented
+**Status:** ✅ FULLY IMPLEMENTED
 **Date:** 2025-11-27
-**Implemented:** 2025-11-29
+**Implemented:** 2025-11-29 (core), 2025-12-17 (comprehensive TPB verification)
 **Target:** php-firebird Extension (C++)
 **Related:** Doctrine Firebird Driver "Optimized Transaction Handling"
+
+> **Note:** This RFC is now fully implemented. All TPB features have been verified working with comprehensive tests (`tests/trans_tpb_comprehensive.phpt`). See `docs/DEVELOPMENT_HISTORY.md` for the TPB Comprehensive Support milestone.
 
 ## 1. Executive Summary
 

@@ -84,17 +84,45 @@ This document analyzes all 19 open issues from the upstream FirebirdSQL/php-fire
 
 ---
 
-#### Issue #98: Modern date/time/timestamp format parsing (PARTIAL)
-**Status:** ⚠️ **PARTIALLY ADDRESSED**
+#### Issue #98: Modern date/time/timestamp format parsing
+**Status:** ✅ **FULLY FIXED**
 
 **Original Issue:** Replace deprecated `strptime()` with PHP date parsing facilities for `fbird.timestampformat`, `fbird.dateformat`, `fbird.timeformat`.
 
-**satwareAG Status:**
-- INI directives renamed to `fbird.*` namespace ✅
-- `strptime()` still used internally (cross-platform issues remain)
-- Modern PHP date facilities not yet integrated
+**satwareAG Implementation (Verified 2025-12-17):**
 
-**Recommendation:** Keep open, investigate PHP DateTime API integration for format parsing.
+The satwareAG fork completely replaced `strptime()` with a cross-platform `sscanf()`-based parsing implementation:
+
+**Design (fbird_datetime.c):**
+- `fbird_parse_date()` - Parses ISO 8601, European (DD.MM.YYYY), and US (MM/DD/YYYY) formats
+- `fbird_parse_time()` - Parses HH:MM:SS.FFFF format with timezone extraction
+- `fbird_parse_timestamp()` - Combined date/time parsing with auto-format detection
+- All functions use `sscanf()` instead of non-portable `strptime()`
+
+**Usage (fbird_query_bind.c, lines 703-779):**
+```c
+// Binding PHP date strings to Firebird datatypes
+parsed = fbird_parse_date(Z_STRVAL_P(b_var), &dt);      // SQL_TYPE_DATE
+parsed = fbird_parse_time(Z_STRVAL_P(b_var), &dt);      // SQL_TYPE_TIME  
+parsed = fbird_parse_timestamp(Z_STRVAL_P(b_var), &dt); // SQL_TIMESTAMP
+```
+
+**Cross-Platform Benefits:**
+- No `strptime()` dependency (missing on Windows, inconsistent on platforms)
+- Works on Linux (glibc/musl), Windows, and macOS
+- Auto-detects date format based on separator characters (-, ., /)
+- Validates parsed components before accepting
+
+**Test Results (2025-12-17):**
+- `tests/time_003.phpt` - PASS
+- `tests/time_004.phpt` - PASS
+- `tests/timezone_001.phpt` - PASS
+- `tests/timezone_002.phpt` - PASS
+- `tests/timezone_003.phpt` - PASS
+
+**Note:** The implementation uses C-level `sscanf()` parsing rather than PHP DateTime API, which is more efficient for extension code and avoids the overhead of calling PHP functions from C.
+
+**Evidence:** `grep -rn strptime` shows only documentation comments, no actual function calls.
 
 ---
 

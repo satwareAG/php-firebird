@@ -14,6 +14,36 @@ A high-performance PHP extension providing native connectivity to Firebird datab
 - **Cross-Platform**: Linux, Windows, macOS support
 - **Clean API**: `fbird_*` function prefix (no legacy InterBase naming)
 
+## PDO_Firebird vs php-firebird Extension
+
+Choosing between PDO\_Firebird and php-firebird depends on your project requirements:
+
+| Feature | PDO_Firebird | php-firebird |
+|---------|--------------|--------------|
+| **API Style** | PDO (database-agnostic) | Native (Firebird-specific) |
+| **Function Prefix** | `$pdo->method()` | `fbird_*()` |
+| **Events Support** | ❌ No | ✅ Yes |
+| **Service API** | ❌ No | ✅ Full (backup, restore, users) |
+| **Array Fields** | ❌ No | ✅ Yes |
+| **BLOB Streaming** | ✅ Via LOB | ✅ Native + Streams |
+| **Prepared Statements** | ✅ Yes | ✅ Yes |
+| **Transaction Control** | ✅ Basic | ✅ Advanced (savepoints, TPB) |
+| **Named Cursors** | ❌ No | ✅ Yes (`fbird_name_result`) |
+| **Generator/Sequence** | Via SQL only | ✅ Native `fbird_gen_id()` |
+| **Modern OO API** | ❌ Legacy C API | ✅ FB 3.0+ OO API |
+
+**When to use PDO_Firebird:**
+- Building database-agnostic applications
+- Simple CRUD operations
+- Portability across databases is priority
+
+**When to use php-firebird:**
+- Firebird-specific features needed (events, service API)
+- Array field support required
+- Advanced transaction control (savepoints, table locking)
+- Performance-critical applications
+- Need modern Firebird 3.0+ OO API benefits
+
 ## Requirements
 
 ### System Requirements

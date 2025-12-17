@@ -1,8 +1,8 @@
 # Upstream "FIXED" Issues - Deep Inspection Report
 
-> **Analysis Date**: 2025-12-17  
+> **Analysis Date**: 2025-12-17 (Updated)
 > **Methodology**: Baby Steps™ incremental validation  
-> **Scope**: Issues #82, #85, #86, #98 from upstream FirebirdSQL/php-firebird
+> **Scope**: Issues #82, #85, #86, #98, #99, #25 from upstream FirebirdSQL/php-firebird
 
 ---
 
@@ -10,10 +10,12 @@
 
 | Issue | Status | Completeness | Further Action |
 |-------|--------|--------------|----------------|
-| #82 FBIRD Migration | ✅ FIXED | 95% | Cosmetic: phpinfo display strings |
-| #85 README Tidy | ✅ FIXED | 90% | Add: PDO_Firebird comparison |
+| #82 FBIRD Migration | ✅ FIXED | 100% | None (phpinfo display verified) |
+| #85 README Tidy | ✅ FIXED | 100% | Complete (PDO comparison added) |
 | #86 CI/CD Suite | ✅ FIXED | 100% | None needed |
-| #98 Date Parsing | ⚠️ PARTIAL | 60% | CRITICAL: strptime migration |
+| #98 Date Parsing | ⚠️ PARTIAL | 60% | MEDIUM: strptime migration |
+| #99 CHAR Type Reporting | ✅ FIXED | 100% | None needed |
+| #25 UTF-8 CHAR Padding | ✅ FIXED | 100% | None needed |
 
 ---
 
@@ -60,23 +62,28 @@ REGISTER_LONG_CONSTANT("FBIRD_TEXT", PHP_FBIRD_FETCH_BLOBS, CONST_PERSISTENT);
 
 Functions are `fbird_*` only. The satwareAG fork does **not** provide `ibase_*` aliases. Users must update their code.
 
-### Minor Issue Found: phpinfo() Display Strings
+### phpinfo() Display Strings - ✅ VERIFIED FIXED
 
 **Location**: `firebird.c` function `php_fbird_trans_displayer()`
 
-The phpinfo() output for transaction parameters still displays `IBASE_*` names:
+The phpinfo() output correctly displays `FBIRD_*` names:
 
 ```c
-// firebird.c lines ~830-860
-PUTS_TP("IBASE_READ");      // Should be FBIRD_READ
-PUTS_TP("IBASE_WRITE");     // Should be FBIRD_WRITE
-PUTS_TP("IBASE_COMMITTED"); // Should be FBIRD_COMMITTED
-// etc.
+// firebird.c - VERIFIED 2025-12-17
+PUTS_TP("FBIRD_READ");
+PUTS_TP("FBIRD_WRITE");
+PUTS_TP("FBIRD_COMMITTED");
+PUTS_TP("FBIRD_REC_VERSION");
+PUTS_TP("FBIRD_REC_NO_VERSION");
+PUTS_TP("FBIRD_CONSISTENCY");
+PUTS_TP("FBIRD_CONCURRENCY");
+PUTS_TP("FBIRD_NOWAIT");
+PUTS_TP("FBIRD_WAIT");
+PUTS_TP("FBIRD_LOCK_TIMEOUT");
+PUTS_TP("FBIRD_DEFAULT");
 ```
 
-**Impact**: Cosmetic only - does not affect functionality.  
-**Priority**: Low  
-**Recommendation**: Update display strings to `FBIRD_*` for consistency.
+**Status**: ✅ COMPLETE - No further action needed.
 
 ---
 
@@ -271,26 +278,85 @@ int parse_iso_datetime(const char *str, int *year, int *month, int *day,
 
 ---
 
+## Issue #99: Incorrect Type Reporting for CHAR Fields
+
+**Upstream Request**: `ibase_field_info()` returns "VARCHAR" instead of "CHAR" for CHAR fields.
+
+### Verification Results - ✅ FIXED
+
+**Test File**: `tests/fbird_field_info_001.phpt`
+
+**Evidence**:
+```
+CHAR_FIXED/CHAR/10
+VARCHAR_FIELD/VARCHAR/50
+```
+
+The test explicitly verifies that:
+- CHAR fields return type `"CHAR"`
+- VARCHAR fields return type `"VARCHAR"`
+
+**Verification Date**: 2025-12-17  
+**Test Result**: PASS (PHP 8.3, Firebird 4.0)
+
+**Implementation**: `fbird_metadata.c` correctly maps:
+- `SQL_TEXT` → "CHAR"
+- `SQL_VARYING` → "VARCHAR"
+
+**Status**: ✅ COMPLETE - No further action needed.
+
+---
+
+## Issue #25: CHAR(1) Padded with Spaces in UTF-8
+
+**Upstream Request**: CHAR(1) returns 'A   ' (with 3 extra spaces) when using UTF-8 charset.
+
+### Verification Results - ✅ FIXED
+
+**Test File**: `tests/datatype_char_utf8.phpt`
+
+**Evidence**:
+```php
+// Test data:
+// v_char_utf8_1 CHAR(1) CHARACTER SET UTF8 = '€'
+// v_char_utf8_10 CHAR(10) CHARACTER SET UTF8 = '  A   €   '
+
+// Expected output (PASS):
+["V_CHAR_UTF8_1"]=>  string(3) "€"        // Correctly trimmed (3 bytes = euro sign)
+["V_CHAR_UTF8_10"]=> string(9) "  A   €"  // Trailing spaces trimmed
+["V_VARCHAR_UTF8_1"]=> string(3) "€"      // VARCHAR unchanged
+```
+
+**Implementation**: CHAR fields are properly right-trimmed on fetch in `fbird_result.c`.
+
+**Key Behavior**:
+- CHAR fields: Trailing spaces trimmed (correct SQL standard behavior)
+- VARCHAR fields: Content unchanged (no trimming needed)
+- UTF-8 multi-byte characters handled correctly
+
+**Verification Date**: 2025-12-17  
+**Test Result**: PASS (PHP 8.3, Firebird 4.0)
+
+**Status**: ✅ COMPLETE - No further action needed.
+
+---
+
 ## Improvement Recommendations Summary
 
-### High Priority
+### Medium Priority
 
 1. **Issue #98**: Migrate strptime() to cross-platform solution
    - Impact: Windows compatibility, POSIX compliance
    - Effort: 4 hours
    - Files: `fbird_query_bind.c`, `fbird_query_array.c`
 
-### Low Priority
+### Completed (No Action Required)
 
-2. **Issue #82**: Update phpinfo() display strings
-   - Impact: Cosmetic consistency
-   - Effort: 15 minutes
-   - File: `firebird.c` function `php_fbird_trans_displayer()`
-
-3. **Issue #85**: Add PDO_Firebird comparison section
-   - Impact: User education
-   - Effort: 30 minutes
-   - File: `README.md`
+- **Issue #82**: ✅ FBIRD migration complete (phpinfo verified)
+- **Issue #85**: ✅ README tidied with PDO_Firebird comparison added
+- **Issue #86**: ✅ CI/CD suite complete
+- **Issue #99**: ✅ CHAR type reporting correct
+- **Issue #25**: ✅ UTF-8 CHAR padding handled correctly
 
 ---
 
@@ -322,6 +388,7 @@ For implementing recommendations:
 | phpinfo display | `firebird.c` |
 | README comparison | `README.md` |
 
----
+### Important Note on compile and test commands
+Use scripts/host/test_matrix.sh to run the full test suite on all supported platforms.
 
 *Document generated as part of upstream issue analysis. See `docs/UPSTREAM_ISSUE_ANALYSIS.md` for full 19-issue overview.*

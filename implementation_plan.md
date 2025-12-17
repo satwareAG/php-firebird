@@ -17,9 +17,9 @@
 
 **Status: ✅ ALL SERVERS PASS - EXTENSION READY FOR RELEASE**
 
-**XFAIL Tests (all servers):** 2 tests marked with native PHPT `--XFAIL--` section:
-- `tests/blob_stream_chunked_write.phpt` - Known segfault in large BLOB fetch after commit
-- `tests/migration_001.phpt` - Known segfault in transaction cleanup after fbird_drop_table_force
+**XFAIL Tests:** none.
+
+**Note:** `tests/blob_stream_chunked_write.phpt` is a regression test that historically triggered SIGSEGV/heap corruption; it is expected to PASS.
 
 These tests are expected to fail and are counted as "expected failures" by the PHPT test runner (not blocking the test suite).
 
@@ -141,7 +141,7 @@ These tests are expected to fail and are counted as "expected failures" by the P
 | Category | Status | Notes |
 |----------|--------|-------|
 | Basic Connectivity | ✅ 100% | All connection tests pass |
-| Blob Operations | ✅ 100% | All runnable tests pass (1 XFAIL deferred) |
+| Blob Operations | ✅ 100% | All runnable tests pass |
 | Service Manager | ✅ 100% | All service tests pass |
 | Query Execution | ✅ 100% | OO API primary path working |
 | Transaction SQL | ✅ 100% | SET TRANSACTION, COMMIT, ROLLBACK via OO API |
@@ -230,13 +230,11 @@ All runnable tests now pass (96/96). Fixed issues:
 
 3. ✅ **long_names_001.phpt** - Already passing
 
-4. ⏸️ **blob_stream_chunked_write.phpt** - XFAIL (deferred)
-   - Complex segfault when fetching large BLOBs (65536 bytes) after commit
-   - Requires deeper investigation into result resource cleanup
+4. ✅ **blob_stream_chunked_write.phpt** - Regression test (PASS)
+   - Historically reproduced BLOB stream chunking crashes; now expected to PASS.
 
-5. ⏸️ **migration_001.phpt** - XFAIL (deferred)
-   - Complex segfault in transaction cleanup after `fbird_drop_table_force`
-   - Requires investigation into transaction lifetime after DDL commit
+5. ✅ **migration_001.phpt** - PASS
+   - Validates `fbird_drop_table_force` logic without crashing.
 
 ### Phase 2: Multi-Server Validation ✅ COMPLETE
 
@@ -309,6 +307,5 @@ scripts/container/test.sh
 
 **All primary success criteria met. Extension is ready for release.**
 
-### XFAIL Tests (Deferred for Future Investigation)
-- [ ] `blob_stream_chunked_write.phpt` - Complex segfault in BLOB fetch
-- [ ] `migration_001.phpt` - Complex segfault in transaction cleanup
+### Deferred Crash Investigations
+None currently tracked in this plan.

@@ -8,7 +8,9 @@ This test replicates the doctrine-firebird-driver pattern:
 4. Close the blob
 
 Tests chunked BLOB writes with various sizes (100B, 8KB, 32KB, 64KB).
-Fixed in 6.2.1: zend_list_close() replaces zend_list_delete() preventing use-after-free (Issue #10).
+Historically triggered SIGSEGV/heap corruption (Issue #10).
+Fixed in 6.2.1 via zend_list_close() replacing zend_list_delete().
+Kept as a regression test.
 --SKIPIF--
 <?php
 include("skipif.inc");

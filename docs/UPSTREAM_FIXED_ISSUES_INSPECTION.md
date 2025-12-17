@@ -18,6 +18,7 @@
 | #25 UTF-8 CHAR Padding | ✅ FIXED | 100% | None needed |
 | #66 Event PHP 8.4+ Stack | ✅ FIXED | 100% | None (polling model redesign) |
 | #45 Event Memory Leak | ✅ FIXED | 100% | None (polling model redesign) |
+| #42 Array Test 007 | ✅ FIXED | 100% | None (test passes on all versions) |
 
 ---
 

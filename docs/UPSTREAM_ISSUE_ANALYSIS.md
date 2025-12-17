@@ -13,8 +13,8 @@ This document analyzes all 19 open issues from the upstream FirebirdSQL/php-fire
 
 | Status | Count | Issues |
 |--------|-------|--------|
-| ✅ **FIXED** in satwareAG fork | 8 | #82, #85, #86, #98, #99, #25, #66, #45 |
-| 🔍 **NEEDS INVESTIGATION** | 4 | #97, #42, #22, #53 |
+| ✅ **FIXED** in satwareAG fork | 9 | #82, #85, #86, #98, #99, #25, #66, #45, #42 |
+| 🔍 **NEEDS INVESTIGATION** | 3 | #97, #22, #53 |
 | 📝 **DOCUMENTATION ONLY** | 4 | #90, #72, #71, #63 |
 | 🚀 **FEATURE REQUEST** | 2 | #83, #12 |
 | ❓ **NOT APPLICABLE** | 1 | #70 |
@@ -153,6 +153,41 @@ The polling model redesign (same as #66) also resolves memory issues:
 
 ---
 
+#### Issue #25: char(1) padded with spaces with charset UTF8
+**Status:** ✅ **FULLY FIXED**
+
+**Original Issue:** CHAR(1) returns 'A   ' (with 3 extra spaces) when using UTF-8 charset.
+
+**satwareAG Verification (2025-12-17):**
+- CHAR fields are properly right-trimmed on fetch in `fbird_result.c`
+- UTF-8 multi-byte characters handled correctly (3-byte euro sign works)
+- Test `tests/datatype_char_utf8.phpt` verifies correct behavior
+- CHAR fields: Trailing spaces trimmed (correct SQL standard behavior)
+- VARCHAR fields: Content unchanged (no trimming needed)
+
+**Evidence:** See `docs/UPSTREAM_FIXED_ISSUES_INSPECTION.md` for detailed verification.
+
+---
+
+#### Issue #42: Fix and re-enable tests/007.phpt
+**Status:** ✅ **FULLY FIXED**
+
+**Original Issue:** tests/007.phpt was disabled in upstream due to failures.
+
+**satwareAG Verification (2025-12-17):**
+- Test `tests/007.phpt` (array handling) exists and is enabled
+- Standard SKIPIF (not disabled)
+- Additional variants: `007_iso_char.phpt`, `007_iso_integer.phpt`, `007_iso_varchar10.phpt`, `007_iso_varchar1000.phpt`
+
+**Test Results:**
+- PHP 8.3.28: ✅ PASS
+- PHP 8.4.15: ✅ PASS  
+- PHP 8.5.0: ✅ PASS
+
+**Evidence:** Test matrix verification 2025-12-17
+
+---
+
 ### 🔍 NEEDS INVESTIGATION
 
 #### Issue #97: Impossible to make multiple connections with same args
@@ -171,37 +206,6 @@ The polling model redesign (same as #66) also resolves memory issues:
 3. Add `fbird_new_connection()` function that bypasses hash
 
 **Recommendation:** Create documentation, consider adding `FBIRD_FORCE_NEW` flag option.
-
----
-
-#### Issue #42: Fix and re-enable tests/007.phpt
-**Status:** 🔍 **NEEDS INVESTIGATION**
-
-**Original Issue:** tests/007.phpt was disabled.
-
-**satwareAG Status:**
-- `tests/007.phpt` exists (array handling test)
-- Has standard SKIPIF (not disabled)
-- We also have 007_iso_* variants
-
-**Action Required:** Verify test passes in all matrix combinations.
-
----
-
-#### Issue #25: char(1) padded with spaces with charset UTF8
-**Status:** 🔍 **NEEDS INVESTIGATION**
-
-**Original Issue:** CHAR(1) returns 'A   ' (with 3 extra spaces) when using UTF-8 charset.
-
-**satwareAG Analysis:**
-- This is a Firebird wire protocol behavior - CHAR fields transferred with full byte buffer
-- UTF-8 CHAR(1) = 4 bytes buffer (max UTF-8 char size)
-- Should be trimmed at PHP driver level
-
-**Action Required:**
-1. Check `fbird_result.c` for string trimming logic
-2. Verify if we handle CHAR vs VARCHAR differently on fetch
-3. Consider adding automatic trim based on field type metadata
 
 ---
 
@@ -340,19 +344,24 @@ The polling model redesign (same as #66) also resolves memory issues:
 
 ## Recommended Priority Actions
 
-### High Priority (Potential Bugs)
-1. **Issue #99** - CHAR type reporting: Create reproduction test, fix if confirmed
-2. **Issue #25** - UTF-8 CHAR padding: Likely actual bug, needs fix
+### High Priority (Remaining Investigations)
+1. **Issue #22** - Document/fix ibase_close behavior (may be design, not bug)
+2. **Issue #53** - Local service connections
 
-### Medium Priority (Code Quality)
-3. **Issue #42** - Verify tests/007.phpt passes everywhere
-4. **Issue #22** - Document/fix ibase_close behavior
-5. **Issue #53** - Local service connections
+### Medium Priority (Design Decisions)
+3. **Issue #97** - Connection pooling behavior: document or add `FBIRD_FORCE_NEW` flag
 
 ### Low Priority (Documentation/Features)
-6. **Issues #90,#72,#71,#63** - PHP documentation updates
-7. **Issue #83** - Benchmark suite expansion
-8. **Issue #12** - PECL publishing (post-release)
+4. **Issues #90,#72,#71,#63** - PHP documentation updates
+5. **Issue #83** - Benchmark suite expansion
+6. **Issue #12** - PECL publishing (post-release)
+
+### Already Completed (✅ FIXED)
+- **Issue #42** - Array handling test: Verified FIXED (2025-12-17) - passes on PHP 8.3/8.4/8.5
+- **Issue #99** - CHAR type reporting: Verified FIXED (2025-12-17)
+- **Issue #25** - UTF-8 CHAR padding: Verified FIXED (2025-12-17)
+- **Issues #66, #45** - Event handling PHP 8.4+: Verified FIXED via polling model
+- **Issues #82, #85, #86, #98** - Infrastructure and documentation: Complete
 
 ---
 

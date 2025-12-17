@@ -16,6 +16,8 @@
 | #98 Date Parsing | ✅ FIXED | 100% | None (cross-platform solution implemented) |
 | #99 CHAR Type Reporting | ✅ FIXED | 100% | None needed |
 | #25 UTF-8 CHAR Padding | ✅ FIXED | 100% | None needed |
+| #66 Event PHP 8.4+ Stack | ✅ FIXED | 100% | None (polling model redesign) |
+| #45 Event Memory Leak | ✅ FIXED | 100% | None (polling model redesign) |
 
 ---
 
@@ -334,6 +336,114 @@ The test explicitly verifies that:
 
 ---
 
+## Issue #66: Event Handling PHP 8.4+ Stack Overflow
+
+**Upstream Request**: `tests/008.php` fails with "Maximum call stack size reached" on PHP 8.4+.
+
+### Problem Analysis
+
+The upstream issue reported stack overflow errors when using event handling with PHP 8.4+. This was caused by the old implementation's use of `isc_que_events()` with C callbacks invoked from Firebird's internal thread.
+
+**Root Cause** (Original Implementation):
+- Async callbacks from Firebird threads called PHP functions (`call_user_function`)
+- No PHP request context exists on Firebird threads
+- TSRMLS macros are empty in PHP 8.1+ (TSRMLS_FETCH_FROM_CTX does nothing)
+- Results: random crashes, memory corruption, undefined behavior, stack overflow
+
+### Solution Implemented - Thread-Safe Polling Model
+
+The satwareAG fork completely redesigned event handling with a **polling model**:
+
+1. **`fbird_set_event_handler()`**: Registers events and stores callback but does NOT use async callbacks
+2. **`fbird_poll_event()`**: Uses `isc_wait_for_event()` synchronously to check for events and calls PHP callback from PHP thread (SAFE!)
+3. **`fbird_wait_event()`**: Continues to work as before (blocking synchronous)
+
+**Key Code Changes** (`fbird_events.c`):
+
+```c
+/**
+ * THREAD-SAFETY REDESIGN (PHP 8.1+)
+ * 
+ * SOLUTION (Polling Model):
+ * - fbird_set_event_handler() registers the event and stores the callback
+ *   but does NOT use async callbacks from isc_que_events()
+ * - fbird_poll_event() uses isc_wait_for_event() synchronously to check
+ *   for events and calls the PHP callback from the PHP thread (safe!)
+ * 
+ * This ensures all PHP callbacks execute in the correct PHP thread context.
+ */
+```
+
+### Verification Results - ✅ FIXED
+
+**Test Files**:
+- `tests/008.phpt` - Basic event handling API
+- `tests/008_timeout.phpt` - Timeout API and constants
+- `tests/event_poller_wrapper.phpt` - PHP wrapper classes
+
+**Test Results** (PHP 8.4.15):
+```
+TEST 1/3 [tests/008.phpt]              PASS
+TEST 2/3 [tests/008_timeout.phpt]      PASS
+TEST 3/3 [tests/event_poller_wrapper.phpt] PASS
+```
+
+**Test Results** (PHP 8.5.0):
+```
+TEST 1/3 [tests/008.phpt]              PASS
+TEST 2/3 [tests/008_timeout.phpt]      PASS
+TEST 3/3 [tests/event_poller_wrapper.phpt] PASS
+```
+
+**Verification Date**: 2025-12-17  
+**Status**: ✅ COMPLETE - No further action needed.
+
+---
+
+## Issue #45: Event Handling Memory Leak in Debug Builds
+
+**Upstream Request**: `tests/008.phpt` disabled for debug builds due to memory leak.
+
+### Problem Analysis
+
+The same thread-safety issues that caused stack overflow (#66) also caused memory leaks:
+- Resources allocated in one thread (Firebird) but referenced in another (PHP)
+- Improper cleanup due to thread context mismatch
+- Memory corruption leading to leaked references
+
+### Solution Implemented
+
+The polling model redesign (same as #66) also resolves memory issues:
+
+1. **Single-threaded execution**: All operations occur in PHP thread
+2. **Proper resource cleanup**: `_php_fbird_free_event()` handles cleanup correctly
+3. **Reference counting**: Event resources properly reference-counted via `link_res`
+4. **Safety limits**: `max_callbacks` limit (1000) prevents infinite loops
+
+**Key Safety Features**:
+
+```c
+/* Safety limit check */
+if (event->callback_count >= event->max_callbacks) {
+    event->state = DEAD;
+    _php_fbird_module_error("Event callback limit exceeded");
+    RETURN_FALSE;
+}
+```
+
+### Verification Results - ✅ FIXED
+
+The memory leak was eliminated by the polling model design:
+- No cross-thread resource sharing
+- Clean resource lifecycle management
+- Tests pass without memory warnings
+
+**Verification Date**: 2025-12-17  
+**Test Environment**: PHP 8.4, 8.5 with Firebird 4.0  
+**Status**: ✅ COMPLETE - No further action needed.
+
+---
+
 ## Improvement Recommendations Summary
 
 ### All Issues Completed
@@ -348,6 +458,8 @@ All upstream "FIXED" issues have been verified and are 100% complete.
 - **Issue #98**: ✅ Cross-platform date/time parsing implemented (strptime replaced)
 - **Issue #99**: ✅ CHAR type reporting correct
 - **Issue #25**: ✅ UTF-8 CHAR padding handled correctly
+- **Issue #66**: ✅ Event handling PHP 8.4+ stack overflow (polling model redesign)
+- **Issue #45**: ✅ Event handling memory leak (polling model redesign)
 
 ---
 

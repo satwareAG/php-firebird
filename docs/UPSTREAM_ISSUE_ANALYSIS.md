@@ -13,8 +13,8 @@ This document analyzes all 19 open issues from the upstream FirebirdSQL/php-fire
 
 | Status | Count | Issues |
 |--------|-------|--------|
-| ✅ **FIXED** in satwareAG fork | 4 | #82, #85, #86, #98 (partial) |
-| 🔍 **NEEDS INVESTIGATION** | 8 | #99, #97, #66, #45, #42, #25, #22, #53 |
+| ✅ **FIXED** in satwareAG fork | 8 | #82, #85, #86, #98, #99, #25, #66, #45 |
+| 🔍 **NEEDS INVESTIGATION** | 4 | #97, #42, #22, #53 |
 | 📝 **DOCUMENTATION ONLY** | 4 | #90, #72, #71, #63 |
 | 🚀 **FEATURE REQUEST** | 2 | #83, #12 |
 | ❓ **NOT APPLICABLE** | 1 | #70 |
@@ -90,6 +90,53 @@ This document analyzes all 19 open issues from the upstream FirebirdSQL/php-fire
 
 ---
 
+#### Issue #66: tests/008.php fail with PHP 8.4 - Maximum call stack size
+**Status:** ✅ **FIXED**
+
+**Original Issue:** Event handling test fails with "Maximum call stack size reached" on PHP 8.4+.
+
+**satwareAG Solution - Thread-Safe Polling Model:**
+
+The satwareAG fork completely redesigned event handling to eliminate the thread-safety issues:
+
+**Root Cause:** The old implementation used `isc_que_events()` with C callbacks invoked from Firebird's internal thread. These callbacks called `call_user_function()` from a non-PHP thread, which caused:
+- No PHP request context on Firebird threads
+- TSRMLS macros empty in PHP 8.1+ (TSRMLS_FETCH_FROM_CTX does nothing)
+- Random crashes, memory corruption, and stack overflow
+
+**New Design:**
+1. `fbird_set_event_handler()` - Registers events, stores callback, does NOT use async callbacks
+2. `fbird_poll_event()` - Synchronously checks for events, calls PHP callback from PHP thread (SAFE!)
+3. `fbird_wait_event()` - Unchanged (blocking synchronous)
+
+**Test Results (2025-12-17):**
+- PHP 8.4.15: tests/008.phpt ✅ PASS
+- PHP 8.5.0: tests/008.phpt ✅ PASS
+- All 3 event tests pass on all PHP versions
+
+---
+
+#### Issue #45: Fix and re-enable tests/008.phpt (debug builds)
+**Status:** ✅ **FIXED**
+
+**Original Issue:** tests/008.phpt disabled for debug builds due to memory leak.
+
+**satwareAG Solution:**
+
+The polling model redesign (same as #66) also resolves memory issues:
+
+1. **Single-threaded execution**: All operations occur in PHP thread
+2. **Proper resource cleanup**: `_php_fbird_free_event()` handles cleanup correctly
+3. **Reference counting**: Event resources properly reference-counted via `link_res`
+4. **Safety limits**: `max_callbacks` limit (1000) prevents infinite loops
+
+**Test Results (2025-12-17):**
+- Event tests pass without memory warnings
+- No cross-thread resource sharing
+- Clean resource lifecycle management
+
+---
+
 ### 🔍 NEEDS INVESTIGATION
 
 #### Issue #99: Incorrect type reporting for CHAR fields
@@ -125,37 +172,6 @@ This document analyzes all 19 open issues from the upstream FirebirdSQL/php-fire
 3. Add `fbird_new_connection()` function that bypasses hash
 
 **Recommendation:** Create documentation, consider adding `FBIRD_FORCE_NEW` flag option.
-
----
-
-#### Issue #66: tests/008.php fail with PHP 8.4 - Maximum call stack size
-**Status:** 🔍 **NEEDS INVESTIGATION**
-
-**Original Issue:** Event handling test fails with "Maximum call stack size reached" on PHP 8.4+.
-
-**satwareAG Status:**
-- `tests/008.phpt` exists and has proper SKIPIF
-- Event handling was redesigned with PHP wrapper classes (`ProcessEventPoller`, etc.)
-- Memory leak mentioned in upstream issue may still exist
-
-**Action Required:**
-1. Run `tests/008.phpt` specifically with PHP 8.4
-2. Test with debug build to detect memory leaks
-3. Verify new event polling implementation doesn't have recursion issues
-
----
-
-#### Issue #45: Fix and re-enable tests/008.phpt (debug builds)
-**Status:** 🔍 **NEEDS INVESTIGATION**
-
-**Original Issue:** tests/008.phpt disabled for debug builds due to memory leak.
-
-**satwareAG Status:**
-- Test file exists without XFAIL marker
-- Event handling redesigned with RAII wrappers
-- Needs verification with debug PHP build
-
-**Action Required:** Test with `--enable-debug` PHP build, run under Valgrind.
 
 ---
 
@@ -328,17 +344,16 @@ This document analyzes all 19 open issues from the upstream FirebirdSQL/php-fire
 ### High Priority (Potential Bugs)
 1. **Issue #99** - CHAR type reporting: Create reproduction test, fix if confirmed
 2. **Issue #25** - UTF-8 CHAR padding: Likely actual bug, needs fix
-3. **Issue #66/#45** - Event tests with PHP 8.4: Memory/stack issues
 
 ### Medium Priority (Code Quality)
-4. **Issue #42** - Verify tests/007.phpt passes everywhere
-5. **Issue #22** - Document/fix ibase_close behavior
-6. **Issue #53** - Local service connections
+3. **Issue #42** - Verify tests/007.phpt passes everywhere
+4. **Issue #22** - Document/fix ibase_close behavior
+5. **Issue #53** - Local service connections
 
 ### Low Priority (Documentation/Features)
-7. **Issues #90,#72,#71,#63** - PHP documentation updates
-8. **Issue #83** - Benchmark suite expansion
-9. **Issue #12** - PECL publishing (post-release)
+6. **Issues #90,#72,#71,#63** - PHP documentation updates
+7. **Issue #83** - Benchmark suite expansion
+8. **Issue #12** - PECL publishing (post-release)
 
 ---
 

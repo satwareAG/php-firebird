@@ -237,9 +237,10 @@ All 5 date/time tests pass:
 - **Tested:** PHP 8.1, 8.2, 8.3, 8.4, 8.5
 
 ### Firebird Version Support
-- **Versions:** Firebird 2.5, 3.0, 4.0, 5.0
+- **Client Library Requirement:** Firebird 3.0+ client library (uses OO API)
+- **Server Connectivity:** FB 3.0 client → FB 2.5-3.0, FB 4.0 client → FB 2.5-4.0, FB 5.0 client → FB 2.5-5.0+
 - **Conditional compilation:** FB_API_VER >= 30/40 patterns for version-specific features
-- **Advanced features:** Timezone support (Firebird 4.0+)
+- **Advanced features:** Timezone support (Firebird 4.0+ client and server)
 
 ### Breaking Change Policy
 BC intentionally not maintained for constants to clearly signal the new driver without InterBase roots. Function aliases provide migration path for existing code.

@@ -66,7 +66,7 @@ The `isc_info_*` constants are **still used** with the modern OO API `getInfo()`
 
 **Migration Recommendation:** No migration needed. Use the same constants with OO API methods.
 
-### 3. Transaction Parameter Block (`isc_tpb_*`) - ⚠️ NO REPLACEMENT, CONSTANTS STILL USED
+### 3. Transaction Parameter Block (`isc_tpb_*`) - ✅ IXpbBuilder WRAPPER IMPLEMENTED
 
 The `isc_tpb_*` constants are **still used** when building TPBs for `IAttachment::startTransaction()`:
 
@@ -89,7 +89,27 @@ attachment->startTransaction(status, tpb->getBufferLength(status), tpb->getBuffe
 - `isc_tpb_lock_timeout`
 - etc.
 
-**Migration Recommendation:** No migration needed for constants. Optional: Use `IXpbBuilder` for cleaner TPB construction instead of manual byte arrays.
+**Migration Status:** ✅ **IMPLEMENTED** (2025-12-17)
+
+The `fbu_build_tpb()` wrapper in `firebird_utils.cpp` now uses `IXpbBuilder` for type-safe TPB construction:
+
+```cpp
+// New OO API wrapper (implemented in firebird_utils.cpp)
+fbu_tpb_result_t fbu_build_tpb(
+    Firebird::IMaster* master,
+    zend_long flags,                    // PHP_FBIRD_* flags
+    fbu_table_reservation_t* reserves,  // Table reservations (optional)
+    size_t reserve_count,
+    zend_long lock_timeout              // Lock timeout in seconds (optional)
+);
+```
+
+**Features:**
+- Type-safe flag-to-TPB-tag mapping
+- Support for all isolation levels and access modes
+- Table reservation support with lock modes
+- Lock timeout support
+- Debug logging via `flag_to_name()` helper a
 
 ### 4. Service Parameter Block (`isc_spb_*`) - ⚠️ NO REPLACEMENT, CONSTANTS STILL USED
 

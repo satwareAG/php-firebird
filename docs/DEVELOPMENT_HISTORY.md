@@ -22,6 +22,8 @@ This document summarizes the major development phases and milestones of the php-
 | **Issue #10 Fix** | Dec 2025 | BLOB fetch segfault fix (zend_list_close() fix) |
 | **TPB Comprehensive** | Dec 2025 | Full TPB support: all transaction flags, table reservation, Firebird 4.0+ features |
 | **Issue #98 Fix** | Dec 2025 | Cross-platform date/time parsing (replaced strptime with portable sscanf) |
+| **Fork Issue #11** | Dec 2025 | FBIRD_CONNECT_FORCE_NEW flag to bypass connection hash lookup |
+| **Issue #71 Fix** | Dec 2025 | Service attach INI defaults fallback for user/password |
 
 ## Major Milestones
 
@@ -170,6 +172,71 @@ Replaced `zend_list_delete()` with `zend_list_close()` in `fbird_blobs.c`. The `
 **Test Validation:** All 105 tests pass, 0 failures, 0 expected failures
 
 
+### Fork Issue #11: FBIRD_CONNECT_FORCE_NEW Flag (December 2025)
+
+**Problem Identified:**
+When calling `fbird_connect()` multiple times with identical parameters, the extension reuses the existing connection via hash lookup. This prevents establishing truly separate connections when needed (for parallel operations, isolation testing, etc.).
+
+**Requirements:**
+- Need a way to force a new connection even with identical parameters  
+- Should work with both `fbird_connect()` and `fbird_pconnect()`
+- Consistent with how `MYSQLI_CLIENT_*` flags work
+
+**Solution Implemented:**
+Added `FBIRD_CONNECT_FORCE_NEW` constant (value: 128) that can be passed via flags parameter:
+
+```php
+// Normal behavior - reuses connection
+$db1 = fbird_connect($dsn, $user, $pass);
+$db2 = fbird_connect($dsn, $user, $pass);  // Same resource as $db1
+
+// Force new connection
+$db3 = fbird_connect($dsn, $user, $pass, null, 0, 3, FBIRD_CONNECT_FORCE_NEW);  // New resource
+```
+
+**Implementation Details:**
+- Added `FBIRD_CONNECT_FORCE_NEW` constant in `firebird.c` MINIT
+- Modified `_php_fbird_connect()` to check for flag and skip hash lookup when set
+- Flag is stripped before passing to Firebird client (not a client flag)
+
+**Files Modified:**
+- `firebird.c` - Added constant registration and hash lookup bypass logic
+- `php_firebird.h` - Added `FBIRD_CONNECT_FORCE_NEW` macro definition
+- `tests/fbird_connect_force_new.phpt` - New test validating the feature
+
+**Test Validation:** All 113 tests pass, including the new force_new test
+
+---
+
+### Issue #71: Service Attach INI Defaults Fix (December 2025)
+
+**Problem Identified:**
+The `fbird_service_attach()` function did not respect INI directive fallbacks for `fbird.default_user` and `fbird.default_password` when credentials were not explicitly provided.
+
+**Root Cause Analysis:**
+The `_php_fbird_service_attach()` function checked if user/password arguments were provided, but didn't fall back to INI values when they were NULL or empty. This was inconsistent with `fbird_connect()` which properly uses INI defaults.
+
+**Solution Implemented:**
+Added `INI_STR()` fallback in `fbird_service.c`:
+
+```c
+// Before: Only used provided arguments
+user = ZSTR_VAL(user_zstr);
+
+// After: Fall back to INI if not provided
+user = user_zstr && ZSTR_LEN(user_zstr) > 0 
+    ? ZSTR_VAL(user_zstr) 
+    : INI_STR("fbird.default_user");
+```
+
+**Files Modified:**
+- `fbird_service.c` - Added INI_STR() fallback for user and password
+- `tests/fbird_service_ini_defaults.phpt` - New test validating INI fallback behavior
+
+**Test Validation:** All 113 tests pass, including the new service INI defaults test
+
+---
+
 ### Issue #98: Cross-Platform Date/Time Format Parsing (December 2025)
 
 **Problem Identified:**
@@ -297,9 +364,9 @@ The `fbxpb_build_tpb()` function was manually inserting `isc_tpb_version3` but t
 
 ## Test Coverage
 
-- **Total tests:** 110 PHPT test files
-- **Pass rate:** 100% (all non-skipped tests pass)
-- **Coverage areas:** Connection, transactions (comprehensive TPB), queries, blobs, services, metadata, inspection, savepoints
+- **Total tests:** 113 PHPT test files
+- **Pass rate:** 100% (109 of 113 pass, 4 skipped for version-specific reasons)
+- **Coverage areas:** Connection (including force_new), transactions (comprehensive TPB), queries, blobs, services (including INI defaults), metadata, inspection, savepoints
 
 ---
 

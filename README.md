@@ -7,7 +7,7 @@ A high-performance PHP extension providing native connectivity to Firebird datab
 ## Features
 
 - **Native Performance**: Direct fbclient library integration
-- **Full Firebird Support**: Compatible with Firebird 3.0, 4.0, 5.0+
+- **Full Firebird Support**: Connects to Firebird 2.5, 3.0, 4.0, 5.0+ servers (requires 3.0+ client library)
 - **Modern C++ OO API**: Uses Firebird 3.0+ Object-Oriented API with RAII wrappers
 - **Modern PHP**: Optimized for PHP 8.1+ with typed properties and attributes
 - **Memory Safety**: Built with AddressSanitizer and comprehensive static analysis
@@ -52,7 +52,7 @@ Choosing between PDO\_Firebird and php-firebird depends on your project requirem
 - **Firebird**: 3.0+ client libraries (fbclient) and headers
 - **Build Tools**: autotools, make, pkg-config
 
-> **⚠️ Firebird 3.0+ Required**: This extension requires Firebird 3.0 or later. The modern OO API (FB_API_VER >= 30) is mandatory. Firebird 2.5 and earlier versions are not supported.
+> **⚠️ Firebird 3.0+ Client Library Required**: This extension requires the Firebird 3.0+ client library (fbclient) for building, as it uses the modern OO API (FB_API_VER >= 30). However, newer client libraries can connect to older servers: FB 3.0 client → FB 2.5-3.0 servers, FB 4.0 client → FB 2.5-4.0 servers, FB 5.0 client → FB 2.5-5.0 servers.
 
 ### Supported Platforms
 - Linux (Ubuntu 20.04+, Debian 11+, openSUSE 15.3+)
@@ -738,15 +738,21 @@ See [EVENT_TIMEOUT_RFC.md](docs/development/EVENT_TIMEOUT_RFC.md) for implementa
 - PHP 8.4 (fully supported)
 - PHP 8.5 (development)
 
-**Supported Firebird Versions:**
-- Firebird 3.0 (minimum required, full support)
-- Firebird 4.0 (full support)
-- Firebird 5.0+ (full support)
+**Firebird Client Library (for building):**
+- Firebird 3.0+ client library required (uses OO API)
+- FB 5.0 client recommended (connects to all server versions)
+
+**Firebird Server Connectivity:**
+| Client Library | Server Versions Supported |
+|----------------|---------------------------|
+| FB 3.0 client | FB 2.5, 3.0 |
+| FB 4.0 client | FB 2.5, 3.0, 4.0 |
+| FB 5.0 client | FB 2.5, 3.0, 4.0, 5.0+ |
 
 **Dropped Support:**
 - ❌ PHP 7.x (legacy, security issues)
 - ❌ PHP 8.0 (legacy, no longer maintained)
-- ❌ Firebird 2.5 (legacy, use OO API from FB 3.0+)
+- ❌ Firebird 2.5 client library (requires OO API from FB 3.0+ client)
 - ❌ `ibase_*` function aliases (use `fbird_*` instead)
 - ❌ `interbase.so` extension name (use `firebird.so`)
 

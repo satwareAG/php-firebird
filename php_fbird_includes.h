@@ -252,6 +252,8 @@ typedef struct _ib_query {
 enum php_fbird_option {
 	PHP_FBIRD_DEFAULT            = 0,
 	PHP_FBIRD_CREATE             = 0,
+	/* connection flags */
+	PHP_FBIRD_CONNECT_FORCE_NEW  = 2,   /* Force new connection, bypass connection reuse (matches PGSQL_CONNECT_FORCE_NEW) */
 	/* fetch flags */
 	PHP_FBIRD_FETCH_BLOBS        = 1,
 	PHP_FBIRD_FETCH_ARRAYS       = 2,

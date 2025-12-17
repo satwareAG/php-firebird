@@ -243,6 +243,23 @@ PHP_FUNCTION(fbird_service_attach)
 		RETURN_FALSE;
 	}
 
+	/* Fall back to INI defaults if user/password not provided (Issue #71) */
+	if (ulen == 0) {
+		char *ini_user = INI_STR("fbird.default_user");
+		if (ini_user && *ini_user) {
+			user = ini_user;
+			ulen = strlen(ini_user);
+		}
+	}
+
+	if (plen == 0) {
+		char *ini_pass = INI_STR("fbird.default_password");
+		if (ini_pass && *ini_pass) {
+			pass = ini_pass;
+			plen = strlen(ini_pass);
+		}
+	}
+
 	if (ulen > 63) {
 		_php_fbird_module_error("Internal error: dba_username too long");
 		RETURN_FALSE;

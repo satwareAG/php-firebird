@@ -21,9 +21,9 @@ This document analyzes all 19 open issues from the upstream FirebirdSQL/php-fire
 
 | Status | Count | Issues |
 |--------|-------|--------|
-| ✅ **FIXED** in satwareAG fork | 11 | #82, #85, #86, #98, #99, #25, #66, #45, #42, #22, #53 |
-| ⚠️ **BY DESIGN** (enhancement needed) | 1 | #97 - Default OK, but needs `FBIRD_CONNECT_FORCE_NEW` flag |
-| 📝 **DOCUMENTATION ONLY** | 4 | #90, #72, #71, #63 |
+| ✅ **FIXED** in satwareAG fork | 12 | #82, #85, #86, #98, #99, #25, #66, #45, #42, #22, #53, #71 |
+| ⚠️ **BY DESIGN** (enhancement done) | 1 | #97 → Fork #11 ✅ IMPLEMENTED |
+| 📝 **DOCUMENTATION ONLY** | 3 | #90, #72, #63 |
 | 🚀 **FEATURE REQUEST** | 2 | #83, #12 |
 | ❓ **NOT APPLICABLE** | 1 | #70 |
 
@@ -448,15 +448,45 @@ $conn7 = fbird_pconnect($db, $user, $pass);
 ---
 
 #### Issue #71: ibase_service_attach() should respect INI settings
-**Status:** 📝 **DOCUMENTATION/ENHANCEMENT**
+**Status:** ✅ **FIXED** (2025-12-17)
 
-**Original Issue:** Service attach should use `fbird.default_user`/`fbird.default_password`.
+**Original Issue:** Service attach should use `fbird.default_user`/`fbird.default_password` when user/password parameters are not provided.
 
-**satwareAG Status:**
-- May already work (needs verification)
-- If not, minor enhancement to check INI values
+**satwareAG Verification (2025-12-17):**
+- **Confirmed bug:** The original `fbird_service_attach()` did NOT fall back to INI defaults
+- **Fix applied:** Added INI_STR() fallback in `fbird_service.c` to match `fbird_connect()` behavior
+- **Test created:** `tests/fbird_service_ini_defaults.phpt` verifies INI fallback works
 
-**Action Required:** Test current behavior, document or implement fallback.
+**Implementation (fbird_service.c):**
+```c
+/* Fall back to INI defaults if user/password not provided (Issue #71) */
+if (ulen == 0) {
+    char *ini_user = INI_STR("fbird.default_user");
+    if (ini_user && *ini_user) {
+        user = ini_user;
+        ulen = strlen(ini_user);
+    }
+}
+
+if (plen == 0) {
+    char *ini_pass = INI_STR("fbird.default_password");
+    if (ini_pass && *ini_pass) {
+        pass = ini_pass;
+        plen = strlen(ini_pass);
+    }
+}
+```
+
+**Behavior After Fix:**
+```php
+// php.ini: fbird.default_user=SYSDBA, fbird.default_password=masterkey
+
+// Now works - uses INI defaults (Issue #71 fix)
+$svc = fbird_service_attach('localhost');  // Uses SYSDBA/masterkey from INI
+
+// Still works - explicit credentials override INI
+$svc = fbird_service_attach('localhost', 'CUSTOM_USER', 'custom_pass');
+```
 
 ---
 
@@ -527,7 +557,7 @@ $conn7 = fbird_pconnect($db, $user, $pass);
    - **Benefit:** Complete feature parity with PostgreSQL pattern
 
 ### Low Priority (Documentation/Features)
-2. **Issues #90,#72,#71,#63** - PHP documentation updates (php.net)
+2. **Issues #90,#72,#63** - PHP documentation updates (php.net)
 3. **Issue #83** - Benchmark suite expansion
 4. **Issue #12** - PECL publishing (post-release)
 
@@ -535,11 +565,12 @@ $conn7 = fbird_pconnect($db, $user, $pass);
 - **Issue #22** - ibase_close: Verified FIXED (2025-12-17) - second close returns false
 - **Issue #53** - Service attach local connection: Verified FIXED (2025-12-17)
 - **Issue #42** - Array handling test: Verified FIXED (2025-12-17) - passes on PHP 8.3/8.4/8.5
+- **Issue #71** - Service attach INI defaults: FIXED (2025-12-17) - added INI_STR() fallback
 - **Issue #99** - CHAR type reporting: Verified FIXED (2025-12-17)
 - **Issue #25** - UTF-8 CHAR padding: Verified FIXED (2025-12-17)
 - **Issues #66, #45** - Event handling PHP 8.4+: Verified FIXED via polling model
 - **Issues #82, #85, #86, #98** - Infrastructure and documentation: Complete
-- **Issue #97** - Connection reuse: Evaluated - default correct, enhancement recommended (2025-12-17)
+- **Issue #97** - Connection reuse: ENHANCEMENT DONE → Fork Issue #11 IMPLEMENTED (2025-12-17)
 
 ---
 
@@ -551,7 +582,7 @@ This section documents **fork-specific enhancement proposals** created in the sa
 
 **Repository:** [satwareAG/php-firebird](https://github.com/satwareAG/php-firebird)  
 **Issue URL:** https://github.com/satwareAG/php-firebird/issues/11  
-**Status:** 📋 Open (Enhancement Proposal)  
+**Status:** ✅ **IMPLEMENTED** (2025-12-17)  
 **Priority:** Medium  
 **Related Upstream Issue:** [Upstream #97](https://github.com/FirebirdSQL/php-firebird/issues/97) (Connection reuse behavior)
 

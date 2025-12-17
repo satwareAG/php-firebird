@@ -592,7 +592,25 @@ $conn2 = fbird_pconnect($db, $user, $pass);  // Different pool
 ?>
 ```
 
-> **Future Enhancement:** A `FBIRD_CONNECT_FORCE_NEW` flag is planned to explicitly request new connections (similar to PostgreSQL's `PGSQL_CONNECT_FORCE_NEW`). See [Issue #11](https://github.com/satwareAG/php-firebird/issues/11) for status.
+**Force New Connection (v1.0+):**
+
+Use the `FBIRD_CONNECT_FORCE_NEW` flag (value: 2) to bypass connection reuse and create a new database connection:
+
+```php
+<?php
+// Force a new connection even with identical parameters
+$conn1 = fbird_connect($db, $user, $pass);
+$conn2 = fbird_connect($db, $user, $pass, '', 0, 0, '', FBIRD_CONNECT_FORCE_NEW);
+
+// $conn1 and $conn2 are now DIFFERENT connections
+var_dump($conn1 === $conn2);  // bool(false)
+?>
+```
+
+This flag mirrors PostgreSQL's `PGSQL_CONNECT_FORCE_NEW` behavior and is useful for:
+- Parallel operations within the same request
+- Testing scenarios requiring isolated connections
+- Connection pool implementations
 
 ### Performance Optimization
 

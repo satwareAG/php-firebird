@@ -71,6 +71,7 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_connect, 0, 0, 0)
 	ZEND_ARG_INFO(0, buffers)
 	ZEND_ARG_INFO(0, dialect)
 	ZEND_ARG_INFO(0, role)
+	ZEND_ARG_INFO(0, flags)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_pconnect, 0, 0, 0)
@@ -81,6 +82,7 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_pconnect, 0, 0, 0)
 	ZEND_ARG_INFO(0, buffers)
 	ZEND_ARG_INFO(0, dialect)
 	ZEND_ARG_INFO(0, role)
+	ZEND_ARG_INFO(0, flags)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_close, 0, 0, 0)
@@ -969,6 +971,9 @@ PHP_MINIT_FUNCTION(fbird)
 	/* Event constants */
 	REGISTER_LONG_CONSTANT("FBIRD_EVENT_TIMEOUT", PHP_FBIRD_EVENT_TIMEOUT, CONST_PERSISTENT);
 
+	/* Connection flags (matches PostgreSQL PGSQL_CONNECT_FORCE_NEW) */
+	REGISTER_LONG_CONSTANT("FBIRD_CONNECT_FORCE_NEW", PHP_FBIRD_CONNECT_FORCE_NEW, CONST_PERSISTENT);
+
 
 	php_fbird_query_minit(INIT_FUNC_ARGS_PASSTHRU);
 	php_fbird_blobs_minit(INIT_FUNC_ARGS_PASSTHRU);
@@ -1126,6 +1131,7 @@ static void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent) /* 
 	int i;
 	size_t len[] = { 0, 0, 0, 0, 0 };
 	zend_long largs[] = { 0, 0, 0 };
+	zend_long flags = 0;
 	PHP_MD5_CTX hash_context;
 	zend_resource new_index_ptr, *le;
 	void *db_handle = 0;
@@ -1133,10 +1139,10 @@ static void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent) /* 
 
 	RESET_ERRMSG;
 
-	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "|ssssllsl",
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "|ssssllsll",
 			&args[DB], &len[DB], &args[USER], &len[USER], &args[PASS], &len[PASS],
 			&args[CSET], &len[CSET], &largs[BUF], &largs[DLECT], &args[ROLE], &len[ROLE],
-			&largs[SYNC])) {
+			&largs[SYNC], &flags)) {
 		RETURN_FALSE;
 	}
 
@@ -1168,8 +1174,9 @@ static void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent) /* 
 	}
 	PHP_MD5Final((unsigned char*)hash, &hash_context);
 
-	/* try to reuse a connection */
-	if ((le = zend_hash_str_find_ptr(&EG(regular_list), hash, sizeof(hash)-1)) != NULL) {
+	/* try to reuse a connection (skip if FBIRD_CONNECT_FORCE_NEW is set) */
+	if (!(flags & PHP_FBIRD_CONNECT_FORCE_NEW) &&
+			(le = zend_hash_str_find_ptr(&EG(regular_list), hash, sizeof(hash)-1)) != NULL) {
 		zend_resource *xlink;
 
 		if (le->type != le_index_ptr) {

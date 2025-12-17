@@ -555,6 +555,45 @@ phpize8.3  # Ubuntu/Debian versioned phpize
 - Ensure Windows SDK 10.0.20348.0+ is installed
 - For compatibility, use same compiler as your PHP build
 
+### Connection Behavior
+
+**Connection Reuse (Default Behavior):**
+
+By design, `fbird_connect()` reuses existing connections when called with identical parameters. This matches PostgreSQL's `pg_connect()` behavior and provides efficiency benefits for typical use cases:
+
+```php
+<?php
+// Same parameters = same connection (by design)
+$conn1 = fbird_connect('/path/to/db.fdb', 'SYSDBA', 'masterkey');
+$conn2 = fbird_connect('/path/to/db.fdb', 'SYSDBA', 'masterkey');
+
+// $conn1 and $conn2 reference the SAME connection resource
+var_dump($conn1 === $conn2);  // bool(true)
+?>
+```
+
+**When You Need Separate Connections:**
+
+If you need independent connections (e.g., for parallel transactions, different isolation levels, or connection-specific state), use one of these approaches:
+
+```php
+<?php
+// Approach 1: Use different parameters (charset, role, etc.)
+$conn1 = fbird_connect($db, $user, $pass, 'UTF8');
+$conn2 = fbird_connect($db, $user, $pass, 'ISO8859_1');  // Different charset = new connection
+
+// Approach 2: Use different roles
+$admin = fbird_connect($db, $user, $pass, null, null, null, 'ADMIN');
+$reader = fbird_connect($db, $user, $pass, null, null, null, 'READER');
+
+// Approach 3: Mix persistent and non-persistent
+$conn1 = fbird_connect($db, $user, $pass);
+$conn2 = fbird_pconnect($db, $user, $pass);  // Different pool
+?>
+```
+
+> **Future Enhancement:** A `FBIRD_CONNECT_FORCE_NEW` flag is planned to explicitly request new connections (similar to PostgreSQL's `PGSQL_CONNECT_FORCE_NEW`). See [Issue #11](https://github.com/satwareAG/php-firebird/issues/11) for status.
+
 ### Performance Optimization
 
 **Connection Pooling:**

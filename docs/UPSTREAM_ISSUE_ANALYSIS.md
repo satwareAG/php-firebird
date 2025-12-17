@@ -399,10 +399,10 @@ $conn7 = fbird_pconnect($db, $user, $pass);
 
 | Action | Priority | Repository | Status |
 |--------|----------|------------|--------|
-| Document current behavior in README | High | Fork | 📋 TODO |
+| Document current behavior in README | High | Fork | ✅ Done (README.md "Connection Behavior" section) |
 | Add `FBIRD_CONNECT_FORCE_NEW` constant | Medium | Fork | 📋 [Fork Issue #11](https://github.com/satwareAG/php-firebird/issues/11) |
 | Add `flags` parameter to `fbird_connect()` | Medium | Fork | 📋 [Fork Issue #11](https://github.com/satwareAG/php-firebird/issues/11) |
-| Update workaround documentation | Low | Fork | ✅ Done above |
+| Update workaround documentation | Low | Fork | ✅ Done (README.md includes workarounds) |
 
 > **Note:** Fork Issue #11 is a satwareAG enhancement proposal created to address the gap identified in Upstream Issue #97. See [Fork Enhancements](#fork-enhancements-satwareagphp-firebird) for details.
 

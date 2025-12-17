@@ -343,13 +343,43 @@ fbird_close($db);
 ; php.ini settings
 extension=firebird.so
 
-; Connection format defaults
+; Output format defaults (for displaying date/time values)
 fbird.timestampformat = "%Y-%m-%d %H:%M:%S"
 fbird.dateformat = "%Y-%m-%d"
 fbird.timeformat = "%H:%M:%S"
 ```
 
 > **⚠️ Breaking Change (v1.0)**: INI settings have been renamed from `ibase.*` to `fbird.*`. Update your php.ini configuration accordingly.
+
+### Supported Input Date/Time Formats
+
+When binding date/time parameters, the extension auto-detects the following formats:
+
+**Date Formats (all cross-platform compatible):**
+| Format | Example | Description |
+|--------|---------|-------------|
+| ISO 8601 | `2025-12-17` | `YYYY-MM-DD` (recommended) |
+| European | `17.12.2025` | `DD.MM.YYYY` |
+| US | `12/17/2025` | `MM/DD/YYYY` |
+
+**Time Formats:**
+| Format | Example | Description |
+|--------|---------|-------------|
+| Basic | `14:30:00` | `HH:MM:SS` |
+| With fractions | `14:30:00.1234` | Up to microsecond precision |
+| With offset | `14:30:00+01:00` | Timezone offset (Firebird 4.0+) |
+| With named zone | `14:30:00 Europe/Berlin` | Named timezone (Firebird 4.0+) |
+
+**Timestamp Formats:**
+Combine any date format with any time format, separated by space or `T`:
+- `2025-12-17 14:30:00`
+- `2025-12-17T14:30:00.1234+01:00`
+- `17.12.2025 14:30:00 America/New_York`
+
+**Timezone Support (Firebird 4.0+):**
+- Offset format: `+HH:MM`, `-HH:MM`, `+HHMM`, `-HHMM`
+- Named zones: IANA timezone names (e.g., `America/New_York`, `Europe/Berlin`)
+- UTC shorthand: `Z`
 
 ### Environment Variables
 ```bash

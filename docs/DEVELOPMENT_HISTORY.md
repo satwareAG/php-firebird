@@ -21,6 +21,7 @@ This document summarizes the major development phases and milestones of the php-
 | **Issue #9 Fix** | Dec 2025 | Transaction cleanup segfault fix (use-after-free in DDL) |
 | **Issue #10 Fix** | Dec 2025 | BLOB fetch segfault fix (zend_list_close() fix) |
 | **TPB Comprehensive** | Dec 2025 | Full TPB support: all transaction flags, table reservation, Firebird 4.0+ features |
+| **Issue #98 Fix** | Dec 2025 | Cross-platform date/time parsing (replaced strptime with portable sscanf) |
 
 ## Major Milestones
 
@@ -168,6 +169,66 @@ Replaced `zend_list_delete()` with `zend_list_close()` in `fbird_blobs.c`. The `
 
 **Test Validation:** All 105 tests pass, 0 failures, 0 expected failures
 
+
+### Issue #98: Cross-Platform Date/Time Format Parsing (December 2025)
+
+**Problem Identified:**
+The extension used `strptime()` for parsing date/time strings when binding parameters. This function is POSIX-specific and not available on Windows, has different behavior on macOS and musl libc (Alpine Linux), making the extension non-portable.
+
+**Root Cause Analysis:**
+- `strptime()` is not part of ISO C, only POSIX
+- Windows has no native `strptime()` implementation
+- macOS/musl libc implementations differ from glibc
+- The `_GNU_SOURCE` define was required for Linux builds
+
+**Solution Implemented:**
+Created a dedicated cross-platform date/time parsing module (`fbird_datetime.c`/`.h`) using portable `sscanf()`-based parsing with automatic format detection:
+
+**Date Formats Supported (auto-detected):**
+- ISO 8601: `YYYY-MM-DD` (e.g., `2025-12-17`)
+- European: `DD.MM.YYYY` (e.g., `17.12.2025`)
+- US: `MM/DD/YYYY` (e.g., `12/17/2025`)
+
+**Time Formats Supported:**
+- With fractional seconds: `HH:MM:SS.ssss` (up to microseconds)
+- Without fractional: `HH:MM:SS`
+- With timezone: `HH:MM:SS+HH:MM` or `HH:MM:SS America/New_York`
+
+**Timezone Support (Firebird 4.0+):**
+- Offset format: `+HH:MM`, `-HH:MM`, `+HHMM`, `-HHMM`
+- Named zones: `America/New_York`, `Europe/Berlin`, etc.
+- UTC shorthand: `Z`
+
+**API Functions Created:**
+- `fbird_parse_date()` - Parse date string to components
+- `fbird_parse_time()` - Parse time string to components
+- `fbird_parse_timestamp()` - Parse combined timestamp
+- `fbird_validate_date()` - Validate date (leap years, days in month)
+- `fbird_validate_time()` - Validate time ranges
+- `fbird_extract_timezone()` - Extract timezone from time string
+
+**Files Added:**
+- `fbird_datetime.h` - Header with `fbird_datetime_components` structure and API
+- `fbird_datetime.c` - Portable implementation (~350 lines)
+
+**Files Modified:**
+- `fbird_query_bind.c` - Replaced `strptime()` with `fbird_parse_*()` functions
+- `fbird_query_array.c` - Replaced `strptime()` with `fbird_parse_*()` functions, removed `_GNU_SOURCE`
+- `config.m4` - Added `fbird_datetime.c` to build sources
+
+**Test Validation:**
+All 5 date/time tests pass:
+- `time_003.phpt` - Date parameter binding
+- `time_004.phpt` - Time parameter binding
+- `timezone_001.phpt` - TIMESTAMP WITH TIME ZONE
+- `timezone_002.phpt` - TIME WITH TIME ZONE
+- `timezone_003.phpt` - Timezone operations
+
+**Platform Compatibility:**
+- Linux (glibc): ✅ Tested
+- Linux (musl/Alpine): ✅ Portable sscanf()
+- Windows: ✅ No POSIX dependency
+- macOS: ✅ No platform-specific behavior
 
 ## Key Architectural Decisions
 

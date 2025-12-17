@@ -1462,61 +1462,46 @@ PHP_FUNCTION(fbird_drop_db)
 
 void _php_fbird_populate_trans(zend_long trans_argl, zend_long trans_timeout, char *last_tpb, unsigned short *len) /* {{{ */
 {
-	unsigned char *p = (unsigned char *) last_tpb;
-	unsigned char *end = p + TPB_MAX_SIZE;
-
 	/* No explicit flags: leave TPB empty so Firebird uses its defaults. */
 	if (trans_argl == PHP_FBIRD_DEFAULT) {
 		*len = 0;
 		return;
 	}
 
-	/* TPB version */
-	if (p < end) *p++ = isc_tpb_version3;
+	/*
+	 * Use IXpbBuilder-based TPB construction via OO API.
+	 * This replaces manual byte array construction with the modern
+	 * Firebird 3.0+ builder pattern for cleaner, type-safe TPB generation.
+	 *
+	 * See: fbxpb_build_tpb() in firebird_utils.cpp
+	 */
+	unsigned int buffer_length = 0;
+	ISC_STATUS local_status[ISC_STATUS_LENGTH] = {0};
 
-	/* access mode */
-	if (trans_argl & PHP_FBIRD_READ) {
-		if (p < end) *p++ = isc_tpb_read;
-	} else if (trans_argl & PHP_FBIRD_WRITE) {
-		if (p < end) *p++ = isc_tpb_write;
+	unsigned char *tpb_buffer = fbxpb_build_tpb(
+		IBG(master_instance),
+		trans_argl,
+		trans_timeout,
+		&buffer_length,
+		local_status
+	);
+
+	if (tpb_buffer == NULL) {
+		/* Fallback: if OO API fails, report error and return empty TPB */
+		php_error_docref(NULL, E_WARNING, "DEBUG: fbxpb_build_tpb returned NULL, local_status[1]=%ld", (long)local_status[1]);
+		*len = 0;
+		return;
 	}
 
-	/* isolation level */
-	if (trans_argl & PHP_FBIRD_COMMITTED) {
-		if (p < end) *p++ = isc_tpb_read_committed;
-		if (trans_argl & PHP_FBIRD_REC_VERSION) {
-			if (p < end) *p++ = isc_tpb_rec_version;
-		} else if (trans_argl & PHP_FBIRD_REC_NO_VERSION) {
-			if (p < end) *p++ = isc_tpb_no_rec_version;
-		}
-	} else if (trans_argl & PHP_FBIRD_CONSISTENCY) {
-		if (p < end) *p++ = isc_tpb_consistency;
-	} else if (trans_argl & PHP_FBIRD_CONCURRENCY) {
-		if (p < end) *p++ = isc_tpb_concurrency;
+	/* Copy to caller's buffer (limited by TPB_MAX_SIZE) */
+	if (buffer_length > TPB_MAX_SIZE) {
+		buffer_length = TPB_MAX_SIZE;
 	}
+	memcpy(last_tpb, tpb_buffer, buffer_length);
+	*len = (unsigned short) buffer_length;
 
-	/* lock resolution */
-	if (trans_argl & PHP_FBIRD_NOWAIT) {
-		if (p < end) *p++ = isc_tpb_nowait;
-	} else if (trans_argl & PHP_FBIRD_WAIT) {
-		if (p < end) *p++ = isc_tpb_wait;
-		if (trans_argl & PHP_FBIRD_LOCK_TIMEOUT) {
-			if (trans_timeout <= 0 || trans_timeout > 0x7FFF) {
-				php_error_docref(NULL, E_WARNING, "Invalid timeout parameter (must be 0-32767)");
-			} else {
-				ISC_SHORT timeout = (ISC_SHORT) trans_timeout;
-				if (p + 3 <= end) {
-					*p++ = isc_tpb_lock_timeout;
-					*p++ = (unsigned char) sizeof(ISC_SHORT);
-					/* VAX/Firebird little-endian order */
-					*p++ = (unsigned char) (timeout & 0xff);
-					if (p < end) *p++ = (unsigned char) ((timeout >> 8) & 0xff);
-				}
-			}
-		}
-	}
-
-	*len = (unsigned short) (p - (unsigned char *) last_tpb);
+	/* Free the OO API allocated buffer */
+	fbxpb_free_tpb(tpb_buffer);
 }
 /* }}} */
 
@@ -2133,7 +2118,13 @@ PHP_FUNCTION(fbird_trans)
 			RETURN_FALSE;
 		}
 
-		void* oo_trans = fbt_start(IBG(master_instance), attachment, tpb_len, (const unsigned char*)last_tpb, IB_STATUS);
+		void* oo_trans = fbt_start(
+			IBG(master_instance),
+			attachment,
+			tpb_len,
+			tpb_len > 0 ? (const unsigned char*)last_tpb : NULL,
+			IB_STATUS
+		);
 		if (oo_trans == NULL) {
 			_php_fbird_error();
 			efree(ib_link);

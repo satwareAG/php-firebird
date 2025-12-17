@@ -829,9 +829,28 @@ extern "C" void* fbt_start(
         return reinterpret_cast<void*>(new fb::Transaction(std::move(trans)));
 
     } catch (const fb::Exception& e) {
-        (void)e; // suppress unused variable warning
+        // Copy error status from exception to output status vector
+        if (status_vector) {
+            const ISC_STATUS* exc_status = e.statusVector();
+            if (exc_status) {
+                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
+                    status_vector[i] = exc_status[i];
+                }
+            } else {
+                // No status available - set generic error
+                status_vector[0] = isc_arg_gds;
+                status_vector[1] = isc_random;
+                status_vector[2] = isc_arg_end;
+            }
+        }
         return nullptr;
     } catch (...) {
+        // Unknown exception - set generic error
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_random;
+            status_vector[2] = isc_arg_end;
+        }
         return nullptr;
     }
 }
@@ -2711,8 +2730,8 @@ extern "C" unsigned char* fbxpb_build_tpb(
             return nullptr;
         }
 
-        // Start with version tag
-        tpb->insertTag(&status, isc_tpb_version3);
+        // Note: IXpbBuilder for TPB automatically includes isc_tpb_version3
+        // Do NOT manually insert it or you'll get a duplicate!
 
         // Access mode: READ or WRITE (default WRITE)
         if (trans_flags & PHP_FBIRD_READ) {

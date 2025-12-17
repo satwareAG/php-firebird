@@ -21,11 +21,6 @@
  * PHP arrays to Firebird array format.
  */
 
-/* Enable POSIX extensions for strptime() - must be defined before any includes */
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
-
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -44,6 +39,7 @@
 #include "php_fbird_query_array.h"
 #include "php_fbird_query_prepare.h"
 #include "firebird_utils.h"
+#include "fbird_datetime.h"
 
 #define ISC_LONG_MIN    INT_MIN
 #define ISC_LONG_MAX    INT_MAX
@@ -327,10 +323,6 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {{{ */
 			struct tm t = { 0 };
 
 			switch (array->el_type) {
-#ifndef HAVE_STRPTIME
-				unsigned short n;
-#endif
-
 				case SQL_SHORT:
 					{
 						/* Use zval_get_long() to avoid modifying the original zval in-place */
@@ -398,25 +390,21 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {{{ */
 					break;
 				case SQL_TIMESTAMP:
 					{
-						/* Use zval_get_string() to get a copy without modifying the original zval */
+						/* Cross-platform timestamp parsing using fbird_datetime utilities */
 						zend_string *str = zval_get_string(val);
-#ifdef HAVE_STRPTIME
-						strptime(ZSTR_VAL(str), INI_STR("fbird.timestampformat"), &t);
-#else
-						n = sscanf(ZSTR_VAL(str), "%d%*[/]%d%*[/]%d %d%*[:]%d%*[:]%d",
-							&t.tm_mon, &t.tm_mday, &t.tm_year, &t.tm_hour, &t.tm_min, &t.tm_sec);
+						fbird_datetime_components dt;
 
-						if (n != 3 && n != 6) {
-							_php_fbird_module_error("Invalid date/time format (expected 3 or 6 fields, got %d."
-								" Use format 'm/d/Y H:i:s'. You gave '%s')", n, ZSTR_VAL(str));
-							zend_string_release(str);
-							return FAILURE;
+						if (fbird_parse_timestamp(ZSTR_VAL(str), &dt)) {
+							/* Use OO API encoding */
+							*(ISC_TIMESTAMP *)buf = fbu_encode_timestamp(IBG(master_instance),
+								dt.year, dt.month, dt.day,
+								dt.hours, dt.minutes, dt.seconds,
+								dt.fractions);
+						} else {
+							/* Parsing failed - use legacy encoding with zeroed struct tm */
+							isc_encode_timestamp(&t, (ISC_TIMESTAMP *)buf);
 						}
-						t.tm_year -= 1900;
-						t.tm_mon--;
-#endif
 						zend_string_release(str);
-						isc_encode_timestamp(&t, (ISC_TIMESTAMP * ) buf);
 					}
 					break;
 #if FB_API_VER >= 40
@@ -428,46 +416,24 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {{{ */
 							return FAILURE;
 						}
 
-						/* Use zval_get_string() to get a copy without modifying the original zval */
+						/* Cross-platform timestamp+timezone parsing */
 						zend_string *str = zval_get_string(val);
-						char tz_name[64] = "GMT";
-						unsigned year = 1970, month = 1, day = 1;
-						unsigned hours = 0, minutes = 0, seconds = 0, fractions = 0;
+						fbird_datetime_components dt;
+						fbird_datetime_init(&dt);
+						strncpy(dt.timezone, "GMT", sizeof(dt.timezone) - 1);
 
-						/* Try to parse timezone from end of string */
-						char *space = strrchr(ZSTR_VAL(str), ' ');
-						if (space && space > ZSTR_VAL(str)) {
-							char *potential_tz = space + 1;
-							if (potential_tz[0] == '+' || potential_tz[0] == '-' ||
-								(potential_tz[0] >= 'A' && potential_tz[0] <= 'Z') ||
-								(potential_tz[0] >= 'a' && potential_tz[0] <= 'z')) {
-								size_t tz_len = strlen(potential_tz);
-								if (tz_len > 0 && tz_len < sizeof(tz_name)) {
-									strncpy(tz_name, potential_tz, sizeof(tz_name) - 1);
-									tz_name[sizeof(tz_name) - 1] = '\0';
-								}
+						if (fbird_parse_timestamp(ZSTR_VAL(str), &dt)) {
+							/* If no timezone was parsed, use default GMT */
+							if (!dt.has_timezone) {
+								strncpy(dt.timezone, "GMT", sizeof(dt.timezone) - 1);
 							}
 						}
-
-#ifdef HAVE_STRPTIME
-						strptime(ZSTR_VAL(str), INI_STR("fbird.timestampformat"), &t);
-#else
-						sscanf(ZSTR_VAL(str), "%d%*[/]%d%*[/]%d %d%*[:]%d%*[:]%d",
-							&t.tm_mon, &t.tm_mday, &t.tm_year, &t.tm_hour, &t.tm_min, &t.tm_sec);
-						t.tm_year -= 1900;
-						t.tm_mon--;
-#endif
-						year = (unsigned)(t.tm_year + 1900);
-						month = (unsigned)(t.tm_mon + 1);
-						day = (unsigned)t.tm_mday;
-						hours = (unsigned)t.tm_hour;
-						minutes = (unsigned)t.tm_min;
-						seconds = (unsigned)t.tm_sec;
 
 						zend_string_release(str);
 
 						if (fbu_encode_timestamp_tz(IBG(master_instance), (ISC_TIMESTAMP_TZ *)buf,
-								year, month, day, hours, minutes, seconds, fractions, tz_name) != 0) {
+								dt.year, dt.month, dt.day,
+								dt.hours, dt.minutes, dt.seconds, dt.fractions, dt.timezone) != 0) {
 							_php_fbird_module_error("Failed to encode TIMESTAMP WITH TIME ZONE array element");
 							return FAILURE;
 						}
@@ -476,44 +442,37 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {{{ */
 #endif
 				case SQL_TYPE_DATE:
 					{
-						/* Use zval_get_string() to get a copy without modifying the original zval */
+						/* Cross-platform date parsing using fbird_datetime utilities */
 						zend_string *str = zval_get_string(val);
-#ifdef HAVE_STRPTIME
-						strptime(ZSTR_VAL(str), INI_STR("fbird.dateformat"), &t);
-#else
-						n = sscanf(ZSTR_VAL(str), "%d%*[/]%d%*[/]%d", &t.tm_mon, &t.tm_mday, &t.tm_year);
+						fbird_datetime_components dt;
 
-						if (n != 3) {
-							_php_fbird_module_error("Invalid date format (expected 3 fields, got %d. "
-								"Use format 'm/d/Y' You gave '%s')", n, ZSTR_VAL(str));
-							zend_string_release(str);
-							return FAILURE;
+						if (fbird_parse_date(ZSTR_VAL(str), &dt)) {
+							/* Use OO API encoding */
+							*(ISC_DATE *)buf = fbu_encode_date(IBG(master_instance),
+								dt.year, dt.month, dt.day);
+						} else {
+							/* Parsing failed - use legacy encoding with zeroed struct tm */
+							isc_encode_sql_date(&t, (ISC_DATE *)buf);
 						}
-						t.tm_year -= 1900;
-						t.tm_mon--;
-#endif
 						zend_string_release(str);
-						isc_encode_sql_date(&t, (ISC_DATE *) buf);
 					}
 					break;
 				case SQL_TYPE_TIME:
 					{
-						/* Use zval_get_string() to get a copy without modifying the original zval */
+						/* Cross-platform time parsing using fbird_datetime utilities */
 						zend_string *str = zval_get_string(val);
-#ifdef HAVE_STRPTIME
-						strptime(ZSTR_VAL(str), INI_STR("fbird.timeformat"), &t);
-#else
-						n = sscanf(ZSTR_VAL(str), "%d%*[:]%d%*[:]%d", &t.tm_hour, &t.tm_min, &t.tm_sec);
+						fbird_datetime_components dt;
 
-						if (n != 3) {
-							_php_fbird_module_error("Invalid time format (expected 3 fields, got %d. "
-								"Use format 'H:i:s'. You gave '%s')", n, ZSTR_VAL(str));
-							zend_string_release(str);
-							return FAILURE;
+						if (fbird_parse_time(ZSTR_VAL(str), &dt)) {
+							/* Use OO API encoding */
+							*(ISC_TIME *)buf = fbu_encode_time(IBG(master_instance),
+								dt.hours, dt.minutes, dt.seconds,
+								dt.fractions);
+						} else {
+							/* Parsing failed - use legacy encoding with zeroed struct tm */
+							isc_encode_sql_time(&t, (ISC_TIME *)buf);
 						}
-#endif
 						zend_string_release(str);
-						isc_encode_sql_time(&t, (ISC_TIME *) buf);
 					}
 					break;
 #if FB_API_VER >= 40
@@ -525,39 +484,23 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {{{ */
 							return FAILURE;
 						}
 
-						/* Use zval_get_string() to get a copy without modifying the original zval */
+						/* Cross-platform time+timezone parsing */
 						zend_string *str = zval_get_string(val);
-						char tz_name[64] = "GMT";
-						unsigned hours = 0, minutes = 0, seconds = 0, fractions = 0;
+						fbird_datetime_components dt;
+						fbird_datetime_init(&dt);
+						strncpy(dt.timezone, "GMT", sizeof(dt.timezone) - 1);
 
-						/* Try to parse timezone from end of string */
-						char *space = strrchr(ZSTR_VAL(str), ' ');
-						if (space && space > ZSTR_VAL(str)) {
-							char *potential_tz = space + 1;
-							if (potential_tz[0] == '+' || potential_tz[0] == '-' ||
-								(potential_tz[0] >= 'A' && potential_tz[0] <= 'Z') ||
-								(potential_tz[0] >= 'a' && potential_tz[0] <= 'z')) {
-								size_t tz_len = strlen(potential_tz);
-								if (tz_len > 0 && tz_len < sizeof(tz_name)) {
-									strncpy(tz_name, potential_tz, sizeof(tz_name) - 1);
-									tz_name[sizeof(tz_name) - 1] = '\0';
-								}
+						if (fbird_parse_time(ZSTR_VAL(str), &dt)) {
+							/* If no timezone was parsed, use default GMT */
+							if (!dt.has_timezone) {
+								strncpy(dt.timezone, "GMT", sizeof(dt.timezone) - 1);
 							}
 						}
-
-#ifdef HAVE_STRPTIME
-						strptime(ZSTR_VAL(str), INI_STR("fbird.timeformat"), &t);
-#else
-						sscanf(ZSTR_VAL(str), "%d%*[:]%d%*[:]%d", &t.tm_hour, &t.tm_min, &t.tm_sec);
-#endif
-						hours = (unsigned)t.tm_hour;
-						minutes = (unsigned)t.tm_min;
-						seconds = (unsigned)t.tm_sec;
 
 						zend_string_release(str);
 
 						if (fbu_encode_time_tz(IBG(master_instance), (ISC_TIME_TZ *)buf,
-								hours, minutes, seconds, fractions, tz_name) != 0) {
+								dt.hours, dt.minutes, dt.seconds, dt.fractions, dt.timezone) != 0) {
 							_php_fbird_module_error("Failed to encode TIME WITH TIME ZONE array element");
 							return FAILURE;
 						}

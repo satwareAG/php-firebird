@@ -1,7 +1,5 @@
 --TEST--
 Test: BLOB creation from PHP stream with chunked writes
---XFAIL--
-Intermittent heap corruption during large BLOB fetch - memory corruption depends on runtime layout (Issue #10)
 --DESCRIPTION--
 This test replicates the doctrine-firebird-driver pattern:
 1. Create blob from transaction
@@ -9,8 +7,8 @@ This test replicates the doctrine-firebird-driver pattern:
 3. Call fbird_blob_add() for each chunk
 4. Close the blob
 
-This pattern should work, but has been observed to cause SIGSEGV (exit 139)
-in some scenarios with PHP Firebird extension 6.2.0.
+Tests chunked BLOB writes with various sizes (100B, 8KB, 32KB, 64KB).
+Fixed in 6.2.1: zend_list_close() replaces zend_list_delete() preventing use-after-free (Issue #10).
 --SKIPIF--
 <?php
 include("skipif.inc");

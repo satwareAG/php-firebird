@@ -149,6 +149,23 @@ The `fbt_commit()` function in `firebird_utils.cpp` was calling `delete this` on
 
 **Test Validation:** All 104 tests pass, 0 failures
 
+### Issue #10: BLOB Fetch Segfault After Commit (December 2025)
+
+**Problem Identified:**
+When fetching a large BLOB (65536 bytes) after the creating transaction had been committed, a SIGSEGV occurred during BLOB read operations in `fbird_fetch_assoc()`.
+
+**Root Cause Analysis:**
+The `fbird_blob_close()` function used `zend_list_delete()` to destroy the BlobWrapper resource. However, `zend_list_delete()` immediately frees the resource regardless of reference count, causing a use-after-free when subsequent operations tried to access the BLOB data.
+
+**Solution Implemented:**
+Replaced `zend_list_delete()` with `zend_list_close()` in `fbird_blobs.c`. The `zend_list_close()` function properly decrements the reference count and only frees the resource when no references remain, allowing the PHP resource destructor to handle cleanup at the correct time.
+
+**Files Modified:**
+- `fbird_blobs.c` - Changed `zend_list_delete()` to `zend_list_close()` in `PHP_FUNCTION(fbird_blob_close)`
+- `tests/blob_stream_chunked_write.phpt` - Removed `--XFAIL--` marker (test now passes)
+
+**Test Validation:** All 105 tests pass, 0 failures, 0 expected failures
+
 
 ## Key Architectural Decisions
 
@@ -188,7 +205,7 @@ BC intentionally not maintained for constants to clearly signal the new driver w
 ## Test Coverage
 
 - **Total tests:** 109 PHPT test files (105 executed, 4 skipped)
-- **Pass rate:** 99% (104 passed, 1 expected fail)
+- **Pass rate:** 100% (105 passed, 0 failures, 0 expected failures)
 - **Coverage areas:** Connection, transactions, queries, blobs, services, metadata, inspection functions
 
 ---

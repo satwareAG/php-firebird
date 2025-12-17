@@ -1,27 +1,13 @@
 /*
  * php_fbird_compat.h - API Mode Detection and Compatibility Layer
  *
- * This header provides centralized mode detection for the hybrid legacy/OO API
- * architecture used in php-firebird when targeting Firebird 2.5 servers with
- * Firebird client >= 3.0 (OO API).
- *
- * The extension stores handles in two ways:
- * - Legacy: isc_db_handle, isc_tr_handle, isc_stmt_handle (in fb_safe_handle union)
- * - OO API: fbc_connection, fbt_transaction, fbs_statement (void* wrappers)
- *
- * This header provides helpers to:
- * 1. Detect which API mode a link/transaction/query is using
- * 2. Guard against calling legacy APIs with OO API handles (and vice versa)
- * 3. Provide typed accessors for OO API pointers
+ * Provides centralized mode detection and typed accessors for the Firebird
+ * OO API (fbc_*, fbt_*, fbs_* wrappers). The satwareAG fork exclusively uses
+ * the Firebird 3.0+ OO API.
  *
  * Usage:
  *   #include "src/php_fbird_compat.h"
- *
- *   if (fbird_link_is_oo(link)) {
- *       // Use OO API path
- *   } else {
- *       // Use legacy path
- *   }
+ *   if (fbird_link_is_oo(link)) { ... }
  */
 
 #ifndef PHP_FBIRD_COMPAT_H

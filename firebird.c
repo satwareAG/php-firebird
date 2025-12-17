@@ -1,6 +1,6 @@
 /*
    +----------------------------------------------------------------------+
-   | PHP Version 7, 8                                                     |
+   | PHP Version 8                                                        |
    +----------------------------------------------------------------------+
    | Copyright (c) The PHP Group                                          |
    +----------------------------------------------------------------------+
@@ -449,14 +449,6 @@ static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_get_client_version, arginfo_fbird_get_client_version)
 	PHP_FE(fbird_get_client_major_version, arginfo_fbird_get_client_major_version)
 	PHP_FE(fbird_get_client_minor_version, arginfo_fbird_get_client_minor_version)
-
-	/**
-	* These aliases are provided in order to maintain forward compatibility. As Firebird
-	* and InterBase are developed independently, functionality might be different between
-	* the two branches in future versions.
-	* Firebird users should use the aliases, so future InterBase-specific changes will
-	* not affect their code
-	*/
 
 	PHP_FE(fbird_trans_start,		arginfo_fbird_trans_start)
 	PHP_FE(fbird_savepoint,			arginfo_fbird_savepoint)
@@ -991,17 +983,10 @@ PHP_MINIT_FUNCTION(fbird)
 PHP_MSHUTDOWN_FUNCTION(fbird)
 {
 #ifndef PHP_WIN32
-	/**
-	 * When the Interbase client API library libgds.so is first loaded, it registers a call to
-	 * gds__cleanup() with atexit(), in order to clean up after itself when the process exits.
-	 * This means that the library is called at process shutdown, and cannot be unloaded beforehand.
-	 * PHP tries to unload modules after every request [dl()'ed modules], and right before the
-	 * process shuts down [modules loaded from php.ini]. This results in a segfault for this module.
-	 * By NULLing the dlopen() handle in the module entry, Zend omits the call to dlclose(),
-	 * ensuring that the module will remain present until the process exits. However, the functions
-	 * and classes exported by the module will not be available until the module is 'reloaded'.
-	 * When reloaded, dlopen() will return the handle of the already loaded module. The module will
-	 * be unloaded automatically when the process exits.
+	/*
+	 * Firebird client library registers an atexit() handler for cleanup.
+	 * NULL the dlopen() handle to prevent dlclose() from being called,
+	 * avoiding segfaults during module unload.
 	 */
 	zend_module_entry *fbird_entry;
 	if ((fbird_entry = zend_hash_str_find_ptr(&module_registry, firebird_module_entry.name,
@@ -1078,17 +1063,6 @@ static char const dpb_args[] = {
 
 int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db) /* {{{ */
 {
-    /*
-     * Firebird 3.0+ OO API Connection
-     *
-     * All operations (transactions, statements, blobs, events) use the modern
-     * OO API wrappers (fbc_*, fbt_*, fbs_*, fbb_*, fbe_*).
-     *
-     * The fbc_connect() function handles DPB construction internally using
-     * the modern IXpbBuilder interface.
-     *
-     * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
-     */
     void* connection = NULL;
 
     /* Use OO API as the connection method */
@@ -1114,11 +1088,6 @@ int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db) 
      * for retrieval by _php_fbird_connect() */
     IBG(status[ISC_STATUS_LENGTH - 1]) = (ISC_STATUS)(uintptr_t)connection;
 
-    /* OO API Mode: Do NOT store IAttachment* in the legacy db handle slot.
-     * The OO connection is stored in fbc_connection via the status vector.
-     * Legacy handle.db is left NULL to prevent accidental isc_* API calls
-     * with OO API pointers, which would cause undefined behavior.
-     * Code paths must check fbird_link_is_oo() and use appropriate API. */
     *db = NULL;
 
     return SUCCESS;
@@ -1254,7 +1223,6 @@ static void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent) /* 
 		ib_link->tr_list = NULL;
 		ib_link->event_head = NULL;
 
-		/* Phase 3: Retrieve OO API connection pointer from _php_fbird_attach_db() */
 		ib_link->fbc_connection = (void *)(uintptr_t)IBG(status[ISC_STATUS_LENGTH - 1]);
 		IBG(status[ISC_STATUS_LENGTH - 1]) = 0;  /* Clear the temporary storage */
 
@@ -1276,7 +1244,7 @@ static void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent) /* 
 /* }}} */
 
 /* {{{ proto fbird_connect([string database [, string username [, string password [, string charset [, int buffers [, int dialect [, string role]]]]]]])
-   Open a connection to an InterBase database */
+   Open a connection to a Firebird database */
 PHP_FUNCTION(fbird_connect)
 {
 	_php_fbird_connect(INTERNAL_FUNCTION_PARAM_PASSTHRU, 0);
@@ -1284,7 +1252,7 @@ PHP_FUNCTION(fbird_connect)
 /* }}} */
 
 /* {{{ proto fbird_pconnect([string database [, string username [, string password [, string charset [, int buffers [, int dialect [, string role]]]]]]])
-   Open a persistent connection to an InterBase database */
+   Open a persistent connection to a Firebird database */
 PHP_FUNCTION(fbird_pconnect)
 {
 	_php_fbird_connect(INTERNAL_FUNCTION_PARAM_PASSTHRU, INI_INT("fbird.allow_persistent"));
@@ -1350,7 +1318,7 @@ static void _php_fbird_close_resource(zend_resource *link_res) /* {{{ */
 /* }}} */
 
 /* {{{ proto bool fbird_close([resource link_identifier])
-   Close an InterBase connection */
+   Close a Firebird connection */
 PHP_FUNCTION(fbird_close)
 {
 	zval *link_arg = NULL;
@@ -1406,7 +1374,7 @@ PHP_FUNCTION(fbird_close)
 /* }}} */
 
 /* {{{ proto fbird_drop_db([resource link_identifier])
-   Drop an InterBase database */
+   Drop a Firebird database */
 PHP_FUNCTION(fbird_drop_db)
 {
 	zval *link_arg = NULL;
@@ -1463,7 +1431,7 @@ PHP_FUNCTION(fbird_drop_db)
 /* }}} */
 
 /* {{{ proto resource fbird_transaction([int trans_args [, resource link_identifier [, ... ], int trans_args [, resource link_identifier [, ... ]] [, ...]]])
-   Start a transaction over one or several databases */
+   Start a transaction */
 
 #define TPB_MAX_SIZE 2048
 

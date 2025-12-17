@@ -313,14 +313,6 @@ namespace {
 
 #include "src/cpp/fb_core.hpp"
 #include "src/cpp/fb_connection.hpp"
-// Phase 2 OO API Integration - COMPLETE
-// All Firebird API calls now use CheckStatusWrapper as required by the template API.
-// Changes made:
-// 1. DpbBuilder: All methods use CheckStatusWrapper (constructor, insert*, getBuffer, clear)
-// 2. Connection: All methods use CheckStatusWrapper (create, detach, drop, timeouts)
-// 3. C interop functions available: fbc_connect, fbc_disconnect, fbc_drop_database, etc.
-//
-// See: docs/development/MODERNIZATION_PLAN_FB3_TO_FB5.md Phase 2 notes
 
 namespace fb {
 
@@ -523,26 +515,8 @@ static void fbu_copy_status(const ISC_STATUS* from, ISC_STATUS* to, size_t maxLe
 }
 
 // =============================================================================
-// Phase 2: OO API Connection Functions - COMPLETE
+// OO API Connection Functions (fbc_*)
 // =============================================================================
-// The fb_connection.hpp wrapper layer is now fully integrated.
-// All Firebird API version compatibility issues have been resolved:
-//
-// Fixes applied:
-// 1. statusHasError() helper function replaces FB 5.0-only IStatus::hasData()
-// 2. IXpbBuilder::clear() now correctly passes IStatus* parameter for FB 4.0
-// 3. All C++ wrapper headers compile cleanly with FB 4.0.5 client
-//
-// Available bridge functions (defined in fb_connection.hpp):
-// - fbc_connect()        - Create connection using OO API
-// - fbc_disconnect()     - Detach from database
-// - fbc_drop_database()  - Drop database
-// - fbc_is_connected()   - Check connection state
-// - fbc_get_attachment() - Get raw IAttachment pointer
-// =============================================================================
-
-// Phase 3: C interop functions for OO API Connection
-// These implementations provide the bridge between C code (firebird.c) and C++ OO API
 
 extern "C" void* fbc_connect(
     void* master_ptr,
@@ -782,20 +756,7 @@ extern "C" unsigned fbc_get_server_version(void* connection) {
 }
 
 // =============================================================================
-// Phase 4: OO API Transaction Functions
-// =============================================================================
-// The fb_transaction.hpp wrapper layer provides RAII transaction management.
-// These C interop functions bridge between C code (firebird.c) and the C++ OO API.
-//
-// Available bridge functions:
-// - fbt_start()            - Start transaction using OO API
-// - fbt_commit()           - Commit transaction
-// - fbt_rollback()         - Rollback transaction
-// - fbt_commit_retaining() - Commit with retaining
-// - fbt_rollback_retaining() - Rollback with retaining
-// - fbt_is_active()        - Check if transaction is active
-// - fbt_get_handle()       - Get raw ITransaction pointer
-// - fbt_free()             - Free wrapper without commit/rollback
+// OO API Transaction Functions (fbt_*)
 // =============================================================================
 
 #include "src/cpp/fb_transaction.hpp"
@@ -1189,23 +1150,12 @@ extern "C" int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* times
 #endif // FB_API_VER >= 40
 
 // =============================================================================
-// Phase 5: Statement OO API Functions (FB 3.0+)
+// OO API Statement Functions (fbs_*)
 // =============================================================================
 
 #if FB_API_VER >= 30
 
 #include "src/cpp/fb_statement.hpp"
-
-/**
- * The fb_statement.hpp wrapper layer provides RAII statement management.
- *
- * StatementWrapper class handles:
- * - Statement preparation via IAttachment::prepare()
- * - Execution via IStatement::execute()
- * - Cursor management via IStatement::openCursor() / IResultSet
- * - Metadata retrieval
- * - Automatic cleanup on destruction
- */
 
 extern "C" void* fbs_prepare(
     void* master_ptr,
@@ -1628,10 +1578,7 @@ extern "C" unsigned fbs_get_output_count(void* master_ptr, void* statement_ptr, 
 #endif // FB_API_VER >= 30 (Phase 5 Statement functions)
 
 /* =============================================================================
- * Phase 6: Blob OO API (FB 3.0+)
- *
- * RAII wrapper for IBlob operations.
- * We provide non-inline implementations below, so disable the inline versions.
+ * OO API Blob Functions (fbb_*)
  * ============================================================================= */
 #if FB_API_VER >= 30
 #define FBB_NO_INLINE_IMPL
@@ -1639,42 +1586,21 @@ extern "C" unsigned fbs_get_output_count(void* master_ptr, void* statement_ptr, 
 #endif // FB_API_VER >= 30 (Phase 6 Blob functions)
 
 /* =============================================================================
- * Phase 7: Event OO API (FB 3.0+)
- *
- * RAII wrapper for IEvents operations with IEventCallback.
- * The fbe_* functions are implemented inline in fb_events.hpp.
- *
- * Note: The OO API uses callback-based event handling (IEventCallback)
- * which differs from the legacy synchronous isc_wait_for_event() approach.
- * The current implementation continues to use isc_wait_for_event() for the
- * synchronous polling model, with OO API available for future async support.
+ * OO API Event Functions (fbe_*)
  * ============================================================================= */
 #if FB_API_VER >= 30
 #include "src/cpp/fb_events.hpp"
 #endif // FB_API_VER >= 30 (Phase 7 Event functions)
 
 /* =============================================================================
- * Phase 8: Service OO API (FB 3.0+)
- *
- * RAII wrapper for IService operations.
- * The fbsvc_* functions are implemented inline in fb_service.hpp.
- *
- * This replaces the legacy isc_service_attach, isc_service_detach,
- * isc_service_start, and isc_service_query functions.
+ * OO API Service Functions (fbsvc_*)
  * ============================================================================= */
 #if FB_API_VER >= 30
 #include "src/cpp/fb_service.hpp"
 #endif // FB_API_VER >= 30 (Phase 8 Service functions)
 
 /* =============================================================================
- * Phase 9: Array OO API (FB 3.0+)
- *
- * Stateless utility functions for array slice operations.
- * Uses IAttachment::getSlice() and IAttachment::putSlice() methods.
- *
- * Note: isc_array_lookup_bounds() has no direct OO API equivalent - it performs
- * a system table query. The existing legacy function continues to be used
- * for array descriptor lookup.
+ * OO API Array Functions (fba_*)
  * ============================================================================= */
 #if FB_API_VER >= 30
 #include "src/cpp/fb_array.hpp"

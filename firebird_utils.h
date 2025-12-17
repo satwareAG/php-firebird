@@ -25,14 +25,7 @@ extern "C" {
  * Firebird 3.0+ OO API Required
  *
  * This extension requires Firebird 3.0 or later. The modern OO API introduced
- * in Firebird 3.0 (FB_API_VER >= 30) is mandatory. Legacy isc_* functions are
- * no longer supported.
- *
- * Rationale:
- * - IAttachment* (OO API) is NOT compatible with isc_db_handle (legacy)
- * - Hybrid approach (mixing OO API with legacy) does not work
- * - OO API provides better error handling, resource management, and features
- * - Firebird 2.5 reached EOL - no reason to maintain backward compatibility
+ * in Firebird 3.0 (FB_API_VER >= 30) is mandatory.
  * ============================================================================= */
 #if FB_API_VER < 30
 #error "This extension requires Firebird 3.0 or later (FB_API_VER >= 30). Legacy API is not supported."
@@ -46,12 +39,7 @@ ISC_TIME fbu_encode_time(void *master_ptr, unsigned hours, unsigned minutes,
   unsigned seconds, unsigned fractions);
 ISC_DATE fbu_encode_date(void *master_ptr, unsigned year, unsigned month, unsigned day);
 
-/* =============================================================================
- * Phase 11: Type Encoding/Decoding Functions (FB 3.0+)
- *
- * These functions replace the legacy isc_encode_* and isc_decode_* functions
- * with modern OO API equivalents using IUtil interface.
- * ============================================================================= */
+/* Type Encoding/Decoding Functions (OO API via IUtil interface) */
 
 /**
  * Encode timestamp from components using OO API.
@@ -114,12 +102,7 @@ void fbu_decode_timestamp(void *master_ptr, const ISC_TIMESTAMP* timestamp,
     unsigned* year, unsigned* month, unsigned* day,
     unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions);
 
-/* =============================================================================
- * Phase 2: Firebird OO API Connection Functions (FB 3.0+)
- *
- * These functions provide a C interface to the modern Firebird C++ OO API.
- * They use RAII-managed connections internally for safety and proper cleanup.
- * ============================================================================= */
+/* Firebird OO API Connection Functions */
 
 /**
  * Create a database connection using the Firebird OO API.
@@ -213,13 +196,7 @@ void* fbc_get_attachment(void* connection);
  */
 unsigned fbc_get_server_version(void* connection);
 
-/* =============================================================================
- * Phase 4: Firebird OO API Transaction Functions (FB 3.0+)
- *
- * These functions provide a C interface to the modern Firebird C++ OO API
- * for transaction management. They replace the legacy isc_start_transaction(),
- * isc_commit_transaction(), and isc_rollback_transaction() functions.
- * ============================================================================= */
+/* Firebird OO API Transaction Functions */
 
 /**
  * Start a transaction using the OO API.
@@ -322,13 +299,7 @@ int fbt_get_info(
     ISC_STATUS* status_vector
 );
 
-/* =============================================================================
- * Phase 5: Firebird OO API Statement Functions (FB 3.0+)
- *
- * These functions provide a C interface to the modern Firebird C++ OO API
- * for statement preparation, execution, and result fetching.
- * They replace the legacy isc_dsql_* functions.
- * ============================================================================= */
+/* Firebird OO API Statement Functions */
 
 /**
  * Prepare a statement using OO API.
@@ -545,13 +516,7 @@ ISC_INT64 fbs_execute_singleton_int64(
     ISC_STATUS* status_vector
 );
 
-/* =============================================================================
- * Phase 6: Firebird OO API Blob Functions (FB 3.0+)
- *
- * These functions provide a C interface to the modern Firebird C++ OO API
- * for blob operations. They replace the legacy isc_create_blob, isc_open_blob,
- * isc_put_segment, isc_get_segment, isc_close_blob, and isc_cancel_blob.
- * ============================================================================= */
+/* Firebird OO API Blob Functions */
 
 /**
  * Create a new blob for writing.
@@ -698,18 +663,7 @@ void* fbb_get_handle(void* blob_wrapper);
  */
 void fbb_free(void* blob_wrapper);
 
-/* =============================================================================
- * Phase 7: Firebird OO API Event Functions (FB 3.0+)
- *
- * These functions provide a C interface to the modern Firebird C++ OO API
- * for event operations. They provide async event queuing via IAttachment::queEvents()
- * and event cancellation via IEvents::cancel().
- *
- * Note: The OO API uses callback-based event handling (IEventCallback),
- * which differs from the legacy synchronous isc_wait_for_event() approach.
- * The current implementation continues to use isc_wait_for_event() for the
- * synchronous polling model, with OO API available for future async support.
- * ============================================================================= */
+/* Firebird OO API Event Functions */
 
 /**
  * Queue events for notification using OO API.
@@ -776,13 +730,7 @@ int fbe_is_queued(void* events_wrapper);
  */
 void fbe_free(void* events_wrapper);
 
-/* =============================================================================
- * Phase 8: Firebird OO API Service Functions (FB 3.0+)
- *
- * These functions provide a C interface to the modern Firebird C++ OO API
- * for service manager operations. They replace the legacy isc_service_attach,
- * isc_service_detach, isc_service_start, and isc_service_query functions.
- * ============================================================================= */
+/* Firebird OO API Service Functions */
 
 /**
  * Attach to the service manager using OO API.
@@ -865,17 +813,7 @@ int fbsvc_is_attached(void* service_wrapper);
  */
 void fbsvc_free(void* service_wrapper);
 
-/* =============================================================================
- * Phase 9: Firebird OO API Array Functions (FB 3.0+)
- *
- * These functions provide a C interface to the modern Firebird C++ OO API
- * for array slice operations. They replace the legacy isc_array_get_slice
- * and isc_array_put_slice functions.
- *
- * Note: isc_array_lookup_bounds has no direct OO API equivalent - it performs
- * a system table query. The existing legacy function continues to be used
- * for array descriptor lookup.
- * ============================================================================= */
+/* Firebird OO API Array Functions */
 
 /**
  * Get an array slice from the database using OO API.
@@ -944,9 +882,7 @@ int fba_put_slice(void* master_ptr,
                   ISC_LONG buffer_length,
                   ISC_STATUS* status_vector);
 
-/* =============================================================================
- * FB 4.0+ Extended Features (Timezone support, enhanced metadata)
- * ============================================================================= */
+/* FB 4.0+ Extended Features (Timezone support, enhanced metadata) */
 #if FB_API_VER >= 40
 void fbu_decode_time_tz(void *master_ptr, const ISC_TIME_TZ* time_tz, unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions,
 	unsigned time_zone_buffer_length, char* time_zone_buffer);
@@ -1090,13 +1026,7 @@ const char* fbm_get_relation(void* master_ptr, void* metadata_ptr, unsigned inde
  */
 void fbm_release(void* metadata_ptr);
 
-/* =============================================================================
- * IXpbBuilder-based Parameter Block Construction (FB 3.0+)
- *
- * These functions use the Firebird OO API IXpbBuilder for clean construction
- * of Transaction Parameter Blocks (TPB), replacing manual byte array assembly.
- * The builder pattern provides type safety and cleaner code.
- * ============================================================================= */
+/* IXpbBuilder-based Parameter Block Construction */
 
 /**
  * Build TPB (Transaction Parameter Buffer) using OO API IXpbBuilder.

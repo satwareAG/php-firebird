@@ -1,9 +1,17 @@
 # Upstream Issue Analysis: FirebirdSQL/php-firebird
 
 **Analysis Date:** 2025-12-17  
-**Upstream Repository:** https://github.com/FirebirdSQL/php-firebird  
-**Fork Repository:** https://github.com/satwareAG/php-firebird  
 **Branch:** `feature/fbird-extension-release`
+
+## Repository Reference
+
+| Repository | URL | Issue Prefix |
+|------------|-----|--------------|
+| **Upstream** | https://github.com/FirebirdSQL/php-firebird | `Upstream #N` |
+| **Fork** | https://github.com/satwareAG/php-firebird | `Fork #N` |
+
+> **Note:** This document primarily analyzes **upstream issues** from FirebirdSQL/php-firebird.
+> For **fork-specific enhancements**, see the [Fork Enhancements](#fork-enhancements-satwareagphp-firebird) section at the end.
 
 This document analyzes all 19 open issues from the upstream FirebirdSQL/php-firebird repository and determines their status in the satwareAG fork.
 
@@ -389,12 +397,14 @@ $conn7 = fbird_pconnect($db, $user, $pass);
 
 ###### Action Items
 
-| Action | Priority | Status |
-|--------|----------|--------|
-| Document current behavior in README | High | 📋 TODO |
-| Add `FBIRD_CONNECT_FORCE_NEW` constant | Medium | 📋 [Issue #11](https://github.com/satwareAG/php-firebird/issues/11) |
-| Add `flags` parameter to `fbird_connect()` | Medium | 📋 [Issue #11](https://github.com/satwareAG/php-firebird/issues/11) |
-| Update workaround documentation | Low | ✅ Done above |
+| Action | Priority | Repository | Status |
+|--------|----------|------------|--------|
+| Document current behavior in README | High | Fork | 📋 TODO |
+| Add `FBIRD_CONNECT_FORCE_NEW` constant | Medium | Fork | 📋 [Fork Issue #11](https://github.com/satwareAG/php-firebird/issues/11) |
+| Add `flags` parameter to `fbird_connect()` | Medium | Fork | 📋 [Fork Issue #11](https://github.com/satwareAG/php-firebird/issues/11) |
+| Update workaround documentation | Low | Fork | ✅ Done above |
+
+> **Note:** Fork Issue #11 is a satwareAG enhancement proposal created to address the gap identified in Upstream Issue #97. See [Fork Enhancements](#fork-enhancements-satwareagphp-firebird) for details.
 
 ---
 
@@ -530,6 +540,48 @@ $conn7 = fbird_pconnect($db, $user, $pass);
 - **Issues #66, #45** - Event handling PHP 8.4+: Verified FIXED via polling model
 - **Issues #82, #85, #86, #98** - Infrastructure and documentation: Complete
 - **Issue #97** - Connection reuse: Evaluated - default correct, enhancement recommended (2025-12-17)
+
+---
+
+## Fork Enhancements (satwareAG/php-firebird)
+
+This section documents **fork-specific enhancement proposals** created in the satwareAG repository. These are NOT upstream issues but rather improvements identified during upstream issue analysis.
+
+### Fork Issue #11: Add FBIRD_CONNECT_FORCE_NEW flag for explicit connection creation
+
+**Repository:** [satwareAG/php-firebird](https://github.com/satwareAG/php-firebird)  
+**Issue URL:** https://github.com/satwareAG/php-firebird/issues/11  
+**Status:** 📋 Open (Enhancement Proposal)  
+**Priority:** Medium  
+**Related Upstream Issue:** [Upstream #97](https://github.com/FirebirdSQL/php-firebird/issues/97) (Connection reuse behavior)
+
+#### Summary
+
+Add `FBIRD_CONNECT_FORCE_NEW` flag to allow explicit creation of new database connections, matching PostgreSQL's `PGSQL_CONNECT_FORCE_NEW` pattern.
+
+#### Background
+
+Analysis of Upstream Issue #97 revealed that while the default connection reuse behavior is **correct** (matches PostgreSQL's `pg_connect()` default), the implementation is **incomplete** because it lacks an escape hatch for cases where new connections are legitimately needed.
+
+#### Proposed Changes
+
+1. **New constant:** `FBIRD_CONNECT_FORCE_NEW` (value: 2)
+2. **New parameter:** `flags` parameter for `fbird_connect()` and `fbird_pconnect()`
+3. **Backward compatible:** Default behavior unchanged
+
+#### Implementation Guide
+
+The issue contains a complete implementation specification based on PostgreSQL's `pg_connect()` pattern:
+- Flag exclusion from connection hash
+- Conditional hash lookup bypass
+- 5 test scenarios
+- Full backward compatibility guarantee
+
+#### References
+
+- [Fork Issue #11 - Full Implementation Specification](https://github.com/satwareAG/php-firebird/issues/11)
+- [PostgreSQL pg_connect() Implementation Analysis](https://github.com/php/php-src/blob/master/ext/pgsql/pgsql.c)
+- [Upstream Issue #97 - Original Connection Reuse Discussion](https://github.com/FirebirdSQL/php-firebird/issues/97)
 
 ---
 

@@ -272,16 +272,20 @@ static void call_php(char *name, PARAMDSC *r, int argc, PARAMDSC **argv)
 					break;
 
 				case dtype_sql_date:
+					/* Legacy API: This UDF library runs inside Firebird server,
+					 * not as part of the PHP extension, so OO API not available */
 					isc_decode_sql_date((ISC_DATE*)argv[i]->dsc_address, &t);
 					ZVAL_STRINGL(&args[i], d, strftime(d, sizeof(d), INI_STR("fbird.dateformat"), &t));
 					break;
 
 				case dtype_sql_time:
+					/* Legacy API: This UDF library runs inside Firebird server */
 					isc_decode_sql_time((ISC_TIME*)argv[i]->dsc_address, &t);
 					ZVAL_STRINGL(&args[i], d, strftime(d, sizeof(d), INI_STR("fbird.timeformat"), &t));
 					break;
 
 				case dtype_timestamp:
+					/* Legacy API: This UDF library runs inside Firebird server */
 					isc_decode_timestamp((ISC_TIMESTAMP*)argv[i]->dsc_address, &t);
 					ZVAL_STRINGL(&args[i], d, strftime(d, sizeof(d), INI_STR("fbird.timestampformat"), &t));
 					break;

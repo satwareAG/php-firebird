@@ -692,13 +692,30 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 
 				switch (var->sqltype & ~1) {
 					default: /* == case SQL_TIMESTAMP */
-						isc_encode_timestamp(&t, &buf[i].val.tsval);
+						/* OO API: Use fbu_encode_timestamp() instead of legacy isc_encode_timestamp() */
+						buf[i].val.tsval = fbu_encode_timestamp(IBG(master_instance),
+							(unsigned)(t.tm_year + 1900),  /* struct tm years since 1900 */
+							(unsigned)(t.tm_mon + 1),      /* struct tm months 0-11 */
+							(unsigned)t.tm_mday,
+							(unsigned)t.tm_hour,
+							(unsigned)t.tm_min,
+							(unsigned)t.tm_sec,
+							0);  /* fractions not available from strptime */
 						break;
 					case SQL_TYPE_DATE:
-						isc_encode_sql_date(&t, &buf[i].val.dtval);
+						/* OO API: Use fbu_encode_date() instead of legacy isc_encode_sql_date() */
+						buf[i].val.dtval = fbu_encode_date(IBG(master_instance),
+							(unsigned)(t.tm_year + 1900),
+							(unsigned)(t.tm_mon + 1),
+							(unsigned)t.tm_mday);
 						break;
 					case SQL_TYPE_TIME:
-						isc_encode_sql_time(&t, &buf[i].val.tmval);
+						/* OO API: Use fbu_encode_time() instead of legacy isc_encode_sql_time() */
+						buf[i].val.tmval = fbu_encode_time(IBG(master_instance),
+							(unsigned)t.tm_hour,
+							(unsigned)t.tm_min,
+							(unsigned)t.tm_sec,
+							0);  /* fractions not available from strptime */
 						break;
 				}
 				continue;

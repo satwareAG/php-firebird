@@ -281,15 +281,24 @@ static int _php_fbird_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 			if((type & ~1) == SQL_TIME_TZ){
 				format = INI_STR("fbird.timeformat");
 				fbu_decode_time_tz(IBG(master_instance), (ISC_TIME_TZ *) data, &hours, &minutes, &seconds, &fractions, sizeof(timeZoneBuffer), timeZoneBuffer);
-				ISC_TIME time = fbu_encode_time(IBG(master_instance), hours, minutes, seconds, fractions);
-				isc_decode_sql_time(&time, &t);
+				/* OO API: Populate struct tm directly from decoded components */
+				memset(&t, 0, sizeof(t));
+				t.tm_hour = (int)hours;
+				t.tm_min = (int)minutes;
+				t.tm_sec = (int)seconds;
+				/* fractions (10000ths of second) not representable in struct tm */
 			} else {
 				format = INI_STR("fbird.timestampformat");
 				fbu_decode_timestamp_tz(IBG(master_instance), (ISC_TIMESTAMP_TZ *) data, &year, &month, &day, &hours, &minutes, &seconds, &fractions, sizeof(timeZoneBuffer), timeZoneBuffer);
-				ISC_TIMESTAMP ts;
-				ts.timestamp_date = fbu_encode_date(IBG(master_instance), year, month, day);
-				ts.timestamp_time = fbu_encode_time(IBG(master_instance), hours, minutes, seconds, fractions);
-				isc_decode_timestamp(&ts, &t);
+				/* OO API: Populate struct tm directly from decoded components */
+				memset(&t, 0, sizeof(t));
+				t.tm_year = (int)year - 1900;  /* struct tm years since 1900 */
+				t.tm_mon = (int)month - 1;     /* struct tm months 0-11 */
+				t.tm_mday = (int)day;
+				t.tm_hour = (int)hours;
+				t.tm_min = (int)minutes;
+				t.tm_sec = (int)seconds;
+				/* fractions (10000ths of second) not representable in struct tm */
 			}
 
 			if (((type & ~1) != SQL_TIME_TZ) && (flag & PHP_FBIRD_UNIXTIME)) {
@@ -313,15 +322,45 @@ static int _php_fbird_var_zval(zval *val, void *data, int type, int len, /* {{{ 
 #endif
 		case SQL_TIMESTAMP:
 			format = INI_STR("fbird.timestampformat");
-			isc_decode_timestamp((ISC_TIMESTAMP *) data, &t);
+			{
+				/* OO API: Use fbu_decode_timestamp() instead of legacy isc_decode_timestamp() */
+				unsigned ts_year, ts_month, ts_day, ts_hours, ts_minutes, ts_seconds, ts_fractions;
+				fbu_decode_timestamp(IBG(master_instance), (ISC_TIMESTAMP *) data,
+					&ts_year, &ts_month, &ts_day, &ts_hours, &ts_minutes, &ts_seconds, &ts_fractions);
+				memset(&t, 0, sizeof(t));
+				t.tm_year = (int)ts_year - 1900;  /* struct tm years since 1900 */
+				t.tm_mon = (int)ts_month - 1;     /* struct tm months 0-11 */
+				t.tm_mday = (int)ts_day;
+				t.tm_hour = (int)ts_hours;
+				t.tm_min = (int)ts_minutes;
+				t.tm_sec = (int)ts_seconds;
+				/* fractions (10000ths of second) not representable in struct tm */
+			}
 			goto format_date_time;
 		case SQL_TYPE_DATE:
 			format = INI_STR("fbird.dateformat");
-			isc_decode_sql_date((ISC_DATE *) data, &t);
+			{
+				/* OO API: Use fbu_decode_date() instead of legacy isc_decode_sql_date() */
+				unsigned d_year, d_month, d_day;
+				fbu_decode_date(IBG(master_instance), *(ISC_DATE *) data, &d_year, &d_month, &d_day);
+				memset(&t, 0, sizeof(t));
+				t.tm_year = (int)d_year - 1900;
+				t.tm_mon = (int)d_month - 1;
+				t.tm_mday = (int)d_day;
+			}
 			goto format_date_time;
 		case SQL_TYPE_TIME:
 			format = INI_STR("fbird.timeformat");
-			isc_decode_sql_time((ISC_TIME *) data, &t);
+			{
+				/* OO API: Use fbu_decode_time() instead of legacy isc_decode_sql_time() */
+				unsigned t_hours, t_minutes, t_seconds, t_fractions;
+				fbu_decode_time(IBG(master_instance), *(ISC_TIME *) data, &t_hours, &t_minutes, &t_seconds, &t_fractions);
+				memset(&t, 0, sizeof(t));
+				t.tm_hour = (int)t_hours;
+				t.tm_min = (int)t_minutes;
+				t.tm_sec = (int)t_seconds;
+				/* fractions (10000ths of second) not representable in struct tm */
+			}
 
 format_date_time:
 			/*

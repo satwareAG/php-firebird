@@ -333,6 +333,39 @@ BC intentionally not maintained for constants to clearly signal the new driver w
 - GitHub Actions: Cross-platform validation (Windows, macOS, Linux)
 - Docker: Multi-PHP version testing (8.1-8.5)
 
+### SPDX License Header Migration (December 2025)
+
+**Objective:** Apply Datensparsamkeit (data minimization) principle to license headers, reducing boilerplate while maintaining legal compliance.
+
+**Changes Implemented:**
+- Replaced 10-24 line verbose PHP extension headers with 2-line SPDX headers
+- ~85% reduction in header boilerplate (547 lines removed, 77 lines added)
+- Machine-readable SPDX-License-Identifier format
+- Centralized attribution in CREDITS file
+
+**Standard Header Format:**
+```c
+/* SPDX-License-Identifier: PHP-3.01
+ * SPDX-FileCopyrightText: The PHP Group and contributors (see CREDITS) */
+```
+
+**Files Migrated (37 total):**
+- C source files: `firebird.c`, `firebird_utils.cpp`, `fbird_*.c` (13 files)
+- C headers: `php_*.h`, `firebird_utils.h`, `fbird_datetime.h` (8 files)
+- C++ headers: `src/cpp/*.hpp` (12 files)
+
+**Test Files (.phpt):** No headers added per PHP core extension precedent - tests should be lean.
+
+**Legal Research:**
+- PHP License 3.01 requires LICENSE file preservation (✅ maintained)
+- Per-file headers NOT legally required (minimized)
+- REUSE.software best practices followed
+- SPDX specification for machine-readable identifiers
+
+**Test Validation:** All 6 PHP versions pass (php81-dev through php85-fb5-dev)
+
+---
+
 ### TPB Comprehensive Support (December 2025)
 
 **Objective:** Provide full Transaction Parameter Block (TPB) support for all Firebird transaction features.

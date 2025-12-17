@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_No unreleased changes._
+### Changed
+
+- **SPDX License Headers**: Migrated 37 source files from verbose 10-24 line PHP extension headers to minimal 2-line SPDX-compliant headers (~85% reduction in header boilerplate)
+- **CREDITS File**: Comprehensive attribution with GitHub contributor links
+- **Documentation Standards**: Added `docs/DOCUMENTATION_STANDARDS.md` defining project documentation conventions
 
 ## [1.0.0] - 2025-12-17
 

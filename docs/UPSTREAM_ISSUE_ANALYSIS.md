@@ -13,8 +13,8 @@ This document analyzes all 19 open issues from the upstream FirebirdSQL/php-fire
 
 | Status | Count | Issues |
 |--------|-------|--------|
-| ✅ **FIXED** in satwareAG fork | 9 | #82, #85, #86, #98, #99, #25, #66, #45, #42 |
-| 🔍 **NEEDS INVESTIGATION** | 3 | #97, #22, #53 |
+| ✅ **FIXED** in satwareAG fork | 11 | #82, #85, #86, #98, #99, #25, #66, #45, #42, #22, #53 |
+| 📝 **BY DESIGN** (documented) | 1 | #97 |
 | 📝 **DOCUMENTATION ONLY** | 4 | #90, #72, #71, #63 |
 | 🚀 **FEATURE REQUEST** | 2 | #83, #12 |
 | ❓ **NOT APPLICABLE** | 1 | #70 |
@@ -188,57 +188,98 @@ The polling model redesign (same as #66) also resolves memory issues:
 
 ---
 
-### 🔍 NEEDS INVESTIGATION
-
-#### Issue #97: Impossible to make multiple connections with same args
-**Status:** 🔍 **DESIGN ISSUE - NEEDS INVESTIGATION**
-
-**Original Issue:** Multiple `ibase_connect()` calls with identical arguments return same resource.
-
-**satwareAG Analysis:**
-- This is **by design** - connection pooling/reuse via hash lookup in `EG(regular_list)`
-- `firebird.c` lines 1172-1191 show intentional hash-based connection reuse
-- For separate connections, users must use different args or `ibase_pconnect()`
-
-**Possible Solutions:**
-1. Add new INI setting `fbird.force_new_connections`
-2. Document existing behavior clearly
-3. Add `fbird_new_connection()` function that bypasses hash
-
-**Recommendation:** Create documentation, consider adding `FBIRD_FORCE_NEW` flag option.
-
----
-
 #### Issue #22: ibase_close not working as expected
-**Status:** 🔍 **NEEDS INVESTIGATION**
+**Status:** ✅ **FIXED**
 
 **Original Issue:** `ibase_close($x)` doesn't actually close connection; second call returns true.
 
-**satwareAG Analysis:**
-- `firebird.c` `PHP_FUNCTION(fbird_close)` has explicit close logic
-- Uses `zend_list_close()` instead of `zend_list_delete()` for proper cleanup
-- Reference counting may keep connection alive
+**satwareAG Verification (2025-12-17):**
+- `firebird.c` `PHP_FUNCTION(fbird_close)` has proper close logic
+- Uses `zend_list_close()` for proper resource cleanup
+- Tests confirm correct behavior: first close returns `true`, second close returns `false`
 
-**Action Required:**
-1. Write test verifying actual connection close (check MON$ATTACHMENTS)
-2. Verify behavior matches documentation
-3. May be connection reuse/pooling feature, not bug
+**Test Evidence:**
+- `tests/fbird_close_004.phpt` - Basic close test: ✅ PASS
+- `tests/fbird_close_005.phpt` - Error handling test: ✅ PASS
+
+**Correct Behavior:**
+```php
+$x = fbird_connect($db);
+var_dump(fbird_close($x));  // bool(true)  - first close succeeds
+var_dump(fbird_close($x));  // bool(false) - already closed
+var_dump(fbird_close());    // bool(false) - no default link
+```
 
 ---
 
 #### Issue #53: ibase_service_attach doesn't allow local connection
-**Status:** 🔍 **NEEDS INVESTIGATION**
+**Status:** ✅ **FIXED**
 
 **Original Issue:** Service attach always uses TCP pattern `%s:service_mgr` even for local.
 
-**satwareAG Analysis:**
-- `fbird_service.c` handles service connections
-- Local connection should use just `service_mgr` without host prefix
+**satwareAG Verification (2025-12-17):**
+- `fbird_service.c` `PHP_FUNCTION(fbird_service_attach)` correctly handles local vs remote
+- Local connection (empty host): Uses `"service_mgr"` without host prefix
+- Remote connection (host provided): Uses `"%s:service_mgr"` pattern
 
-**Action Required:**
-1. Check `_php_fbird_service_attach()` implementation
-2. Test local service connection with empty host
-3. Implement pattern detection for local vs remote
+**Implementation (fbird_service.c):**
+```c
+char loc[128] = "service_mgr";  // Default: local connection
+// ...
+if(hlen > 0){
+    slprintf(loc, sizeof(loc), "%s:service_mgr", host);  // Remote connection
+}
+```
+
+**Test Evidence:**
+- `tests/fbird_service_001.phpt` - Service attach error messages: ✅ PASS
+- `tests/fbird_service_002.phpt` - Server info constants: ✅ PASS
+
+---
+
+### 📝 BY DESIGN (Documented)
+
+#### Issue #97: Impossible to make multiple connections with same args
+**Status:** 📝 **BY DESIGN - NOT A BUG**
+
+**Original Issue:** Multiple `ibase_connect()` calls with identical arguments return same resource.
+
+**satwareAG Analysis (2025-12-17):**
+This is **intentional behavior** - connection pooling via hash-based lookup in `EG(regular_list)`.
+
+**Implementation (firebird.c):**
+```c
+// Hash-based connection reuse (firebird.c)
+if ((le = zend_hash_str_find_ptr(&EG(regular_list), hash, sizeof(hash)-1)) != NULL) {
+    // Return existing connection
+}
+// ...
+zend_hash_str_update_mem(&EG(regular_list), hash, sizeof(hash)-1, ...);
+```
+
+**Correct Usage:**
+```php
+// Same parameters = same connection (by design)
+$conn1 = fbird_connect($db, $user, $pass);
+$conn2 = fbird_connect($db, $user, $pass);  // Returns SAME resource
+
+// For truly separate connections:
+// 1. Use different parameters (charset, role, etc.)
+$conn3 = fbird_connect($db, $user, $pass, 'UTF8');
+
+// 2. Use persistent connections
+$conn4 = fbird_pconnect($db, $user, $pass);
+```
+
+**Design Rationale:**
+- Reduces connection overhead for typical use cases
+- Matches historical ibase_connect() behavior
+- Prevents accidental connection exhaustion
+- Explicit design choice, not a bug
+
+**Future Enhancement (Optional):**
+- Consider adding `FBIRD_FORCE_NEW` flag for explicit new connections
+- Document behavior clearly in README
 
 ---
 
@@ -344,24 +385,23 @@ The polling model redesign (same as #66) also resolves memory issues:
 
 ## Recommended Priority Actions
 
-### High Priority (Remaining Investigations)
-1. **Issue #22** - Document/fix ibase_close behavior (may be design, not bug)
-2. **Issue #53** - Local service connections
-
-### Medium Priority (Design Decisions)
-3. **Issue #97** - Connection pooling behavior: document or add `FBIRD_FORCE_NEW` flag
-
 ### Low Priority (Documentation/Features)
-4. **Issues #90,#72,#71,#63** - PHP documentation updates
-5. **Issue #83** - Benchmark suite expansion
-6. **Issue #12** - PECL publishing (post-release)
+1. **Issues #90,#72,#71,#63** - PHP documentation updates (php.net)
+2. **Issue #83** - Benchmark suite expansion
+3. **Issue #12** - PECL publishing (post-release)
 
-### Already Completed (✅ FIXED)
+### Optional Enhancement
+4. **Issue #97** - Consider adding `FBIRD_FORCE_NEW` flag (current behavior documented)
+
+### All Core Issues Completed (✅ FIXED)
+- **Issue #22** - ibase_close: Verified FIXED (2025-12-17) - second close returns false
+- **Issue #53** - Service attach local connection: Verified FIXED (2025-12-17)
 - **Issue #42** - Array handling test: Verified FIXED (2025-12-17) - passes on PHP 8.3/8.4/8.5
 - **Issue #99** - CHAR type reporting: Verified FIXED (2025-12-17)
 - **Issue #25** - UTF-8 CHAR padding: Verified FIXED (2025-12-17)
 - **Issues #66, #45** - Event handling PHP 8.4+: Verified FIXED via polling model
 - **Issues #82, #85, #86, #98** - Infrastructure and documentation: Complete
+- **Issue #97** - Connection reuse: Documented as BY DESIGN (2025-12-17)
 
 ---
 

@@ -346,9 +346,66 @@ Before merging documentation changes:
 
 ---
 
+---
+
+## Source File License Headers (SPDX)
+
+### Datensparsamkeit Principle (Data Minimization)
+
+**The Problem**: Legacy PHP extension headers are 24 lines per file, containing redundant
+license text that is already present in the LICENSE file.
+
+**The Solution**: SPDX-License-Identifier tags provide machine-readable license identification
+in a minimal format. Per-file headers should be 2-3 lines maximum.
+
+### Standard Minimal Header
+
+For all C/C++ source files (.c, .cpp, .h):
+
+```c
+/* SPDX-License-Identifier: PHP-3.01
+ * SPDX-FileCopyrightText: The PHP Group and contributors (see CREDITS) */
+```
+
+For shell scripts:
+
+```bash
+# SPDX-License-Identifier: PHP-3.01
+# SPDX-FileCopyrightText: The PHP Group and contributors (see CREDITS)
+```
+
+### Why This Works
+
+1. **Legal Compliance**: PHP License 3.01 requires the LICENSE file to be preserved in
+   distributions but does NOT require per-file header text
+2. **Machine Readable**: SPDX identifiers are the industry standard for automated license detection
+3. **Centralized Attribution**: CREDITS file contains comprehensive author list with git history links
+4. **24 → 2 Lines**: 91.7% reduction in header size following Datensparsamkeit principle
+
+### Centralized Attribution (CREDITS file)
+
+All author attribution is maintained in the CREDITS file, which includes:
+- Current maintainers
+- Original authors (InterBase extension)
+- Links to full contributor graphs on GitHub
+
+Git history (`git blame`, `git log`) provides authoritative per-file contribution tracking.
+
+### Migration Notes
+
+When updating legacy headers to minimal SPDX format:
+1. Remove the verbose license box (24 lines)
+2. Remove per-file author lists (centralized in CREDITS)
+3. Keep only the 2-line SPDX header
+4. Preserve any file-specific design decision comments
+
+---
+
 ## Resources
 
 - [TechTarget: Code Comment Best Practices (2025)](https://www.techtarget.com/searchsoftwarequality/tip/Code-comment-best-practices-every-developer-should-know)
 - [Keep a Changelog](https://keepachangelog.com/)
 - [Semantic Versioning](https://semver.org/)
 - [PHP Extension Writing Standard](https://wiki.php.net/internals/extensions)
+- [SPDX License List](https://spdx.org/licenses/)
+- [REUSE Software Best Practices](https://reuse.software/spec/)

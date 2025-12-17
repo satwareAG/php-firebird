@@ -667,7 +667,19 @@ static void _php_fbird_blob_end(INTERNAL_FUNCTION_PARAMETERS, int bl_end) /* {{{
 
 		RETVAL_TRUE;
 	}
-	zend_list_delete(Z_RES_P(blob_arg));
+	/*
+	 * Do NOT destroy the resource here.
+	 *
+	 * The userland zval holding this resource is still alive, and PHP will
+	 * attempt to release it later. Using zend_list_delete() here can cause:
+	 * - resource ID reuse while a zval still references it
+	 * - double-dtor paths
+	 * - heap corruption (observed in Issue #10 reproduction)
+	 *
+	 * Instead, close the resource so it becomes invalid for further use,
+	 * while letting normal zval lifetime management free it exactly once.
+	 */
+	zend_list_close(Z_RES_P(blob_arg));
 }
 /* }}} */
 

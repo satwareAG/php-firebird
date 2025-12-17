@@ -2659,3 +2659,166 @@ extern "C" void fbm_release(void* metadata_ptr) {
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
     metadata->release();
 }
+
+/* =============================================================================
+ * IXpbBuilder-based TPB Construction (FB 3.0+)
+ *
+ * These functions use IXpbBuilder for clean construction of Transaction
+ * Parameter Blocks, replacing manual byte array assembly.
+ * ============================================================================= */
+
+extern "C" unsigned char* fbxpb_build_tpb(
+    void* master_ptr,
+    zend_long trans_flags,
+    zend_long lock_timeout,
+    unsigned* buffer_length,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !buffer_length) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_req_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return nullptr;
+    }
+
+    *buffer_length = 0;
+
+    try {
+        auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+        Firebird::IStatus* raw_status = master->getStatus();
+        Firebird::CheckStatusWrapper status(raw_status);
+        Firebird::IUtil* util = master->getUtilInterface();
+
+        if (!util) {
+            if (status_vector) {
+                status_vector[0] = isc_arg_gds;
+                status_vector[1] = isc_unavailable;
+                status_vector[2] = isc_arg_end;
+            }
+            return nullptr;
+        }
+
+        // Create IXpbBuilder for TPB construction
+        // IXpbBuilder::TPB = 1 (Transaction Parameter Block)
+        Firebird::IXpbBuilder* tpb = util->getXpbBuilder(&status, Firebird::IXpbBuilder::TPB, nullptr, 0);
+
+        if (fb::statusHasError(raw_status) || !tpb) {
+            if (status_vector) {
+                copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
+            return nullptr;
+        }
+
+        // Start with version tag
+        tpb->insertTag(&status, isc_tpb_version3);
+
+        // Access mode: READ or WRITE (default WRITE)
+        if (trans_flags & PHP_FBIRD_READ) {
+            tpb->insertTag(&status, isc_tpb_read);
+        } else {
+            tpb->insertTag(&status, isc_tpb_write);
+        }
+
+        // Isolation level (mutually exclusive - check in order of specificity)
+        if (trans_flags & PHP_FBIRD_COMMITTED) {
+            tpb->insertTag(&status, isc_tpb_read_committed);
+
+            // Record versioning for READ COMMITTED
+            if (trans_flags & PHP_FBIRD_REC_VERSION) {
+                tpb->insertTag(&status, isc_tpb_rec_version);
+            } else if (trans_flags & PHP_FBIRD_REC_NO_VERSION) {
+                tpb->insertTag(&status, isc_tpb_no_rec_version);
+            }
+#if FB_API_VER >= 40
+            // FB 4.0+ READ CONSISTENCY for snapshot isolation within READ COMMITTED
+            if (trans_flags & PHP_FBIRD_READ_CONSISTENCY) {
+                tpb->insertTag(&status, isc_tpb_read_consistency);
+            }
+#endif
+        } else if (trans_flags & PHP_FBIRD_CONSISTENCY) {
+            tpb->insertTag(&status, isc_tpb_consistency);
+        } else if (trans_flags & PHP_FBIRD_CONCURRENCY) {
+            tpb->insertTag(&status, isc_tpb_concurrency);
+        } else {
+            // Default: SNAPSHOT (concurrency)
+            tpb->insertTag(&status, isc_tpb_concurrency);
+        }
+
+        // Lock resolution: WAIT, NOWAIT, or LOCK_TIMEOUT
+        if (trans_flags & PHP_FBIRD_NOWAIT) {
+            tpb->insertTag(&status, isc_tpb_nowait);
+        } else if (trans_flags & PHP_FBIRD_LOCK_TIMEOUT) {
+            // Lock timeout requires wait + timeout value
+            tpb->insertTag(&status, isc_tpb_wait);
+            // Insert timeout value as 4-byte integer
+            tpb->insertInt(&status, isc_tpb_lock_timeout, static_cast<int>(lock_timeout));
+        } else if (trans_flags & PHP_FBIRD_WAIT) {
+            tpb->insertTag(&status, isc_tpb_wait);
+        }
+        // Note: if none specified, Firebird defaults to WAIT
+
+        // Check for errors during construction
+        if (fb::statusHasError(raw_status)) {
+            if (status_vector) {
+                copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
+            tpb->dispose();
+            return nullptr;
+        }
+
+        // Get buffer length and copy to allocated memory
+        unsigned len = tpb->getBufferLength(&status);
+        const unsigned char* buf = tpb->getBuffer(&status);
+
+        if (fb::statusHasError(raw_status) || !buf || len == 0) {
+            if (status_vector) {
+                copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
+            tpb->dispose();
+            return nullptr;
+        }
+
+        // Allocate and copy buffer (caller must free with fbxpb_free_tpb)
+        auto* result = new unsigned char[len];
+        std::memcpy(result, buf, len);
+        *buffer_length = len;
+
+        // Dispose the builder (we've copied the buffer)
+        tpb->dispose();
+
+        // Success
+        if (status_vector) {
+            status_vector[0] = 1;
+            status_vector[1] = 0;
+        }
+
+        return result;
+
+    } catch (const Firebird::FbException& e) {
+        if (status_vector) {
+            const ISC_STATUS* errors = e.getStatus()->getErrors();
+            if (errors) {
+                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
+                    status_vector[i] = errors[i];
+                    if (errors[i] == isc_arg_end) break;
+                }
+            }
+        }
+        return nullptr;
+    } catch (...) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_random;
+            status_vector[2] = isc_arg_end;
+        }
+        return nullptr;
+    }
+}
+
+extern "C" void fbxpb_free_tpb(unsigned char* buffer) {
+    if (buffer) {
+        delete[] buffer;
+    }
+}

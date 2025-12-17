@@ -1090,6 +1090,47 @@ const char* fbm_get_relation(void* master_ptr, void* metadata_ptr, unsigned inde
  */
 void fbm_release(void* metadata_ptr);
 
+/* =============================================================================
+ * IXpbBuilder-based Parameter Block Construction (FB 3.0+)
+ *
+ * These functions use the Firebird OO API IXpbBuilder for clean construction
+ * of Transaction Parameter Blocks (TPB), replacing manual byte array assembly.
+ * The builder pattern provides type safety and cleaner code.
+ * ============================================================================= */
+
+/**
+ * Build TPB (Transaction Parameter Buffer) using OO API IXpbBuilder.
+ * Replaces manual byte array construction with cleaner builder pattern.
+ *
+ * Supported flags (PHP_FBIRD_* constants from php_fbird_includes.h):
+ * - Access mode: PHP_FBIRD_READ, PHP_FBIRD_WRITE
+ * - Isolation: PHP_FBIRD_CONSISTENCY, PHP_FBIRD_CONCURRENCY, PHP_FBIRD_COMMITTED
+ * - Record versioning: PHP_FBIRD_REC_VERSION, PHP_FBIRD_REC_NO_VERSION
+ * - Lock resolution: PHP_FBIRD_WAIT, PHP_FBIRD_NOWAIT, PHP_FBIRD_LOCK_TIMEOUT
+ * - FB 4.0+ READ CONSISTENCY: PHP_FBIRD_READ_CONSISTENCY
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param trans_flags PHP transaction flags bitmask (PHP_FBIRD_* constants)
+ * @param lock_timeout Lock timeout in seconds (only used when flags include PHP_FBIRD_LOCK_TIMEOUT)
+ * @param buffer_length Output: length of TPB buffer
+ * @param status_vector Output status vector for errors
+ * @return Allocated TPB buffer (caller must free with fbxpb_free_tpb), or NULL on error
+ */
+unsigned char* fbxpb_build_tpb(
+    void* master_ptr,
+    zend_long trans_flags,
+    zend_long lock_timeout,
+    unsigned* buffer_length,
+    ISC_STATUS* status_vector
+);
+
+/**
+ * Free TPB buffer allocated by fbxpb_build_tpb().
+ *
+ * @param buffer Buffer to free (NULL-safe)
+ */
+void fbxpb_free_tpb(unsigned char* buffer);
+
 
 #ifdef __cplusplus
 }

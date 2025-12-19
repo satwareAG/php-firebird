@@ -459,6 +459,60 @@ public:
     }
 
     /**
+     * Seek to a position in a stream blob.
+     *
+     * Note: Stream blobs are created with BPB containing isc_bpb_type + isc_bpb_type_stream.
+     * Seeking on segmented blobs will fail with isc_bad_segstr_type error.
+     *
+     * @param master IMaster interface pointer
+     * @param mode Seek mode: 0 = from start, 1 = from current, 2 = from end
+     * @param offset Offset to seek to (can be negative for modes 1 and 2)
+     * @param result Output: new position in blob (optional, can be nullptr)
+     * @param status_vector Output status vector
+     * @return true on success, false on error
+     */
+    bool seek(Firebird::IMaster* master,
+              int mode,
+              int offset,
+              int* result,
+              ISC_STATUS* status_vector) {
+        if (!blob_ || !master) {
+            if (status_vector) {
+                status_vector[0] = 1;
+                status_vector[1] = isc_bad_segstr_handle;
+                status_vector[2] = isc_arg_end;
+            }
+            return false;
+        }
+
+        Firebird::CheckStatusWrapper status(master->getStatus());
+
+        try {
+            int new_position = blob_->seek(&status, mode, offset);
+
+            if (statusHasError(&status)) {
+                copyStatusVector(&status, status_vector);
+                return false;
+            }
+
+            if (result) {
+                *result = new_position;
+            }
+
+            clearStatusVector(status_vector);
+            return true;
+
+        } catch (...) {
+            if (status_vector) {
+                status_vector[0] = 1;
+                status_vector[1] = isc_random;
+                status_vector[2] = isc_arg_end;
+            }
+            return false;
+        }
+    }
+
+    /**
      * Get blob info.
      *
      * @param master IMaster interface pointer
@@ -702,6 +756,27 @@ void* fbb_get_handle(void* blob_wrapper);
  */
 void fbb_free(void* blob_wrapper);
 
+/**
+ * Seek to a position in a stream blob.
+ *
+ * Note: Only works on stream blobs (created with isc_bpb_type_stream).
+ * Segmented blobs do not support seeking.
+ *
+ * @param master IMaster interface pointer
+ * @param blob_wrapper Blob wrapper pointer
+ * @param mode Seek mode: 0 (SEEK_SET), 1 (SEEK_CUR), 2 (SEEK_END)
+ * @param offset Offset to seek to
+ * @param result Output: new position (can be NULL)
+ * @param status_vector Output status vector
+ * @return 1 on success, 0 on error
+ */
+int fbb_seek(void* master,
+             void* blob_wrapper,
+             int mode,
+             int offset,
+             int* result,
+             ISC_STATUS* status_vector);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
@@ -916,6 +991,28 @@ inline void fbb_free(void* blob_wrapper) {
         auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
         delete wrapper;
     }
+}
+
+inline int fbb_seek(void* master,
+                    void* blob_wrapper,
+                    int mode,
+                    int offset,
+                    int* result,
+                    ISC_STATUS* status_vector) {
+    if (!blob_wrapper) {
+        if (status_vector) {
+            status_vector[0] = 1;
+            status_vector[1] = isc_bad_segstr_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
+    return wrapper->seek(
+        static_cast<Firebird::IMaster*>(master),
+        mode, offset, result, status_vector
+    ) ? 1 : 0;
 }
 
 #endif // __cplusplus

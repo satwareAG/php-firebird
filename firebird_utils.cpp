@@ -2382,6 +2382,23 @@ extern "C" int fbb_close(void* master_ptr, void* blob_wrapper, ISC_STATUS* statu
     return wrapper->close(master, status_vector) ? 1 : 0;
 }
 
+extern "C" int fbb_seek(void* master_ptr, void* blob_wrapper, int whence, int offset,
+                        int* result_position, ISC_STATUS* status_vector) {
+    if (!master_ptr || !blob_wrapper) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_segstr_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
+
+    return wrapper->seek(master, whence, offset, result_position, status_vector) ? 1 : 0;
+}
+
 extern "C" int fbb_cancel(void* master_ptr, void* blob_wrapper, ISC_STATUS* status_vector) {
     if (!master_ptr || !blob_wrapper) {
         if (status_vector) {

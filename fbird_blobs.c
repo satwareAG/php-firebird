@@ -1077,4 +1077,56 @@ PHP_FUNCTION(fbird_blob_open_stream)
 }
 /* }}} */
 
+/* {{{ proto int|false fbird_blob_seek(resource blob_handle, int offset [, int whence])
+   Seek to position in a stream blob. Returns new position or false on error.
+   whence: FBIRD_BLOB_SEEK_SET (0), FBIRD_BLOB_SEEK_CUR (1), FBIRD_BLOB_SEEK_END (2)
+   Note: Only works on stream blobs, not segmented blobs. */
+PHP_FUNCTION(fbird_blob_seek)
+{
+	zval *blob_arg;
+	zend_long offset;
+	zend_long whence = 0; /* Default: SEEK_SET */
+	fbird_blob *ib_blob;
+	int result_position = 0;
+
+	RESET_ERRMSG;
+
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "rl|l", &blob_arg, &offset, &whence)) {
+		RETURN_FALSE;
+	}
+
+	/* Validate whence parameter */
+	if (whence < 0 || whence > 2) {
+		_php_fbird_module_error("Invalid seek mode: must be 0 (SET), 1 (CUR), or 2 (END)");
+		RETURN_FALSE;
+	}
+
+	ib_blob = (fbird_blob *)zend_fetch_resource_ex(blob_arg, LE_BLOB, le_blob);
+
+	if (!ib_blob) {
+		RETURN_FALSE;
+	}
+
+	/* Safety check: verify blob handle is valid */
+	if (!ib_blob->fbb_blob) {
+		_php_fbird_module_error("BLOB handle is invalid or has been closed");
+		RETURN_FALSE;
+	}
+
+	/*
+	 * Firebird 3.0+ OO API Blob Seek
+	 *
+	 * Uses IBlob::seek() via fbb_seek() wrapper.
+	 * Note: Only works on stream blobs (created with isc_bpb_type_stream).
+	 * Segmented blobs will fail with isc_bad_segstr_type error.
+	 */
+	if (fbb_seek(IBG(master_instance), ib_blob->fbb_blob, (int)whence, (int)offset, &result_position, IB_STATUS) == 0) {
+		_php_fbird_error();
+		RETURN_FALSE;
+	}
+
+	RETURN_LONG(result_position);
+}
+/* }}} */
+
 #endif /* HAVE_FIREBIRD */

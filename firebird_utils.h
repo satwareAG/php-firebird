@@ -590,6 +590,25 @@ int fbb_get_segment(void* master_ptr,
 int fbb_close(void* master_ptr, void* blob_wrapper, ISC_STATUS* status_vector);
 
 /**
+ * Seek within an open stream BLOB.
+ *
+ * @param master_ptr       IMaster interface (from fb_get_master_interface)
+ * @param blob_wrapper     BlobWrapper pointer from fbb_open or fbb_create
+ * @param whence           Seek mode: 0=SEEK_SET, 1=SEEK_CUR, 2=SEEK_END
+ * @param offset           Byte offset relative to whence
+ * @param result_position  Output: New absolute position after seek
+ * @param status_vector    ISC status vector for error reporting
+ *
+ * @return 1 on success, 0 on failure
+ */
+int fbb_seek(void* master_ptr,
+             void* blob_wrapper,
+             int whence,
+             int offset,
+             int* result_position,
+             ISC_STATUS* status_vector);
+
+/**
  * Cancel the blob (discard writes).
  *
  * @param master_ptr IMaster interface pointer

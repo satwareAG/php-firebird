@@ -151,6 +151,12 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_blob_import, 0, 0, 0)
 	ZEND_ARG_INFO(0, file)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_blob_seek, 0, 0, 2)
+	ZEND_ARG_INFO(0, blob_handle)
+	ZEND_ARG_INFO(0, offset)
+	ZEND_ARG_INFO(0, whence)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_query, 0, 0, 0)
 	ZEND_ARG_INFO(0, link_identifier)
 	ZEND_ARG_INFO(0, query)
@@ -402,6 +408,7 @@ static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_blob_import, 	arginfo_fbird_blob_import)
 	PHP_FE(fbird_blob_create_stream,	arginfo_fbird_blob_create)
 	PHP_FE(fbird_blob_open_stream, 	arginfo_fbird_blob_open)
+	PHP_FE(fbird_blob_seek, 	arginfo_fbird_blob_seek)
 	PHP_FE(fbird_errmsg, 		arginfo_fbird_errmsg)
 	PHP_FE(fbird_errcode, 		arginfo_fbird_errcode)
 
@@ -942,6 +949,10 @@ PHP_MINIT_FUNCTION(fbird)
 	/* Connection flags (matches PostgreSQL PGSQL_CONNECT_FORCE_NEW) */
 	REGISTER_LONG_CONSTANT("FBIRD_CONNECT_FORCE_NEW", PHP_FBIRD_CONNECT_FORCE_NEW, CONST_PERSISTENT);
 
+	/* BLOB seek constants (mirrors SEEK_SET, SEEK_CUR, SEEK_END) */
+	REGISTER_LONG_CONSTANT("FBIRD_BLOB_SEEK_SET", 0, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_BLOB_SEEK_CUR", 1, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_BLOB_SEEK_END", 2, CONST_PERSISTENT);
 
 	php_fbird_query_minit(INIT_FUNC_ARGS_PASSTHRU);
 	php_fbird_blobs_minit(INIT_FUNC_ARGS_PASSTHRU);

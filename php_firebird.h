@@ -84,6 +84,7 @@ PHP_FUNCTION(fbird_blob_info);
 PHP_FUNCTION(fbird_blob_import);
 PHP_FUNCTION(fbird_blob_create_stream);
 PHP_FUNCTION(fbird_blob_open_stream);
+PHP_FUNCTION(fbird_blob_seek);
 
 PHP_FUNCTION(fbird_add_user);
 PHP_FUNCTION(fbird_modify_user);

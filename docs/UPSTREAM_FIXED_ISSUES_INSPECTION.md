@@ -1,8 +1,17 @@
 # Upstream "FIXED" Issues - Deep Inspection Report
 
-> **Analysis Date**: 2025-12-17 (Updated)
+> **Analysis Date**: 2025-12-19 (Updated)
 > **Methodology**: Baby Steps™ incremental validation  
-> **Scope**: Issues #82, #85, #86, #98, #99, #25 from upstream FirebirdSQL/php-firebird
+> **Scope**: All open issues from upstream FirebirdSQL/php-firebird
+
+---
+
+## Repository Reference
+
+| Repository | URL | Note |
+|------------|-----|------|
+| **Upstream** | https://github.com/FirebirdSQL/php-firebird | Original FirebirdSQL project |
+| **Fork** | https://github.com/satwareAG/php-firebird | satwareAG enhanced fork |
 
 ---
 
@@ -19,6 +28,10 @@
 | #66 Event PHP 8.4+ Stack | ✅ FIXED | 100% | None (polling model redesign) |
 | #45 Event Memory Leak | ✅ FIXED | 100% | None (polling model redesign) |
 | #42 Array Test 007 | ✅ FIXED | 100% | None (test passes on all versions) |
+| #22 ibase_close | ✅ FIXED | 100% | None (second close returns false correctly) |
+| #53 Service Attach Local | ✅ FIXED | 100% | None (empty host → local connection) |
+| #71 Service INI Defaults | ✅ FIXED | 100% | None (INI_STR fallback added) |
+| #97 Connection Reuse | ⚠️ BY DESIGN | 100% | Enhancement: Fork Issue #11 ✅ IMPLEMENTED |
 
 ---
 
@@ -508,6 +521,250 @@ The memory leak was eliminated by the polling model design:
 
 ---
 
+## Issue #22: ibase_close Not Working as Expected
+
+**Upstream Issue**: https://github.com/FirebirdSQL/php-firebird/issues/22  
+**Upstream Request**: `ibase_close($x)` doesn't actually close connection; second call returns true.
+
+### Problem Analysis
+
+The original bug reported that calling `ibase_close()` multiple times on the same connection would:
+1. First call: Return `true` (expected)
+2. Second call: Return `true` again (BUG - should return `false`)
+
+This indicated the connection was not actually being closed.
+
+### Solution Implemented
+
+The satwareAG fork correctly implements connection closing with proper resource cleanup:
+
+**Implementation** (`firebird.c`, `PHP_FUNCTION(fbird_close)`):
+```c
+// Uses zend_list_close() for proper resource cleanup
+// Returns false if connection already closed or invalid resource
+```
+
+### Verification Results - ✅ FIXED
+
+**Test Files**:
+- `tests/fbird_close_004.phpt` - Basic close test
+- `tests/fbird_close_005.phpt` - Error handling test
+
+**Test Evidence** (fbird_close_004.phpt):
+```php
+$conn = fbird_connect($db, $user, $pass);
+var_dump(fbird_close($conn));  // bool(true)  - first close succeeds
+var_dump(fbird_close($conn));  // bool(false) - already closed (CORRECT!)
+var_dump(fbird_close());       // bool(false) - no default link
+```
+
+**Verification Date**: 2025-12-17  
+**Test Result**: PASS (PHP 8.3, 8.4, 8.5)  
+**Status**: ✅ COMPLETE - No further action needed.
+
+---
+
+## Issue #53: ibase_service_attach Local Connection
+
+**Upstream Issue**: https://github.com/FirebirdSQL/php-firebird/issues/53  
+**Upstream Request**: Service attach always uses TCP pattern `%s:service_mgr` even for local connections.
+
+### Problem Analysis
+
+The original bug reported that `ibase_service_attach()` could not connect to local embedded Firebird servers because it always prefixed the host to the service manager string.
+
+**Expected Behavior**:
+- Local connection (empty host): Use `"service_mgr"` directly
+- Remote connection (host provided): Use `"host:service_mgr"` pattern
+
+### Solution Implemented
+
+The satwareAG fork correctly handles both local and remote service manager connections:
+
+**Implementation** (`fbird_service.c`, `PHP_FUNCTION(fbird_service_attach)`):
+```c
+char loc[128] = "service_mgr";  // Default: local connection
+// ...
+if(hlen > 0){
+    slprintf(loc, sizeof(loc), "%s:service_mgr", host);  // Remote connection
+}
+```
+
+### Verification Results - ✅ FIXED
+
+**Test Files**:
+- `tests/fbird_service_001.phpt` - Service attach error handling
+- `tests/fbird_service_002.phpt` - Server info constants
+
+**Verification Date**: 2025-12-17  
+**Test Result**: PASS  
+**Status**: ✅ COMPLETE - No further action needed.
+
+---
+
+## Issue #71: ibase_service_attach INI Defaults
+
+**Upstream Issue**: https://github.com/FirebirdSQL/php-firebird/issues/71  
+**Upstream Request**: Service attach should respect `fbird.default_user`/`fbird.default_password` INI directives.
+
+### Problem Analysis
+
+The original `fbird_service_attach()` did NOT fall back to INI defaults when user/password parameters were not provided (unlike `fbird_connect()` which does).
+
+### Solution Implemented
+
+The satwareAG fork added INI fallback to match `fbird_connect()` behavior:
+
+**Implementation** (`fbird_service.c`):
+```c
+/* Fall back to INI defaults if user/password not provided (Issue #71) */
+if (ulen == 0) {
+    char *ini_user = INI_STR("fbird.default_user");
+    if (ini_user && *ini_user) {
+        user = ini_user;
+        ulen = strlen(ini_user);
+    }
+}
+
+if (plen == 0) {
+    char *ini_pass = INI_STR("fbird.default_password");
+    if (ini_pass && *ini_pass) {
+        pass = ini_pass;
+        plen = strlen(ini_pass);
+    }
+}
+```
+
+### Verification Results - ✅ FIXED
+
+**Test File**: `tests/fbird_service_ini_defaults.phpt`
+
+**Usage Example**:
+```php
+// php.ini: fbird.default_user=SYSDBA, fbird.default_password=masterkey
+
+// Now works - uses INI defaults
+$svc = fbird_service_attach('localhost');  // Uses SYSDBA/masterkey from INI
+
+// Still works - explicit credentials override INI
+$svc = fbird_service_attach('localhost', 'CUSTOM_USER', 'custom_pass');
+```
+
+**Verification Date**: 2025-12-17  
+**Test Result**: PASS  
+**Status**: ✅ COMPLETE - No further action needed.
+
+---
+
+## Issue #97: Connection Reuse Behavior
+
+**Upstream Issue**: https://github.com/FirebirdSQL/php-firebird/issues/97  
+**Upstream Request**: Multiple `ibase_connect()` calls with identical arguments return same resource.
+
+### Problem Analysis
+
+The reporter observed that:
+```php
+$con1 = ibase_connect($db, $user, $password, "utf8");
+$con2 = ibase_connect($db, $user, $password, "utf8");
+// Both return the SAME resource - only 1 actual connection in MON$ATTACHMENTS
+```
+
+### Analysis Verdict: BY DESIGN (Enhancement Needed)
+
+After comprehensive research comparing with PostgreSQL, MySQLi, and PDO extensions:
+
+**Key Finding**: The default connection reuse behavior is **CORRECT** - it matches PostgreSQL's well-established `pg_connect()` pattern.
+
+**However**, PostgreSQL provides `PGSQL_CONNECT_FORCE_NEW` as an escape hatch when developers explicitly need a new connection. The php-firebird extension was missing this capability.
+
+| Extension | Default Behavior | Escape Hatch |
+|-----------|-----------------|--------------|
+| pg_connect() | Reuses | `PGSQL_CONNECT_FORCE_NEW` |
+| mysqli_connect() | Always new | N/A |
+| PDO | Always new | N/A |
+| **fbird_connect()** | Reuses | **NOW: `FBIRD_CONNECT_FORCE_NEW`** |
+
+### Solution Implemented - Fork Issue #11 ✅
+
+The satwareAG fork implemented `FBIRD_CONNECT_FORCE_NEW` flag (Fork Issue #11):
+
+**New Usage**:
+```php
+// Default: Same parameters = same connection (by design, backward compatible)
+$conn1 = fbird_connect($db, $user, $pass);
+$conn2 = fbird_connect($db, $user, $pass);  // Returns SAME resource
+
+// Force new connection when needed (NEW FEATURE!)
+$conn3 = fbird_connect($db, $user, $pass, null, null, null, null, null, FBIRD_CONNECT_FORCE_NEW);
+// Returns NEW connection resource
+```
+
+**Test File**: `tests/fbird_connect_force_new.phpt`
+
+**Verification Date**: 2025-12-17  
+**Implementation Status**: ✅ IMPLEMENTED (Fork Issue #11)  
+**Status**: ✅ COMPLETE - Enhancement deployed.
+
+---
+
+## Issue #42: Array Handling Test (007.phpt)
+
+**Upstream Issue**: https://github.com/FirebirdSQL/php-firebird/issues/42  
+**Upstream Request**: `tests/007.phpt` was disabled in upstream due to failures.
+
+### Verification Results - ✅ FIXED
+
+The satwareAG fork has the test enabled and passing across all PHP versions:
+
+**Test Files**:
+- `tests/007.phpt` - Main array handling test
+- `tests/007_iso_char.phpt` - ISO CHAR array variant
+- `tests/007_iso_integer.phpt` - ISO INTEGER array variant
+- `tests/007_iso_varchar10.phpt` - ISO VARCHAR(10) array variant
+- `tests/007_iso_varchar1000.phpt` - ISO VARCHAR(1000) array variant
+
+**Test Results**:
+| PHP Version | 007.phpt | Variants |
+|-------------|----------|----------|
+| PHP 8.3.28 | ✅ PASS | ✅ All PASS |
+| PHP 8.4.15 | ✅ PASS | ✅ All PASS |
+| PHP 8.5.0 | ✅ PASS | ✅ All PASS |
+
+**Verification Date**: 2025-12-17  
+**Status**: ✅ COMPLETE - No further action needed.
+
+---
+
+## Upstream Discussions Review (2025-12-19)
+
+The following upstream GitHub Discussions were reviewed for potential improvement ideas:
+
+### Discussion #62: Laravel Working with Firebird?
+
+**URL**: https://github.com/FirebirdSQL/php-firebird/discussions/62  
+**Category**: Q&A  
+**Relevance**: ❌ Not Applicable
+
+**Summary**: User asking about Laravel compatibility with Firebird. The maintainers clarified that Laravel uses PDO drivers, and there is a separate `harrygulliford/laravel-firebird` package that wraps PDO_Firebird.
+
+**Action**: None required - This is a Q&A about third-party framework integration, not related to the php-firebird extension itself.
+
+### Discussion #33: PHP 8.1 Interbase Problem
+
+**URL**: https://github.com/FirebirdSQL/php-firebird/discussions/33  
+**Category**: Q&A  
+**Relevance**: ❌ Not Applicable
+
+**Summary**: User asking about Windows DLL availability for PHP 8.1. The discussion covered:
+- PDO_Firebird vs php-firebird differences
+- Windows `fbclient.dll` and architecture matching (32/64-bit)
+- XAMPP configuration issues
+
+**Action**: None required - This is a Q&A about Windows setup and PDO_Firebird, not related to our extension's functionality.
+
+---
+
 ## Improvement Recommendations Summary
 
 ### All Issues Completed
@@ -524,6 +781,11 @@ All upstream "FIXED" issues have been verified and are 100% complete.
 - **Issue #25**: ✅ UTF-8 CHAR padding handled correctly
 - **Issue #66**: ✅ Event handling PHP 8.4+ stack overflow (polling model redesign)
 - **Issue #45**: ✅ Event handling memory leak (polling model redesign)
+- **Issue #22**: ✅ ibase_close correctly returns false on second call
+- **Issue #53**: ✅ Service attach supports local connections
+- **Issue #71**: ✅ Service attach respects INI defaults
+- **Issue #97**: ✅ FBIRD_CONNECT_FORCE_NEW flag implemented (Fork Issue #11)
+- **Issue #42**: ✅ Array test 007.phpt passes on all PHP versions
 
 ---
 

@@ -130,41 +130,18 @@ The README.md is comprehensive (650+ lines) with:
 | Function Reference | ✅ Present | All 50+ functions listed |
 | Version Compatibility | ✅ Present | Clear PHP/FB matrix |
 
-#### Missing: PDO_Firebird Comparison
+#### PDO_Firebird Comparison - ✅ COMPLETE
 
-The upstream issue specifically requested a comparison with PDO_Firebird. This section is **not present** in the current README.
+The upstream issue specifically requested a comparison with PDO_Firebird. This section has been added to README.md:
 
-**Recommendation**: Add section:
+**Location**: README.md lines 26-57
 
-```markdown
-## PDO_Firebird vs php-firebird Extension
+**Content**: Full feature comparison table including:
+- API style differences (PDO vs Native)
+- Feature support (Events, Service API, Array Fields, etc.)
+- Use case recommendations for each option
 
-| Feature | PDO_Firebird | php-firebird |
-|---------|--------------|--------------|
-| API Style | PDO (database-agnostic) | Native (Firebird-specific) |
-| Function Prefix | `$pdo->method()` | `fbird_*()` |
-| Events Support | ❌ No | ✅ Yes |
-| Service API | ❌ No | ✅ Full (backup, restore, users) |
-| Array Fields | ❌ No | ✅ Yes |
-| BLOB Streaming | ✅ Via LOB | ✅ Native + Streams |
-| Prepared Statements | ✅ Yes | ✅ Yes |
-| Transaction Control | ✅ Basic | ✅ Advanced (savepoints, TPB) |
-| Named Cursors | ❌ No | ✅ Yes (fbird_name_result) |
-| Generator/Sequence | Via SQL only | ✅ Native fbird_gen_id() |
-| Modern OO API | ❌ Legacy C API | ✅ FB 3.0+ OO API |
-
-**When to use PDO_Firebird:**
-- Building database-agnostic applications
-- Simple CRUD operations
-- Portability across databases is priority
-
-**When to use php-firebird:**
-- Firebird-specific features needed (events, service API)
-- Array field support required
-- Advanced transaction control (savepoints, table locking)
-- Performance-critical applications
-- Need modern Firebird 3.0+ OO API benefits
-```
+**Verification**: Confirmed present in README.md (2025-12-19)
 
 ---
 

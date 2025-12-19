@@ -84,6 +84,8 @@ final class DbInfo
 
     /**
      * Private constructor - use factory methods.
+     *
+     * @param array<string, mixed> $data Database info array
      */
     private function __construct(array $data)
     {
@@ -151,7 +153,7 @@ final class DbInfo
     /**
      * Create DbInfo from an array of data.
      *
-     * @param array $data Database info array
+     * @param array<string, mixed> $data Database info array
      * @return self
      */
     public static function fromArray(array $data): self
@@ -305,7 +307,7 @@ final class DbInfo
     /**
      * Debug information.
      *
-     * @return array
+     * @return array<string, mixed>
      */
     public function __debugInfo(): array
     {

@@ -60,6 +60,8 @@ class Transaction
     private mixed $connection;
     private bool $committed = false;
     private bool $rolledBack = false;
+
+    /** @var array<string, bool> */
     private array $savepoints = [];
 
     /**
@@ -322,7 +324,7 @@ class Transaction
      * Execute a query within this transaction.
      *
      * @param string $sql SQL query
-     * @param array $params Parameters
+     * @param array<int, mixed> $params Parameters
      * @return mixed Query result
      */
     public function query(string $sql, array $params = []): mixed

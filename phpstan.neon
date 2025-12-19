@@ -6,6 +6,14 @@ parameters:
     paths:
         - src/
 
+    # Stub files for C extension function signatures
+    stubFiles:
+        - phpstan/fbird.stub.php
+
+    # Bootstrap files to define extension constants
+    bootstrapFiles:
+        - phpstan/fbird-bootstrap.php
+
     # PHP version to analyze for
     phpVersion: 80100
 
@@ -24,12 +32,17 @@ parameters:
 
     # Ignore patterns for extension-specific code (C extension provides these)
     ignoreErrors:
-        # Allow fbird_* functions that are provided by the C extension
-        - '#^Function fbird_\w+ not found\.$#'
-        - '#^Function fbird_\w+ invoked with .* parameters, .* required\.$#'
-        # Extension-provided classes and constants
+        # Extension-provided classes (stubs provide functions/constants, not Event class yet)
         - '#^Class Firebird\\Event not found\.$#'
-        - '#^Constant FBIRD_EVENT_TIMEOUT not found\.$#'
+        # Variadic functions have flexible parameter counts - handled by the C extension
+        - '#^Function fbird_prepare invoked with \d+ parameters?, \d+ required\.$#'
+        - '#^Function fbird_blob_create invoked with \d+ parameters?, \d+-?\d* required\.$#'
+        - '#^Function fbird_blob_open invoked with \d+ parameters?, \d+ required\.$#'
+        # Functions provided by C extension but stubs may not be fully recognized
+        - '#^Function fbird_poll_event not found\.$#'
+        - '#^Function fbird_trans_start not found\.$#'
+        # Properties that exist for potential future use
+        - '#^Property Firebird\\Database::\$username is never read, only written\.$#'
         # Type strictness for optional parameters in wrapper classes
         - message: '#^Parameter .* expects (resource|string|callable).*, .*(resource|string|callable).*\|null given\.$#'
           path: src/Firebird/FiberEventPoller.php

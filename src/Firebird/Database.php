@@ -193,7 +193,7 @@ class Database
      * Execute a query and return the result.
      *
      * @param string $sql SQL query
-     * @param array $params Parameters for prepared statement
+     * @param array<int, mixed> $params Parameters for prepared statement
      * @param int $bindTypes Bind type flags (optional)
      * @return mixed Query result or false on failure
      */
@@ -212,7 +212,7 @@ class Database
      *
      * @param mixed $transaction Transaction resource or Transaction object
      * @param string $sql SQL query
-     * @param array $params Parameters
+     * @param array<int, mixed> $params Parameters
      * @return mixed
      */
     public function queryWithTransaction(mixed $transaction, string $sql, array $params = []): mixed
@@ -242,7 +242,7 @@ class Database
      * Execute a prepared statement.
      *
      * @param mixed $statement Statement resource
-     * @param array $params Parameters
+     * @param array<int, mixed> $params Parameters
      * @return mixed Query result
      */
     public function execute(mixed $statement, array $params = []): mixed
@@ -298,10 +298,15 @@ class Database
      * @param string $generator Generator name
      * @param int $increment Increment value (default 1)
      * @return int|string Next value (string for large values)
+     * @throws \Exception If generation fails
      */
     public function genId(string $generator, int $increment = 1): int|string
     {
-        return fbird_gen_id($generator, $increment, $this->resource);
+        $result = fbird_gen_id($generator, $increment, $this->resource);
+        if ($result === false) {
+            throw new \Exception(fbird_errmsg() ?: "Failed to get generator value for: {$generator}");
+        }
+        return $result;
     }
 
     /**

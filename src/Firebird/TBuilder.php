@@ -61,7 +61,7 @@ final class TBuilder
     // Read consistency (Firebird 4.0+)
     private bool $readConsistency = false;
 
-    // Table reservations: ['table_name' => mode_flags, ...]
+    /** @var array<string, int> Table reservations: ['table_name' => mode_flags, ...] */
     private array $tableReservations = [];
 
     /**

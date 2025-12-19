@@ -125,8 +125,14 @@ class PcntlEventPoller implements EventPollerInterface
         $this->timedOut = false;
 
         // Install our signal handler
-        $this->previousHandler = pcntl_signal(SIGALRM, function (int $signo): void {
-            $this->timedOut = true;
+        $previousHandler = pcntl_signal_get_handler(SIGALRM);
+        $this->previousHandler = is_int($previousHandler) || is_callable($previousHandler)
+            ? $previousHandler
+            : null;
+
+        // We must install a handler to avoid SIGALRM default action (terminate).
+        // Actual timeout detection is based on elapsed time (see below).
+        pcntl_signal(SIGALRM, static function (int $signo): void {
         });
 
         // Enable async signals (PHP 7.1+)
@@ -134,16 +140,26 @@ class PcntlEventPoller implements EventPollerInterface
 
         try {
             // Schedule alarm
-            $previousAlarm = pcntl_alarm($timeoutSeconds);
+            pcntl_alarm($timeoutSeconds);
+
+            $startTime = microtime(true);
 
             // Attempt blocking call
             $result = fbird_poll_event($this->event);
 
+            // Ensure any pending signals get dispatched before we check $this->timedOut.
+            pcntl_signal_dispatch();
+
             // Cancel alarm
             pcntl_alarm(0);
 
-            // Check if we timed out
-            if ($this->timedOut) {
+            // Note: Whether SIGALRM can actually interrupt isc_wait_for_event() is platform dependent.
+            // We treat "elapsed time >= timeout" as timeout.
+            $elapsed = microtime(true) - $startTime;
+            $didTimeout = $elapsed >= $timeoutSeconds;
+            $this->timedOut = $didTimeout;
+
+            if ($didTimeout) {
                 return FBIRD_EVENT_TIMEOUT;
             }
 
@@ -156,11 +172,7 @@ class PcntlEventPoller implements EventPollerInterface
             pcntl_async_signals($asyncSignals);
 
             // Restore previous handler
-            if ($this->previousHandler !== null) {
-                pcntl_signal(SIGALRM, $this->previousHandler);
-            } else {
-                pcntl_signal(SIGALRM, SIG_DFL);
-            }
+            pcntl_signal(SIGALRM, $this->previousHandler ?? SIG_DFL);
 
             $this->previousHandler = null;
         }
@@ -176,15 +188,8 @@ class PcntlEventPoller implements EventPollerInterface
             return false;
         }
 
-        // Check if required functions exist
-        $required = ['pcntl_alarm', 'pcntl_signal', 'pcntl_async_signals'];
-        foreach ($required as $func) {
-            if (!function_exists($func)) {
-                return false;
-            }
-        }
-
         // Check if pcntl functions are not disabled
+        $required = ['pcntl_alarm', 'pcntl_signal', 'pcntl_async_signals'];
         $disabled = explode(',', ini_get('disable_functions') ?: '');
         $disabled = array_map('trim', $disabled);
 

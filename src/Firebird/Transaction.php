@@ -83,7 +83,7 @@ class Transaction
     public static function begin(mixed $connection): self
     {
         $conn = $connection instanceof Database ? $connection->getResource() : $connection;
-        $resource = fbird_trans(FBIRD_DEFAULT, $conn);
+        $resource = fbird_trans_begin($conn, FBIRD_DEFAULT);
 
         if ($resource === false) {
             throw new \Exception(fbird_errmsg() ?: 'Failed to start transaction');
@@ -112,6 +112,46 @@ class Transaction
     public function getResource(): mixed
     {
         return $this->resource;
+    }
+
+    /**
+     * Get the Firebird transaction ID.
+     *
+     * Returns the internal Firebird transaction identifier, useful for
+     * debugging and logging purposes.
+     *
+     * @return int|null Transaction ID, or null if transaction is not active
+     */
+    public function getId(): ?int
+    {
+        if (!$this->isActive()) {
+            return null;
+        }
+
+        $info = fbird_trans_info($this->resource);
+        return $info['id'] ?? null;
+    }
+
+    /**
+     * Get detailed transaction information.
+     *
+     * Returns an array with transaction details:
+     * - id: Transaction ID
+     * - isolation: Isolation level (CONCURRENCY, READ_COMMITTED, CONSISTENCY)
+     * - lock_timeout: Lock timeout in seconds
+     * - access_mode: READ_ONLY or READ_WRITE
+     * - state: Transaction state (ACTIVE)
+     *
+     * @return array<string, mixed>|null Transaction info, or null if not active
+     */
+    public function getInfo(): ?array
+    {
+        if (!$this->isActive()) {
+            return null;
+        }
+
+        $info = fbird_trans_info($this->resource);
+        return $info !== false ? $info : null;
     }
 
     /**
@@ -250,7 +290,7 @@ class Transaction
             throw new \Exception('Invalid savepoint name: must start with letter/underscore, contain only alphanumeric/underscore');
         }
 
-        $result = fbird_query($this->connection, $this->resource, "SAVEPOINT {$name}");
+        $result = fbird_query_params_tx($this->connection, $this->resource, "SAVEPOINT {$name}");
         if ($result === false) {
             throw new \Exception(fbird_errmsg() ?: "Failed to create savepoint: {$name}");
         }
@@ -276,7 +316,7 @@ class Transaction
             throw new \Exception("Savepoint not found: {$name}");
         }
 
-        $result = fbird_query($this->connection, $this->resource, "ROLLBACK TO SAVEPOINT {$name}");
+        $result = fbird_query_params_tx($this->connection, $this->resource, "ROLLBACK TO SAVEPOINT {$name}");
         if ($result === false) {
             throw new \Exception(fbird_errmsg() ?: "Failed to rollback to savepoint: {$name}");
         }
@@ -301,7 +341,7 @@ class Transaction
             throw new \Exception("Savepoint not found: {$name}");
         }
 
-        $result = fbird_query($this->connection, $this->resource, "RELEASE SAVEPOINT {$name}");
+        $result = fbird_query_params_tx($this->connection, $this->resource, "RELEASE SAVEPOINT {$name}");
         if ($result === false) {
             throw new \Exception(fbird_errmsg() ?: "Failed to release savepoint: {$name}");
         }
@@ -333,12 +373,7 @@ class Transaction
             throw new \Exception('Transaction is not active');
         }
 
-        if (empty($params)) {
-            return fbird_query($this->connection, $this->resource, $sql);
-        }
-
-        $args = array_merge([$this->connection, $this->resource, $sql], $params);
-        return fbird_query(...$args);
+        return fbird_query_params_tx($this->connection, $this->resource, $sql, $params);
     }
 
     /**

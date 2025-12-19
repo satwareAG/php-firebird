@@ -169,6 +169,17 @@ class Database
     }
 
     /**
+     * Get the username used for this connection (if provided).
+     *
+     * This exists mainly for diagnostics/introspection and to keep the property
+     * meaningfully "read" for static analysis.
+     */
+    public function getUsername(): ?string
+    {
+        return $this->username;
+    }
+
+    /**
      * Start a new transaction with the builder pattern.
      *
      * @return TBuilder Transaction builder
@@ -199,12 +210,7 @@ class Database
      */
     public function query(string $sql, array $params = [], int $bindTypes = 0): mixed
     {
-        if (empty($params)) {
-            return fbird_query($this->resource, $sql);
-        }
-
-        $args = array_merge([$this->resource, $sql], $params);
-        return fbird_query(...$args);
+        return fbird_query_params($this->resource, $sql, $params);
     }
 
     /**
@@ -219,12 +225,7 @@ class Database
     {
         $trans = $transaction instanceof Transaction ? $transaction->getResource() : $transaction;
 
-        if (empty($params)) {
-            return fbird_query($this->resource, $trans, $sql);
-        }
-
-        $args = array_merge([$this->resource, $trans, $sql], $params);
-        return fbird_query(...$args);
+        return fbird_query_params_tx($this->resource, $trans, $sql, $params);
     }
 
     /**
@@ -247,11 +248,7 @@ class Database
      */
     public function execute(mixed $statement, array $params = []): mixed
     {
-        if (empty($params)) {
-            return fbird_execute($statement);
-        }
-
-        return fbird_execute($statement, ...$params);
+        return fbird_execute_params($statement, $params);
     }
 
     /**
@@ -267,14 +264,18 @@ class Database
     /**
      * Create a BLOB for writing.
      *
+     * The fbird_blob_create() function accepts a link or transaction resource.
+     * When a transaction is passed, the extension resolves both link and trans.
+     *
      * @param mixed|null $transaction Transaction resource (optional)
      * @return mixed BLOB handle
      */
     public function createBlob(mixed $transaction = null): mixed
     {
         if ($transaction !== null) {
+            // Pass transaction resource - extension resolves link from it
             $trans = $transaction instanceof Transaction ? $transaction->getResource() : $transaction;
-            return fbird_blob_create($this->resource, $trans);
+            return fbird_blob_create($trans);
         }
         return fbird_blob_create($this->resource);
     }
@@ -282,14 +283,18 @@ class Database
     /**
      * Open a BLOB for reading.
      *
+     * The fbird_blob_open() function accepts (link, blob_id) or (trans, blob_id).
+     * When a transaction is passed, the extension resolves both link and trans.
+     *
      * @param mixed $transaction Transaction resource
      * @param string $blobId BLOB ID
      * @return mixed BLOB handle
      */
     public function openBlob(mixed $transaction, string $blobId): mixed
     {
+        // Pass transaction resource - extension resolves link from it
         $trans = $transaction instanceof Transaction ? $transaction->getResource() : $transaction;
-        return fbird_blob_open($this->resource, $trans, $blobId);
+        return fbird_blob_open($trans, $blobId);
     }
 
     /**

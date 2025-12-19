@@ -168,13 +168,35 @@ class FiberEventPoller implements EventPollerInterface
         // This implementation uses a child process for the blocking call
         // and integrates with AMPHP's event loop for timeout handling
 
-        $processPoller = new ProcessEventPoller($this->event);
+        $event = $this->event;
+        if ($event === null) {
+            throw new \LogicException('Event handler must be set before polling.');
+        }
+
+        $database = $this->database;
+        $username = $this->username;
+        $password = $this->password;
+        $callback = $this->callback;
+
+        if ($database === null) {
+            throw new \LogicException('Database must be set before async polling.');
+        }
+        if ($username === null || $password === null) {
+            throw new \LogicException(
+                'Username and password must be set when database is set.'
+            );
+        }
+        if ($callback === null) {
+            throw new \LogicException('Callback must be set before async polling.');
+        }
+
+        $processPoller = new ProcessEventPoller($event);
         $processPoller->setConnectionDetails(
-            $this->database,
-            $this->username,
-            $this->password,
+            $database,
+            $username,
+            $password,
             $this->eventNames,
-            $this->callback
+            $callback
         );
 
         // If AMPHP is available and we're in an async context,

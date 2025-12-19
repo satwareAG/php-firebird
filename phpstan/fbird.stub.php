@@ -283,11 +283,25 @@ function fbird_drop_db(mixed $connection = null): bool {}
 function fbird_query(mixed $link_or_query, mixed ...$args): mixed {}
 
 /**
- * @param resource|string $link_or_query
- * @param mixed ...$args
+ * Prepare a SQL statement for later execution.
+ *
+ * Accepts 1-3 arguments:
+ * - fbird_prepare(string $query)
+ * - fbird_prepare(resource $link, string $query)
+ * - fbird_prepare(resource $link, resource $trans, string $query)
+ * - fbird_prepare(resource $trans, string $query)
+ * - fbird_prepare(resource $trans, resource $link, string $query)
+ *
+ * @param resource|string|null $link_or_trans_or_query Link, transaction, or query string
+ * @param resource|string|null $link_or_trans_or_query_2 Link, transaction, or query string
+ * @param string|null $query Query string when first two args are resources
  * @return resource|false
  */
-function fbird_prepare(mixed $link_or_query, mixed ...$args): mixed {}
+function fbird_prepare(
+    mixed $link_or_trans_or_query,
+    mixed $link_or_trans_or_query_2 = null,
+    ?string $query = null
+): mixed {}
 
 /**
  * @param resource $query
@@ -388,11 +402,19 @@ function fbird_param_info(mixed $query, int $param_number): array|false {}
 function fbird_trans(mixed $link_or_flags = null, mixed ...$args): mixed {}
 
 /**
- * @param resource $link
- * @param array<string, mixed>|int $options
- * @return resource|false
+ * Start a transaction with options.
+ *
+ * Legacy form (int bitmask):
+ *   fbird_trans_start($link, FBIRD_DEFAULT | FBIRD_READ | ...)
+ *
+ * New form (options array) as used by `Firebird\TBuilder::build()`:
+ *   fbird_trans_start($link, ['readCommitted' => true, 'lockTimeout' => 5, ...])
+ *
+ * @param resource $link Database connection
+ * @param int|array<string, array<string, int>|bool|int> $options Transaction options
+ * @return resource|false Transaction handle or false on error
  */
-function fbird_trans_start(mixed $link, array|int $options = FBIRD_DEFAULT): mixed {}
+function fbird_trans_start(mixed $link, mixed $options = 0): mixed {}
 
 /**
  * @param resource|null $link
@@ -451,11 +473,12 @@ function fbird_trans_info(mixed $link, int $req_items): array|false {}
 // ============================================================================
 
 /**
- * @param resource|null $link
- * @param resource|null $trans
- * @return resource|false
+ * Create a blob for adding data.
+ *
+ * @param resource|null $link Database connection (optional, uses default)
+ * @return resource|false Blob handle or false on error
  */
-function fbird_blob_create(mixed $link = null, mixed $trans = null): mixed {}
+function fbird_blob_create(mixed $link = null): mixed {}
 
 /**
  * @param resource $blob
@@ -477,11 +500,17 @@ function fbird_blob_close(mixed $blob): string|false {}
 function fbird_blob_cancel(mixed $blob): bool {}
 
 /**
- * @param resource|string $link_or_id
- * @param mixed ...$args
- * @return resource|false
+ * Open a blob for retrieving data.
+ *
+ * Accepts 1-2 arguments:
+ * - fbird_blob_open(string $blob_id)
+ * - fbird_blob_open(resource $link, string $blob_id)
+ *
+ * @param resource|string $link_or_blob_id Database connection or blob ID string
+ * @param string|null $blob_id Blob ID string when first arg is a connection
+ * @return resource|false Blob handle or false on error
  */
-function fbird_blob_open(mixed $link_or_id, mixed ...$args): mixed {}
+function fbird_blob_open(mixed $link_or_blob_id, ?string $blob_id = null): mixed {}
 
 /**
  * @param resource $blob
@@ -543,7 +572,7 @@ function fbird_blob_open_seekable(mixed $link_or_id, ?string $blob_id = null): m
  * @param int $whence
  * @return int|false
  */
-function fbird_blob_seek(mixed $blob, int $offset, int $whence = FBIRD_BLOB_SEEK_SET): int|false {}
+function fbird_blob_seek(mixed $blob, int $offset, int $whence = 0): int|false {}
 
 // ============================================================================
 // GENERATOR FUNCTIONS
@@ -567,9 +596,9 @@ function fbird_gen_id(string $generator, int $increment = 1, mixed $link = null)
 function fbird_errmsg(): string {}
 
 /**
- * @return int
+ * @return int|false
  */
-function fbird_errcode(): int {}
+function fbird_errcode(): int|false {}
 
 // ============================================================================
 // EVENT FUNCTIONS
@@ -591,10 +620,13 @@ function fbird_wait_event(mixed $link_or_event, string ...$events): string|false
 function fbird_set_event_handler(mixed $link_or_callback, mixed $callback_or_event, string ...$events): mixed {}
 
 /**
- * @param resource $event
- * @return array<string, int>|int|false
+ * Poll for event occurrences (non-blocking).
+ *
+ * @param resource|null $event Event handler resource
+ * @param int $timeout_ms Timeout in milliseconds (default: 0 = non-blocking)
+ * @return array<string, int>|int|false Event counts, timeout indicator, or false on error
  */
-function fbird_poll_event(mixed $event): array|int|false {}
+function fbird_poll_event(mixed $event, int $timeout_ms = 0): mixed {}
 
 /**
  * @param resource $event

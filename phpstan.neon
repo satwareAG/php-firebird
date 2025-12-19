@@ -9,6 +9,15 @@ parameters:
     # Stub files for C extension function signatures
     stubFiles:
         - phpstan/fbird.stub.php
+        - phpstan/fbird-functions.stub.php
+        - phpstan/firebird-event.stub.php
+
+    # Ensure PHPStan actually scans the stub file for symbol discovery.
+    # (Without this, extension functions may be resolved only via reflection,
+    # depending on whether the extension is loaded in the PHPStan runtime.)
+    scanFiles:
+        - phpstan/fbird.stub.php
+        - phpstan/firebird-event.stub.php
 
     # Bootstrap files to define extension constants
     bootstrapFiles:
@@ -29,32 +38,3 @@ parameters:
 
     # Strict rules (level 8 enables most strict checks automatically)
     checkUninitializedProperties: true
-
-    # Ignore patterns for extension-specific code (C extension provides these)
-    ignoreErrors:
-        # Extension-provided classes (stubs provide functions/constants, not Event class yet)
-        - '#^Class Firebird\\Event not found\.$#'
-        # Variadic functions have flexible parameter counts - handled by the C extension
-        - '#^Function fbird_prepare invoked with \d+ parameters?, \d+ required\.$#'
-        - '#^Function fbird_blob_create invoked with \d+ parameters?, \d+-?\d* required\.$#'
-        - '#^Function fbird_blob_open invoked with \d+ parameters?, \d+ required\.$#'
-        # Functions provided by C extension but stubs may not be fully recognized
-        - '#^Function fbird_poll_event not found\.$#'
-        - '#^Function fbird_trans_start not found\.$#'
-        # Properties that exist for potential future use
-        - '#^Property Firebird\\Database::\$username is never read, only written\.$#'
-        # Type strictness for optional parameters in wrapper classes
-        - message: '#^Parameter .* expects (resource|string|callable).*, .*(resource|string|callable).*\|null given\.$#'
-          path: src/Firebird/FiberEventPoller.php
-        # Property type assignments in signal handlers
-        - message: '#^Property .* does not accept bool\.$#'
-          path: src/Firebird/PcntlEventPoller.php
-        - message: '#^Property .* is never assigned .* so it can be removed from the property type\.$#'
-          path: src/Firebird/PcntlEventPoller.php
-        # Runtime checks for pcntl functions
-        - message: '#^Call to function function_exists\(\) .* will always evaluate to true\.$#'
-          path: src/Firebird/PcntlEventPoller.php
-        - message: '#^If condition is always false\.$#'
-          path: src/Firebird/PcntlEventPoller.php
-        - message: '#^Parameter .* of function pcntl_signal expects .*, bool given\.$#'
-          path: src/Firebird/PcntlEventPoller.php

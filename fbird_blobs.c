@@ -164,6 +164,12 @@ static const php_stream_ops fbird_blob_stream_ops = {
 			break; \
 	} \
 
+/* BPB for stream-mode blob opening (enables seeking) */
+static const unsigned char stream_bpb[] = {
+	isc_bpb_version1,
+	isc_bpb_type, 1, isc_bpb_type_stream
+};
+
 static int le_blob;
 
 static void _php_fbird_free_blob(zend_resource *rsrc) /* {{{ */
@@ -455,6 +461,56 @@ PHP_FUNCTION(fbird_blob_create)
 		trans_handle,
 		&ib_blob->bl_qd,
 		0, NULL,  /* No BPB */
+		IB_STATUS
+	);
+	if (ib_blob->fbb_blob == NULL) {
+		_php_fbird_error();
+		efree(ib_blob);
+		RETURN_FALSE;
+	}
+	/* Store OO handle pointer for legacy code paths that check bl_handle */
+	ib_blob->bl_handle.ptr = fbb_get_handle(ib_blob->fbb_blob);
+
+	RETVAL_RES(zend_register_resource(ib_blob, le_blob));
+}
+/* }}} */
+
+/* {{{ proto resource fbird_blob_create_seekable([ resource link_identifier ])
+   Create blob for adding data with seek support.
+   This creates the blob in STREAM mode which enables random access via fbird_blob_seek(). */
+PHP_FUNCTION(fbird_blob_create_seekable)
+{
+	zval *link = NULL;
+	fbird_db_link *ib_link;
+	fbird_transaction *trans = NULL;
+	fbird_blob *ib_blob;
+
+	RESET_ERRMSG;
+
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "|r", &link)) {
+		RETURN_FALSE;
+	}
+
+	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
+
+	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
+	ib_blob->bl_handle.ptr = 0;
+	ib_blob->type = BLOB_INPUT;
+	ib_blob->fbb_blob = NULL;
+
+	/*
+	 * Firebird 3.0+ OO API Blob Creation (Stream Mode)
+	 *
+	 * Uses IBlob interface via fbb_create() wrapper with stream BPB.
+	 * Stream mode enables seeking via fbird_blob_seek().
+	 */
+	void *trans_handle = fbt_get_handle(trans->fbt_transaction);
+	ib_blob->fbb_blob = fbb_create(
+		IBG(master_instance),
+		fbc_get_attachment(ib_link->fbc_connection),
+		trans_handle,
+		&ib_blob->bl_qd,
+		sizeof(stream_bpb), stream_bpb,  /* Stream BPB for seek support */
 		IB_STATUS
 	);
 	if (ib_blob->fbb_blob == NULL) {
@@ -1077,10 +1133,70 @@ PHP_FUNCTION(fbird_blob_open_stream)
 }
 /* }}} */
 
+/* {{{ proto resource fbird_blob_open_seekable([ resource link_identifier, ] string blob_id)
+   Open blob for retrieving data parts with seek support.
+   This opens the blob in STREAM mode which enables random access via fbird_blob_seek(). */
+PHP_FUNCTION(fbird_blob_open_seekable)
+{
+	char *blob_id;
+	size_t blob_id_len;
+	zval *link = NULL;
+	fbird_db_link *ib_link;
+	fbird_transaction *trans = NULL;
+	fbird_blob *ib_blob;
+
+	RESET_ERRMSG;
+	PARSE_PARAMETERS;
+
+	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
+
+	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
+	ib_blob->bl_handle.ptr = 0;
+	ib_blob->type = BLOB_OUTPUT;
+	ib_blob->fbb_blob = NULL;
+
+	do {
+		if (! _php_fbird_string_to_quad(blob_id, &ib_blob->bl_qd)) {
+			_php_fbird_module_error("String is not a BLOB ID");
+			break;
+		}
+
+		/*
+		 * Firebird 3.0+ OO API Blob Open (Stream Mode)
+		 *
+		 * Uses IBlob interface via fbb_open() wrapper with stream BPB.
+		 * Stream mode enables seeking via isc_seek_blob/IBlob::seek().
+		 */
+		void *trans_handle = fbt_get_handle(trans->fbt_transaction);
+		ib_blob->fbb_blob = fbb_open(
+			IBG(master_instance),
+			fbc_get_attachment(ib_link->fbc_connection),
+			trans_handle,
+			&ib_blob->bl_qd,
+			sizeof(stream_bpb), stream_bpb,  /* Stream BPB for seek support */
+			IB_STATUS
+		);
+		if (ib_blob->fbb_blob == NULL) {
+			_php_fbird_error();
+			break;
+		}
+		/* Store OO handle pointer for legacy code paths that check bl_handle */
+		ib_blob->bl_handle.ptr = fbb_get_handle(ib_blob->fbb_blob);
+
+		RETVAL_RES(zend_register_resource(ib_blob, le_blob));
+		return;
+
+	} while (0);
+
+	efree(ib_blob);
+	RETURN_FALSE;
+}
+/* }}} */
+
 /* {{{ proto int|false fbird_blob_seek(resource blob_handle, int offset [, int whence])
    Seek to position in a stream blob. Returns new position or false on error.
    whence: FBIRD_BLOB_SEEK_SET (0), FBIRD_BLOB_SEEK_CUR (1), FBIRD_BLOB_SEEK_END (2)
-   Note: Only works on stream blobs, not segmented blobs. */
+   Note: Only works on blobs opened with fbird_blob_open_seekable(). */
 PHP_FUNCTION(fbird_blob_seek)
 {
 	zval *blob_arg;

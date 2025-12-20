@@ -18,7 +18,7 @@ This document tracks the progress of adopting valuable patterns from `mlazdans/f
 | BLOB Seek | ✅ Complete | C | Medium |
 | Transaction ID | ✅ Available | C/PHP | N/A |
 | Limbo Transaction Functions | ❌ Not Started | C | Low |
-| Rich Connection Info | ✅ Complete | C | Medium |
+| Rich Connection Info | ⚠️ Partial | C | Medium |
 | SQLSTATE Exception Codes | ✅ Complete | C | Medium |
 | Fetch Date Objects (DateTimeImmutable) | ❌ Not Started | C | Low |
 | IBatch API | 📋 Research Done | C | Future |
@@ -191,14 +191,22 @@ $trans->commit();  // or rollback
 isc_reconnect_transaction(ISC_STATUS*, isc_db_handle*, isc_tr_handle*, short, const char*);
 ```
 
-### 8. Rich Connection Info ✅
+### 8. Rich Connection Info ⚠️ (Partial)
 
-**Implemented**: December 20, 2025
-**Test**: `tests/fbird_connection_info_001.phpt`
+**Status**: Function implemented, test skipped until OO API wrapper complete
+**Test**: `tests/fbird_connection_info_001.phpt` (SKIP)
 
 Connection-level statistics via `isc_database_info()` API.
 
-**Usage**:
+**Current Issue**:
+The C implementation uses legacy `isc_database_info()` which requires a valid legacy handle (`handle.db`). However, modern OO API connections (via `fbc_connect()`) store the connection in `fbc_connection` and may not have a valid legacy handle.
+
+**Required Work**:
+1. Add `fbc_get_info()` wrapper to `firebird_utils.cpp` (similar to `fbt_get_info()`)
+2. Call `IAttachment::getInfo()` via OO API
+3. Update `fbird_connection_info()` to use new wrapper
+
+**Planned Usage** (once complete):
 ```php
 $info = fbird_connection_info($db);
 // Returns array with statistics:
@@ -209,9 +217,9 @@ $info = fbird_connection_info($db);
 ```
 
 **Notes**:
-- Uses Firebird's `isc_database_info()` API
-- Returns 13+ key statistics for database monitoring
-- Works with both explicit connection and default connection
+- PHPStan stub complete
+- Test written (currently SKIPIF)
+- C function exists but needs OO API path
 
 ### 9. SQLSTATE Exception Codes ✅
 
@@ -307,7 +315,7 @@ echo "Inserted: " . $result['success_count'];
 2. ~~**fbird_sqlstate()**~~ - ✅ Complete (December 20, 2025)
 
 ### Phase 2: Enhanced Features (1 week)
-3. ~~**fbird_connection_info()**~~ - ✅ Complete (December 20, 2025)
+3. **fbird_connection_info()** - ⚠️ Partial (needs `fbc_get_info()` OO API wrapper)
 4. **FBIRD_FETCH_DATE_OBJ** - DateTimeImmutable support
 
 ### Phase 3: Advanced Features (2+ weeks)

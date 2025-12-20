@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`fbird_sqlstate()` function**: Returns 5-character SQLSTATE error code (SQL:2003 standard) for better error classification
+  - Returns `"23000"` for integrity constraint violations
+  - Returns `"42000"` for syntax errors or access rule violations
+  - Returns `"HY000"` for general errors
+  - Returns `false` if no error has occurred
+  - Uses Firebird's `fb_sqlstate()` API (Firebird 2.5+)
+- **`fbird_blob_seek()` function**: Seek within stream BLOBs for random access
+  - Constants: `FBIRD_BLOB_SEEK_SET`, `FBIRD_BLOB_SEEK_CUR`, `FBIRD_BLOB_SEEK_END`
+- **PHP OO Wrappers**: High-level PHP classes for modern development
+  - `Firebird\Database` - Connection management with query helpers
+  - `Firebird\Transaction` - Transaction handling with savepoint support
+  - `Firebird\TBuilder` - Fluent transaction parameter builder
+  - `Firebird\BlobId` - Type-safe BLOB identifier value object
+  - `Firebird\DbInfo` - Database information structure
+
 ### Changed
 
 - **SPDX License Headers**: Migrated 37 source files from verbose 10-24 line PHP extension headers to minimal 2-line SPDX-compliant headers (~85% reduction in header boilerplate)

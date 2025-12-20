@@ -20,7 +20,7 @@ This document tracks the progress of adopting valuable patterns from `mlazdans/f
 | Limbo Transaction Functions | ❌ Not Started | C | Low |
 | Rich Connection Info | ✅ Complete | C | Medium |
 | SQLSTATE Exception Codes | ✅ Complete | C | Medium |
-| Fetch Date Objects (DateTimeImmutable) | ❌ Not Started | C | Low |
+| Fetch Date Objects (DateTimeImmutable) | ✅ Complete | C | Low |
 | IBatch API | 📋 Research Done | C | Future |
 
 ---
@@ -237,24 +237,32 @@ $sqlstate = fbird_sqlstate();  // Returns "42000" (syntax error class)
 - Returns `false` if no error has occurred
 - Uses Firebird's `fb_sqlstate()` API (Firebird 2.5+)
 
-### 10. Fetch Date as DateTimeImmutable ❌
+### 10. Fetch Date as DateTimeImmutable ✅
 
-**Priority**: Low
-**Effort**: 4-8 hours
+**Implemented**: December 20, 2025
+**Test**: `tests/fbird_fetch_date_obj_001.phpt`
 
-Add option to return date/time columns as DateTimeImmutable objects.
+Option to return date/time columns as DateTimeImmutable objects.
 
-**Current Constants**:
-- `FBIRD_TEXT` (1) - Fetch BLOBs as strings
-- `FBIRD_UNIXTIME` (4) - Return timestamps as Unix timestamps
+**Constant**:
+- `FBIRD_FETCH_DATE_OBJ` (8) - Return dates as DateTimeImmutable
 
-**Proposed Addition**:
+**Usage**:
 ```php
-const FBIRD_FETCH_DATE_OBJ = 8;  // Return dates as DateTimeImmutable
-
 $row = fbird_fetch_assoc($result, FBIRD_FETCH_DATE_OBJ);
 // $row['created_at'] instanceof DateTimeImmutable
+// Works with DATE, TIME, and TIMESTAMP columns
+// NULL values remain null
+
+$row['DATE_COL']->format('Y-m-d');        // "2025-12-20"
+$row['TIME_COL']->format('H:i:s');        // "14:30:45"
+$row['TIMESTAMP_COL']->format('Y-m-d H:i:s');  // "2025-12-20 14:30:45"
 ```
+
+**Notes**:
+- Works with `fbird_fetch_assoc()`, `fbird_fetch_row()`, and `fbird_fetch_object()`
+- TIME columns use epoch date (1970-01-01) for DateTimeImmutable
+- Can be combined with other flags (e.g., `FBIRD_FETCH_BLOBS | FBIRD_FETCH_DATE_OBJ`)
 
 ---
 
@@ -306,9 +314,9 @@ echo "Inserted: " . $result['success_count'];
 1. ~~**fbird_trans_id()**~~ - ✅ Already available via `fbird_trans_info()['id']`
 2. ~~**fbird_sqlstate()**~~ - ✅ Complete (December 20, 2025)
 
-### Phase 2: Enhanced Features (1 week)
-3. **fbird_connection_info()** - ✅ Complete
-4. **FBIRD_FETCH_DATE_OBJ** - DateTimeImmutable support
+### Phase 2: Enhanced Features (1 week) ✅
+3. **fbird_connection_info()** - ✅ Complete (December 20, 2025)
+4. **FBIRD_FETCH_DATE_OBJ** - ✅ Complete (December 20, 2025)
 
 ### Phase 3: Advanced Features (2+ weeks)
 5. **Limbo Transaction Functions** - 2PC recovery

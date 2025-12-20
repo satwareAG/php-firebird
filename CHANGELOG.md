@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Identifiers: attachment_id, ods_version, ods_minor_version
 - **`fbird_blob_seek()` function**: Seek within stream BLOBs for random access
   - Constants: `FBIRD_BLOB_SEEK_SET`, `FBIRD_BLOB_SEEK_CUR`, `FBIRD_BLOB_SEEK_END`
+- **`FBIRD_FETCH_DATE_OBJ` constant**: Return DATE/TIME/TIMESTAMP columns as DateTimeImmutable objects
+  - Use with `fbird_fetch_assoc()`, `fbird_fetch_row()`, `fbird_fetch_object()`
+  - Example: `$row = fbird_fetch_assoc($result, FBIRD_FETCH_DATE_OBJ);`
+  - Can be combined with other flags (e.g., `FBIRD_FETCH_BLOBS | FBIRD_FETCH_DATE_OBJ`)
 - **PHP OO Wrappers**: High-level PHP classes for modern development
   - `Firebird\Database` - Connection management with query helpers
   - `Firebird\Transaction` - Transaction handling with savepoint support

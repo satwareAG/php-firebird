@@ -775,6 +775,33 @@ function fbird_get_client_major_version(): int {}
 function fbird_get_client_minor_version(): int {}
 
 // ============================================================================
+// CONNECTION INFO FUNCTIONS
+// ============================================================================
+
+/**
+ * Get database connection statistics and information.
+ *
+ * Returns an associative array with database statistics and configuration:
+ * - reads: Number of page reads
+ * - writes: Number of page writes
+ * - fetches: Number of fetches
+ * - marks: Number of marks
+ * - page_size: Database page size in bytes
+ * - num_buffers: Number of database buffers
+ * - current_memory: Current memory used by connection
+ * - max_memory: Maximum memory used by connection
+ * - allocation: Number of pages allocated
+ * - attachment_id: Attachment identifier
+ * - ods_version: On-Disk Structure major version
+ * - ods_minor_version: On-Disk Structure minor version
+ * - sql_dialect: SQL dialect in use
+ *
+ * @param resource|null $link_identifier Database connection resource
+ * @return array<string, int>|false Connection statistics array or false on error
+ */
+function fbird_connection_info(mixed $link_identifier = null): array|false {}
+
+// ============================================================================
 // TIME FORMAT FUNCTION
 // ============================================================================
 

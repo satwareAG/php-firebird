@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Returns `"HY000"` for general errors
   - Returns `false` if no error has occurred
   - Uses Firebird's `fb_sqlstate()` API (Firebird 2.5+)
+- **`fbird_connection_info()` function**: Returns database connection statistics and information
+  - Performance metrics: reads, writes, fetches, marks
+  - Configuration: page_size, num_buffers, sql_dialect
+  - Memory stats: current_memory, max_memory, allocation
+  - Identifiers: attachment_id, ods_version, ods_minor_version
 - **`fbird_blob_seek()` function**: Seek within stream BLOBs for random access
   - Constants: `FBIRD_BLOB_SEEK_SET`, `FBIRD_BLOB_SEEK_CUR`, `FBIRD_BLOB_SEEK_END`
 - **PHP OO Wrappers**: High-level PHP classes for modern development

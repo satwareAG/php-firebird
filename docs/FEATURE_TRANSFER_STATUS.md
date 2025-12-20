@@ -18,7 +18,7 @@ This document tracks the progress of adopting valuable patterns from `mlazdans/f
 | BLOB Seek | ✅ Complete | C | Medium |
 | Transaction ID | ✅ Available | C/PHP | N/A |
 | Limbo Transaction Functions | ❌ Not Started | C | Low |
-| Rich Connection Info | ❌ Not Started | C | Medium |
+| Rich Connection Info | ✅ Complete | C | Medium |
 | SQLSTATE Exception Codes | ✅ Complete | C | Medium |
 | Fetch Date Objects (DateTimeImmutable) | ❌ Not Started | C | Low |
 | IBatch API | 📋 Research Done | C | Future |
@@ -191,27 +191,27 @@ $trans->commit();  // or rollback
 isc_reconnect_transaction(ISC_STATUS*, isc_db_handle*, isc_tr_handle*, short, const char*);
 ```
 
-### 8. Rich Connection Info ❌
+### 8. Rich Connection Info ✅
 
-**Priority**: Medium  
-**Effort**: 8-16 hours
+**Implemented**: December 20, 2025
+**Test**: `tests/fbird_connection_info_001.phpt`
 
-The current `fbird_db_info()` is service-based. Need connection-level info function for real-time statistics.
+Connection-level statistics via `isc_database_info()` API.
 
-**Proposed API**:
+**Usage**:
 ```php
 $info = fbird_connection_info($db);
-// Returns array with 60+ properties:
+// Returns array with statistics:
 // - reads, writes, fetches, marks (performance metrics)
-// - ods_version, page_size, buffer_count
-// - connection_flags, crypto_state, replica_mode
+// - page_size, num_buffers, sql_dialect (configuration)
+// - current_memory, max_memory, allocation (memory stats)
+// - attachment_id, ods_version, ods_minor_version (identifiers)
 ```
 
-**Firebird API**:
-```cpp
-isc_database_info(ISC_STATUS*, isc_db_handle*, short, const char*, short, char*);
-// With info items: isc_info_reads, isc_info_writes, isc_info_fetches, etc.
-```
+**Notes**:
+- Uses Firebird's `isc_database_info()` API
+- Returns 13+ key statistics for database monitoring
+- Works with both explicit connection and default connection
 
 ### 9. SQLSTATE Exception Codes ✅
 
@@ -307,7 +307,7 @@ echo "Inserted: " . $result['success_count'];
 2. ~~**fbird_sqlstate()**~~ - ✅ Complete (December 20, 2025)
 
 ### Phase 2: Enhanced Features (1 week)
-3. **fbird_connection_info()** - Rich database statistics
+3. ~~**fbird_connection_info()**~~ - ✅ Complete (December 20, 2025)
 4. **FBIRD_FETCH_DATE_OBJ** - DateTimeImmutable support
 
 ### Phase 3: Advanced Features (2+ weeks)

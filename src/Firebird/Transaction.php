@@ -287,7 +287,9 @@ class Transaction
 
         // Validate savepoint name (alphanumeric + underscore only)
         if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $name)) {
-            throw new \Exception('Invalid savepoint name: must start with letter/underscore, contain only alphanumeric/underscore');
+            throw new \Exception(
+                'Invalid savepoint name: must start with letter/underscore, contain only alphanumeric/underscore'
+            );
         }
 
         $result = fbird_query_params_tx($this->connection, $this->resource, "SAVEPOINT {$name}");

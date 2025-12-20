@@ -114,6 +114,18 @@ PHP_FUNCTION(fbird_get_client_version);
 PHP_FUNCTION(fbird_get_client_major_version);
 PHP_FUNCTION(fbird_get_client_minor_version);
 
+/* Limbo Transaction Functions (Two-Phase Commit Recovery) */
+PHP_FUNCTION(fbird_get_limbo_transactions);
+PHP_FUNCTION(fbird_reconnect_transaction);
+
+/* IBatch API Functions (Firebird 4.0+ Bulk Operations) */
+#if FB_API_VER >= 40
+PHP_FUNCTION(fbird_batch_create);
+PHP_FUNCTION(fbird_batch_add);
+PHP_FUNCTION(fbird_batch_execute);
+PHP_FUNCTION(fbird_batch_cancel);
+#endif /* FB_API_VER >= 40 */
+
 #else
 
 #define phpext_firebird_ptr NULL

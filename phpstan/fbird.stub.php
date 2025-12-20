@@ -814,3 +814,63 @@ function fbird_connection_info(mixed $link_identifier = null): array|false {}
  * @return bool
  */
 function fbird_timefmt(string $format, int $type = 0): bool {}
+
+// ============================================================================
+// LIMBO TRANSACTION FUNCTIONS (Two-Phase Commit Recovery)
+// ============================================================================
+
+/**
+ * Get list of limbo (in-doubt) transaction IDs.
+ *
+ * @param resource|null $link_identifier Database connection
+ * @param int $max_count Maximum number of IDs to retrieve (1-10000)
+ * @return array<int, int>|false Array of transaction IDs or false on error
+ */
+function fbird_get_limbo_transactions(mixed $link_identifier = null, int $max_count = 100): array|false {}
+
+/**
+ * Reconnect to a limbo transaction for recovery.
+ *
+ * @param resource $link_identifier Database connection
+ * @param int $transaction_id The limbo transaction ID
+ * @return resource|false Transaction handle or false on error
+ */
+function fbird_reconnect_transaction(mixed $link_identifier, int $transaction_id): mixed {}
+
+// ============================================================================
+// BATCH API FUNCTIONS (Firebird 4.0+ Bulk Operations)
+// ============================================================================
+
+/**
+ * Create a batch from a prepared statement for bulk operations.
+ *
+ * @param resource $query Prepared statement resource
+ * @param resource|null $trans_identifier Transaction resource (optional)
+ * @return resource|false Batch handle or false on error
+ */
+function fbird_batch_create(mixed $query, mixed $trans_identifier = null): mixed {}
+
+/**
+ * Add a row of parameters to the batch.
+ *
+ * @param resource $batch Batch resource
+ * @param mixed ...$args Parameter values
+ * @return bool True on success, false on error
+ */
+function fbird_batch_add(mixed $batch, mixed ...$args): bool {}
+
+/**
+ * Execute the batch and return results.
+ *
+ * @param resource $batch Batch resource
+ * @return array{total_processed: int, error_count: int}|false Results or false on error
+ */
+function fbird_batch_execute(mixed $batch): array|false {}
+
+/**
+ * Cancel the batch without executing.
+ *
+ * @param resource $batch Batch resource
+ * @return bool True on success, false on error
+ */
+function fbird_batch_cancel(mixed $batch): bool {}

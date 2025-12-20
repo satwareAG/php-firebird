@@ -46,6 +46,9 @@
 #endif
 
 extern int le_link, le_plink, le_trans;
+#if FB_API_VER >= 40
+extern int le_batch;
+#endif
 
 #define LE_LINK  "Firebird link"
 #define LE_PLINK "Firebird persistent link"
@@ -54,6 +57,7 @@ extern int le_link, le_plink, le_trans;
 #define LE_BLOB  "Firebird blob"
 #define LE_QUERY "Firebird query"
 #define LE_SCVH  "Firebird service manager handle"
+#define LE_BATCH "Firebird batch"
 
 #define FBIRD_MSGSIZE 512
 #define MAX_ERRMSG (FBIRD_MSGSIZE*2)
@@ -226,6 +230,21 @@ typedef struct _ib_query {
     void *in_msg_buffer;    /* Message buffer for input parameters */
     unsigned in_msg_length; /* Input message buffer size */
 } fbird_query;
+
+#if FB_API_VER >= 40
+/**
+ * Batch operation wrapper for Firebird 4.0+ IBatch interface.
+ * Provides high-performance bulk INSERT operations.
+ */
+typedef struct {
+    void *fbbatch_wrapper;    /* OO API batch wrapper (from fbbatch_create()) */
+    fbird_transaction *trans; /* Associated transaction */
+    fbird_query *query;       /* Parent prepared statement */
+    void *in_metadata;        /* IMessageMetadata for input parameters */
+    void *in_msg_buffer;      /* Message buffer for row data */
+    unsigned in_msg_length;   /* Message buffer size */
+} fbird_batch;
+#endif /* FB_API_VER >= 40 */
 
 enum php_fbird_option {
 	PHP_FBIRD_DEFAULT            = 0,

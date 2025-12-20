@@ -374,6 +374,38 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_connection_info, 0, 0, 0)
 	ZEND_ARG_TYPE_INFO(0, link_identifier, IS_RESOURCE, 1)
 ZEND_END_ARG_INFO()
+
+/* Limbo Transaction Functions (Two-Phase Commit Recovery) */
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_get_limbo_transactions, 0, 0, 0)
+	ZEND_ARG_TYPE_INFO(0, link_identifier, IS_RESOURCE, 1)
+	ZEND_ARG_TYPE_INFO(0, max_count, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_reconnect_transaction, 0, 0, 2)
+	ZEND_ARG_TYPE_INFO(0, link_identifier, IS_RESOURCE, 0)
+	ZEND_ARG_TYPE_INFO(0, transaction_id, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+/* IBatch API Functions (Firebird 4.0+ Bulk Operations) */
+#if FB_API_VER >= 40
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_batch_create, 0, 0, 1)
+	ZEND_ARG_TYPE_INFO(0, query, IS_RESOURCE, 0)
+	ZEND_ARG_TYPE_INFO(0, trans_identifier, IS_RESOURCE, 1)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_batch_add, 0, 0, 1)
+	ZEND_ARG_TYPE_INFO(0, batch, IS_RESOURCE, 0)
+	ZEND_ARG_VARIADIC_INFO(0, bind_args)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_batch_execute, 0, 0, 1)
+	ZEND_ARG_TYPE_INFO(0, batch, IS_RESOURCE, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_batch_cancel, 0, 0, 1)
+	ZEND_ARG_TYPE_INFO(0, batch, IS_RESOURCE, 0)
+ZEND_END_ARG_INFO()
+#endif /* FB_API_VER >= 40 */
 /* }}} */
 
 /* {{{ extension definition structures */
@@ -460,6 +492,18 @@ static const zend_function_entry fbird_functions[] = {
 
 	PHP_FE(fbird_connection_info,	arginfo_fbird_connection_info)
 
+	/* Limbo Transaction Functions (Two-Phase Commit Recovery) */
+	PHP_FE(fbird_get_limbo_transactions, arginfo_fbird_get_limbo_transactions)
+	PHP_FE(fbird_reconnect_transaction, arginfo_fbird_reconnect_transaction)
+
+#if FB_API_VER >= 40
+	/* IBatch API Functions (Firebird 4.0+ Bulk Operations) */
+	PHP_FE(fbird_batch_create, arginfo_fbird_batch_create)
+	PHP_FE(fbird_batch_add, arginfo_fbird_batch_add)
+	PHP_FE(fbird_batch_execute, arginfo_fbird_batch_execute)
+	PHP_FE(fbird_batch_cancel, arginfo_fbird_batch_cancel)
+#endif /* FB_API_VER >= 40 */
+
 	PHP_FE_END
 };
 
@@ -489,6 +533,9 @@ ZEND_GET_MODULE(firebird)
 
 /* True globals, no need for thread safety */
 int le_link, le_plink, le_trans;
+#if FB_API_VER >= 40
+int le_batch;
+#endif
 
 /* }}} */
 
@@ -798,6 +845,38 @@ static void _php_fbird_free_trans(zend_resource *rsrc) /* {{{ */
 }
 /* }}} */
 
+#if FB_API_VER >= 40
+static void _php_fbird_free_batch(zend_resource *rsrc) /* {{{ */
+{
+	fbird_batch *batch = (fbird_batch *)rsrc->ptr;
+
+	FBDEBUG("Cleaning up batch resource...");
+
+	/* Cancel and close the batch if still open */
+	if (batch->fbbatch_wrapper != NULL) {
+		FBDEBUG("Canceling unexecuted batch...");
+		fbbatch_cancel(IBG(master_instance), batch->fbbatch_wrapper, IB_STATUS);
+		fbbatch_close(IBG(master_instance), batch->fbbatch_wrapper, IB_STATUS);
+		batch->fbbatch_wrapper = NULL;
+	}
+
+	/* Free the input message buffer if allocated */
+	if (batch->in_msg_buffer != NULL) {
+		efree(batch->in_msg_buffer);
+		batch->in_msg_buffer = NULL;
+	}
+
+	/* Release metadata reference if held */
+	if (batch->in_metadata != NULL) {
+		fbm_release(batch->in_metadata);
+		batch->in_metadata = NULL;
+	}
+
+	efree(batch);
+}
+/* }}} */
+#endif /* FB_API_VER >= 40 */
+
 /*
  * Custom INI display callback for password fields.
  * Displays "********" instead of the actual password value in phpinfo().
@@ -999,6 +1078,10 @@ PHP_MINIT_FUNCTION(fbird)
 	REGISTER_LONG_CONSTANT("FBIRD_BLOB_SEEK_SET", 0, CONST_PERSISTENT);
 	REGISTER_LONG_CONSTANT("FBIRD_BLOB_SEEK_CUR", 1, CONST_PERSISTENT);
 	REGISTER_LONG_CONSTANT("FBIRD_BLOB_SEEK_END", 2, CONST_PERSISTENT);
+
+#if FB_API_VER >= 40
+	le_batch = zend_register_list_destructors_ex(_php_fbird_free_batch, NULL, LE_BATCH, module_number);
+#endif
 
 	php_fbird_query_minit(INIT_FUNC_ARGS_PASSTHRU);
 	php_fbird_blobs_minit(INIT_FUNC_ARGS_PASSTHRU);
@@ -2650,6 +2733,335 @@ void fbp_error_ex(long level, const char *msg, ...)
 }
 
 /* }}} */
+
+/* =============================================================================
+ * Limbo Transaction Functions (Two-Phase Commit Recovery)
+ * ============================================================================= */
+
+/* {{{ proto array|false fbird_get_limbo_transactions([resource link_identifier [, int max_count]])
+   Get list of limbo (in-doubt) transaction IDs */
+PHP_FUNCTION(fbird_get_limbo_transactions)
+{
+	zval *link_arg = NULL;
+	zend_long max_count = 100;
+	fbird_db_link *ib_link;
+	ISC_INT64 *trans_ids;
+	int count, i;
+	void *attachment;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|r!l", &link_arg, &max_count) == FAILURE) {
+		return;
+	}
+
+	if (max_count < 1 || max_count > 10000) {
+		php_error_docref(NULL, E_WARNING, "max_count must be between 1 and 10000");
+		RETURN_FALSE;
+	}
+
+	if (link_arg == NULL) {
+		ib_link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), LE_LINK, le_link, le_plink);
+	} else {
+		ib_link = (fbird_db_link *)zend_fetch_resource2_ex(link_arg, LE_LINK, le_link, le_plink);
+	}
+
+	if (!ib_link) {
+		RETURN_FALSE;
+	}
+
+	if (ib_link->fbc_connection == NULL) {
+		_php_fbird_module_error("Connection has no OO API handle");
+		RETURN_FALSE;
+	}
+
+	attachment = fbc_get_attachment(ib_link->fbc_connection);
+	if (attachment == NULL) {
+		_php_fbird_module_error("Failed to get attachment from connection");
+		RETURN_FALSE;
+	}
+
+	trans_ids = (ISC_INT64 *)safe_emalloc(sizeof(ISC_INT64), (size_t)max_count, 0);
+
+	count = fbt_get_limbo_transactions(IBG(master_instance), attachment, trans_ids,
+		(unsigned)max_count, IB_STATUS);
+
+	if (count < 0) {
+		efree(trans_ids);
+		_php_fbird_error();
+		RETURN_FALSE;
+	}
+
+	array_init(return_value);
+	for (i = 0; i < count; i++) {
+		add_next_index_long(return_value, (zend_long)trans_ids[i]);
+	}
+
+	efree(trans_ids);
+}
+/* }}} */
+
+/* {{{ proto resource|false fbird_reconnect_transaction(resource link_identifier, int transaction_id)
+   Reconnect to a limbo transaction for recovery */
+PHP_FUNCTION(fbird_reconnect_transaction)
+{
+	zval *link_arg;
+	zend_long trans_id;
+	fbird_db_link *ib_link;
+	fbird_transaction *ib_trans;
+	void *attachment;
+	void *reconnected_trans;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "rl", &link_arg, &trans_id) == FAILURE) {
+		return;
+	}
+
+	ib_link = (fbird_db_link *)zend_fetch_resource2_ex(link_arg, LE_LINK, le_link, le_plink);
+	if (!ib_link) {
+		RETURN_FALSE;
+	}
+
+	if (ib_link->fbc_connection == NULL) {
+		_php_fbird_module_error("Connection has no OO API handle");
+		RETURN_FALSE;
+	}
+
+	attachment = fbc_get_attachment(ib_link->fbc_connection);
+	if (attachment == NULL) {
+		_php_fbird_module_error("Failed to get attachment from connection");
+		RETURN_FALSE;
+	}
+
+	reconnected_trans = fbt_reconnect(IBG(master_instance), attachment, trans_id, IB_STATUS);
+	if (reconnected_trans == NULL) {
+		_php_fbird_error();
+		RETURN_FALSE;
+	}
+
+	/* Allocate and initialize transaction structure */
+	ib_trans = (fbird_transaction *)safe_emalloc(1, sizeof(fbird_transaction), 0);
+	ib_trans->fbt_transaction = reconnected_trans;
+	ib_trans->handle.ptr = fbt_get_handle(reconnected_trans);
+	ib_trans->link_cnt = 1;
+	ib_trans->affected_rows = 0;
+	ib_trans->db_link[0] = ib_link;
+
+	/* Link into connection's transaction list */
+	if (ib_link->tr_list == NULL) {
+		ib_link->tr_list = (fbird_tr_list *)emalloc(sizeof(fbird_tr_list));
+		ib_link->tr_list->trans = NULL;
+		ib_link->tr_list->next = NULL;
+	}
+
+	fbird_tr_list **l;
+	for (l = &ib_link->tr_list; *l != NULL; l = &(*l)->next);
+	*l = (fbird_tr_list *)emalloc(sizeof(fbird_tr_list));
+	(*l)->trans = ib_trans;
+	(*l)->next = NULL;
+
+	RETVAL_RES(zend_register_resource(ib_trans, le_trans));
+	Z_TRY_ADDREF_P(return_value);
+}
+/* }}} */
+
+#if FB_API_VER >= 40
+/* =============================================================================
+ * IBatch API Functions (Firebird 4.0+ Bulk Operations)
+ * ============================================================================= */
+
+/* {{{ proto resource|false fbird_batch_create(resource query [, resource trans_identifier])
+   Create a batch from a prepared statement for bulk operations */
+PHP_FUNCTION(fbird_batch_create)
+{
+	zval *query_arg, *trans_arg = NULL;
+	fbird_query *ib_query;
+	fbird_transaction *trans = NULL;
+	fbird_batch *ib_batch;
+	void *stmt_ptr;
+	void *batch_wrapper;
+	void *metadata;
+	unsigned msg_length;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r|r!", &query_arg, &trans_arg) == FAILURE) {
+		return;
+	}
+
+	ib_query = (fbird_query *)zend_fetch_resource_ex(query_arg, LE_QUERY, le_result);
+	if (!ib_query) {
+		RETURN_FALSE;
+	}
+
+	if (!ib_query->fbs_statement) {
+		_php_fbird_module_error("Query has no OO API statement handle");
+		RETURN_FALSE;
+	}
+
+	/* Get transaction - either from parameter or from query's default */
+	if (trans_arg != NULL) {
+		trans = (fbird_transaction *)zend_fetch_resource_ex(trans_arg, LE_TRANS, le_trans);
+		if (!trans) {
+			RETURN_FALSE;
+		}
+	} else {
+		trans = ib_query->trans;
+	}
+
+	if (!trans || !trans->fbt_transaction) {
+		_php_fbird_module_error("No valid transaction for batch operation");
+		RETURN_FALSE;
+	}
+
+	/* Get raw IStatement pointer */
+	stmt_ptr = fbs_get_statement(ib_query->fbs_statement);
+	if (!stmt_ptr) {
+		_php_fbird_module_error("Failed to get statement handle");
+		RETURN_FALSE;
+	}
+
+	/* Create batch with default buffer size */
+	batch_wrapper = fbbatch_create(IBG(master_instance), stmt_ptr, 0, IB_STATUS);
+	if (!batch_wrapper) {
+		_php_fbird_error();
+		RETURN_FALSE;
+	}
+
+	/* Get input metadata for building message buffers */
+	metadata = fbbatch_get_metadata(IBG(master_instance), batch_wrapper, IB_STATUS);
+	if (!metadata) {
+		fbbatch_close(IBG(master_instance), batch_wrapper, IB_STATUS);
+		_php_fbird_error();
+		RETURN_FALSE;
+	}
+
+	msg_length = fbm_get_message_length(IBG(master_instance), metadata);
+
+	/* Allocate batch structure */
+	ib_batch = (fbird_batch *)ecalloc(1, sizeof(fbird_batch));
+	ib_batch->fbbatch_wrapper = batch_wrapper;
+	ib_batch->trans = trans;
+	ib_batch->query = ib_query;
+	ib_batch->in_metadata = metadata;
+	ib_batch->in_msg_length = msg_length;
+	ib_batch->in_msg_buffer = emalloc(msg_length);
+	memset(ib_batch->in_msg_buffer, 0, msg_length);
+
+	RETVAL_RES(zend_register_resource(ib_batch, le_batch));
+}
+/* }}} */
+
+/* {{{ proto bool fbird_batch_add(resource batch, mixed ...$args)
+   Add a row of parameters to the batch */
+PHP_FUNCTION(fbird_batch_add)
+{
+	zval *batch_arg;
+	zval *args = NULL;
+	int argc = 0;
+	fbird_batch *ib_batch;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r*", &batch_arg, &args, &argc) == FAILURE) {
+		return;
+	}
+
+	ib_batch = (fbird_batch *)zend_fetch_resource_ex(batch_arg, LE_BATCH, le_batch);
+	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
+		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
+		RETURN_FALSE;
+	}
+
+	/* TODO: Implement parameter binding to message buffer.
+	 * This requires mapping PHP values to the Firebird message format
+	 * based on the input metadata. For now, return error. */
+	_php_fbird_module_error("fbird_batch_add() parameter binding not yet implemented - use prepared statement binding");
+	RETURN_FALSE;
+}
+/* }}} */
+
+/* {{{ proto array|false fbird_batch_execute(resource batch)
+   Execute the batch and return results */
+PHP_FUNCTION(fbird_batch_execute)
+{
+	zval *batch_arg;
+	fbird_batch *ib_batch;
+	void *trans_ptr;
+	unsigned total_processed = 0;
+	unsigned error_count = 0;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r", &batch_arg) == FAILURE) {
+		return;
+	}
+
+	ib_batch = (fbird_batch *)zend_fetch_resource_ex(batch_arg, LE_BATCH, le_batch);
+	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
+		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
+		RETURN_FALSE;
+	}
+
+	if (!ib_batch->trans || !ib_batch->trans->fbt_transaction) {
+		_php_fbird_module_error("Batch has no valid transaction");
+		RETURN_FALSE;
+	}
+
+	trans_ptr = fbt_get_handle(ib_batch->trans->fbt_transaction);
+	if (!trans_ptr) {
+		_php_fbird_module_error("Failed to get transaction handle");
+		RETURN_FALSE;
+	}
+
+	if (!fbbatch_execute(IBG(master_instance), ib_batch->fbbatch_wrapper, trans_ptr,
+			&total_processed, &error_count, IB_STATUS)) {
+		_php_fbird_error();
+		RETURN_FALSE;
+	}
+
+	/* Close the batch after execution */
+	fbbatch_close(IBG(master_instance), ib_batch->fbbatch_wrapper, IB_STATUS);
+	ib_batch->fbbatch_wrapper = NULL;
+
+	array_init(return_value);
+	add_assoc_long(return_value, "total_processed", total_processed);
+	add_assoc_long(return_value, "error_count", error_count);
+}
+/* }}} */
+
+/* {{{ proto bool fbird_batch_cancel(resource batch)
+   Cancel the batch without executing */
+PHP_FUNCTION(fbird_batch_cancel)
+{
+	zval *batch_arg;
+	fbird_batch *ib_batch;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r", &batch_arg) == FAILURE) {
+		return;
+	}
+
+	ib_batch = (fbird_batch *)zend_fetch_resource_ex(batch_arg, LE_BATCH, le_batch);
+	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
+		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
+		RETURN_FALSE;
+	}
+
+	if (!fbbatch_cancel(IBG(master_instance), ib_batch->fbbatch_wrapper, IB_STATUS)) {
+		_php_fbird_error();
+		RETURN_FALSE;
+	}
+
+	fbbatch_close(IBG(master_instance), ib_batch->fbbatch_wrapper, IB_STATUS);
+	ib_batch->fbbatch_wrapper = NULL;
+
+	RETURN_TRUE;
+}
+/* }}} */
+#endif /* FB_API_VER >= 40 */
 
 
 #endif /* HAVE_FIREBIRD */

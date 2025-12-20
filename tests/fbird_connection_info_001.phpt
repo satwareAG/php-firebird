@@ -3,14 +3,13 @@ fbird_connection_info() - basic functionality
 --EXTENSIONS--
 firebird
 --SKIPIF--
-<?php include 'skipif.inc'; ?>
+<?php include("skipif.inc"); ?>
 --FILE--
 <?php
 
-require_once 'config.inc';
-require_once 'common.inc';
+require("firebird.inc");
 
-$db = fbird_connect($db_path, $db_user, $db_pass);
+$db = fbird_connect($test_base);
 if (!$db) {
     die("Failed to connect: " . fbird_errmsg());
 }

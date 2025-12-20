@@ -72,6 +72,7 @@ PHP_FUNCTION(fbird_rollback_savepoint);
 PHP_FUNCTION(fbird_release_savepoint);
 
 PHP_FUNCTION(fbird_trans_info);
+PHP_FUNCTION(fbird_connection_info);
 
 PHP_FUNCTION(fbird_blob_create);
 PHP_FUNCTION(fbird_blob_add);
@@ -102,6 +103,7 @@ PHP_FUNCTION(fbird_server_info);
 
 PHP_FUNCTION(fbird_errmsg);
 PHP_FUNCTION(fbird_errcode);
+PHP_FUNCTION(fbird_sqlstate);
 
 PHP_FUNCTION(fbird_wait_event);
 PHP_FUNCTION(fbird_set_event_handler);

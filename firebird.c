@@ -370,6 +370,10 @@ ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO(arginfo_fbird_get_client_minor_version, 0)
 ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_connection_info, 0, 0, 0)
+	ZEND_ARG_TYPE_INFO(0, link_identifier, IS_RESOURCE, 1)
+ZEND_END_ARG_INFO()
 /* }}} */
 
 /* {{{ extension definition structures */
@@ -454,10 +458,7 @@ static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_release_savepoint,	arginfo_fbird_savepoint)
 	PHP_FE(fbird_trans_info,		arginfo_fbird_trans_info)
 
-
-
-
-
+	PHP_FE(fbird_connection_info,	arginfo_fbird_connection_info)
 
 	PHP_FE_END
 };
@@ -1959,6 +1960,115 @@ PHP_FUNCTION(fbird_trans_info)
 	/* Add internal state tracking if possible, or just what API returned */
 	/* Since we don't track STATE in struct, we infer it is ACTIVE if valid resource */
 	add_assoc_string(return_value, "state", "ACTIVE");
+}
+/* }}} */
+
+/* {{{ proto array fbird_connection_info([resource link_identifier])
+   Return database connection statistics and information */
+PHP_FUNCTION(fbird_connection_info)
+{
+	zval *link_arg = NULL;
+	fbird_db_link *ib_link;
+	char info_items[] = {
+		isc_info_reads,
+		isc_info_writes,
+		isc_info_fetches,
+		isc_info_marks,
+		isc_info_page_size,
+		isc_info_num_buffers,
+		isc_info_current_memory,
+		isc_info_max_memory,
+		isc_info_allocation,
+		isc_info_attachment_id,
+		isc_info_ods_version,
+		isc_info_ods_minor_version,
+		isc_info_db_sql_dialect,
+		isc_info_end
+	};
+	char res_buf[512];
+	char *p;
+	ISC_STATUS status[ISC_STATUS_LENGTH];
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|r!", &link_arg) == FAILURE) {
+		return;
+	}
+
+	if (link_arg == NULL) {
+		ib_link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), LE_LINK, le_link, le_plink);
+	} else {
+		ib_link = (fbird_db_link *)zend_fetch_resource2_ex(link_arg, LE_LINK, le_link, le_plink);
+	}
+
+	if (!ib_link) {
+		RETURN_FALSE;
+	}
+
+	/* Use legacy isc_database_info for both OO and legacy connections */
+	if (isc_database_info(status, &ib_link->handle.db, sizeof(info_items), info_items,
+			sizeof(res_buf), res_buf)) {
+		memcpy(IB_STATUS, status, sizeof(status));
+		_php_fbird_error();
+		RETURN_FALSE;
+	}
+
+	array_init(return_value);
+	p = res_buf;
+
+	while (*p != isc_info_end && p < res_buf + sizeof(res_buf)) {
+		unsigned char item = *p++;
+		unsigned short len = (unsigned short)isc_vax_integer(p, 2);
+		p += 2;
+
+		switch (item) {
+			case isc_info_reads:
+				add_assoc_long(return_value, "reads", isc_vax_integer(p, len));
+				break;
+			case isc_info_writes:
+				add_assoc_long(return_value, "writes", isc_vax_integer(p, len));
+				break;
+			case isc_info_fetches:
+				add_assoc_long(return_value, "fetches", isc_vax_integer(p, len));
+				break;
+			case isc_info_marks:
+				add_assoc_long(return_value, "marks", isc_vax_integer(p, len));
+				break;
+			case isc_info_page_size:
+				add_assoc_long(return_value, "page_size", isc_vax_integer(p, len));
+				break;
+			case isc_info_num_buffers:
+				add_assoc_long(return_value, "num_buffers", isc_vax_integer(p, len));
+				break;
+			case isc_info_current_memory:
+				add_assoc_long(return_value, "current_memory", isc_vax_integer(p, len));
+				break;
+			case isc_info_max_memory:
+				add_assoc_long(return_value, "max_memory", isc_vax_integer(p, len));
+				break;
+			case isc_info_allocation:
+				add_assoc_long(return_value, "allocation", isc_vax_integer(p, len));
+				break;
+			case isc_info_attachment_id:
+				add_assoc_long(return_value, "attachment_id", isc_vax_integer(p, len));
+				break;
+			case isc_info_ods_version:
+				add_assoc_long(return_value, "ods_version", isc_vax_integer(p, len));
+				break;
+			case isc_info_ods_minor_version:
+				add_assoc_long(return_value, "ods_minor_version", isc_vax_integer(p, len));
+				break;
+			case isc_info_db_sql_dialect:
+				add_assoc_long(return_value, "sql_dialect", isc_vax_integer(p, len));
+				break;
+			case isc_info_truncated:
+				add_assoc_bool(return_value, "truncated", 1);
+				return;
+			default:
+				break;
+		}
+		p += len;
+	}
 }
 /* }}} */
 

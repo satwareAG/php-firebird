@@ -49,7 +49,8 @@ fi
 # ============================================================================
 # 2. PHPStan - PHP Static Analysis (if PHP files changed)
 # ============================================================================
-PHP_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.php$' || true)
+# Exclude stub files (PHPStan metadata, not code to analyze)
+PHP_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.php$' | grep -v '\.stub\.php$' || true)
 if [ -n "$PHP_FILES" ]; then
     echo -n "Checking PHP files (PHPStan)... "
     if [ -f vendor/bin/phpstan ]; then

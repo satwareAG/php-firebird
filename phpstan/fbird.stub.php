@@ -462,11 +462,12 @@ function fbird_rollback_savepoint(mixed $link, string $name): bool {}
 function fbird_release_savepoint(mixed $link, string $name): bool {}
 
 /**
- * @param resource $link
- * @param int $req_items
- * @return array<string, mixed>|false
+ * Get transaction information.
+ *
+ * @param resource $trans_handle Transaction resource
+ * @return array<string, mixed>|false Transaction info array or false on failure
  */
-function fbird_trans_info(mixed $link, int $req_items): array|false {}
+function fbird_trans_info(mixed $trans_handle): array|false {}
 
 // ============================================================================
 // BLOB FUNCTIONS

@@ -39,6 +39,9 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_INFO(arginfo_fbird_errcode, 0)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_INFO(arginfo_fbird_sqlstate, 0)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_connect, 0, 0, 0)
 	ZEND_ARG_INFO(0, database)
 	ZEND_ARG_INFO(0, username)
@@ -422,6 +425,7 @@ static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_blob_seek, 	arginfo_fbird_blob_seek)
 	PHP_FE(fbird_errmsg, 		arginfo_fbird_errmsg)
 	PHP_FE(fbird_errcode, 		arginfo_fbird_errcode)
+	PHP_FE(fbird_sqlstate, 		arginfo_fbird_sqlstate)
 
 	PHP_FE(fbird_add_user, 		arginfo_fbird_add_user)
 	PHP_FE(fbird_modify_user, 	arginfo_fbird_modify_user)
@@ -541,6 +545,35 @@ PHP_FUNCTION(fbird_errcode)
 		RETURN_LONG(IBG(sql_code));
 	}
 	RETURN_FALSE;
+}
+/* }}} */
+
+/* {{{ proto fbird_sqlstate(void)
+   Return SQLSTATE error code for the last error */
+PHP_FUNCTION(fbird_sqlstate)
+{
+	char sqlstate[6]; /* 5 chars + null terminator */
+
+	if (zend_parse_parameters_none() == FAILURE) {
+		return;
+	}
+
+	/* Check if there is an error to report */
+	if (IBG(sql_code) == 0) {
+		RETURN_FALSE;
+	}
+
+	/* Call fb_sqlstate to get the SQLSTATE code from the status vector */
+	fb_sqlstate(sqlstate, IB_STATUS);
+
+	/* fb_sqlstate always returns a 5-character string, with "00000" for success */
+	if (sqlstate[0] == '0' && sqlstate[1] == '0' && sqlstate[2] == '0' &&
+	    sqlstate[3] == '0' && sqlstate[4] == '0') {
+		/* No error state */
+		RETURN_FALSE;
+	}
+
+	RETURN_STRINGL(sqlstate, 5);
 }
 /* }}} */
 

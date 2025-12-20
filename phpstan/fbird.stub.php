@@ -592,14 +592,24 @@ function fbird_gen_id(string $generator, int $increment = 1, mixed $link = null)
 // ============================================================================
 
 /**
- * @return string
+ * Return error message
  */
-function fbird_errmsg(): string {}
+function fbird_errmsg(): string|false {}
 
 /**
- * @return int|false
+ * Return error code
  */
 function fbird_errcode(): int|false {}
+
+/**
+ * Return SQLSTATE error code for the last error
+ *
+ * Returns a 5-character SQLSTATE code (e.g., "23000" for integrity constraint
+ * violation, "42000" for syntax error) based on the SQL:2003 standard.
+ *
+ * @return string|false The SQLSTATE code as a 5-character string, or false if no error
+ */
+function fbird_sqlstate(): string|false {}
 
 // ============================================================================
 // EVENT FUNCTIONS

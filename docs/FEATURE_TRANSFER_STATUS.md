@@ -19,7 +19,7 @@ This document tracks the progress of adopting valuable patterns from `mlazdans/f
 | Transaction ID | ✅ Available | C/PHP | N/A |
 | Limbo Transaction Functions | ❌ Not Started | C | Low |
 | Rich Connection Info | ❌ Not Started | C | Medium |
-| SQLSTATE Exception Codes | ❌ Not Started | C | Medium |
+| SQLSTATE Exception Codes | ✅ Complete | C | Medium |
 | Fetch Date Objects (DateTimeImmutable) | ❌ Not Started | C | Low |
 | IBatch API | 📋 Research Done | C | Future |
 
@@ -213,34 +213,29 @@ isc_database_info(ISC_STATUS*, isc_db_handle*, short, const char*, short, char*)
 // With info items: isc_info_reads, isc_info_writes, isc_info_fetches, etc.
 ```
 
-### 9. SQLSTATE Exception Codes ❌
+### 9. SQLSTATE Exception Codes ✅
 
-**Priority**: Medium
-**Effort**: 4-8 hours
+**Implemented**: December 20, 2025
+**Test**: `tests/fbird_sqlstate_001.phpt`
 
-Enhance exception handling with standard SQLSTATE error classification.
+Standard SQLSTATE error classification for error handling.
 
-**Current**:
+**Usage**:
 ```php
-$code = fbird_errcode();  // Firebird-specific error code
-$msg = fbird_errmsg();    // Error message
+@fbird_query($db, "INVALID SQL");
+$sqlstate = fbird_sqlstate();  // Returns "42000" (syntax error class)
+
+// Common SQLSTATE codes:
+// - "23000" - Integrity constraint violation
+// - "42000" - Syntax error or access rule violation
+// - "HY000" - General error
+// - false   - No error
 ```
 
-**Proposed Enhancement**:
-```php
-$sqlstate = fbird_sqlstate();  // Returns SQLSTATE string e.g., "23000" (integrity constraint)
-
-// Or enhance exception class to include:
-class FirebirdException extends \Exception {
-    public readonly string $sqlstate;
-    public readonly array $errors;  // Error chain
-}
-```
-
-**Firebird API**:
-```cpp
-fb_sqlstate(char* sqlstate, const ISC_STATUS* status);  // Firebird 2.5+
-```
+**Notes**:
+- Returns 5-character SQLSTATE string (SQL:2003 standard)
+- Returns `false` if no error has occurred
+- Uses Firebird's `fb_sqlstate()` API (Firebird 2.5+)
 
 ### 10. Fetch Date as DateTimeImmutable ❌
 
@@ -309,7 +304,7 @@ echo "Inserted: " . $result['success_count'];
 
 ### Phase 1: Quick Wins (1-2 days)
 1. ~~**fbird_trans_id()**~~ - ✅ Already available via `fbird_trans_info()['id']`
-2. **fbird_sqlstate()** - Better error classification
+2. ~~**fbird_sqlstate()**~~ - ✅ Complete (December 20, 2025)
 
 ### Phase 2: Enhanced Features (1 week)
 3. **fbird_connection_info()** - Rich database statistics

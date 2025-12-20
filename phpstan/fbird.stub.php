@@ -44,6 +44,9 @@ const FBIRD_FETCH_ARRAYS = 2;
 /** Return timestamps as Unix timestamps */
 const FBIRD_UNIXTIME = 4;
 
+/** Return date/time columns as DateTimeImmutable objects */
+const FBIRD_FETCH_DATE_OBJ = 8;
+
 // ============================================================================
 // TRANSACTION ACCESS MODES
 // ============================================================================

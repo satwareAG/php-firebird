@@ -66,6 +66,18 @@ public:
         const unsigned char* tpb = nullptr);
 
     /**
+     * Create a Transaction wrapper from an existing ITransaction pointer.
+     * Used for reconnecting to limbo transactions.
+     *
+     * @param master Firebird master interface
+     * @param transaction Existing ITransaction pointer (ownership transferred)
+     * @return Transaction object owning the given transaction
+     */
+    [[nodiscard]] static Transaction fromRaw(
+        Firebird::IMaster* master,
+        Firebird::ITransaction* transaction) noexcept;
+
+    /**
      * Default constructor creates an invalid (empty) transaction.
      */
     Transaction() noexcept = default;
@@ -209,6 +221,23 @@ inline Transaction::Transaction(TransactionPtr transaction, Firebird::IMaster* m
     : transaction_(std::move(transaction)),
       master_(master),
       last_status_(master) {
+}
+
+inline Transaction Transaction::fromRaw(
+    Firebird::IMaster* master,
+    Firebird::ITransaction* transaction) noexcept
+{
+    if (!transaction) {
+        return Transaction();
+    }
+    TransactionPtr ptr(transaction, TransactionDeleter{});
+    Transaction result;
+    result.transaction_ = std::move(ptr);
+    result.master_ = master;
+    if (master) {
+        result.last_status_ = StatusWrapper(master);
+    }
+    return result;
 }
 
 inline Transaction::~Transaction() {

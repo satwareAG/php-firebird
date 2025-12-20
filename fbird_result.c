@@ -18,7 +18,11 @@
 #if HAVE_FIREBIRD
 
 #include "ext/standard/php_standard.h"
+#include "ext/date/php_date.h"
 #include "php_firebird.h"
+
+/* PHP 8.4 compatibility: zend_call_method_with_1_params was removed.
+ * Use direct object initialization instead for DateTimeImmutable. */
 #include "php_fbird_includes.h"
 #include "php_fbird_query_internal.h"
 #include "Zend/zend_smart_str.h"
@@ -367,8 +371,25 @@ format_date_time:
    if ((type & ~1) == SQL_TYPE_TIME) {
 #endif
                 /* TIME/TIME_TZ: Skip unix conversion, always return formatted string */
-                l = strftime(string_data, sizeof(string_data), format, &t);
-                ZVAL_STRINGL(val, string_data, l);
+                if (flag & PHP_FBIRD_FETCH_DATE_OBJ) {
+                    /* Return DateTimeImmutable for TIME type - use php_date_instantiate() */
+                    char iso_str[32];
+                    snprintf(iso_str, sizeof(iso_str), "1970-01-01 %02d:%02d:%02d",
+                        t.tm_hour, t.tm_min, t.tm_sec);
+                    php_date_instantiate(php_date_get_immutable_ce(), val);
+                    php_date_initialize(Z_PHPDATE_P(val), iso_str, strlen(iso_str), NULL, NULL, PHP_DATE_INIT_FORMAT);
+                } else {
+                    l = strftime(string_data, sizeof(string_data), format, &t);
+                    ZVAL_STRINGL(val, string_data, l);
+                }
+            } else if (flag & PHP_FBIRD_FETCH_DATE_OBJ) {
+                /* TIMESTAMP/DATE: Return DateTimeImmutable object - use php_date_instantiate() */
+                char iso_str[32];
+                snprintf(iso_str, sizeof(iso_str), "%04d-%02d-%02d %02d:%02d:%02d",
+                    t.tm_year + 1900, t.tm_mon + 1, t.tm_mday,
+                    t.tm_hour, t.tm_min, t.tm_sec);
+                php_date_instantiate(php_date_get_immutable_ce(), val);
+                php_date_initialize(Z_PHPDATE_P(val), iso_str, strlen(iso_str), NULL, NULL, PHP_DATE_INIT_FORMAT);
             } else if (flag & PHP_FBIRD_UNIXTIME) {
                 /* TIMESTAMP/DATE: Deterministic behavior — convert to epoch
                  * using PHP's configured timezone (date.timezone). This avoids

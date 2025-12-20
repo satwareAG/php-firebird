@@ -236,6 +236,7 @@ enum php_fbird_option {
 	PHP_FBIRD_FETCH_BLOBS        = 1,
 	PHP_FBIRD_FETCH_ARRAYS       = 2,
 	PHP_FBIRD_UNIXTIME           = 4,
+	PHP_FBIRD_FETCH_DATE_OBJ     = 8,  /* Return DATE/TIME/TIMESTAMP as DateTimeImmutable */
 	/* transaction access mode */
 	PHP_FBIRD_WRITE              = 1,
 	PHP_FBIRD_READ               = 2,

@@ -1090,6 +1090,181 @@ unsigned char* fbxpb_build_tpb(
  */
 void fbxpb_free_tpb(unsigned char* buffer);
 
+/* =============================================================================
+ * Limbo Transaction Functions (Two-Phase Commit Recovery)
+ *
+ * These functions support recovery of transactions that were prepared but
+ * not committed in a two-phase commit scenario (limbo transactions).
+ * ============================================================================= */
+
+/**
+ * Get list of limbo transaction IDs from a database.
+ *
+ * Limbo transactions are transactions that were prepared (first phase of 2PC)
+ * but never committed or rolled back. This function retrieves their IDs using
+ * isc_info_limbo database info request.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param attachment_ptr IAttachment pointer (from fbc_get_attachment())
+ * @param trans_ids Output array to receive transaction IDs
+ * @param max_ids Maximum number of IDs to retrieve (size of trans_ids array)
+ * @param status_vector Output status vector
+ * @return Number of limbo transaction IDs found (0 if none), -1 on error
+ */
+int fbt_get_limbo_transactions(
+    void* master_ptr,
+    void* attachment_ptr,
+    ISC_INT64* trans_ids,
+    unsigned max_ids,
+    ISC_STATUS* status_vector
+);
+
+/**
+ * Reconnect to a limbo transaction for recovery.
+ *
+ * This function reconnects to a prepared (limbo) transaction using its ID,
+ * allowing the caller to commit or rollback the transaction.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param attachment_ptr IAttachment pointer
+ * @param trans_id The limbo transaction ID (from fbt_get_limbo_transactions)
+ * @param status_vector Output status vector
+ * @return Transaction wrapper pointer that can be committed/rolled back, or NULL on error
+ */
+void* fbt_reconnect(
+    void* master_ptr,
+    void* attachment_ptr,
+    ISC_INT64 trans_id,
+    ISC_STATUS* status_vector
+);
+
+/* =============================================================================
+ * IBatch API Functions (Firebird 4.0+ Bulk Operations)
+ *
+ * The IBatch interface provides high-performance bulk INSERT operations.
+ * Using batch operations can provide 10-12x speedup for large data loads.
+ * These functions are only available when compiled with FB_API_VER >= 40.
+ * ============================================================================= */
+
+#if FB_API_VER >= 40
+
+/**
+ * Create a batch operation from a prepared statement.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param statement_ptr IStatement pointer (from fbs_get_statement())
+ * @param buffer_size Buffer size hint (0 for default, typically 16MB)
+ * @param status_vector Output status vector
+ * @return Opaque batch wrapper pointer, or NULL on error
+ */
+void* fbbatch_create(
+    void* master_ptr,
+    void* statement_ptr,
+    unsigned buffer_size,
+    ISC_STATUS* status_vector
+);
+
+/**
+ * Add parameter data to the batch.
+ *
+ * The input buffer should contain the parameter values in the format
+ * expected by the prepared statement's input metadata.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param batch_wrapper Batch wrapper pointer (from fbbatch_create())
+ * @param count Number of messages (rows) to add
+ * @param in_buffer Input message buffer containing parameter data
+ * @param status_vector Output status vector
+ * @return 1 on success, 0 on error
+ */
+int fbbatch_add(
+    void* master_ptr,
+    void* batch_wrapper,
+    unsigned count,
+    const void* in_buffer,
+    ISC_STATUS* status_vector
+);
+
+/**
+ * Execute the batch operation.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param batch_wrapper Batch wrapper pointer
+ * @param transaction_ptr ITransaction pointer for the batch execution
+ * @param total_processed Output: total number of messages processed
+ * @param error_count Output: number of messages that failed
+ * @param status_vector Output status vector
+ * @return 1 on success (even with partial errors), 0 on complete failure
+ */
+int fbbatch_execute(
+    void* master_ptr,
+    void* batch_wrapper,
+    void* transaction_ptr,
+    unsigned* total_processed,
+    unsigned* error_count,
+    ISC_STATUS* status_vector
+);
+
+/**
+ * Cancel the batch without executing.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param batch_wrapper Batch wrapper pointer
+ * @param status_vector Output status vector
+ * @return 1 on success, 0 on error
+ */
+int fbbatch_cancel(
+    void* master_ptr,
+    void* batch_wrapper,
+    ISC_STATUS* status_vector
+);
+
+/**
+ * Close and free the batch.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param batch_wrapper Batch wrapper pointer
+ * @param status_vector Output status vector
+ * @return 1 on success, 0 on error
+ */
+int fbbatch_close(
+    void* master_ptr,
+    void* batch_wrapper,
+    ISC_STATUS* status_vector
+);
+
+/**
+ * Get the input metadata for the batch.
+ *
+ * This can be used to determine the message buffer format for fbbatch_add().
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param batch_wrapper Batch wrapper pointer
+ * @param status_vector Output status vector
+ * @return IMessageMetadata pointer (caller should release), or NULL on error
+ */
+void* fbbatch_get_metadata(
+    void* master_ptr,
+    void* batch_wrapper,
+    ISC_STATUS* status_vector
+);
+
+/**
+ * Get BLOB alignment requirement for the batch.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param batch_wrapper Batch wrapper pointer
+ * @param status_vector Output status vector
+ * @return Alignment in bytes, or 0 on error
+ */
+unsigned fbbatch_get_blob_alignment(
+    void* master_ptr,
+    void* batch_wrapper,
+    ISC_STATUS* status_vector
+);
+
+#endif /* FB_API_VER >= 40 */
+
 
 #ifdef __cplusplus
 }

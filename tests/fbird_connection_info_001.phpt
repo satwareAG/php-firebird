@@ -5,13 +5,6 @@ firebird
 --SKIPIF--
 <?php
 include("skipif.inc");
-/* TODO: fbird_connection_info() requires OO API fbc_get_info() wrapper
- * Current implementation uses legacy isc_database_info() which doesn't work
- * with modern OO API connections (fbc_connection). Needs firebird_utils.cpp
- * update to add IAttachment::getInfo() wrapper similar to fbt_get_info().
- * See: https://github.com/satwareAG/php-firebird/issues/XXX
- */
-die("skip fbird_connection_info() OO API implementation incomplete - needs fbc_get_info() wrapper");
 ?>
 --FILE--
 <?php
@@ -81,9 +74,13 @@ var_dump(is_array($info2));
 
 fbird_close($db);
 
-// Test with closed connection (should fail)
-$info3 = @fbird_connection_info($db);
-var_dump($info3);
+// Test with closed connection (should fail with TypeError in PHP 8+)
+try {
+    $info3 = fbird_connection_info($db);
+    var_dump($info3);
+} catch (TypeError $e) {
+    echo "TypeError caught (expected)\n";
+}
 
 echo "Done\n";
 ?>
@@ -96,5 +93,5 @@ ods_version > 0: YES
 sql_dialect valid: YES
 attachment_id > 0: YES
 bool(true)
-bool(false)
+TypeError caught (expected)
 Done

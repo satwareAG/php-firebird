@@ -183,6 +183,29 @@ void* fbc_get_attachment(void* connection);
  */
 unsigned fbc_get_server_version(void* connection);
 
+/**
+ * Retrieve database/connection information via the OO API.
+ * Wraps Firebird::IAttachment::getInfo().
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param attachment_ptr IAttachment pointer (from fbc_get_attachment())
+ * @param items_length Info items length
+ * @param items Info items to request (isc_info_* constants)
+ * @param buffer_length Output buffer length
+ * @param buffer Output buffer
+ * @param status_vector Output status vector
+ * @return 1 on success, 0 on error
+ */
+int fbc_get_info(
+    void* master_ptr,
+    void* attachment_ptr,
+    unsigned items_length,
+    const unsigned char* items,
+    unsigned buffer_length,
+    unsigned char* buffer,
+    ISC_STATUS* status_vector
+);
+
 /* Firebird OO API Transaction Functions */
 
 /**

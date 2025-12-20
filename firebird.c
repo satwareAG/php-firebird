@@ -2005,12 +2005,28 @@ PHP_FUNCTION(fbird_connection_info)
 		RETURN_FALSE;
 	}
 
-	/* Use legacy isc_database_info for both OO and legacy connections */
-	if (isc_database_info(status, &ib_link->handle.db, sizeof(info_items), info_items,
-			sizeof(res_buf), res_buf)) {
-		memcpy(IB_STATUS, status, sizeof(status));
-		_php_fbird_error();
-		RETURN_FALSE;
+	/* Use OO API for connections that have fbc_connection */
+	if (ib_link->fbc_connection != NULL) {
+		void* attachment = fbc_get_attachment(ib_link->fbc_connection);
+		if (attachment == NULL) {
+			_php_fbird_module_error("Failed to get attachment from OO API connection");
+			RETURN_FALSE;
+		}
+
+		if (!fbc_get_info(IBG(master_instance), attachment,
+				sizeof(info_items), (const unsigned char*)info_items,
+				sizeof(res_buf), (unsigned char*)res_buf, IB_STATUS)) {
+			_php_fbird_error();
+			RETURN_FALSE;
+		}
+	} else {
+		/* Fallback to legacy API for connections without OO API handle */
+		if (isc_database_info(status, &ib_link->handle.db, sizeof(info_items), info_items,
+				sizeof(res_buf), res_buf)) {
+			memcpy(IB_STATUS, status, sizeof(status));
+			_php_fbird_error();
+			RETURN_FALSE;
+		}
 	}
 
 	array_init(return_value);

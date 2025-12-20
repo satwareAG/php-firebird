@@ -997,6 +997,56 @@ extern "C" int fbt_get_info(
     }
 }
 
+extern "C" int fbc_get_info(
+    void* master_ptr,
+    void* attachment_ptr,
+    unsigned items_length,
+    const unsigned char* items,
+    unsigned buffer_length,
+    unsigned char* buffer,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !attachment_ptr || !items || !buffer) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_db_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* attachment = static_cast<Firebird::IAttachment*>(attachment_ptr);
+
+    try {
+        Firebird::IStatus* fb_status = master->getStatus();
+        Firebird::CheckStatusWrapper status(fb_status);
+
+        attachment->getInfo(&status, items_length, items, buffer_length, buffer);
+
+        if (fb::statusHasError(fb_status)) {
+            if (status_vector) {
+                copy_status_vector(fb_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
+            return 0;
+        }
+
+        if (status_vector) {
+            status_vector[0] = 1;
+            status_vector[1] = 0;
+        }
+        return 1;
+
+    } catch (...) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_except2;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+}
+
 #endif // FB_API_VER >= 30
 
 #if FB_API_VER >= 40

@@ -6,21 +6,27 @@ The IBatch interface in Firebird 4.0+ provides high-performance bulk operations 
 
 ## Implementation Status
 
-**Status:** ✅ **COMPLETE (Basic Functionality)**
+**Status:** ✅ **COMPLETE (Full Implementation)**
 
-**Completed:**
-- ✅ Batch resource infrastructure (create, execute, cancel)
-- ✅ Parameter binding to message buffers
-- ✅ Full type conversion (integers, floats, strings, dates, nullable types)
-- ✅ Transaction integration
-- ✅ Error reporting (total_processed, error_count)
-- ✅ Test coverage (tests/fbird_batch_001.phpt)
+**Completion Date:** 2025-12-21
 
-**Pending:**
-- ⏳ Advanced BLOB handling (addBlob, appendBlobData, addBlobStream)
-- ⏳ Detailed error reporting (per-row status)
-- ⏳ PHP OO wrapper (Firebird\Batch class)
-- ⏳ Comprehensive multi-type tests
+**All Phases Complete:**
+- ✅ Phase 3: Batch resource infrastructure (create, execute, cancel)
+- ✅ Phase 3: Parameter binding to message buffers
+- ✅ Phase 3: Full type conversion (integers, floats, strings, dates, nullable types)
+- ✅ Phase 3: Transaction integration
+- ✅ Phase 3: BLOB handling (addBlob, registerBlob with "HHHHHHHH:LLLL" format)
+- ✅ Phase 4: Error reporting (total_processed, success_count, error_count)
+- ✅ Phase 5: PHP OO wrapper (Firebird\Batch, BatchResult, BatchError classes)
+- ✅ Phase 6: Comprehensive multi-type tests with NULL handling
+
+**Tests (6/6 passing - 100%):**
+- ✅ `tests/blobid_001.phpt` - BlobId value object
+- ✅ `tests/fbird_batch_001.phpt` - Basic batch operations
+- ✅ `tests/fbird_batch_blob_001.phpt` - BLOB operations (add_blob, register_blob)
+- ✅ `tests/fbird_batch_errors_001.phpt` - Error reporting and success_count
+- ✅ `tests/fbird_batch_multitype_001.phpt` - Comprehensive multi-type with NULL handling
+- ✅ `tests/fbird_batch_oo_001.phpt` - OO wrapper classes
 
 ## Firebird IBatch Interface
 
@@ -423,6 +429,163 @@ fbird_batch_add($batch, 4, 'Name', '15:30:45');    // TIME only
 
 // Timezone-aware (Firebird 4.0+)
 fbird_batch_add($batch, 5, 'Name', '2025-12-21 15:30:45 Europe/Berlin');
+```
+
+### BLOB Functions
+
+**fbird_batch_add_blob(resource $batch, string $data [, int $type = 0]): string|false**
+- Creates an inline BLOB within the batch context
+- Parameters:
+  - `$batch`: Batch resource from fbird_batch_create()
+  - `$data`: BLOB content data
+  - `$type`: BLOB subtype (0 = BINARY, 1 = TEXT, default 0)
+- Returns: BLOB ID string in "HHHHHHHH:LLLL" format (13 characters) or false on error
+
+**fbird_batch_register_blob(resource $batch, string $blob_id): string|false**
+- Registers an existing BLOB for use in a batch operation
+- Parameters:
+  - `$batch`: Batch resource from fbird_batch_create()
+  - `$blob_id`: Existing BLOB ID string from fbird_blob_close()
+- Returns: Batch-compatible BLOB ID string or false on error
+
+### BLOB Example
+
+```php
+<?php
+$db = fbird_connect('localhost:/path/to/db.fdb', 'SYSDBA', 'masterkey');
+$trans = fbird_trans($db);
+
+// Table with BLOB column
+$stmt = fbird_prepare($trans, 'INSERT INTO documents (id, name, content) VALUES (?, ?, ?)');
+$batch = fbird_batch_create($stmt, $trans);
+
+// Create inline BLOBs and add rows
+$blob1 = fbird_batch_add_blob($batch, 'This is text BLOB content', 1);  // TEXT
+$blob2 = fbird_batch_add_blob($batch, file_get_contents('image.png'), 0);  // BINARY
+
+fbird_batch_add($batch, 1, 'Text Document', $blob1);
+fbird_batch_add($batch, 2, 'Image File', $blob2);
+
+$result = fbird_batch_execute($batch);
+echo "Inserted: {$result['success_count']} documents with BLOBs\n";
+
+fbird_commit($trans);
+fbird_close($db);
+```
+
+## PHP OO Wrapper Classes
+
+### Firebird\Batch
+
+Main batch class with fluent interface for batch operations.
+
+```php
+namespace Firebird;
+
+class Batch {
+    /**
+     * Create a Batch from a prepared statement.
+     * @param resource $query Prepared statement from fbird_prepare()
+     * @param resource|null $trans Optional transaction resource
+     * @return self
+     */
+    public static function fromQuery(mixed $query, mixed $trans = null): self;
+    
+    /**
+     * Add a row of parameters to the batch (fluent).
+     * @param mixed ...$params Parameters matching prepared statement
+     * @return self For method chaining
+     */
+    public function add(mixed ...$params): self;
+    
+    /**
+     * Execute the batch and return results.
+     * @return BatchResult Result object with counts and errors
+     */
+    public function execute(): BatchResult;
+}
+```
+
+### Firebird\BatchResult
+
+Result container implementing `Countable` and `IteratorAggregate`.
+
+```php
+namespace Firebird;
+
+class BatchResult implements \Countable, \IteratorAggregate {
+    public readonly int $totalRows;      // Total rows processed
+    public readonly int $successCount;   // Successfully inserted
+    public readonly int $errorCount;     // Failed rows
+    
+    /**
+     * Create from fbird_batch_execute() result array.
+     */
+    public static function fromArray(array $data): self;
+    
+    public function hasErrors(): bool;           // errorCount > 0
+    public function isComplete(): bool;          // successCount == totalRows
+    public function getSuccessRate(): float;     // successCount / totalRows
+    public function getErrors(): array;          // Array of BatchError
+    public function count(): int;                // Returns totalRows
+    public function getIterator(): \Traversable; // Iterate over errors
+    public function getSummary(): string;        // "3 rows: 2 success, 1 errors"
+}
+```
+
+### Firebird\BatchError
+
+Per-row error value object with SQLSTATE classification.
+
+```php
+namespace Firebird;
+
+class BatchError {
+    public readonly int $position;     // Row position (0-based)
+    public readonly string $sqlstate;  // SQLSTATE code (e.g., "23000")
+    public readonly string $message;   // Error message
+    public readonly int $errorCode;    // Firebird error code
+    
+    /**
+     * Create from array data.
+     */
+    public static function fromArray(array $data): self;
+    
+    public function isConstraintViolation(): bool;  // SQLSTATE 23xxx
+    public function isSyntaxError(): bool;          // SQLSTATE 42xxx
+    public function getErrorClass(): string;        // First 2 chars of SQLSTATE
+    public function __toString(): string;           // "Row 1: [23000] message"
+}
+```
+
+### OO Wrapper Example
+
+```php
+<?php
+use Firebird\Batch;
+use Firebird\BatchResult;
+
+$db = fbird_connect('localhost:/path/to/db.fdb', 'SYSDBA', 'masterkey');
+$trans = fbird_trans($db);
+$stmt = fbird_prepare($trans, 'INSERT INTO customers (id, name, email) VALUES (?, ?, ?)');
+
+// Fluent API with method chaining
+$result = Batch::fromQuery($stmt, $trans)
+    ->add(1, 'Alice', 'alice@example.com')
+    ->add(2, 'Bob', 'bob@example.com')
+    ->add(3, 'Charlie', 'charlie@example.com')
+    ->execute();
+
+echo $result->getSummary() . "\n";  // "3 rows: 3 success, 0 errors"
+
+if ($result->hasErrors()) {
+    foreach ($result as $error) {
+        echo "Error at row {$error->position}: {$error->message}\n";
+    }
+}
+
+fbird_commit($trans);
+fbird_close($db);
 ```
 
 ## Alternative: Multi-Row INSERT

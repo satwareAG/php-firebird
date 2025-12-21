@@ -1,6 +1,6 @@
 # Feature Transfer Status: mlazdans/firebird-php → satwareAG/php-firebird
 
-**Last Updated**: 2025-12-20
+**Last Updated**: 2025-12-21
 **Analysis Document**: [MLAZDANS_FIREBIRD_PHP_COMPARISON.md](MLAZDANS_FIREBIRD_PHP_COMPARISON.md)
 
 ## Executive Summary
@@ -289,62 +289,96 @@ $row['TIMESTAMP_COL']->format('Y-m-d H:i:s');  // "2025-12-20 14:30:45"
 
 **Priority**: High
 **Status**: ✅ Complete (December 20-21, 2025)
-**Test**: `tests/fbird_batch_001.phpt`
-**Effort**: 40+ hours estimate → **~2 hours actual** (AI-assisted)
+**Tests**: 6 tests passing (100%)
+**Effort**: 40+ hours estimate → **~8 hours actual** (AI-assisted)
 **Research Document**: [IBATCH_API_RESEARCH.md](IBATCH_API_RESEARCH.md)
 
 Bulk operations for significant performance improvements (10-12x speedup for INSERT).
 
-**Implemented API**:
+**Test Coverage**:
+- `tests/fbird_batch_001.phpt` - Basic batch operations
+- `tests/fbird_batch_blob_001.phpt` - BLOB operations (add_blob, register_blob)
+- `tests/fbird_batch_errors_001.phpt` - Error reporting
+- `tests/fbird_batch_multitype_001.phpt` - Comprehensive multi-type with NULL handling
+- `tests/fbird_batch_oo_001.phpt` - OO wrapper (Batch, BatchResult, BatchError classes)
+- `tests/blobid_001.phpt` - BlobId value object
+
+**Procedural API**:
 ```php
 // Prepare statement
-$stmt = fbird_prepare($db, "INSERT INTO table (col1, col2) VALUES (?, ?)");
+$stmt = fbird_prepare($db, "INSERT INTO table (col1, col2, blob_col) VALUES (?, ?, ?)");
 
 // Create batch
-$batch = fbird_batch_create($stmt);
+$batch = fbird_batch_create($stmt, $trans);
+
+// Create inline BLOB
+$blob_id = fbird_batch_add_blob($batch, "BLOB content");
 
 // Add rows
-foreach ($data as $row) {
-    fbird_batch_add($batch, $row['col1'], $row['col2']);
-}
+fbird_batch_add($batch, 'value1', 'value2', $blob_id);
 
 // Execute and get results
 $result = fbird_batch_execute($batch);
 echo "Processed: {$result['total_processed']}\n";
+echo "Success: {$result['success_count']}\n";
 echo "Errors: {$result['error_count']}\n";
+```
+
+**OO Wrapper API** (`src/Firebird/`):
+```php
+use Firebird\Batch;
+use Firebird\BatchResult;
+use Firebird\BatchError;
+
+// Create batch with fluent interface
+$batch = Batch::fromQuery($query, $trans);
+$batch->add('value1', 'value2')
+      ->add('value3', 'value4')
+      ->add('value5', 'value6');
+
+// Execute and get typed result
+$result = $batch->execute();  // Returns BatchResult
+
+if ($result->hasErrors()) {
+    foreach ($result as $error) {  // Iterate BatchError objects
+        echo "Row {$error->position}: {$error->message}\n";
+    }
+}
+
+echo $result->getSummary();  // "3 rows: 3 succeeded, 0 failed (100.0%)"
 ```
 
 **PHP Functions** (`firebird.c`):
 - `fbird_batch_create($query [, $trans])` - Create batch from prepared statement
 - `fbird_batch_add($batch, ...$params)` - Add row with parameter binding
-- `fbird_batch_execute($batch)` - Execute batch, returns ['total_processed', 'error_count']
+- `fbird_batch_add_blob($batch, $data [, $type])` - Create inline BLOB, returns BLOB ID
+- `fbird_batch_register_blob($batch, $blob_id)` - Register existing BLOB for batch use
+- `fbird_batch_execute($batch)` - Execute batch, returns ['total_processed', 'success_count', 'error_count']
 - `fbird_batch_cancel($batch)` - Cancel without executing
 
-**Parameter Binding** (`firebird.c::PHP_FUNCTION(fbird_batch_add)`):
-- Full type conversion for all SQL types (integers, floats, strings, dates, timestamps)
-- NULL value support via null indicators
-- Decimal scaling for NUMERIC/DECIMAL types
-- Date/time parsing (string or unix timestamp)
-- Timezone-aware types (TIMESTAMP_TZ, TIME_TZ for FB 4.0+)
-- CHAR padding and VARCHAR length prefixes
+**PHP Classes**:
+- `Firebird\Batch` - Main batch wrapper with fluent interface (`fromQuery()`, `add()`, `execute()`)
+- `Firebird\BatchResult` - Result container (Countable, IteratorAggregate)
+- `Firebird\BatchError` - Per-row error details value object
+
+**Supported SQL Types**:
+- Integers: INTEGER, BIGINT, SMALLINT
+- Floating: FLOAT, DOUBLE PRECISION
+- Fixed-point: NUMERIC(p,s), DECIMAL(p,s)
+- Strings: CHAR (with padding), VARCHAR
+- Date/Time: DATE, TIME, TIMESTAMP
+- Boolean: BOOLEAN (Firebird 3.0+)
+- BLOBs: TEXT and BINARY subtypes
 
 **C++ Layer** (`firebird_utils.cpp`):
-- `fbbatch_create()` - Uses IXpbBuilder::BATCH for batch parameter block
-- `fbbatch_add()` - Wraps IBatch::add()
-- `fbbatch_execute()` - Wraps IBatch::execute(), parses IBatchCompletionState
-- `fbbatch_cancel()`, `fbbatch_close()` - Lifecycle management
-- `fbbatch_get_metadata()` - Access IMessageMetadata
-- Metadata accessors: `fbm_get_count()`, `fbm_get_type()`, `fbm_get_offset()`, `fbm_get_null_offset()`, `fbm_get_length()`, `fbm_get_scale()`
+- `fbbatch_create()` - Uses IXpbBuilder::BATCH with TAG_BLOB_POLICY
+- `fbbatch_add()`, `fbbatch_add_blob()`, `fbbatch_register_blob()` - Row/BLOB operations
+- `fbbatch_execute()` - Parses IBatchCompletionState for detailed results
 - `BatchWrapper` class for RAII resource management
 
 **Requirements**:
 - Firebird 4.0+ (FB_API_VER >= 40) - runtime detection via function_exists()
 - Transaction integration - batch executes in specified transaction context
-
-**Future Enhancements**:
-- Advanced BLOB handling (addBlob, appendBlobData, addBlobStream)
-- Detailed per-row error reporting
-- PHP OO wrapper (Firebird\Batch class)
 
 ---
 

@@ -860,10 +860,30 @@ function fbird_batch_create(mixed $query, mixed $trans_identifier = null): mixed
 function fbird_batch_add(mixed $batch, mixed ...$args): bool {}
 
 /**
+ * Create an inline BLOB in the batch context.
+ * Returns a BLOB ID string in "HHHHHHHH:LLLL" format (13 characters).
+ *
+ * @param resource $batch Batch resource from fbird_batch_create()
+ * @param string $data BLOB content data
+ * @param int $type BLOB subtype (0 = BINARY, 1 = TEXT, default 0)
+ * @return string|false BLOB ID string or false on error
+ */
+function fbird_batch_add_blob(mixed $batch, string $data, int $type = 0): string|false {}
+
+/**
+ * Register an existing BLOB for use in a batch operation.
+ *
+ * @param resource $batch Batch resource from fbird_batch_create()
+ * @param string $blob_id Existing BLOB ID string from fbird_blob_close()
+ * @return string|false Batch BLOB ID string or false on error
+ */
+function fbird_batch_register_blob(mixed $batch, string $blob_id): string|false {}
+
+/**
  * Execute the batch and return results.
  *
  * @param resource $batch Batch resource
- * @return array{total_processed: int, error_count: int}|false Results or false on error
+ * @return array{total_processed: int, success_count: int, error_count: int, errors?: array<int, array{position: int, sqlstate: string, message: string}>}|false Results or false on error
  */
 function fbird_batch_execute(mixed $batch): array|false {}
 
@@ -874,3 +894,11 @@ function fbird_batch_execute(mixed $batch): array|false {}
  * @return bool True on success, false on error
  */
 function fbird_batch_cancel(mixed $batch): bool {}
+
+/**
+ * Get the BLOB alignment requirement for a batch.
+ *
+ * @param resource $batch Batch resource from fbird_batch_create()
+ * @return int|false Alignment in bytes or false on error
+ */
+function fbird_batch_get_blob_alignment(mixed $batch): int|false {}

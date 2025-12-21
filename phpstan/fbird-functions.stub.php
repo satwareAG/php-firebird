@@ -1,8 +1,8 @@
 <?php
 
 /**
- * Helper wrappers for non-variadic execution.
- * They are defined in userland src/Firebird/functions.php but stubbed here to ensure PHPStan sees them.
+ * PHPStan stubs for Firebird namespace helper functions.
+ * These are defined in userland src/Firebird/functions.php.
  */
 
 namespace Firebird;

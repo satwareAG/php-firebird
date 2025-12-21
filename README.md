@@ -742,6 +742,14 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development guidelines inclu
 - `fbird_wait_event()` - Wait for event
 - `fbird_poll_event()` - Poll for events with optional timeout
 
+### Batch Functions (Firebird 4.0+)
+- `fbird_batch_create()` - Create batch from prepared statement for bulk INSERT
+- `fbird_batch_add()` - Add row with automatic type conversion
+- `fbird_batch_add_blob()` - Create inline BLOB, returns "HHHHHHHH:LLLL" ID
+- `fbird_batch_register_blob()` - Register existing BLOB for batch use
+- `fbird_batch_execute()` - Execute batch (returns total_processed, success_count, error_count)
+- `fbird_batch_cancel()` - Cancel without executing
+
 ### PHP Event Polling Wrappers (src/Firebird/)
 
 For advanced timeout and non-blocking event handling, PHP wrapper classes are provided:

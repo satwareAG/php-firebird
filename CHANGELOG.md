@@ -10,13 +10,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **IBatch API (Firebird 4.0+)**: High-performance bulk operations for 10-12x INSERT speedup
-  - `fbird_batch_create($query [, $trans])` - Create batch from prepared statement
-  - `fbird_batch_add($batch, ...$params)` - Add row with automatic type conversion
-  - `fbird_batch_execute($batch)` - Execute batch, returns ['total_processed', 'error_count']
-  - `fbird_batch_cancel($batch)` - Cancel without executing
-  - Full parameter binding for all SQL types (integers, floats, strings, dates, NULL values)
-  - Supports NUMERIC/DECIMAL scaling, date/time parsing, timezone-aware types
-  - Test: `tests/fbird_batch_001.phpt`
+  - **Procedural Functions:**
+    - `fbird_batch_create($query [, $trans])` - Create batch from prepared statement
+    - `fbird_batch_add($batch, ...$params)` - Add row with automatic type conversion
+    - `fbird_batch_add_blob($batch, $data [, $type])` - Create inline BLOB, returns "HHHHHHHH:LLLL" ID
+    - `fbird_batch_register_blob($batch, $blob_id)` - Register existing BLOB for batch use
+    - `fbird_batch_execute($batch)` - Execute batch, returns `['total_processed', 'success_count', 'error_count']`
+    - `fbird_batch_cancel($batch)` - Cancel without executing
+  - **OO Wrapper Classes:**
+    - `Firebird\Batch` - Main batch class with fluent `fromQuery()`, `add()`, `execute()` methods
+    - `Firebird\BatchResult` - Result container implementing `Countable`, `IteratorAggregate`
+    - `Firebird\BatchError` - Per-row error value object with SQLSTATE classification
+  - **BLOB ID Format:** Standardized "HHHHHHHH:LLLL" (13 characters, colon-separated hex)
+  - **Supported SQL Types:** INTEGER, BIGINT, SMALLINT, FLOAT, DOUBLE PRECISION, NUMERIC, DECIMAL, CHAR, VARCHAR, DATE, TIME, TIMESTAMP, TIME WITH TIME ZONE, TIMESTAMP WITH TIME ZONE, BOOLEAN, BLOB (TEXT/BINARY)
+  - **NULL Handling:** Full NULL support for all column types
+  - **Error Behavior:** IBatch stops processing on first error by default; rows before error committed
+  - **Tests (6 total):**
+    - `tests/blobid_001.phpt` - BlobId value object
+    - `tests/fbird_batch_001.phpt` - Basic batch operations
+    - `tests/fbird_batch_blob_001.phpt` - BLOB operations (add_blob, register_blob)
+    - `tests/fbird_batch_errors_001.phpt` - Error reporting and success_count
+    - `tests/fbird_batch_multitype_001.phpt` - Comprehensive multi-type with NULL handling
+    - `tests/fbird_batch_oo_001.phpt` - OO wrapper classes
 - **Limbo Transaction Recovery Functions**: For handling failed two-phase commits
   - `fbird_get_limbo_transactions([resource $link [, int $max_count]])` - Retrieve list of in-doubt transaction IDs
   - `fbird_reconnect_transaction(resource $link, int $transaction_id)` - Reconnect to limbo transaction for manual commit/rollback

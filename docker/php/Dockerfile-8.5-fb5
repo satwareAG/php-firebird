@@ -25,6 +25,8 @@ RUN apt-get update && apt-get install -y \
     libtommath1 \
     cppcheck \
     clang-tidy \
+    bear \
+    python3-pip \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

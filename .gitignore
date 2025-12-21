@@ -91,6 +91,9 @@ yaml.loT
 # Static Analysis Artifacts
 compile_commands.json
 cppcheck-report.xml
+cppcheck-output.log
+clang-tidy-output.log
+.cppcheck-cache/
 
 *.tar.gz
 *.tar.bz2

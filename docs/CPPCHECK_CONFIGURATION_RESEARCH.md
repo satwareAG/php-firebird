@@ -405,31 +405,35 @@ cppcheck --suppressions-list=.cppcheck-suppressions \
          .
 ```
 
-### Medium-Term Improvement
+### Medium-Term Improvement ✅ IMPLEMENTED
 
 **Generate `compile_commands.json`** for whole-program analysis:
 
-1. Add to Docker build scripts:
-   ```bash
-   pip install compiledb
-   compiledb make -j$(nproc)
-   ```
+**Scripts Created:**
+- `scripts/container/analysis/generate_compdb.sh` - Generates `compile_commands.json` using `bear` or `compiledb`
+- `scripts/container/analysis/cppcheck.sh` - Enhanced to use `compile_commands.json` when available
+- `scripts/container/analysis/clang_tidy.sh` - Enhanced with all 15 source files
 
-2. Update cppcheck invocation:
-   ```bash
-   cppcheck --project=compile_commands.json \
-            --cppcheck-build-dir=.cppcheck-cache \
-            --enable=all
-   ```
+**Docker Images Updated:**
+- All Dockerfiles now include `bear` and `python3-pip` for compilation database generation
 
-### Long-Term Enhancement
-
-**Add Clang-Tidy** to CI pipeline (already have `.clang-tidy` config):
-
+**Usage:**
 ```bash
-# Generate compile_commands.json first, then:
-clang-tidy -p . *.c firebird_utils.cpp
+# Inside Docker container
+./scripts/container/analysis/generate_compdb.sh  # Generate compile_commands.json
+./scripts/container/analysis/cppcheck.sh         # Run cppcheck with full context
+./scripts/container/analysis/clang_tidy.sh       # Run clang-tidy analysis
 ```
+
+### Long-Term Enhancement ✅ IMPLEMENTED
+
+**Clang-Tidy CI Integration** (already have `.clang-tidy` config):
+
+The `clang_tidy.sh` script now:
+- Auto-generates `compile_commands.json` if missing (using `bear`)
+- Analyzes all 15 C/C++ source files
+- Uses proper include paths for PHP extension development
+- Provides per-file pass/fail status
 
 ### Tool Combination Strategy
 

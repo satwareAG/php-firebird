@@ -1,43 +1,128 @@
 #!/bin/bash
+# clang-tidy static analysis for php-firebird
+# Uses .clang-tidy configuration for C++17 modernization checks
 set -e
 
-# clang-tidy validation script for C++17 modernization
 echo "Running clang-tidy analysis..."
 
-# Ensure compilation database exists
+# Change to extension root directory
+if [ -d /ext ]; then
+    cd /ext
+fi
+
+# All C/C++ source files in the extension
+SOURCE_FILES=(
+    firebird.c
+    firebird_utils.cpp
+    fbird_blobs.c
+    fbird_datetime.c
+    fbird_events.c
+    fbird_inspection.c
+    fbird_metadata.c
+    fbird_query.c
+    fbird_query_array.c
+    fbird_query_bind.c
+    fbird_query_exec.c
+    fbird_query_prepare.c
+    fbird_result.c
+    fbird_service.c
+    fbird_udf.c
+)
+
+# Ensure compilation database exists for accurate analysis
 if ! [ -f compile_commands.json ]; then
-    echo "Generating compilation database..."
+    echo "No compile_commands.json found."
+    echo "Attempting to generate with bear..."
+
     if command -v bear &> /dev/null; then
-        bear -- make clean && bear -- make
+        # Clean and rebuild with bear
+        if [ -f Makefile ]; then
+            make clean 2>/dev/null || true
+        else
+            phpize
+            CPPFLAGS="-I/usr/include/firebird" ./configure --with-firebird=/usr
+        fi
+        bear -- make -j$(nproc)
     else
-        echo "Warning: 'bear' not found. Attempting to run without compilation database (results may be less accurate)."
-        # Fallback or exit depending on strictness. For now, we warn.
-        # In a real CI env, we'd want to ensure compile_commands.json is generated via cmake or bear.
+        echo "Warning: 'bear' not found. Running without compilation database."
+        echo "Results may be less accurate. Consider installing bear:"
+        echo "  apt-get install bear"
+
+        # Build if not already built
+        if ! [ -f modules/firebird.so ]; then
+            phpize
+            CPPFLAGS="-I/usr/include/firebird" ./configure --with-firebird=/usr
+            make -j$(nproc)
+        fi
     fi
 fi
 
-# Run clang-tidy on extension source files (renamed from ibase_* to fbird_*)
-# Using header-filter to ONLY analyze our extension's headers, not PHP system headers
-clang-tidy \
-    firebird.c \
-    firebird_utils.cpp \
-    fbird_query.c \
-    fbird_query_exec.c \
-    fbird_result.c \
-    fbird_metadata.c \
-    fbird_service.c \
-    fbird_events.c \
-    fbird_blobs.c \
-    fbird_inspection.c \
-    fbird_udf.c \
-    --config-file=.clang-tidy \
-    --header-filter='^\./(php_firebird|php_fbird|firebird_utils).*\.h$' \
-    --format-style=file
+# Determine clang-tidy arguments
+CLANG_TIDY_ARGS=(
+    "--config-file=.clang-tidy"
+    "--header-filter=^\./(php_firebird|php_fbird|firebird_utils).*\.h$"
+)
 
-# Check for blocking errors
-if [ $? -ne 0 ]; then
-    echo "❌ clang-tidy found blocking issues"
+# Add compilation database if available
+if [ -f compile_commands.json ]; then
+    CLANG_TIDY_ARGS+=("-p" ".")
+    echo "Using compile_commands.json for analysis"
+else
+    # Provide manual include paths if no compile_commands.json
+    PHP_INCLUDE_DIR=$(php-config --include-dir 2>/dev/null || echo "/usr/include/php")
+    CLANG_TIDY_ARGS+=(
+        "--"
+        "-I."
+        "-I${PHP_INCLUDE_DIR}"
+        "-I${PHP_INCLUDE_DIR}/Zend"
+        "-I${PHP_INCLUDE_DIR}/main"
+        "-I${PHP_INCLUDE_DIR}/TSRM"
+        "-I/usr/include/firebird"
+        "-std=c++17"
+        "-DHAVE_CONFIG_H"
+    )
+    echo "Using manual include paths (compile_commands.json recommended)"
+fi
+
+echo ""
+echo "Analyzing ${#SOURCE_FILES[@]} source files..."
+
+# Track results
+FAILED=0
+PASSED=0
+
+for file in "${SOURCE_FILES[@]}"; do
+    if [ -f "$file" ]; then
+        echo -n "  Checking $file... "
+        if clang-tidy "$file" "${CLANG_TIDY_ARGS[@]}" 2>&1 | tee -a clang-tidy-output.log | grep -q "error:"; then
+            echo "❌"
+            ((FAILED++))
+        else
+            echo "✓"
+            ((PASSED++))
+        fi
+    else
+        echo "  Skipping $file (not found)"
+    fi
+done
+
+echo ""
+echo "=========================================="
+echo "clang-tidy Report Summary"
+echo "=========================================="
+echo "Passed: $PASSED"
+echo "Failed: $FAILED"
+echo "Total:  ${#SOURCE_FILES[@]}"
+echo "=========================================="
+
+# Check for blocking errors (WarningsAsErrors in .clang-tidy)
+if [ $FAILED -gt 0 ]; then
+    echo ""
+    echo "❌ clang-tidy found blocking issues in $FAILED files"
+    echo "   See clang-tidy-output.log for details"
     exit 1
 fi
 
+echo ""
 echo "✅ clang-tidy analysis passed"
+echo "   Full output: clang-tidy-output.log"

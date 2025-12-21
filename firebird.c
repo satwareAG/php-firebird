@@ -3402,8 +3402,12 @@ PHP_FUNCTION(fbird_batch_execute)
 	fbbatch_close(IBG(master_instance), ib_batch->fbbatch_wrapper, IB_STATUS);
 	ib_batch->fbbatch_wrapper = NULL;
 
+	/* Calculate success_count from total_processed - error_count */
+	unsigned success_count = (total_processed >= error_count) ? (total_processed - error_count) : 0;
+
 	array_init(return_value);
 	add_assoc_long(return_value, "total_processed", total_processed);
+	add_assoc_long(return_value, "success_count", success_count);
 	add_assoc_long(return_value, "error_count", error_count);
 }
 /* }}} */

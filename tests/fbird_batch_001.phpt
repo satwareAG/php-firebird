@@ -49,8 +49,10 @@ fbird_close($db);
 bool(true)
 bool(true)
 bool(true)
-array(2) {
+array(3) {
   ["total_processed"]=>
+  int(3)
+  ["success_count"]=>
   int(3)
   ["error_count"]=>
   int(0)

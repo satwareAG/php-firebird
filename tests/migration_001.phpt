@@ -13,7 +13,9 @@ $db = fbird_connect($test_base);
 // 1. Setup
 $table = "TEST_MIGRATION_FORCE";
 @fbird_query($db, "DROP TABLE $table");
+@fbird_commit($db); // Commit DROP before CREATE
 fbird_query($db, "CREATE TABLE $table (ID INT)");
+fbird_commit($db); // DDL requires commit before DML can see table
 fbird_query($db, "INSERT INTO $table VALUES (1)");
 fbird_commit($db);
 
@@ -40,8 +42,9 @@ if ($check && ($row = fbird_fetch_row($check))) {
     echo "Table gone confirmed.\n";
 }
 
-// 3. Test with recreated table and active blocker (if possible)
+// 4. Test with recreated table and active blocker (if possible)
 fbird_query($db2, "CREATE TABLE $table (ID INT)");
+fbird_commit($db2); // DDL requires commit before DML can see table
 fbird_query($db2, "INSERT INTO $table VALUES (1)");
 fbird_commit($db2);
 
@@ -69,7 +72,6 @@ if ($result2) {
 echo "Test complete.\n";
 ?>
 --EXPECTF--
-%A
 Testing fbird_drop_table_force...
 Force Drop returned TRUE.
 Table gone confirmed.

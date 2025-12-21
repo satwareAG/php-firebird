@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Full parameter binding for all SQL types (integers, floats, strings, dates, NULL values)
   - Supports NUMERIC/DECIMAL scaling, date/time parsing, timezone-aware types
   - Test: `tests/fbird_batch_001.phpt`
+- **Limbo Transaction Recovery Functions**: For handling failed two-phase commits
+  - `fbird_get_limbo_transactions([resource $link [, int $max_count]])` - Retrieve list of in-doubt transaction IDs
+  - `fbird_reconnect_transaction(resource $link, int $transaction_id)` - Reconnect to limbo transaction for manual commit/rollback
+  - Validates max_count parameter (1-10000 range)
+  - Returns transaction resource compatible with `fbird_commit()` and `fbird_rollback()`
+  - Test: `tests/fbird_limbo_trans_001.phpt`
 - **`fbird_sqlstate()` function**: Returns 5-character SQLSTATE error code (SQL:2003 standard) for better error classification
   - Returns `"23000"` for integrity constraint violations
   - Returns `"42000"` for syntax errors or access rule violations

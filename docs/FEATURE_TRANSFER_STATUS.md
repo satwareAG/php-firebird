@@ -17,7 +17,7 @@ This document tracks the progress of adopting valuable patterns from `mlazdans/f
 | DbInfo Structure | ✅ Complete | PHP | High |
 | BLOB Seek | ✅ Complete | C | Medium |
 | Transaction ID | ✅ Available | C/PHP | N/A |
-| Limbo Transaction Functions | 🔨 C++ Layer Done | C | Low |
+| Limbo Transaction Functions | ✅ Complete | C | Low |
 | Rich Connection Info | ✅ Complete | C | Medium |
 | SQLSTATE Exception Codes | ✅ Complete | C | Medium |
 | Fetch Date Objects (DateTimeImmutable) | ✅ Complete | C | Low |
@@ -169,34 +169,44 @@ $info = $trans->getInfo();
 
 **Note**: The `fbird_trans_info()` function returns comprehensive transaction information including the ID. A dedicated `fbird_trans_id()` function is not needed as the existing API provides this functionality.
 
-### 7. Limbo Transaction Functions 🔨
+### 7. Limbo Transaction Functions ✅
 
 **Priority**: Low
-**Status**: C++ Layer Complete (December 20, 2025)
+**Status**: ✅ Complete (December 21, 2025)
 **Effort**: 4-8 hours → **Completed in ~30 minutes** (AI-assisted)
+**Test**: `tests/fbird_limbo_trans_001.phpt`
 
 For recovering from failed two-phase commit scenarios.
 
-**Proposed API**:
+**API**:
 ```php
 // Get list of limbo transaction IDs
-$ids = fbird_get_limbo_transactions($db, 100);  // max 100 IDs
+$ids = fbird_get_limbo_transactions($db, 100);  // max 100 IDs (default)
 
 // Reconnect to a limbo transaction
 $trans = fbird_reconnect_transaction($db, $transaction_id);
-$trans->commit();  // or rollback
+fbird_commit($trans);  // or fbird_rollback($trans)
 ```
+
+**PHP Functions** (`firebird.c`):
+- `fbird_get_limbo_transactions(?resource $link, int $max_count = 100): array|false`
+  - Returns array of limbo transaction IDs
+  - Validates max_count (1-10000 range)
+  - Uses default connection if link is null
+- `fbird_reconnect_transaction(resource $link, int $transaction_id): resource|false`
+  - Reconnects to limbo transaction
+  - Returns transaction resource compatible with fbird_commit/rollback
+  - Links transaction into connection's transaction list
 
 **C++ Layer Implementation** (`firebird_utils.cpp`):
-- `fbt_get_limbo_transactions()` - Returns array of limbo transaction IDs using `isc_database_info()` with `isc_info_limbo`
-- `fbt_reconnect()` - Reconnects to limbo transaction using `isc_reconnect_transaction()`, returns `Transaction::fromRaw()`
+- `fbt_get_limbo_transactions()` - Queries `isc_info_limbo` via `IAttachment::getInfo()`, parses response buffer
+- `fbt_reconnect()` - Uses `IAttachment::reconnectTransaction()`, wraps in `fb::Transaction`
 
-**Firebird API**:
-```cpp
-isc_reconnect_transaction(ISC_STATUS*, isc_db_handle*, isc_tr_handle*, short, const char*);
-```
-
-**Remaining Work**: PHP layer functions in `firebird.c` to expose to userland.
+**Implementation Details**:
+- Arginfo structures defined for type safety
+- Registered in `zend_function_entry` array
+- Proper error handling with status vector propagation
+- Resource lifecycle management via transaction list
 
 ### 8. Rich Connection Info ✅
 

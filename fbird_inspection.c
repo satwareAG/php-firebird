@@ -222,6 +222,26 @@ static int _fbird_drop_table(fbird_db_link *link, fbird_transaction *trans, cons
 	trans->fbt_transaction = NULL;
 	trans->handle.ptr = 0;
 
+	/* Remove this transaction from all connection tr_lists to prevent
+	 * use-after-free during PHP shutdown. The destructor tries to traverse
+	 * db_link[i]->tr_list, but if cleanup order is unexpected, db_link[i]
+	 * could be stale. Setting db_link[i] = NULL tells the destructor to skip.
+	 * This mirrors what _php_fbird_commit_link() does when closing connections. */
+	for (unsigned short i = 0; i < trans->link_cnt; ++i) {
+		if (trans->db_link[i] != NULL) {
+			fbird_tr_list **l;
+			for (l = &trans->db_link[i]->tr_list; *l != NULL; l = &(*l)->next) {
+				if ((*l)->trans == trans) {
+					fbird_tr_list *p = *l;
+					*l = p->next;
+					efree(p);
+					break;
+				}
+			}
+			trans->db_link[i] = NULL;
+		}
+	}
+
 	return SUCCESS;
 }
 

@@ -14,12 +14,15 @@
 #include "ext/standard/md5.h"
 #include "php_firebird.h"
 #include "php_fbird_includes.h"
+#include "php_fbird_query_internal.h"
 #include "php_fbird_inspection.h"
 #include "SAPI.h"
 #include "zend_exceptions.h"
 #include <stdbool.h>
 #include <time.h>
+#include <math.h>
 #include "firebird_utils.h"
+#include "fbird_datetime.h"
 
 #define ROLLBACK    0
 #define COMMIT      1
@@ -405,6 +408,17 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_batch_cancel, 0, 0, 1)
 	ZEND_ARG_TYPE_INFO(0, batch, IS_RESOURCE, 0)
 ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_batch_add_blob, 0, 0, 2)
+	ZEND_ARG_TYPE_INFO(0, batch, IS_RESOURCE, 0)
+	ZEND_ARG_TYPE_INFO(0, data, IS_STRING, 0)
+	ZEND_ARG_TYPE_INFO(0, blob_type, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_batch_register_blob, 0, 0, 2)
+	ZEND_ARG_TYPE_INFO(0, batch, IS_RESOURCE, 0)
+	ZEND_ARG_TYPE_INFO(0, blob_id, IS_STRING, 0)
+ZEND_END_ARG_INFO()
 #endif /* FB_API_VER >= 40 */
 /* }}} */
 
@@ -502,6 +516,8 @@ static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_batch_add, arginfo_fbird_batch_add)
 	PHP_FE(fbird_batch_execute, arginfo_fbird_batch_execute)
 	PHP_FE(fbird_batch_cancel, arginfo_fbird_batch_cancel)
+	PHP_FE(fbird_batch_add_blob, arginfo_fbird_batch_add_blob)
+	PHP_FE(fbird_batch_register_blob, arginfo_fbird_batch_register_blob)
 #endif /* FB_API_VER >= 40 */
 
 	PHP_FE_END
@@ -2890,7 +2906,7 @@ PHP_FUNCTION(fbird_batch_create)
 		return;
 	}
 
-	ib_query = (fbird_query *)zend_fetch_resource_ex(query_arg, LE_QUERY, le_result);
+	ib_query = (fbird_query *)zend_fetch_resource_ex(query_arg, LE_QUERY, le_query);
 	if (!ib_query) {
 		RETURN_FALSE;
 	}
@@ -2974,11 +2990,368 @@ PHP_FUNCTION(fbird_batch_add)
 		RETURN_FALSE;
 	}
 
-	/* TODO: Implement parameter binding to message buffer.
-	 * This requires mapping PHP values to the Firebird message format
-	 * based on the input metadata. For now, return error. */
-	_php_fbird_module_error("fbird_batch_add() parameter binding not yet implemented - use prepared statement binding");
-	RETURN_FALSE;
+	/* Get master interface for metadata operations */
+	void *master = IBG(master_instance);
+	if (!master) {
+		_php_fbird_module_error("fbird_batch_add() requires Firebird 3.0+ OO API master interface");
+		RETURN_FALSE;
+	}
+
+	/* Validate metadata and buffer are available */
+	if (!ib_batch->in_metadata || !ib_batch->in_msg_buffer || ib_batch->in_msg_length == 0) {
+		_php_fbird_module_error("fbird_batch_add() batch has no input metadata or buffer");
+		RETURN_FALSE;
+	}
+
+	/* Get parameter count from metadata */
+	unsigned param_count = fbm_get_count(master, ib_batch->in_metadata);
+
+	/* Validate argument count matches parameter count */
+	if ((unsigned)argc != param_count) {
+		_php_fbird_module_error("fbird_batch_add() expects %u parameters, %d given", param_count, argc);
+		RETURN_FALSE;
+	}
+
+	/* Clear message buffer before populating */
+	memset(ib_batch->in_msg_buffer, 0, ib_batch->in_msg_length);
+
+	/* Bind each parameter to the message buffer */
+	for (unsigned i = 0; i < param_count; i++) {
+		zval *b_var = &args[i];
+
+		/* Get metadata info for this parameter */
+		unsigned sql_type = fbm_get_type(master, ib_batch->in_metadata, i) & ~1;
+		unsigned data_offset = fbm_get_offset(master, ib_batch->in_metadata, i);
+		unsigned null_offset = fbm_get_null_offset(master, ib_batch->in_metadata, i);
+		unsigned field_length = fbm_get_length(master, ib_batch->in_metadata, i);
+		int sql_scale = fbm_get_scale(master, ib_batch->in_metadata, i);
+
+		/* Get pointers to data and null indicator in message buffer */
+		unsigned char *data_ptr = (unsigned char *)ib_batch->in_msg_buffer + data_offset;
+		short *null_ptr = (short *)((unsigned char *)ib_batch->in_msg_buffer + null_offset);
+
+		/* Handle NULL values */
+		int is_null = 0;
+		switch (Z_TYPE_P(b_var)) {
+			case IS_NULL:
+				is_null = 1;
+				break;
+			case IS_STRING:
+				/* Empty string treated as NULL for numeric/date types */
+				if (Z_STRLEN_P(b_var) == 0) {
+					switch (sql_type) {
+						case SQL_SHORT:
+						case SQL_LONG:
+						case SQL_INT64:
+						case SQL_FLOAT:
+						case SQL_DOUBLE:
+						case SQL_TIMESTAMP:
+						case SQL_TYPE_DATE:
+						case SQL_TYPE_TIME:
+#if FB_API_VER >= 40
+						case SQL_INT128:
+						case SQL_DEC16:
+						case SQL_DEC34:
+						case SQL_TIMESTAMP_TZ:
+						case SQL_TIME_TZ:
+#endif
+							is_null = 1;
+							break;
+						default:
+							break;
+					}
+				}
+				break;
+			default:
+				break;
+		}
+
+		if (is_null) {
+			*null_ptr = -1;
+			continue;
+		}
+
+		/* Not NULL */
+		*null_ptr = 0;
+
+		/* Convert PHP value to Firebird format based on SQL type */
+		switch (sql_type) {
+			case SQL_SHORT: {
+				if (sql_scale < 0) {
+					/* NUMERIC/DECIMAL with scale */
+					double dval = zval_get_double(b_var);
+					double factor = pow(10.0, (double)(-sql_scale));
+					long long scaled = llround(dval * factor);
+					if (scaled < SHRT_MIN || scaled > SHRT_MAX) {
+						_php_fbird_module_error("Parameter %u: scaled value out of range for SHORT", i + 1);
+						RETURN_FALSE;
+					}
+					*(short *)data_ptr = (short)scaled;
+				} else {
+					zend_long lval = zval_get_long(b_var);
+					*(short *)data_ptr = (short)lval;
+				}
+				break;
+			}
+
+			case SQL_LONG: {
+				if (sql_scale < 0) {
+					double dval = zval_get_double(b_var);
+					double factor = pow(10.0, (double)(-sql_scale));
+					long long scaled = llround(dval * factor);
+					if (scaled < INT_MIN || scaled > INT_MAX) {
+						_php_fbird_module_error("Parameter %u: scaled value out of range for LONG", i + 1);
+						RETURN_FALSE;
+					}
+					*(ISC_LONG *)data_ptr = (ISC_LONG)scaled;
+				} else {
+					zend_long lval = zval_get_long(b_var);
+					*(ISC_LONG *)data_ptr = (ISC_LONG)lval;
+				}
+				break;
+			}
+
+			case SQL_INT64: {
+				if (sql_scale < 0) {
+					double dval = zval_get_double(b_var);
+					double factor = pow(10.0, (double)(-sql_scale));
+					*(ISC_INT64 *)data_ptr = (ISC_INT64)llround(dval * factor);
+				} else {
+					zend_long lval = zval_get_long(b_var);
+					*(ISC_INT64 *)data_ptr = (ISC_INT64)lval;
+				}
+				break;
+			}
+
+			case SQL_FLOAT: {
+				double dval = zval_get_double(b_var);
+				*(float *)data_ptr = (float)dval;
+				break;
+			}
+
+			case SQL_DOUBLE: {
+				double dval = zval_get_double(b_var);
+				*(double *)data_ptr = dval;
+				break;
+			}
+
+			case SQL_TEXT: {
+				/* Fixed-length CHAR field */
+				convert_to_string(b_var);
+				size_t str_len = Z_STRLEN_P(b_var);
+				if (str_len > field_length) {
+					str_len = field_length;
+				}
+				memcpy(data_ptr, Z_STRVAL_P(b_var), str_len);
+				/* Pad with spaces for CHAR type */
+				if (str_len < field_length) {
+					memset(data_ptr + str_len, ' ', field_length - str_len);
+				}
+				break;
+			}
+
+			case SQL_VARYING: {
+				/* VARCHAR: 2-byte length prefix + data */
+				convert_to_string(b_var);
+				size_t str_len = Z_STRLEN_P(b_var);
+				if (str_len > field_length) {
+					str_len = field_length;
+				}
+				*(short *)data_ptr = (short)str_len;
+				memcpy(data_ptr + sizeof(short), Z_STRVAL_P(b_var), str_len);
+				break;
+			}
+
+			case SQL_TIMESTAMP:
+			case SQL_TYPE_DATE:
+			case SQL_TYPE_TIME: {
+				if (Z_TYPE_P(b_var) == IS_LONG) {
+					/* Unix timestamp */
+					struct tm t;
+					time_t ts = (time_t)Z_LVAL_P(b_var);
+					struct tm *res = php_gmtime_r(&ts, &t);
+					if (!res) {
+						_php_fbird_module_error("Parameter %u: invalid timestamp value", i + 1);
+						RETURN_FALSE;
+					}
+					switch (sql_type) {
+						case SQL_TIMESTAMP:
+							*(ISC_TIMESTAMP *)data_ptr = fbu_encode_timestamp(master,
+								(unsigned)(t.tm_year + 1900), (unsigned)(t.tm_mon + 1),
+								(unsigned)t.tm_mday, (unsigned)t.tm_hour,
+								(unsigned)t.tm_min, (unsigned)t.tm_sec, 0);
+							break;
+						case SQL_TYPE_DATE:
+							*(ISC_DATE *)data_ptr = fbu_encode_date(master,
+								(unsigned)(t.tm_year + 1900), (unsigned)(t.tm_mon + 1),
+								(unsigned)t.tm_mday);
+							break;
+						case SQL_TYPE_TIME:
+							*(ISC_TIME *)data_ptr = fbu_encode_time(master,
+								(unsigned)t.tm_hour, (unsigned)t.tm_min,
+								(unsigned)t.tm_sec, 0);
+							break;
+					}
+				} else {
+					/* Parse string date/time */
+					convert_to_string(b_var);
+					fbird_datetime_components dt;
+					int parsed = 0;
+					switch (sql_type) {
+						case SQL_TYPE_DATE:
+							parsed = fbird_parse_date(Z_STRVAL_P(b_var), &dt);
+							if (parsed) {
+								*(ISC_DATE *)data_ptr = fbu_encode_date(master, dt.year, dt.month, dt.day);
+							}
+							break;
+						case SQL_TYPE_TIME:
+							parsed = fbird_parse_time(Z_STRVAL_P(b_var), &dt);
+							if (parsed) {
+								*(ISC_TIME *)data_ptr = fbu_encode_time(master, dt.hours, dt.minutes, dt.seconds, dt.fractions);
+							}
+							break;
+						default: /* SQL_TIMESTAMP */
+							parsed = fbird_parse_timestamp(Z_STRVAL_P(b_var), &dt);
+							if (parsed) {
+								*(ISC_TIMESTAMP *)data_ptr = fbu_encode_timestamp(master,
+									dt.year, dt.month, dt.day, dt.hours, dt.minutes, dt.seconds, dt.fractions);
+							}
+							break;
+					}
+					if (!parsed) {
+						_php_fbird_module_error("Parameter %u: invalid date/time string '%s'", i + 1, Z_STRVAL_P(b_var));
+						RETURN_FALSE;
+					}
+				}
+				break;
+			}
+
+#if FB_API_VER >= 40
+			case SQL_TIMESTAMP_TZ:
+			case SQL_TIME_TZ: {
+				fbird_datetime_components dt;
+				fbird_datetime_init(&dt);
+				strncpy(dt.timezone, "GMT", sizeof(dt.timezone) - 1);
+
+				if (Z_TYPE_P(b_var) == IS_LONG) {
+					struct tm t;
+					time_t ts = (time_t)Z_LVAL_P(b_var);
+					struct tm *res = php_gmtime_r(&ts, &t);
+					if (!res) {
+						_php_fbird_module_error("Parameter %u: invalid timestamp value", i + 1);
+						RETURN_FALSE;
+					}
+					dt.year = (unsigned)(t.tm_year + 1900);
+					dt.month = (unsigned)(t.tm_mon + 1);
+					dt.day = (unsigned)t.tm_mday;
+					dt.hours = (unsigned)t.tm_hour;
+					dt.minutes = (unsigned)t.tm_min;
+					dt.seconds = (unsigned)t.tm_sec;
+				} else {
+					convert_to_string(b_var);
+					int parsed = (sql_type == SQL_TIME_TZ)
+						? fbird_parse_time(Z_STRVAL_P(b_var), &dt)
+						: fbird_parse_timestamp(Z_STRVAL_P(b_var), &dt);
+					if (!parsed) {
+						_php_fbird_module_error("Parameter %u: invalid date/time string", i + 1);
+						RETURN_FALSE;
+					}
+					if (!dt.has_timezone) {
+						strncpy(dt.timezone, "GMT", sizeof(dt.timezone) - 1);
+					}
+				}
+
+				if (sql_type == SQL_TIME_TZ) {
+					if (fbu_encode_time_tz(master, (ISC_TIME_TZ *)data_ptr,
+							dt.hours, dt.minutes, dt.seconds, dt.fractions, dt.timezone) != 0) {
+						_php_fbird_module_error("Parameter %u: failed to encode TIME WITH TIME ZONE", i + 1);
+						RETURN_FALSE;
+					}
+				} else {
+					if (fbu_encode_timestamp_tz(master, (ISC_TIMESTAMP_TZ *)data_ptr,
+							dt.year, dt.month, dt.day, dt.hours, dt.minutes, dt.seconds,
+							dt.fractions, dt.timezone) != 0) {
+						_php_fbird_module_error("Parameter %u: failed to encode TIMESTAMP WITH TIME ZONE", i + 1);
+						RETURN_FALSE;
+					}
+				}
+				break;
+			}
+#endif
+
+#ifdef SQL_BOOLEAN
+			case SQL_BOOLEAN: {
+				FB_BOOLEAN bval;
+				switch (Z_TYPE_P(b_var)) {
+					case IS_TRUE:
+						bval = FB_TRUE;
+						break;
+					case IS_FALSE:
+						bval = FB_FALSE;
+						break;
+					case IS_LONG:
+					case IS_DOUBLE:
+						bval = zend_is_true(b_var) ? FB_TRUE : FB_FALSE;
+						break;
+					case IS_STRING:
+						if (Z_STRLEN_P(b_var) == 0) {
+							bval = FB_FALSE;
+						} else if (!zend_binary_strncasecmp(Z_STRVAL_P(b_var), Z_STRLEN_P(b_var), "true", 4, 4)) {
+							bval = FB_TRUE;
+						} else if (!zend_binary_strncasecmp(Z_STRVAL_P(b_var), Z_STRLEN_P(b_var), "false", 5, 5)) {
+							bval = FB_FALSE;
+						} else {
+							zend_long lval;
+							double dval;
+							switch (is_numeric_string(Z_STRVAL_P(b_var), Z_STRLEN_P(b_var), &lval, &dval, 0)) {
+								case IS_LONG:
+									bval = (lval != 0) ? FB_TRUE : FB_FALSE;
+									break;
+								case IS_DOUBLE:
+									bval = (dval != 0) ? FB_TRUE : FB_FALSE;
+									break;
+								default:
+									_php_fbird_module_error("Parameter %u: cannot convert string to boolean", i + 1);
+									RETURN_FALSE;
+							}
+						}
+						break;
+					default:
+						bval = zend_is_true(b_var) ? FB_TRUE : FB_FALSE;
+						break;
+				}
+				*(FB_BOOLEAN *)data_ptr = bval;
+				break;
+			}
+#endif
+
+			case SQL_BLOB: {
+				/* Blob ID as hex string "0x..." */
+				convert_to_string(b_var);
+				if (Z_STRLEN_P(b_var) == BLOB_ID_LEN &&
+					_php_fbird_string_to_quad(Z_STRVAL_P(b_var), (ISC_QUAD *)data_ptr)) {
+					/* Valid blob ID string */
+					break;
+				}
+				/* For batch operations, BLOB data must be pre-created using fbird_blob_create()
+				 * and passed as blob ID. Inline BLOB creation not supported in batch mode. */
+				_php_fbird_module_error("Parameter %u: BLOB must be passed as blob ID (use fbird_blob_create() first)", i + 1);
+				RETURN_FALSE;
+			}
+
+			default:
+				_php_fbird_module_error("Parameter %u: unsupported SQL type %u for batch binding", i + 1, sql_type);
+				RETURN_FALSE;
+		}
+	}
+
+	/* Add the populated message buffer to the batch */
+	if (fbbatch_add(master, ib_batch->fbbatch_wrapper, 1, ib_batch->in_msg_buffer, IB_STATUS) != 1) {
+		_php_fbird_error();
+		RETURN_FALSE;
+	}
+
+	RETURN_TRUE;
 }
 /* }}} */
 
@@ -3059,6 +3432,81 @@ PHP_FUNCTION(fbird_batch_cancel)
 	ib_batch->fbbatch_wrapper = NULL;
 
 	RETURN_TRUE;
+}
+/* }}} */
+
+/* {{{ proto string|false fbird_batch_add_blob(resource batch, string data [, int type])
+   Create inline BLOB in batch context and return BLOB ID */
+PHP_FUNCTION(fbird_batch_add_blob)
+{
+	zval *batch_arg;
+	char *data;
+	size_t data_len;
+	zend_long blob_type = 0;
+	fbird_batch *ib_batch;
+	ISC_QUAD blob_id;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "rs|l", &batch_arg, &data, &data_len, &blob_type) == FAILURE) {
+		return;
+	}
+
+	ib_batch = (fbird_batch *)zend_fetch_resource_ex(batch_arg, LE_BATCH, le_batch);
+	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
+		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
+		RETURN_FALSE;
+	}
+
+	/* Call C++ wrapper to add BLOB to batch */
+	if (fbbatch_add_blob(IBG(master_instance), ib_batch->fbbatch_wrapper,
+			(unsigned)data_len, data, &blob_id, 0, NULL, IB_STATUS) < 0) {
+		_php_fbird_error();
+		RETURN_FALSE;
+	}
+
+	/* Convert BLOB ID to hex string for PHP */
+	RETURN_NEW_STR(_php_fbird_quad_to_string(blob_id));
+}
+/* }}} */
+
+/* {{{ proto string|false fbird_batch_register_blob(resource batch, string blob_id)
+   Register existing BLOB for batch use */
+PHP_FUNCTION(fbird_batch_register_blob)
+{
+	zval *batch_arg;
+	char *blob_id_str;
+	size_t blob_id_len;
+	fbird_batch *ib_batch;
+	ISC_QUAD existing_blob, batch_blob_id;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "rs", &batch_arg, &blob_id_str, &blob_id_len) == FAILURE) {
+		return;
+	}
+
+	ib_batch = (fbird_batch *)zend_fetch_resource_ex(batch_arg, LE_BATCH, le_batch);
+	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
+		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
+		RETURN_FALSE;
+	}
+
+	/* Validate and convert BLOB ID string to ISC_QUAD */
+	if (blob_id_len != BLOB_ID_LEN || !_php_fbird_string_to_quad(blob_id_str, &existing_blob)) {
+		php_error_docref(NULL, E_WARNING, "Invalid BLOB ID format (expected %d character hex string)", BLOB_ID_LEN);
+		RETURN_FALSE;
+	}
+
+	/* Call C++ wrapper to register BLOB in batch */
+	if (fbbatch_register_blob(IBG(master_instance), ib_batch->fbbatch_wrapper,
+			&existing_blob, &batch_blob_id, IB_STATUS) < 0) {
+		_php_fbird_error();
+		RETURN_FALSE;
+	}
+
+	/* Convert batch BLOB ID to hex string for PHP */
+	RETURN_NEW_STR(_php_fbird_quad_to_string(batch_blob_id));
 }
 /* }}} */
 #endif /* FB_API_VER >= 40 */

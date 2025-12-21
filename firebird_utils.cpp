@@ -3065,11 +3065,9 @@ extern "C" void* fbbatch_create(
         }
 
         // Use default buffer size if not specified (16MB is a good default)
-        if (buffer_size == 0) {
-            buffer_size = 16 * 1024 * 1024;
-        }
+        const unsigned buffer_bytes_size = (buffer_size == 0) ? (16U * 1024U * 1024U) : buffer_size;
 
-        // Build batch parameter block using IXpbBuilder
+        // Build batch parameter block using IXpbBuilder::BATCH
         Firebird::IUtil* util = master->getUtilInterface();
         if (!util) {
             inMetadata->release();
@@ -3081,14 +3079,31 @@ extern "C" void* fbbatch_create(
             return nullptr;
         }
 
+        Firebird::IXpbBuilder* batchPpb = util->getXpbBuilder(&status, Firebird::IXpbBuilder::BATCH, nullptr, 0);
+        if (fb::statusHasError(raw_status) || !batchPpb) {
+            inMetadata->release();
+            if (status_vector) {
+                copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
+            return nullptr;
+        }
+
+        batchPpb->insertInt(&status, Firebird::IBatch::TAG_BUFFER_BYTES_SIZE, static_cast<int>(buffer_bytes_size));
+        batchPpb->insertTag(&status, Firebird::IBatch::TAG_MULTIERROR);
+        batchPpb->insertTag(&status, Firebird::IBatch::TAG_DETAILED_ERRORS);
+
+        const unsigned parLength = batchPpb->getBufferLength(&status);
+        const unsigned char* par = batchPpb->getBuffer(&status);
+
         // Get batch from statement with the input metadata
-        // IBatch::VERSION is defined in Interface.h
         Firebird::IBatch* batch = statement->createBatch(
             &status,
             inMetadata,
-            buffer_size,
-            nullptr  // No BPB for basic usage
+            parLength,
+            par
         );
+
+        batchPpb->dispose();
 
         if (fb::statusHasError(raw_status) || !batch) {
             inMetadata->release();
@@ -3542,6 +3557,594 @@ extern "C" unsigned fbbatch_get_blob_alignment(
         }
         return 0;
     }
+}
+
+/* =============================================================================
+ * IBatch BLOB Handling Functions
+ * ============================================================================= */
+
+extern "C" int fbbatch_add_blob(
+    void* master_ptr,
+    void* batch_wrapper,
+    unsigned length,
+    const void* data,
+    ISC_QUAD* blob_id_out,
+    unsigned bpb_length,
+    const unsigned char* bpb,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !batch_wrapper || !blob_id_out) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_req_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
+
+    if (!wrapper->batch) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_req_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    try {
+        Firebird::IStatus* raw_status = master->getStatus();
+        Firebird::CheckStatusWrapper status(raw_status);
+
+        // Add BLOB to batch using IBatch::addBlob()
+        // addBlob() modifies blob_id_out in-place
+        wrapper->batch->addBlob(
+            &status,
+            length,
+            data,
+            blob_id_out,
+            bpb_length,
+            bpb
+        );
+
+        if (fb::statusHasError(raw_status)) {
+            if (status_vector) {
+                copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
+            return 0;
+        }
+
+        if (status_vector) {
+            status_vector[0] = 1;
+            status_vector[1] = 0;
+        }
+
+        return 1;
+
+    } catch (const Firebird::FbException& e) {
+        if (status_vector) {
+            const ISC_STATUS* errors = e.getStatus()->getErrors();
+            if (errors) {
+                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
+                    status_vector[i] = errors[i];
+                    if (errors[i] == isc_arg_end) break;
+                }
+            }
+        }
+        return 0;
+    } catch (...) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_random;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+}
+
+extern "C" int fbbatch_append_blob_data(
+    void* master_ptr,
+    void* batch_wrapper,
+    unsigned length,
+    const void* data,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !batch_wrapper) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_req_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
+
+    if (!wrapper->batch) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_req_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    try {
+        Firebird::IStatus* raw_status = master->getStatus();
+        Firebird::CheckStatusWrapper status(raw_status);
+
+        // Append data to the current BLOB being constructed
+        wrapper->batch->appendBlobData(&status, length, data);
+
+        if (fb::statusHasError(raw_status)) {
+            if (status_vector) {
+                copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
+            return 0;
+        }
+
+        if (status_vector) {
+            status_vector[0] = 1;
+            status_vector[1] = 0;
+        }
+
+        return 1;
+
+    } catch (const Firebird::FbException& e) {
+        if (status_vector) {
+            const ISC_STATUS* errors = e.getStatus()->getErrors();
+            if (errors) {
+                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
+                    status_vector[i] = errors[i];
+                    if (errors[i] == isc_arg_end) break;
+                }
+            }
+        }
+        return 0;
+    } catch (...) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_random;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+}
+
+extern "C" int fbbatch_add_blob_stream(
+    void* master_ptr,
+    void* batch_wrapper,
+    unsigned length,
+    const void* data,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !batch_wrapper) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_req_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
+
+    if (!wrapper->batch) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_req_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    try {
+        Firebird::IStatus* raw_status = master->getStatus();
+        Firebird::CheckStatusWrapper status(raw_status);
+
+        // Stream BLOB data using addBlobStream
+        wrapper->batch->addBlobStream(&status, length, data);
+
+        if (fb::statusHasError(raw_status)) {
+            if (status_vector) {
+                copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
+            return 0;
+        }
+
+        if (status_vector) {
+            status_vector[0] = 1;
+            status_vector[1] = 0;
+        }
+
+        return 1;
+
+    } catch (const Firebird::FbException& e) {
+        if (status_vector) {
+            const ISC_STATUS* errors = e.getStatus()->getErrors();
+            if (errors) {
+                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
+                    status_vector[i] = errors[i];
+                    if (errors[i] == isc_arg_end) break;
+                }
+            }
+        }
+        return 0;
+    } catch (...) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_random;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+}
+
+extern "C" int fbbatch_register_blob(
+    void* master_ptr,
+    void* batch_wrapper,
+    const ISC_QUAD* existing_blob,
+    ISC_QUAD* batch_blob_id,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !batch_wrapper || !existing_blob || !batch_blob_id) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_req_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
+
+    if (!wrapper->batch) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_req_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    try {
+        Firebird::IStatus* raw_status = master->getStatus();
+        Firebird::CheckStatusWrapper status(raw_status);
+
+        // Register an existing BLOB for use in the batch
+        // registerBlob() modifies batch_blob_id in-place
+        wrapper->batch->registerBlob(&status, existing_blob, batch_blob_id);
+
+        if (fb::statusHasError(raw_status)) {
+            if (status_vector) {
+                copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
+            return 0;
+        }
+
+        if (status_vector) {
+            status_vector[0] = 1;
+            status_vector[1] = 0;
+        }
+
+        return 1;
+
+    } catch (const Firebird::FbException& e) {
+        if (status_vector) {
+            const ISC_STATUS* errors = e.getStatus()->getErrors();
+            if (errors) {
+                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
+                    status_vector[i] = errors[i];
+                    if (errors[i] == isc_arg_end) break;
+                }
+            }
+        }
+        return 0;
+    } catch (...) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_random;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+}
+
+extern "C" int fbbatch_set_default_bpb(
+    void* master_ptr,
+    void* batch_wrapper,
+    unsigned bpb_length,
+    const unsigned char* bpb,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !batch_wrapper) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_req_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
+
+    if (!wrapper->batch) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_req_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    try {
+        Firebird::IStatus* raw_status = master->getStatus();
+        Firebird::CheckStatusWrapper status(raw_status);
+
+        // Set default BPB for BLOB operations
+        wrapper->batch->setDefaultBpb(&status, bpb_length, bpb);
+
+        if (fb::statusHasError(raw_status)) {
+            if (status_vector) {
+                copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
+            return 0;
+        }
+
+        if (status_vector) {
+            status_vector[0] = 1;
+            status_vector[1] = 0;
+        }
+
+        return 1;
+
+    } catch (const Firebird::FbException& e) {
+        if (status_vector) {
+            const ISC_STATUS* errors = e.getStatus()->getErrors();
+            if (errors) {
+                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
+                    status_vector[i] = errors[i];
+                    if (errors[i] == isc_arg_end) break;
+                }
+            }
+        }
+        return 0;
+    } catch (...) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_random;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+}
+
+/* =============================================================================
+ * IBatch Detailed Error Reporting Functions
+ * ============================================================================= */
+
+extern "C" int fbbatch_execute_detailed(
+    void* master_ptr,
+    void* batch_wrapper,
+    void* transaction_ptr,
+    fbbatch_completion_result* result,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !batch_wrapper || !transaction_ptr || !result) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_req_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    // Initialize result
+    result->total_count = 0;
+    result->success_count = 0;
+    result->error_count = 0;
+    result->errors = nullptr;
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
+    auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
+
+    if (!wrapper->batch) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_req_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    try {
+        Firebird::IStatus* raw_status = master->getStatus();
+        Firebird::CheckStatusWrapper status(raw_status);
+
+        // Execute the batch
+        Firebird::IBatchCompletionState* completion = wrapper->batch->execute(&status, transaction);
+
+        if (fb::statusHasError(raw_status)) {
+            if (status_vector) {
+                copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
+            }
+            if (completion) {
+                completion->dispose();
+            }
+            return 0;
+        }
+
+        if (!completion) {
+            if (status_vector) {
+                status_vector[0] = 1;
+                status_vector[1] = 0;
+            }
+            return 1;
+        }
+
+        // Get total count
+        unsigned total = completion->getSize(&status);
+        result->total_count = total;
+
+        // First pass: count errors
+        unsigned error_count = 0;
+        for (unsigned i = 0; i < total; ++i) {
+            int state = completion->getState(&status, i);
+            if (state == Firebird::IBatchCompletionState::EXECUTE_FAILED) {
+                error_count++;
+            }
+        }
+
+        result->error_count = error_count;
+        result->success_count = total - error_count;
+
+        // Second pass: collect error details if any
+        if (error_count > 0) {
+            result->errors = static_cast<fbbatch_error_entry*>(
+                calloc(error_count, sizeof(fbbatch_error_entry))
+            );
+
+            if (result->errors) {
+                unsigned error_idx = 0;
+                unsigned search_pos = 0;
+
+                while (error_idx < error_count) {
+                    // Find next error position
+                    unsigned error_pos = completion->findError(&status, search_pos);
+                    if (error_pos == static_cast<unsigned>(Firebird::IBatchCompletionState::NO_MORE_ERRORS)) {
+                        break;  // No more errors
+                    }
+
+                    fbbatch_error_entry* entry = &result->errors[error_idx];
+                    entry->position = error_pos;
+                    entry->state = FBBATCH_EXECUTE_FAILED;
+
+                    // Get error status for this position
+                    Firebird::IStatus* error_status = master->getStatus();
+                    completion->getStatus(&status, error_status, error_pos);
+
+                    // Extract SQLSTATE from the status (stored in errors array)
+                    // The errors array may contain isc_arg_sql_state followed by the state string
+                    const ISC_STATUS* errors_vec = error_status->getErrors();
+                    bool found_sqlstate = false;
+                    if (errors_vec) {
+                        for (int i = 0; errors_vec[i] != isc_arg_end && i < ISC_STATUS_LENGTH - 1; ++i) {
+                            if (errors_vec[i] == isc_arg_sql_state && errors_vec[i + 1] != 0) {
+                                const char* sqlstate_str = reinterpret_cast<const char*>(errors_vec[i + 1]);
+                                if (sqlstate_str && strlen(sqlstate_str) >= 5) {
+                                    strncpy(entry->sqlstate, sqlstate_str, 5);
+                                    entry->sqlstate[5] = '\0';
+                                    found_sqlstate = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (!found_sqlstate) {
+                        strcpy(entry->sqlstate, "HY000");  // Default SQLSTATE
+                    }
+
+                    // Build error message from status vector
+                    const ISC_STATUS* errors = error_status->getErrors();
+                    if (errors && errors[0] != 0) {
+                        // Use Firebird's IUtil to interpret the status
+                        Firebird::IUtil* util = master->getUtilInterface();
+                        if (util) {
+                            char msg_buffer[1024] = {0};
+                            unsigned msg_len = util->formatStatus(msg_buffer, sizeof(msg_buffer) - 1, error_status);
+                            if (msg_len > 0) {
+                                entry->message = strdup(msg_buffer);
+                            }
+                        }
+
+                        // Fallback if formatStatus didn't work
+                        if (!entry->message) {
+                            char fallback[256];
+                            snprintf(fallback, sizeof(fallback), "Batch execution failed at row %u", error_pos);
+                            entry->message = strdup(fallback);
+                        }
+                    } else {
+                        char fallback[256];
+                        snprintf(fallback, sizeof(fallback), "Batch execution failed at row %u", error_pos);
+                        entry->message = strdup(fallback);
+                    }
+
+                    error_status->dispose();
+                    error_idx++;
+                    search_pos = error_pos + 1;  // Continue searching from next position
+                }
+
+                // Update error_count in case we got fewer than expected
+                result->error_count = error_idx;
+                result->success_count = total - error_idx;
+            }
+        }
+
+        completion->dispose();
+
+        if (status_vector) {
+            status_vector[0] = 1;
+            status_vector[1] = 0;
+        }
+
+        return 1;
+
+    } catch (const Firebird::FbException& e) {
+        if (status_vector) {
+            const ISC_STATUS* errors = e.getStatus()->getErrors();
+            if (errors) {
+                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
+                    status_vector[i] = errors[i];
+                    if (errors[i] == isc_arg_end) break;
+                }
+            }
+        }
+        return 0;
+    } catch (...) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_random;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+}
+
+extern "C" void fbbatch_free_errors(fbbatch_error_entry* errors, unsigned count) {
+    if (!errors) {
+        return;
+    }
+
+    for (unsigned i = 0; i < count; ++i) {
+        if (errors[i].message) {
+            free(errors[i].message);
+            errors[i].message = nullptr;
+        }
+    }
+
+    free(errors);
+}
+
+extern "C" void fbbatch_free_result(fbbatch_completion_result* result) {
+    if (!result) {
+        return;
+    }
+
+    if (result->errors) {
+        fbbatch_free_errors(result->errors, result->error_count);
+        result->errors = nullptr;
+    }
+
+    result->total_count = 0;
+    result->success_count = 0;
+    result->error_count = 0;
 }
 
 #endif // FB_API_VER >= 40 (IBatch API)

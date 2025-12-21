@@ -1,8 +1,26 @@
-# IBatch API Research
+# IBatch API Implementation
 
 ## Overview
 
-The IBatch interface in Firebird 4.0+ provides high-performance bulk operations for inserting large volumes of data. This document researches the feasibility of implementing IBatch support in php-firebird.
+The IBatch interface in Firebird 4.0+ provides high-performance bulk operations for inserting large volumes of data. This document tracks the implementation status and usage of IBatch support in php-firebird.
+
+## Implementation Status
+
+**Status:** ✅ **COMPLETE (Basic Functionality)**
+
+**Completed:**
+- ✅ Batch resource infrastructure (create, execute, cancel)
+- ✅ Parameter binding to message buffers
+- ✅ Full type conversion (integers, floats, strings, dates, nullable types)
+- ✅ Transaction integration
+- ✅ Error reporting (total_processed, error_count)
+- ✅ Test coverage (tests/fbird_batch_001.phpt)
+
+**Pending:**
+- ⏳ Advanced BLOB handling (addBlob, appendBlobData, addBlobStream)
+- ⏳ Detailed error reporting (per-row status)
+- ⏳ PHP OO wrapper (Firebird\Batch class)
+- ⏳ Comprehensive multi-type tests
 
 ## Firebird IBatch Interface
 
@@ -294,6 +312,118 @@ class Batch {
 - Firebird 4.0+ (ODS 13+) for IBatch support
 - Runtime feature detection recommended
 - Graceful fallback to traditional INSERT for older versions
+
+## Implemented API
+
+### Core Functions
+
+**fbird_batch_create(resource $query [, resource $trans_identifier]): resource|false**
+- Creates a batch from a prepared statement
+- Parameters:
+  - `$query`: Prepared statement resource from fbird_prepare()
+  - `$trans_identifier`: Optional transaction (defaults to query's transaction)
+- Returns: Batch resource or false on error
+
+**fbird_batch_add(resource $batch, mixed ...$args): bool**
+- Adds a row of parameters to the batch
+- Parameters:
+  - `$batch`: Batch resource from fbird_batch_create()
+  - `...$args`: Variadic parameters matching prepared statement placeholders
+- Returns: true on success, false on error
+- Supported types: integers, floats, strings, dates, NULL values
+
+**fbird_batch_execute(resource $batch): array|false**
+- Executes the batch and returns results
+- Returns: Array with keys:
+  - `total_processed`: Number of messages processed
+  - `error_count`: Number of failed messages
+- Note: Batch is automatically closed after execution
+
+**fbird_batch_cancel(resource $batch): bool**
+- Cancels batch without executing
+- Frees resources without inserting data
+
+### Supported SQL Types
+
+| SQL Type | PHP Input | Binary Format | NULL Support |
+|----------|-----------|---------------|--------------|
+| SMALLINT | integer | 16-bit signed | ✅ |
+| INTEGER | integer | 32-bit signed | ✅ |
+| BIGINT | integer | 64-bit signed | ✅ |
+| NUMERIC/DECIMAL | float | Scaled integer | ✅ |
+| FLOAT | float | 32-bit IEEE | ✅ |
+| DOUBLE PRECISION | float | 64-bit IEEE | ✅ |
+| CHAR(n) | string | Fixed-length, space-padded | ✅ |
+| VARCHAR(n) | string | 2-byte length + data | ✅ |
+| DATE | string/int | ISC_DATE | ✅ |
+| TIME | string/int | ISC_TIME | ✅ |
+| TIMESTAMP | string/int | ISC_TIMESTAMP | ✅ |
+| TIME WITH TIME ZONE | string/int | ISC_TIME_TZ (FB 4.0+) | ✅ |
+| TIMESTAMP WITH TIME ZONE | string/int | ISC_TIMESTAMP_TZ (FB 4.0+) | ✅ |
+| BOOLEAN | bool | FB_BOOLEAN (FB 3.0+) | ✅ |
+| BLOB | string (blob ID) | ISC_QUAD | ✅ |
+
+### Usage Example
+
+```php
+<?php
+// Connect and prepare
+$db = fbird_connect('localhost:/path/to/db.fdb', 'SYSDBA', 'masterkey');
+$trans = fbird_trans($db);
+
+// Prepare INSERT statement
+$stmt = fbird_prepare($trans, 'INSERT INTO customers (id, name, email, created_at) VALUES (?, ?, ?, ?)');
+
+// Create batch
+$batch = fbird_batch_create($stmt, $trans);
+
+// Add multiple rows
+for ($i = 1; $i <= 10000; $i++) {
+    fbird_batch_add($batch, 
+        $i,                                    // id (INTEGER)
+        "Customer $i",                         // name (VARCHAR)
+        "customer{$i}@example.com",           // email (VARCHAR)
+        date('Y-m-d H:i:s')                   // created_at (TIMESTAMP)
+    );
+}
+
+// Execute batch
+$result = fbird_batch_execute($batch);
+echo "Processed: {$result['total_processed']} rows\n";
+echo "Errors: {$result['error_count']}\n";
+
+// Commit transaction
+fbird_commit($trans);
+fbird_close($db);
+```
+
+### NULL Handling
+
+```php
+// NULL values are supported for all types
+$batch = fbird_batch_create($stmt, $trans);
+
+fbird_batch_add($batch, 1, 'John', 'john@example.com', null); // NULL timestamp
+fbird_batch_add($batch, 2, null, 'jane@example.com', time()); // NULL name
+fbird_batch_add($batch, null, 'Bob', null, null);             // NULL id, email, timestamp
+
+$result = fbird_batch_execute($batch);
+```
+
+### Date/Time Formats
+
+```php
+// Accepts unix timestamps (integers)
+fbird_batch_add($batch, 1, 'Name', time());
+
+// Or formatted strings
+fbird_batch_add($batch, 2, 'Name', '2025-12-21 00:00:00');
+fbird_batch_add($batch, 3, 'Name', '2025-12-21');  // DATE only
+fbird_batch_add($batch, 4, 'Name', '15:30:45');    // TIME only
+
+// Timezone-aware (Firebird 4.0+)
+fbird_batch_add($batch, 5, 'Name', '2025-12-21 15:30:45 Europe/Berlin');
+```
 
 ## Alternative: Multi-Row INSERT
 

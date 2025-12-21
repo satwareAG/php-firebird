@@ -1,311 +1,483 @@
 # Implementation Plan
 
-## Current Status (2025-12-15 15:52)
+[Overview]
+Implement comprehensive IBatch API enhancements including advanced BLOB handling, detailed per-row error reporting, and PHP OO wrapper classes.
 
-**Scope:** Firebird server support for versions **2.5, 3.0, 4.0, and 5.0**. Client library minimum version is 3.0+ with OO API support.
+This implementation extends the existing IBatch functionality in php-firebird to provide full-featured bulk operations support matching Firebird 4.0+ capabilities. The current implementation supports basic batch operations with pre-created BLOB IDs. This plan adds inline BLOB creation (addBlob, appendBlobData, addBlobStream), detailed per-row error status tracking, and a modern PHP OO wrapper layer (Firebird\Batch, BatchResult, BatchError classes).
 
-**Goal:** `scripts/host/test_matrix.sh php84-dev` must pass on all Firebird server versions (2.5-5.0) without errors.
+The implementation follows Baby Steps™ methodology with TDD approach - each feature will have tests written first, then minimal implementation to pass tests, followed by refactoring. All changes maintain backward compatibility with existing procedural API.
 
-### ✅ PHASE 5 COMPLETE: Multi-Server Validation
+[Types]
+Define new C structures for batch BLOB handling and completion state tracking, plus PHP classes for OO interface.
 
-| Firebird Server | Tests Passed | Tests XFAIL | Tests Skipped | Pass Rate |
-|-----------------|--------------|-------------|---------------|-----------|
-| **5.0** | 94/96 | 2 | 6 | **100%** |
-| **4.0** | 94/96 | 2 | 6 | **100%** |
-| **3.0** | 87/89 | 2 | 13 | **100%** |
-| **2.5** | 86/88 | 2 | 14 | **100%** |
+### C Structures (firebird_utils.h)
 
-**Status: ✅ ALL SERVERS PASS - EXTENSION READY FOR RELEASE**
+```cpp
+// Batch BLOB tracking structure
+typedef struct {
+    ISC_QUAD blob_id;       // Generated BLOB ID
+    unsigned alignment;      // BLOB alignment from batch
+    unsigned position;       // Position in batch message
+} fbbatch_blob_entry;
 
-**XFAIL Tests:** none.
+// Extended completion state for detailed error reporting
+typedef struct {
+    unsigned position;       // Row position (0-based)
+    int state;              // EXECUTE_FAILED or SUCCESS
+    char* sqlstate;         // SQLSTATE code (5 chars + null)
+    char* message;          // Error message (allocated)
+} fbbatch_error_entry;
 
-**Note:** `tests/blob_stream_chunked_write.phpt` is a regression test that historically triggered SIGSEGV/heap corruption; it is expected to PASS.
+typedef struct {
+    unsigned total_count;
+    unsigned success_count;
+    unsigned error_count;
+    fbbatch_error_entry* errors;  // Array of error_count entries
+} fbbatch_completion_result;
+```
 
-These tests are expected to fail and are counted as "expected failures" by the PHPT test runner (not blocking the test suite).
-
-**Skipped Tests by Category:**
-- **4 version-gated** (FB 4.0+): INT128, old client tests
-- **7 additional on FB 3.0** (FB 4.0+ features): timezone types, INT128, long names (>31 chars), FB 4.0 fields
-- **8 additional on FB 2.5** (FB 3.0+ and 4.0+ features): BOOLEAN field info, all FB 4.0+ features
-
----
-
-## Recent Commits (2025-12-13 to 2025-12-15)
-
-**50+ commits implementing major OO API migration:**
-
-### Array Type Support
-- ✅ `bc68b66` - Add FLOAT/DOUBLE/TIMESTAMP/DATE/TIME type support for arrays
-- ✅ `9a4208e` - Add charset awareness to VARCHAR array handling
-- ✅ `1815519` - Enable conditional debug builds for array slice operations
-- ✅ `6347f5b` - Correct element size calculation for SQL_VARYING types in arrays
-- ✅ `e2562b1` - Implement native VARCHAR array support
-- ✅ `8c37e28` - Add `FBIRD_ARRAY_DEBUG` macro for conditional debug logging
-- ✅ `507b9e7` - Enhance SDL generation logic and correct SDL constants
-- ✅ `26475e8` - Correct SDL constants and improve debugging for array slice ops
-- ✅ `d7a7635` - Add detailed debug logging to `fba_lookup_bounds`
-- ✅ `b071639` - Simplify array binding logic and update field dimension query
-- ✅ `710fffc` - Add `fba_lookup_bounds` for array descriptor retrieval
-
-### BLOB Operations
-- ✅ `510c7f1` - Refactor and enhance OO API blob fetching logic
-- ✅ `40ab08a` - Additional OO API blob fetching improvements
-- ✅ `bdf360e` - Add OO API support for binding strings as blobs
-
-### Query Execution & Binding
-- ✅ `b1014a1` - Add support for scaled numeric/decimal parameters
-- ✅ `48add01` - Enhance input binding with relation/field name population for arrays
-- ✅ `f74286d` - Enhance SELECT and DML handling for OO API compliance
-- ✅ `cfd51dc` - Enhance parameter binding and error handling
-- ✅ `0ecc8bc` - Allocate and populate `in_sqlda` for OO API input binding
-- ✅ `2bffb95` - Add XSQLDA to message buffer transfer for parameterized queries
-
-### OO API-Only Enforcement
-- ✅ `2a6ab92` - Remove legacy `isc_*` functions, enforce OO API-only paths
-- ✅ `8a3a554` - Convert fbird_execute_auto() to OO API only
-- ✅ `d593b03` - Remove legacy API calls for query execution
-- ✅ `a433c23` - Remove legacy `isc_*` API calls, enforce exclusive OO API usage
-- ✅ `a463458` - Unify connection handling by enforcing `fbc_disconnect` usage
-- ✅ `bacb3b0` - Prevent misuse of legacy `isc_*` API with OO API connections
-
-### Transaction Handling
-- ✅ `c2d4e1c` - Implement OO API transaction handling for SET TRANSACTION, COMMIT, ROLLBACK
-- ✅ `4b4bc1c` - Add `fbt_get_info` for transaction info retrieval
-- ✅ `b863b99` - Prevent legacy transaction info API calls for OO transactions
-
-### Statement/Result Handling
-- ✅ `48add01` - Add support for OO API result snapshots in EXECUTE PROCEDURE and DML RETURNING
-- ✅ `c5b4bb1` - Allocate `out_nullind` for result cloning
-- ✅ `fd6e07a` - Disable legacy stmt.stmt references in metadata functions
-- ✅ `a4f5920` - Add `fbs_set_cursor_name` for positioned updates
-- ✅ `6e2af7f` - Simplify cursor and statement cleanup
-- ✅ `817027c` - Add `fbs_execute_singleton_int64` for single value retrieval
-
-### Infrastructure & Testing
-- ✅ `33afeab` - Add `--remove-orphans` flag to Docker compose up command
-- ✅ `ae82afb` - Resolve test file arguments to support relative paths
-- ✅ `6150096` - Enhance test_matrix.sh to summarize passed and failed containers
-- ✅ `5945b57` - Update phases table, reference link, and test status
-
----
-
-## Legacy Remnant Audit (2025-12-15)
-
-### Files with `isc_` References
-
-**Assessment Categories:**
-- ✅ **OK** = Constants/types (not API calls)
-- ⚠️ **Utility** = Helper functions (stable, keep)
-- ❌ **Legacy API** = Must migrate to OO API
-
-| File | `isc_` Usage | Assessment |
-|------|--------------|------------|
-| `fbird_result.c` | `isc_decode_sql_time/date`, `isc_vax_integer`, `isc_info_*` | ⚠️ Utility + ✅ OK |
-| `fbird_query_bind.c` | `isc_encode_timestamp/sql_date/sql_time` | ⚠️ Utility |
-| `fbird_metadata.c` | `isc_info_sql_stmt_*` constants | ✅ OK |
-| `fbird_udf.c` | `isc_decode_sql_date/time` | ⚠️ Utility |
-| `fbird_service.c` | `IBASE_SVC_ERROR` macro | ⚠️ Internal |
-
-### Internal Constants/Macros (Renamed 2025-12-17)
-
-| Old Constant | New Constant | Files | Status |
-|--------------|--------------|-------|--------|
-| `PHP_IBASE_*` enum | `PHP_FBIRD_*` | php_fbird_includes.h | ✅ Renamed |
-| `IBASE_MSGSIZE` | `FBIRD_MSGSIZE` | php_fbird_includes.h | ✅ Renamed |
-| `IBASE_BLOB_SEG` | `FBIRD_BLOB_SEG` | php_fbird_includes.h | ✅ Renamed |
-| `PHP_IBASE_LINK_TRANS` | `PHP_FBIRD_LINK_TRANS` | php_fbird_includes.h | ✅ Renamed |
-| `IBASE_DEBUG` | `FBIRD_DEBUG` | php_fbird_includes.h | ✅ Renamed |
-| `IBDEBUG()` | `FBDEBUG()` | php_fbird_includes.h, all .c | ✅ Renamed |
-| `COMPILE_DL_INTERBASE` | `COMPILE_DL_FIREBIRD` | php_fbird_includes.h | ✅ Renamed |
-| `IBASE_SVC_ERROR` | `FBIRD_SVC_ERROR` | fbird_service.c | ✅ Renamed |
-| `IBASE_BLOBINFO` | `FBIRD_BLOBINFO` | fbird_blobs.c | ✅ Renamed |
-| phpinfo `IBASE_*` strings | `FBIRD_*` | firebird.c | ✅ Renamed |
-
-### `ibase_` Function Prefixes
-
-**Result:** ✅ None found. All functions have been renamed to `fbird_*`.
-
-### Recommendation
-
-**No critical legacy API calls remain.** The remaining `isc_*` references are:
-1. **Date/time utilities** (`isc_decode_*`, `isc_encode_*`) - Stable, used by OO API too
-2. **Byte-order utility** (`isc_vax_integer`) - Required for info buffer parsing
-3. **Constants** (`isc_info_*`, `isc_tpb_*`) - Just symbolic values, not API calls
-
-**Internal constants** (`PHP_IBASE_*`, `IBASE_*`) are implementation details that don't affect the public API. Renaming them to `PHP_FBIRD_*` / `FBIRD_*` is optional cosmetic work.
-
----
-
-## Test Categories - Current Status
-
-| Category | Status | Notes |
-|----------|--------|-------|
-| Basic Connectivity | ✅ 100% | All connection tests pass |
-| Blob Operations | ✅ 100% | All runnable tests pass |
-| Service Manager | ✅ 100% | All service tests pass |
-| Query Execution | ✅ 100% | OO API primary path working |
-| Transaction SQL | ✅ 100% | SET TRANSACTION, COMMIT, ROLLBACK via OO API |
-| Savepoints | ✅ 100% | Working via OO API |
-| Arrays | ✅ 100% | FLOAT/DOUBLE/TIMESTAMP/DATE/TIME/VARCHAR support |
-| Field/Parameter Metadata | ✅ 100% | OO API metadata functions working |
-| RETURNING Clause | ✅ 100% | Working via OO API result snapshots |
-| Events | ✅ 100% | Working via OO API |
-| UTF8/Charset | ✅ 100% | CHAR trailing space trim is expected FB OO API behavior |
-
----
-
-## Architecture Overview
-
-### API Mode Design
-
-The extension uses a tagged handle system to ensure legacy and OO handles cannot be mixed:
+### PHP Structures (php_fbird_includes.h)
 
 ```c
-typedef enum fbird_api_mode {
-    FBIRD_API_MODE_LEGACY = 0,  // Legacy isc_* handles (fallback only)
-    FBIRD_API_MODE_OO = 1       // OO API wrappers (primary)
-} fbird_api_mode;
+// Extended fbird_batch structure
+typedef struct {
+    void *fbbatch_wrapper;    // OO API batch wrapper
+    fbird_transaction *trans; // Associated transaction
+    fbird_query *query;       // Parent prepared statement
+    void *in_metadata;        // IMessageMetadata for input
+    void *in_msg_buffer;      // Message buffer for row data
+    unsigned in_msg_length;   // Message buffer size
+    unsigned blob_count;      // Number of BLOBs added
+    unsigned row_count;       // Number of rows added
+} fbird_batch;
 ```
 
-### C++ RAII Wrappers (src/cpp/)
+### PHP Classes (src/Firebird/)
 
-| Wrapper | Interface | Purpose |
-|---------|-----------|---------|
-| `fb_connection.hpp` | IAttachment | Connection management |
-| `fb_transaction.hpp` | ITransaction | Transaction management |
-| `fb_statement.hpp` | IStatement | Statement prepare/execute |
-| `fb_blob.hpp` | IBlob | BLOB read/write |
-| `fb_events.hpp` | IEvents | Event handling |
-| `fb_service.hpp` | IService | Service manager |
-| `fb_array.hpp` | IAttachment | Array operations |
-| `fb_dpb_builder.hpp` | IXpbBuilder | DPB construction |
-| `fb_tpb_builder.hpp` | IXpbBuilder | TPB construction |
+```php
+// Firebird\Batch - Main batch class
+class Batch {
+    private mixed $resource;
+    private ?Transaction $transaction;
+    private int $rowCount = 0;
+    private array $blobIds = [];
+}
 
-### Key C Interop Functions
+// Firebird\BatchResult - Execution result
+class BatchResult {
+    public readonly int $totalRows;
+    public readonly int $successCount;
+    public readonly int $errorCount;
+    private array $errors;
+}
+
+// Firebird\BatchError - Per-row error details
+class BatchError {
+    public readonly int $position;
+    public readonly string $sqlstate;
+    public readonly string $message;
+    public readonly int $errorCode;
+}
+```
+
+[Files]
+Create new PHP classes, extend existing C files, add comprehensive tests.
+
+### New Files to Create
+
+| File | Purpose |
+|------|---------|
+| `src/Firebird/Batch.php` | OO wrapper for batch operations |
+| `src/Firebird/BatchResult.php` | Batch execution result value object |
+| `src/Firebird/BatchError.php` | Per-row error details value object |
+| `tests/fbird_batch_blob_001.phpt` | Test inline BLOB handling |
+| `tests/fbird_batch_blob_stream_001.phpt` | Test streaming BLOB handling |
+| `tests/fbird_batch_errors_001.phpt` | Test detailed error reporting |
+| `tests/fbird_batch_oo_001.phpt` | Test PHP OO wrapper |
+| `tests/fbird_batch_multitype_001.phpt` | Comprehensive multi-type test |
+| `tests/001-BATCH_TEST.sql` | Test table with various column types |
+
+### Existing Files to Modify
+
+| File | Changes |
+|------|---------|
+| `firebird_utils.h` | Add fbbatch_add_blob(), fbbatch_append_blob_data(), fbbatch_add_blob_stream(), fbbatch_register_blob(), fbbatch_set_default_bpb(), fbbatch_execute_detailed() declarations |
+| `firebird_utils.cpp` | Implement new batch BLOB and error reporting functions |
+| `php_fbird_includes.h` | Extend fbird_batch structure if needed |
+| `firebird.c` | Add PHP functions: fbird_batch_add_blob(), fbird_batch_append_blob_data(), fbird_batch_execute() extended return, fbird_batch_get_errors() |
+| `php_firebird.h` | Add function declarations and arginfo |
+| `phpstan/fbird-functions.stub.php` | Add stubs for new functions |
+| `docs/IBATCH_API_RESEARCH.md` | Update with implemented API documentation |
+| `docs/FEATURE_TRANSFER_STATUS.md` | Mark features as complete |
+
+[Functions]
+New C wrapper functions and PHP userland functions for batch BLOB handling and error reporting.
+
+### New C++ Wrapper Functions (firebird_utils.cpp)
+
+```cpp
+// Add inline BLOB data to batch
+// Returns: BLOB position for binding, or -1 on error
+int fbbatch_add_blob(
+    void* master_ptr,
+    void* batch_wrapper,
+    unsigned length,
+    const void* data,
+    ISC_QUAD* blob_id_out,
+    unsigned bpb_length,
+    const unsigned char* bpb,
+    ISC_STATUS* status_vector
+);
+
+// Append data to current BLOB (for chunked writes)
+int fbbatch_append_blob_data(
+    void* master_ptr,
+    void* batch_wrapper,
+    unsigned length,
+    const void* data,
+    ISC_STATUS* status_vector
+);
+
+// Stream-based BLOB addition
+int fbbatch_add_blob_stream(
+    void* master_ptr,
+    void* batch_wrapper,
+    unsigned length,
+    const void* data,
+    ISC_STATUS* status_vector
+);
+
+// Register existing BLOB for batch use
+int fbbatch_register_blob(
+    void* master_ptr,
+    void* batch_wrapper,
+    const ISC_QUAD* existing_blob,
+    ISC_QUAD* batch_blob_id,
+    ISC_STATUS* status_vector
+);
+
+// Set default BPB for BLOB operations
+int fbbatch_set_default_bpb(
+    void* master_ptr,
+    void* batch_wrapper,
+    unsigned bpb_length,
+    const unsigned char* bpb,
+    ISC_STATUS* status_vector
+);
+
+// Execute with detailed completion state
+int fbbatch_execute_detailed(
+    void* master_ptr,
+    void* batch_wrapper,
+    void* transaction_ptr,
+    unsigned* total_processed,
+    unsigned* success_count,
+    unsigned* error_count,
+    fbbatch_error_entry** errors,  // Allocated array, caller must free
+    ISC_STATUS* status_vector
+);
+
+// Free error entries array
+void fbbatch_free_errors(fbbatch_error_entry* errors, unsigned count);
+```
+
+### New PHP Functions (firebird.c)
 
 ```c
-// Connection
-void* fbc_connect(IMaster*, const char* db, const char* user, const char* pass, ...);
-void fbc_disconnect(void* connection);
-void* fbc_get_attachment(void* connection);
+/* Create inline BLOB in batch context
+ * Returns BLOB ID string for use in fbird_batch_add() */
+PHP_FUNCTION(fbird_batch_add_blob);
+// Signature: fbird_batch_add_blob(resource $batch, string $data [, int $type = 0]): string|false
 
-// Transaction
-void* fbt_start(IMaster*, IAttachment*, unsigned tpb_len, const unsigned char* tpb);
-int fbt_commit(void* transaction);
-int fbt_rollback(void* transaction);
-int fbt_get_info(void* master, void* transaction, const unsigned char* items, ...);
+/* Append data to current batch BLOB (for streaming large BLOBs) */
+PHP_FUNCTION(fbird_batch_append_blob_data);
+// Signature: fbird_batch_append_blob_data(resource $batch, string $data): bool
 
-// Statement
-void* fbs_prepare(IMaster*, IAttachment*, ITransaction*, const char* sql);
-int fbs_execute(void* statement, ITransaction*, void* in_msg, void* out_msg);
-void* fbs_open_cursor(void* statement, ITransaction*, void* in_msg);
-ISC_UINT64 fbs_get_affected_records(IMaster*, void* statement);
+/* Stream BLOB data to batch */
+PHP_FUNCTION(fbird_batch_add_blob_stream);
+// Signature: fbird_batch_add_blob_stream(resource $batch, string $data): bool
 
-// Blob
-void* fbb_create(IMaster*, IAttachment*, ITransaction*, ISC_QUAD*);
-void* fbb_open(IMaster*, IAttachment*, ITransaction*, ISC_QUAD*);
-int fbb_put_segment(void* blob, const void* data, unsigned len);
-int fbb_get_segment(void* blob, void* buf, unsigned buf_len, unsigned* actual_len);
-int fbb_close(void* blob);
+/* Register existing BLOB for batch use */
+PHP_FUNCTION(fbird_batch_register_blob);
+// Signature: fbird_batch_register_blob(resource $batch, string $blob_id): string|false
 
-// Array
-int fba_lookup_bounds(IMaster*, IAttachment*, ITransaction*, const char* rel, const char* field, ISC_ARRAY_DESC*);
-int fba_get_slice(IMaster*, IAttachment*, ITransaction*, ISC_QUAD*, ISC_ARRAY_DESC*, void*, ISC_LONG*);
-int fba_put_slice(IMaster*, IAttachment*, ITransaction*, ISC_QUAD*, ISC_ARRAY_DESC*, void*, ISC_LONG*);
+/* Get detailed error information after execute */
+PHP_FUNCTION(fbird_batch_get_errors);
+// Signature: fbird_batch_get_errors(resource $batch): array
+
+/* Get BLOB alignment requirement for batch */
+PHP_FUNCTION(fbird_batch_get_blob_alignment);
+// Signature: fbird_batch_get_blob_alignment(resource $batch): int|false
 ```
 
----
+### Modified PHP Functions
 
-## Remaining Tasks
-
-### Phase 1: Fix Failing Tests ✅ COMPLETE
-
-All runnable tests now pass (96/96). Fixed issues:
-
-1. ✅ **datatype_char_utf8.phpt** - Fixed test expectation
-   - Firebird OO API trims trailing spaces from CHAR fields (SQL standard behavior)
-   - Updated expectation: CHAR(10) UTF8 returns 9 bytes not 12
-
-2. ✅ **execute_safety_001.phpt** - Already passing
-
-3. ✅ **long_names_001.phpt** - Already passing
-
-4. ✅ **blob_stream_chunked_write.phpt** - Regression test (PASS)
-   - Historically reproduced BLOB stream chunking crashes; now expected to PASS.
-
-5. ✅ **migration_001.phpt** - PASS
-   - Validates `fbird_drop_table_force` logic without crashing.
-
-### Phase 2: Multi-Server Validation ✅ COMPLETE
-
-Test against all supported Firebird server versions:
-- [x] Firebird 2.5 (88/88 tests - 100%)
-- [x] Firebird 3.0 (89/89 tests - 100%)
-- [x] Firebird 4.0 (96/96 tests - 100%)
-- [x] Firebird 5.0 (96/96 tests - 100%)
-
-**Version-Specific Behavior:**
-- FB 4.0+ features (INT128, timezone types, long names >31 chars) work correctly when available
-- Older servers gracefully skip unsupported feature tests via version gating
-- Core functionality (connections, transactions, BLOBs, arrays, events) works identically across all versions
-
-### Phase 3: Optional Cleanup ✅ COMPLETE
-
-1. ✅ Renamed `PHP_IBASE_*` constants to `PHP_FBIRD_*` (commit `00d72f4`)
-2. ✅ Renamed `IBASE_MSGSIZE` → `FBIRD_MSGSIZE`, `IBASE_BLOB_SEG` → `FBIRD_BLOB_SEG`
-3. ✅ Renamed `PHP_IBASE_LINK_TRANS` macro → `PHP_FBIRD_LINK_TRANS`
-4. Documentation reflects OO API-only architecture (implementation_plan.md updated)
-
----
-
-## Build & Test Commands
-
-```bash
-# Full test matrix (all PHP versions)
-scripts/host/test_matrix.sh
-
-# Single PHP version test
-scripts/host/test_matrix.sh php84-dev
-
-# Build extension
-scripts/container/build.sh
-
-# Run tests
-scripts/container/test.sh
+```c
+// fbird_batch_execute() - Extended return value
+// Current: ['total_processed' => int, 'error_count' => int]
+// New:     ['total_processed' => int, 'success_count' => int, 'error_count' => int, 'errors' => array]
+// Where 'errors' contains per-row error details:
+//   [['position' => int, 'sqlstate' => string, 'message' => string], ...]
 ```
 
----
+[Classes]
+PHP OO wrapper classes providing fluent interface for batch operations.
 
-## Firebird OO API Reference
+### Firebird\Batch (src/Firebird/Batch.php)
 
-**Documentation:** See `docs/development/FIREBIRD_OO_API_REFERENCE.md`
+```php
+namespace Firebird;
 
-**Key Interfaces:**
-- `IAttachment` - Database connection
-- `ITransaction` - Transaction management
-- `IStatement` - SQL statement preparation/execution
-- `IResultSet` - Query result iteration
-- `IBlob` - BLOB operations
-- `IEvents` - Event monitoring
-- `IService` - Service manager
-- `IUtil` - Utility functions (date/time encoding)
-- `IXpbBuilder` - Parameter block construction
+class Batch {
+    private mixed $resource;
+    private ?Transaction $transaction;
+    private int $rowCount = 0;
+    
+    // Factory methods
+    public static function create(mixed $query, ?Transaction $trans = null): self;
+    public static function fromResource(mixed $resource): self;
+    
+    // Core operations
+    public function add(mixed ...$params): self;
+    public function execute(): BatchResult;
+    public function cancel(): void;
+    
+    // BLOB operations
+    public function addBlob(string $data, int $type = 0): BlobId;
+    public function appendBlobData(string $data): self;
+    public function addBlobStream(string $data): self;
+    public function registerBlob(BlobId $blob): BlobId;
+    public function setDefaultBpb(string $bpb): self;
+    public function getBlobAlignment(): int;
+    
+    // Information
+    public function getRowCount(): int;
+    public function getResource(): mixed;
+}
+```
 
-**Date/Time Utilities (from IUtil):**
-- Basic: `isc_decode_sql_date/time`, `isc_encode_sql_date/time` (still used)
-- Time Zones (FB4+): `decodeTimeTz`, `encodeTimeTz`, `decodeTimeStampTz`, `encodeTimeStampTz`
+### Firebird\BatchResult (src/Firebird/BatchResult.php)
 
----
+```php
+namespace Firebird;
 
-## Success Criteria
+class BatchResult implements \Countable, \IteratorAggregate {
+    public readonly int $totalRows;
+    public readonly int $successCount;
+    public readonly int $errorCount;
+    private array $errors = [];
+    
+    // Factory
+    public static function fromArray(array $data): self;
+    
+    // Status checks
+    public function hasErrors(): bool;
+    public function isComplete(): bool;
+    public function getSuccessRate(): float;
+    
+    // Error access
+    public function getErrors(): array;
+    public function getErrorAt(int $position): ?BatchError;
+    public function getFirstError(): ?BatchError;
+    
+    // Countable/IteratorAggregate
+    public function count(): int;
+    public function getIterator(): \Traversable;
+    
+    // Summary
+    public function getSummary(): string;
+}
+```
 
-- [x] All runnable tests passing (96/96)
-- [x] 100% pass rate on `scripts/host/test_matrix.sh php84-dev`
-- [x] Tests pass on Firebird servers 2.5, 3.0, 4.0, 5.0 (multi-server validation) ✅
-- [x] No regression in existing passing tests
-- [x] Clean build with no warnings (C++17)
+### Firebird\BatchError (src/Firebird/BatchError.php)
 
-**All primary success criteria met. Extension is ready for release.**
+```php
+namespace Firebird;
 
-### Deferred Crash Investigations
-None currently tracked in this plan.
+class BatchError {
+    public readonly int $position;
+    public readonly string $sqlstate;
+    public readonly string $message;
+    public readonly int $errorCode;
+    
+    // Factory
+    public static function fromArray(array $data): self;
+    
+    // Information
+    public function isConstraintViolation(): bool;
+    public function isSyntaxError(): bool;
+    public function getErrorClass(): string;
+    
+    // String representation
+    public function __toString(): string;
+}
+```
+
+[Dependencies]
+No new external dependencies required. Uses existing Firebird C API.
+
+### Build Requirements
+- Firebird 4.0+ client library (FB_API_VER >= 40)
+- PHP 8.1+ (for readonly properties, constructor promotion)
+- Existing project build configuration (unchanged)
+
+### Conditional Compilation
+All IBatch features are already wrapped in `#if FB_API_VER >= 40` blocks. New functions will follow the same pattern for Firebird 3.x compatibility (graceful degradation - functions return false/throw exceptions).
+
+### PHPStan Stubs
+Update `phpstan/fbird-functions.stub.php` with new function signatures for static analysis.
+
+[Testing]
+TDD approach with comprehensive test coverage for all new functionality.
+
+### Test Files to Create
+
+| Test File | Coverage |
+|-----------|----------|
+| `tests/fbird_batch_blob_001.phpt` | `fbird_batch_add_blob()` basic functionality |
+| `tests/fbird_batch_blob_stream_001.phpt` | Streaming BLOB operations |
+| `tests/fbird_batch_errors_001.phpt` | Detailed error reporting, multiple failure scenarios |
+| `tests/fbird_batch_oo_001.phpt` | PHP OO wrapper (Batch, BatchResult, BatchError) |
+| `tests/fbird_batch_multitype_001.phpt` | All SQL types in single batch |
+| `tests/001-BATCH_TEST.sql` | Test table DDL for batch testing |
+
+### Test Table Schema (001-BATCH_TEST.sql)
+
+```sql
+CREATE TABLE BATCH_TEST (
+    ID INTEGER NOT NULL PRIMARY KEY,
+    INT_COL INTEGER,
+    BIGINT_COL BIGINT,
+    SMALLINT_COL SMALLINT,
+    FLOAT_COL FLOAT,
+    DOUBLE_COL DOUBLE PRECISION,
+    NUMERIC_COL NUMERIC(18,4),
+    DECIMAL_COL DECIMAL(10,2),
+    CHAR_COL CHAR(20),
+    VARCHAR_COL VARCHAR(100),
+    DATE_COL DATE,
+    TIME_COL TIME,
+    TIMESTAMP_COL TIMESTAMP,
+    BLOB_COL BLOB SUB_TYPE TEXT,
+    BLOB_BIN_COL BLOB SUB_TYPE BINARY,
+    BOOLEAN_COL BOOLEAN
+);
+```
+
+### Existing Test Modifications
+
+| Test File | Changes |
+|-----------|---------|
+| `tests/fbird_batch_001.phpt` | Add assertions for new return format |
+
+### Coverage Requirements
+- Minimum 80% code coverage for new functions
+- All error paths tested
+- NULL handling tested
+- Edge cases (empty batches, max buffer) tested
+
+[Implementation Order]
+Sequential implementation following Baby Steps™ and TDD methodology.
+
+### Phase 1: C++ Layer - BLOB Functions (4-6 hours)
+
+1. **Add BLOB function declarations to firebird_utils.h**
+   - `fbbatch_add_blob()`
+   - `fbbatch_append_blob_data()`
+   - `fbbatch_add_blob_stream()`
+   - `fbbatch_register_blob()`
+   - `fbbatch_set_default_bpb()`
+   - `fbbatch_get_blob_alignment()` (declaration exists, verify implementation)
+
+2. **Implement BLOB functions in firebird_utils.cpp**
+   - Use IBatch::addBlob(), appendBlobData(), addBlobStream() from Firebird OO API
+   - Handle BPB (Blob Parameter Block) for BLOB type specification
+   - Proper error handling and status vector population
+
+### Phase 2: C++ Layer - Error Reporting (2-3 hours)
+
+3. **Add detailed error structures to firebird_utils.h**
+   - `fbbatch_error_entry` structure
+   - `fbbatch_completion_result` structure
+
+4. **Implement fbbatch_execute_detailed() in firebird_utils.cpp**
+   - Parse IBatchCompletionState for per-row status
+   - Use completion->getState(), completion->findError(), completion->getStatus()
+   - Allocate and populate error entries array
+   - Add fbbatch_free_errors() for cleanup
+
+### Phase 3: PHP Layer - BLOB Functions (3-4 hours)
+
+5. **Write test first: tests/fbird_batch_blob_001.phpt**
+   - Test inline BLOB creation
+   - Test BLOB binding in batch add
+
+6. **Add PHP function declarations to php_firebird.h**
+   - PHP_FUNCTION declarations
+   - ZEND_BEGIN_ARG_INFO_EX macros
+
+7. **Implement PHP functions in firebird.c**
+   - `fbird_batch_add_blob()` - Convert PHP string to BLOB, return BLOB ID
+   - `fbird_batch_append_blob_data()` - Append to current BLOB
+   - `fbird_batch_add_blob_stream()` - Stream BLOB data
+   - `fbird_batch_register_blob()` - Register existing BLOB
+   - `fbird_batch_get_blob_alignment()` - Return alignment value
+
+8. **Register functions in module entry**
+   - Add to zend_function_entry array
+
+### Phase 4: PHP Layer - Error Reporting (2-3 hours)
+
+9. **Write test first: tests/fbird_batch_errors_001.phpt**
+   - Test error scenarios (constraint violations, type errors)
+   - Verify per-row error details
+
+10. **Modify fbird_batch_execute() return format**
+    - Call fbbatch_execute_detailed() instead of fbbatch_execute()
+    - Build extended return array with errors
+
+11. **Implement fbird_batch_get_errors() function**
+    - Return errors array from last execution
+
+### Phase 5: PHP OO Wrapper (4-6 hours)
+
+12. **Create src/Firebird/BatchError.php**
+    - Implement value object with factory and helper methods
+
+13. **Create src/Firebird/BatchResult.php**
+    - Implement result container with Countable/IteratorAggregate
+
+14. **Create src/Firebird/Batch.php**
+    - Implement main batch class wrapping procedural functions
+    - Fluent interface for add/execute/cancel operations
+    - BLOB helper methods
+
+15. **Write test: tests/fbird_batch_oo_001.phpt**
+    - Test OO wrapper functionality
+
+### Phase 6: Comprehensive Testing (2-3 hours)
+
+16. **Create tests/001-BATCH_TEST.sql**
+    - Test table with all supported column types
+
+17. **Create tests/fbird_batch_multitype_001.phpt**
+    - Insert rows with all column types
+    - Test NULL handling
+    - Test error scenarios
+
+18. **Update documentation**
+    - docs/IBATCH_API_RESEARCH.md - Mark features complete, update API docs
+    - docs/FEATURE_TRANSFER_STATUS.md - Update status
+    - phpstan/fbird-functions.stub.php - Add new function stubs
+
+### Implementation Timeline
+- **Total estimated time**: 17-25 hours
+- **Critical path**: C++ BLOB functions → PHP BLOB functions → Tests
+- **Parallel work possible**: OO wrapper can start after Phase 3
+
+### Definition of Done (per phase)
+- [ ] All tests pass
+- [ ] PHPStan analysis passes
+- [ ] Code follows project style (clang-tidy, PHP-CS-Fixer)
+- [ ] Documentation updated
+- [ ] No memory leaks (Valgrind check)

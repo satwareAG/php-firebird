@@ -1263,6 +1263,203 @@ unsigned fbbatch_get_blob_alignment(
     ISC_STATUS* status_vector
 );
 
+/* =============================================================================
+ * IBatch BLOB Handling Functions
+ *
+ * These functions provide advanced BLOB handling within batch operations,
+ * allowing inline BLOB creation without pre-creating BLOBs separately.
+ * ============================================================================= */
+
+/**
+ * Add inline BLOB data to the batch.
+ *
+ * Creates a new BLOB within the batch context and returns a BLOB ID
+ * that can be used when adding rows via fbbatch_add().
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param batch_wrapper Batch wrapper pointer (from fbbatch_create())
+ * @param length Length of BLOB data in bytes
+ * @param data BLOB data buffer
+ * @param blob_id_out Output: BLOB ID for use in batch parameters
+ * @param bpb_length BPB (Blob Parameter Block) length (0 for default)
+ * @param bpb BPB data (NULL for default)
+ * @param status_vector Output status vector
+ * @return 1 on success, 0 on error
+ */
+int fbbatch_add_blob(
+    void* master_ptr,
+    void* batch_wrapper,
+    unsigned length,
+    const void* data,
+    ISC_QUAD* blob_id_out,
+    unsigned bpb_length,
+    const unsigned char* bpb,
+    ISC_STATUS* status_vector
+);
+
+/**
+ * Append data to the current BLOB being constructed.
+ *
+ * Used for streaming large BLOBs in chunks. Must be called after
+ * fbbatch_add_blob() or a previous fbbatch_append_blob_data() call.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param batch_wrapper Batch wrapper pointer
+ * @param length Length of data chunk
+ * @param data Data chunk buffer
+ * @param status_vector Output status vector
+ * @return 1 on success, 0 on error
+ */
+int fbbatch_append_blob_data(
+    void* master_ptr,
+    void* batch_wrapper,
+    unsigned length,
+    const void* data,
+    ISC_STATUS* status_vector
+);
+
+/**
+ * Add BLOB data using stream mode.
+ *
+ * Alternative to addBlob() that uses different internal handling.
+ * Data is streamed directly without intermediate buffering.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param batch_wrapper Batch wrapper pointer
+ * @param length Length of BLOB data
+ * @param data BLOB data buffer
+ * @param status_vector Output status vector
+ * @return 1 on success, 0 on error
+ */
+int fbbatch_add_blob_stream(
+    void* master_ptr,
+    void* batch_wrapper,
+    unsigned length,
+    const void* data,
+    ISC_STATUS* status_vector
+);
+
+/**
+ * Register an existing BLOB for use in batch operations.
+ *
+ * Takes a BLOB ID that was created outside the batch context and
+ * registers it for use within the batch.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param batch_wrapper Batch wrapper pointer
+ * @param existing_blob Existing BLOB ID to register
+ * @param batch_blob_id Output: BLOB ID for use in batch parameters
+ * @param status_vector Output status vector
+ * @return 1 on success, 0 on error
+ */
+int fbbatch_register_blob(
+    void* master_ptr,
+    void* batch_wrapper,
+    const ISC_QUAD* existing_blob,
+    ISC_QUAD* batch_blob_id,
+    ISC_STATUS* status_vector
+);
+
+/**
+ * Set default BPB (Blob Parameter Block) for batch BLOB operations.
+ *
+ * Sets the default parameters used for all subsequent BLOB operations
+ * in this batch that don't specify their own BPB.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param batch_wrapper Batch wrapper pointer
+ * @param bpb_length BPB length
+ * @param bpb BPB data
+ * @param status_vector Output status vector
+ * @return 1 on success, 0 on error
+ */
+int fbbatch_set_default_bpb(
+    void* master_ptr,
+    void* batch_wrapper,
+    unsigned bpb_length,
+    const unsigned char* bpb,
+    ISC_STATUS* status_vector
+);
+
+/* =============================================================================
+ * IBatch Detailed Error Reporting
+ *
+ * These structures and functions provide detailed per-row error information
+ * from batch execution, including SQLSTATE codes and error messages.
+ * ============================================================================= */
+
+/**
+ * Per-row error entry from batch execution.
+ *
+ * Contains detailed information about a specific row that failed
+ * during batch execution.
+ */
+typedef struct {
+    unsigned position;       /**< Row position (0-based index in batch) */
+    int state;              /**< Completion state (see IBatchCompletionState constants) */
+    char sqlstate[6];       /**< SQLSTATE code (5 chars + null terminator) */
+    char* message;          /**< Error message (allocated, caller must free) */
+} fbbatch_error_entry;
+
+/**
+ * Batch completion result with detailed error information.
+ *
+ * Contains summary counts and an array of detailed error entries
+ * for all failed rows.
+ */
+typedef struct {
+    unsigned total_count;           /**< Total rows processed */
+    unsigned success_count;         /**< Number of successful rows */
+    unsigned error_count;           /**< Number of failed rows */
+    fbbatch_error_entry* errors;    /**< Array of error_count entries (caller must free) */
+} fbbatch_completion_result;
+
+/** IBatchCompletionState constants */
+#define FBBATCH_EXECUTE_FAILED  (-1)  /**< Row execution failed */
+#define FBBATCH_SUCCESS_NO_INFO  0    /**< Success, no additional info */
+#define FBBATCH_NO_MORE_ERRORS  (-2)  /**< No more errors to report */
+
+/**
+ * Execute batch with detailed completion state.
+ *
+ * Similar to fbbatch_execute() but returns detailed per-row error
+ * information via the fbbatch_completion_result structure.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param batch_wrapper Batch wrapper pointer
+ * @param transaction_ptr ITransaction pointer
+ * @param result Output: Completion result with error details (caller must free via fbbatch_free_result())
+ * @param status_vector Output status vector
+ * @return 1 on success (even with partial errors), 0 on complete failure
+ */
+int fbbatch_execute_detailed(
+    void* master_ptr,
+    void* batch_wrapper,
+    void* transaction_ptr,
+    fbbatch_completion_result* result,
+    ISC_STATUS* status_vector
+);
+
+/**
+ * Free error entries array from fbbatch_execute_detailed().
+ *
+ * Frees all allocated memory in the error entries array, including
+ * individual error messages.
+ *
+ * @param errors Error entries array to free
+ * @param count Number of entries in the array
+ */
+void fbbatch_free_errors(fbbatch_error_entry* errors, unsigned count);
+
+/**
+ * Free completion result from fbbatch_execute_detailed().
+ *
+ * Convenience function that frees the errors array and resets the result.
+ *
+ * @param result Completion result to free
+ */
+void fbbatch_free_result(fbbatch_completion_result* result);
+
 #endif /* FB_API_VER >= 40 */
 
 

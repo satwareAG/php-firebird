@@ -124,6 +124,8 @@ PHP_FUNCTION(fbird_batch_create);
 PHP_FUNCTION(fbird_batch_add);
 PHP_FUNCTION(fbird_batch_execute);
 PHP_FUNCTION(fbird_batch_cancel);
+PHP_FUNCTION(fbird_batch_add_blob);
+PHP_FUNCTION(fbird_batch_register_blob);
 #endif /* FB_API_VER >= 40 */
 
 #else

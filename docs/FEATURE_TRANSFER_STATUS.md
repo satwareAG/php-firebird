@@ -21,7 +21,7 @@ This document tracks the progress of adopting valuable patterns from `mlazdans/f
 | Rich Connection Info | ✅ Complete | C | Medium |
 | SQLSTATE Exception Codes | ✅ Complete | C | Medium |
 | Fetch Date Objects (DateTimeImmutable) | ✅ Complete | C | Low |
-| IBatch API | 🔨 C++ Layer Done | C | Future |
+| IBatch API | ✅ Complete | C | High |
 
 ---
 
@@ -275,45 +275,66 @@ $row['TIMESTAMP_COL']->format('Y-m-d H:i:s');  // "2025-12-20 14:30:45"
 
 ## C++ Layer Complete (Phase 3)
 
-### 11. IBatch API 🔨
+### 11. IBatch API ✅
 
-**Priority**: Future
-**Status**: C++ Layer Complete (December 20, 2025)
-**Effort**: 40+ hours (complex) → **C++ layer completed in ~1 hour** (AI-assisted)
+**Priority**: High
+**Status**: ✅ Complete (December 20-21, 2025)
+**Test**: `tests/fbird_batch_001.phpt`
+**Effort**: 40+ hours estimate → **~2 hours actual** (AI-assisted)
 **Research Document**: [IBATCH_API_RESEARCH.md](IBATCH_API_RESEARCH.md)
 
 Bulk operations for significant performance improvements (10-12x speedup for INSERT).
 
-**Proposed API**:
+**Implemented API**:
 ```php
+// Prepare statement
 $stmt = fbird_prepare($db, "INSERT INTO table (col1, col2) VALUES (?, ?)");
+
+// Create batch
 $batch = fbird_batch_create($stmt);
 
+// Add rows
 foreach ($data as $row) {
     fbird_batch_add($batch, $row['col1'], $row['col2']);
 }
 
+// Execute and get results
 $result = fbird_batch_execute($batch);
-echo "Inserted: " . $result['success_count'];
+echo "Processed: {$result['total_processed']}\n";
+echo "Errors: {$result['error_count']}\n";
 ```
 
-**C++ Layer Implementation** (`firebird_utils.cpp`):
-- `fbbatch_create()` - Create batch from IStatement using `createBatch()`
-- `fbbatch_add()` - Add parameter values to batch buffer via `add()`
-- `fbbatch_execute()` - Execute batch, returns `{updated, affected, errors}` via `execute()`
-- `fbbatch_cancel()` - Cancel pending batch operations via `cancel()`
-- `fbbatch_close()` - Close and cleanup batch, release IBatch interface
-- `fbbatch_get_metadata()` - Get batch input metadata via `getMetadata()`
-- `fbbatch_get_blob_alignment()` - Get BLOB alignment requirements via `getBlobAlignment()`
-- Internal `BatchWrapper` class for IBatch lifecycle management
+**PHP Functions** (`firebird.c`):
+- `fbird_batch_create($query [, $trans])` - Create batch from prepared statement
+- `fbird_batch_add($batch, ...$params)` - Add row with parameter binding
+- `fbird_batch_execute($batch)` - Execute batch, returns ['total_processed', 'error_count']
+- `fbird_batch_cancel($batch)` - Cancel without executing
+
+**Parameter Binding** (`firebird.c::PHP_FUNCTION(fbird_batch_add)`):
+- Full type conversion for all SQL types (integers, floats, strings, dates, timestamps)
+- NULL value support via null indicators
+- Decimal scaling for NUMERIC/DECIMAL types
+- Date/time parsing (string or unix timestamp)
+- Timezone-aware types (TIMESTAMP_TZ, TIME_TZ for FB 4.0+)
+- CHAR padding and VARCHAR length prefixes
+
+**C++ Layer** (`firebird_utils.cpp`):
+- `fbbatch_create()` - Uses IXpbBuilder::BATCH for batch parameter block
+- `fbbatch_add()` - Wraps IBatch::add()
+- `fbbatch_execute()` - Wraps IBatch::execute(), parses IBatchCompletionState
+- `fbbatch_cancel()`, `fbbatch_close()` - Lifecycle management
+- `fbbatch_get_metadata()` - Access IMessageMetadata
+- Metadata accessors: `fbm_get_count()`, `fbm_get_type()`, `fbm_get_offset()`, `fbm_get_null_offset()`, `fbm_get_length()`, `fbm_get_scale()`
+- `BatchWrapper` class for RAII resource management
 
 **Requirements**:
-- Firebird 4.0+ (ODS 13+) - Version check via `FB_API_VER >= 40`
-- Complex message metadata handling - Uses `IMessageMetadata`
-- Special BLOB handling - Inline BLOBs via `registerBlob()` (future)
-- Partial success error tracking - Via `IBatchCompletionState`
+- Firebird 4.0+ (FB_API_VER >= 40) - runtime detection via function_exists()
+- Transaction integration - batch executes in specified transaction context
 
-**Remaining Work**: PHP layer functions in `firebird.c` to expose to userland.
+**Future Enhancements**:
+- Advanced BLOB handling (addBlob, appendBlobData, addBlobStream)
+- Detailed per-row error reporting
+- PHP OO wrapper (Firebird\Batch class)
 
 ---
 

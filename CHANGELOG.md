@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **IBatch API (Firebird 4.0+)**: High-performance bulk operations for 10-12x INSERT speedup
+  - `fbird_batch_create($query [, $trans])` - Create batch from prepared statement
+  - `fbird_batch_add($batch, ...$params)` - Add row with automatic type conversion
+  - `fbird_batch_execute($batch)` - Execute batch, returns ['total_processed', 'error_count']
+  - `fbird_batch_cancel($batch)` - Cancel without executing
+  - Full parameter binding for all SQL types (integers, floats, strings, dates, NULL values)
+  - Supports NUMERIC/DECIMAL scaling, date/time parsing, timezone-aware types
+  - Test: `tests/fbird_batch_001.phpt`
 - **`fbird_sqlstate()` function**: Returns 5-character SQLSTATE error code (SQL:2003 standard) for better error classification
   - Returns `"23000"` for integrity constraint violations
   - Returns `"42000"` for syntax errors or access rule violations

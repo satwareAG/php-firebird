@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Transaction list cleanup bug**: Fixed memory management for default transaction slot in `fbird_db_link->tr_list`. The first node (default transaction) should not be freed during cleanup, only cleared. This prevented potential use-after-free issues when using implicit transactions. (commit 477ecea)
+- **Migration test DDL commits**: Fixed `tests/migration_001.phpt` segmentation fault by adding explicit `fbird_commit()` after each `CREATE TABLE` statement. Firebird requires DDL commits before DML can reference newly created tables. (commit 2f0718f)
+
 ### Added
 
 - **IBatch API (Firebird 4.0+)**: High-performance bulk operations for 10-12x INSERT speedup

@@ -63,7 +63,7 @@ void fbird_datetime_init(fbird_datetime_components* out) {
     out->has_timezone = 0;
 }
 
-int fbird_validate_date(unsigned year, unsigned month, unsigned day) {
+static int fbird_validate_date(unsigned year, unsigned month, unsigned day) {
     /* Year range check */
     if (year < 1 || year > 9999) return 0;
 
@@ -77,7 +77,7 @@ int fbird_validate_date(unsigned year, unsigned month, unsigned day) {
     return 1;
 }
 
-int fbird_validate_time(unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions) {
+static int fbird_validate_time(unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions) {
     if (hours > 23) return 0;
     if (minutes > 59) return 0;
     if (seconds > 59) return 0;
@@ -85,7 +85,7 @@ int fbird_validate_time(unsigned hours, unsigned minutes, unsigned seconds, unsi
     return 1;
 }
 
-int fbird_extract_timezone(const char* str, fbird_datetime_components* out) {
+static int fbird_extract_timezone(const char* str, fbird_datetime_components* out) {
     if (!str || !out) return 0;
 
     /* Find the last space in the string */
@@ -130,131 +130,6 @@ int fbird_extract_timezone(const char* str, fbird_datetime_components* out) {
                 out->has_timezone = 1;
                 return 1;
             }
-        }
-    }
-
-    return 0;
-}
-
-int fbird_parse_date(const char* str, fbird_datetime_components* out) {
-    if (!str || !out) return 0;
-
-    fbird_datetime_init(out);
-
-    /* Skip leading whitespace */
-    while (*str && isspace((unsigned char)*str)) str++;
-
-    if (!*str) return 0;
-
-    int v1, v2, v3;
-    int n;
-
-    /* Try ISO 8601 / SQL format: YYYY-MM-DD */
-    n = sscanf(str, "%d-%d-%d", &v1, &v2, &v3);
-    if (n == 3 && v1 > 100) {
-        /* v1 is year (> 100), this is ISO format */
-        out->year = (unsigned)v1;
-        out->month = (unsigned)v2;
-        out->day = (unsigned)v3;
-
-        if (fbird_validate_date(out->year, out->month, out->day)) {
-            out->has_date = 1;
-            return 1;
-        }
-    }
-
-    /* Try European format: DD.MM.YYYY */
-    n = sscanf(str, "%d.%d.%d", &v1, &v2, &v3);
-    if (n == 3) {
-        out->day = (unsigned)v1;
-        out->month = (unsigned)v2;
-        out->year = (unsigned)v3;
-
-        /* Handle 2-digit years */
-        if (out->year < 100) {
-            out->year += (out->year > 50) ? 1900 : 2000;
-        }
-
-        if (fbird_validate_date(out->year, out->month, out->day)) {
-            out->has_date = 1;
-            return 1;
-        }
-    }
-
-    /* Try US format: MM/DD/YYYY */
-    n = sscanf(str, "%d/%d/%d", &v1, &v2, &v3);
-    if (n == 3) {
-        out->month = (unsigned)v1;
-        out->day = (unsigned)v2;
-        out->year = (unsigned)v3;
-
-        /* Handle 2-digit years */
-        if (out->year < 100) {
-            out->year += (out->year > 50) ? 1900 : 2000;
-        }
-
-        if (fbird_validate_date(out->year, out->month, out->day)) {
-            out->has_date = 1;
-            return 1;
-        }
-    }
-
-    return 0;
-}
-
-int fbird_parse_time(const char* str, fbird_datetime_components* out) {
-    if (!str || !out) return 0;
-
-    /* Don't reinitialize if called from fbird_parse_timestamp */
-    int init_needed = !out->has_date;
-    if (init_needed) {
-        fbird_datetime_init(out);
-    }
-
-    /* Skip leading whitespace */
-    while (*str && isspace((unsigned char)*str)) str++;
-
-    if (!*str) return 0;
-
-    /* First try to extract timezone from end of string */
-    fbird_extract_timezone(str, out);
-
-    int h, m, s;
-    int frac = 0;
-    int n;
-
-    /* Try HH:MM:SS.FFFF format */
-    n = sscanf(str, "%d:%d:%d.%d", &h, &m, &s, &frac);
-    if (n >= 3) {
-        out->hours = (unsigned)h;
-        out->minutes = (unsigned)m;
-        out->seconds = (unsigned)s;
-
-        /* Normalize fractions to tenths of milliseconds (0-9999 range) */
-        if (n == 4 && frac > 0) {
-            /* Count digits in fraction to normalize */
-            int temp = frac;
-            int digits = 0;
-            while (temp > 0) {
-                temp /= 10;
-                digits++;
-            }
-
-            /* Convert to 4-digit precision (tenths of milliseconds) */
-            while (digits < 4) {
-                frac *= 10;
-                digits++;
-            }
-            while (digits > 4) {
-                frac /= 10;
-                digits--;
-            }
-            out->fractions = (unsigned)frac;
-        }
-
-        if (fbird_validate_time(out->hours, out->minutes, out->seconds, out->fractions)) {
-            out->has_time = 1;
-            return 1;
         }
     }
 
@@ -387,6 +262,131 @@ int fbird_parse_timestamp(const char* str, fbird_datetime_components* out) {
             fbird_parse_time(time_start, out);
         }
         return 1;
+    }
+
+    return 0;
+}
+
+int fbird_parse_date(const char* str, fbird_datetime_components* out) {
+    if (!str || !out) return 0;
+
+    fbird_datetime_init(out);
+
+    /* Skip leading whitespace */
+    while (*str && isspace((unsigned char)*str)) str++;
+
+    if (!*str) return 0;
+
+    int v1, v2, v3;
+    int n;
+
+    /* Try ISO 8601 / SQL format: YYYY-MM-DD */
+    n = sscanf(str, "%d-%d-%d", &v1, &v2, &v3);
+    if (n == 3 && v1 > 100) {
+        /* v1 is year (> 100), this is ISO format */
+        out->year = (unsigned)v1;
+        out->month = (unsigned)v2;
+        out->day = (unsigned)v3;
+
+        if (fbird_validate_date(out->year, out->month, out->day)) {
+            out->has_date = 1;
+            return 1;
+        }
+    }
+
+    /* Try European format: DD.MM.YYYY */
+    n = sscanf(str, "%d.%d.%d", &v1, &v2, &v3);
+    if (n == 3) {
+        out->day = (unsigned)v1;
+        out->month = (unsigned)v2;
+        out->year = (unsigned)v3;
+
+        /* Handle 2-digit years */
+        if (out->year < 100) {
+            out->year += (out->year > 50) ? 1900 : 2000;
+        }
+
+        if (fbird_validate_date(out->year, out->month, out->day)) {
+            out->has_date = 1;
+            return 1;
+        }
+    }
+
+    /* Try US format: MM/DD/YYYY */
+    n = sscanf(str, "%d/%d/%d", &v1, &v2, &v3);
+    if (n == 3) {
+        out->month = (unsigned)v1;
+        out->day = (unsigned)v2;
+        out->year = (unsigned)v3;
+
+        /* Handle 2-digit years */
+        if (out->year < 100) {
+            out->year += (out->year > 50) ? 1900 : 2000;
+        }
+
+        if (fbird_validate_date(out->year, out->month, out->day)) {
+            out->has_date = 1;
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+int fbird_parse_time(const char* str, fbird_datetime_components* out) {
+    if (!str || !out) return 0;
+
+    /* Don't reinitialize if called from fbird_parse_timestamp */
+    int init_needed = !out->has_date;
+    if (init_needed) {
+        fbird_datetime_init(out);
+    }
+
+    /* Skip leading whitespace */
+    while (*str && isspace((unsigned char)*str)) str++;
+
+    if (!*str) return 0;
+
+    /* First try to extract timezone from end of string */
+    fbird_extract_timezone(str, out);
+
+    int h, m, s;
+    int frac = 0;
+    int n;
+
+    /* Try HH:MM:SS.FFFF format */
+    n = sscanf(str, "%d:%d:%d.%d", &h, &m, &s, &frac);
+    if (n >= 3) {
+        out->hours = (unsigned)h;
+        out->minutes = (unsigned)m;
+        out->seconds = (unsigned)s;
+
+        /* Normalize fractions to tenths of milliseconds (0-9999 range) */
+        if (n == 4 && frac > 0) {
+            /* Count digits in fraction to normalize */
+            int temp = frac;
+            int digits = 0;
+            while (temp > 0) {
+                temp /= 10;
+                digits++;
+            }
+
+            /* Convert to 4-digit precision (tenths of milliseconds) */
+            while (digits < 4) {
+                frac *= 10;
+                digits++;
+            }
+            while (digits > 4) {
+                frac /= 10;
+                digits--;
+            }
+            out->fractions = (unsigned)frac;
+        }
+
+        if (fbird_validate_time(out->hours, out->minutes, out->seconds, out->fractions)) {
+            out->has_time = 1;
+            return 1;
+        }
     }
 
     return 0;

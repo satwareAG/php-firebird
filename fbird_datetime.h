@@ -96,51 +96,6 @@ int fbird_parse_time(const char* str, fbird_datetime_components* out);
 int fbird_parse_timestamp(const char* str, fbird_datetime_components* out);
 
 /**
- * Extract timezone from the end of a date/time string.
- *
- * Looks for timezone patterns at the end of the string:
- * - Named: "Europe/Berlin", "America/New_York", "GMT", "UTC"
- * - Offset: "+02:00", "-05:00", "+0200", "-0500"
- *
- * @param str Input string to search
- * @param out Output: timezone field filled if found
- * @return 1 if timezone found and extracted, 0 otherwise
- */
-int fbird_extract_timezone(const char* str, fbird_datetime_components* out);
-
-/**
- * Validate date components.
- *
- * Checks:
- * - Year in reasonable range (1-9999)
- * - Month (1-12)
- * - Day valid for month (including leap year check)
- *
- * @param year Year
- * @param month Month (1-12)
- * @param day Day (1-31)
- * @return 1 if valid, 0 if invalid
- */
-int fbird_validate_date(unsigned year, unsigned month, unsigned day);
-
-/**
- * Validate time components.
- *
- * Checks:
- * - Hours (0-23)
- * - Minutes (0-59)
- * - Seconds (0-59)
- * - Fractions (0-9999)
- *
- * @param hours Hours
- * @param minutes Minutes
- * @param seconds Seconds
- * @param fractions Fractions
- * @return 1 if valid, 0 if invalid
- */
-int fbird_validate_time(unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions);
-
-/**
  * Initialize datetime components structure to safe defaults.
  *
  * @param out Structure to initialize

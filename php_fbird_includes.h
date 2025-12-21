@@ -292,8 +292,8 @@ enum php_fbird_option {
 ZEND_TSRMLS_CACHE_EXTERN()
 #endif
 
-#define BLOB_ID_LEN     18
-#define BLOB_ID_MASK    "0x%" LL_MASK "x"
+#define BLOB_ID_LEN     13
+#define BLOB_ID_MASK    "%x:%hx"
 
 #define BLOB_INPUT      1
 #define BLOB_OUTPUT     2

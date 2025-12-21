@@ -3089,6 +3089,7 @@ extern "C" void* fbbatch_create(
         }
 
         batchPpb->insertInt(&status, Firebird::IBatch::TAG_BUFFER_BYTES_SIZE, static_cast<int>(buffer_bytes_size));
+        batchPpb->insertInt(&status, Firebird::IBatch::TAG_BLOB_POLICY, Firebird::IBatch::BLOB_ID_ENGINE);
         batchPpb->insertTag(&status, Firebird::IBatch::TAG_MULTIERROR);
         batchPpb->insertTag(&status, Firebird::IBatch::TAG_DETAILED_ERRORS);
 

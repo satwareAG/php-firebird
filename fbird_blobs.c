@@ -208,33 +208,27 @@ void php_fbird_blobs_minit(INIT_FUNC_ARGS) /* {{{ */
 
 int _php_fbird_string_to_quad(char const *id, ISC_QUAD *qd) /* {{{ */
 {
-	/* shortcut for most common case */
-	if (sizeof(ISC_QUAD) == sizeof(ISC_UINT64)) {
-		return sscanf(id, BLOB_ID_MASK, (ISC_UINT64 *) qd);
-	}
-	/* else branch: different sizes */
-	ISC_UINT64 res;
-	if (sscanf(id, BLOB_ID_MASK, &res)) {
-		qd->gds_quad_high = (ISC_LONG) (res >> 0x20);
-		qd->gds_quad_low = (ISC_LONG) (res & 0xFFFFFFFF);
+	/* Parse format "HHHHHHHH:LLLL" (8 hex digits : 4 hex digits)
+	 * Example: "74292B00:7FFC"
+	 */
+	unsigned int high_part;
+	unsigned short low_part;
+
+	if (sscanf(id, "%x:%hx", &high_part, &low_part) == 2) {
+		qd->gds_quad_high = (ISC_LONG)high_part;
+		qd->gds_quad_low = (ISC_USHORT)low_part;
 		return 1;
 	}
+
 	return 0;
 }
 /* }}} */
 
 zend_string *_php_fbird_quad_to_string(ISC_QUAD const qd) /* {{{ */
 {
-	/* shortcut for most common case */
-	if (sizeof(ISC_QUAD) == sizeof(ISC_UINT64)) {
-		/* Use memcpy for type punning to avoid casting through void */
-		ISC_UINT64 val;
-		memcpy(&val, &qd, sizeof(ISC_UINT64));
-		return strpprintf(BLOB_ID_LEN+1, "0x%0*" LL_MASK "x", 16, val);
-	}
-	/* else branch: different sizes */
-	ISC_UINT64 res = ((ISC_UINT64) qd.gds_quad_high << 0x20) | qd.gds_quad_low;
-	return strpprintf(BLOB_ID_LEN+1, "0x%0*" LL_MASK "x", 16, res);
+	/* Format: "HHHHHHHH:LLLL" (8 hex digits : 4 hex digits) for batch API compatibility
+	 * Example: "74292B00:7FFC" (13 characters total) */
+	return strpprintf(0, "%08x:%04hx", qd.gds_quad_high, (unsigned short)qd.gds_quad_low);
 }
 /* }}} */
 

@@ -3326,16 +3326,20 @@ PHP_FUNCTION(fbird_batch_add)
 #endif
 
 			case SQL_BLOB: {
-				/* Blob ID as hex string "0x..." */
+				/* BLOB ID as hex string "HHHHHHHH:LLLL" (13 characters)
+				 * Format: 8 hex digits (high 32-bit), colon, 4 hex digits (low 16-bit)
+				 * Example: "74292B00:7FFC"
+				 */
 				convert_to_string(b_var);
+
 				if (Z_STRLEN_P(b_var) == BLOB_ID_LEN &&
 					_php_fbird_string_to_quad(Z_STRVAL_P(b_var), (ISC_QUAD *)data_ptr)) {
-					/* Valid blob ID string */
+					/* Valid BLOB ID parsed and written to message buffer */
 					break;
 				}
-				/* For batch operations, BLOB data must be pre-created using fbird_blob_create()
-				 * and passed as blob ID. Inline BLOB creation not supported in batch mode. */
-				_php_fbird_module_error("Parameter %u: BLOB must be passed as blob ID (use fbird_blob_create() first)", i + 1);
+
+				/* Invalid BLOB ID format */
+				_php_fbird_module_error("Parameter %u: BLOB must be passed as blob ID (use fbird_batch_add_blob() or fbird_blob_create())", i + 1);
 				RETURN_FALSE;
 			}
 
@@ -3460,7 +3464,7 @@ PHP_FUNCTION(fbird_batch_add_blob)
 
 	/* Call C++ wrapper to add BLOB to batch */
 	if (fbbatch_add_blob(IBG(master_instance), ib_batch->fbbatch_wrapper,
-			(unsigned)data_len, data, &blob_id, 0, NULL, IB_STATUS) < 0) {
+			(unsigned)data_len, data, &blob_id, 0, NULL, IB_STATUS) == 0) {
 		_php_fbird_error();
 		RETURN_FALSE;
 	}
@@ -3500,7 +3504,7 @@ PHP_FUNCTION(fbird_batch_register_blob)
 
 	/* Call C++ wrapper to register BLOB in batch */
 	if (fbbatch_register_blob(IBG(master_instance), ib_batch->fbbatch_wrapper,
-			&existing_blob, &batch_blob_id, IB_STATUS) < 0) {
+			&existing_blob, &batch_blob_id, IB_STATUS) == 0) {
 		_php_fbird_error();
 		RETURN_FALSE;
 	}

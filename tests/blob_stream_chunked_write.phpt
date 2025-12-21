@@ -95,7 +95,7 @@ foreach ($sizes as $size) {
         continue;
     }
 
-    echo "  - Blob closed, ID: " . substr($blobId, 0, 18) . "\n";
+    echo "  - Blob closed, ID: " . $blobId . "\n";
 
     // Insert into table
     $stmt = fbird_prepare($trans, "INSERT INTO test_stream_blob (id, data) VALUES (?, ?)");
@@ -142,7 +142,7 @@ Testing with 100 bytes:
   - Stream created
   - Blob created (type: Firebird blob)
   - Written 100 bytes in 1 chunks
-  - Blob closed, ID: 0x%s
+  - Blob closed, ID: %s
   - SUCCESS: Data inserted and committed
   - VERIFIED: Retrieved 100 bytes
 
@@ -150,7 +150,7 @@ Testing with 8192 bytes:
   - Stream created
   - Blob created (type: Firebird blob)
   - Written 8192 bytes in 1 chunks
-  - Blob closed, ID: 0x%s
+  - Blob closed, ID: %s
   - SUCCESS: Data inserted and committed
   - VERIFIED: Retrieved 8192 bytes
 
@@ -158,7 +158,7 @@ Testing with 32768 bytes:
   - Stream created
   - Blob created (type: Firebird blob)
   - Written 32768 bytes in 4 chunks
-  - Blob closed, ID: 0x%s
+  - Blob closed, ID: %s
   - SUCCESS: Data inserted and committed
   - VERIFIED: Retrieved 32768 bytes
 
@@ -166,7 +166,7 @@ Testing with 65536 bytes:
   - Stream created
   - Blob created (type: Firebird blob)
   - Written 65536 bytes in 8 chunks
-  - Blob closed, ID: 0x%s
+  - Blob closed, ID: %s
   - SUCCESS: Data inserted and committed
   - VERIFIED: Retrieved 65536 bytes
 

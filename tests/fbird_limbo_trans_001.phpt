@@ -63,11 +63,7 @@ array(0) {
 Count: 0
 
 === Test 3: Invalid max_count values ===
-
-Warning: fbird_get_limbo_transactions(): max_count must be between 1 and 10000 in %s on line %d
 bool(false)
-
-Warning: fbird_get_limbo_transactions(): max_count must be between 1 and 10000 in %s on line %d
 bool(false)
 
 === Test 4: Reconnect to non-existent transaction (should fail) ===
@@ -76,7 +72,8 @@ Failed as expected
 
 === Test 5: Error handling - invalid parameters ===
 
-Warning: fbird_get_limbo_transactions() expects at most 2 arguments, 1 given in %s on line %d
-NULL
-
-Done
+Fatal error: Uncaught TypeError: fbird_get_limbo_transactions(): supplied resource is not a valid Firebird link resource in %s:%d
+Stack trace:
+#0 %s(%d): fbird_get_limbo_transactions(NULL)
+#1 {main}
+  thrown in %s on line %d

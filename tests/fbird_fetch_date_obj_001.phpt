@@ -7,7 +7,7 @@ firebird
 --FILE--
 <?php
 
-require("common.inc");
+require("firebird.inc");
 
 $link = fbird_connect($test_base, $user, $password);
 if (!$link) {
@@ -99,7 +99,7 @@ fbird_close($link);
 
 echo "\nDone.\n";
 ?>
---EXPECT--
+--EXPECTF--
 === Test FBIRD_FETCH_DATE_OBJ constant exists ===
 bool(true)
 int(8)
@@ -129,5 +129,7 @@ Object->TIMESTAMP_COL instanceof DateTimeImmutable: bool(true)
 NULL date_col is null: bool(true)
 NULL time_col is null: bool(true)
 NULL timestamp_col is null: bool(true)
+
+Warning: fbird_commit():  in %s on line %d
 
 Done.

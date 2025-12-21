@@ -12,9 +12,9 @@ use Firebird\BlobId;
 
 $db = fbird_connect($test_base);
 
-// Test 1: Create from valid string
+// Test 1: Create from valid string (colon format - standard from extension)
 echo "Test 1: Create from valid string\n";
-$blobId = BlobId::fromString('0x0000000100000002');
+$blobId = BlobId::fromString('00000001:0002');
 var_dump($blobId->toString());
 var_dump($blobId->getHigh());
 var_dump($blobId->getLow());
@@ -38,12 +38,12 @@ var_dump($blobId->isNotNull());
 
 // Test 5: Equality
 echo "\nTest 5: Equality\n";
-$blobId2 = BlobId::fromString('0x0000000100000002');
-$blobId3 = BlobId::fromString('0x0000000100000003');
+$blobId2 = BlobId::fromString('00000001:0002');
+$blobId3 = BlobId::fromString('00000001:0003');
 var_dump($blobId->equals($blobId2));
 var_dump($blobId->equals($blobId3));
-var_dump($blobId->equals('0x0000000100000002'));
-var_dump($blobId->equals('0x0000000100000003'));
+var_dump($blobId->equals('00000001:0002'));
+var_dump($blobId->equals('00000001:0003'));
 
 // Test 6: fromParts
 echo "\nTest 6: fromParts\n";
@@ -69,17 +69,20 @@ var_dump($invalid === null);
 
 // Test 9: isValidFormat static method
 echo "\nTest 9: isValidFormat\n";
-var_dump(BlobId::isValidFormat('0x0000000100000002'));
-var_dump(BlobId::isValidFormat('0xABCDEF0123456789'));
+var_dump(BlobId::isValidFormat('00000001:0002'));
+var_dump(BlobId::isValidFormat('ABCDEF01:2345'));
+var_dump(BlobId::isValidFormat('0xABCDEF0123456789')); // Hex format also valid
 var_dump(BlobId::isValidFormat('invalid'));
 var_dump(BlobId::isValidFormat('0x12345'));
 
-// Test 10: Case insensitivity
-echo "\nTest 10: Case insensitivity\n";
-$upper = BlobId::fromString('0xABCDEF0123456789');
-$lower = BlobId::fromString('0xabcdef0123456789');
+// Test 10: Case insensitivity and format conversion
+echo "\nTest 10: Case insensitivity and format conversion\n";
+$upper = BlobId::fromString('ABCDEF01:2345');
+$lower = BlobId::fromString('abcdef01:2345');
+$hex = BlobId::fromString('0xabcdef0123456789'); // Hex format converted to colon
 var_dump($upper->equals($lower));
-var_dump($upper->toString()); // Should be lowercase
+var_dump($upper->toString()); // Should be lowercase colon format
+var_dump($hex->toString()); // Should be converted to colon format
 
 // Test 11: Use with actual BLOB
 echo "\nTest 11: Integration with fbird_blob functions\n";
@@ -116,18 +119,18 @@ echo "\nDone.\n";
 ?>
 --EXPECTF--
 Test 1: Create from valid string
-string(18) "0x0000000100000002"
+string(13) "00000001:0002"
 int(1)
 int(2)
 
 Test 2: __toString()
-string(18) "0x0000000100000002"
-string(18) "0x0000000100000002"
+string(13) "00000001:0002"
+string(13) "00000001:0002"
 
 Test 3: NULL BLOB
 bool(true)
 bool(false)
-string(18) "0x0000000000000000"
+string(13) "00000000:0000"
 
 Test 4: Non-NULL check
 bool(false)
@@ -140,7 +143,7 @@ bool(true)
 bool(false)
 
 Test 6: fromParts
-string(18) "0x0000000100000002"
+string(13) "00000001:0002"
 bool(true)
 
 Test 7: Invalid format
@@ -153,12 +156,14 @@ bool(true)
 Test 9: isValidFormat
 bool(true)
 bool(true)
+bool(true)
 bool(false)
 bool(false)
 
-Test 10: Case insensitivity
+Test 10: Case insensitivity and format conversion
 bool(true)
-string(18) "0xabcdef0123456789"
+string(13) "abcdef01:2345"
+string(13) "abcdef01:2345"
 
 Test 11: Integration with fbird_blob functions
 bool(true)

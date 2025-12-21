@@ -55,14 +55,18 @@ use Stringable;
 final class BlobId implements Stringable
 {
     /**
-     * Expected length of BLOB ID string: "0x" + 16 hex chars = 18
+     * Expected length of BLOB ID string formats:
+     * - Colon format: "HHHHHHHH:LLLL" = 13 chars (standard from php-firebird extension)
+     * - Hex format: "0xHHHHHHHHHHHHHHHH" = 18 chars (legacy format)
      */
-    public const ID_LENGTH = 18;
+    public const ID_LENGTH_COLON = 13;
+    public const ID_LENGTH_HEX = 18;
 
     /**
-     * Regex pattern for valid BLOB ID format
+     * Regex patterns for valid BLOB ID formats
      */
-    private const PATTERN = '/^0x[0-9a-fA-F]{16}$/';
+    private const PATTERN_COLON = '/^[0-9a-fA-F]{8}:[0-9a-fA-F]{4}$/';
+    private const PATTERN_HEX = '/^0x[0-9a-fA-F]{16}$/';
 
     /**
      * The raw BLOB ID string in hex format
@@ -94,9 +98,13 @@ final class BlobId implements Stringable
     }
 
     /**
-     * Create a BlobId from a hex string.
+     * Create a BlobId from a string.
      *
-     * @param string $id BLOB ID string in format "0x" + 16 hex digits
+     * Supports two formats:
+     * - Colon format: "HHHHHHHH:LLLL" (13 chars, standard from php-firebird extension)
+     * - Hex format: "0xHHHHHHHHHHHHHHHH" (18 chars, legacy)
+     *
+     * @param string $id BLOB ID string
      * @return self
      * @throws InvalidArgumentException If the string is not a valid BLOB ID
      */
@@ -106,29 +114,43 @@ final class BlobId implements Stringable
 
         if (!self::isValidFormat($id)) {
             throw new InvalidArgumentException(sprintf(
-                'Invalid BLOB ID format: "%s". Expected format: 0x followed by 16 hexadecimal digits.',
+                'Invalid BLOB ID format: "%s". Expected formats: "HHHHHHHH:LLLL" or "0xHHHHHHHHHHHHHHHH".',
                 strlen($id) > 30 ? substr($id, 0, 30) . '...' : $id
             ));
         }
 
-        // Parse high and low parts
-        $hex = substr($id, 2); // Remove "0x" prefix
-        $high = hexdec(substr($hex, 0, 8));
-        $low = hexdec(substr($hex, 8, 8));
+        // Parse based on format detected
+        if (str_contains($id, ':')) {
+            // Colon format: "HHHHHHHH:LLLL"
+            [$highHex, $lowHex] = explode(':', $id);
+            $high = hexdec($highHex);
+            $low = hexdec($lowHex);
+            $normalized = sprintf('%08X:%04X', $high, $low);
+        } else {
+            // Hex format: "0xHHHHHHHHHHHHHHHH"
+            // Colon format uses high 32 bits + middle 16 bits (not last 16)
+            $hex = substr($id, 2); // Remove "0x" prefix
+            $high = hexdec(substr($hex, 0, 8));
+            // For colon format, use middle 16 bits (positions 8-11, not 12-15)
+            $low = hexdec(substr($hex, 8, 4));
+            // Normalize to colon format (standard)
+            $normalized = sprintf('%08X:%04X', $high, $low);
+        }
 
-        return new self($id, (int)$high, (int)$low);
+        return new self($normalized, (int)$high, (int)$low);
     }
 
     /**
      * Create a BlobId from high and low 32-bit parts.
      *
      * @param int $high High 32 bits (gds_quad_high)
-     * @param int $low Low 32 bits (gds_quad_low)
+     * @param int $low Low 32 bits (gds_quad_low - actually 16 bits used)
      * @return self
      */
     public static function fromParts(int $high, int $low): self
     {
-        $id = sprintf('0x%08x%08x', $high & 0xFFFFFFFF, $low & 0xFFFFFFFF);
+        // Use colon format (standard)
+        $id = sprintf('%08X:%04X', $high & 0xFFFFFFFF, $low & 0xFFFF);
         return new self($id, $high, $low);
     }
 
@@ -139,7 +161,7 @@ final class BlobId implements Stringable
      */
     public static function null(): self
     {
-        return new self('0x0000000000000000', 0, 0);
+        return new self('00000000:0000', 0, 0);
     }
 
     /**
@@ -160,12 +182,24 @@ final class BlobId implements Stringable
     /**
      * Check if a string is a valid BLOB ID format.
      *
+     * Accepts both colon format ("HHHHHHHH:LLLL") and hex format ("0xHHHHHHHHHHHHHHHH").
+     *
      * @param string $id String to check
      * @return bool True if valid format
      */
     public static function isValidFormat(string $id): bool
     {
-        return strlen($id) === self::ID_LENGTH && preg_match(self::PATTERN, $id) === 1;
+        $len = strlen($id);
+
+        if ($len === self::ID_LENGTH_COLON) {
+            return preg_match(self::PATTERN_COLON, $id) === 1;
+        }
+
+        if ($len === self::ID_LENGTH_HEX) {
+            return preg_match(self::PATTERN_HEX, $id) === 1;
+        }
+
+        return false;
     }
 
     /**

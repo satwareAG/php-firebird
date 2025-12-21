@@ -203,19 +203,22 @@ static int _fbird_drop_table(fbird_db_link *link, fbird_transaction *trans, cons
 	efree(drop_sql);
 
 	/* Commit for DDL visibility
-	 * IMPORTANT: After commit, the transaction handle becomes invalid.
 	 * fbt_commit returns 0 on success, -1 on error. */
 	if (fbt_commit(trans->fbt_transaction, IB_STATUS) != 0) {
 		_php_fbird_error();
 		return FAILURE;
 	}
 
-	/* Clear transaction handle after commit.
-	 * The fbt_commit() function ALWAYS deletes the wrapper (even on error),
-	 * so we must clear our pointer to avoid dangling references.
-	 * The PHP resource will be cleaned up automatically at script end.
-	 * See firebird.c _php_fbird_trans_end() for the correct pattern.
-	 * Fixes: SEGFAULT in migration_001.phpt caused by double-free */
+	/* CRITICAL: Clean up the wrapper after commit.
+	 * fbt_commit() does NOT free the wrapper (verified in firebird_utils.cpp).
+	 * The PHP resource destructor (_php_fbird_free_trans) only calls fbt_rollback()
+	 * for uncommitted transactions (when fbt_transaction != NULL).
+	 * For committed transactions, the destructor skips rollback, leaving the wrapper
+	 * orphaned. We MUST call fbt_free() here to prevent memory leak.
+	 *
+	 * Setting trans->fbt_transaction = NULL tells the destructor the transaction
+	 * is already handled, preventing double-free attempts. */
+	fbt_free(trans->fbt_transaction);
 	trans->fbt_transaction = NULL;
 	trans->handle.ptr = 0;
 

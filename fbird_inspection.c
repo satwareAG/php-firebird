@@ -226,15 +226,27 @@ static int _fbird_drop_table(fbird_db_link *link, fbird_transaction *trans, cons
 	 * use-after-free during PHP shutdown. The destructor tries to traverse
 	 * db_link[i]->tr_list, but if cleanup order is unexpected, db_link[i]
 	 * could be stale. Setting db_link[i] = NULL tells the destructor to skip.
-	 * This mirrors what _php_fbird_commit_link() does when closing connections. */
+	 * This mirrors what _php_fbird_commit_link() does when closing connections.
+	 *
+	 * IMPORTANT: The first node in tr_list is reserved for the default transaction
+	 * (see _php_fbird_def_trans). We must NOT efree() that first node - just clear
+	 * its trans pointer. Only non-first nodes should be unlinked and freed. */
 	for (unsigned short i = 0; i < trans->link_cnt; ++i) {
 		if (trans->db_link[i] != NULL) {
 			fbird_tr_list **l;
 			for (l = &trans->db_link[i]->tr_list; *l != NULL; l = &(*l)->next) {
 				if ((*l)->trans == trans) {
-					fbird_tr_list *p = *l;
-					*l = p->next;
-					efree(p);
+					/* Is this the first node (default transaction slot)? */
+					if (*l == trans->db_link[i]->tr_list) {
+						/* Don't free the first node - it's the default trans slot.
+						 * Just clear the trans pointer so it can be reused. */
+						(*l)->trans = NULL;
+					} else {
+						/* Non-first node: unlink and free */
+						fbird_tr_list *p = *l;
+						*l = p->next;
+						efree(p);
+					}
 					break;
 				}
 			}

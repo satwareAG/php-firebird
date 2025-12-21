@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [7.0.0-rc.1] - 2025-12-21
+
 ### Fixed
 
 - **Transaction list cleanup bug**: Fixed memory management for default transaction slot in `fbird_db_link->tr_list`. The first node (default transaction) should not be freed during cleanup, only cleared. This prevented potential use-after-free issues when using implicit transactions. (commit 477ecea)
@@ -194,5 +196,7 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.1...HEAD
+[7.0.0-rc.1]: https://github.com/satwareAG/php-firebird/compare/v6.2.0...v7.0.0-rc.1
+[6.2.0]: https://github.com/satwareAG/php-firebird/releases/tag/v6.2.0
 [1.0.0]: https://github.com/satwareAG/php-firebird/releases/tag/v1.0.0

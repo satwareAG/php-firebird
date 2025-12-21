@@ -26,7 +26,7 @@ This document describes how to use the Docker-based development environment for 
    docker compose exec php83-dev sh -c "cd /ext && phpize --clean && phpize && ./configure && make clean && make -j\$(nproc)"
    ```
 
-## Using IntelliJ IDEA Run Configurations
+## Using CLion / IntelliJ IDEA Run Configurations
 
 Several run configurations are provided for convenience:
 
@@ -61,7 +61,7 @@ To customize the environment for your local setup, copy `docker-compose.override
 If you encounter build issues, try accessing the container directly:
 
 ```bash
-docker compose run --rm php81-dev bash
+docker compose run --rm php83-dev bash
 cd /ext
 ```
 
@@ -72,8 +72,8 @@ Then run the build steps manually to see detailed error messages.
 To verify database connectivity:
 
 ```bash
-docker compose run --rm php81-dev bash
-ping firebird25
+docker compose run --rm php83-dev bash
+ping firebird30
 ```
 
 ### Cleaning Up

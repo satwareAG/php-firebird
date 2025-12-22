@@ -70,6 +70,16 @@ if [ -f compile_commands.json ]; then
 else
     # Provide manual include paths if no compile_commands.json
     PHP_INCLUDE_DIR=$(php-config --include-dir 2>/dev/null || echo "/usr/include/php")
+
+    # Detect Firebird include path (supports both apt-installed and manual installations)
+    if [ -d "/opt/firebird/include" ]; then
+        FB_INCLUDE_DIR="/opt/firebird/include"
+    elif [ -d "/usr/include/firebird" ]; then
+        FB_INCLUDE_DIR="/usr/include/firebird"
+    else
+        FB_INCLUDE_DIR="/usr/include/firebird"
+    fi
+
     CLANG_TIDY_ARGS+=(
         "--"
         "-I."
@@ -77,11 +87,12 @@ else
         "-I${PHP_INCLUDE_DIR}/Zend"
         "-I${PHP_INCLUDE_DIR}/main"
         "-I${PHP_INCLUDE_DIR}/TSRM"
-        "-I/usr/include/firebird"
+        "-I${FB_INCLUDE_DIR}"
         "-std=c++17"
         "-DHAVE_CONFIG_H"
     )
     echo "Using manual include paths (compile_commands.json recommended)"
+    echo "Firebird include: ${FB_INCLUDE_DIR}"
 fi
 
 echo ""

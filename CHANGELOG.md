@@ -9,7 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Firebird 3.0 runtime connection failure**: Fixed `CheckStatusWrapper::isDirty()` behavior difference between FB3 and FB4+. In FB3, `isDirty()` returns `true` even on successful operations (it means "status was touched"), causing false error detection. Changed all error checks in `fb_connection.hpp` to use `hasData()` which correctly checks for actual errors (STATE_ERRORS flag). The extension now successfully connects to FB 2.5 and FB 3.0 servers using the FB 3.0 client library.
+
 - **Firebird 3.0 compilation compatibility** (Issue #19): Added `fb_blr_compat.h` header with fallback BLR constant definitions for systems without `firebird/impl/blr.h`. The extension can now compile against Firebird 3.0 client libraries without requiring FB 4.0+ headers.
+
+### Added
+
+- **Local Docker development matrix** for Firebird 3.0 client testing:
+  - New `php84-fb3-dev` container with Firebird 3.0.12 client library
+  - Code quality scripts (`cppcheck.sh`, `clang_tidy.sh`, `generate_compdb.sh`) auto-detect Firebird installation location
+  - Documentation updated in `docs/development/docker.md`
 
 ### Changed
 

@@ -5,7 +5,7 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [7.0.0-rc.2] - 2025-12-22
 
 ### Fixed
 
@@ -213,7 +213,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.1...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.2...HEAD
+[7.0.0-rc.2]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.1...v7.0.0-rc.2
 [7.0.0-rc.1]: https://github.com/satwareAG/php-firebird/compare/v6.2.0...v7.0.0-rc.1
 [6.2.0]: https://github.com/satwareAG/php-firebird/releases/tag/v6.2.0
 [1.0.0]: https://github.com/satwareAG/php-firebird/releases/tag/v1.0.0

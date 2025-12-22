@@ -697,29 +697,29 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 							break;
 					}
 
-					if (!parsed) {
-						/* Cross-platform parsing failed, let Firebird try as string */
-						break;
-					}
+				if (!parsed) {
+					/* Cross-platform parsing failed, let Firebird try as string */
+					break;
+				}
 
-					/* Encode using OO API with parsed components */
-					switch (var->sqltype & ~1) {
-						default: /* == case SQL_TIMESTAMP */
-							buf[i].val.tsval = fbu_encode_timestamp(IBG(master_instance),
-								dt.year, dt.month, dt.day,
-								dt.hours, dt.minutes, dt.seconds,
-								dt.fractions);
-							break;
-						case SQL_TYPE_DATE:
-							buf[i].val.dtval = fbu_encode_date(IBG(master_instance),
-								dt.year, dt.month, dt.day);
-							break;
-						case SQL_TYPE_TIME:
-							buf[i].val.tmval = fbu_encode_time(IBG(master_instance),
-								dt.hours, dt.minutes, dt.seconds,
-								dt.fractions);
-							break;
-					}
+				/* Encode using OO API with parsed components */
+				switch (var->sqltype & ~1) {
+					default: /* == case SQL_TIMESTAMP */
+						buf[i].val.tsval = fbu_encode_timestamp(IBG(master_instance),
+							dt.year, dt.month, dt.day,
+							dt.hours, dt.minutes, dt.seconds,
+							dt.fractions);
+						break;
+					case SQL_TYPE_DATE:
+						buf[i].val.dtval = fbu_encode_date(IBG(master_instance),
+							dt.year, dt.month, dt.day);
+						break;
+					case SQL_TYPE_TIME:
+						buf[i].val.tmval = fbu_encode_time(IBG(master_instance),
+							dt.hours, dt.minutes, dt.seconds,
+							dt.fractions);
+						break;
+				}
 				}
 				continue;
 

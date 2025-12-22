@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **TIME type encoding corruption** (Issue #21): Fixed `fbird_parse_time()` using uninitialized struct fields when parsing standalone TIME values. The function checked `out->has_date` to skip initialization, but on stack-allocated structs this contained garbage values. When garbage was non-zero, initialization was skipped, leaving `fractions` with random data that corrupted TIME encoding (e.g., "10:10:10" became "22:56:29"). Now always initializes time fields regardless of struct state.
+
 - **Firebird 3.0 runtime connection failure**: Fixed `CheckStatusWrapper::isDirty()` behavior difference between FB3 and FB4+. In FB3, `isDirty()` returns `true` even on successful operations (it means "status was touched"), causing false error detection. Changed all error checks in `fb_connection.hpp` to use `hasData()` which correctly checks for actual errors (STATE_ERRORS flag). The extension now successfully connects to FB 2.5 and FB 3.0 servers using the FB 3.0 client library.
 
 - **Firebird 3.0 compilation compatibility** (Issue #19): Added `fb_blr_compat.h` header with fallback BLR constant definitions for systems without `firebird/impl/blr.h`. The extension can now compile against Firebird 3.0 client libraries without requiring FB 4.0+ headers.

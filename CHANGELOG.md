@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Firebird 3.0 compilation compatibility** (Issue #19): Added `fb_blr_compat.h` header with fallback BLR constant definitions for systems without `firebird/impl/blr.h`. The extension can now compile against Firebird 3.0 client libraries without requiring FB 4.0+ headers.
+
+### Changed
+
+- GitHub Actions CI now tests with matching Firebird client version for each server version (FB 3.0 client for FB 2.5/3.0 servers, FB 4.0+ client for FB 4.0/5.0 servers).
+
 ## [7.0.0-rc.1] - 2025-12-21
 
 ### Fixed

@@ -86,19 +86,44 @@ jobs:
       # Install Firebird 3.0+ client libraries for compilation
       # ========================================================================
       # The extension requires Firebird 3.0+ client libraries (OO API) for
-      # compilation. We install FB 3.0 client first, then the target server
-      # version for testing. The FB 3.0+ client can connect to all server
-      # versions (2.5-5.0) via backward-compatible wire protocol.
+      # compilation. As of v7.0.0+, we support compilation against both
+      # Firebird 3.0 and 4.0+ client headers via fb_blr_compat.h.
+      # See: https://github.com/satwareAG/php-firebird/issues/19
       - name: Install Firebird 3.0+ client for compilation
+        env:
+          MATRIX_FIREBIRD_VERSION: ${{ matrix.firebird-version }}
         run: |
           set -eu
 
-          # Use Firebird 4.0 as client for compilation - it has the complete
-          # firebird/impl/blr.h header structure required by the extension.
-          # FB 4.0 client can still connect to all server versions (2.5-5.0).
-          FB_CLIENT_VERSION="4.0.6"
-          FB_CLIENT_TARBALL="Firebird-${FB_CLIENT_VERSION}.3221-0.amd64.tar.gz"
-          FB_CLIENT_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_CLIENT_VERSION}/${FB_CLIENT_TARBALL}"
+          # Select client version based on matrix - use same version for
+          # compilation and runtime for consistency.
+          # For FB 2.5 server testing, use FB 3.0 client (minimum supported).
+          case "${MATRIX_FIREBIRD_VERSION}" in
+            '2.5')
+              FB_CLIENT_VERSION="3.0.12"
+              FB_CLIENT_TARBALL="Firebird-${FB_CLIENT_VERSION}.33787-0.amd64.tar.gz"
+              FB_CLIENT_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_CLIENT_VERSION}/${FB_CLIENT_TARBALL}"
+              ;;
+            '3.0')
+              FB_CLIENT_VERSION="3.0.12"
+              FB_CLIENT_TARBALL="Firebird-${FB_CLIENT_VERSION}.33787-0.amd64.tar.gz"
+              FB_CLIENT_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_CLIENT_VERSION}/${FB_CLIENT_TARBALL}"
+              ;;
+            '4.0')
+              FB_CLIENT_VERSION="4.0.6"
+              FB_CLIENT_TARBALL="Firebird-${FB_CLIENT_VERSION}.3221-0.amd64.tar.gz"
+              FB_CLIENT_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_CLIENT_VERSION}/${FB_CLIENT_TARBALL}"
+              ;;
+            '5.0')
+              FB_CLIENT_VERSION="5.0.2"
+              FB_CLIENT_TARBALL="Firebird-${FB_CLIENT_VERSION}.1613-0-linux-x64.tar.gz"
+              FB_CLIENT_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_CLIENT_VERSION}/${FB_CLIENT_TARBALL}"
+              ;;
+            *)
+              echo "Unsupported Firebird version in matrix: ${MATRIX_FIREBIRD_VERSION}" >&2
+              exit 1
+              ;;
+          esac
           FB_CLIENT_DIR="/opt/firebird-client"
 
           echo "Installing Firebird ${FB_CLIENT_VERSION} client for compilation..."
@@ -201,18 +226,17 @@ jobs:
               cp -a opt/firebird/lib/* "${FB_CLIENT_DIR}/lib/"
             fi
 
-            # Verify firebird/impl/blr.h exists (required for compilation)
-            # FB 4.0+ includes this header in the proper location
+            # Check for firebird/impl/blr.h (only present in FB 4.0+)
+            # As of v7.0.0+, this header is optional - fb_blr_compat.h provides fallbacks
             echo "Header structure verification:"
-            ls -la "${FB_CLIENT_DIR}/include/firebird/" 2>/dev/null || echo "No firebird/ subdir"
-            ls -la "${FB_CLIENT_DIR}/include/firebird/impl/" 2>/dev/null || echo "No firebird/impl/ subdir"
+            ls -la "${FB_CLIENT_DIR}/include/firebird/" 2>/dev/null || echo "No firebird/ subdir (FB 3.0 - using fallback BLR definitions)"
+            ls -la "${FB_CLIENT_DIR}/include/firebird/impl/" 2>/dev/null || echo "No firebird/impl/ subdir (FB 3.0 - using fallback BLR definitions)"
 
-            if [ ! -f "${FB_CLIENT_DIR}/include/firebird/impl/blr.h" ]; then
-              echo "ERROR: firebird/impl/blr.h not found - FB 4.0 client should have it"
-              find "${FB_CLIENT_DIR}/include" -name "*.h" 2>/dev/null | head -30
-              exit 1
+            if [ -f "${FB_CLIENT_DIR}/include/firebird/impl/blr.h" ]; then
+              echo "INFO: firebird/impl/blr.h found (FB 4.0+ native header)"
+            else
+              echo "INFO: firebird/impl/blr.h not found (FB 3.0 - using fb_blr_compat.h fallback definitions)"
             fi
-            echo "SUCCESS: firebird/impl/blr.h found"
           else
             # Fallback: try direct structure
             echo "No buildroot.tar.gz found, trying direct structure..."

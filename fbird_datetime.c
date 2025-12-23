@@ -336,11 +336,19 @@ int fbird_parse_date(const char* str, fbird_datetime_components* out) {
 int fbird_parse_time(const char* str, fbird_datetime_components* out) {
     if (!str || !out) return 0;
 
-    /* Don't reinitialize if called from fbird_parse_timestamp */
-    int init_needed = !out->has_date;
-    if (init_needed) {
-        fbird_datetime_init(out);
-    }
+    /* BUGFIX: Always initialize time-related fields to avoid garbage values.
+     * The previous logic checked out->has_date to skip init, but on uninitialized
+     * structs, has_date contains garbage which could skip initialization and leave
+     * fractions with random values, causing TIME encoding corruption (Issue #21).
+     *
+     * When called from fbird_parse_timestamp(), the date fields are already set,
+     * so we preserve them. We only zero-init the time fields. */
+    out->hours = 0;
+    out->minutes = 0;
+    out->seconds = 0;
+    out->fractions = 0;
+    out->has_time = 0;
+    /* Don't touch date fields or timezone - preserve if already set */
 
     /* Skip leading whitespace */
     while (*str && isspace((unsigned char)*str)) str++;

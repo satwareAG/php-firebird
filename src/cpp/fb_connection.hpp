@@ -382,7 +382,10 @@ inline Connection Connection::create(Firebird::IMaster* master,
         dpb.getBuffer()
     );
 
-    if (check_status.isDirty() || !raw_attachment) {
+    // Note: Use hasData() instead of isDirty() for FB3 compatibility.
+    // In FB3, isDirty() returns true even on success (it means "status was touched").
+    // hasData() correctly checks for actual errors (STATE_ERRORS flag).
+    if (check_status.hasData() || !raw_attachment) {
         throw Exception(raw_status);
     }
 
@@ -515,7 +518,8 @@ inline void Connection::detach() {
     Firebird::CheckStatusWrapper check_status(raw_status);
     attachment_->detach(&check_status);
 
-    if (check_status.isDirty()) {
+    // Use hasData() for FB3 compatibility (see Connection::create comment)
+    if (check_status.hasData()) {
         last_status_ = StatusWrapper(master_);
         throw Exception(raw_status);
     }
@@ -534,7 +538,8 @@ inline bool Connection::detachNoThrow() noexcept {
             Firebird::IStatus* raw_status = master_->getStatus();
             Firebird::CheckStatusWrapper check_status(raw_status);
             attachment_->detach(&check_status);
-            if (check_status.isDirty()) {
+            // Use hasData() for FB3 compatibility (see Connection::create comment)
+            if (check_status.hasData()) {
                 attachment_.reset();
                 return false;
             }
@@ -561,7 +566,8 @@ inline void Connection::dropDatabase() {
     Firebird::CheckStatusWrapper check_status(raw_status);
     attachment_->dropDatabase(&check_status);
 
-    if (check_status.isDirty()) {
+    // Use hasData() for FB3 compatibility (see Connection::create comment)
+    if (check_status.hasData()) {
         throw Exception(raw_status);
     }
 

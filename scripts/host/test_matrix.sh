@@ -51,7 +51,11 @@ fi
 if [ -n "$1" ]; then
     TARGETS=("$1")
 else
-    TARGETS=("php81-dev" "php82-dev" "php83-dev" "php84-dev" "php85-dev" "php85-fb5-dev")
+    # Test all PHP containers including special client library variants:
+    # - Standard containers (php8x-dev): Use apt firebird-dev (Firebird 4.x client)
+    # - php84-fb3-dev: Firebird 3.0.12 client for FB 2.5/3.0 server compatibility
+    # - php85-fb5-dev: Firebird 5.x client for latest features
+    TARGETS=("php81-dev" "php82-dev" "php83-dev" "php84-dev" "php84-fb3-dev" "php85-dev" "php85-fb5-dev")
 fi
 
 # 4. Parse Firebird Server Target (optional second argument)

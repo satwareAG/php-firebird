@@ -16,11 +16,27 @@ if [ -f Makefile ]; then
     phpize --clean 2>/dev/null || true
 fi
 
+# Detect Firebird installation location
+# Supports both apt-installed (/usr) and manual installations (/opt/firebird)
+if [ -d "/opt/firebird/include" ]; then
+    FB_HOME="/opt/firebird"
+    FB_INCLUDE="/opt/firebird/include"
+    echo "Detected manual Firebird installation at /opt/firebird"
+elif [ -d "/usr/include/firebird" ]; then
+    FB_HOME="/usr"
+    FB_INCLUDE="/usr/include/firebird"
+    echo "Detected apt-installed Firebird at /usr"
+else
+    FB_HOME="/usr"
+    FB_INCLUDE="/usr/include/firebird"
+    echo "Warning: Firebird headers not found, using default /usr"
+fi
+
 # Prepare build environment
 phpize
 
-# Configure with Firebird paths
-CPPFLAGS="-I/usr/include/firebird" ./configure --with-firebird=/usr
+# Configure with detected Firebird paths
+CPPFLAGS="-I${FB_INCLUDE}" ./configure --with-firebird="${FB_HOME}"
 
 # Generate compile_commands.json using bear (intercepts compilation commands)
 if command -v bear &> /dev/null; then

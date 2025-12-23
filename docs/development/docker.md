@@ -44,11 +44,63 @@ The development environment includes Firebird database servers on these ports:
 - Firebird 2.5: `localhost:3050`
 - Firebird 3.0: `localhost:3051`
 - Firebird 4.0: `localhost:3052`
+- Firebird 5.0: `localhost:3053`
 
 Default credentials:
 - Username: `SYSDBA`
 - Password: `masterkey`
 - Database: `test.fdb`
+
+## Firebird Client Version Testing
+
+The development environment supports testing with different Firebird client library versions.
+
+### Standard Containers (Firebird 4.x Client)
+
+By default, PHP containers use the apt-installed Firebird 4.x client library:
+- `php81-dev`, `php82-dev`, `php83-dev`, `php84-dev`, `php85-dev`
+
+These containers can connect to all Firebird server versions (2.5, 3.0, 4.0, 5.0).
+
+### Firebird 3.0 Client Container
+
+For testing compilation against Firebird 3.0 client headers (Issue #19 compatibility):
+```bash
+docker compose exec php84-fb3-dev sh -c "cd /ext && phpize --clean && phpize && ./configure --with-firebird=/opt/firebird && make -j\$(nproc)"
+```
+
+The `php84-fb3-dev` container:
+- Uses FB 3.0.12 client library
+- Compatible with FB 2.5 and 3.0 servers
+- Firebird installed in `/opt/firebird`
+- Environment: `FIREBIRD_HOME=/opt/firebird`
+
+### Firebird 5.0 Client Container
+
+For testing with the latest Firebird 5.x client:
+```bash
+docker compose exec php85-fb5-dev sh -c "cd /ext && phpize --clean && phpize && ./configure --with-firebird=/opt/firebird && make -j\$(nproc)"
+```
+
+The `php85-fb5-dev` container:
+- Uses FB 5.0.3 client library
+- Best compatibility with FB 5.0 server features
+- Firebird installed in `/opt/firebird`
+- Environment: `FIREBIRD_HOME=/opt/firebird`
+
+### Code Quality Checks with Different Clients
+
+The static analysis scripts auto-detect the Firebird installation:
+```bash
+# Run cppcheck in FB 3.0 client container
+docker compose exec php84-fb3-dev sh -c "/ext/scripts/container/analysis/cppcheck.sh"
+
+# Run clang-tidy in FB 5.0 client container
+docker compose exec php85-fb5-dev sh -c "/ext/scripts/container/analysis/clang_tidy.sh"
+
+# Generate compile_commands.json (auto-detects Firebird path)
+docker compose exec php84-fb3-dev sh -c "/ext/scripts/container/analysis/generate_compdb.sh"
+```
 
 ## Customization
 

@@ -30,6 +30,9 @@ unusedFunction:fbird_datetime.c:139
 # Missing system includes that are correctly resolved at compile time
 missingIncludeSystem
 
+# Intentional preprocessor error (Firebird version check)
+preprocessorErrorDirective:php_fbird_includes.h:11
+
 # -----------------------------------------------------
 # Notes:
 # - Line numbers may need adjustment if source files change significantly

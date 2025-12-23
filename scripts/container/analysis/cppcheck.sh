@@ -61,9 +61,6 @@ if [ -f compile_commands.json ]; then
         --std=c17 \
         --std=c++17 \
         --enable=warning,performance,portability \
-        --suppress=missingIncludeSystem \
-        --suppress=staticFunction \
-        --suppress=unusedFunction \
         --inline-suppr \
         --error-exitcode=2 \
         --xml \
@@ -82,9 +79,6 @@ else
         --std=c17 \
         --std=c++17 \
         --enable=warning,performance,portability \
-        --suppress=missingIncludeSystem \
-        --suppress=staticFunction \
-        --suppress=unusedFunction \
         --inline-suppr \
         --error-exitcode=2 \
         --xml \

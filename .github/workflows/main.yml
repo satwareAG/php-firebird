@@ -525,8 +525,10 @@ jobs:
           # tests/config.inc reads FIREBIRD_HOST and uses it as the host
           # portion of connection strings; the database path is appended in
           # tests/firebird.inc. Since the Firebird server runs in the same
-          # container, we connect to localhost on the default port.
-          FIREBIRD_HOST: "localhost"
+          # container, we connect via IPv4 loopback (127.0.0.1) to avoid
+          # IPv6 resolution issues where "localhost" might resolve to ::1
+          # but Firebird only binds to 127.0.0.1.
+          FIREBIRD_HOST: "127.0.0.1"
           # Firebird server restricts database creation paths via DatabaseAccess.
           # Use /opt/firebird/data which is typically writable by the server.
           FIREBIRD_DB_DIR: "/opt/firebird/data"
@@ -564,7 +566,7 @@ jobs:
           echo "DEBUG: Testing connection..."
           php -d "extension=$(pwd)/modules/firebird.so" -r '
             echo "Extension loaded, testing service attach...\n";
-            if ($se = @fbird_service_attach("localhost", "SYSDBA", "masterkey")) {
+            if ($se = @fbird_service_attach("127.0.0.1", "SYSDBA", "masterkey")) {
               echo "SUCCESS: Connected to Firebird service manager\n";
               $ver = fbird_server_info($se, FBIRD_SVC_SERVER_VERSION);
               echo "Server version: $ver\n";

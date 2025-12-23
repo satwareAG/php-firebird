@@ -1520,7 +1520,7 @@ extern "C" ISC_INT64 fbs_execute_singleton_int64(
     unsigned nullOffset = outMetadata->getNullOffset(&status, 0);
 
     /* Allocate message buffer */
-    unsigned char* outMsg = new unsigned char[msgLen];
+    auto* outMsg = new unsigned char[msgLen];
     memset(outMsg, 0, msgLen);
 
     /* Open cursor */

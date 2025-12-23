@@ -105,6 +105,14 @@ PHP_FUNCTION(fbird_errmsg);
 PHP_FUNCTION(fbird_errcode);
 PHP_FUNCTION(fbird_sqlstate);
 
+/* Exception Mode API (PDO-style error handling) */
+PHP_FUNCTION(fbird_set_exception_mode);
+PHP_FUNCTION(fbird_get_exception_mode);
+
+/* Exception mode constants */
+#define FBIRD_EXCEPTION_MODE_SILENT 0
+#define FBIRD_EXCEPTION_MODE_THROW  1
+
 PHP_FUNCTION(fbird_wait_event);
 PHP_FUNCTION(fbird_set_event_handler);
 PHP_FUNCTION(fbird_poll_event);

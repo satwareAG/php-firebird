@@ -88,6 +88,7 @@ ZEND_BEGIN_MODULE_GLOBALS(fbird)
 	int client_major_version;
 	int client_minor_version;
 	pid_t init_pid;                 /* PID at initialization for fork-safety detection */
+	int exception_mode;             /* Exception mode: 0=SILENT (default), 1=THROW */
 ZEND_END_MODULE_GLOBALS(fbird)
 
 ZEND_EXTERN_MODULE_GLOBALS(fbird)

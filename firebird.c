@@ -1097,6 +1097,9 @@ static PHP_GINIT_FUNCTION(fbird)
 #else
 	fbird_globals->init_pid = 0;
 #endif
+
+	/* Exception mode: SILENT (0) by default for backward compatibility */
+	fbird_globals->exception_mode = FBIRD_EXCEPTION_MODE_SILENT;
 }
 
 PHP_MINIT_FUNCTION(fbird)

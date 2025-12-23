@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [7.0.0-rc.4] - 2025-12-23
+
+### Fixed
+
+- **DbInfo::fromConnection()**: Implemented DbInfo hydration via `fbird_connection_info()` (removes stale TODO; previously always returned empty info).
+
+### Changed
+
+- **QA/Static Analysis**: Follow-up cleanups to keep clang-tidy/cppcheck pipelines green (post-rc.3 commits).
+
+## [7.0.0-rc.3] - 2025-12-22
+
+### Fixed
+
+- **Issue #21 (TIME encoding corruption)**: Ensure TIME parsing always initializes fields to avoid uninitialized-memory corruption.
+
+## [7.0.0-rc.2] - 2025-12-22
+
+### Fixed
+
+- **Issue #19 (Firebird 3.0 compilation compatibility)**: Added `fb_blr_compat.h` fallback definitions for missing `firebird/impl/blr.h` (FB 4.0+ only).
+- **Firebird 3.0 runtime compatibility**: Use `hasData()` instead of `isDirty()` for FB3 compatibility.
+
+### Changed
+
+- **CI matrix**: GitHub Actions now uses matching Firebird client version for each server version.
+
 ## [7.0.0-rc.1] - 2025-12-21
 
 ### Fixed
@@ -196,7 +223,10 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.1...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.4...HEAD
+[7.0.0-rc.4]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.3...v7.0.0-rc.4
+[7.0.0-rc.3]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.2...v7.0.0-rc.3
+[7.0.0-rc.2]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.1...v7.0.0-rc.2
 [7.0.0-rc.1]: https://github.com/satwareAG/php-firebird/compare/v6.2.0...v7.0.0-rc.1
 [6.2.0]: https://github.com/satwareAG/php-firebird/releases/tag/v6.2.0
 [1.0.0]: https://github.com/satwareAG/php-firebird/releases/tag/v1.0.0

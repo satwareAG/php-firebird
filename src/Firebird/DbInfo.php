@@ -135,19 +135,14 @@ final class DbInfo
     /**
      * Create DbInfo from a database connection.
      *
-     * Note: Requires fbird_connection_info() to be implemented in C.
-     * Currently returns a DbInfo with default values.
-     *
      * @param mixed $connection Database connection resource
      * @return self
      */
     public static function fromConnection(mixed $connection): self
     {
-        // TODO: When fbird_connection_info() is implemented, use it here
-        // $data = fbird_connection_info($connection);
+        $data = fbird_connection_info($connection);
 
-        // For now, return empty info
-        return new self([]);
+        return $data === false ? new self([]) : new self($data);
     }
 
     /**

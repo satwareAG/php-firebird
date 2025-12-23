@@ -2233,7 +2233,7 @@ extern "C" int fba_lookup_bounds(
             }
 
             /* RDB$DIMENSION is already 0-based; ISC_ARRAY_DESC uses 0-based array_desc_bounds */
-            const unsigned idx = (unsigned)dim;
+            const auto idx = static_cast<unsigned>(dim);
             desc->array_desc_bounds[idx].array_bound_lower = low;
             desc->array_desc_bounds[idx].array_bound_upper = up;
 
@@ -2895,7 +2895,7 @@ extern "C" int fbt_get_limbo_transactions(
                 // Transaction ID is a 32-bit or 64-bit value (depends on Firebird version)
                 // Typically stored as 4-byte integers
                 if (pos + 4 <= cluster_end) {
-                    ISC_INT64 trans_id = static_cast<ISC_INT64>(
+                    const auto trans_id = static_cast<ISC_INT64>(
                         buffer[pos] | (buffer[pos + 1] << 8) |
                         (buffer[pos + 2] << 16) | (buffer[pos + 3] << 24)
                     );

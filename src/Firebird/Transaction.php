@@ -15,6 +15,8 @@ declare(strict_types=1);
 
 namespace Firebird;
 
+require_once __DIR__ . '/functions.php';
+
 /**
  * Object-oriented wrapper for Firebird transactions.
  *
@@ -83,6 +85,7 @@ class Transaction
     public static function begin(mixed $connection): self
     {
         $conn = $connection instanceof Database ? $connection->getResource() : $connection;
+
         $resource = fbird_trans_begin($conn, FBIRD_DEFAULT);
 
         if ($resource === false) {

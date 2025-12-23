@@ -96,10 +96,10 @@ for file in "${SOURCE_FILES[@]}"; do
         echo -n "  Checking $file... "
         if clang-tidy "$file" "${CLANG_TIDY_ARGS[@]}" 2>&1 | tee -a clang-tidy-output.log | grep -q "error:"; then
             echo "❌"
-            ((FAILED++))
+            ((FAILED+=1))
         else
             echo "✓"
-            ((PASSED++))
+            ((PASSED+=1))
         fi
     else
         echo "  Skipping $file (not found)"

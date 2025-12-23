@@ -5,6 +5,10 @@
 #define PHP_FBIRD_INCLUDES_H
 
 #include <ibase.h>
+#ifndef PHP_WIN32
+#include <sys/types.h>
+#include <unistd.h>
+#endif
 
 /* Firebird 3.0+ required - compile-time check */
 #if !defined(FB_API_VER) || FB_API_VER < 30
@@ -83,6 +87,7 @@ ZEND_BEGIN_MODULE_GLOBALS(fbird)
 	int client_version;
 	int client_major_version;
 	int client_minor_version;
+	pid_t init_pid;                 /* PID at initialization for fork-safety detection */
 ZEND_END_MODULE_GLOBALS(fbird)
 
 ZEND_EXTERN_MODULE_GLOBALS(fbird)

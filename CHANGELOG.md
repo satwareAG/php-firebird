@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Issue #22 (Fork-safety)**: Extension no longer segfaults when loaded in forked child processes (pcntl_fork, PHPStan parallel, PHPUnit parallel)
+  - Added PID tracking to detect forked processes
+  - Resource destructors skip Firebird API cleanup in forked children
+  - Only parent process performs connection/transaction/batch cleanup
+  - Test: `tests/issue22_pcntl_fork_001.phpt`
+  - Impact: Enables parallel processing tools (PHPStan, PHPUnit, Infection, Psalm, custom worker pools)
+
 ## [7.0.0-rc.4] - 2025-12-23
 
 ### Fixed

@@ -793,6 +793,20 @@ static void _php_fbird_close_link(zend_resource *rsrc) /* {{{ */
 {
 	fbird_db_link *link = (fbird_db_link *) rsrc->ptr;
 
+#ifndef PHP_WIN32
+	/* Fork-safety check (Issue #22): Skip cleanup if we're in a forked child.
+	 * After pcntl_fork(), child inherits global state including master_instance
+	 * and connection handles. Attempting to close handles in child that were
+	 * created in parent causes segfault. Only the original process should
+	 * perform cleanup operations. */
+	if (IBG(init_pid) != 0 && getpid() != IBG(init_pid)) {
+		FBDEBUG("Skipping link cleanup in forked child process");
+		IBG(num_links)--;
+		efree(link);
+		return;
+	}
+#endif
+
 	_php_fbird_commit_link(link);
 
 	/* OO API Only: All connections use fbc_disconnect() */
@@ -810,6 +824,17 @@ static void _php_fbird_close_link(zend_resource *rsrc) /* {{{ */
 static void _php_fbird_close_plink(zend_resource *rsrc) /* {{{ */
 {
 	fbird_db_link *link = (fbird_db_link *) rsrc->ptr;
+
+#ifndef PHP_WIN32
+	/* Fork-safety check (Issue #22): Skip cleanup if we're in a forked child */
+	if (IBG(init_pid) != 0 && getpid() != IBG(init_pid)) {
+		FBDEBUG("Skipping persistent link cleanup in forked child process");
+		IBG(num_persistent)--;
+		IBG(num_links)--;
+		free(link);
+		return;
+	}
+#endif
 
 	_php_fbird_commit_link(link);
 
@@ -832,6 +857,15 @@ static void _php_fbird_free_trans(zend_resource *rsrc) /* {{{ */
 	unsigned short i;
 
 	FBDEBUG("Cleaning up transaction resource...");
+
+#ifndef PHP_WIN32
+	/* Fork-safety check (Issue #22): Skip cleanup if we're in a forked child */
+	if (IBG(init_pid) != 0 && getpid() != IBG(init_pid)) {
+		FBDEBUG("Skipping transaction cleanup in forked child process");
+		efree(trans);
+		return;
+	}
+#endif
 
 	/* OO API Only: All transactions use fbt_rollback() */
 	if (trans->fbt_transaction != NULL) {
@@ -867,6 +901,19 @@ static void _php_fbird_free_batch(zend_resource *rsrc) /* {{{ */
 	fbird_batch *batch = (fbird_batch *)rsrc->ptr;
 
 	FBDEBUG("Cleaning up batch resource...");
+
+#ifndef PHP_WIN32
+	/* Fork-safety check (Issue #22): Skip cleanup if we're in a forked child */
+	if (IBG(init_pid) != 0 && getpid() != IBG(init_pid)) {
+		FBDEBUG("Skipping batch cleanup in forked child process");
+		/* Only free memory allocated by child, not Firebird handles */
+		if (batch->in_msg_buffer != NULL) {
+			efree(batch->in_msg_buffer);
+		}
+		efree(batch);
+		return;
+	}
+#endif
 
 	/* Cancel and close the batch if still open */
 	if (batch->fbbatch_wrapper != NULL) {
@@ -1040,6 +1087,16 @@ static PHP_GINIT_FUNCTION(fbird)
 		fbird_globals->client_major_version = -1;
 		fbird_globals->client_minor_version = -1;
 	}
+
+	/* Store initial PID for fork-safety detection (Issue #22)
+	 * After pcntl_fork(), child processes inherit global state including
+	 * master_instance pointer. Destructors must skip cleanup in forked
+	 * children to avoid segfault from invalid handle cleanup. */
+#ifndef PHP_WIN32
+	fbird_globals->init_pid = getpid();
+#else
+	fbird_globals->init_pid = 0;
+#endif
 }
 
 PHP_MINIT_FUNCTION(fbird)

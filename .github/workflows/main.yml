@@ -590,8 +590,5 @@ jobs:
 
           # Use make test which properly handles the PHP test runner setup
           # The TEST_PHP_ARGS environment is used by run-tests.php
-          make test TESTS=tests/ || {
-            echo "Some tests failed. Checking for skips vs failures..."
-            # Don't fail if only skips, fail if actual test failures
-            true
-          }
+          # IMPORTANT: Tests MUST fail the job if they fail - no error masking!
+          make test TESTS=tests/

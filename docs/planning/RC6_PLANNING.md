@@ -199,12 +199,12 @@ vendor/bin/phpcs src/
 ### Notification
 
 - [ ] Update doctrine-firebird-driver issue #33 comment with rc.6 release info
-- [ ] Update satwareAG/php-firebird README with Exception Mode documentation
+- [x] Update satwareAG/php-firebird README with Exception Mode documentation
 
 ### Documentation
 
-- [ ] Add Exception Mode examples to `docs/EXAMPLES.md`
-- [ ] Update README.md with new features
+- [x] Add Exception Mode examples to `docs/EXAMPLES.md`
+- [x] Update README.md with new features
 
 ### Future Considerations (post-rc.6)
 

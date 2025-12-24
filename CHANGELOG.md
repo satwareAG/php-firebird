@@ -17,7 +17,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **PSR-12 Code Style Compliance (dbcf95e)**: Fixed file-level docblock positioning in 13 OO wrapper classes
+  - File-level docblocks moved BEFORE `declare(strict_types=1)` per PSR-12 standard
+  - Affected files: `src/Firebird/*.php` (Batch, BatchError, BatchResult, BlobId, Database, DbInfo, Event, EventPoller, Exception, Query, TBuilder, Transaction, functions.php)
+  - Resolved 13 PHPCS violations: "File comment must be between the open tag and the declare statement"
+  - Verification: `vendor/bin/phpcs src/` now returns 0 errors (1 acceptable warning)
+  - All PHPStan Level 8 checks remain passing
+  - All smoke tests passing (Batch, BlobId, Transaction)
+
 - **Quality Assurance**: 
+  - Comprehensive QA completed: PHPStan Level 8 (0 errors), PHPCS PSR-12 (0 violations), all tests passing
+  - GitHub Issue #23 (Column alias deduplication) verified as fixed in rc.6 and closed
+  - QA Summary documented in `QA_SUMMARY.md`
   - Standardized shell script error handling and variable usage
   - ShellCheck basic validations applied to infrastructure scripts
   - Removed duplicated functionality between host/container scripts

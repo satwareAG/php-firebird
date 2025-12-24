@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * php-firebird: Batch Result Container
  *
@@ -12,6 +10,8 @@ declare(strict_types=1);
  * @copyright satware AG 2025
  * @license   PHP License (same as PHP itself)
  */
+
+declare(strict_types=1);
 
 namespace Firebird;
 

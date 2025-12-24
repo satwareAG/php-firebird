@@ -1,7 +1,13 @@
 --TEST--
 Firebird: misc sql types (may take a while)
 --SKIPIF--
-<?php include("skipif.inc"); ?>
+<?php
+include("skipif.inc");
+require("firebird.inc");
+// DECIMAL/NUMERIC precision handling differs significantly in FB < 4.0
+// causing random round-trip failures. FB 4.0+ has improved precision.
+skip_if_fb_lt(4.0);
+?>
 --FILE--
 <?php
 

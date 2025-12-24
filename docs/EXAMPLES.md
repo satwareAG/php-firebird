@@ -7,6 +7,11 @@ Practical examples for the php-firebird extension, highlighting **unique feature
 ## Table of Contents
 
 - [Basic Operations](#basic-operations)
+- [Exception Handling](#exception-handling-)
+  - [PDO-Style Exception Mode](#pdo-style-exception-mode)
+  - [SILENT vs THROW Comparison](#silent-vs-throw-comparison)
+  - [SQLSTATE Error Classification](#sqlstate-error-classification)
+  - [Doctrine DBAL Integration](#doctrine-dbal-integration)
 - [Unique Features](#unique-features-)
   - [Transaction-Aware Queries](#1-transaction-aware-queries)
   - [Multi-Database Transactions](#2-multi-database-transactions)
@@ -107,6 +112,303 @@ try {
 }
 
 fbird_close($db);
+?>
+```
+
+---
+
+## Exception Handling ⭐
+
+NEW in v1.0: PDO-style exception handling with runtime switchable error modes.
+
+### PDO-Style Exception Mode
+
+The extension provides two error handling modes that can be switched at runtime:
+
+```php
+<?php
+// Get current mode
+$current_mode = fbird_get_exception_mode();
+echo "Current mode: " . ($current_mode === FBIRD_EXCEPTION_MODE_SILENT ? 'SILENT' : 'THROW') . "\n";
+
+// Enable exception mode (PDO-style)
+fbird_set_exception_mode(FBIRD_EXCEPTION_MODE_THROW);
+
+try {
+    $db = fbird_connect('/path/to/database.fdb', 'SYSDBA', 'wrong_password');
+    $result = fbird_query($db, 'SELECT * FROM users');
+} catch (Firebird\Exception $e) {
+    // Caught exception with rich error information
+    echo "Error: " . $e->getMessage() . "\n";
+    echo "SQLSTATE: " . $e->getSqlState() . "\n";
+    echo "Error code: " . $e->getCode() . "\n";
+    
+    // Stack trace available for debugging
+    echo $e->getTraceAsString() . "\n";
+}
+
+// Switch back to silent mode
+fbird_set_exception_mode(FBIRD_EXCEPTION_MODE_SILENT);
+
+// Traditional error handling with warnings
+$db = fbird_connect('/path/to/database.fdb', 'SYSDBA', 'masterkey');
+if (!$db) {
+    echo "Connection failed: " . fbird_errmsg() . "\n";
+}
+?>
+```
+
+**Constants:**
+- `FBIRD_EXCEPTION_MODE_SILENT` (0) - Traditional PHP warnings (default)
+- `FBIRD_EXCEPTION_MODE_THROW` (1) - Throw `Firebird\Exception` on errors
+
+### SILENT vs THROW Comparison
+
+**SILENT Mode (Default - Backward Compatible):**
+
+```php
+<?php
+// Traditional error handling with warnings
+$db = fbird_connect('/path/to/database.fdb', 'SYSDBA', 'masterkey');
+
+// Errors generate PHP warnings, functions return false
+$result = fbird_query($db, 'SELECT * FROM non_existent_table');
+// PHP Warning: fbird_query(): Dynamic SQL Error: SQL error code = -204, Table unknown...
+
+if ($result === false) {
+    // Check for error manually
+    echo "Error: " . fbird_errmsg() . "\n";
+    echo "Error code: " . fbird_errcode() . "\n";
+}
+
+fbird_close($db);
+?>
+```
+
+**THROW Mode (PDO-Style):**
+
+```php
+<?php
+// Enable exception mode
+fbird_set_exception_mode(FBIRD_EXCEPTION_MODE_THROW);
+
+try {
+    $db = fbird_connect('/path/to/database.fdb', 'SYSDBA', 'masterkey');
+    
+    // Errors throw Firebird\Exception automatically
+    $result = fbird_query($db, 'SELECT * FROM non_existent_table');
+    
+    // This line never executes if query fails
+    while ($row = fbird_fetch_assoc($result)) {
+        print_r($row);
+    }
+    
+} catch (Firebird\Exception $e) {
+    // Clean exception-based error handling
+    echo "Database error: " . $e->getMessage() . "\n";
+    echo "SQLSTATE: " . $e->getSqlState() . "\n";
+    
+    // Log error or notify monitoring system
+    error_log("Firebird error [{$e->getSqlState()}]: " . $e->getMessage());
+    
+} finally {
+    if (isset($db)) {
+        fbird_close($db);
+    }
+}
+?>
+```
+
+**When to Use Each Mode:**
+
+| Use Case | Recommended Mode |
+|----------|------------------|
+| **Legacy code migration** | SILENT (default) |
+| **New applications** | THROW (cleaner error handling) |
+| **Doctrine DBAL integration** | THROW (required) |
+| **Quick scripts** | SILENT (simpler) |
+| **Production frameworks** | THROW (better error handling) |
+
+### SQLSTATE Error Classification
+
+The `getSqlState()` method returns SQL:2003 standard 5-character error codes for precise error classification:
+
+```php
+<?php
+fbird_set_exception_mode(FBIRD_EXCEPTION_MODE_THROW);
+
+$db = fbird_connect('/path/to/database.fdb', 'SYSDBA', 'masterkey');
+
+try {
+    // Attempt to insert duplicate primary key
+    fbird_query($db, "INSERT INTO users (id, name) VALUES (1, 'Alice')");
+    fbird_query($db, "INSERT INTO users (id, name) VALUES (1, 'Bob')");  // Duplicate
+    
+} catch (Firebird\Exception $e) {
+    $sqlstate = $e->getSqlState();
+    
+    switch ($sqlstate) {
+        case '23000':
+            // Integrity constraint violation
+            echo "Duplicate key or constraint violation\n";
+            echo "This is likely a business logic error\n";
+            break;
+            
+        case '42000':
+            // Syntax error or access rule violation
+            echo "SQL syntax error or permission denied\n";
+            echo "Check your query syntax and permissions\n";
+            break;
+            
+        case '08001':
+        case '08003':
+        case '08006':
+            // Connection errors
+            echo "Database connection problem\n";
+            echo "Check firebird server status and network\n";
+            break;
+            
+        case 'HY000':
+            // General error (check specific error code)
+            echo "General database error: " . $e->getMessage() . "\n";
+            echo "Error code: " . $e->getCode() . "\n";
+            break;
+            
+        default:
+            echo "Unhandled SQLSTATE: $sqlstate\n";
+            echo "Error: " . $e->getMessage() . "\n";
+    }
+}
+
+fbird_close($db);
+?>
+```
+
+**Common SQLSTATE Codes:**
+
+| SQLSTATE | Class | Description |
+|----------|-------|-------------|
+| `00000` | Success | Successful completion |
+| `01xxx` | Warning | Warning conditions |
+| `08001` | Connection | Unable to establish connection |
+| `08003` | Connection | Connection does not exist |
+| `08006` | Connection | Connection failure |
+| `21000` | Cardinality | Cardinality violation |
+| `22xxx` | Data | Data exception (type mismatch, division by zero) |
+| `23000` | Integrity | Integrity constraint violation |
+| `40001` | Transaction | Serialization failure |
+| `40002` | Transaction | Integrity constraint violation (transaction) |
+| `42000` | Syntax | Syntax error or access rule violation |
+| `HY000` | General | General error |
+
+### Doctrine DBAL Integration
+
+Doctrine DBAL 4.x requires exception mode for proper error handling:
+
+```php
+<?php
+use Doctrine\DBAL\DriverManager;
+
+// MANDATORY: Enable exception mode before creating connections
+fbird_set_exception_mode(FBIRD_EXCEPTION_MODE_THROW);
+
+// Configure Doctrine DBAL connection
+$connectionParams = [
+    'dbname' => '/path/to/database.fdb',
+    'user' => 'SYSDBA',
+    'password' => 'masterkey',
+    'host' => 'localhost',
+    'driver' => 'pdo_firebird',  // Or custom driver wrapping php-firebird
+    'charset' => 'UTF8',
+];
+
+try {
+    $conn = DriverManager::getConnection($connectionParams);
+    
+    // Doctrine operations now properly catch Firebird exceptions
+    $users = $conn->fetchAllAssociative('SELECT * FROM users WHERE active = ?', [1]);
+    
+    foreach ($users as $user) {
+        echo $user['name'] . "\n";
+    }
+    
+} catch (\Doctrine\DBAL\Exception $e) {
+    // Doctrine wraps the underlying Firebird\Exception
+    echo "Database error: " . $e->getMessage() . "\n";
+    
+    // Access the wrapped Firebird exception if needed
+    $previous = $e->getPrevious();
+    if ($previous instanceof Firebird\Exception) {
+        echo "SQLSTATE: " . $previous->getSqlState() . "\n";
+    }
+}
+?>
+```
+
+**Bootstrap Configuration** (recommended):
+
+```php
+<?php
+// config/bootstrap.php or similar early initialization file
+
+// Enable exception mode globally
+fbird_set_exception_mode(FBIRD_EXCEPTION_MODE_THROW);
+
+// Verify it's set
+if (fbird_get_exception_mode() !== FBIRD_EXCEPTION_MODE_THROW) {
+    throw new RuntimeException('Failed to enable Firebird exception mode');
+}
+
+// Rest of application initialization...
+?>
+```
+
+**Exception Mode Persistence:**
+
+The exception mode is stored in module globals and persists for the entire PHP request:
+
+```php
+<?php
+// Set once at application start
+fbird_set_exception_mode(FBIRD_EXCEPTION_MODE_THROW);
+
+function connect_to_database() {
+    // Exception mode still active here
+    return fbird_connect('/path/to/database.fdb', 'SYSDBA', 'masterkey');
+}
+
+function fetch_users($db) {
+    // And here - no need to set again
+    return fbird_query($db, 'SELECT * FROM users');
+}
+
+// All database operations in this request use THROW mode
+$db = connect_to_database();
+$result = fetch_users($db);
+fbird_close($db);
+?>
+```
+
+**Mode Precedence** (for advanced use):
+
+The runtime exception mode has precedence over the INI setting:
+
+```ini
+; php.ini
+fbird.enable_exceptions = 0  ; INI default
+```
+
+```php
+<?php
+// Runtime setting overrides INI
+fbird_set_exception_mode(FBIRD_EXCEPTION_MODE_THROW);
+
+// Now uses THROW mode, not INI setting
+try {
+    $db = fbird_connect('/path/to/database.fdb', 'SYSDBA', 'masterkey');
+} catch (Firebird\Exception $e) {
+    echo "Caught: " . $e->getMessage() . "\n";
+}
 ?>
 ```
 

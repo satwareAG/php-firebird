@@ -237,6 +237,67 @@ user = user_zstr && ZSTR_LEN(user_zstr) > 0
 
 ---
 
+### Issue #15: Exception Mode API - PDO-Style Error Handling (December 2025)
+
+**Problem Identified:**
+The extension only supported traditional PHP warning-based error handling, making it incompatible with modern frameworks (especially Doctrine DBAL 4.x) that expect PDO-style exception handling. Users had no runtime control over error handling mode.
+
+**Requirements:**
+- PDO-compatible exception handling mode
+- Runtime switchable between SILENT (warnings) and THROW (exceptions) modes
+- SQLSTATE support via `getSqlState()` method (SQL:2003 standard codes)
+- Backward compatible (SILENT mode as default)
+- Doctrine DBAL 4.x integration support
+
+**Solution Implemented:**
+Created runtime switchable exception mode API with two modes:
+
+1. **SILENT Mode (Default)**: Traditional PHP warnings + `fbird_errmsg()`/`fbird_errcode()`
+2. **THROW Mode**: Throws `Firebird\Exception` with `getMessage()`, `getCode()`, and `getSqlState()`
+
+**API Functions:**
+- `fbird_set_exception_mode(int $mode)` - Set error handling mode
+- `fbird_get_exception_mode(): int` - Get current mode
+- `FBIRD_EXCEPTION_MODE_SILENT` (0) - Traditional warnings (default)
+- `FBIRD_EXCEPTION_MODE_THROW` (1) - PDO-style exceptions
+
+**Exception Class:**
+- `Firebird\Exception extends \Exception`
+- `getSqlState(): string` - Returns SQL:2003 5-character SQLSTATE codes
+
+**Implementation Details:**
+- Mode stored in module globals (`IBG(exception_mode)`)
+- Mode precedence: Runtime exception_mode > INI `fbird.enable_exceptions`
+- Mode persists for entire PHP request
+- All extension error paths updated to check mode
+
+**Files Modified:**
+- `firebird.c` - Added mode functions and Firebird\Exception class registration
+- `php_firebird.h` - Added function declarations and constants
+- `php_fbird_includes.h` - Added `exception_mode` to module globals
+- `phpstan/fbird-functions.stub.php` - Added stubs for PHPStan
+- `CHANGELOG.md` - Documented feature under [Unreleased] → Added
+
+**Tests Created:**
+- `tests/fbird_exception_mode_001.phpt` - Mode switching and constants validation
+- `tests/fbird_exception_mode_002.phpt` - Exception throwing behavior and getSqlState()
+
+**Test Validation:** All tests pass (100% pass rate)
+
+**Common SQLSTATE Codes:**
+- `23000` - Integrity constraint violation
+- `42000` - Syntax error or access rule violation
+- `08001`/`08003`/`08006` - Connection errors
+- `HY000` - General error
+
+**Doctrine DBAL Integration:**
+Enable exception mode at application bootstrap:
+```php
+fbird_set_exception_mode(FBIRD_EXCEPTION_MODE_THROW);
+```
+
+---
+
 ### Issue #98: Cross-Platform Date/Time Format Parsing (December 2025)
 
 **Problem Identified:**

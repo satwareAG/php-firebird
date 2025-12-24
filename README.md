@@ -10,6 +10,7 @@ A high-performance PHP extension providing native connectivity to Firebird datab
 - **Full Firebird Support**: Connects to Firebird 2.5, 3.0, 4.0, 5.0+ servers (requires 3.0+ client library)
 - **Modern C++ OO API**: Uses Firebird 3.0+ Object-Oriented API with RAII wrappers
 - **Modern PHP**: Optimized for PHP 8.1+ with typed properties and attributes
+- **Exception Mode API**: PDO-style exception handling with runtime switchable error modes (SILENT/THROW)
 - **Memory Safety**: Built with AddressSanitizer and comprehensive static analysis
 - **Cross-Platform**: Linux, Windows, macOS support
 - **Clean API**: `fbird_*` function prefix (no legacy InterBase naming)
@@ -192,6 +193,55 @@ fbird_free_result($result);
 fbird_close($db);
 
 print_r($users);
+?>
+```
+
+### Exception Handling
+
+The extension provides PDO-style exception handling with runtime switchable error modes:
+
+```php
+<?php
+// Enable exception mode (PDO-style error handling)
+fbird_set_exception_mode(FBIRD_EXCEPTION_MODE_THROW);
+
+try {
+    $db = fbird_connect('/path/to/database.fdb', 'SYSDBA', 'masterkey');
+    $result = fbird_query($db, 'SELECT * FROM invalid_table');
+} catch (Firebird\Exception $e) {
+    echo "Error: " . $e->getMessage() . "\n";
+    echo "SQLSTATE: " . $e->getSqlState() . "\n";  // e.g., "42000"
+    echo "Error code: " . $e->getCode() . "\n";
+}
+
+// Switch back to silent mode (traditional PHP warnings)
+fbird_set_exception_mode(FBIRD_EXCEPTION_MODE_SILENT);
+
+// Traditional error handling with warnings
+$db = fbird_connect('/path/to/database.fdb', 'SYSDBA', 'masterkey');
+if (!$db) {
+    echo "Connection failed: " . fbird_errmsg() . "\n";
+}
+?>
+```
+
+**Exception Mode API:**
+- `fbird_set_exception_mode(int $mode)` - Set error handling mode (SILENT or THROW)
+- `fbird_get_exception_mode()` - Get current error handling mode
+- `FBIRD_EXCEPTION_MODE_SILENT` - Traditional PHP warnings (default, backward compatible)
+- `FBIRD_EXCEPTION_MODE_THROW` - Throw `Firebird\Exception` on errors (PDO-style)
+
+**Common SQLSTATE Codes:**
+- `23000` - Integrity constraint violation
+- `42000` - Syntax error or access rule violation
+- `HY000` - General error
+
+**Doctrine DBAL Integration:** Exception mode is required for Doctrine DBAL 4.x compatibility. Enable THROW mode at application bootstrap:
+
+```php
+<?php
+// Early in your bootstrap (before any database operations)
+fbird_set_exception_mode(FBIRD_EXCEPTION_MODE_THROW);
 ?>
 ```
 

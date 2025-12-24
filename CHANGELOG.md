@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - All PHPStan Level 8 checks remain passing
   - All smoke tests passing (Batch, BlobId, Transaction)
 
+- **GitHub Actions CI/CD (e338455)**: Fixed missing SKIPIF logic in `tests/issue23_alias_padding_001.phpt`
+  - Test had comment documenting skip requirement for non-4.0 versions but skip logic was not implemented
+  - Added skip condition: `if ($fb_version < 4.0 || $fb_version >= 5.0) die(...)`
+  - Test now correctly skips on Firebird 2.5, 3.0, and 5.0 (runs only on 4.x)
+  - Resolves GitHub Actions test matrix failures across all non-4.0 Firebird versions
+
 - **Quality Assurance**: 
   - Comprehensive QA completed: PHPStan Level 8 (0 errors), PHPCS PSR-12 (0 violations), all tests passing
   - GitHub Issue #23 (Column alias deduplication) verified as fixed in rc.6 and closed

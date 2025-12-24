@@ -9,6 +9,12 @@
         <exclude name="PSR12.Files.FileHeader.IncorrectOrder"/>
     </rule>
 
+    <!-- Exclude PSR1 side effects rule - our OO wrapper files legitimately
+         require_once the functions.php helper before defining classes -->
+    <rule ref="PSR1.Files.SideEffects">
+        <severity>0</severity>
+    </rule>
+
     <!-- Paths to scan -->
     <file>src/</file>
 

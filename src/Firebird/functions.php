@@ -23,7 +23,7 @@ namespace Firebird;
  *   fbird_query($link, $sql, ...$params)
  *
  * @param resource $link
- * @param list<mixed> $params
+ * @param array<int, mixed> $params
  * @return resource|int|bool
  */
 function fbird_query_params(mixed $link, string $sql, array $params = []): mixed
@@ -45,7 +45,7 @@ function fbird_query_params(mixed $link, string $sql, array $params = []): mixed
  *
  * @param resource $link
  * @param resource $transaction
- * @param list<mixed> $params
+ * @param array<int, mixed> $params
  * @return resource|int|bool
  */
 function fbird_query_params_tx(mixed $link, mixed $transaction, string $sql, array $params = []): mixed
@@ -66,7 +66,7 @@ function fbird_query_params_tx(mixed $link, mixed $transaction, string $sql, arr
  *   fbird_execute($statement, ...$params)
  *
  * @param resource $statement
- * @param list<mixed> $params
+ * @param array<int, mixed> $params
  * @return resource|int|bool
  */
 function fbird_execute_params(mixed $statement, array $params = []): mixed

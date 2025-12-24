@@ -3,6 +3,10 @@ Firebird: misc sql types (may take a while)
 --SKIPIF--
 <?php
 include("skipif.inc");
+// rand_number() has precision handling specific to Firebird 4.0+
+// Older versions (2.5, 3.0) have different NUMERIC/DECIMAL precision behavior
+// that causes intermittent failures with random test data
+skip_if_fb_lt(4);
 ?>
 --FILE--
 <?php

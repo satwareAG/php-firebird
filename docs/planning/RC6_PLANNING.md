@@ -247,7 +247,7 @@ vendor/bin/phpcs src/
 |------------|-------|--------|
 | satwareAG/php-firebird | #15 | ✅ **CLOSED** - Implemented (rc.6) |
 | satwareAG/php-firebird | #22 | ✅ **CLOSED** - Implemented (rc.6) |
-| satwareAG/php-firebird | #23 | 📝 Open - Driver-side issue (analysis comment added 2025-12-24) |
+| satwareAG/php-firebird | #23 | 📝 Open - Driver-side issue (Extension behavior confirmed correct, test enabled for all versions) |
 | satwareAG/doctrine-firebird-driver | #33 | 📝 Driver-side action |
 | FirebirdSQL/php-firebird | 12 fixed | ✅ All in fork |
 

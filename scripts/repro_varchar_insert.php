@@ -51,7 +51,6 @@ echo "Verifying via PHP SELECT...\n";
 $sel = fbird_query($dbh, "SELECT * FROM TEST_VARCHAR10");
 if ($row = fbird_fetch_assoc($sel, FBIRD_FETCH_ARRAYS)) {
     echo "Row ID: " . $row['ID'] . "\n";
-    // echo "V_VARCHAR: " . print_r($row['V_VARCHAR'], true) . "\n";
     echo "V_VARCHAR[1]: " . $row['V_VARCHAR'][1] . "\n";
     // Check first element specifically
     if ($row['V_VARCHAR'][1] !== 'test1') {

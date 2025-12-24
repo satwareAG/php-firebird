@@ -13,3 +13,18 @@ namespace Firebird;
 final class Event
 {
 }
+
+/**
+ * Stub for extension-provided `Firebird\Exception` class.
+ *
+ * PDO-style exception for Firebird errors when exception mode is enabled.
+ */
+class Exception extends \Exception
+{
+    /**
+     * Get SQLSTATE error code
+     *
+     * @return string 5-character SQLSTATE code (e.g., "42000", "HY000")
+     */
+    public function getSqlState(): string {}
+}

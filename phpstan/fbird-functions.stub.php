@@ -86,86 +86,74 @@ function fbird_get_exception_mode(): int {}
 function fbird_gen_id(string $generator, int $increment = 1, resource $link_identifier = null): int|false {}
 
 // Constants - Connection
-const FBIRD_TEXT: int;
-const FBIRD_FETCH_BLOBS: int;
-const FBIRD_FETCH_ARRAYS: int;
+const FBIRD_TEXT = 0;
+const FBIRD_FETCH_BLOBS = 0;
+const FBIRD_FETCH_ARRAYS = 0;
 
 // Constants - Transaction Isolation
-const FBIRD_CONSISTENCY: int;
-const FBIRD_CONCURRENCY: int;
-const FBIRD_READ: int;
-const FBIRD_WRITE: int;
-const FBIRD_COMMITTED: int;
-const FBIRD_WAIT: int;
-const FBIRD_NOWAIT: int;
+const FBIRD_CONSISTENCY = 0;
+const FBIRD_CONCURRENCY = 0;
+const FBIRD_READ = 0;
+const FBIRD_WRITE = 0;
+const FBIRD_COMMITTED = 0;
+const FBIRD_WAIT = 0;
+const FBIRD_NOWAIT = 0;
 
 // Constants - Backup/Restore Options
-const FBIRD_BKP_IGNORE_CHECKSUMS: int;
-const FBIRD_BKP_IGNORE_LIMBO: int;
-const FBIRD_BKP_METADATA_ONLY: int;
-const FBIRD_BKP_NO_GARBAGE_COLLECT: int;
-const FBIRD_BKP_OLD_DESCRIPTIONS: int;
-const FBIRD_BKP_NON_TRANSPORTABLE: int;
-const FBIRD_BKP_CONVERT: int;
-const FBIRD_RES_DEACTIVATE_IDX: int;
-const FBIRD_RES_NO_SHADOW: int;
-const FBIRD_RES_NO_VALIDITY: int;
-const FBIRD_RES_ONE_AT_A_TIME: int;
-const FBIRD_RES_REPLACE: int;
-const FBIRD_RES_CREATE: int;
-const FBIRD_RES_USE_ALL_SPACE: int;
+const FBIRD_BKP_IGNORE_CHECKSUMS = 0;
+const FBIRD_BKP_IGNORE_LIMBO = 0;
+const FBIRD_BKP_METADATA_ONLY = 0;
+const FBIRD_BKP_NO_GARBAGE_COLLECT = 0;
+const FBIRD_BKP_OLD_DESCRIPTIONS = 0;
+const FBIRD_BKP_NON_TRANSPORTABLE = 0;
+const FBIRD_BKP_CONVERT = 0;
+const FBIRD_RES_DEACTIVATE_IDX = 0;
+const FBIRD_RES_NO_SHADOW = 0;
+const FBIRD_RES_NO_VALIDITY = 0;
+const FBIRD_RES_ONE_AT_A_TIME = 0;
+const FBIRD_RES_REPLACE = 0;
+const FBIRD_RES_CREATE = 0;
+const FBIRD_RES_USE_ALL_SPACE = 0;
 
 // Constants - Maintenance
-const FBIRD_PRP_PAGE_BUFFERS: int;
-const FBIRD_PRP_SWEEP_INTERVAL: int;
-const FBIRD_PRP_SHUTDOWN_DB: int;
-const FBIRD_PRP_DENY_NEW_TRANSACTIONS: int;
-const FBIRD_PRP_DENY_NEW_ATTACHMENTS: int;
-const FBIRD_PRP_RESERVE_SPACE: int;
-const FBIRD_PRP_RES_USE_FULL: int;
-const FBIRD_PRP_RES: int;
-const FBIRD_PRP_WRITE_MODE: int;
-const FBIRD_PRP_WM_ASYNC: int;
-const FBIRD_PRP_WM_SYNC: int;
-const FBIRD_PRP_ACTIVATE: int;
-const FBIRD_PRP_DB_ONLINE: int;
-const FBIRD_RPR_CHECK_DB: int;
-const FBIRD_RPR_IGNORE_CHECKSUM: int;
-const FBIRD_RPR_KILL_SHADOWS: int;
-const FBIRD_RPR_MEND_DB: int;
-const FBIRD_RPR_VALIDATE_DB: int;
-const FBIRD_RPR_FULL: int;
-const FBIRD_RPR_SWEEP_DB: int;
+const FBIRD_PRP_PAGE_BUFFERS = 0;
+const FBIRD_PRP_SWEEP_INTERVAL = 0;
+const FBIRD_PRP_SHUTDOWN_DB = 0;
+const FBIRD_PRP_DENY_NEW_TRANSACTIONS = 0;
+const FBIRD_PRP_DENY_NEW_ATTACHMENTS = 0;
+const FBIRD_PRP_RESERVE_SPACE = 0;
+const FBIRD_PRP_RES_USE_FULL = 0;
+const FBIRD_PRP_RES = 0;
+const FBIRD_PRP_WRITE_MODE = 0;
+const FBIRD_PRP_WM_ASYNC = 0;
+const FBIRD_PRP_WM_SYNC = 0;
+const FBIRD_PRP_ACTIVATE = 0;
+const FBIRD_PRP_DB_ONLINE = 0;
+const FBIRD_RPR_CHECK_DB = 0;
+const FBIRD_RPR_IGNORE_CHECKSUM = 0;
+const FBIRD_RPR_KILL_SHADOWS = 0;
+const FBIRD_RPR_MEND_DB = 0;
+const FBIRD_RPR_VALIDATE_DB = 0;
+const FBIRD_RPR_FULL = 0;
+const FBIRD_RPR_SWEEP_DB = 0;
 
 // Constants - Database Info
-const FBIRD_STS_DATA_PAGES: int;
-const FBIRD_STS_DB_LOG: int;
-const FBIRD_STS_HDR_PAGES: int;
-const FBIRD_STS_IDX_PAGES: int;
-const FBIRD_STS_SYS_RELATIONS: int;
+const FBIRD_STS_DATA_PAGES = 0;
+const FBIRD_STS_DB_LOG = 0;
+const FBIRD_STS_HDR_PAGES = 0;
+const FBIRD_STS_IDX_PAGES = 0;
+const FBIRD_STS_SYS_RELATIONS = 0;
 
 // Constants - Server Info
-const FBIRD_SVC_SERVER_VERSION: int;
-const FBIRD_SVC_IMPLEMENTATION: int;
-const FBIRD_SVC_GET_ENV: int;
-const FBIRD_SVC_GET_ENV_LOCK: int;
-const FBIRD_SVC_GET_ENV_MSG: int;
-const FBIRD_SVC_USER_DBPATH: int;
-const FBIRD_SVC_SVR_DB_INFO: int;
-const FBIRD_SVC_GET_USERS: int;
+const FBIRD_SVC_SERVER_VERSION = 0;
+const FBIRD_SVC_IMPLEMENTATION = 0;
+const FBIRD_SVC_GET_ENV = 0;
+const FBIRD_SVC_GET_ENV_LOCK = 0;
+const FBIRD_SVC_GET_ENV_MSG = 0;
+const FBIRD_SVC_USER_DBPATH = 0;
+const FBIRD_SVC_SVR_DB_INFO = 0;
+const FBIRD_SVC_GET_USERS = 0;
 
 // Constants - Exception Mode
-const FBIRD_EXCEPTION_MODE_SILENT: int;
-const FBIRD_EXCEPTION_MODE_THROW: int;
-
-// Firebird Exception Class
-namespace Firebird {
-    class Exception extends \Exception {
-        /**
-         * Get SQLSTATE error code
-         *
-         * @return string 5-character SQLSTATE code (e.g., "42000", "HY000")
-         */
-        public function getSqlState(): string {}
-    }
-}
+const FBIRD_EXCEPTION_MODE_SILENT = 0;
+const FBIRD_EXCEPTION_MODE_THROW = 0;

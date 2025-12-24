@@ -135,12 +135,12 @@ run-tests.php tests/issue22_pcntl_fork_001.phpt
 
 ### Pre-Release Testing
 
-- [ ] **CI Matrix:** All 20 combinations pass (PHP 8.1-8.5 × Firebird 2.5-5.0)
-- [ ] **Exception Mode Tests:** Both `fbird_exception_mode_00{1,2}.phpt` pass
-- [ ] **Fork-safety Test:** `issue22_pcntl_fork_001.phpt` passes
-- [ ] **PHPStan:** Level 8 clean (0 errors)
-- [ ] **PHPCS:** PSR-12 clean (0 violations)
-- [ ] **Existing Tests:** No regressions in existing test suite
+- [x] **CI Matrix:** All 20 combinations pass (PHP 8.1-8.5 × Firebird 2.5-5.0)
+- [x] **Exception Mode Tests:** Both `fbird_exception_mode_00{1,2}.phpt` pass
+- [x] **Fork-safety Test:** `issue22_pcntl_fork_001.phpt` passes (Verified manually; updated for CI)
+- [x] **PHPStan:** Level 8 clean (0 errors)
+- [x] **PHPCS:** PSR-12 clean (0 violations)
+- [x] **Existing Tests:** No regressions in existing test suite
 
 ### Local Verification Steps
 

@@ -13,18 +13,19 @@ extern zend_module_entry firebird_module_entry;
   static_assert(false, "FATAL: FB_API_VER is not defined. Assumed very old, unsupported client library");
 #endif
 
-#define PHP_FIREBIRD_VER_MAJOR 1
-#define PHP_FIREBIRD_VER_MINOR 0
-#define PHP_FIREBIRD_VER_REV 0
-/* #define PHP_FIREBIRD_VER_PRE "-RC2" -- Defined only for pre-releases */
+/* Version string: defined by configure script via AC_DEFINE_UNQUOTED.
+ * Fallback for manual builds or missing configure detection. */
+#ifndef PHP_FIREBIRD_VERSION_STRING
+#  define PHP_FIREBIRD_VERSION_STRING "0.0.0-unknown"
+#endif
 
-// Keep two digit style similar to FB_API_VER
-#define PHP_FIREBIRD_VER PHP_FIREBIRD_VER_MAJOR * 10 + PHP_FIREBIRD_VER_MINOR
+/* Legacy compatibility macro (use PHP_FIREBIRD_VERSION_STRING in new code) */
+#define PHP_FIREBIRD_VER_STR PHP_FIREBIRD_VERSION_STRING
 
-#ifdef PHP_FIREBIRD_VER_PRE
-#   define PHP_FIREBIRD_VER_STR "1.0.0" PHP_FIREBIRD_VER_PRE
-#else
-#   define PHP_FIREBIRD_VER_STR "1.0.0"
+/* Numeric version for the FBIRD_VER constant (two-digit style like FB_API_VER).
+ * This is a simplified value; for full version info use PHP_FIREBIRD_VERSION_STRING. */
+#ifndef PHP_FIREBIRD_VER
+#  define PHP_FIREBIRD_VER 70  /* 7.x series */
 #endif
 
 PHP_MINIT_FUNCTION(fbird);

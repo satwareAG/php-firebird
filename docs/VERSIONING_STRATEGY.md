@@ -381,7 +381,7 @@ fi
 4. Test with both git and tarball builds
 5. Document in `CONTRIBUTING.md`
 
-**Status:** Ready for implementation  
+**Status:** ✅ Implemented (2025-12-24)  
 **Target:** v7.0.0 or v7.1.0
 
 ### Phase 2: Deprecate Manual Version Updates

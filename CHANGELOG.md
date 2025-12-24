@@ -5,27 +5,7 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [7.0.0-rc.5] - 2025-12-24
-
-### Fixed
-
-- **CI Extension Loading**: Use `PHP_TEST_SHARED_EXTENSIONS` environment variable for PHPT test runner instead of `-d extension=` argument (commit f109ef9)
-- **PHPStan Configuration**: 
-  - Remove duplicate function stub file (`firebird.stub.php` vs `fbird.stub.php`)
-  - Correct stub file syntax for PHP 8.1+ compatibility
-  - Change `list<mixed>` to `array<int, mixed>` in function docblocks for stricter type checking
-- **PHPCS Configuration**: Exclude `PSR1.Files.SideEffects` rule to allow `src/Firebird/functions.php` with define() + function definitions
-- **Test SKIPIF Sections**: 
-  - Add Firebird version compatibility conditions to tests using features not available in older versions
-  - `tests/003.phpt`: Skip on Firebird < 4.0 (INT128/DECFLOAT types)
-  - `tests/fbird_inspection_001.phpt`: Skip on Firebird < 3.0 (MON$ATTACHMENTS columns)
-  - Fix duplicate `firebird.inc` include in SKIPIF sections causing "Cannot redeclare" errors
-
-### Added
-
-- **Local CI Testing Guide**: `docs/development/LOCAL_CI_TESTING.md` documenting `act` tool usage for testing GitHub Actions locally
-
-## [Unreleased]
+## [7.0.0-rc.6] - 2025-12-24
 
 ### Added
 
@@ -47,6 +27,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Only parent process performs connection/transaction/batch cleanup
   - Test: `tests/issue22_pcntl_fork_001.phpt`
   - Impact: Enables parallel processing tools (PHPStan, PHPUnit, Infection, Psalm, custom worker pools)
+
+- **Issue #23 (Column alias padding)**: Column alias deduplication now works correctly with space-padded aliases (Firebird 3.0+)
+  - Firebird 3.0+ returns CHAR-type column aliases padded with trailing spaces to declared length
+  - Added `_php_fbird_rtrim_alias()` helper to trim trailing whitespace before alias registration
+  - Prevents duplicate array keys in `fbird_fetch_assoc()` when aliases differ only by padding
+  - Test: `tests/issue23_alias_padding_001.phpt`
+  - Impact: Fixes associative array key collisions when using CHAR-type column aliases
+
+## [7.0.0-rc.5] - 2025-12-24
+
+### Fixed
+
+- **CI Extension Loading**: Use `PHP_TEST_SHARED_EXTENSIONS` environment variable for PHPT test runner instead of `-d extension=` argument (commit f109ef9)
+- **PHPStan Configuration**: 
+  - Remove duplicate function stub file (`firebird.stub.php` vs `fbird.stub.php`)
+  - Correct stub file syntax for PHP 8.1+ compatibility
+  - Change `list<mixed>` to `array<int, mixed>` in function docblocks for stricter type checking
+- **PHPCS Configuration**: Exclude `PSR1.Files.SideEffects` rule to allow `src/Firebird/functions.php` with define() + function definitions
+- **Test SKIPIF Sections**: 
+  - Add Firebird version compatibility conditions to tests using features not available in older versions
+  - `tests/003.phpt`: Skip on Firebird < 4.0 (INT128/DECFLOAT types)
+  - `tests/fbird_inspection_001.phpt`: Skip on Firebird < 3.0 (MON$ATTACHMENTS columns)
+  - Fix duplicate `firebird.inc` include in SKIPIF sections causing "Cannot redeclare" errors
+
+### Added
+
+- **Local CI Testing Guide**: `docs/development/LOCAL_CI_TESTING.md` documenting `act` tool usage for testing GitHub Actions locally
 
 ## [7.0.0-rc.4] - 2025-12-23
 
@@ -264,7 +271,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.5...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.6...HEAD
+[7.0.0-rc.6]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.5...v7.0.0-rc.6
 [7.0.0-rc.5]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.4...v7.0.0-rc.5
 [7.0.0-rc.4]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.3...v7.0.0-rc.4
 [7.0.0-rc.3]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.2...v7.0.0-rc.3

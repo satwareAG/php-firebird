@@ -336,6 +336,29 @@ PHP_FUNCTION(fbird_num_fields)
 // also require runtime fbclient > 40 hence the runtime checks. Ideally rewrite
 // everything using newer API but that's a bit of work.
 
+/* Helper function to trim trailing whitespace from alias
+ * Returns a newly allocated string that must be freed by the caller.
+ * Issue #23: Firebird 3.0+ may return CHAR-type aliases with trailing space padding. */
+static char *_php_fbird_rtrim_alias(const char *alias)
+{
+	if (!alias || !alias[0]) {
+		return estrdup("");
+	}
+
+	size_t len = strlen(alias);
+
+	/* Find the last non-whitespace character */
+	while (len > 0 && (alias[len - 1] == ' ' || alias[len - 1] == '\t')) {
+		len--;
+	}
+
+	char *result = emalloc(len + 1);
+	memcpy(result, alias, len);
+	result[len] = '\0';
+
+	return result;
+}
+
 int _php_fbird_alloc_ht_aliases(fbird_query *ib_query)
 {
 	ALLOC_HASHTABLE(ib_query->ht_aliases);
@@ -373,8 +396,10 @@ int _php_fbird_alloc_ht_aliases(fbird_query *ib_query)
 			}
 		}
 
-		/* Use alias if available, otherwise fall back to field name */
-		const char *effective_alias = (base_alias[0]) ? base_alias : base_field;
+		/* Use alias if available, otherwise fall back to field name
+		 * Trim trailing whitespace (Issue #23: Firebird 3.0+ pads CHAR-type aliases) */
+		const char *raw_alias = (base_alias[0]) ? base_alias : base_field;
+		char *effective_alias = _php_fbird_rtrim_alias(raw_alias);
 
 		/* For DML ... RETURNING (or when SQL text contains RETURNING), preserve prefixes when present */
 		if ((ib_query->statement_type == isc_info_sql_stmt_insert ||
@@ -384,6 +409,7 @@ int _php_fbird_alloc_ht_aliases(fbird_query *ib_query)
 			char full[METADATALENGTH + 6 + 1] = {0};
 			if (_php_fbird_infer_returning_full_alias(ib_query->query, i, full, sizeof(full))) {
 				_php_fbird_insert_alias(ib_query->ht_aliases, full);
+				efree(effective_alias);
 				continue;
 			} else {
 				char pref[5] = {0};
@@ -391,12 +417,14 @@ int _php_fbird_alloc_ht_aliases(fbird_query *ib_query)
 					char buf[METADATALENGTH + 5 + 1];
 					snprintf(buf, sizeof(buf), "%s%s", pref, effective_alias);
 					_php_fbird_insert_alias(ib_query->ht_aliases, buf);
+					efree(effective_alias);
 					continue;
 				}
 			}
 		}
 
 		_php_fbird_insert_alias(ib_query->ht_aliases, effective_alias);
+		efree(effective_alias);
 	}
 
 	return SUCCESS;

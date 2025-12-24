@@ -126,7 +126,7 @@ for CONTAINER in "${TARGETS[@]}"; do
     echo "Running build and test suite (Server: ${FIREBIRD_SERVER:-default}, Tests: ${TEST_TARGETS:-ALL})..."
 
     # Construct command with optional target
-    CMD="/ext/scripts/container/build.sh && /ext/scripts/container/test.sh"
+    CMD="/ext/scripts/build.sh && /ext/scripts/test.sh"
     if [ -n "$TEST_TARGETS" ]; then
         CMD="$CMD $TEST_TARGETS"
     fi

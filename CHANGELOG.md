@@ -5,6 +5,23 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-rc.7] - 2025-12-24
+
+### Added
+
+- **Script Infrastructure Update**:
+  - Consolidated all scripts into `scripts/` directory (removed `host/` vs `container/` split)
+  - Updated all scripts (`qa.sh`, `test.sh`, `test_matrix.sh`) to use `set -euo pipefail` for robustness
+  - Modernized `qa.sh` (formerly qa_local.sh) as primary local quality gateway
+  - Updated Docker files and CI workflows to reflect new script locations
+
+### Fixed
+
+- **Quality Assurance**: 
+  - Standardized shell script error handling and variable usage
+  - ShellCheck basic validations applied to infrastructure scripts
+  - Removed duplicated functionality between host/container scripts
+
 ## [7.0.0-rc.6] - 2025-12-24
 
 ### Added

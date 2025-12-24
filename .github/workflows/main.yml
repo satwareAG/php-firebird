@@ -595,6 +595,14 @@ jobs:
           # The -d flags are passed through run-tests.php to the test PHP subprocess.
           export PHP_TEST_SHARED_EXTENSIONS="-d extension=${EXTENSION_PATH}"
 
+          # Add pcntl if available (required for fork tests)
+          # docker-php-ext-install usually installs it as a shared extension
+          PCNTL_SO=$(find $(php-config --extension-dir) -name "pcntl.so" 2>/dev/null || true)
+          if [ -n "$PCNTL_SO" ]; then
+             export PHP_TEST_SHARED_EXTENSIONS="${PHP_TEST_SHARED_EXTENSIONS} -d extension=${PCNTL_SO}"
+             echo "DEBUG: Added pcntl.so to test extensions"
+          fi
+
           # Debug: Verify run-tests.php will receive correct extension argument
           echo "DEBUG: PHP_TEST_SHARED_EXTENSIONS=${PHP_TEST_SHARED_EXTENSIONS}"
           echo "DEBUG: TEST_PHP_EXECUTABLE=${TEST_PHP_EXECUTABLE}"

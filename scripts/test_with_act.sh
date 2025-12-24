@@ -3,7 +3,7 @@
 # Aligned with .github/workflows/main.yml (linux-matrix-build)
 # and .github/workflows/code-quality.yml (code-quality)
 
-set -e
+set -euo pipefail
 
 # Colors
 GREEN='\033[0;32m'

@@ -9,12 +9,12 @@ cd /ext
 # Ensure extension is built and compatible
 if [ ! -f modules/firebird.so ]; then
     echo "Extension not found. Building first..."
-    /ext/scripts/container/build.sh
+    /ext/scripts/build.sh
 else
     # Check if extension loads successfully (handles API mismatch leftovers)
     if ! php -n -d extension=$(pwd)/modules/firebird.so -r "exit(extension_loaded('firebird') ? 0 : 1);" >/dev/null 2>&1; then
         echo "Extension found but failed to load (possible API mismatch). Rebuilding..."
-        /ext/scripts/container/build.sh
+        /ext/scripts/build.sh
     fi
 fi
 

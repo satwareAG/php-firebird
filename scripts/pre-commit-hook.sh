@@ -77,7 +77,7 @@ if [ -n "$C_FILES" ]; then
             echo -e "${GREEN}OK${NC}"
         else
             echo -e "${RED}FAILED${NC}"
-            echo -e "${RED}✗ Run './scripts/host/qa_full.sh --mode fast' for details${NC}"
+            echo -e "${RED}✗ Run './scripts/qa_full.sh --mode fast' for details${NC}"
             FAILED=1
         fi
     else

@@ -1,0 +1,8 @@
+# LSan suppressions for php-firebird
+# Suppress known PHP internal allocations
+leak:php_module_startup
+leak:zend_startup
+leak:zend_register_functions
+# Suppress Firebird client library internal allocations
+leak:fb_ping
+leak:isc_attach_database

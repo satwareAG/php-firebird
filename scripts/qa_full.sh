@@ -196,7 +196,7 @@ echo -e "\n${BLUE}═══ Phase 4: C/C++ Static Analysis ═══${NC}"
 
 # 4.1 Clang-Tidy
 echo -e "\n${BLUE}>> [4.1] Clang-Tidy...${NC}"
-if docker compose exec "$CONTAINER" /ext/scripts/container/analysis/clang_tidy.sh; then
+if docker compose exec "$CONTAINER" /ext/scripts/analysis/clang_tidy.sh; then
     echo -e "${GREEN}✓ Clang-Tidy passed${NC}"
 else
     echo -e "${RED}✗ Clang-Tidy found issues${NC}"
@@ -205,7 +205,7 @@ fi
 
 # 4.2 Cppcheck
 echo -e "\n${BLUE}>> [4.2] Cppcheck...${NC}"
-if docker compose exec "$CONTAINER" /ext/scripts/container/analysis/cppcheck.sh; then
+if docker compose exec "$CONTAINER" /ext/scripts/analysis/cppcheck.sh; then
     echo -e "${GREEN}✓ Cppcheck passed${NC}"
 else
     echo -e "${RED}✗ Cppcheck found issues${NC}"
@@ -223,7 +223,7 @@ fi
 # ============================================================================
 echo -e "\n${BLUE}═══ Phase 5: Unit Tests ═══${NC}"
 
-if docker compose exec "$CONTAINER" /ext/scripts/container/test.sh; then
+if docker compose exec "$CONTAINER" /ext/scripts/test.sh; then
     echo -e "${GREEN}✓ Unit tests passed${NC}"
 else
     echo -e "${RED}✗ Unit tests failed${NC}"
@@ -243,7 +243,7 @@ echo -e "\n${BLUE}═══ Phase 6: Dynamic Analysis (Sanitizers) ═══${NC
 
 # 6.1 AddressSanitizer + UBSan
 echo -e "\n${BLUE}>> [6.1] Running Sanitizers (ASan + UBSan)...${NC}"
-if docker compose exec "$CONTAINER" /ext/scripts/container/analysis/sanitizers.sh all; then
+if docker compose exec "$CONTAINER" /ext/scripts/analysis/sanitizers.sh all; then
     echo -e "${GREEN}✓ Sanitizer tests passed${NC}"
 else
     echo -e "${RED}✗ Sanitizer tests found issues${NC}"
@@ -261,7 +261,7 @@ docker compose exec "$CONTAINER" bash -c "
     ./configure --with-firebird=/usr
     make -j\$(nproc)
 "
-if docker compose exec "$CONTAINER" /ext/scripts/container/analysis/valgrind.sh; then
+if docker compose exec "$CONTAINER" /ext/scripts/analysis/valgrind.sh; then
     echo -e "${GREEN}✓ Valgrind passed${NC}"
 else
     echo -e "${YELLOW}⚠ Valgrind found issues (review recommended)${NC}"

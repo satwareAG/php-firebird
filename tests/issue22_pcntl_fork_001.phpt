@@ -1,12 +1,9 @@
 --TEST--
 Issue #22: No segmentation fault when extension loaded in forked process (pcntl_fork)
---EXTENSIONS--
-pcntl
-fbird
 --SKIPIF--
 <?php
+if (!extension_loaded('firebird')) die('skip firebird extension not available');
 if (!extension_loaded('pcntl')) die('skip pcntl extension not available');
-if (!extension_loaded('fbird')) die('skip firebird extension not available');
 if (PHP_OS_FAMILY === 'Windows') die('skip pcntl not available on Windows');
 ?>
 --FILE--
@@ -24,8 +21,8 @@ if (PHP_OS_FAMILY === 'Windows') die('skip pcntl not available on Windows');
  * skip Firebird API cleanup in forked children (getpid() != init_pid).
  */
 
-echo "Parent PID: " . getpid() . "\n";
-echo "Extension loaded: " . (extension_loaded('fbird') ? 'Yes' : 'No') . "\n";
+echo "Parent PID: " . getmypid() . "\n";
+echo "Extension loaded: " . (extension_loaded('firebird') ? 'Yes' : 'No') . "\n";
 
 // Fork the process
 $pid = pcntl_fork();
@@ -34,8 +31,8 @@ if ($pid == -1) {
     die("Fork failed\n");
 } elseif ($pid == 0) {
     // Child process
-    echo "Child PID: " . getpid() . "\n";
-    echo "Child: Extension still loaded: " . (extension_loaded('fbird') ? 'Yes' : 'No') . "\n";
+    echo "Child PID: " . getmypid() . "\n";
+    echo "Child: Extension still loaded: " . (extension_loaded('firebird') ? 'Yes' : 'No') . "\n";
 
     // Child exits here - destructors will be called
     // With fix: destructors detect fork and skip cleanup (no segfault)

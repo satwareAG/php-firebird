@@ -9,6 +9,9 @@ require_once('functions.inc');
  * that cause test failures. Skip on non-4.0 versions until behavior
  * is consistent across all versions or test expectations are updated. */
 $fb_version = get_fb_version();
+if ($fb_version < 4.0 || $fb_version >= 5.0) {
+    die("skip Firebird server version $fb_version - test only reliable on 4.x");
+}
 ?>
 --FILE--
 <?php

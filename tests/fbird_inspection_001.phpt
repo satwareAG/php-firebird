@@ -3,7 +3,6 @@ fbird_list_table_blockers() - basic test
 --SKIPIF--
 <?php
 include("skipif.inc");
-require("firebird.inc");
 // MON$ monitoring tables required by fbird_list_table_blockers() are limited in FB 2.5
 skip_if_fb_lt(3.0);
 ?>

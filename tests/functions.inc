@@ -71,8 +71,10 @@ function rand_number($len , $prec = -1, $sign = 1)
     } else if ($prec == 0) {
         $n = substr(rand() . rand(), 0, rand() % $len + 1);
     } else if (($prec - $len) == 0) {
-        $n = substr(rand() . rand(), 0, 1);
-        $n .= "." . substr(rand(), 0, $prec);
+        // When precision equals scale (e.g., NUMERIC(15,15)), integer part must be 0
+        // to avoid overflow. NUMERIC(15,15) means 0.xxxxxxxxxxxxxxx (15 decimal digits).
+        // Previously generated values like "5.123..." (16 digits) which overflow on FB 4.0.
+        $n = "0." . substr(rand() . rand(), 0, $prec);
     } else {
         $n = substr(rand() . rand(), 0, rand() % ($len - $prec) + 1);
         $n .= "." . substr(rand(), 0, $prec);

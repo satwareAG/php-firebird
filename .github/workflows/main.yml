@@ -584,13 +584,21 @@ jobs:
           # 3. Use absolute paths (subprocess may change directories)
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
           export TEST_PHP_EXECUTABLE="$(which php)"
-          export TEST_PHP_ARGS="-n -d extension=${EXTENSION_PATH}"
 
           # Verify the extension path exists
           echo "Extension path: ${EXTENSION_PATH}"
           ls -la "${EXTENSION_PATH}"
 
+          # CRITICAL FIX: The Makefile test target passes $(PHP_TEST_SHARED_EXTENSIONS)
+          # to run-tests.php as command-line arguments. This is the correct variable
+          # to set for extension loading - NOT TEST_PHP_ARGS.
+          # The -d flags are passed through run-tests.php to the test PHP subprocess.
+          export PHP_TEST_SHARED_EXTENSIONS="-d extension=${EXTENSION_PATH}"
+
+          # Debug: Verify run-tests.php will receive correct extension argument
+          echo "DEBUG: PHP_TEST_SHARED_EXTENSIONS=${PHP_TEST_SHARED_EXTENSIONS}"
+          echo "DEBUG: TEST_PHP_EXECUTABLE=${TEST_PHP_EXECUTABLE}"
+
           # Use make test which properly handles the PHP test runner setup
-          # The TEST_PHP_ARGS environment is used by run-tests.php
           # IMPORTANT: Tests MUST fail the job if they fail - no error masking!
           make test TESTS=tests/

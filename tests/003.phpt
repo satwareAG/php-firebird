@@ -3,9 +3,10 @@ Firebird: misc sql types (may take a while)
 --SKIPIF--
 <?php
 include("skipif.inc");
-// DECIMAL/NUMERIC precision handling differs significantly in FB < 4.0
-// causing random round-trip failures. FB 4.0+ has improved precision.
-skip_if_fb_lt(4.0);
+// DECIMAL/NUMERIC precision handling differs significantly across FB versions.
+// FB 4.0 has improved precision but PHP 8.2+ RNG changes expose edge cases.
+// FB 5.0+ handles all edge cases correctly.
+skip_if_fb_lt(5.0);
 ?>
 --FILE--
 <?php

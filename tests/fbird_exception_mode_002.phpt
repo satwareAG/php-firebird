@@ -1,13 +1,13 @@
 --TEST--
 fbird_set_exception_mode() - Exception throwing behavior with database errors
---EXTENSIONS--
-firebird
+--SKIPIF--
+<?php include("skipif.inc"); ?>
 --FILE--
 <?php
-require_once __DIR__ . '/config.inc';
+require __DIR__ . '/firebird.inc';
 
 // Connect to database
-$conn = fbird_connect($test_cfg_server, $test_cfg_user, $test_cfg_password);
+$conn = fbird_connect($test_base);
 if (!$conn) {
     die("Cannot connect: " . fbird_errmsg());
 }

@@ -1,7 +1,7 @@
 --TEST--
 fbird_set_exception_mode() - Runtime exception mode switching
---EXTENSIONS--
-firebird
+--SKIPIF--
+<?php include("skipif.inc"); ?>
 --FILE--
 <?php
 // Test 1: Verify constants exist

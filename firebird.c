@@ -45,6 +45,17 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_INFO(arginfo_fbird_sqlstate, 0)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_set_exception_mode, 0, 0, 1)
+	ZEND_ARG_TYPE_INFO(0, mode, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO(arginfo_fbird_get_exception_mode, 0)
+ZEND_END_ARG_INFO()
+
+/* Firebird\Exception method arginfo */
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_firebird_exception_getSqlState, 0, 0, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_connect, 0, 0, 0)
 	ZEND_ARG_INFO(0, database)
 	ZEND_ARG_INFO(0, username)
@@ -476,6 +487,8 @@ static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_errmsg, 		arginfo_fbird_errmsg)
 	PHP_FE(fbird_errcode, 		arginfo_fbird_errcode)
 	PHP_FE(fbird_sqlstate, 		arginfo_fbird_sqlstate)
+	PHP_FE(fbird_set_exception_mode, arginfo_fbird_set_exception_mode)
+	PHP_FE(fbird_get_exception_mode, arginfo_fbird_get_exception_mode)
 
 	PHP_FE(fbird_add_user, 		arginfo_fbird_add_user)
 	PHP_FE(fbird_modify_user, 	arginfo_fbird_modify_user)
@@ -641,6 +654,63 @@ PHP_FUNCTION(fbird_sqlstate)
 }
 /* }}} */
 
+/* {{{ proto bool fbird_set_exception_mode(int mode)
+   Set runtime exception mode for Firebird errors */
+PHP_FUNCTION(fbird_set_exception_mode)
+{
+	zend_long mode;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "l", &mode) == FAILURE) {
+		return;
+	}
+
+	if (mode != FBIRD_EXCEPTION_MODE_SILENT && mode != FBIRD_EXCEPTION_MODE_THROW) {
+		php_error_docref(NULL, E_WARNING,
+			"Invalid mode (use FBIRD_EXCEPTION_MODE_SILENT or FBIRD_EXCEPTION_MODE_THROW)");
+		RETURN_FALSE;
+	}
+
+	IBG(exception_mode) = (int)mode;
+	RETURN_TRUE;
+}
+/* }}} */
+
+/* {{{ proto int fbird_get_exception_mode(void)
+   Get current runtime exception mode */
+PHP_FUNCTION(fbird_get_exception_mode)
+{
+	if (zend_parse_parameters_none() == FAILURE) {
+		return;
+	}
+
+	RETURN_LONG(IBG(exception_mode));
+}
+/* }}} */
+
+/* {{{ proto string Firebird\Exception::getSqlState()
+   Return SQLSTATE error code for this exception */
+PHP_METHOD(FirebirdException, getSqlState)
+{
+	char sqlstate[6]; /* 5 chars + null terminator */
+
+	if (zend_parse_parameters_none() == FAILURE) {
+		return;
+	}
+
+	/* Call fb_sqlstate to get the SQLSTATE code from the status vector */
+	fb_sqlstate(sqlstate, IB_STATUS);
+
+	/* Always return the SQLSTATE (even if "00000" for compatibility) */
+	RETURN_STRINGL(sqlstate, 5);
+}
+/* }}} */
+
+/* Firebird\Exception method table */
+static const zend_function_entry firebird_exception_methods[] = {
+	PHP_ME(FirebirdException, getSqlState, arginfo_firebird_exception_getSqlState, ZEND_ACC_PUBLIC)
+	PHP_FE_END
+};
+
 /* print firebird error and save it for fbird_errmsg() */
 void _php_fbird_error(void) /* {{{ */
 {
@@ -659,7 +729,8 @@ void _php_fbird_error(void) /* {{{ */
 		s = IBG(errmsg) + msg_len;
 	}
 
-	if (INI_BOOL("fbird.enable_exceptions")) {
+	/* Check runtime exception_mode first, fallback to INI setting */
+	if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW || INI_BOOL("fbird.enable_exceptions")) {
 		zend_throw_exception(firebird_exception_ce, IBG(errmsg), IBG(sql_code));
 	} else {
 		php_error_docref(NULL, E_WARNING, "%s", IBG(errmsg));
@@ -1107,7 +1178,7 @@ PHP_MINIT_FUNCTION(fbird)
 	REGISTER_INI_ENTRIES();
 
 	zend_class_entry ce;
-	INIT_CLASS_ENTRY(ce, "Firebird\\Exception", NULL);
+	INIT_CLASS_ENTRY(ce, "Firebird\\Exception", firebird_exception_methods);
 	firebird_exception_ce = zend_register_internal_class_ex(&ce, zend_ce_exception);
 
 	le_link = zend_register_list_destructors_ex(_php_fbird_close_link, NULL, LE_LINK, module_number);
@@ -1143,6 +1214,10 @@ PHP_MINIT_FUNCTION(fbird)
 	REGISTER_LONG_CONSTANT("FBIRD_LOCK_READ", PHP_FBIRD_LOCK_READ, CONST_PERSISTENT);
 	REGISTER_LONG_CONSTANT("FBIRD_LOCK_WRITE", PHP_FBIRD_LOCK_WRITE, CONST_PERSISTENT);
 	REGISTER_LONG_CONSTANT("FBIRD_READ_CONSISTENCY", PHP_FBIRD_READ_CONSISTENCY, CONST_PERSISTENT);
+
+	/* Exception mode constants */
+	REGISTER_LONG_CONSTANT("FBIRD_EXCEPTION_MODE_SILENT", FBIRD_EXCEPTION_MODE_SILENT, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_EXCEPTION_MODE_THROW", FBIRD_EXCEPTION_MODE_THROW, CONST_PERSISTENT);
 
 	/* Event constants */
 	REGISTER_LONG_CONSTANT("FBIRD_EVENT_TIMEOUT", PHP_FBIRD_EVENT_TIMEOUT, CONST_PERSISTENT);

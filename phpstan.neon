@@ -9,7 +9,6 @@ parameters:
     # Stub files for C extension function signatures
     stubFiles:
         - phpstan/fbird.stub.php
-        - phpstan/fbird-functions.stub.php
         - phpstan/firebird-event.stub.php
 
     # Ensure PHPStan actually scans the stub file for symbol discovery.

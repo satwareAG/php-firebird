@@ -216,14 +216,39 @@ vendor/bin/phpcs src/
 
 ---
 
+## GitHub Issue Management (2025-12-24)
+
+### Actions Taken
+
+1. **Issue #15 (Exception Mode API)** - ✅ **CLOSED**
+   - Implementation complete with all tests passing
+   - Closing comment documents API surface and test coverage
+
+2. **Issue #22 (Fork-safety)** - ✅ **CLOSED**
+   - Implementation complete with PID-based fork detection
+   - Closing comment documents technical approach
+
+3. **Issue #23 (Column alias deduplication)** - 📝 **Analysis Added**
+   - Determined to be a driver-side issue (doctrine-firebird-driver)
+   - Extension behavior is correct (returns Firebird API values)
+   - Comment added with recommendations for driver-level fix
+
+### Open Issues Summary
+
+| Issue | Title | Status | Action Required |
+|-------|-------|--------|-----------------|
+| #23 | Column alias deduplication | Open | Driver-side fix (doctrine-firebird-driver) |
+
+---
+
 ## Related Issues
 
 | Repository | Issue | Status |
 |------------|-------|--------|
-| satwareAG/php-firebird | #15 | ✅ Implemented (rc.6) |
-| satwareAG/php-firebird | #22 | ✅ Implemented (rc.6) |
+| satwareAG/php-firebird | #15 | ✅ **CLOSED** - Implemented (rc.6) |
+| satwareAG/php-firebird | #22 | ✅ **CLOSED** - Implemented (rc.6) |
+| satwareAG/php-firebird | #23 | 📝 Open - Driver-side issue (analysis comment added 2025-12-24) |
 | satwareAG/doctrine-firebird-driver | #33 | 📝 Driver-side action |
-| satwareAG/doctrine-firebird-driver | #23 | 📝 Driver-side fix |
 | FirebirdSQL/php-firebird | 12 fixed | ✅ All in fork |
 
 ---

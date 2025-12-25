@@ -251,10 +251,20 @@ jobs:
 
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
 
-          echo "Testing extension loading..."
-          php -d "extension=${EXTENSION_PATH}" -m | grep -i fbird
+          echo "=== Checking extension file ==="
+          ls -la "$EXTENSION_PATH"
+          ldd "$EXTENSION_PATH" || echo "Could not check extension dependencies"
 
-          echo "Testing connection to Firebird service..."
+          echo "=== Testing extension loading ==="
+          # First show any errors, then check if module loaded
+          if ! php -d "extension=${EXTENSION_PATH}" -m 2>&1 | grep -qi fbird; then
+            echo "ERROR: Extension failed to load. Showing detailed error:"
+            php -d "extension=${EXTENSION_PATH}" -r 'echo "Extension loaded\n";' 2>&1 || true
+            exit 1
+          fi
+          echo "fbird extension loaded successfully"
+
+          echo "=== Testing connection to Firebird service ==="
           php -d "extension=${EXTENSION_PATH}" -r '
             if ($se = @fbird_service_attach("firebird", "SYSDBA", "masterkey")) {
               echo "SUCCESS: Connected to Firebird service\n";

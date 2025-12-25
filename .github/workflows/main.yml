@@ -347,12 +347,23 @@ jobs:
           set -eu
 
           # Ensure Firebird client library is in library path
-          export LD_LIBRARY_PATH="/opt/firebird-client/lib:${LD_LIBRARY_PATH:-}"
+          export LD_LIBRARY_PATH="/opt/firebird-client/lib:/usr/local/lib:/usr/lib:${LD_LIBRARY_PATH:-}"
 
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
 
+          echo "=== Library paths ==="
+          echo "LD_LIBRARY_PATH: ${LD_LIBRARY_PATH}"
+          ls -la /usr/lib/libfbclient* || echo "No libfbclient in /usr/lib"
+          ldd "${EXTENSION_PATH}" | grep -i fbclient || echo "Could not check library deps"
+
           echo "Testing extension loading..."
-          php -d "extension=${EXTENSION_PATH}" -m | grep -i fbird
+          # First check if extension loads without grep to see errors
+          php -d "extension=${EXTENSION_PATH}" -m > /tmp/modules.txt 2>&1 || {
+            echo "PHP extension load failed:"
+            cat /tmp/modules.txt
+            exit 1
+          }
+          grep -i fbird /tmp/modules.txt
 
           echo "Testing connection to Firebird service..."
           php -d "extension=${EXTENSION_PATH}" -r '

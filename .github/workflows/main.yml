@@ -241,19 +241,40 @@ jobs:
           echo "=== Contents of FB_CLIENT_DIR/lib ==="
           ls -la "${FB_CLIENT_DIR}/lib/" || echo "No lib directory"
 
-          # Direct copy to system library paths (not symlinks - symlinks can fail)
+          # Find and copy the actual library file (not symlinks)
           echo "=== Installing libraries to system paths ==="
-          if [ -f "${FB_CLIENT_DIR}/lib/libfbclient.so" ]; then
-            cp -a "${FB_CLIENT_DIR}/lib/libfbclient.so"* /usr/lib/
-            cp -a "${FB_CLIENT_DIR}/lib/libfbclient.so"* /usr/local/lib/ 2>/dev/null || true
+
+          # Find the actual .so file (the one with version number, e.g., libfbclient.so.4.0.6)
+          ACTUAL_LIB=$(find "${FB_CLIENT_DIR}/lib" -name "libfbclient.so.*.*" -type f 2>/dev/null | head -1)
+          if [ -z "$ACTUAL_LIB" ]; then
+            # Fallback: copy dereferencing symlinks
+            ACTUAL_LIB=$(readlink -f "${FB_CLIENT_DIR}/lib/libfbclient.so" 2>/dev/null)
           fi
 
-          # Also copy any .so.X versions
-          for so in "${FB_CLIENT_DIR}/lib/"*.so*; do
-            if [ -f "$so" ]; then
-              cp -a "$so" /usr/lib/
-            fi
-          done
+          if [ -n "$ACTUAL_LIB" ] && [ -f "$ACTUAL_LIB" ]; then
+            LIBNAME=$(basename "$ACTUAL_LIB")
+            echo "Found actual library: $ACTUAL_LIB ($LIBNAME)"
+
+            # Copy actual library file
+            cp "$ACTUAL_LIB" /usr/lib/
+            cp "$ACTUAL_LIB" /usr/local/lib/ 2>/dev/null || true
+
+            # Create proper symlinks
+            ln -sf "$LIBNAME" /usr/lib/libfbclient.so.2
+            ln -sf libfbclient.so.2 /usr/lib/libfbclient.so
+
+            ln -sf "$LIBNAME" /usr/local/lib/libfbclient.so.2 2>/dev/null || true
+            ln -sf libfbclient.so.2 /usr/local/lib/libfbclient.so 2>/dev/null || true
+          else
+            echo "WARNING: Could not find actual libfbclient library file"
+            # Fallback: copy with dereference
+            cp -aL "${FB_CLIENT_DIR}/lib/"* /usr/lib/ 2>/dev/null || true
+          fi
+
+          # Copy libib_util.so if present
+          if [ -f "${FB_CLIENT_DIR}/lib/libib_util.so" ]; then
+            cp -aL "${FB_CLIENT_DIR}/lib/libib_util.so" /usr/lib/
+          fi
 
           # Copy headers directly
           cp -a "${FB_CLIENT_DIR}/include"/* /usr/include/ 2>/dev/null || true

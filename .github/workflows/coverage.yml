@@ -12,13 +12,13 @@ jobs:
     runs-on: ubuntu-latest
 
     # Run Firebird as a service container (same as local docker-compose)
+    # Note: Don't use FIREBIRD_USER=SYSDBA - it already exists and will cause constraint violation
     services:
       firebird:
         image: firebirdsql/firebird:5
         env:
           ISC_PASSWORD: masterkey
           FIREBIRD_DATABASE: test.fdb
-          FIREBIRD_USER: SYSDBA
           FIREBIRD_PASSWORD: masterkey
         ports:
           - 3050:3050
@@ -120,19 +120,63 @@ jobs:
             cp -a opt/firebird/lib/* "${FB_CLIENT_DIR}/lib/"
           fi
 
-          # Create symlinks and copy to standard locations
-          cp -a "${FB_CLIENT_DIR}/lib"/* /usr/local/lib/ 2>/dev/null || true
-          ln -sf "${FB_CLIENT_DIR}/lib/libfbclient.so" /usr/lib/libfbclient.so
-          ln -sf "${FB_CLIENT_DIR}/lib/libfbclient.so.2" /usr/lib/libfbclient.so.2 2>/dev/null || true
-          ln -sf "${FB_CLIENT_DIR}/include" /usr/include/firebird
+          # Debug: Show what we have
+          echo "=== Contents of FB_CLIENT_DIR/lib ==="
+          ls -la "${FB_CLIENT_DIR}/lib/" || echo "No lib directory"
 
-          # Configure ldconfig
+          # Install ALL library files from the Firebird client package
+          # libfbclient depends on libtomcrypt and libtommath - all must be available
+          echo "=== Installing ALL libraries to system paths ==="
+
+          # Copy all actual library files (not symlinks) first
+          for libfile in "${FB_CLIENT_DIR}/lib/"*.so*; do
+            if [ -f "$libfile" ] && [ ! -L "$libfile" ]; then
+              LIBNAME=$(basename "$libfile")
+              echo "Copying actual library: $LIBNAME"
+              cp "$libfile" /usr/lib/
+              cp "$libfile" /usr/local/lib/ 2>/dev/null || true
+            fi
+          done
+
+          # Now create proper symlinks for libfbclient
+          if [ -f /usr/lib/libfbclient.so.*.*.* ] 2>/dev/null; then
+            FBCLIENT_REAL=$(ls /usr/lib/libfbclient.so.*.*.* 2>/dev/null | head -1)
+            FBCLIENT_NAME=$(basename "$FBCLIENT_REAL")
+            echo "Creating symlinks for $FBCLIENT_NAME"
+            ln -sf "$FBCLIENT_NAME" /usr/lib/libfbclient.so.2
+            ln -sf libfbclient.so.2 /usr/lib/libfbclient.so
+            ln -sf "$FBCLIENT_NAME" /usr/local/lib/libfbclient.so.2 2>/dev/null || true
+            ln -sf libfbclient.so.2 /usr/local/lib/libfbclient.so 2>/dev/null || true
+          fi
+
+          # Create symlinks for libtomcrypt if present
+          if [ -f /usr/lib/libtomcrypt.so.*.*.* ] 2>/dev/null; then
+            TOMCRYPT_REAL=$(ls /usr/lib/libtomcrypt.so.*.*.* 2>/dev/null | head -1)
+            TOMCRYPT_NAME=$(basename "$TOMCRYPT_REAL")
+            echo "Creating symlinks for $TOMCRYPT_NAME"
+            ln -sf "$TOMCRYPT_NAME" /usr/lib/libtomcrypt.so.1
+            ln -sf libtomcrypt.so.1 /usr/lib/libtomcrypt.so
+          fi
+
+          # Copy headers directly
+          cp -a "${FB_CLIENT_DIR}/include"/* /usr/include/ 2>/dev/null || true
+
+          # Configure dynamic linker - add all library paths
           echo "${FB_CLIENT_DIR}/lib" > /etc/ld.so.conf.d/firebird-client.conf
           echo "/usr/local/lib" >> /etc/ld.so.conf.d/firebird-client.conf
+          echo "/usr/lib" >> /etc/ld.so.conf.d/firebird-client.conf
           ldconfig
 
-          # Verify
-          ldconfig -p | grep -i fbclient || echo "Warning: libfbclient not found in ldconfig"
+          # Verify installation
+          echo "=== Verifying library installation ==="
+          ldconfig -p | grep -E "(fbclient|tomcrypt)" || echo "Warning: libraries not in ldconfig cache"
+          echo "=== Libraries in /usr/lib ==="
+          ls -la /usr/lib/libfbclient* /usr/lib/libtomcrypt* /usr/lib/libib_util* 2>/dev/null || echo "Some libraries missing"
+          ls -la /usr/include/ibase.h || echo "Warning: ibase.h not in /usr/include"
+
+          # Verify libfbclient can be loaded (check dependencies)
+          echo "=== Checking libfbclient dependencies ==="
+          ldd /usr/lib/libfbclient.so 2>&1 || echo "Warning: could not check libfbclient dependencies"
 
           # Verify
           if [ ! -f "${FB_CLIENT_DIR}/include/ibase.h" ]; then

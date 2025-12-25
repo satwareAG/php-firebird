@@ -391,23 +391,50 @@ jobs:
           # Note: Module name is "firebird" (not "fbird")
           grep -i firebird /tmp/modules.txt
 
-          echo "Testing connection to Firebird service..."
-          # Note: Service manager connection may fail in some container setups
-          # The PHPT tests will verify actual database connectivity
+          echo "Testing database connection..."
+          # Test actual database connection (not just service manager)
           php -d "extension=${EXTENSION_PATH}" -r '
-            $host = "firebird";
-            echo "Connecting to service manager at $host...\n";
+            ini_set("fbird.default_user", "SYSDBA");
+            ini_set("fbird.default_password", "masterkey");
+            putenv("ISC_USER=SYSDBA");
+            putenv("ISC_PASSWORD=masterkey");
 
-            if ($se = @fbird_service_attach($host, "SYSDBA", "masterkey")) {
-              echo "SUCCESS: Connected to Firebird service manager\n";
-              $ver = fbird_server_info($se, FBIRD_SVC_SERVER_VERSION);
-              echo "Server version: $ver\n";
-              fbird_service_detach($se);
+            $dbPath = getenv("FIREBIRD_DB_PATH");
+            $host = getenv("FIREBIRD_HOST");
+            $connStr = $host . ":" . $dbPath;
+
+            echo "Testing connection to: $connStr\n";
+            echo "FIREBIRD_HOST=$host\n";
+            echo "FIREBIRD_DB_PATH=$dbPath\n";
+
+            $db = @fbird_connect($connStr, "SYSDBA", "masterkey");
+            if ($db) {
+              echo "SUCCESS: Connected to database!\n";
+              $res = fbird_query($db, "SELECT 1 FROM RDB\$DATABASE");
+              $row = fbird_fetch_row($res);
+              echo "SELECT 1 test: " . $row[0] . "\n";
+              fbird_free_result($res);
+              fbird_close($db);
             } else {
-              $err = fbird_errmsg();
-              echo "WARNING: Service attach failed: $err\n";
-              echo "This may be normal for some Firebird container configurations.\n";
-              echo "PHPT tests will verify actual database connectivity.\n";
+              echo "FAILED: " . fbird_errmsg() . "\n";
+
+              // Try alternate paths
+              $altPaths = [
+                "/var/lib/firebird/data/test.fdb",
+                "/firebird/data/test.fdb",
+                "/tmp/test.fdb"
+              ];
+              foreach ($altPaths as $alt) {
+                $altConn = $host . ":" . $alt;
+                echo "Trying: $altConn ... ";
+                if (@fbird_connect($altConn, "SYSDBA", "masterkey")) {
+                  echo "SUCCESS!\n";
+                  break;
+                } else {
+                  echo "FAILED\n";
+                }
+              }
+              exit(1);
             }
           '
 

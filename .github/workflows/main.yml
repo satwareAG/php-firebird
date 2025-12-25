@@ -121,7 +121,8 @@ jobs:
       # In GitHub Actions services network, service containers are accessible
       # by their service name as hostname
       FIREBIRD_HOST: firebird
-      FIREBIRD_DB_DIR: /tmp
+      # Path to the database file INSIDE the Firebird container (created by docker entrypoint)
+      FIREBIRD_DB_PATH: /var/lib/firebird/data/test.fdb
 
     steps:
       - name: Checkout repository
@@ -431,7 +432,7 @@ jobs:
 
           echo "Test configuration:"
           echo "  FIREBIRD_HOST=${FIREBIRD_HOST}"
-          echo "  FIREBIRD_DB_DIR=${FIREBIRD_DB_DIR}"
+          echo "  FIREBIRD_DB_PATH=${FIREBIRD_DB_PATH}"
           echo "  PHP_TEST_SHARED_EXTENSIONS=${PHP_TEST_SHARED_EXTENSIONS}"
 
           echo "Running all PHPT tests..."

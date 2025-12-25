@@ -30,7 +30,8 @@ jobs:
       ISC_USER: SYSDBA
       ISC_PASSWORD: masterkey
       FIREBIRD_HOST: firebird
-      FIREBIRD_DB_DIR: /tmp
+      # Path to the database file INSIDE the Firebird container (created by docker entrypoint)
+      FIREBIRD_DB_PATH: /var/lib/firebird/data/test.fdb
 
     steps:
       - name: Checkout repository

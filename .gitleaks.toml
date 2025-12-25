@@ -8,10 +8,11 @@ useDefault = true
 [allowlist]
 description = "php-firebird repository allowlist"
 
-# Exclude vendor directory (third-party code)
+# Exclude vendor directory (third-party code) and IDE files
 paths = [
     '''vendor/.*''',
     '''node_modules/.*''',
+    '''\.idea/.*''',
 ]
 
 # Exclude test debug scripts (contain Docker base image GPG keys, not secrets)

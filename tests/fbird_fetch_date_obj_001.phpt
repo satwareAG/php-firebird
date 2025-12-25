@@ -92,12 +92,21 @@ echo "NULL timestamp_col is null: ";
 var_dump($row['TIMESTAMP_COL'] === null);
 fbird_free_result($result);
 
-// Cleanup
-fbird_query($link, "DROP TABLE test_datetime");
-fbird_commit($link);
+// Clean close - let --CLEAN-- section handle table drop
 fbird_close($link);
 
 echo "\nDone.\n";
+?>
+--CLEAN--
+<?php
+// Cleanup in separate process to avoid shutdown race conditions
+require("firebird.inc");
+$link = @fbird_connect($test_base, $user, $password);
+if ($link) {
+    @fbird_query($link, "DROP TABLE test_datetime");
+    @fbird_commit($link);
+    @fbird_close($link);
+}
 ?>
 --EXPECTF--
 === Test FBIRD_FETCH_DATE_OBJ constant exists ===
@@ -129,7 +138,5 @@ Object->TIMESTAMP_COL instanceof DateTimeImmutable: bool(true)
 NULL date_col is null: bool(true)
 NULL time_col is null: bool(true)
 NULL timestamp_col is null: bool(true)
-
-Warning: fbird_commit():  in %s on line %d
 
 Done.

@@ -13,6 +13,7 @@ jobs:
 
     # Run Firebird as a service container (same as local docker-compose)
     # Note: Don't use FIREBIRD_USER=SYSDBA - it already exists and will cause constraint violation
+    # Authentication: Firebird 5.0 requires proper auth config for network connections
     services:
       firebird:
         image: firebirdsql/firebird:5
@@ -20,6 +21,8 @@ jobs:
           ISC_PASSWORD: masterkey
           FIREBIRD_DATABASE: test.fdb
           FIREBIRD_PASSWORD: masterkey
+          # Enable legacy authentication for network connections
+          EnableLegacyClientAuth: "true"
         ports:
           - 3050:3050
 

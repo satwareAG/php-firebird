@@ -100,15 +100,18 @@ jobs:
     # Run Firebird as a service container (same images as local docker-compose)
     # Note: Environment variables differ between jacobalberty/firebird (2.5) and firebirdsql/firebird (3+)
     # - jacobalberty/firebird:2.5-ss uses ISC_PASSWORD only (SYSDBA already exists)
-    # - firebirdsql/firebird:3+ uses FIREBIRD_DATABASE, ISC_PASSWORD (don't use FIREBIRD_USER=SYSDBA)
+    # - firebirdsql/firebird:3+ uses FIREBIRD_DATABASE, ISC_PASSWORD
+    # Authentication: Firebird 3.0+ requires proper auth config for network connections
     services:
       firebird:
         image: ${{ matrix.firebird-image }}
         env:
           ISC_PASSWORD: masterkey
           FIREBIRD_DATABASE: test.fdb
-          # Don't set FIREBIRD_USER to SYSDBA - it already exists and will cause constraint violation
           FIREBIRD_PASSWORD: masterkey
+          # Enable legacy authentication for network connections (Firebird 3+)
+          # Without this, some auth plugin combinations fail
+          EnableLegacyClientAuth: "true"
         ports:
           - 3050:3050
 

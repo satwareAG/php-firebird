@@ -62,7 +62,7 @@ if ($pid == -1) {
 
 echo "Test complete\n";
 ?>
---EXPECT--
+--EXPECTF--
 Parent PID: %d
 Extension loaded: Yes
 Forked child PID: %d

@@ -56,7 +56,13 @@ if [ -d "tests" ]; then
             TARGET="$TARGET $resolved"
         done
     fi
-    TEST_PHP_EXECUTABLE=/usr/local/bin/php TEST_PHP_ARGS="-n" php -n run-tests.php -d extension=$(pwd)/modules/firebird.so $TARGET
+    # Build extension arguments - always load firebird, conditionally load pcntl if available
+    EXT_ARGS="-d extension=$(pwd)/modules/firebird.so"
+    # Check if pcntl is available (needed for fork tests)
+    if php -m 2>/dev/null | grep -q pcntl; then
+        EXT_ARGS="$EXT_ARGS -d extension=pcntl"
+    fi
+    TEST_PHP_EXECUTABLE=/usr/local/bin/php TEST_PHP_ARGS="-n" php -n run-tests.php $EXT_ARGS $TARGET
 else
     echo "No test directory found. Skipping tests."
 fi

@@ -1,4 +1,4 @@
-name: Linux PHP + Firebird (IBSurgeon)
+name: Linux PHP + Firebird (Docker Services)
 
 on:
   push:
@@ -11,46 +11,128 @@ jobs:
     name: PHP ${{ matrix.php-version }} / Firebird ${{ matrix.firebird-version }}
     runs-on: ubuntu-latest
 
-    # Single container per job: one PHP CLI image which will also host
-    # the Firebird server installed via IBSurgeon firebirdlinuxinstall.
-    #
-    # We pin the Debian variant to "bookworm" (Debian 12) because the
-    # firebirdlinuxinstall scripts currently support Debian up to 12 and
-    # explicitly fail on 13 (trixie), which is the default for generic
-    # php:<version>-cli images at the time of writing.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # PHP 8.1 combinations
+          - php-version: '8.1'
+            firebird-version: '2.5'
+            firebird-image: 'jacobalberty/firebird:2.5-ss'
+            fb-client-version: '3.0'
+          - php-version: '8.1'
+            firebird-version: '3.0'
+            firebird-image: 'firebirdsql/firebird:3'
+            fb-client-version: '3.0'
+          - php-version: '8.1'
+            firebird-version: '4.0'
+            firebird-image: 'firebirdsql/firebird:4'
+            fb-client-version: '4.0'
+          - php-version: '8.1'
+            firebird-version: '5.0'
+            firebird-image: 'firebirdsql/firebird:5'
+            fb-client-version: '5.0'
+          # PHP 8.2 combinations
+          - php-version: '8.2'
+            firebird-version: '2.5'
+            firebird-image: 'jacobalberty/firebird:2.5-ss'
+            fb-client-version: '3.0'
+          - php-version: '8.2'
+            firebird-version: '3.0'
+            firebird-image: 'firebirdsql/firebird:3'
+            fb-client-version: '3.0'
+          - php-version: '8.2'
+            firebird-version: '4.0'
+            firebird-image: 'firebirdsql/firebird:4'
+            fb-client-version: '4.0'
+          - php-version: '8.2'
+            firebird-version: '5.0'
+            firebird-image: 'firebirdsql/firebird:5'
+            fb-client-version: '5.0'
+          # PHP 8.3 combinations
+          - php-version: '8.3'
+            firebird-version: '2.5'
+            firebird-image: 'jacobalberty/firebird:2.5-ss'
+            fb-client-version: '3.0'
+          - php-version: '8.3'
+            firebird-version: '3.0'
+            firebird-image: 'firebirdsql/firebird:3'
+            fb-client-version: '3.0'
+          - php-version: '8.3'
+            firebird-version: '4.0'
+            firebird-image: 'firebirdsql/firebird:4'
+            fb-client-version: '4.0'
+          - php-version: '8.3'
+            firebird-version: '5.0'
+            firebird-image: 'firebirdsql/firebird:5'
+            fb-client-version: '5.0'
+          # PHP 8.4 combinations
+          - php-version: '8.4'
+            firebird-version: '2.5'
+            firebird-image: 'jacobalberty/firebird:2.5-ss'
+            fb-client-version: '3.0'
+          - php-version: '8.4'
+            firebird-version: '3.0'
+            firebird-image: 'firebirdsql/firebird:3'
+            fb-client-version: '3.0'
+          - php-version: '8.4'
+            firebird-version: '4.0'
+            firebird-image: 'firebirdsql/firebird:4'
+            fb-client-version: '4.0'
+          - php-version: '8.4'
+            firebird-version: '5.0'
+            firebird-image: 'firebirdsql/firebird:5'
+            fb-client-version: '5.0'
+          # PHP 8.5 combinations (RC/development)
+          - php-version: '8.5'
+            firebird-version: '3.0'
+            firebird-image: 'firebirdsql/firebird:3'
+            fb-client-version: '3.0'
+          - php-version: '8.5'
+            firebird-version: '4.0'
+            firebird-image: 'firebirdsql/firebird:4'
+            fb-client-version: '4.0'
+          - php-version: '8.5'
+            firebird-version: '5.0'
+            firebird-image: 'firebirdsql/firebird:5'
+            fb-client-version: '5.0'
+
+    # Run Firebird as a service container (same images as local docker-compose)
+    services:
+      firebird:
+        image: ${{ matrix.firebird-image }}
+        env:
+          ISC_PASSWORD: masterkey
+          FIREBIRD_DATABASE: test.fdb
+          FIREBIRD_USER: SYSDBA
+          FIREBIRD_PASSWORD: masterkey
+        ports:
+          - 3050:3050
+
     container:
       image: php:${{ matrix.php-version }}-cli-bookworm
 
-    strategy:
-      fail-fast: false  # Temporarily disabled to diagnose intermittent failures
-      matrix:
-        php-version: ['8.1', '8.2', '8.3', '8.4', '8.5']
-        firebird-version: ['2.5', '3.0', '4.0', '5.0']
-
     env:
-      # Default Firebird credentials expected by tests/firebird.inc.
       ISC_USER: SYSDBA
       ISC_PASSWORD: masterkey
+      # In GitHub Actions services network, service containers are accessible
+      # by their service name as hostname
+      FIREBIRD_HOST: firebird
+      FIREBIRD_DB_DIR: /tmp
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install system dependencies (PHP build tools, netcat, curl, wget)
+      - name: Install system dependencies
         run: |
           set -eu
-
-          # Enable pipefail where supported (bash, some modern shells). When running
-          # under POSIX sh (e.g. act's default shell), this will fail but is safely
-          # ignored because it's wrapped in an if-condition.
-          if (set -o pipefail) 2>/dev/null; then :; fi
-
           export DEBIAN_FRONTEND=noninteractive
+
+          # Retry apt-get update
           for attempt in 1 2 3; do
-            if apt-get update; then
-              break
-            fi
-            echo "apt-get update failed (attempt ${attempt}/3), retrying in 5s..." >&2
+            if apt-get update; then break; fi
+            echo "apt-get update failed (attempt ${attempt}/3), retrying..." >&2
             sleep 5
           done
 
@@ -61,8 +143,6 @@ jobs:
             g++ \
             git \
             libicu-dev \
-            libreadline-dev \
-            libssl-dev \
             libtool \
             netbase \
             netcat-openbsd \
@@ -70,543 +150,205 @@ jobs:
             wget \
             curl \
             unzip \
-            bison \
-            flex \
-            cmake \
-            jq \
-            python3 \
-            zlib1g-dev
+            libtommath1 \
+            libncurses6
+
+          # Install pcntl extension for event tests
+          docker-php-ext-install pcntl
 
           rm -rf /var/lib/apt/lists/*
 
-          # Install pcntl extension (required for EventPoller tests)
-          docker-php-ext-install pcntl
-
-      # ========================================================================
-      # Install Firebird 3.0+ client libraries for compilation
-      # ========================================================================
-      # The extension requires Firebird 3.0+ client libraries (OO API) for
-      # compilation. As of v7.0.0+, we support compilation against both
-      # Firebird 3.0 and 4.0+ client headers via fb_blr_compat.h.
-      # See: https://github.com/satwareAG/php-firebird/issues/19
-      - name: Install Firebird 3.0+ client for compilation
+      - name: Install Firebird client library
         env:
-          MATRIX_FIREBIRD_VERSION: ${{ matrix.firebird-version }}
+          FB_CLIENT_VERSION: ${{ matrix.fb-client-version }}
         run: |
           set -eu
 
-          # Select client version based on matrix - use same version for
-          # compilation and runtime for consistency.
-          # For FB 2.5 server testing, use FB 3.0 client (minimum supported).
-          case "${MATRIX_FIREBIRD_VERSION}" in
-            '2.5')
-              FB_CLIENT_VERSION="3.0.12"
-              FB_CLIENT_TARBALL="Firebird-${FB_CLIENT_VERSION}.33787-0.amd64.tar.gz"
-              FB_CLIENT_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_CLIENT_VERSION}/${FB_CLIENT_TARBALL}"
-              ;;
+          FB_CLIENT_DIR="/opt/firebird-client"
+          mkdir -p "${FB_CLIENT_DIR}"
+
+          # Select client tarball based on version
+          case "${FB_CLIENT_VERSION}" in
             '3.0')
-              FB_CLIENT_VERSION="3.0.12"
-              FB_CLIENT_TARBALL="Firebird-${FB_CLIENT_VERSION}.33787-0.amd64.tar.gz"
-              FB_CLIENT_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_CLIENT_VERSION}/${FB_CLIENT_TARBALL}"
+              FB_VERSION="3.0.12"
+              FB_BUILD="33787-0"
+              FB_TARBALL="Firebird-${FB_VERSION}.${FB_BUILD}.amd64.tar.gz"
+              FB_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_VERSION}/${FB_TARBALL}"
+              FB_EXTRACT_DIR="Firebird-${FB_VERSION}.${FB_BUILD}.amd64"
               ;;
             '4.0')
-              FB_CLIENT_VERSION="4.0.6"
-              FB_CLIENT_TARBALL="Firebird-${FB_CLIENT_VERSION}.3221-0.amd64.tar.gz"
-              FB_CLIENT_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_CLIENT_VERSION}/${FB_CLIENT_TARBALL}"
+              FB_VERSION="4.0.6"
+              FB_BUILD="3221-0"
+              FB_TARBALL="Firebird-${FB_VERSION}.${FB_BUILD}.amd64.tar.gz"
+              FB_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_VERSION}/${FB_TARBALL}"
+              FB_EXTRACT_DIR="Firebird-${FB_VERSION}.${FB_BUILD}.amd64"
               ;;
             '5.0')
-              FB_CLIENT_VERSION="5.0.2"
-              FB_CLIENT_TARBALL="Firebird-${FB_CLIENT_VERSION}.1613-0-linux-x64.tar.gz"
-              FB_CLIENT_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_CLIENT_VERSION}/${FB_CLIENT_TARBALL}"
+              FB_VERSION="5.0.2"
+              FB_BUILD="1613-0"
+              FB_TARBALL="Firebird-${FB_VERSION}.${FB_BUILD}-linux-x64.tar.gz"
+              FB_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_VERSION}/${FB_TARBALL}"
+              FB_EXTRACT_DIR="Firebird-${FB_VERSION}.${FB_BUILD}-linux-x64"
               ;;
             *)
-              echo "Unsupported Firebird version in matrix: ${MATRIX_FIREBIRD_VERSION}" >&2
+              echo "Unsupported client version: ${FB_CLIENT_VERSION}" >&2
               exit 1
               ;;
           esac
-          FB_CLIENT_DIR="/opt/firebird-client"
 
-          echo "Installing Firebird ${FB_CLIENT_VERSION} client for compilation..."
+          echo "Installing Firebird ${FB_VERSION} client library..."
 
-          # Download FB 3.0 client tarball with size verification
-          # Expected size for Firebird-3.0.12.33787-0.amd64.tar.gz is ~9MB
-          EXPECTED_MIN_SIZE=8000000  # ~8MB minimum
-
+          # Download with retries
           for attempt in 1 2 3 4 5; do
             echo "Downloading FB client (attempt ${attempt}/5)..."
-            if curl -fsSL --retry 3 --retry-delay 5 "${FB_CLIENT_URL}" -o "/tmp/${FB_CLIENT_TARBALL}"; then
-              # Verify file size
-              ACTUAL_SIZE=$(stat -f%z "/tmp/${FB_CLIENT_TARBALL}" 2>/dev/null || stat -c%s "/tmp/${FB_CLIENT_TARBALL}" 2>/dev/null || echo "0")
-              if [ "${ACTUAL_SIZE}" -gt "${EXPECTED_MIN_SIZE}" ]; then
-                echo "Successfully downloaded FB client (${ACTUAL_SIZE} bytes)"
+            if curl -fsSL --retry 3 --retry-delay 5 "${FB_URL}" -o "/tmp/${FB_TARBALL}"; then
+              # Verify download size (should be at least 8MB)
+              FSIZE=$(stat -c%s "/tmp/${FB_TARBALL}" 2>/dev/null || stat -f%z "/tmp/${FB_TARBALL}" 2>/dev/null || echo "0")
+              if [ "${FSIZE}" -gt 8000000 ]; then
+                echo "Download successful (${FSIZE} bytes)"
                 break
-              else
-                echo "Downloaded file too small (${ACTUAL_SIZE} < ${EXPECTED_MIN_SIZE}), retrying..."
-                rm -f "/tmp/${FB_CLIENT_TARBALL}"
               fi
+              echo "Downloaded file too small (${FSIZE} bytes), retrying..."
+              rm -f "/tmp/${FB_TARBALL}"
             fi
-            echo "Download failed, retrying in 10s..."
             sleep 10
           done
 
-          # Final verification
-          if [ ! -f "/tmp/${FB_CLIENT_TARBALL}" ]; then
-            echo "ERROR: Failed to download FB client tarball" >&2
+          if [ ! -f "/tmp/${FB_TARBALL}" ]; then
+            echo "ERROR: Failed to download FB client" >&2
             exit 1
           fi
 
-          # Extract and set up client libraries
-          # The Firebird tarball is an installer package that contains buildroot.tar.gz
-          # We need to extract that to get the actual headers and libraries
-          mkdir -p "${FB_CLIENT_DIR}"
+          # Extract tarball
           cd /tmp
-          tar xzf "${FB_CLIENT_TARBALL}"
+          tar xzf "${FB_TARBALL}"
+          cd "${FB_EXTRACT_DIR}"
 
-          # Find the extracted directory (name may vary)
-          FB_EXTRACTED=$(find . -maxdepth 1 -type d -name 'Firebird*' | head -1)
-          if [ -z "${FB_EXTRACTED}" ]; then
-            echo "ERROR: Could not find extracted Firebird directory" >&2
-            ls -la /tmp/
-            exit 1
+          # Extract buildroot.tar.gz
+          tar xzf buildroot.tar.gz
+
+          # Copy headers and libraries
+          if [ -d "opt/firebird/include" ]; then
+            mkdir -p "${FB_CLIENT_DIR}/include"
+            cp -a opt/firebird/include/* "${FB_CLIENT_DIR}/include/"
+          fi
+          if [ -d "opt/firebird/lib" ]; then
+            mkdir -p "${FB_CLIENT_DIR}/lib"
+            cp -a opt/firebird/lib/* "${FB_CLIENT_DIR}/lib/"
           fi
 
-          echo "Extracted directory: ${FB_EXTRACTED}"
-          ls -la "${FB_EXTRACTED}/"
-
-          # The installer package contains buildroot.tar.gz with the actual files
-          if [ -f "${FB_EXTRACTED}/buildroot.tar.gz" ]; then
-            echo "Found buildroot.tar.gz, extracting..."
-            cd "${FB_EXTRACTED}"
-
-            # Verify buildroot.tar.gz integrity
-            BUILDROOT_SIZE=$(stat -c%s buildroot.tar.gz 2>/dev/null || stat -f%z buildroot.tar.gz 2>/dev/null || echo "0")
-            echo "DEBUG: buildroot.tar.gz size: ${BUILDROOT_SIZE} bytes"
-
-            # List a few files from the tarball to verify integrity
-            echo "DEBUG: First 10 files in buildroot.tar.gz:"
-            tar tzf buildroot.tar.gz 2>/dev/null | head -10 || echo "Failed to list tarball contents"
-
-            # Extract with verbose output to see what's happening
-            tar xzf buildroot.tar.gz
-
-            # Debug: show what was extracted
-            echo "DEBUG: Listing opt/firebird/include/ contents:"
-            ls -la opt/firebird/include/ 2>/dev/null || echo "opt/firebird/include/ not found"
-
-            echo "DEBUG: Checking for ibase.h in source:"
-            if [ -f "opt/firebird/include/ibase.h" ]; then
-              echo "  ibase.h found: $(ls -la opt/firebird/include/ibase.h)"
-            else
-              echo "  ibase.h NOT FOUND in opt/firebird/include/"
-              echo "  Available files:"
-              find opt/firebird/include/ -type f -name "*.h" 2>/dev/null | head -20
-            fi
-
-            # Verify extraction was complete - ibase.h is required
-            if [ ! -f "opt/firebird/include/ibase.h" ]; then
-              echo "ERROR: Incomplete extraction - ibase.h missing from buildroot" >&2
-              echo "Re-extracting buildroot.tar.gz..."
-              rm -rf opt/
-              tar xzf buildroot.tar.gz
-              if [ ! -f "opt/firebird/include/ibase.h" ]; then
-                echo "ERROR: Second extraction also failed" >&2
-                ls -la opt/firebird/include/ 2>/dev/null || echo "Include directory missing"
-                exit 1
-              fi
-            fi
-
-            # The files are in opt/firebird/ within buildroot
-            # Use rsync-like copy with -a to preserve directory structure
-            if [ -d "opt/firebird/include" ]; then
-              mkdir -p "${FB_CLIENT_DIR}/include"
-              cp -a opt/firebird/include/* "${FB_CLIENT_DIR}/include/"
-            fi
-            if [ -d "opt/firebird/lib" ]; then
-              mkdir -p "${FB_CLIENT_DIR}/lib"
-              cp -a opt/firebird/lib/* "${FB_CLIENT_DIR}/lib/"
-            fi
-
-            # Check for firebird/impl/blr.h (only present in FB 4.0+)
-            # As of v7.0.0+, this header is optional - fb_blr_compat.h provides fallbacks
-            echo "Header structure verification:"
-            ls -la "${FB_CLIENT_DIR}/include/firebird/" 2>/dev/null || echo "No firebird/ subdir (FB 3.0 - using fallback BLR definitions)"
-            ls -la "${FB_CLIENT_DIR}/include/firebird/impl/" 2>/dev/null || echo "No firebird/impl/ subdir (FB 3.0 - using fallback BLR definitions)"
-
-            if [ -f "${FB_CLIENT_DIR}/include/firebird/impl/blr.h" ]; then
-              echo "INFO: firebird/impl/blr.h found (FB 4.0+ native header)"
-            else
-              echo "INFO: firebird/impl/blr.h not found (FB 3.0 - using fb_blr_compat.h fallback definitions)"
-            fi
-          else
-            # Fallback: try direct structure
-            echo "No buildroot.tar.gz found, trying direct structure..."
-
-            # Copy headers and libraries if they exist directly
-            if [ -d "${FB_EXTRACTED}/include" ]; then
-              cp -r "${FB_EXTRACTED}/include" "${FB_CLIENT_DIR}/"
-            fi
-            if [ -d "${FB_EXTRACTED}/lib" ]; then
-              mkdir -p "${FB_CLIENT_DIR}/lib"
-              cp -r "${FB_EXTRACTED}/lib/"* "${FB_CLIENT_DIR}/lib/" 2>/dev/null || true
-            fi
-
-            # Also look in opt/firebird/ subdirectory
-            if [ -d "${FB_EXTRACTED}/opt/firebird/include" ]; then
-              mkdir -p "${FB_CLIENT_DIR}/include"
-              cp -r "${FB_EXTRACTED}/opt/firebird/include/"* "${FB_CLIENT_DIR}/include/"
-            fi
-            if [ -d "${FB_EXTRACTED}/opt/firebird/lib" ]; then
-              mkdir -p "${FB_CLIENT_DIR}/lib"
-              cp -r "${FB_EXTRACTED}/opt/firebird/lib/"* "${FB_CLIENT_DIR}/lib/"
-            fi
+          # Create system symlinks for compilation and runtime
+          ln -sf "${FB_CLIENT_DIR}/lib/libfbclient.so" /usr/lib/libfbclient.so
+          if [ -f "${FB_CLIENT_DIR}/lib/libfbclient.so.2" ]; then
+            ln -sf "${FB_CLIENT_DIR}/lib/libfbclient.so.2" /usr/lib/libfbclient.so.2
           fi
+          ln -sf "${FB_CLIENT_DIR}/include" /usr/include/firebird
 
-          # Verify required files exist
+          # Configure dynamic linker
+          echo "${FB_CLIENT_DIR}/lib" > /etc/ld.so.conf.d/firebird-client.conf
+          ldconfig
+
+          # Verify installation
           if [ ! -f "${FB_CLIENT_DIR}/include/ibase.h" ]; then
             echo "ERROR: ibase.h not found in ${FB_CLIENT_DIR}/include" >&2
-            find "${FB_CLIENT_DIR}" -name "*.h" -o -name "*.so*" 2>/dev/null || true
+            ls -la "${FB_CLIENT_DIR}/" || true
             exit 1
           fi
 
-          echo "Firebird client installed successfully:"
-          ls -la "${FB_CLIENT_DIR}/include/" | head -10
-          ls -la "${FB_CLIENT_DIR}/lib/" | head -10
+          echo "Firebird ${FB_VERSION} client installed successfully"
+          ls -la "${FB_CLIENT_DIR}/include/" | head -5
+          ls -la "${FB_CLIENT_DIR}/lib/" | head -5
 
-      # ========================================================================
-      # Install Firebird server for testing
-      # ========================================================================
-      - name: Install Firebird server via IBSurgeon script
-        env:
-          # Map matrix.firebird-version to firebirdlinuxinstall script suffix.
-          MATRIX_FIREBIRD_VERSION: ${{ matrix.firebird-version }}
+      - name: Wait for Firebird service
         run: |
           set -eu
+          echo "Waiting for Firebird service to be ready..."
 
-          # Enable pipefail where supported without breaking plain /bin/sh.
-          if (set -o pipefail) 2>/dev/null; then :; fi
-
-          # Map Firebird version to script suffix and download URLs
-          case "${MATRIX_FIREBIRD_VERSION}" in
-            '2.5')
-              FB_SCRIPT_SUFFIX='25'
-              FB_TARBALL_URL="https://github.com/FirebirdSQL/firebird/releases/download/R2_5_9/FirebirdCS-2.5.9.27139-0.amd64.tar.gz"
-              ;;
-            '3.0')
-              FB_SCRIPT_SUFFIX='30'
-              FB_TARBALL_URL="https://github.com/FirebirdSQL/firebird/releases/download/v3.0.12/Firebird-3.0.12.33787-0.amd64.tar.gz"
-              ;;
-            '4.0')
-              FB_SCRIPT_SUFFIX='40'
-              FB_TARBALL_URL="https://github.com/FirebirdSQL/firebird/releases/download/v4.0.6/Firebird-4.0.6.3221-0.amd64.tar.gz"
-              ;;
-            '5.0')
-              FB_SCRIPT_SUFFIX='50'
-              FB_TARBALL_URL="https://github.com/FirebirdSQL/firebird/releases/download/v5.0.2/Firebird-5.0.2.1613-0-linux-x64.tar.gz"
-              ;;
-            *)
-              echo "Unsupported Firebird version in matrix: ${MATRIX_FIREBIRD_VERSION}" >&2
-              exit 1
-              ;;
-          esac
-
-          FB_SCRIPT_URL="https://raw.githubusercontent.com/IBSurgeon/firebirdlinuxinstall/refs/heads/main/fb_vanilla-${FB_SCRIPT_SUFFIX}.sh"
-          FB_TARBALL_NAME=$(basename "${FB_TARBALL_URL}")
-
-          # Function to download with retries
-          download_with_retry() {
-            local url="$1"
-            local output="$2"
-            local description="$3"
-            local max_attempts=5
-            local delay=10
-
-            for attempt in $(seq 1 $max_attempts); do
-              echo "Downloading ${description} (attempt ${attempt}/${max_attempts})..."
-              if curl -fsSL --retry 3 --retry-delay 5 "${url}" -o "${output}"; then
-                echo "Successfully downloaded ${description}"
-                return 0
-              fi
-              echo "Download failed, waiting ${delay} seconds before retry..."
-              sleep $delay
-              delay=$((delay * 2))  # Exponential backoff
-            done
-            echo "ERROR: Failed to download ${description} after ${max_attempts} attempts" >&2
-            return 1
-          }
-
-          # Pre-download Firebird tarball with retry logic (more reliable than letting script do it)
-          echo "Pre-downloading Firebird ${MATRIX_FIREBIRD_VERSION} tarball..."
-          if ! download_with_retry "${FB_TARBALL_URL}" "/tmp/${FB_TARBALL_NAME}" "Firebird ${MATRIX_FIREBIRD_VERSION} tarball"; then
-            exit 1
-          fi
-
-          # Download the IBSurgeon install script
-          echo "Downloading Firebird install script from ${FB_SCRIPT_URL}"
-          if ! download_with_retry "${FB_SCRIPT_URL}" "/tmp/fb_install.sh" "IBSurgeon install script"; then
-            exit 1
-          fi
-
-          chmod +x /tmp/fb_install.sh
-
-          # Create a patched downloadFile function that checks for pre-downloaded files
-          cat > /tmp/downloadFile_patch.sh << 'PATCH_EOF'
-          downloadFile(){
-              url=$1
-              tmp=$2
-              name=$3
-              fname=$(basename -- "$url")
-              echo "Downloading $name..."
-              if [ -f "/tmp/$fname" ]; then
-                  echo "Using pre-downloaded $fname"
-                  cp "/tmp/$fname" "$tmp/$fname"
-                  return 0
-              fi
-              for attempt in 1 2 3 4 5; do
-                  m=$(curl -w "%{http_code}" --retry 3 --retry-delay 5 --location "$url" --output "$tmp/$fname" --progress-bar)
-                  r=$?
-                  if [ "$m" = "200" ] && [ $r -eq 0 ]; then
-                      echo "OK"
-                      return 0
-                  fi
-                  echo "Download attempt $attempt failed (HTTP $m, curl $r), retrying in 10s..."
-                  sleep 10
-              done
-              echo "ERROR: Failed to download after 5 attempts"
-              exit 1
-          }
-          PATCH_EOF
-
-          # Remove leading whitespace from patch file
-          sed -i 's/^          //' /tmp/downloadFile_patch.sh
-
-          # Apply patch by replacing the downloadFile function
-          # First, extract lines before and after downloadFile function
-          head -n $(grep -n '^downloadFile(){' /tmp/fb_install.sh | cut -d: -f1 | head -1 | xargs -I{} expr {} - 1) /tmp/fb_install.sh > /tmp/fb_patched.sh
-          cat /tmp/downloadFile_patch.sh >> /tmp/fb_patched.sh
-          tail -n +$(grep -n '^}' /tmp/fb_install.sh | awk -F: 'NR==1{print $1+1}') /tmp/fb_install.sh >> /tmp/fb_patched.sh
-          mv /tmp/fb_patched.sh /tmp/fb_install.sh
-          chmod +x /tmp/fb_install.sh
-
-          # Run IBSurgeon installer in non-interactive mode by feeding
-          # default answers. The script installs Firebird under /opt/firebird
-          # and configures it to listen on the default port 3050.
-          printf '\n' | /tmp/fb_install.sh
-
-          # In container environments systemd may not be available, so we try
-          # several non-systemd startup methods for Firebird. Prefer the
-          # init script that the installer usually installs, then fall back
-          # to starting the engine binaries directly.
-
-          # First try the init script or service(8) interface, if present.
-          if ! nc -z 127.0.0.1 3050; then
-            if [ -x /etc/init.d/firebird ]; then
-              echo "Attempting to start Firebird via /etc/init.d/firebird ..."
-              /etc/init.d/firebird restart || /etc/init.d/firebird start || true
-            elif command -v service >/dev/null 2>&1; then
-              echo "Attempting to start Firebird via service firebird ..."
-              service firebird restart || service firebird start || true
-            fi
-          fi
-
-          # If it's still not listening, fall back to starting fbguard/fbserver
-          # directly in the container.
-          if ! nc -z 127.0.0.1 3050; then
-            echo "Attempting to start Firebird via fbguard/fbserver binaries ..."
-            if [ -x /opt/firebird/bin/fbguard ]; then
-              /opt/firebird/bin/fbguard -daemon || true
-            elif [ -x /opt/firebird/bin/fbserver ]; then
-              /opt/firebird/bin/fbserver -daemon || true
-            fi
-          fi
-
-          # Wait for Firebird to be ready on localhost:3050.
+          # Wait for TCP port to be available
           for i in $(seq 1 60); do
-            if nc -z 127.0.0.1 3050; then
-              echo "Firebird is ready on localhost:3050"
+            if nc -z firebird 3050 2>/dev/null; then
+              echo "Firebird is listening on firebird:3050"
+              # Additional wait for service to be fully ready
+              sleep 3
               break
             fi
-            echo "Waiting for Firebird to start (attempt ${i}/60)..."
-            sleep 1
+            echo "Waiting for Firebird (attempt ${i}/60)..."
+            sleep 2
           done
 
-          if ! nc -z 127.0.0.1 3050; then
-            echo "ERROR: Firebird did not start on localhost:3050" >&2
+          if ! nc -z firebird 3050 2>/dev/null; then
+            echo "ERROR: Firebird service did not start within timeout" >&2
             exit 1
           fi
 
-          # Ensure /opt/firebird/data directory exists and is writable for tests.
-          # Firebird server restricts database creation paths via DatabaseAccess
-          # setting. Using the standard data directory ensures tests can create
-          # databases without modifying firebird.conf.
-          mkdir -p /opt/firebird/data
-          chmod 777 /opt/firebird/data
-          echo "Created /opt/firebird/data for test database storage"
-
-          # Configure Firebird to allow database creation in common paths.
-          # Modern Firebird (3.0+) restricts database access via DatabaseAccess.
-          # Default "None" blocks all database creation. We need "Full" or specific paths.
-          FB_CONF="/opt/firebird/firebird.conf"
-          if [ -f "$FB_CONF" ]; then
-            echo "Configuring Firebird DatabaseAccess to allow test directories..."
-            # Backup original config
-            cp "$FB_CONF" "${FB_CONF}.backup"
-            # Set DatabaseAccess to Full to allow any path (for testing only)
-            if grep -q "^#*\s*DatabaseAccess" "$FB_CONF"; then
-              sed -i 's/^#*\s*DatabaseAccess.*/DatabaseAccess = Full/' "$FB_CONF"
-            else
-              echo "DatabaseAccess = Full" >> "$FB_CONF"
-            fi
-            # Also ensure TempDirectories includes /tmp
-            if grep -q "^#*\s*TempDirectories" "$FB_CONF"; then
-              sed -i 's/^#*\s*TempDirectories.*/TempDirectories = \/tmp/' "$FB_CONF"
-            else
-              echo "TempDirectories = /tmp" >> "$FB_CONF"
-            fi
-            echo "Firebird config updated. Restarting server..."
-            # Restart Firebird to apply config changes
-            if [ -x /etc/init.d/firebird ]; then
-              /etc/init.d/firebird restart || true
-            elif [ -x /opt/firebird/bin/fbguard ]; then
-              # Kill existing and restart
-              pkill -f fbserver || true
-              pkill -f fbguard || true
-              sleep 2
-              /opt/firebird/bin/fbguard -daemon || true
-            fi
-            # Wait for server to be ready again
-            for i in $(seq 1 30); do
-              if nc -z 127.0.0.1 3050; then
-                echo "Firebird restarted and ready"
-                break
-              fi
-              sleep 1
-            done
-          else
-            echo "WARNING: firebird.conf not found at $FB_CONF"
-          fi
-
-      - name: Build PHP extension (firebird)
-        env:
-          # Force config.m4 to use the Firebird 3.0+ client at /opt/firebird-client
-          # for compilation. This ensures we always compile against FB 3.0+ OO API
-          # headers, regardless of which server version we're testing against.
-          FB_CONFIG: "no"
+      - name: Build PHP extension
         run: |
           set -eu
 
-          # Enable pipefail where supported without breaking plain /bin/sh.
-          if (set -o pipefail) 2>/dev/null; then :; fi
-
-          # Use FB 3.0+ client from /opt/firebird-client for compilation
-          # The client library can connect to any server version (2.5-5.0)
-          export PATH="/opt/firebird/bin:/opt/firebird-client/bin:${PATH}"
           export LD_LIBRARY_PATH="/opt/firebird-client/lib:${LD_LIBRARY_PATH:-}"
           export CFLAGS="-I/opt/firebird-client/include ${CFLAGS:-}"
           export LDFLAGS="-L/opt/firebird-client/lib ${LDFLAGS:-}"
 
-          # Verify FB 3.0+ client headers are available
-          echo "Checking Firebird client installation..."
-          if [ ! -f /opt/firebird-client/include/ibase.h ]; then
-            echo "ERROR: ibase.h not found in /opt/firebird-client/include" >&2
-            exit 1
-          fi
-
-          # Check FB_API_VER in header
-          FB_API_VER=$(grep -o 'FB_API_VER[[:space:]]*[0-9]*' /opt/firebird-client/include/ibase.h | head -1 | grep -o '[0-9]*' || echo "unknown")
-          echo "Firebird client FB_API_VER: ${FB_API_VER}"
-
+          echo "PHP Version:"
           php -v
+
+          echo "Building extension..."
           phpize
           ./configure --with-firebird=/opt/firebird-client
           make -j"$(nproc)"
 
-      - name: Run PHPT tests
-        env:
-          # tests/config.inc reads FIREBIRD_HOST and uses it as the host
-          # portion of connection strings; the database path is appended in
-          # tests/firebird.inc. Since the Firebird server runs in the same
-          # container, we connect via IPv4 loopback (127.0.0.1) to avoid
-          # IPv6 resolution issues where "localhost" might resolve to ::1
-          # but Firebird only binds to 127.0.0.1.
-          FIREBIRD_HOST: "127.0.0.1"
-          # Firebird server restricts database creation paths via DatabaseAccess.
-          # Use /opt/firebird/data which is typically writable by the server.
-          FIREBIRD_DB_DIR: "/opt/firebird/data"
-          ISC_USER: SYSDBA
-          ISC_PASSWORD: masterkey
-          NO_INTERACTION: 1
-          REPORT_EXIT_STATUS: 1
-          TEST_PHP_EXECUTABLE: php
-          # Use FB 3.0+ client library at runtime (same as compilation)
-          LD_LIBRARY_PATH: "/opt/firebird-client/lib"
-          # Enable debug output from test setup (init_db)
-          TEST_DEBUG: "1"
+          echo "Extension built successfully"
+          ls -la modules/firebird.so
+
+      - name: Verify extension and connection
         run: |
           set -eu
 
-          # Enable pipefail where supported without breaking plain /bin/sh.
-          if (set -o pipefail) 2>/dev/null; then :; fi
+          EXTENSION_PATH="$(pwd)/modules/firebird.so"
 
-          # Verify runtime library is available
-          echo "Checking Firebird client library..."
-          ls -la /opt/firebird-client/lib/libfbclient.so* 2>/dev/null || echo "libfbclient not found in client dir"
+          echo "Testing extension loading..."
+          php -d "extension=${EXTENSION_PATH}" -m | grep -i fbird
 
-          # CRITICAL: Make the Firebird client library available system-wide
-          # Test subprocesses don't inherit LD_LIBRARY_PATH reliably, so we
-          # add the library to ldconfig search path
-          echo "/opt/firebird-client/lib" > /etc/ld.so.conf.d/firebird-client.conf
-          ldconfig
-          echo "Library search paths updated:"
-          ldconfig -p | grep -i fbclient || echo "libfbclient not in ldconfig"
+          echo "Testing connection to Firebird service..."
+          php -d "extension=${EXTENSION_PATH}" -r '
+            $host = "firebird";
+            echo "Connecting to service manager at $host...\n";
 
-          # Debug: Verify extension loads and can connect
-          echo "DEBUG: Testing extension loading..."
-          php -d "extension=$(pwd)/modules/firebird.so" -m | grep -i fbird || echo "Extension not listed"
-
-          echo "DEBUG: Testing connection..."
-          php -d "extension=$(pwd)/modules/firebird.so" -r '
-            echo "Extension loaded, testing service attach...\n";
-            if ($se = @fbird_service_attach("127.0.0.1", "SYSDBA", "masterkey")) {
+            if ($se = @fbird_service_attach($host, "SYSDBA", "masterkey")) {
               echo "SUCCESS: Connected to Firebird service manager\n";
               $ver = fbird_server_info($se, FBIRD_SVC_SERVER_VERSION);
               echo "Server version: $ver\n";
               fbird_service_detach($se);
             } else {
-              echo "FAILED: Cannot connect to service manager\n";
-              echo "Error: " . fbird_errmsg() . "\n";
+              $err = fbird_errmsg();
+              echo "FAILED: $err\n";
+              exit(1);
             }
-          ' 2>&1 || echo "Connection test failed"
+          '
 
-          # Run tests using PHP's run-tests.php mechanism.
-          # We need to ensure:
-          # 1. Extension is explicitly loaded in subprocesses
-          # 2. LD_LIBRARY_PATH is passed correctly to subprocesses
-          # 3. Use absolute paths (subprocess may change directories)
+      - name: Run PHPT tests
+        env:
+          NO_INTERACTION: 1
+          REPORT_EXIT_STATUS: 1
+          TEST_PHP_EXECUTABLE: php
+        run: |
+          set -eu
+
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
           export TEST_PHP_EXECUTABLE="$(which php)"
-
-          # Verify the extension path exists
-          echo "Extension path: ${EXTENSION_PATH}"
-          ls -la "${EXTENSION_PATH}"
-
-          # CRITICAL FIX: The Makefile test target passes $(PHP_TEST_SHARED_EXTENSIONS)
-          # to run-tests.php as command-line arguments. This is the correct variable
-          # to set for extension loading - NOT TEST_PHP_ARGS.
-          # The -d flags are passed through run-tests.php to the test PHP subprocess.
           export PHP_TEST_SHARED_EXTENSIONS="-d extension=${EXTENSION_PATH}"
 
-          # Add pcntl if available (required for fork tests)
-          # docker-php-ext-install usually installs it as a shared extension
+          # Add pcntl extension if available
           PCNTL_SO=$(find $(php-config --extension-dir) -name "pcntl.so" 2>/dev/null || true)
           if [ -n "$PCNTL_SO" ]; then
-             export PHP_TEST_SHARED_EXTENSIONS="${PHP_TEST_SHARED_EXTENSIONS} -d extension=${PCNTL_SO}"
-             echo "DEBUG: Added pcntl.so to test extensions"
+            export PHP_TEST_SHARED_EXTENSIONS="${PHP_TEST_SHARED_EXTENSIONS} -d extension=${PCNTL_SO}"
+            echo "Added pcntl extension to test configuration"
           fi
 
-          # Debug: Verify run-tests.php will receive correct extension argument
-          echo "DEBUG: PHP_TEST_SHARED_EXTENSIONS=${PHP_TEST_SHARED_EXTENSIONS}"
-          echo "DEBUG: TEST_PHP_EXECUTABLE=${TEST_PHP_EXECUTABLE}"
+          echo "Test configuration:"
+          echo "  FIREBIRD_HOST=${FIREBIRD_HOST}"
+          echo "  FIREBIRD_DB_DIR=${FIREBIRD_DB_DIR}"
+          echo "  PHP_TEST_SHARED_EXTENSIONS=${PHP_TEST_SHARED_EXTENSIONS}"
 
-          # Use make test which properly handles the PHP test runner setup
-          # IMPORTANT: Tests MUST fail the job if they fail - no error masking!
+          echo "Running all PHPT tests..."
           make test TESTS=tests/

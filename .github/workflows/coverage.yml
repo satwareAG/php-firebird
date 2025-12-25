@@ -10,12 +10,27 @@ jobs:
   coverage:
     name: Code Coverage (PHP 8.3 / Firebird 5.0)
     runs-on: ubuntu-latest
+
+    # Run Firebird as a service container (same as local docker-compose)
+    services:
+      firebird:
+        image: firebirdsql/firebird:5
+        env:
+          ISC_PASSWORD: masterkey
+          FIREBIRD_DATABASE: test.fdb
+          FIREBIRD_USER: SYSDBA
+          FIREBIRD_PASSWORD: masterkey
+        ports:
+          - 3050:3050
+
     container:
       image: php:8.3-cli-bookworm
 
     env:
       ISC_USER: SYSDBA
       ISC_PASSWORD: masterkey
+      FIREBIRD_HOST: firebird
+      FIREBIRD_DB_DIR: /tmp
 
     steps:
       - name: Checkout repository
@@ -24,15 +39,11 @@ jobs:
       - name: Install system dependencies (lcov included)
         run: |
           set -eu
-
-          if (set -o pipefail) 2>/dev/null; then :; fi
-
           export DEBIAN_FRONTEND=noninteractive
+
           for attempt in 1 2 3; do
-            if apt-get update; then
-              break
-            fi
-            echo "apt-get update failed (attempt ${attempt}/3), retrying in 5s..." >&2
+            if apt-get update; then break; fi
+            echo "apt-get update failed (attempt ${attempt}/3), retrying..." >&2
             sleep 5
           done
 
@@ -43,8 +54,6 @@ jobs:
             g++ \
             git \
             libicu-dev \
-            libreadline-dev \
-            libssl-dev \
             libtool \
             netbase \
             netcat-openbsd \
@@ -52,226 +61,146 @@ jobs:
             wget \
             curl \
             unzip \
-            bison \
-            flex \
-            cmake \
-            jq \
-            python3 \
-            zlib1g-dev \
+            libtommath1 \
+            libncurses6 \
             lcov
+
+          # Install pcntl extension for event tests
+          docker-php-ext-install pcntl
 
           rm -rf /var/lib/apt/lists/*
 
-          # Install pcntl extension (required for EventPoller tests)
-          docker-php-ext-install pcntl
-
-      - name: Install Firebird server via IBSurgeon script
-        env:
-          MATRIX_FIREBIRD_VERSION: '5.0'
+      - name: Install Firebird 5.0 client library
         run: |
           set -eu
 
-          if (set -o pipefail) 2>/dev/null; then :; fi
+          FB_CLIENT_DIR="/opt/firebird-client"
+          mkdir -p "${FB_CLIENT_DIR}"
 
-          # Firebird 5.0 configuration
-          FB_SCRIPT_SUFFIX='50'
-          FB_TARBALL_URL="https://github.com/FirebirdSQL/firebird/releases/download/v5.0.2/Firebird-5.0.2.1613-0-linux-x64.tar.gz"
-          FB_SCRIPT_URL="https://raw.githubusercontent.com/IBSurgeon/firebirdlinuxinstall/refs/heads/main/fb_vanilla-${FB_SCRIPT_SUFFIX}.sh"
-          FB_TARBALL_NAME=$(basename "${FB_TARBALL_URL}")
+          FB_VERSION="5.0.2"
+          FB_BUILD="1613-0"
+          FB_TARBALL="Firebird-${FB_VERSION}.${FB_BUILD}-linux-x64.tar.gz"
+          FB_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_VERSION}/${FB_TARBALL}"
+          FB_EXTRACT_DIR="Firebird-${FB_VERSION}.${FB_BUILD}-linux-x64"
 
-          # Function to download with retries
-          download_with_retry() {
-            local url="$1"
-            local output="$2"
-            local description="$3"
-            local max_attempts=5
-            local delay=10
+          echo "Installing Firebird ${FB_VERSION} client library..."
 
-            for attempt in $(seq 1 $max_attempts); do
-              echo "Downloading ${description} (attempt ${attempt}/${max_attempts})..."
-              if curl -fsSL --retry 3 --retry-delay 5 "${url}" -o "${output}"; then
-                echo "Successfully downloaded ${description}"
-                return 0
+          # Download with retries
+          for attempt in 1 2 3 4 5; do
+            echo "Downloading FB client (attempt ${attempt}/5)..."
+            if curl -fsSL --retry 3 --retry-delay 5 "${FB_URL}" -o "/tmp/${FB_TARBALL}"; then
+              FSIZE=$(stat -c%s "/tmp/${FB_TARBALL}" 2>/dev/null || echo "0")
+              if [ "${FSIZE}" -gt 8000000 ]; then
+                echo "Download successful (${FSIZE} bytes)"
+                break
               fi
-              echo "Download failed, waiting ${delay} seconds before retry..."
-              sleep $delay
-              delay=$((delay * 2))  # Exponential backoff
-            done
-            echo "ERROR: Failed to download ${description} after ${max_attempts} attempts" >&2
-            return 1
-          }
-
-          # Pre-download Firebird tarball with retry logic (more reliable than letting script do it)
-          echo "Pre-downloading Firebird 5.0 tarball..."
-          if ! download_with_retry "${FB_TARBALL_URL}" "/tmp/${FB_TARBALL_NAME}" "Firebird 5.0 tarball"; then
-            exit 1
-          fi
-
-          # Download the IBSurgeon install script
-          echo "Downloading Firebird install script from ${FB_SCRIPT_URL}"
-          if ! download_with_retry "${FB_SCRIPT_URL}" "/tmp/fb_install.sh" "IBSurgeon install script"; then
-            exit 1
-          fi
-
-          chmod +x /tmp/fb_install.sh
-
-          # Create a patched downloadFile function that checks for pre-downloaded files
-          cat > /tmp/downloadFile_patch.sh << 'PATCH_EOF'
-          downloadFile(){
-              url=$1
-              tmp=$2
-              name=$3
-              fname=$(basename -- "$url")
-              echo "Downloading $name..."
-              if [ -f "/tmp/$fname" ]; then
-                  echo "Using pre-downloaded $fname"
-                  cp "/tmp/$fname" "$tmp/$fname"
-                  return 0
-              fi
-              for attempt in 1 2 3 4 5; do
-                  m=$(curl -w "%{http_code}" --retry 3 --retry-delay 5 --location "$url" --output "$tmp/$fname" --progress-bar)
-                  r=$?
-                  if [ "$m" = "200" ] && [ $r -eq 0 ]; then
-                      echo "OK"
-                      return 0
-                  fi
-                  echo "Download attempt $attempt failed (HTTP $m, curl $r), retrying in 10s..."
-                  sleep 10
-              done
-              echo "ERROR: Failed to download after 5 attempts"
-              exit 1
-          }
-          PATCH_EOF
-
-          # Remove leading whitespace from patch file
-          sed -i 's/^          //' /tmp/downloadFile_patch.sh
-
-          # Apply patch by replacing the downloadFile function
-          # First, extract lines before and after downloadFile function
-          head -n $(grep -n '^downloadFile(){' /tmp/fb_install.sh | cut -d: -f1 | head -1 | xargs -I{} expr {} - 1) /tmp/fb_install.sh > /tmp/fb_patched.sh
-          cat /tmp/downloadFile_patch.sh >> /tmp/fb_patched.sh
-          tail -n +$(grep -n '^}' /tmp/fb_install.sh | awk -F: 'NR==1{print $1+1}') /tmp/fb_install.sh >> /tmp/fb_patched.sh
-          mv /tmp/fb_patched.sh /tmp/fb_install.sh
-          chmod +x /tmp/fb_install.sh
-
-          # Run script non-interactively
-          printf '\n' | /tmp/fb_install.sh
-
-          # Start Firebird
-          if ! nc -z 127.0.0.1 3050; then
-            if [ -x /etc/init.d/firebird ]; then
-              /etc/init.d/firebird restart || /etc/init.d/firebird start || true
-            elif command -v service >/dev/null 2>&1; then
-              service firebird restart || service firebird start || true
+              rm -f "/tmp/${FB_TARBALL}"
             fi
-          fi
-
-          if ! nc -z 127.0.0.1 3050; then
-            echo "Attempting to start Firebird via fbguard/fbserver binaries ..."
-            if [ -x /opt/firebird/bin/fbguard ]; then
-              /opt/firebird/bin/fbguard -daemon || true
-            elif [ -x /opt/firebird/bin/fbserver ]; then
-              /opt/firebird/bin/fbserver -daemon || true
-            fi
-          fi
-
-          for i in $(seq 1 60); do
-            if nc -z 127.0.0.1 3050; then
-              echo "Firebird is ready on localhost:3050"
-              break
-            fi
-            sleep 1
+            sleep 10
           done
 
-          if ! nc -z 127.0.0.1 3050; then
-            echo "ERROR: Firebird did not start on localhost:3050" >&2
+          if [ ! -f "/tmp/${FB_TARBALL}" ]; then
+            echo "ERROR: Failed to download FB client" >&2
             exit 1
           fi
 
-      - name: Configure Firebird for CI (Allow /tmp access)
+          # Extract
+          cd /tmp
+          tar xzf "${FB_TARBALL}"
+          cd "${FB_EXTRACT_DIR}"
+          tar xzf buildroot.tar.gz
+
+          # Copy headers and libraries
+          if [ -d "opt/firebird/include" ]; then
+            mkdir -p "${FB_CLIENT_DIR}/include"
+            cp -a opt/firebird/include/* "${FB_CLIENT_DIR}/include/"
+          fi
+          if [ -d "opt/firebird/lib" ]; then
+            mkdir -p "${FB_CLIENT_DIR}/lib"
+            cp -a opt/firebird/lib/* "${FB_CLIENT_DIR}/lib/"
+          fi
+
+          # Create symlinks
+          ln -sf "${FB_CLIENT_DIR}/lib/libfbclient.so" /usr/lib/libfbclient.so
+          ln -sf "${FB_CLIENT_DIR}/lib/libfbclient.so.2" /usr/lib/libfbclient.so.2 2>/dev/null || true
+          ln -sf "${FB_CLIENT_DIR}/include" /usr/include/firebird
+
+          # Configure ldconfig
+          echo "${FB_CLIENT_DIR}/lib" > /etc/ld.so.conf.d/firebird-client.conf
+          ldconfig
+
+          # Verify
+          if [ ! -f "${FB_CLIENT_DIR}/include/ibase.h" ]; then
+            echo "ERROR: ibase.h not found" >&2
+            exit 1
+          fi
+
+          echo "Firebird ${FB_VERSION} client installed successfully"
+
+      - name: Wait for Firebird service
         run: |
-          set -x
-          # Firebird 3+ defaults to restricting database paths.
-          # We need to allow access to /tmp for PHPT tests.
-          # In CI, it is safe to enable Full access.
-          FB_CONF="/opt/firebird/firebird.conf"
-          if [ -f "$FB_CONF" ]; then
-             echo "Modifying $FB_CONF to allow full database access..."
+          set -eu
+          echo "Waiting for Firebird service to be ready..."
 
-             # Check if DatabaseAccess exists (commented or not)
-             if grep -q "DatabaseAccess" "$FB_CONF"; then
-                 # Replace existing line
-                 sed -i 's/^#\?\s*DatabaseAccess.*/DatabaseAccess = Full/g' "$FB_CONF"
-             else
-                 # Append if missing
-                 echo "DatabaseAccess = Full" >> "$FB_CONF"
-             fi
+          for i in $(seq 1 60); do
+            if nc -z firebird 3050 2>/dev/null; then
+              echo "Firebird is listening on firebird:3050"
+              sleep 3
+              break
+            fi
+            echo "Waiting for Firebird (attempt ${i}/60)..."
+            sleep 2
+          done
 
-             echo "Verifying DatabaseAccess setting:"
-             grep "DatabaseAccess" "$FB_CONF"
-
-             # Restart Firebird to apply changes
-             if [ -x /etc/init.d/firebird ]; then
-                /etc/init.d/firebird restart || true
-             elif command -v service >/dev/null 2>&1; then
-                service firebird restart || true
-             else
-                # Fallback kill and restart via script logic or pkill
-                pkill fbguard || true
-                pkill fbserver || true
-                sleep 2
-                /opt/firebird/bin/fbguard -daemon || true
-             fi
-
-             # Wait for restart
-             sleep 2
-             if nc -z 127.0.0.1 3050; then
-                echo "Firebird restarted successfully."
-             else
-                echo "WARNING: Firebird did not restart correctly."
-             fi
-
-             # Create directory for PHP tests
-             mkdir -p /tmp/fb_tests
-             chmod 777 /tmp/fb_tests
-
-             # Debug: Verify database creation with ISQL
-             echo "Testing database creation in /tmp/fb_tests..."
-             echo "CREATE DATABASE '/tmp/fb_tests/test_ci.fdb' user 'SYSDBA' password 'masterkey';" > /tmp/create_db.sql
-             if /opt/firebird/bin/isql -q -i /tmp/create_db.sql; then
-                echo "ISQL: Database creation SUCCESS."
-             else
-                echo "ISQL: Database creation FAILED."
-                cat /opt/firebird/firebird.log || true
-             fi
-          else
-             echo "WARNING: /opt/firebird/firebird.conf not found. Skipping configuration."
+          if ! nc -z firebird 3050 2>/dev/null; then
+            echo "ERROR: Firebird service did not start" >&2
+            exit 1
           fi
 
       - name: Build PHP extension with Coverage
-        env:
-          FB_CONFIG: "no"
         run: |
           set -eu
 
-          export PATH="/opt/firebird/bin:${PATH}"
-          export LD_LIBRARY_PATH="/opt/firebird/lib:${LD_LIBRARY_PATH:-}"
+          export LD_LIBRARY_PATH="/opt/firebird-client/lib:${LD_LIBRARY_PATH:-}"
           # Add coverage flags
-          export CFLAGS="-I/opt/firebird/include -O0 -g --coverage ${CFLAGS:-}"
-          export CXXFLAGS="-I/opt/firebird/include -O0 -g --coverage ${CXXFLAGS:-}"
-          export LDFLAGS="-L/opt/firebird/lib --coverage ${LDFLAGS:-}"
+          export CFLAGS="-I/opt/firebird-client/include -O0 -g --coverage ${CFLAGS:-}"
+          export CXXFLAGS="-I/opt/firebird-client/include -O0 -g --coverage ${CXXFLAGS:-}"
+          export LDFLAGS="-L/opt/firebird-client/lib --coverage ${LDFLAGS:-}"
 
+          echo "PHP Version:"
           php -v
+
+          echo "Building extension with coverage..."
           phpize
-          ./configure --with-interbase=/opt/firebird
+          ./configure --with-firebird=/opt/firebird-client
           make -j"$(nproc)"
+
+          echo "Extension built successfully"
+
+      - name: Verify extension and connection
+        run: |
+          set -eu
+
+          EXTENSION_PATH="$(pwd)/modules/firebird.so"
+
+          echo "Testing extension loading..."
+          php -d "extension=${EXTENSION_PATH}" -m | grep -i fbird
+
+          echo "Testing connection to Firebird service..."
+          php -d "extension=${EXTENSION_PATH}" -r '
+            if ($se = @fbird_service_attach("firebird", "SYSDBA", "masterkey")) {
+              echo "SUCCESS: Connected to Firebird service\n";
+              $ver = fbird_server_info($se, FBIRD_SVC_SERVER_VERSION);
+              echo "Server version: $ver\n";
+              fbird_service_detach($se);
+            } else {
+              echo "FAILED: " . fbird_errmsg() . "\n";
+              exit(1);
+            }
+          '
 
       - name: Run PHPT tests
         env:
-          # FIREBIRD_HOST: "localhost" # Use local protocol/XNET by default
-          FIREBIRD_DB_DIR: "/tmp/fb_tests"
-          ISC_USER: SYSDBA
-          ISC_PASSWORD: masterkey
           NO_INTERACTION: 1
           REPORT_EXIT_STATUS: 1
           TEST_PHP_EXECUTABLE: php
@@ -279,12 +208,20 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Run tests and capture output
-          # We allow failure here (|| true) to process the log file for granular details
-          make test | tee test_output.txt || true
+          EXTENSION_PATH="$(pwd)/modules/firebird.so"
+          export TEST_PHP_EXECUTABLE="$(which php)"
+          export PHP_TEST_SHARED_EXTENSIONS="-d extension=${EXTENSION_PATH}"
 
-          # Parse the summary table for non-zero failures or warnings
-          # Looking for standard PHP run-tests.php output format: "Tests failed    :    0 (  0.0%)"
+          # Add pcntl if available
+          PCNTL_SO=$(find $(php-config --extension-dir) -name "pcntl.so" 2>/dev/null || true)
+          if [ -n "$PCNTL_SO" ]; then
+            export PHP_TEST_SHARED_EXTENSIONS="${PHP_TEST_SHARED_EXTENSIONS} -d extension=${PCNTL_SO}"
+          fi
+
+          echo "Running all PHPT tests..."
+          make test TESTS=tests/ | tee test_output.txt || true
+
+          # Parse test results
           FAILED_COUNT=$(grep -oP 'Tests failed\s*:\s*\K\d+' test_output.txt | head -1 || echo "0")
           WARNED_COUNT=$(grep -oP 'Tests warned\s*:\s*\K\d+' test_output.txt | head -1 || echo "0")
           LEAKED_COUNT=$(grep -oP 'Tests leaked\s*:\s*\K\d+' test_output.txt | head -1 || echo "0")
@@ -292,20 +229,13 @@ jobs:
           echo "Test Stats -> Failed: ${FAILED_COUNT}, Warned: ${WARNED_COUNT}, Leaked: ${LEAKED_COUNT}"
 
           if [ "${FAILED_COUNT}" -gt 0 ] || [ "${WARNED_COUNT}" -gt 0 ] || [ "${LEAKED_COUNT}" -gt 0 ]; then
-             echo "❌ Test Failure Detected"
-
-             echo "::group::Test Failure Details"
-             if grep -q "FAILED TEST SUMMARY" test_output.txt; then
-                 grep -A 100 "FAILED TEST SUMMARY" test_output.txt | grep -m 1 -B 100 "=====================================================================" || true
-             elif grep -q "WARNED TEST SUMMARY" test_output.txt; then
-                 grep -A 100 "WARNED TEST SUMMARY" test_output.txt | grep -m 1 -B 100 "=====================================================================" || true
-             else
-                 echo "⚠️ No standard summary headers found. Displaying last 50 lines of log:"
-                 tail -n 50 test_output.txt
-             fi
-             echo "::endgroup::"
-
-             exit 1
+            echo "❌ Test Failure Detected"
+            echo "::group::Test Failure Details"
+            if grep -q "FAILED TEST SUMMARY" test_output.txt; then
+              grep -A 100 "FAILED TEST SUMMARY" test_output.txt | head -50 || true
+            fi
+            echo "::endgroup::"
+            exit 1
           fi
 
           echo "✅ All tests passed successfully"
@@ -320,8 +250,7 @@ jobs:
           echo "=== Debug: Listing gcno/gcda files ==="
           find . -name "*.gcno" -o -name "*.gcda" 2>/dev/null | head -20 || true
 
-          # Run gcov directly on source files to generate .gcov files
-          # This ensures gcov can find the corresponding .gcno files
+          # Run gcov on source files
           echo "Running gcov on source files..."
           for src in *.c; do
             if [ -f "$src" ]; then
@@ -329,7 +258,6 @@ jobs:
             fi
           done
 
-          # Also process files in .libs if they exist
           if [ -d ".libs" ]; then
             for gcda in .libs/*.gcda; do
               if [ -f "$gcda" ]; then
@@ -341,11 +269,7 @@ jobs:
             done
           fi
 
-          echo "=== Debug: Listing .gcov files ==="
-          ls -la *.gcov 2>/dev/null | head -10 || echo "No .gcov files in root"
-
-          # Capture coverage using lcov (with fallback for older versions)
-          # Use --ignore-errors gcov to skip files with gcno/gcda path mismatches
+          # Capture coverage using lcov
           echo "Capturing coverage data with lcov..."
           lcov --directory . --capture --output-file coverage/lcov.info \
             --rc lcov_branch_coverage=0 \
@@ -353,9 +277,8 @@ jobs:
             --ignore-errors gcov \
             2>&1 || true
 
-          # Check if we got any coverage data
           if [ ! -s coverage/lcov.info ]; then
-            echo "Warning: No coverage data captured in initial capture"
+            echo "Warning: No coverage data captured"
             echo "TN:" > coverage/lcov.info
           fi
 
@@ -370,24 +293,20 @@ jobs:
             --rc lcov_branch_coverage=0 \
             2>&1 || true
 
-          # Verify we have some coverage data
           if [ ! -s coverage/lcov_filtered.info ]; then
             echo "Warning: No coverage data after filtering"
             echo "TN:" > coverage/lcov_filtered.info
           fi
 
-          # Generate HTML report (allow failure)
+          # Generate HTML report
           genhtml coverage/lcov_filtered.info --output-directory coverage/html \
             --rc lcov_branch_coverage=0 \
             2>&1 || true
 
           echo "Coverage summary:"
-          # Save summary to variable for parsing
           COVERAGE_OUTPUT=$(lcov --summary coverage/lcov_filtered.info)
           echo "$COVERAGE_OUTPUT"
 
-          # Extract lines coverage percentage (e.g. "60.7")
-          # Pattern matches "lines......: 60.7%"
           COVERAGE=$(echo "$COVERAGE_OUTPUT" | grep -oP "lines\.*: \K[0-9.]+")
 
           if [ -z "$COVERAGE" ]; then
@@ -398,7 +317,6 @@ jobs:
           echo "Current Line Coverage: ${COVERAGE}%"
           echo "Required Threshold:    ${COVERAGE_THRESHOLD}%"
 
-          # Use Python for float comparison
           if python3 -c "import sys; sys.exit(0 if float(sys.argv[1]) >= float(sys.argv[2]) else 1)" "$COVERAGE" "$COVERAGE_THRESHOLD"; then
             echo "✅ Coverage Gate Passed"
           else
@@ -415,10 +333,3 @@ jobs:
         with:
           name: coverage-report
           path: coverage/html/
-
-      # Optional: Upload to Codecov (uncomment if token available)
-      # - name: Upload to Codecov
-      #   uses: codecov/codecov-action@v4
-      #   with:
-      #     files: coverage/lcov_filtered.info
-      #     token: ${{ secrets.CODECOV_TOKEN }}

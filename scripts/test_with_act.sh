@@ -7,7 +7,9 @@
 # Modes:
 #   --qa           Run code quality checks (PHPStan, PHPCS, clang-tidy, cppcheck)
 #   --matrix       Run PHP/Firebird compatibility matrix
-#   --full         Run complete CI simulation (QA + Matrix + Security)
+#   --coverage     Run tests with code coverage (mirrors coverage.yml)
+#   --sanitizers   Build with ASan/UBSan and run tests (mirrors sanitizers.yml)
+#   --full         Run complete CI simulation (QA + Matrix + Coverage)
 #   --syntax       Validate workflow YAML syntax only (requires act)
 #
 # Options:
@@ -373,6 +375,137 @@ run_syntax_mode() {
 }
 
 # ============================================================================
+# Coverage Mode (mirrors coverage.yml)
+# ============================================================================
+
+run_coverage_mode() {
+    echo -e "\n${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BLUE}║       Code Coverage (mirrors coverage.yml)                   ║${NC}"
+    echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+
+    local coverage_failed=0
+    cd "$PROJECT_ROOT"
+
+    # Run coverage script if it exists
+    if [ -f "$SCRIPT_DIR/coverage.sh" ]; then
+        echo -e "${CYAN}>> Running coverage.sh...${NC}"
+        if "$SCRIPT_DIR/coverage.sh"; then
+            echo -e "${GREEN}✓ Coverage passed${NC}"
+            RESULTS["coverage"]="PASS"
+        else
+            echo -e "${RED}✗ Coverage failed${NC}"
+            RESULTS["coverage"]="FAIL"
+            coverage_failed=1
+        fi
+    else
+        # Fallback: Run tests in coverage container
+        echo -e "${CYAN}>> Running tests with coverage flags in Docker...${NC}"
+        local container="php83-dev"
+
+        # Build with coverage flags and run tests
+        if docker compose -f "$DOCKER_DIR/docker-compose.yml" exec -T "$container" bash -c '
+            cd /ext
+            export CFLAGS="-O0 -g --coverage"
+            export CXXFLAGS="-O0 -g --coverage"
+            export LDFLAGS="--coverage"
+
+            # Clean and rebuild
+            make clean 2>/dev/null || true
+            phpize --clean 2>/dev/null || true
+            phpize
+            ./configure --with-firebird=/opt/firebird
+            make -j$(nproc)
+
+            # Run tests
+            make test TESTS=tests/
+
+            # Generate coverage report
+            if command -v lcov &>/dev/null; then
+                lcov --directory . --capture --output-file coverage.info
+                lcov --summary coverage.info
+            else
+                echo "lcov not available for coverage summary"
+            fi
+        '; then
+            echo -e "${GREEN}✓ Coverage tests passed${NC}"
+            RESULTS["coverage"]="PASS"
+        else
+            echo -e "${RED}✗ Coverage tests failed${NC}"
+            RESULTS["coverage"]="FAIL"
+            coverage_failed=1
+        fi
+    fi
+
+    return $coverage_failed
+}
+
+# ============================================================================
+# Sanitizers Mode (mirrors sanitizers.yml)
+# ============================================================================
+
+run_sanitizers_mode() {
+    echo -e "\n${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BLUE}║       Memory Sanitizers (mirrors sanitizers.yml)             ║${NC}"
+    echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+
+    local sanitizers_failed=0
+    cd "$PROJECT_ROOT"
+
+    echo -e "${CYAN}>> Building and testing with ASan + UBSan...${NC}"
+    echo -e "${YELLOW}Note: Requires clang compiler in Docker container${NC}"
+
+    local container="php83-dev"
+
+    # Build with sanitizer flags and run tests
+    if docker compose -f "$DOCKER_DIR/docker-compose.yml" exec -T "$container" bash -c '
+        cd /ext
+
+        # Check for clang
+        if ! command -v clang &>/dev/null; then
+            echo "Installing clang..."
+            apt-get update -qq && apt-get install -y -qq clang llvm
+        fi
+
+        export CC=clang
+        export CXX=clang++
+        SANITIZE_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g -O1"
+        export CFLAGS="-I/opt/firebird/include ${SANITIZE_FLAGS}"
+        export CXXFLAGS="-I/opt/firebird/include ${SANITIZE_FLAGS}"
+        export LDFLAGS="-L/opt/firebird/lib -fsanitize=address,undefined"
+        export ASAN_OPTIONS="detect_leaks=1:abort_on_error=0:halt_on_error=0"
+        export UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=0"
+
+        # Clean and rebuild
+        make clean 2>/dev/null || true
+        phpize --clean 2>/dev/null || true
+        phpize
+        ./configure --with-firebird=/opt/firebird
+        make -j$(nproc)
+
+        echo "=== Running tests with AddressSanitizer + UBSan ==="
+        make test TESTS=tests/ 2>&1 | tee /tmp/sanitizer_output.txt || true
+
+        # Check for sanitizer errors
+        if grep -qE "ERROR: (Address|Leak|UndefinedBehavior)Sanitizer" /tmp/sanitizer_output.txt; then
+            echo "❌ Sanitizer detected issues!"
+            grep -A 20 "ERROR: " /tmp/sanitizer_output.txt || true
+            exit 1
+        fi
+
+        echo "✅ No sanitizer errors detected"
+    '; then
+        echo -e "${GREEN}✓ Sanitizer tests passed${NC}"
+        RESULTS["sanitizers"]="PASS"
+    else
+        echo -e "${RED}✗ Sanitizer tests failed${NC}"
+        RESULTS["sanitizers"]="FAIL"
+        sanitizers_failed=1
+    fi
+
+    return $sanitizers_failed
+}
+
+# ============================================================================
 # Full Mode (complete CI simulation)
 # ============================================================================
 
@@ -466,6 +599,12 @@ parse_args() {
             --syntax)
                 MODE="syntax"
                 ;;
+            --coverage)
+                MODE="coverage"
+                ;;
+            --sanitizers)
+                MODE="sanitizers"
+                ;;
             --php)
                 PHP_VERSION="$2"
                 shift
@@ -526,6 +665,12 @@ main() {
             ;;
         matrix)
             run_matrix_mode || exit_code=$EXIT_TESTS_FAILED
+            ;;
+        coverage)
+            run_coverage_mode || exit_code=$EXIT_TESTS_FAILED
+            ;;
+        sanitizers)
+            run_sanitizers_mode || exit_code=$EXIT_TESTS_FAILED
             ;;
         full)
             run_full_mode || exit_code=$EXIT_QUALITY_FAILED

@@ -5,7 +5,6 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
-  # Manual trigger for debugging
   workflow_dispatch:
 
 # Cancel in-progress runs for the same branch
@@ -21,17 +20,32 @@ jobs:
   asan-ubsan:
     name: ASan + UBSan (PHP ${{ matrix.php-version }})
     runs-on: ubuntu-latest
-    container:
-      image: php:${{ matrix.php-version }}-cli-bookworm
 
     strategy:
       fail-fast: false
       matrix:
         php-version: ['8.3']
 
+    # Run Firebird as a service container
+    services:
+      firebird:
+        image: firebirdsql/firebird:5
+        env:
+          ISC_PASSWORD: masterkey
+          FIREBIRD_DATABASE: test.fdb
+          FIREBIRD_USER: SYSDBA
+          FIREBIRD_PASSWORD: masterkey
+        ports:
+          - 3050:3050
+
+    container:
+      image: php:${{ matrix.php-version }}-cli-bookworm
+
     env:
       ISC_USER: SYSDBA
       ISC_PASSWORD: masterkey
+      FIREBIRD_HOST: firebird
+      FIREBIRD_DB_DIR: /tmp
       # ASan/UBSan runtime options
       ASAN_OPTIONS: "detect_leaks=1:abort_on_error=1:halt_on_error=0:print_stats=1:verbosity=1"
       UBSAN_OPTIONS: "print_stacktrace=1:halt_on_error=0"
@@ -54,8 +68,6 @@ jobs:
             g++ \
             git \
             libicu-dev \
-            libreadline-dev \
-            libssl-dev \
             libtool \
             llvm \
             netbase \
@@ -64,69 +76,102 @@ jobs:
             wget \
             curl \
             unzip \
-            zlib1g-dev
+            libtommath1 \
+            libncurses6
 
           rm -rf /var/lib/apt/lists/*
-
-          # Install pcntl extension
           docker-php-ext-install pcntl
 
-      - name: Install Firebird server
+      - name: Install Firebird 5.0 client library
         run: |
           set -eu
 
-          FB_SCRIPT_URL="https://raw.githubusercontent.com/IBSurgeon/firebirdlinuxinstall/refs/heads/main/fb_vanilla-50.sh"
-          curl -fsSL "${FB_SCRIPT_URL}" -o /tmp/fb_install.sh
-          chmod +x /tmp/fb_install.sh
-          printf '\n' | /tmp/fb_install.sh
+          FB_CLIENT_DIR="/opt/firebird-client"
+          mkdir -p "${FB_CLIENT_DIR}"
 
-          # Start Firebird
-          if [ -x /etc/init.d/firebird ]; then
-            /etc/init.d/firebird restart || /etc/init.d/firebird start || true
-          fi
+          FB_VERSION="5.0.2"
+          FB_BUILD="1613-0"
+          FB_TARBALL="Firebird-${FB_VERSION}.${FB_BUILD}-linux-x64.tar.gz"
+          FB_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_VERSION}/${FB_TARBALL}"
+          FB_EXTRACT_DIR="Firebird-${FB_VERSION}.${FB_BUILD}-linux-x64"
 
-          if ! nc -z 127.0.0.1 3050; then
-            if [ -x /opt/firebird/bin/fbguard ]; then
-              /opt/firebird/bin/fbguard -daemon || true
+          echo "Installing Firebird ${FB_VERSION} client library..."
+
+          for attempt in 1 2 3 4 5; do
+            echo "Downloading FB client (attempt ${attempt}/5)..."
+            if curl -fsSL --retry 3 --retry-delay 5 "${FB_URL}" -o "/tmp/${FB_TARBALL}"; then
+              FSIZE=$(stat -c%s "/tmp/${FB_TARBALL}" 2>/dev/null || echo "0")
+              if [ "${FSIZE}" -gt 8000000 ]; then
+                break
+              fi
+              rm -f "/tmp/${FB_TARBALL}"
             fi
+            sleep 10
+          done
+
+          cd /tmp
+          tar xzf "${FB_TARBALL}"
+          cd "${FB_EXTRACT_DIR}"
+          tar xzf buildroot.tar.gz
+
+          if [ -d "opt/firebird/include" ]; then
+            mkdir -p "${FB_CLIENT_DIR}/include"
+            cp -a opt/firebird/include/* "${FB_CLIENT_DIR}/include/"
+          fi
+          if [ -d "opt/firebird/lib" ]; then
+            mkdir -p "${FB_CLIENT_DIR}/lib"
+            cp -a opt/firebird/lib/* "${FB_CLIENT_DIR}/lib/"
           fi
 
-          # Wait for Firebird
-          for i in $(seq 1 30); do
-            if nc -z 127.0.0.1 3050; then
+          ln -sf "${FB_CLIENT_DIR}/lib/libfbclient.so" /usr/lib/libfbclient.so
+          ln -sf "${FB_CLIENT_DIR}/lib/libfbclient.so.2" /usr/lib/libfbclient.so.2 2>/dev/null || true
+          echo "${FB_CLIENT_DIR}/lib" > /etc/ld.so.conf.d/firebird-client.conf
+          ldconfig
+
+          echo "Firebird client installed"
+
+      - name: Wait for Firebird service
+        run: |
+          set -eu
+          for i in $(seq 1 60); do
+            if nc -z firebird 3050 2>/dev/null; then
               echo "Firebird is ready"
+              sleep 3
               break
             fi
-            sleep 1
+            echo "Waiting for Firebird (${i}/60)..."
+            sleep 2
           done
+
+          if ! nc -z firebird 3050 2>/dev/null; then
+            echo "ERROR: Firebird did not start" >&2
+            exit 1
+          fi
 
       - name: Build extension with AddressSanitizer + UBSan
         env:
-          FB_CONFIG: "no"
           CC: clang
           CXX: clang++
         run: |
           set -eu
 
-          export PATH="/opt/firebird/bin:${PATH}"
-          export LD_LIBRARY_PATH="/opt/firebird/lib:${LD_LIBRARY_PATH:-}"
+          export LD_LIBRARY_PATH="/opt/firebird-client/lib:${LD_LIBRARY_PATH:-}"
 
           # Sanitizer flags
           SANITIZE_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g -O1"
 
-          export CFLAGS="-I/opt/firebird/include ${SANITIZE_FLAGS}"
-          export CXXFLAGS="-I/opt/firebird/include ${SANITIZE_FLAGS}"
-          export LDFLAGS="-L/opt/firebird/lib -fsanitize=address,undefined"
+          export CFLAGS="-I/opt/firebird-client/include ${SANITIZE_FLAGS}"
+          export CXXFLAGS="-I/opt/firebird-client/include ${SANITIZE_FLAGS}"
+          export LDFLAGS="-L/opt/firebird-client/lib -fsanitize=address,undefined"
 
           phpize
-          ./configure --with-firebird=/opt/firebird
+          ./configure --with-firebird=/opt/firebird-client
           make -j"$(nproc)"
 
           echo "Extension built with ASan + UBSan"
 
       - name: Run tests with sanitizers
         env:
-          FIREBIRD_HOST: "localhost"
           NO_INTERACTION: 1
           REPORT_EXIT_STATUS: 1
           TEST_PHP_EXECUTABLE: php
@@ -135,8 +180,16 @@ jobs:
 
           echo "=== Running tests with AddressSanitizer + UBSan ==="
 
-          # Run tests, capture output for analysis
-          make test 2>&1 | tee sanitizer_output.txt || true
+          EXTENSION_PATH="$(pwd)/modules/firebird.so"
+          export TEST_PHP_EXECUTABLE="$(which php)"
+          export PHP_TEST_SHARED_EXTENSIONS="-d extension=${EXTENSION_PATH}"
+
+          PCNTL_SO=$(find $(php-config --extension-dir) -name "pcntl.so" 2>/dev/null || true)
+          if [ -n "$PCNTL_SO" ]; then
+            export PHP_TEST_SHARED_EXTENSIONS="${PHP_TEST_SHARED_EXTENSIONS} -d extension=${PCNTL_SO}"
+          fi
+
+          make test TESTS=tests/ 2>&1 | tee sanitizer_output.txt || true
 
           # Check for sanitizer errors
           if grep -qE "ERROR: (Address|Leak|UndefinedBehavior)Sanitizer" sanitizer_output.txt; then
@@ -147,7 +200,6 @@ jobs:
             exit 1
           fi
 
-          # Check for SUMMARY lines (indicates issues found)
           if grep -q "SUMMARY: " sanitizer_output.txt; then
             echo "::group::Sanitizer Summary"
             grep "SUMMARY: " sanitizer_output.txt
@@ -162,12 +214,26 @@ jobs:
   lsan:
     name: LeakSanitizer (PHP 8.3)
     runs-on: ubuntu-latest
+
+    services:
+      firebird:
+        image: firebirdsql/firebird:5
+        env:
+          ISC_PASSWORD: masterkey
+          FIREBIRD_DATABASE: test.fdb
+          FIREBIRD_USER: SYSDBA
+          FIREBIRD_PASSWORD: masterkey
+        ports:
+          - 3050:3050
+
     container:
       image: php:8.3-cli-bookworm
 
     env:
       ISC_USER: SYSDBA
       ISC_PASSWORD: masterkey
+      FIREBIRD_HOST: firebird
+      FIREBIRD_DB_DIR: /tmp
       LSAN_OPTIONS: "suppressions=lsan.supp:print_suppressions=0:verbosity=1"
 
     steps:
@@ -188,8 +254,6 @@ jobs:
             g++ \
             git \
             libicu-dev \
-            libreadline-dev \
-            libssl-dev \
             libtool \
             llvm \
             netbase \
@@ -198,41 +262,71 @@ jobs:
             wget \
             curl \
             unzip \
-            zlib1g-dev
+            libtommath1 \
+            libncurses6
 
           rm -rf /var/lib/apt/lists/*
           docker-php-ext-install pcntl
 
-      - name: Install Firebird server
+      - name: Install Firebird 5.0 client library
         run: |
           set -eu
 
-          FB_SCRIPT_URL="https://raw.githubusercontent.com/IBSurgeon/firebirdlinuxinstall/refs/heads/main/fb_vanilla-50.sh"
-          curl -fsSL "${FB_SCRIPT_URL}" -o /tmp/fb_install.sh
-          chmod +x /tmp/fb_install.sh
-          printf '\n' | /tmp/fb_install.sh
+          FB_CLIENT_DIR="/opt/firebird-client"
+          mkdir -p "${FB_CLIENT_DIR}"
 
-          if [ -x /etc/init.d/firebird ]; then
-            /etc/init.d/firebird restart || /etc/init.d/firebird start || true
-          fi
+          FB_VERSION="5.0.2"
+          FB_BUILD="1613-0"
+          FB_TARBALL="Firebird-${FB_VERSION}.${FB_BUILD}-linux-x64.tar.gz"
+          FB_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_VERSION}/${FB_TARBALL}"
+          FB_EXTRACT_DIR="Firebird-${FB_VERSION}.${FB_BUILD}-linux-x64"
 
-          if ! nc -z 127.0.0.1 3050; then
-            if [ -x /opt/firebird/bin/fbguard ]; then
-              /opt/firebird/bin/fbguard -daemon || true
+          for attempt in 1 2 3 4 5; do
+            if curl -fsSL --retry 3 --retry-delay 5 "${FB_URL}" -o "/tmp/${FB_TARBALL}"; then
+              FSIZE=$(stat -c%s "/tmp/${FB_TARBALL}" 2>/dev/null || echo "0")
+              if [ "${FSIZE}" -gt 8000000 ]; then break; fi
+              rm -f "/tmp/${FB_TARBALL}"
             fi
+            sleep 10
+          done
+
+          cd /tmp
+          tar xzf "${FB_TARBALL}"
+          cd "${FB_EXTRACT_DIR}"
+          tar xzf buildroot.tar.gz
+
+          if [ -d "opt/firebird/include" ]; then
+            mkdir -p "${FB_CLIENT_DIR}/include"
+            cp -a opt/firebird/include/* "${FB_CLIENT_DIR}/include/"
+          fi
+          if [ -d "opt/firebird/lib" ]; then
+            mkdir -p "${FB_CLIENT_DIR}/lib"
+            cp -a opt/firebird/lib/* "${FB_CLIENT_DIR}/lib/"
           fi
 
-          for i in $(seq 1 30); do
-            if nc -z 127.0.0.1 3050; then
+          ln -sf "${FB_CLIENT_DIR}/lib/libfbclient.so" /usr/lib/libfbclient.so
+          ln -sf "${FB_CLIENT_DIR}/lib/libfbclient.so.2" /usr/lib/libfbclient.so.2 2>/dev/null || true
+          echo "${FB_CLIENT_DIR}/lib" > /etc/ld.so.conf.d/firebird-client.conf
+          ldconfig
+
+      - name: Wait for Firebird service
+        run: |
+          set -eu
+          for i in $(seq 1 60); do
+            if nc -z firebird 3050 2>/dev/null; then
               echo "Firebird is ready"
+              sleep 3
               break
             fi
-            sleep 1
+            sleep 2
           done
+
+          if ! nc -z firebird 3050 2>/dev/null; then
+            exit 1
+          fi
 
       - name: Create LSan suppressions file
         run: |
-          # Known leak patterns in PHP/Firebird internals (not our code)
           cat > lsan.supp << 'EOF'
           # PHP internal allocations
           leak:zend_
@@ -252,28 +346,25 @@ jobs:
 
       - name: Build extension with LeakSanitizer
         env:
-          FB_CONFIG: "no"
           CC: clang
           CXX: clang++
         run: |
           set -eu
 
-          export PATH="/opt/firebird/bin:${PATH}"
-          export LD_LIBRARY_PATH="/opt/firebird/lib:${LD_LIBRARY_PATH:-}"
+          export LD_LIBRARY_PATH="/opt/firebird-client/lib:${LD_LIBRARY_PATH:-}"
 
           SANITIZE_FLAGS="-fsanitize=leak -fno-omit-frame-pointer -g -O1"
 
-          export CFLAGS="-I/opt/firebird/include ${SANITIZE_FLAGS}"
-          export CXXFLAGS="-I/opt/firebird/include ${SANITIZE_FLAGS}"
-          export LDFLAGS="-L/opt/firebird/lib -fsanitize=leak"
+          export CFLAGS="-I/opt/firebird-client/include ${SANITIZE_FLAGS}"
+          export CXXFLAGS="-I/opt/firebird-client/include ${SANITIZE_FLAGS}"
+          export LDFLAGS="-L/opt/firebird-client/lib -fsanitize=leak"
 
           phpize
-          ./configure --with-firebird=/opt/firebird
+          ./configure --with-firebird=/opt/firebird-client
           make -j"$(nproc)"
 
       - name: Run tests with LeakSanitizer
         env:
-          FIREBIRD_HOST: "localhost"
           NO_INTERACTION: 1
           REPORT_EXIT_STATUS: 1
           TEST_PHP_EXECUTABLE: php
@@ -282,9 +373,17 @@ jobs:
 
           echo "=== Running tests with LeakSanitizer ==="
 
-          make test 2>&1 | tee lsan_output.txt || true
+          EXTENSION_PATH="$(pwd)/modules/firebird.so"
+          export TEST_PHP_EXECUTABLE="$(which php)"
+          export PHP_TEST_SHARED_EXTENSIONS="-d extension=${EXTENSION_PATH}"
 
-          # Check for direct leaks (ignoring suppressed patterns)
+          PCNTL_SO=$(find $(php-config --extension-dir) -name "pcntl.so" 2>/dev/null || true)
+          if [ -n "$PCNTL_SO" ]; then
+            export PHP_TEST_SHARED_EXTENSIONS="${PHP_TEST_SHARED_EXTENSIONS} -d extension=${PCNTL_SO}"
+          fi
+
+          make test TESTS=tests/ 2>&1 | tee lsan_output.txt || true
+
           if grep -q "Direct leak" lsan_output.txt; then
             echo "::warning::Memory leaks detected (check if in extension code)"
             echo "::group::Leak Details"
@@ -316,7 +415,6 @@ jobs:
 
           if [ "${{ needs.lsan.result }}" = "failure" ]; then
             echo "⚠️ LeakSanitizer detected issues (review required)"
-            # Don't fail build for leak detection (may be false positives)
           fi
 
           echo "✅ Sanitizer checks complete"

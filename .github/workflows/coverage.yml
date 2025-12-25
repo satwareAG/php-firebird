@@ -257,12 +257,13 @@ jobs:
 
           echo "=== Testing extension loading ==="
           # First show any errors, then check if module loaded
-          if ! php -d "extension=${EXTENSION_PATH}" -m 2>&1 | grep -qi fbird; then
+          # Note: Module name is "firebird" (not "fbird")
+          if ! php -d "extension=${EXTENSION_PATH}" -m 2>&1 | grep -qi firebird; then
             echo "ERROR: Extension failed to load. Showing detailed error:"
             php -d "extension=${EXTENSION_PATH}" -r 'echo "Extension loaded\n";' 2>&1 || true
             exit 1
           fi
-          echo "fbird extension loaded successfully"
+          echo "firebird extension loaded successfully"
 
           echo "=== Testing connection to Firebird service ==="
           php -d "extension=${EXTENSION_PATH}" -r '

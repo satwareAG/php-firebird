@@ -387,7 +387,8 @@ jobs:
             cat /tmp/modules.txt
             exit 1
           }
-          grep -i fbird /tmp/modules.txt
+          # Note: Module name is "firebird" (not "fbird")
+          grep -i firebird /tmp/modules.txt
 
           echo "Testing connection to Firebird service..."
           php -d "extension=${EXTENSION_PATH}" -r '

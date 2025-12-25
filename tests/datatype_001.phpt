@@ -3,7 +3,10 @@ Check for data types using old clients
 --SKIPIF--
 <?php
 include("skipif.inc");
-print "skip: custom test for @mlazdans";
+// This test requires a manually configured TEST_001 table with specific Firebird 4.0+ types
+// (INT128, DECFLOAT, TIME_TZ, TIMESTAMP_TZ) and uses hardcoded database paths.
+// Not suitable for CI - intended for local development testing only.
+print "skip: requires manual TEST_001 table setup (development-only test)";
 ?>
 --FILE--
 <?php

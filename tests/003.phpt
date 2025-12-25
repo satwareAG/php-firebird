@@ -3,12 +3,6 @@ Firebird: misc sql types (may take a while)
 --SKIPIF--
 <?php
 include("skipif.inc");
-// SKIP: Flaky test due to rand_number() generating edge-case precision values.
-// rand_number() with NUMERIC(15,15) produces values that can cause intermittent
-// failures across different Firebird/PHP version combinations in CI.
-// Core datatype functionality IS tested by datatype_001.phpt with deterministic values.
-// TODO: Fix rand_number() precision handling and re-enable (Issue #XX)
-die("skip Flaky test - deterministic datatype tests in datatype_001.phpt");
 ?>
 --FILE--
 <?php

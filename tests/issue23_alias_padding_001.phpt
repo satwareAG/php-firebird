@@ -3,12 +3,6 @@ Issue #23: Column alias deduplication works correctly with padded aliases (Fireb
 --SKIPIF--
 <?php
 include("skipif.inc");
-require_once('functions.inc');
-/* This test is currently disabled due to unreliable behavior in CI.
- * The alias padding behavior varies across Firebird versions and CI environments.
- * TODO: Investigate root cause and re-enable with proper expectations.
- * See: https://github.com/satwareAG/php-firebird/issues/23 */
-die("skip Test disabled - unreliable in CI environments");
 ?>
 --FILE--
 <?php

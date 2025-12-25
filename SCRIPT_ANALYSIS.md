@@ -24,8 +24,7 @@
 | `test.sh` | Run PHPT tests | ❌ 1 | Requires Docker /ext directory |
 | `check_db_integrity.sh` | Verify DB content | ❌ - | Requires `isql` command |
 | `pre-commit-hook.sh` | Git pre-commit validation | ✅ 0 | ⚠️ WARNING: Debug statements found |
-| `qa.sh` | Quick QA checks | - | Docker required (syntax OK) |
-| `qa_full.sh` | Comprehensive QA suite | - | Docker required (syntax OK) |
+| `qa.sh` | Comprehensive QA suite | - | Docker required (syntax OK) |
 | `test_matrix.sh` | Multi-version test matrix | - | Docker required (syntax OK) |
 | `test_with_act.sh` | Local GitHub Actions testing | ✅ 0 | Requires `act` command |
 | `coverage.sh` | Code coverage analysis | - | Docker required (syntax OK) |
@@ -64,28 +63,21 @@ Host (Direct Execution)
 │   └── make -j$(nproc)
 │
 ├── pre-commit-hook.sh
-│   └── [mentions qa_full.sh in error message]
+│   └── [mentions qa.sh in error message]
 │
 └── test_with_act.sh
     └── act (GitHub Actions local runner)
 
 Docker Compose (Container Execution)
-├── qa.sh
+├── qa.sh (modes: fast, standard, full, security)
+│   ├── gitleaks detect (security/full modes)
+│   ├── PHPStan + PHPCS (host-side)
 │   ├── docker compose up -d
 │   ├── docker compose exec → scripts/analysis/clang_tidy.sh
 │   ├── docker compose exec → scripts/analysis/cppcheck.sh
-│   ├── docker compose exec → scripts/test.sh
-│   ├── docker compose exec → scripts/analysis/valgrind.sh
-│   └── docker compose exec → scripts/analysis/asan.sh
-│
-├── qa_full.sh
-│   ├── gitleaks detect
-│   ├── docker compose up -d
-│   ├── docker compose exec → scripts/analysis/clang_tidy.sh
-│   ├── docker compose exec → scripts/analysis/cppcheck.sh
-│   ├── docker compose exec → scripts/test.sh
-│   ├── docker compose exec → scripts/analysis/sanitizers.sh
-│   └── docker compose exec → scripts/analysis/valgrind.sh
+│   ├── docker compose exec → scripts/test.sh (standard+)
+│   ├── docker compose exec → scripts/analysis/sanitizers.sh (full+)
+│   └── docker compose exec → scripts/analysis/valgrind.sh (full+)
 │
 ├── test_matrix.sh
 │   ├── docker compose up -d
@@ -119,7 +111,7 @@ Docker Compose (Container Execution)
 - `pre-commit-hook.sh` → `gitleaks` + `git` + `grep`
 
 **Docker orchestration:**
-- `qa_full.sh` / `qa.sh` → `docker compose` → Container analysis scripts
+- `qa.sh` → `docker compose` → Container analysis scripts
 - `test_matrix.sh` → `docker compose` → `build.sh` + `test.sh`
 
 **Container-level execution:**
@@ -189,14 +181,12 @@ These options need to match
 
 All other scripts require Docker environment:
 
-**Quick QA:**
+**QA Suite:**
 ```bash
-docker compose run --rm php83-dev /ext/scripts/qa.sh
-```
-
-**Full QA Suite:**
-```bash
-./scripts/qa_full.sh --mode fast
+./scripts/qa.sh --mode fast      # Static analysis only
+./scripts/qa.sh --mode standard  # Analysis + tests (default)
+./scripts/qa.sh --mode full      # + Sanitizers + Valgrind
+./scripts/qa.sh --mode security  # + Gitleaks
 ```
 
 **Test Matrix:**
@@ -234,7 +224,7 @@ docker compose run --rm php83-dev /ext/scripts/analysis/valgrind.sh
 
 3. **Before Release:**
    ```bash
-   ./scripts/qa_full.sh --mode fast  # Comprehensive checks
+   ./scripts/qa.sh --mode full  # Comprehensive checks
    ```
 
 ### For CI/CD
@@ -274,10 +264,10 @@ docker compose run --rm php83-dev /ext/scripts/analysis/valgrind.sh
 - Exit 0: All checks pass
 - Exit 1: Validation failures
 
-**qa.sh / qa_full.sh**
-- Comprehensive quality assurance
-- qa.sh: Fast mode (clang-tidy, cppcheck, tests, valgrind/asan)
-- qa_full.sh: Full mode (+ sanitizers, gitleaks, make clean builds)
+**qa.sh**
+- Comprehensive quality assurance with multiple modes
+- Modes: fast (static analysis), standard (+ tests), full (+ sanitizers), security (+ gitleaks)
+- Runs host-side checks (PHPStan, PHPCS) + container-side analysis
 - Orchestrates Docker containers and analysis tools
 
 **test_matrix.sh**

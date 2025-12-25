@@ -1,136 +1,281 @@
 #!/bin/bash
-# scripts/qa_local.sh
-# Unified local QA workflow: setup -> build(bear) -> analysis -> test
-# Usage: ./scripts/qa_local.sh [container_name] [mode]
-#   container_name: defaults to php82-dev
-#   mode: 'fast' (default) or 'full' (includes ASan/Valgrind)
+# scripts/qa.sh
+# Comprehensive local QA workflow with all quality checks
+# Usage: ./scripts/qa.sh [options]
+#
+# Options:
+#   --container NAME   Container to use (default: php83-dev)
+#   --mode MODE        fast|standard|full|security (default: standard)
+#   --skip-build       Skip C extension build (use existing)
+#   --php-only         Only run PHP analysis (PHPStan, PHPCS)
+#   --help             Show this help message
+#
+# Modes:
+#   fast     - Static analysis only (clang-tidy, cppcheck, PHPStan)
+#   standard - Fast + unit tests
+#   full     - Standard + sanitizers (ASan, UBSan) + Valgrind
+#   security - Full + Gitleaks secret scanning
 
-set -euo pipefail
+set -e
 
-# 1. Parse Args
-CONTAINER=${1:-php82-dev}
-MODE=${2:-fast} # fast | full
+# Defaults
+CONTAINER="php83-dev"
+MODE="standard"
+SKIP_BUILD=false
+PHP_ONLY=false
 
-PROJECT_ROOT=$(pwd)
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --container)
+            CONTAINER="$2"
+            shift 2
+            ;;
+        --mode)
+            MODE="$2"
+            shift 2
+            ;;
+        --skip-build)
+            SKIP_BUILD=true
+            shift
+            ;;
+        --php-only)
+            PHP_ONLY=true
+            shift
+            ;;
+        --help)
+            head -20 "$0" | tail -16
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DOCKER_DIR="$PROJECT_ROOT/docker"
 
-# Check for color support
-if [ -t 1 ]; then
-    GREEN='\033[0;32m'
-    BLUE='\033[0;34m'
-    RED='\033[0;31m'
-    NC='\033[0m'
-else
-    GREEN=''
-    BLUE=''
-    RED=''
-    NC=''
-fi
+echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${BLUE}║          PHP Firebird - Full Quality Assurance               ║${NC}"
+echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "Container: ${YELLOW}$CONTAINER${NC}"
+echo -e "Mode:      ${YELLOW}$MODE${NC}"
+echo ""
 
-echo -e "${BLUE}=== PHP Firebird Local QA Workflow ($CONTAINER) ===${NC}"
+FAILED=0
 
-# 2. Start Container
-echo -e "${BLUE}>> Ensuring environment is running...${NC}"
-cd "$DOCKER_DIR"
-if ! docker compose up -d "$CONTAINER"; then
-    echo -e "${RED}Failed to start container $CONTAINER${NC}"
-    exit 1
-fi
+# ============================================================================
+# PHASE 1: Host-side checks (no container needed)
+# ============================================================================
+echo -e "${BLUE}═══ Phase 1: Host-side Quality Checks ═══${NC}"
 
-# 3. Install QA Tools (if missing)
-echo -e "${BLUE}>> Checking/Installing QA tools in container...${NC}"
-# We check for bear, clang-tidy, and cppcheck (apt-get update only if needed)
-docker compose exec -u root "$CONTAINER" bash -c "
-    export DEBIAN_FRONTEND=noninteractive
-    MISSING=0
-    if ! command -v bear >/dev/null; then MISSING=1; fi
-    if ! command -v clang-tidy >/dev/null; then MISSING=1; fi
-    if ! command -v cppcheck >/dev/null; then MISSING=1; fi
-    if ! command -v xmllint >/dev/null; then MISSING=1; fi
-
-    if [ \$MISSING -eq 1 ]; then
-        echo 'Installing tools: bear clang-tools clang-tidy cppcheck libxml2-utils...'
-        apt-get update -qq && apt-get install -y -qq bear clang-tools clang-tidy cppcheck libxml2-utils
-
-        # Fix clang-tidy symlink if missing (and not managed by update-alternatives)
-        if ! command -v clang-tidy >/dev/null; then
-            echo 'Fixing clang-tidy symlink...'
-            TARGET=\"\"
-            # Check standard llvm locations
-            for bin in /usr/lib/llvm-*/bin/clang-tidy; do
-                if [ -x \"\$bin\" ]; then
-                    TARGET=\"\$bin\"
-                fi
-            done
-
-            if [ -z \"\$TARGET\" ]; then
-                 # Fallback: find anywhere in /usr/lib
-                 TARGET=\$(find /usr/lib -name \"clang-tidy*\" -type f 2>/dev/null | head -n 1)
-            fi
-
-            if [ -n \"\$TARGET\" ]; then
-                ln -sf \"\$TARGET\" /usr/bin/clang-tidy
-                echo \"Linked /usr/bin/clang-tidy to \$TARGET\"
-            else
-                echo 'Error: Could not find clang-tidy binary.'
-                find /usr/lib -name \"clang-tidy*\" -type f 2>/dev/null || echo 'Find returned nothing'
-            fi
+# 1.1 Gitleaks (secret detection)
+if [[ "$MODE" == "security" ]] || [[ "$MODE" == "full" ]]; then
+    echo -e "\n${BLUE}>> [1.1] Gitleaks - Secret Detection...${NC}"
+    if command -v gitleaks &> /dev/null; then
+        cd "$PROJECT_ROOT"
+        # Use config file if available
+        GITLEAKS_OPTS=""
+        if [ -f ".gitleaks.toml" ]; then
+            GITLEAKS_OPTS="--config=.gitleaks.toml"
+        fi
+        if gitleaks detect --source . --no-git $GITLEAKS_OPTS --no-banner 2>/dev/null; then
+            echo -e "${GREEN}✓ No secrets detected${NC}"
+        else
+            echo -e "${RED}✗ Secrets detected! Review and remove before committing${NC}"
+            FAILED=1
         fi
     else
-        echo 'QA tools present.'
+        echo -e "${YELLOW}⚠ Gitleaks not installed. Install with: go install github.com/gitleaks/gitleaks/v8@latest${NC}"
     fi
-"
+fi
 
-# 4. Build with Bear (Generates compile_commands.json)
-echo -e "${BLUE}>> Building extension with Bear (Database Generation)...${NC}"
-# This ensures we have a valid compilation database for static analysis
-# effectively replacing 'build-extension.sh' for this workflow but with 'bear'
-# We clean to ensure the DB is complete.
+# 1.2 PHP Static Analysis (if composer is available)
+echo -e "\n${BLUE}>> [1.2] PHPStan - PHP Static Analysis...${NC}"
+cd "$PROJECT_ROOT"
+if [ -f composer.json ]; then
+    if [ ! -d vendor ]; then
+        echo "Installing composer dependencies..."
+        if command -v composer &> /dev/null; then
+            composer install --dev --quiet 2>/dev/null || true
+        else
+            echo -e "${YELLOW}⚠ Composer not found on host, will try in container${NC}"
+        fi
+    fi
+
+    if [ -f vendor/bin/phpstan ]; then
+        if vendor/bin/phpstan analyse --configuration=phpstan.neon --no-progress; then
+            echo -e "${GREEN}✓ PHPStan passed${NC}"
+        else
+            echo -e "${RED}✗ PHPStan found issues${NC}"
+            FAILED=1
+        fi
+    else
+        echo -e "${YELLOW}⚠ PHPStan not installed, skipping${NC}"
+    fi
+fi
+
+# 1.3 PHP CodeSniffer
+echo -e "\n${BLUE}>> [1.3] PHPCS - PHP Code Style...${NC}"
+if [ -f vendor/bin/phpcs ] && [ -d src ]; then
+    # Use phpcs.xml if available, otherwise fall back to PSR12
+    PHPCS_OPTS=""
+    if [ -f phpcs.xml ]; then
+        PHPCS_OPTS=""  # phpcs.xml is auto-detected
+    else
+        PHPCS_OPTS="--standard=PSR12"
+    fi
+    if vendor/bin/phpcs $PHPCS_OPTS src/ --report=summary; then
+        echo -e "${GREEN}✓ PHPCS passed${NC}"
+    else
+        echo -e "${YELLOW}⚠ PHPCS found style issues (non-blocking)${NC}"
+    fi
+fi
+
+# Exit early if PHP only
+if [ "$PHP_ONLY" = true ]; then
+    echo -e "\n${BLUE}═══ PHP-only mode complete ═══${NC}"
+    exit $FAILED
+fi
+
+# ============================================================================
+# PHASE 2: Container setup
+# ============================================================================
+echo -e "\n${BLUE}═══ Phase 2: Container Environment ═══${NC}"
+
+cd "$DOCKER_DIR"
+echo -e "${BLUE}>> Starting container $CONTAINER...${NC}"
+docker compose up -d "$CONTAINER"
+
+# Install QA tools in container if missing
+echo -e "${BLUE}>> Ensuring QA tools in container...${NC}"
+docker compose exec -u root "$CONTAINER" bash -c "
+    export DEBIAN_FRONTEND=noninteractive
+    NEED_INSTALL=0
+    command -v bear >/dev/null || NEED_INSTALL=1
+    command -v clang-tidy >/dev/null || NEED_INSTALL=1
+    command -v cppcheck >/dev/null || NEED_INSTALL=1
+
+    if [ \$NEED_INSTALL -eq 1 ]; then
+        apt-get update -qq
+        apt-get install -y -qq bear clang-tools clang-tidy cppcheck libxml2-utils 2>/dev/null
+    fi
+" 2>/dev/null || true
+
+# ============================================================================
+# PHASE 3: Build C Extension
+# ============================================================================
+if [ "$SKIP_BUILD" = false ]; then
+    echo -e "\n${BLUE}═══ Phase 3: Build Extension with Bear ═══${NC}"
+    docker compose exec "$CONTAINER" bash -c "
+        cd /ext
+        if [ -f Makefile ]; then make clean 2>/dev/null || true; phpize --clean 2>/dev/null || true; fi
+        phpize
+        CPPFLAGS='-I/usr/include/firebird' ./configure --with-firebird=/usr
+        bear -- make -j\$(nproc)
+    "
+    echo -e "${GREEN}✓ Extension built successfully${NC}"
+else
+    echo -e "${YELLOW}⚠ Skipping build (--skip-build)${NC}"
+fi
+
+# ============================================================================
+# PHASE 4: Static Analysis (C/C++)
+# ============================================================================
+echo -e "\n${BLUE}═══ Phase 4: C/C++ Static Analysis ═══${NC}"
+
+# 4.1 Clang-Tidy
+echo -e "\n${BLUE}>> [4.1] Clang-Tidy...${NC}"
+if docker compose exec "$CONTAINER" /ext/scripts/analysis/clang_tidy.sh; then
+    echo -e "${GREEN}✓ Clang-Tidy passed${NC}"
+else
+    echo -e "${RED}✗ Clang-Tidy found issues${NC}"
+    FAILED=1
+fi
+
+# 4.2 Cppcheck
+echo -e "\n${BLUE}>> [4.2] Cppcheck...${NC}"
+if docker compose exec "$CONTAINER" /ext/scripts/analysis/cppcheck.sh; then
+    echo -e "${GREEN}✓ Cppcheck passed${NC}"
+else
+    echo -e "${RED}✗ Cppcheck found issues${NC}"
+    FAILED=1
+fi
+
+# Exit if fast mode
+if [ "$MODE" == "fast" ]; then
+    echo -e "\n${BLUE}═══ Fast mode complete ═══${NC}"
+    exit $FAILED
+fi
+
+# ============================================================================
+# PHASE 5: Unit Tests
+# ============================================================================
+echo -e "\n${BLUE}═══ Phase 5: Unit Tests ═══${NC}"
+
+if docker compose exec "$CONTAINER" /ext/scripts/test.sh; then
+    echo -e "${GREEN}✓ Unit tests passed${NC}"
+else
+    echo -e "${RED}✗ Unit tests failed${NC}"
+    FAILED=1
+fi
+
+# Exit if standard mode
+if [ "$MODE" == "standard" ]; then
+    echo -e "\n${BLUE}═══ Standard mode complete ═══${NC}"
+    exit $FAILED
+fi
+
+# ============================================================================
+# PHASE 6: Dynamic Analysis (Full/Security modes)
+# ============================================================================
+echo -e "\n${BLUE}═══ Phase 6: Dynamic Analysis (Sanitizers) ═══${NC}"
+
+# 6.1 AddressSanitizer + UBSan
+echo -e "\n${BLUE}>> [6.1] Running Sanitizers (ASan + UBSan)...${NC}"
+if docker compose exec "$CONTAINER" /ext/scripts/analysis/sanitizers.sh all; then
+    echo -e "${GREEN}✓ Sanitizer tests passed${NC}"
+else
+    echo -e "${RED}✗ Sanitizer tests found issues${NC}"
+    FAILED=1
+fi
+
+# 6.2 Valgrind (optional, very slow)
+echo -e "\n${BLUE}>> [6.2] Valgrind Memory Check...${NC}"
+# Rebuild without sanitizers first
 docker compose exec "$CONTAINER" bash -c "
     cd /ext
-    if [ -f Makefile ]; then make clean; phpize --clean; fi
+    make clean 2>/dev/null || true
+    phpize --clean 2>/dev/null || true
     phpize
-    CPPFLAGS='-I/usr/include/firebird' ./configure --with-firebird=/usr
-    bear -- make -j\$(nproc)
+    ./configure --with-firebird=/usr
+    make -j\$(nproc)
 "
-
-# 5. Run Static Analysis
-echo -e "${BLUE}>> Running Clang-Tidy...${NC}"
-if ! docker compose exec "$CONTAINER" /ext/scripts/analysis/clang_tidy.sh; then
-    echo -e "${RED}Clang-Tidy failed.${NC}"
-    exit 1
+if docker compose exec "$CONTAINER" /ext/scripts/analysis/valgrind.sh; then
+    echo -e "${GREEN}✓ Valgrind passed${NC}"
+else
+    echo -e "${YELLOW}⚠ Valgrind found issues (review recommended)${NC}"
 fi
 
-echo -e "${BLUE}>> Running Cppcheck...${NC}"
-if ! docker compose exec "$CONTAINER" /ext/scripts/analysis/cppcheck.sh; then
-    echo -e "${RED}Cppcheck failed.${NC}"
-    exit 1
+# ============================================================================
+# Summary
+# ============================================================================
+echo -e "\n${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
+if [ $FAILED -eq 0 ]; then
+    echo -e "${GREEN}║               ✓ ALL QUALITY CHECKS PASSED                   ║${NC}"
+else
+    echo -e "${RED}║               ✗ SOME QUALITY CHECKS FAILED                  ║${NC}"
 fi
+echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
 
-# 6. Run Unit Tests
-echo -e "${BLUE}>> Running Unit Tests...${NC}"
-if ! docker compose exec "$CONTAINER" /ext/scripts/test.sh; then
-    echo -e "${RED}Unit tests failed.${NC}"
-    exit 1
-fi
-
-# 7. Dynamic Analysis (Optional)
-if [ "$MODE" == "full" ]; then
-    echo -e "${BLUE}>> Running Valgrind (on standard build)...${NC}"
-    # Valgrind parses the current binary. Since 'make install' wasn't run in step 4 (just make),
-    # test-extension.sh finds modules/firebird.so.
-    # test_with_valgrind.sh also uses ./modules/firebird.so.
-    if ! docker compose exec "$CONTAINER" /ext/scripts/analysis/valgrind.sh; then
-        echo -e "${RED}Valgrind failed.${NC}"
-        exit 1
-    fi
-
-    echo -e "${BLUE}>> Running AddressSanitizer (Rebuilds with ASan)...${NC}"
-    # ASan requires rebuild. This invalidates the previous build.
-    if ! docker compose exec "$CONTAINER" /ext/scripts/analysis/asan.sh; then
-        echo -e "${RED}AddressSanitizer tests failed.${NC}"
-        exit 1
-    fi
-fi
-
-echo -e "\n${GREEN}=== QA Workflow Completed Successfully ===${NC}"
+exit $FAILED

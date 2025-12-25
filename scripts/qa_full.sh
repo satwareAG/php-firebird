@@ -61,7 +61,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DOCKER_DIR="$PROJECT_ROOT/docker"
 
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"

@@ -181,6 +181,9 @@ jobs:
         run: |
           set -eu
 
+          # Ensure Firebird client library is in library path
+          export LD_LIBRARY_PATH="/opt/firebird-client/lib:${LD_LIBRARY_PATH:-}"
+
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
 
           echo "Testing extension loading..."

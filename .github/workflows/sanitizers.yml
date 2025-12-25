@@ -178,6 +178,9 @@ jobs:
         run: |
           set -eu
 
+          # Ensure Firebird client library is in library path
+          export LD_LIBRARY_PATH="/opt/firebird-client/lib:${LD_LIBRARY_PATH:-}"
+
           echo "=== Running tests with AddressSanitizer + UBSan ==="
 
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
@@ -370,6 +373,9 @@ jobs:
           TEST_PHP_EXECUTABLE: php
         run: |
           set -eu
+
+          # Ensure Firebird client library is in library path
+          export LD_LIBRARY_PATH="/opt/firebird-client/lib:${LD_LIBRARY_PATH:-}"
 
           echo "=== Running tests with LeakSanitizer ==="
 

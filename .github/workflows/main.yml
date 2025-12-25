@@ -156,6 +156,22 @@ jobs:
             libtommath1 \
             libncurses6
 
+          # Create compatibility symlinks for Firebird client libraries
+          # Firebird 3.0 client was built against older library versions:
+          # - libncurses.so.5 (Bookworm has .so.6)
+          # - libtommath.so.0 (Bookworm has .so.1)
+          echo "Creating library compatibility symlinks..."
+          if [ -f /lib/x86_64-linux-gnu/libncurses.so.6 ]; then
+            ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /lib/x86_64-linux-gnu/libncurses.so.5
+            ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 /lib/x86_64-linux-gnu/libtinfo.so.5 2>/dev/null || true
+            echo "  Created libncurses.so.5 -> libncurses.so.6"
+          fi
+          if [ -f /lib/x86_64-linux-gnu/libtommath.so.1 ]; then
+            ln -sf /lib/x86_64-linux-gnu/libtommath.so.1 /lib/x86_64-linux-gnu/libtommath.so.0
+            echo "  Created libtommath.so.0 -> libtommath.so.1"
+          fi
+          ldconfig
+
           # Install pcntl extension for event tests
           docker-php-ext-install pcntl
 

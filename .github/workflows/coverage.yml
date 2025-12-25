@@ -120,14 +120,19 @@ jobs:
             cp -a opt/firebird/lib/* "${FB_CLIENT_DIR}/lib/"
           fi
 
-          # Create symlinks
+          # Create symlinks and copy to standard locations
+          cp -a "${FB_CLIENT_DIR}/lib"/* /usr/local/lib/ 2>/dev/null || true
           ln -sf "${FB_CLIENT_DIR}/lib/libfbclient.so" /usr/lib/libfbclient.so
           ln -sf "${FB_CLIENT_DIR}/lib/libfbclient.so.2" /usr/lib/libfbclient.so.2 2>/dev/null || true
           ln -sf "${FB_CLIENT_DIR}/include" /usr/include/firebird
 
           # Configure ldconfig
           echo "${FB_CLIENT_DIR}/lib" > /etc/ld.so.conf.d/firebird-client.conf
+          echo "/usr/local/lib" >> /etc/ld.so.conf.d/firebird-client.conf
           ldconfig
+
+          # Verify
+          ldconfig -p | grep -i fbclient || echo "Warning: libfbclient not found in ldconfig"
 
           # Verify
           if [ ! -f "${FB_CLIENT_DIR}/include/ibase.h" ]; then

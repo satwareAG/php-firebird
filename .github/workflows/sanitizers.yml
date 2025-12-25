@@ -123,11 +123,15 @@ jobs:
             cp -a opt/firebird/lib/* "${FB_CLIENT_DIR}/lib/"
           fi
 
+          # Copy libraries to standard locations
+          cp -a "${FB_CLIENT_DIR}/lib"/* /usr/local/lib/ 2>/dev/null || true
           ln -sf "${FB_CLIENT_DIR}/lib/libfbclient.so" /usr/lib/libfbclient.so
           ln -sf "${FB_CLIENT_DIR}/lib/libfbclient.so.2" /usr/lib/libfbclient.so.2 2>/dev/null || true
           echo "${FB_CLIENT_DIR}/lib" > /etc/ld.so.conf.d/firebird-client.conf
+          echo "/usr/local/lib" >> /etc/ld.so.conf.d/firebird-client.conf
           ldconfig
 
+          ldconfig -p | grep -i fbclient || echo "Warning: libfbclient not found"
           echo "Firebird client installed"
 
       - name: Wait for Firebird service
@@ -307,10 +311,15 @@ jobs:
             cp -a opt/firebird/lib/* "${FB_CLIENT_DIR}/lib/"
           fi
 
+          # Copy libraries to standard locations
+          cp -a "${FB_CLIENT_DIR}/lib"/* /usr/local/lib/ 2>/dev/null || true
           ln -sf "${FB_CLIENT_DIR}/lib/libfbclient.so" /usr/lib/libfbclient.so
           ln -sf "${FB_CLIENT_DIR}/lib/libfbclient.so.2" /usr/lib/libfbclient.so.2 2>/dev/null || true
           echo "${FB_CLIENT_DIR}/lib" > /etc/ld.so.conf.d/firebird-client.conf
+          echo "/usr/local/lib" >> /etc/ld.so.conf.d/firebird-client.conf
           ldconfig
+
+          ldconfig -p | grep -i fbclient || echo "Warning: libfbclient not found"
 
       - name: Wait for Firebird service
         run: |

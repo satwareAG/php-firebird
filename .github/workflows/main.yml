@@ -237,25 +237,37 @@ jobs:
             cp -a opt/firebird/lib/* "${FB_CLIENT_DIR}/lib/"
           fi
 
-          # Create system symlinks for compilation and runtime
-          # Copy libraries to /usr/local/lib for better linker compatibility
-          cp -a "${FB_CLIENT_DIR}/lib"/* /usr/local/lib/ 2>/dev/null || true
-          ln -sf /usr/local/lib/libfbclient.so "${FB_CLIENT_DIR}/lib/libfbclient.so" 2>/dev/null || true
+          # Debug: Show what we have
+          echo "=== Contents of FB_CLIENT_DIR/lib ==="
+          ls -la "${FB_CLIENT_DIR}/lib/" || echo "No lib directory"
 
-          ln -sf "${FB_CLIENT_DIR}/lib/libfbclient.so" /usr/lib/libfbclient.so
-          if [ -f "${FB_CLIENT_DIR}/lib/libfbclient.so.2" ]; then
-            ln -sf "${FB_CLIENT_DIR}/lib/libfbclient.so.2" /usr/lib/libfbclient.so.2
+          # Direct copy to system library paths (not symlinks - symlinks can fail)
+          echo "=== Installing libraries to system paths ==="
+          if [ -f "${FB_CLIENT_DIR}/lib/libfbclient.so" ]; then
+            cp -a "${FB_CLIENT_DIR}/lib/libfbclient.so"* /usr/lib/
+            cp -a "${FB_CLIENT_DIR}/lib/libfbclient.so"* /usr/local/lib/ 2>/dev/null || true
           fi
-          ln -sf "${FB_CLIENT_DIR}/include" /usr/include/firebird
+
+          # Also copy any .so.X versions
+          for so in "${FB_CLIENT_DIR}/lib/"*.so*; do
+            if [ -f "$so" ]; then
+              cp -a "$so" /usr/lib/
+            fi
+          done
+
+          # Copy headers directly
+          cp -a "${FB_CLIENT_DIR}/include"/* /usr/include/ 2>/dev/null || true
 
           # Configure dynamic linker
           echo "${FB_CLIENT_DIR}/lib" > /etc/ld.so.conf.d/firebird-client.conf
           echo "/usr/local/lib" >> /etc/ld.so.conf.d/firebird-client.conf
           ldconfig
 
-          # Verify library is linkable
-          echo "Verifying libfbclient is linkable..."
+          # Verify installation
+          echo "=== Verifying libfbclient installation ==="
           ldconfig -p | grep -i fbclient || echo "Warning: libfbclient not in ldconfig cache"
+          ls -la /usr/lib/libfbclient* || echo "Warning: libfbclient not in /usr/lib"
+          ls -la /usr/include/ibase.h || echo "Warning: ibase.h not in /usr/include"
 
           # Verify installation
           if [ ! -f "${FB_CLIENT_DIR}/include/ibase.h" ]; then

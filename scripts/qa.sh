@@ -8,6 +8,7 @@
 #   --mode MODE        fast|standard|full|security (default: standard)
 #   --skip-build       Skip C extension build (use existing)
 #   --php-only         Only run PHP analysis (PHPStan, PHPCS)
+#   --fail-fast        Stop at first error with detailed output
 #   --help             Show this help message
 #
 # Modes:
@@ -23,6 +24,7 @@ CONTAINER="php83-dev"
 MODE="standard"
 SKIP_BUILD=false
 PHP_ONLY=false
+FAIL_FAST=false
 
 # Colors
 RED='\033[0;31m'
@@ -50,6 +52,10 @@ while [[ $# -gt 0 ]]; do
             PHP_ONLY=true
             shift
             ;;
+        --fail-fast)
+            FAIL_FAST=true
+            shift
+            ;;
         --help)
             head -20 "$0" | tail -16
             exit 0
@@ -74,6 +80,51 @@ echo ""
 
 FAILED=0
 
+# Helper function to check result and fail fast if requested
+check_result() {
+    local PHASE="$1"
+    local NAME="$2"
+    local CMD="$3"
+    local OUTPUT_FILE=$(mktemp)
+    
+    # Run command and capture output while streaming to stdout
+    # We use a pipe to tee, so we need PIPESTATUS to get the command's exit code
+    if eval "$CMD" 2>&1 | tee "$OUTPUT_FILE"; then
+        # Check PIPESTATUS array for the first command's exit code
+        if [ ${PIPESTATUS[0]} -eq 0 ]; then
+            echo -e "${GREEN}✓ $NAME passed${NC}"
+            rm "$OUTPUT_FILE"
+            return 0
+        fi
+    fi
+    
+    # If we get here, the command failed
+    local EXIT_CODE=${PIPESTATUS[0]}
+    echo "" # Ensure newline
+    echo -e "${RED}✗ $NAME failed${NC}"
+    
+    if [ "$FAIL_FAST" = true ]; then
+        echo ""
+        echo -e "${RED}╔═══════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${RED}║ ✗ FAILED: $NAME                                        ║${NC}"
+        echo -e "${RED}╠═══════════════════════════════════════════════════════════════╣${NC}"
+        echo -e "${RED}║ Phase:   $PHASE                                  ║${NC}"
+        echo -e "${RED}║ Command: $CMD                                      ║${NC}"
+        echo -e "${RED}║ Exit:    $EXIT_CODE                                          ║${NC}"
+        echo -e "${RED}╟───────────────────────────────────────────────────────────────╢${NC}"
+        echo -e "${RED}║ Output (captured above):                                      ║${NC}"
+        # We don't reprint the whole output since it was just streamed
+        echo -e "${RED}║ (See output above for details)                                ║${NC}"
+        echo -e "${RED}╚═══════════════════════════════════════════════════════════════╝${NC}"
+        rm "$OUTPUT_FILE"
+        exit $EXIT_CODE
+    else
+        FAILED=1
+        rm "$OUTPUT_FILE"
+        return 1
+    fi
+}
+
 # ============================================================================
 # PHASE 1: Host-side checks (no container needed)
 # ============================================================================
@@ -89,12 +140,7 @@ if [[ "$MODE" == "security" ]] || [[ "$MODE" == "full" ]]; then
         if [ -f ".gitleaks.toml" ]; then
             GITLEAKS_OPTS="--config=.gitleaks.toml"
         fi
-        if gitleaks detect --source . --no-git $GITLEAKS_OPTS --no-banner 2>/dev/null; then
-            echo -e "${GREEN}✓ No secrets detected${NC}"
-        else
-            echo -e "${RED}✗ Secrets detected! Review and remove before committing${NC}"
-            FAILED=1
-        fi
+        check_result "Phase 1" "Gitleaks" "gitleaks detect --source . --no-git $GITLEAKS_OPTS --no-banner"
     else
         echo -e "${YELLOW}⚠ Gitleaks not installed. Install with: go install github.com/gitleaks/gitleaks/v8@latest${NC}"
     fi
@@ -114,12 +160,7 @@ if [ -f composer.json ]; then
     fi
 
     if [ -f vendor/bin/phpstan ]; then
-        if vendor/bin/phpstan analyse --configuration=phpstan.neon --no-progress; then
-            echo -e "${GREEN}✓ PHPStan passed${NC}"
-        else
-            echo -e "${RED}✗ PHPStan found issues${NC}"
-            FAILED=1
-        fi
+        check_result "Phase 1" "PHPStan" "vendor/bin/phpstan analyse --configuration=phpstan.neon --no-progress"
     else
         echo -e "${YELLOW}⚠ PHPStan not installed, skipping${NC}"
     fi
@@ -135,11 +176,9 @@ if [ -f vendor/bin/phpcs ] && [ -d src ]; then
     else
         PHPCS_OPTS="--standard=PSR12"
     fi
-    if vendor/bin/phpcs $PHPCS_OPTS src/ --report=summary; then
-        echo -e "${GREEN}✓ PHPCS passed${NC}"
-    else
-        echo -e "${YELLOW}⚠ PHPCS found style issues (non-blocking)${NC}"
-    fi
+    # PHPCS is usually non-blocking in standard mode, but we'll treat it as a check
+    # If fail-fast is on, it will block. If not, it sets FAILED=1.
+    check_result "Phase 1" "PHPCS" "vendor/bin/phpcs $PHPCS_OPTS src/ --report=summary"
 fi
 
 # Exit early if PHP only
@@ -159,7 +198,7 @@ docker compose up -d "$CONTAINER"
 
 # Install QA tools in container if missing
 echo -e "${BLUE}>> Ensuring QA tools in container...${NC}"
-docker compose exec -u root "$CONTAINER" bash -c "
+docker compose exec -T -u root "$CONTAINER" bash -c "
     export DEBIAN_FRONTEND=noninteractive
     NEED_INSTALL=0
     command -v bear >/dev/null || NEED_INSTALL=1
@@ -177,7 +216,7 @@ docker compose exec -u root "$CONTAINER" bash -c "
 # ============================================================================
 if [ "$SKIP_BUILD" = false ]; then
     echo -e "\n${BLUE}═══ Phase 3: Build Extension with Bear ═══${NC}"
-    docker compose exec "$CONTAINER" bash -c "
+    docker compose exec -T "$CONTAINER" bash -c "
         cd /ext
         if [ -f Makefile ]; then make clean 2>/dev/null || true; phpize --clean 2>/dev/null || true; fi
         phpize
@@ -196,21 +235,11 @@ echo -e "\n${BLUE}═══ Phase 4: C/C++ Static Analysis ═══${NC}"
 
 # 4.1 Clang-Tidy
 echo -e "\n${BLUE}>> [4.1] Clang-Tidy...${NC}"
-if docker compose exec "$CONTAINER" /ext/scripts/analysis/clang_tidy.sh; then
-    echo -e "${GREEN}✓ Clang-Tidy passed${NC}"
-else
-    echo -e "${RED}✗ Clang-Tidy found issues${NC}"
-    FAILED=1
-fi
+check_result "Phase 4" "Clang-Tidy" "docker compose exec -T \"$CONTAINER\" /ext/scripts/analysis/clang_tidy.sh"
 
 # 4.2 Cppcheck
 echo -e "\n${BLUE}>> [4.2] Cppcheck...${NC}"
-if docker compose exec "$CONTAINER" /ext/scripts/analysis/cppcheck.sh; then
-    echo -e "${GREEN}✓ Cppcheck passed${NC}"
-else
-    echo -e "${RED}✗ Cppcheck found issues${NC}"
-    FAILED=1
-fi
+check_result "Phase 4" "Cppcheck" "docker compose exec -T \"$CONTAINER\" /ext/scripts/analysis/cppcheck.sh"
 
 # Exit if fast mode
 if [ "$MODE" == "fast" ]; then
@@ -223,12 +252,7 @@ fi
 # ============================================================================
 echo -e "\n${BLUE}═══ Phase 5: Unit Tests ═══${NC}"
 
-if docker compose exec "$CONTAINER" /ext/scripts/test.sh; then
-    echo -e "${GREEN}✓ Unit tests passed${NC}"
-else
-    echo -e "${RED}✗ Unit tests failed${NC}"
-    FAILED=1
-fi
+check_result "Phase 5" "Unit Tests" "docker compose exec -T \"$CONTAINER\" /ext/scripts/test.sh"
 
 # Exit if standard mode
 if [ "$MODE" == "standard" ]; then
@@ -243,17 +267,23 @@ echo -e "\n${BLUE}═══ Phase 6: Dynamic Analysis (Sanitizers) ═══${NC
 
 # 6.1 AddressSanitizer + UBSan
 echo -e "\n${BLUE}>> [6.1] Running Sanitizers (ASan + UBSan)...${NC}"
-if docker compose exec "$CONTAINER" /ext/scripts/analysis/sanitizers.sh all; then
-    echo -e "${GREEN}✓ Sanitizer tests passed${NC}"
+# Use the dedicated ASan container for ASan tests if available
+if docker compose ps --services | grep -q "php83-asan"; then
+    echo -e "${BLUE}   Using dedicated ASan container (php83-asan)...${NC}"
+    # Ensure it's running
+    docker compose up -d php83-asan
+    check_result "Phase 6" "AddressSanitizer" "docker compose exec -T php83-asan /ext/scripts/analysis/sanitizers.sh asan"
 else
-    echo -e "${RED}✗ Sanitizer tests found issues${NC}"
-    FAILED=1
+    echo -e "${YELLOW}⚠ Dedicated ASan container not found, skipping ASan (requires custom build)${NC}"
 fi
+
+# Run UBSan in the standard container (it usually works fine with LD_PRELOAD or standard build)
+check_result "Phase 6" "UndefinedBehaviorSanitizer" "docker compose exec -T \"$CONTAINER\" /ext/scripts/analysis/sanitizers.sh ubsan"
 
 # 6.2 Valgrind (optional, very slow)
 echo -e "\n${BLUE}>> [6.2] Valgrind Memory Check...${NC}"
 # Rebuild without sanitizers first
-docker compose exec "$CONTAINER" bash -c "
+docker compose exec -T "$CONTAINER" bash -c "
     cd /ext
     make clean 2>/dev/null || true
     phpize --clean 2>/dev/null || true
@@ -261,10 +291,15 @@ docker compose exec "$CONTAINER" bash -c "
     ./configure --with-firebird=/usr
     make -j\$(nproc)
 "
-if docker compose exec "$CONTAINER" /ext/scripts/analysis/valgrind.sh; then
-    echo -e "${GREEN}✓ Valgrind passed${NC}"
+# Valgrind is often treated as non-blocking warning, but with fail-fast we might want to stop
+if [ "$FAIL_FAST" = true ]; then
+    check_result "Phase 6" "Valgrind" "docker compose exec -T \"$CONTAINER\" /ext/scripts/analysis/valgrind.sh"
 else
-    echo -e "${YELLOW}⚠ Valgrind found issues (review recommended)${NC}"
+    if docker compose exec -T "$CONTAINER" /ext/scripts/analysis/valgrind.sh; then
+        echo -e "${GREEN}✓ Valgrind passed${NC}"
+    else
+        echo -e "${YELLOW}⚠ Valgrind found issues (review recommended)${NC}"
+    fi
 fi
 
 # ============================================================================

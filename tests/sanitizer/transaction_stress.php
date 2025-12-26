@@ -6,7 +6,7 @@
  * transaction handles are properly managed and freed.
  */
 
-require_once __DIR__ . '/../config.inc';
+require_once __DIR__ . '/../firebird.inc';
 
 echo "ASan Transaction Test: Starting...\n";
 

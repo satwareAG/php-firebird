@@ -6,7 +6,7 @@
  * no immediate memory errors occur during connection and simple queries.
  */
 
-require_once __DIR__ . '/../config.inc';
+require_once __DIR__ . '/../firebird.inc';
 
 echo "ASan Basic Test: Starting...\n";
 

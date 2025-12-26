@@ -1,0 +1,60 @@
+FROM debian:bookworm-slim
+
+ENV PHP_VERSION=8.3.14
+ENV CFLAGS="-fsanitize=address -fno-omit-frame-pointer -g -O1"
+ENV LDFLAGS="-fsanitize=address"
+ENV USE_ZEND_ALLOC=0
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    autoconf \
+    bison \
+    re2c \
+    libxml2-dev \
+    libsqlite3-dev \
+    pkg-config \
+    curl \
+    zlib1g-dev \
+    libssl-dev \
+    libcurl4-openssl-dev \
+    libonig-dev \
+    libreadline-dev \
+    firebird-dev \
+    git \
+    ca-certificates \
+    wget \
+    unzip \
+    vim \
+    && ln -s /usr/lib/x86_64-linux-gnu/libfbclient.so /usr/lib/libfbclient.so \
+    && rm -rf /var/lib/apt/lists/*
+
+# Download and compile PHP with ASan
+RUN mkdir -p /usr/src/php && \
+    cd /usr/src/php && \
+    wget https://www.php.net/distributions/php-${PHP_VERSION}.tar.gz && \
+    tar -xf php-${PHP_VERSION}.tar.gz && \
+    cd php-${PHP_VERSION} && \
+    ./buildconf --force && \
+    ./configure \
+        --prefix=/usr/local \
+        --with-config-file-path=/usr/local/etc/php \
+        --enable-debug \
+        --with-openssl \
+        --with-zlib \
+        --with-curl \
+        --enable-mbstring \
+        --with-readline \
+        --enable-pcntl \
+    && make -j$(nproc) \
+    && make install \
+    && mkdir -p /usr/local/etc/php \
+    && cp php.ini-development /usr/local/etc/php/php.ini
+
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+WORKDIR /app
+
+# Entrypoint to keep container running
+CMD ["php", "-a"]

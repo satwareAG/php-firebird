@@ -844,7 +844,7 @@ See [EVENT_TIMEOUT_RFC.md](docs/development/EVENT_TIMEOUT_RFC.md) for implementa
 
 ## Version Compatibility
 
-### Current Version: 1.0.0
+### Current Version: 7.0.0-rc.11
 
 **Supported PHP Versions:**
 - PHP 8.1 (minimum required)

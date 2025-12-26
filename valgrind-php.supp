@@ -1,0 +1,112 @@
+# valgrind-php.supp
+# Valgrind suppressions for PHP Firebird extension development
+# Based on PHP internals best practices and Firebird client library patterns
+
+# ----------------------------------------------------------------------------
+# PHP / Zend Engine Internal Allocations
+# ----------------------------------------------------------------------------
+# PHP's memory manager often keeps memory allocated until process exit
+# These are "reachable" leaks, not actual leaks in the extension
+
+{
+   php_module_startup
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:php_module_startup*
+}
+
+{
+   zend_startup
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:zend_startup
+}
+
+{
+   zend_register_functions
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:zend_register_functions
+}
+
+{
+   zend_mm_heap_create
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:zend_mm_startup
+}
+
+{
+   compile_file
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:compile_file
+}
+
+# ----------------------------------------------------------------------------
+# Firebird Client Library (libfbclient.so)
+# ----------------------------------------------------------------------------
+# The Firebird client library manages its own memory pools and often
+# appears to leak memory that is actually managed internally or
+# cleaned up at library unload (which happens after Valgrind checks)
+
+{
+   firebird_client_internal_leak
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   obj:*libfbclient.so*
+}
+
+{
+   firebird_client_internal_cond
+   Memcheck:Cond
+   obj:*libfbclient.so*
+}
+
+{
+   firebird_client_internal_value8
+   Memcheck:Value8
+   obj:*libfbclient.so*
+}
+
+{
+   firebird_client_internal_param
+   Memcheck:Param
+   socketcall.sendto(msg)
+   obj:*libfbclient.so*
+}
+
+{
+   firebird_isc_attach_database
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:isc_attach_database
+}
+
+{
+   firebird_fb_ping
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:fb_ping
+}
+
+# ----------------------------------------------------------------------------
+# PHP Extension Loading
+# ----------------------------------------------------------------------------
+
+{
+   dlopen_php_extension
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_dl_open
+   ...
+   fun:php_load_extension
+}

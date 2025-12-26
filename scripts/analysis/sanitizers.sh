@@ -1,5 +1,5 @@
 #!/bin/bash
-# scripts/container/analysis/sanitizers.sh
+# scripts/analysis/sanitizers.sh
 # Comprehensive sanitizer testing: AddressSanitizer + UndefinedBehaviorSanitizer + LeakSanitizer
 # Usage: ./sanitizers.sh [mode]
 #   mode: 'asan' (default), 'ubsan', 'all'
@@ -8,7 +8,7 @@ set -e
 
 MODE=${1:-all}
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-EXT_DIR="${SCRIPT_DIR}/../../.."
+EXT_DIR="${SCRIPT_DIR}/../.."
 
 cd "$EXT_DIR"
 
@@ -21,10 +21,6 @@ NC='\033[0m'
 
 echo -e "${BLUE}=== Sanitizer Testing Suite ===${NC}"
 echo "Mode: $MODE"
-
-# Source files to analyze
-C_SOURCES="firebird.c fbird_query_exec.c fbird_result.c fbird_metadata.c fbird_service.c fbird_events.c fbird_blobs.c fbird_query.c fbird_inspection.c fbird_udf.c"
-CPP_SOURCES="firebird_utils.cpp"
 
 # Common sanitizer flags
 COMMON_FLAGS="-fno-omit-frame-pointer -g -O1"
@@ -83,7 +79,7 @@ run_tests_with_sanitizer() {
     # Sanitizer runtime options
     export ASAN_OPTIONS="abort_on_error=1:detect_leaks=1:check_initialization_order=1:strict_init_order=1:detect_stack_use_after_return=1"
     export UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1"
-    export LSAN_OPTIONS="suppressions=/ext/scripts/container/analysis/lsan.supp:print_suppressions=0"
+    export LSAN_OPTIONS="suppressions=/ext/scripts/analysis/lsan.supp:print_suppressions=0"
 
     # Find llvm-symbolizer for better stack traces
     if [ -f /usr/bin/llvm-symbolizer ]; then
@@ -100,51 +96,45 @@ run_tests_with_sanitizer() {
     fi
     echo -e "${GREEN}✓ Extension loaded successfully${NC}"
 
-    # Run subset of tests (fast verification)
-    echo "Running core tests..."
-    local TESTS=(
-        "tests/fbclient_vers_001.phpt"
-        "tests/fbird_connect_dpb_001.phpt"
-        "tests/datatype_001.phpt"
-        "tests/fbird_blob_001.phpt"
-        "tests/fbird_trans_002.phpt"
+    # Run dedicated sanitizer tests
+    echo "Running dedicated sanitizer tests..."
+    local SAN_TESTS=(
+        "tests/sanitizer/asan_basic.php"
+        "tests/sanitizer/blob_operations.php"
+        "tests/sanitizer/transaction_stress.php"
     )
 
     local FAILED=0
-    for test in "${TESTS[@]}"; do
+    for test in "${SAN_TESTS[@]}"; do
         if [ -f "$test" ]; then
             echo -n "  Testing $test... "
-            if php -d extension=./modules/firebird.so "$test" >/dev/null 2>&1; then
+            # Capture output and exit code
+            OUTPUT=$(php -d extension=./modules/firebird.so "$test" 2>&1)
+            EXIT_CODE=$?
+            
+            if [ $EXIT_CODE -eq 0 ]; then
                 echo -e "${GREEN}PASS${NC}"
             else
-                echo -e "${YELLOW}SKIP/FAIL${NC}"
-                # Don't fail on test failures, only on sanitizer errors (which abort)
+                echo -e "${RED}FAIL${NC}"
+                echo "$OUTPUT"
+                FAILED=1
             fi
+        else
+            echo -e "${YELLOW}Warning: Test $test not found${NC}"
         fi
     done
 
-    echo -e "${GREEN}✓ $sanitizer_name tests completed without sanitizer errors${NC}"
-}
+    if [ $FAILED -eq 1 ]; then
+        echo -e "${RED}✗ Sanitizer tests failed${NC}"
+        exit 1
+    fi
 
-# Create LSan suppressions file for known PHP/Firebird leaks
-create_lsan_suppressions() {
-    mkdir -p "$(dirname "$0")"
-    cat > /ext/scripts/container/analysis/lsan.supp << 'EOF'
-# LSan suppressions for php-firebird
-# Suppress known PHP internal allocations
-leak:php_module_startup
-leak:zend_startup
-leak:zend_register_functions
-# Suppress Firebird client library internal allocations
-leak:fb_ping
-leak:isc_attach_database
-EOF
+    echo -e "${GREEN}✓ $sanitizer_name tests completed without sanitizer errors${NC}"
 }
 
 # Main execution
 case "$MODE" in
     asan)
-        create_lsan_suppressions
         run_asan_build
         run_tests_with_sanitizer "AddressSanitizer"
         ;;
@@ -153,8 +143,6 @@ case "$MODE" in
         run_tests_with_sanitizer "UndefinedBehaviorSanitizer"
         ;;
     all)
-        create_lsan_suppressions
-
         # First run ASan
         run_asan_build
         run_tests_with_sanitizer "AddressSanitizer"

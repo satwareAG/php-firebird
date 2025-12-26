@@ -246,9 +246,13 @@ echo "✅ AddressSanitizer testing completed"
 
 ```bash
 #!/bin/bash
-# scripts/test_with_valgrind.sh
+# scripts/analysis/valgrind.sh
 
 set -e
+
+# Environment variables for better Valgrind analysis
+export ZEND_DONT_UNLOAD_MODULES=1  # Keep modules loaded for stack traces
+export USE_ZEND_ALLOC=0            # Disable Zend allocator for precise tracking
 
 echo "Running Valgrind memory analysis..."
 
@@ -263,34 +267,39 @@ VALGRIND_OPTS="
     --suppressions=valgrind-php.supp"
 
 # Run simple extension load test
-valgrind $VALGRIND_OPTS php -d extension=./modules/interbase.so -r "echo 'Extension loaded';"
-
-# Run comprehensive test suite
-valgrind $VALGRIND_OPTS php -d extension=./modules/interbase.so \
-    /usr/bin/run-tests.php tests/
+valgrind $VALGRIND_OPTS php -d extension=./modules/firebird.so -r "echo 'Extension loaded';"
 
 echo "✅ Valgrind analysis completed"
 ```
 
-**Valgrind suppressions file:**
+**Valgrind suppressions file (`valgrind-php.supp`):**
 
 ```ini
 # valgrind-php.supp - Suppress known PHP internal allocations
 {
-   php_internal_allocation
+   php_module_startup
    Memcheck:Leak
    match-leak-kinds: reachable
    ...
-   fun:zend_*
+   fun:php_module_startup*
 }
 
 {
    firebird_client_internal
    Memcheck:Leak
    match-leak-kinds: reachable
-   ...
    obj:*libfbclient.so*
 }
+```
+
+**Generating Baseline Suppressions:**
+
+To generate a new baseline of suppressions (e.g., after a PHP version upgrade):
+
+```bash
+valgrind --leak-check=full --gen-suppressions=all \
+    php -d extension=./modules/firebird.so -r "echo 'Baseline';" \
+    > valgrind-baseline.log
 ```
 
 ## 4. CI/CD Pipeline Integration

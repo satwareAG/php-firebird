@@ -25,6 +25,10 @@ RUN apt-get update && apt-get install -y \
     clang-tidy \
     bear \
     libxml2-utils \
+    libasan8 \
+    libubsan1 \
+    libtsan2 \
+    llvm \
     && ln -s /usr/lib/x86_64-linux-gnu/libfbclient.so /usr/lib/libfbclient.so \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*

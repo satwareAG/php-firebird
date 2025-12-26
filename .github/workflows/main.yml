@@ -20,82 +20,101 @@ jobs:
             firebird-version: '2.5'
             firebird-image: 'jacobalberty/firebird:2.5-ss'
             fb-client-version: '3.0'
+            db-path: '/firebird/data/test.fdb'
           - php-version: '8.1'
             firebird-version: '3.0'
             firebird-image: 'firebirdsql/firebird:3'
             fb-client-version: '3.0'
+            db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.1'
             firebird-version: '4.0'
             firebird-image: 'firebirdsql/firebird:4'
             fb-client-version: '4.0'
+            db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.1'
             firebird-version: '5.0'
             firebird-image: 'firebirdsql/firebird:5'
             fb-client-version: '5.0'
+            db-path: '/var/lib/firebird/data/test.fdb'
           # PHP 8.2 combinations
           - php-version: '8.2'
             firebird-version: '2.5'
             firebird-image: 'jacobalberty/firebird:2.5-ss'
             fb-client-version: '3.0'
+            db-path: '/firebird/data/test.fdb'
           - php-version: '8.2'
             firebird-version: '3.0'
             firebird-image: 'firebirdsql/firebird:3'
             fb-client-version: '3.0'
+            db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.2'
             firebird-version: '4.0'
             firebird-image: 'firebirdsql/firebird:4'
             fb-client-version: '4.0'
+            db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.2'
             firebird-version: '5.0'
             firebird-image: 'firebirdsql/firebird:5'
             fb-client-version: '5.0'
+            db-path: '/var/lib/firebird/data/test.fdb'
           # PHP 8.3 combinations
           - php-version: '8.3'
             firebird-version: '2.5'
             firebird-image: 'jacobalberty/firebird:2.5-ss'
             fb-client-version: '3.0'
+            db-path: '/firebird/data/test.fdb'
           - php-version: '8.3'
             firebird-version: '3.0'
             firebird-image: 'firebirdsql/firebird:3'
             fb-client-version: '3.0'
+            db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.3'
             firebird-version: '4.0'
             firebird-image: 'firebirdsql/firebird:4'
             fb-client-version: '4.0'
+            db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.3'
             firebird-version: '5.0'
             firebird-image: 'firebirdsql/firebird:5'
             fb-client-version: '5.0'
+            db-path: '/var/lib/firebird/data/test.fdb'
           # PHP 8.4 combinations
           - php-version: '8.4'
             firebird-version: '2.5'
             firebird-image: 'jacobalberty/firebird:2.5-ss'
             fb-client-version: '3.0'
+            db-path: '/firebird/data/test.fdb'
           - php-version: '8.4'
             firebird-version: '3.0'
             firebird-image: 'firebirdsql/firebird:3'
             fb-client-version: '3.0'
+            db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.4'
             firebird-version: '4.0'
             firebird-image: 'firebirdsql/firebird:4'
             fb-client-version: '4.0'
+            db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.4'
             firebird-version: '5.0'
             firebird-image: 'firebirdsql/firebird:5'
             fb-client-version: '5.0'
+            db-path: '/var/lib/firebird/data/test.fdb'
           # PHP 8.5 combinations (RC/development)
           - php-version: '8.5'
             firebird-version: '3.0'
             firebird-image: 'firebirdsql/firebird:3'
             fb-client-version: '3.0'
+            db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.5'
             firebird-version: '4.0'
             firebird-image: 'firebirdsql/firebird:4'
             fb-client-version: '4.0'
+            db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.5'
             firebird-version: '5.0'
             firebird-image: 'firebirdsql/firebird:5'
             fb-client-version: '5.0'
+            db-path: '/var/lib/firebird/data/test.fdb'
 
     # Run Firebird as a service container (same images as local docker-compose)
     # Note: Environment variables differ between jacobalberty/firebird (2.5) and firebirdsql/firebird (3+)
@@ -125,7 +144,7 @@ jobs:
       # by their service name as hostname
       FIREBIRD_HOST: firebird
       # Path to the database file INSIDE the Firebird container (created by docker entrypoint)
-      FIREBIRD_DB_PATH: /var/lib/firebird/data/test.fdb
+      FIREBIRD_DB_PATH: ${{ matrix.db-path }}
 
     steps:
       - name: Checkout repository
@@ -329,6 +348,29 @@ jobs:
           ls -la "${FB_CLIENT_DIR}/include/" | head -5
           ls -la "${FB_CLIENT_DIR}/lib/" | head -5
 
+      - name: Configure Firebird client
+        run: |
+          set -eu
+          echo "Configuring Firebird client for CI environment..."
+          
+          # Create configuration directory
+          mkdir -p /opt/firebird-client/etc
+          
+          # Create firebird.conf with relaxed security settings for CI
+          # WireCrypt=Disabled is needed for some client/server combinations
+          # AuthClient=Legacy_Auth,Srp,Srp256 ensures compatibility
+          cat > /opt/firebird-client/firebird.conf << 'EOF'
+          WireCrypt = Disabled
+          AuthClient = Legacy_Auth, Srp, Srp256
+          EOF
+          
+          # Also copy to system location where libfbclient might look
+          mkdir -p /etc/firebird
+          cp /opt/firebird-client/firebird.conf /etc/firebird/
+          
+          echo "Client configuration created:"
+          cat /opt/firebird-client/firebird.conf
+
       - name: Wait for Firebird service
         run: |
           set -eu
@@ -427,16 +469,25 @@ jobs:
                 "/firebird/data/test.fdb",
                 "/tmp/test.fdb"
               ];
+              
+              $connected = false;
               foreach ($altPaths as $alt) {
                 $altConn = $host . ":" . $alt;
                 echo "Trying: $altConn ... ";
                 if (@fbird_connect($altConn, "SYSDBA", "masterkey")) {
                   echo "SUCCESS!\n";
+                  $connected = true;
                   break;
                 } else {
                   echo "FAILED\n";
                 }
               }
+              
+              if ($connected) {
+                echo "Successfully connected using fallback path.\n";
+                exit(0);
+              }
+              
               exit(1);
             }
           '

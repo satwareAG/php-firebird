@@ -206,6 +206,29 @@ jobs:
 
           echo "Firebird ${FB_VERSION} client installed successfully"
 
+      - name: Configure Firebird client
+        run: |
+          set -eu
+          echo "Configuring Firebird client for CI environment..."
+          
+          # Create configuration directory
+          mkdir -p /opt/firebird-client/etc
+          
+          # Create firebird.conf with relaxed security settings for CI
+          # WireCrypt=Disabled is needed for some client/server combinations
+          # AuthClient=Legacy_Auth,Srp,Srp256 ensures compatibility
+          cat > /opt/firebird-client/firebird.conf << 'EOF'
+          WireCrypt = Disabled
+          AuthClient = Legacy_Auth, Srp, Srp256
+          EOF
+          
+          # Also copy to system location where libfbclient might look
+          mkdir -p /etc/firebird
+          cp /opt/firebird-client/firebird.conf /etc/firebird/
+          
+          echo "Client configuration created:"
+          cat /opt/firebird-client/firebird.conf
+
       - name: Wait for Firebird service
         run: |
           set -eu

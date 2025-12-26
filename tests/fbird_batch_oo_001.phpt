@@ -144,8 +144,20 @@ fbird_commit($db);
 $rs = fbird_query($db, "SELECT COUNT(*) AS CNT FROM BATCH_OO_TEST");
 $row = fbird_fetch_assoc($rs);
 echo "Total rows in table: " . $row['CNT'] . "\n";
+fbird_free_result($rs);
+
+// Free resources to release table locks
+unset($batch, $batch2);
+fbird_free_query($stmt);
+fbird_free_query($stmt2);
+
+fbird_commit($db); // Commit read transaction
 
 // Cleanup
+fbird_close($db);
+
+// Reconnect to drop table (ensures all locks are released)
+$db = fbird_connect($test_base, $user, $password);
 fbird_query($db, "DROP TABLE BATCH_OO_TEST");
 fbird_commit($db);
 fbird_close($db);
@@ -195,4 +207,3 @@ bool(true)
 Total rows in table: %d
 %A
 Done!
-%A

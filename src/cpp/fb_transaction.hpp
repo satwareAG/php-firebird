@@ -278,6 +278,7 @@ inline void Transaction::commit() {
 
     if (check_status.isDirty()) {
         last_status_ = StatusWrapper(master_);
+        last_status_.get()->setErrors(raw_status->getErrors());
         throw Exception(raw_status);
     }
 
@@ -300,6 +301,7 @@ inline void Transaction::rollback() {
 
     if (check_status.isDirty()) {
         last_status_ = StatusWrapper(master_);
+        last_status_.get()->setErrors(raw_status->getErrors());
         throw Exception(raw_status);
     }
 
@@ -321,6 +323,7 @@ inline void Transaction::commitRetaining() {
 
     if (check_status.isDirty()) {
         last_status_ = StatusWrapper(master_);
+        last_status_.get()->setErrors(raw_status->getErrors());
         throw Exception(raw_status);
     }
     // Transaction remains active after retaining commit
@@ -341,6 +344,7 @@ inline void Transaction::rollbackRetaining() {
 
     if (check_status.isDirty()) {
         last_status_ = StatusWrapper(master_);
+        last_status_.get()->setErrors(raw_status->getErrors());
         throw Exception(raw_status);
     }
     // Transaction remains active after retaining rollback

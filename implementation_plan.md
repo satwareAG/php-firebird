@@ -15,7 +15,7 @@ The root causes were identified as:
 
 **Solution Strategy**:
 - Use matrix-conditional `db-path` in `main.yml` to handle path differences.
-- Configure `firebird.conf` in the client environment to disable WireCrypt and enable legacy auth.
+- Configure `firebird.conf` in the client environment to enable WireCrypt (required by FB3+) and enable legacy auth.
 - Fix the verification script logic to exit successfully if a fallback path works.
 
 [Types]
@@ -51,7 +51,7 @@ Sequential implementation steps to fix the authentication issue.
 
 1.  **Update main.yml workflow**
     -   Add `db-path` to matrix for all combinations.
-    -   Add step to configure `firebird.conf` (WireCrypt=Disabled).
+    -   Add step to configure `firebird.conf` (WireCrypt=Enabled).
     -   Update verification script to handle fallback paths correctly.
 
 2.  **Update coverage.yml workflow**
@@ -69,8 +69,8 @@ Key configuration settings applied.
 
 **Firebird Client Configuration (`firebird.conf`):**
 ```ini
-# Disable wire encryption for CI testing (simpler auth)
-WireCrypt = Disabled
+# Enable wire encryption (Required by FB3+, ignored by FB2.5)
+WireCrypt = Enabled
 
 # Use legacy authentication to match server expectations
 AuthClient = Legacy_Auth, Srp, Srp256

@@ -1,24 +1,27 @@
 --TEST--
-Check for data types using old clients
+Check comprehensive data types including Firebird 4.0+ types
 --SKIPIF--
 <?php
 include("skipif.inc");
-print "skip: custom test for @mlazdans";
+skip_if_fb_lt(4);
+skip_if_fbclient_lt(4);
 ?>
 --FILE--
 <?php
 
-require("interbase.inc");
+require("firebird.inc");
 
-(function(){
-    // ibase_connect("127.0.0.1/3052:E:\\dbf50\\test\\TEST.FDB", "sysdba", "masterkey", "utf8");
-    ibase_connect("127.0.0.1/3052:/opt/db/test.fdb", "sysdba", "masterkey", "utf8");
-    ibase_query("DELETE FROM TEST_001");
-    ibase_query("ALTER TABLE TEST_001 ALTER COLUMN ID RESTART WITH 1");
-    ibase_query("INSERT INTO TEST_001 (ID) VALUES (DEFAULT)");
-    // dump_table_rows("TEST_001", null, IBASE_FETCH_BLOBS | IBASE_UNIXTIME);
-    dump_table_rows("TEST_001", null, IBASE_FETCH_BLOBS);
-})();
+fbird_connect($test_base);
+
+// Create the TEST_001 table with all data types
+fbird_query(file_get_contents(__DIR__."/001-DATATYPE.sql"));
+fbird_commit();
+
+// Insert a row with explicit BLOB values (BLOB doesn't support DEFAULT in Firebird)
+fbird_query("INSERT INTO TEST_001 (BLOB_0, BLOB_1) VALUES ('BLOB_0', 'BLOB_1')");
+
+// Fetch and display results
+dump_table_rows("TEST_001", null, FBIRD_FETCH_BLOBS);
 
 ?>
 --EXPECT--

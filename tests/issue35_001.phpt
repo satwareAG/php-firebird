@@ -1,5 +1,5 @@
 --TEST--
-Issue #35: ibase_prepare() fails to find table with SQL that has double quotes on table identifiers
+Issue #35: fbird_prepare() fails to find table with SQL that has double quotes on table identifiers
 --SKIPIF--
 <?php
 include("skipif.inc");
@@ -7,17 +7,17 @@ include("skipif.inc");
 --FILE--
 <?php
 
-require("interbase.inc");
+require("firebird.inc");
 
-$db = ibase_connect($test_base);
+$db = fbird_connect($test_base);
 
 function test35() {
-	ibase_query('CREATE TABLE "test" (ID INTEGER, CLIENT_NAME VARCHAR(10))');
-	ibase_commit();
-	$p = ibase_prepare('INSERT INTO "test" (ID, CLIENT_NAME) VALUES (?, ?)');
-	ibase_execute($p, 1, "Some name");
-	$q = ibase_query('SELECT * FROM "test"');
-	while($r = ibase_fetch_object($q)){
+	fbird_query('CREATE TABLE "test" (ID INTEGER, CLIENT_NAME VARCHAR(10))');
+	fbird_commit();
+	$p = fbird_prepare('INSERT INTO "test" (ID, CLIENT_NAME) VALUES (?, ?)');
+	fbird_execute($p, 1, "Some name");
+	$q = fbird_query('SELECT * FROM "test"');
+	while($r = fbird_fetch_object($q)){
 		var_dump($r);
 	}
 }

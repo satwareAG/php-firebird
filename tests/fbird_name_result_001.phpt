@@ -1,0 +1,62 @@
+--TEST--
+fbird_name_result(): basic test
+--SKIPIF--
+<?php
+include("skipif.inc");
+?>
+--FILE--
+<?php
+
+require("firebird.inc");
+fbird_connect($test_base);
+
+(function(){
+    $rowc = 2;
+    fbird_query("DELETE FROM TEST1");
+    $p = fbird_prepare("INSERT INTO TEST1 (i, c) VALUES (?, ?)");
+    for($i = 1; $i <= $rowc; $i++){
+        fbird_execute($p, $i, "row$i");
+    }
+    print "---- init ----\n";
+    dump_table_rows("TEST1");
+
+    $q = fbird_query("SELECT * FROM TEST1 FOR UPDATE");
+    fbird_name_result($q, "curs");
+
+    $p = fbird_prepare("UPDATE TEST1 SET i = ?, c = ? WHERE CURRENT OF curs");
+    for ($i = 1; fbird_fetch_row($q); ++$i) {
+        fbird_execute($p, $i*2, "row$i/".($i * 2));
+    }
+
+    print "---- after update ----\n";
+    dump_table_rows("TEST1");
+})();
+
+?>
+--EXPECT--
+---- init ----
+array(2) {
+  ["I"]=>
+  int(1)
+  ["C"]=>
+  string(4) "row1"
+}
+array(2) {
+  ["I"]=>
+  int(2)
+  ["C"]=>
+  string(4) "row2"
+}
+---- after update ----
+array(2) {
+  ["I"]=>
+  int(2)
+  ["C"]=>
+  string(6) "row1/2"
+}
+array(2) {
+  ["I"]=>
+  int(4)
+  ["C"]=>
+  string(6) "row2/4"
+}

@@ -1,27 +1,66 @@
-# Cppcheck configuration for C++17 modernization
+# Cppcheck configuration for php-firebird
+# ========================================
+#
+# Optimized for multi-file PHP extension analysis
+# See docs/CPPCHECK_CONFIGURATION_RESEARCH.md for rationale
+#
+# Usage:
+#   cppcheck --project=php-firebird.cppcheck .
+#   OR
+#   cppcheck --suppressions-list=.cppcheck-suppressions --enable=warning,performance,portability .
+
 [cppcheck]
+# Project file reference (optional - for IDE integration)
 project=php-firebird.cppcheck
 
-# Language standard
+# Language standards
+std=c17
 std=c++17
 
-# Include paths
+# Include paths (adjust per environment)
+# Note: These are common locations, may need adjustment
+includePath=/usr/include/php/20240924
+includePath=/usr/include/php/20230831
+includePath=/usr/include/php/20220829
 includePath=/usr/include/php/20210902
 includePath=/usr/include/firebird
+includePath=/opt/firebird/include
 includePath=.
 
 # Defines for conditional compilation
 define=FB_API_VER=40
+define=HAVE_CONFIG_H
 define=PHP_VERSION_8_1_PLUS
 
-# Rules
-enable=warning,performance,portability,information,missingInclude
-disable=unusedFunction,missingIncludeSystem
+# Enable useful checks
+# Avoid 'all' to reduce noise from experimental checks
+enable=warning
+enable=performance
+enable=portability
+enable=information
 
-# Severity levels
-error-exitcode=2
+# Global suppressions
+# These checks don't work correctly without whole-program analysis
+suppress=staticFunction
+suppress=unusedFunction
+suppress=missingIncludeSystem
+
+# Use external suppressions file for file-specific cases
+suppressions-list=.cppcheck-suppressions
+
+# Inline suppression support (for code comments)
 inline-suppr=true
 
-# File patterns
+# Exit with error code 2 on issues (for CI)
+error-exitcode=2
+
+# Analysis options
 checks-max-time=300
-check-config=true
+check-config=false
+
+# Platform settings (for accurate type sizes)
+# platform=unix64 # Uncomment if needed
+
+# XML output for CI integration (uncomment if needed)
+# xml=true
+# xml-version=2

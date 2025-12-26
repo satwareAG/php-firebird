@@ -3,13 +3,13 @@ Get fbclient version
 --SKIPIF--
 <?php
 include("skipif.inc");
-skip_if_ext_lt(61);
+skip_if_ext_lt(10);
 ?>
 --FILE--
 <?php
 
 var_dump(
-    ibase_get_client_version() === (float)ibase_get_client_major_version() + ibase_get_client_minor_version() / 10
+    fbird_get_client_version() === (float)fbird_get_client_major_version() + fbird_get_client_minor_version() / 10
 );
 
 ?>

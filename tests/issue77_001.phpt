@@ -7,26 +7,26 @@ include("skipif.inc");
 --FILE--
 <?php
 
-require("interbase.inc");
+require("firebird.inc");
 
-$db = ibase_connect($test_base);
+$db = fbird_connect($test_base);
 
 function test77() {
-	ibase_query('CREATE TABLE TTEST (TTYPE VARCHAR(1) NOT NULL, F8 NUMERIC(9,2))');
-	ibase_commit();
+	fbird_query('CREATE TABLE TTEST (TTYPE VARCHAR(1) NOT NULL, F8 NUMERIC(9,2))');
+	fbird_commit();
 
 	[$fields_str, $q_str, $data] = array2sql_parts([
 		'TTYPE'=>'1',
 		'F8'=>'',
 	]);
-	ibase_query("INSERT INTO TTEST($fields_str) VALUES ($q_str)", ...array_values($data));
+	fbird_query("INSERT INTO TTEST($fields_str) VALUES ($q_str)", ...array_values($data));
 	dump_table_rows("TTEST");
 
 	[$fields_str, $q_str, $data] = array2sql_parts([
 		'F8'=>'',
 		'TTYPE'=>'2',
 	]);
-	ibase_query("INSERT INTO TTEST($fields_str) VALUES ($q_str)", ...array_values($data));
+	fbird_query("INSERT INTO TTEST($fields_str) VALUES ($q_str)", ...array_values($data));
 	dump_table_rows("TTEST");
 }
 

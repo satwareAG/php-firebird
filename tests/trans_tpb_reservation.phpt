@@ -5,7 +5,7 @@ fbird_trans_start() with Table Reservation (Locking)
 --FILE--
 <?php
 
-require("interbase.inc");
+require("firebird.inc");
 
 $db = fbird_connect($test_base);
 
@@ -18,10 +18,10 @@ fbird_commit($t);
 // This should succeed if no one else is using it (which is true here)
 echo "Test 1: Exclusive Write Lock\n";
 $options = [
-    'access_mode' => IBASE_WRITE,
-    'isolation' => IBASE_CONCURRENCY,
+    'access_mode' => FBIRD_WRITE,
+    'isolation' => FBIRD_CONCURRENCY,
     'tables' => [
-        'RESERVATION_TEST' => IBASE_LOCK_WRITE | IBASE_LOCK_EXCLUSIVE
+        'RESERVATION_TEST' => FBIRD_LOCK_WRITE | FBIRD_LOCK_EXCLUSIVE
     ]
 ];
 
@@ -43,7 +43,7 @@ if ($trans) {
 echo "Test 2: Protected Read Lock\n";
 $options2 = [
     'tables' => [
-        'RESERVATION_TEST' => IBASE_LOCK_READ | IBASE_LOCK_PROTECTED
+        'RESERVATION_TEST' => FBIRD_LOCK_READ | FBIRD_LOCK_PROTECTED
     ]
 ];
 $trans2 = fbird_trans_start($db, $options2);

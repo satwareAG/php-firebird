@@ -1,17 +1,47 @@
-// vim:ft=javascript
+// config.w32 - Windows build configuration for php-firebird extension
+// PHP 8.1+ required, Firebird 3.0+ required
 
-ARG_WITH("interbase", "InterBase support", "no");
+ARG_WITH('firebird', 'Firebird database support', 'no');
 
-if (PHP_INTERBASE != "no") {
-	if (
-		CHECK_HEADER_ADD_INCLUDE("ibase.h", "CFLAGS_INTERBASE", PHP_INTERBASE + "\\include") && (
-			CHECK_LIB("fbclient_ms.lib", "interbase", PHP_INTERBASE + "\\lib") ||
-			CHECK_LIB("gds32_ms.lib", "interbase", PHP_INTERBASE + "\\lib")
-		)
-	) {
-		EXTENSION("interbase", "interbase.c ibase_query_exec.c ibase_result.c ibase_metadata.c ibase_service.c ibase_events.c ibase_blobs.c firebird_utils.cpp", PHP_INTERBASE_SHARED, "/DZEND_ENABLE_STATIC_TSRMLS_CACHE=1");
-		AC_DEFINE('HAVE_IBASE', 1, 'Have interbase library');
-	} else {
-		WARNING("interbase not enabled; libraries and headers not found");
-	}
+if (PHP_FIREBIRD != 'no') {
+    // Check for Firebird client library and header
+    if (CHECK_LIB('fbclient_ms.lib', 'firebird', PHP_FIREBIRD + '\\lib') &&
+        CHECK_HEADER_ADD_INCLUDE('ibase.h', 'CFLAGS_FIREBIRD', PHP_FIREBIRD + '\\include')) {
+
+        // Verify Firebird 3.0+ OO API availability (FB_API_VER >= 30)
+        // The OO API header (firebird/Interface.h) is required for Firebird 3.0+
+        if (!CHECK_HEADER_ADD_INCLUDE('firebird/Interface.h', 'CFLAGS_FIREBIRD', PHP_FIREBIRD + '\\include')) {
+            ERROR('Firebird 3.0+ required: firebird/Interface.h not found. ' +
+                  'This extension requires Firebird client 3.0 or later with OO API support.');
+        }
+
+        // Define all source files
+        var firebird_sources = 'firebird.c ' +
+                               'fbird_blobs.c ' +
+                               'fbird_events.c ' +
+                               'fbird_inspection.c ' +
+                               'fbird_metadata.c ' +
+                               'fbird_query.c ' +
+                               'fbird_query_exec.c ' +
+                               'fbird_query_prepare.c ' +
+                               'fbird_query_bind.c ' +
+                               'fbird_query_array.c ' +
+                               'fbird_result.c ' +
+                               'fbird_service.c ' +
+                               'fbird_udf.c ' +
+                               'firebird_utils.cpp';
+
+        // Register extension
+        // /EHsc enables C++ exception handling (required for firebird_utils.cpp)
+        EXTENSION('firebird', firebird_sources, PHP_FIREBIRD_SHARED,
+                  '/DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 /EHsc /std:c++17');
+
+        AC_DEFINE('HAVE_FIREBIRD', 1, 'Have Firebird support');
+
+        // Ensure fbclient.dll is available at runtime
+        ADD_FLAG('DEPS_FIREBIRD', 'fbclient.dll');
+
+    } else {
+        WARNING('firebird not enabled; Firebird client libraries and headers not found');
+    }
 }

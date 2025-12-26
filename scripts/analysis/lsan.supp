@@ -1,0 +1,24 @@
+# lsan.supp
+# LeakSanitizer suppressions for PHP Firebird extension development
+
+# ----------------------------------------------------------------------------
+# PHP / Zend Engine Internal Allocations
+# ----------------------------------------------------------------------------
+leak:php_module_startup
+leak:zend_startup
+leak:zend_register_functions
+leak:zend_mm_startup
+leak:compile_file
+
+# ----------------------------------------------------------------------------
+# Firebird Client Library (libfbclient.so)
+# ----------------------------------------------------------------------------
+leak:libfbclient.so
+leak:isc_attach_database
+leak:fb_ping
+
+# ----------------------------------------------------------------------------
+# PHP Extension Loading
+# ----------------------------------------------------------------------------
+leak:_dl_open
+leak:php_load_extension

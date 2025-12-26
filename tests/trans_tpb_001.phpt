@@ -5,15 +5,15 @@ fbird_trans_start() with new array options and fbird_trans_info()
 --FILE--
 <?php
 
-require("interbase.inc");
+require("firebird.inc");
 
 $db = fbird_connect($test_base);
 
 // Test 1: Read-only transaction
 $options = [
-    'access_mode' => IBASE_READ,
-    'isolation' => IBASE_COMMITTED,
-    'lock_resolution' => IBASE_WAIT,
+    'access_mode' => FBIRD_READ,
+    'isolation' => FBIRD_COMMITTED,
+    'lock_resolution' => FBIRD_WAIT,
     'lock_timeout' => 2
 ];
 
@@ -32,9 +32,9 @@ fbird_commit($trans);
 
 // Test 2: Read-Write, No Wait
 $options2 = [
-    'access_mode' => IBASE_WRITE,
-    'isolation' => IBASE_CONCURRENCY,
-    'lock_resolution' => IBASE_NOWAIT
+    'access_mode' => FBIRD_WRITE,
+    'isolation' => FBIRD_CONCURRENCY,
+    'lock_resolution' => FBIRD_NOWAIT
 ];
 $trans2 = fbird_trans_start($db, $options2);
 $info2 = fbird_trans_info($trans2);

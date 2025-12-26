@@ -5,18 +5,18 @@ srand(((int)(float)microtime()*1000000));
 function out_table($table_name)
 {
 	echo "--- $table_name ---\n";
-	$res = ibase_query("select * from $table_name");
-	while ($r = ibase_fetch_row($res)) {
+	$res = fbird_query("select * from $table_name");
+	while ($r = fbird_fetch_row($res)) {
 		echo join("\t",$r)."\t\n";
 	}
-	ibase_free_result($res);
+	fbird_free_result($res);
 	echo "---\n";
 }
 
 function out_result($result, $table_name = "")
 {
 	echo "--- $table_name ---\n";
-	while ($r = ibase_fetch_row($result)) {
+	while ($r = fbird_fetch_row($result)) {
 		echo join("\t",$r)."\t\n";
 	}
 	echo "---\n";
@@ -25,10 +25,10 @@ function out_result($result, $table_name = "")
 function out_result_trap_error($result, $table_name = "")
 {
    echo "--- $table_name ---\n";
-   while ($r = @ibase_fetch_row($result)) {
+   while ($r = @fbird_fetch_row($result)) {
 		echo join("\t",$r)."\t\n";
    }
-   echo "errmsg [" . ibase_errmsg() . "]\n";
+   echo "errmsg [" . fbird_errmsg() . "]\n";
    echo "---\n";
 }
 
@@ -71,8 +71,10 @@ function rand_number($len , $prec = -1, $sign = 1)
     } else if ($prec == 0) {
         $n = substr(rand() . rand(), 0, rand() % $len + 1);
     } else if (($prec - $len) == 0) {
-        $n = substr(rand() . rand(), 0, 1);
-        $n .= "." . substr(rand(), 0, $prec);
+        // When precision equals scale (e.g., NUMERIC(15,15)), integer part must be 0
+        // to avoid overflow. NUMERIC(15,15) means 0.xxxxxxxxxxxxxxx (15 decimal digits).
+        // Previously generated values like "5.123..." (16 digits) which overflow on FB 4.0.
+        $n = "0." . substr(rand() . rand(), 0, $prec);
     } else {
         $n = substr(rand() . rand(), 0, rand() % ($len - $prec) + 1);
         $n .= "." . substr(rand(), 0, $prec);
@@ -94,7 +96,7 @@ function array2sql_parts($data) {
 }
 
 function dump_rows($q, int $flags = 0) {
-    while($row = ibase_fetch_assoc($q, $flags)){
+    while($row = fbird_fetch_assoc($q, $flags)){
         var_dump($row);
     }
 }
@@ -103,7 +105,7 @@ function dump_table_rows($table, $tr = null, int $flags = 0) {
     if($tr)$args[] = $tr;
     $args[] = sprintf('SELECT * FROM "%s"', $table);
 
-    dump_rows(ibase_query(...$args), $flags);
+    dump_rows(fbird_query(...$args), $flags);
 }
 
 function insert_into($table, $data, $tr = null) {
@@ -113,7 +115,7 @@ function insert_into($table, $data, $tr = null) {
         $table, $fields_str, $q_str
     );
 
-    return ibase_query(...array_merge($args, array_values($data)));
+    return fbird_query(...array_merge($args, array_values($data)));
 }
 
 /** @var float $v */
@@ -132,24 +134,24 @@ function skip_if_fb_gte($v) {
 }
 
 function skip_if_fbclient_lt(float $v): void {
-    if(!function_exists("ibase_get_client_version"))die("skip Firebird client library version (undefined) < $v");
-    if(($cv = ibase_get_client_version()) < $v)die("skip Firebird client library version $cv < $v");
+    if(!function_exists("fbird_get_client_version"))die("skip Firebird client library version (undefined) < $v");
+    if(($cv = fbird_get_client_version()) < $v)die("skip Firebird client library version $cv < $v");
 }
 
 function skip_if_fbclient_gte(float $v): void {
-    if(function_exists("ibase_get_client_version")) {
-        if(($cv = ibase_get_client_version()) >= $v)die("skip Firebird client library version $cv >= $v");
+    if(function_exists("fbird_get_client_version")) {
+        if(($cv = fbird_get_client_version()) >= $v)die("skip Firebird client library version $cv >= $v");
     }
 }
 
 function skip_if_ext_lt(int $v): void {
-    if(!defined('IBASE_VER'))die("Skip IBASE_VER (not defined) < $v");
-    if(IBASE_VER < $v)die("Skip IBASE_VER ".IBASE_VER." < $v");
+    if(!defined('FBIRD_VER'))die("Skip FBIRD_VER (not defined) < $v");
+    if(FBIRD_VER < $v)die("Skip FBIRD_VER ".FBIRD_VER." < $v");
 }
 
 function skip_if_ext_gte(int $v): void {
-    if(defined('IBASE_VER')) {
-        if(IBASE_VER >= $v)die("Skip IBASE_VER ".IBASE_VER." >= $v");
+    if(defined('FBIRD_VER')) {
+        if(FBIRD_VER >= $v)die("Skip FBIRD_VER ".FBIRD_VER." >= $v");
     }
 }
 
@@ -163,7 +165,7 @@ function skip_if_php_gte(float $v): void {
     if($cv >= $v)die("skip PHP version $cv >= $v");
 }
 
-function ibase_query_bulk(array $queries, $tr = null) {
+function fbird_query_bulk(array $queries, $tr = null) {
     foreach($queries as $q){
         if(is_array($q)){
             [$sql, $args] = $q;
@@ -173,14 +175,14 @@ function ibase_query_bulk(array $queries, $tr = null) {
         }
 
         if($tr) {
-            ibase_query($tr, $sql, ...$args);
+            fbird_query($tr, $sql, ...$args);
         } else {
-            ibase_query($sql, ...$args);
+            fbird_query($sql, ...$args);
         }
     }
 }
 
 /** @var Exception $e */
-function php_ibase_exception_handler($e) {
+function php_fbird_exception_handler($e) {
    echo "Fatal error: Uncaught ".get_class($e).": ", $e->getMessage(), "\n";
 }

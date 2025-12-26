@@ -1,0 +1,39 @@
+parameters:
+    # Maximum analysis level (strictest)
+    level: 8
+
+    # Paths to analyze
+    paths:
+        - src/
+
+    # Stub files for C extension function signatures
+    stubFiles:
+        - phpstan/fbird.stub.php
+        - phpstan/firebird-event.stub.php
+
+    # Ensure PHPStan actually scans the stub file for symbol discovery.
+    # (Without this, extension functions may be resolved only via reflection,
+    # depending on whether the extension is loaded in the PHPStan runtime.)
+    scanFiles:
+        - phpstan/fbird.stub.php
+        - phpstan/firebird-event.stub.php
+
+    # Bootstrap files to define extension constants
+    bootstrapFiles:
+        - phpstan/fbird-bootstrap.php
+
+    # PHP version to analyze for
+    phpVersion: 80100
+
+    # Treat phpt files' PHP code specially (optional future)
+    # excludePaths:
+    #     - tests/*.phpt
+
+    # Report unmatched ignores
+    reportUnmatchedIgnoredErrors: false
+
+    # Type coverage tracking
+    treatPhpDocTypesAsCertain: false
+
+    # Strict rules (level 8 enables most strict checks automatically)
+    checkUninitializedProperties: true

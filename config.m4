@@ -1,10 +1,25 @@
-PHP_ARG_WITH([interbase],
+PHP_ARG_WITH([firebird],
   [for Firebird support],
-  [AS_HELP_STRING([[--with-interbase[=DIR]]],
+  [AS_HELP_STRING([[--with-firebird[=DIR]]],
     [Include Firebird support. DIR is the Firebird base install directory
     [/opt/firebird]])])
 
-if test "$PHP_INTERBASE" != "no"; then
+if test "$PHP_FIREBIRD" != "no"; then
+
+  dnl Detect php-firebird version from git or VERSION file
+  AC_MSG_CHECKING([for php-firebird version])
+  if test -d "$srcdir/.git" -a -x "`which git 2>/dev/null`"; then
+    PHP_FIREBIRD_VERSION=`cd "$srcdir" && git describe --tags --always --dirty 2>/dev/null | sed 's/^v//'`
+    if test -z "$PHP_FIREBIRD_VERSION"; then
+      PHP_FIREBIRD_VERSION="0.0.0-unknown"
+    fi
+  elif test -f "$srcdir/VERSION"; then
+    PHP_FIREBIRD_VERSION=`cat "$srcdir/VERSION"`
+  else
+    PHP_FIREBIRD_VERSION="0.0.0-unknown"
+  fi
+  AC_MSG_RESULT([$PHP_FIREBIRD_VERSION])
+  AC_DEFINE_UNQUOTED([PHP_FIREBIRD_VERSION_STRING], ["$PHP_FIREBIRD_VERSION"], [PHP Firebird extension version])
 
   dnl Check for minimum PHP version (8.1+)
   AC_MSG_CHECKING([for minimum PHP version 8.1])
@@ -21,68 +36,83 @@ if test "$PHP_INTERBASE" != "no"; then
 
   AC_PATH_PROG(FB_CONFIG, fb_config, no)
 
-  if test -x "$FB_CONFIG" && test "$PHP_INTERBASE" = "yes"; then
+  if test -x "$FB_CONFIG" && test "$PHP_FIREBIRD" = "yes"; then
     AC_MSG_CHECKING(for libfbconfig)
     FB_CFLAGS=`$FB_CONFIG --cflags`
     FB_LIBDIR=`$FB_CONFIG --libs`
     FB_VERSION=`$FB_CONFIG --version`
     AC_MSG_RESULT(version $FB_VERSION)
-    PHP_EVAL_LIBLINE($FB_LIBDIR, INTERBASE_SHARED_LIBADD)
+
+    dnl Check for minimum Firebird version (3.0+)
+    AC_MSG_CHECKING([for minimum Firebird version 3.0])
+    fb_major=`echo $FB_VERSION | cut -d. -f1`
+    if test "$fb_major" -lt 3; then
+      AC_MSG_ERROR([Firebird 3.0 or later is required. Found version: $FB_VERSION])
+    fi
+    AC_MSG_RESULT([yes (Firebird $FB_VERSION)])
+
+    PHP_EVAL_LIBLINE($FB_LIBDIR, FIREBIRD_SHARED_LIBADD)
     PHP_EVAL_INCLINE($FB_CFLAGS)
 
   else
-    if test "$PHP_INTERBASE" = "yes"; then
-      IBASE_INCDIR=/opt/firebird/include
-      IBASE_LIBDIR=/opt/firebird/lib
+    if test "$PHP_FIREBIRD" = "yes"; then
+      FIREBIRD_INCDIR=/opt/firebird/include
+      FIREBIRD_LIBDIR=/opt/firebird/lib
     else
-      IBASE_INCDIR=$PHP_INTERBASE/include
-      IBASE_LIBDIR=$PHP_INTERBASE/$PHP_LIBDIR
+      FIREBIRD_INCDIR=$PHP_FIREBIRD/include
+      FIREBIRD_LIBDIR=$PHP_FIREBIRD/$PHP_LIBDIR
     fi
 
     PHP_CHECK_LIBRARY(fbclient, isc_detach_database,
     [
-      IBASE_LIBNAME=fbclient
+      FIREBIRD_LIBNAME=fbclient
     ], [
       PHP_CHECK_LIBRARY(gds, isc_detach_database,
       [
-        IBASE_LIBNAME=gds
+        FIREBIRD_LIBNAME=gds
       ], [
         PHP_CHECK_LIBRARY(ib_util, isc_detach_database,
         [
-          IBASE_LIBNAME=ib_util
+          FIREBIRD_LIBNAME=ib_util
         ], [
           AC_MSG_ERROR([libfbclient, libgds or libib_util not found! Check config.log for more information.])
         ], [
-          -L$IBASE_LIBDIR
+          -L$FIREBIRD_LIBDIR
         ])
       ], [
-        -L$IBASE_LIBDIR
+        -L$FIREBIRD_LIBDIR
       ])
     ], [
-      -L$IBASE_LIBDIR
+      -L$FIREBIRD_LIBDIR
     ])
 
-    PHP_ADD_LIBRARY_WITH_PATH($IBASE_LIBNAME, $IBASE_LIBDIR, INTERBASE_SHARED_LIBADD)
-    PHP_ADD_INCLUDE($IBASE_INCDIR)
+    PHP_ADD_LIBRARY_WITH_PATH($FIREBIRD_LIBNAME, $FIREBIRD_LIBDIR, FIREBIRD_SHARED_LIBADD)
+    PHP_ADD_INCLUDE($FIREBIRD_INCDIR)
   fi
 
-  AC_DEFINE(HAVE_IBASE,1,[ ])
-  PHP_NEW_EXTENSION(interbase, interbase.c ibase_query_exec.c ibase_result.c ibase_metadata.c ibase_service.c ibase_events.c ibase_blobs.c ibase_inspection.c, $ext_shared,, -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1,[cxx])
-  PHP_SUBST(INTERBASE_SHARED_LIBADD)
+  AC_DEFINE(HAVE_FIREBIRD,1,[ ])
+  dnl Enable extra debug logging for array slice operations when requested.
+  dnl This is a build-time flag used by `src/cpp/fb_array.hpp`.
+  dnl
+  dnl Usage:
+  dnl   CPPFLAGS="-DFBIRD_ARRAY_DEBUG" ./configure --with-firebird=/usr
+  dnl
+  PHP_NEW_EXTENSION(firebird, firebird.c fbird_query_exec.c fbird_query_prepare.c fbird_query_bind.c fbird_query_array.c fbird_datetime.c fbird_result.c fbird_metadata.c fbird_service.c fbird_events.c fbird_blobs.c fbird_inspection.c, $ext_shared,, -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1,[cxx])
+  PHP_SUBST(FIREBIRD_SHARED_LIBADD)
 
   PHP_REQUIRE_CXX()
-  PHP_CXX_COMPILE_STDCXX([17], [mandatory], [PHP_INTERBASE_STDCXX])
+  PHP_CXX_COMPILE_STDCXX([17], [mandatory], [PHP_FIREBIRD_STDCXX])
 
-  PHP_INTERBASE_CXX_SOURCES="firebird_utils.cpp"
+  PHP_FIREBIRD_CXX_SOURCES="firebird_utils.cpp"
 
   AS_VAR_IF([ext_shared], [no],
     [PHP_ADD_SOURCES([$ext_dir],
-      [$PHP_INTERBASE_CXX_SOURCES],
-      [$PHP_INTERBASE_STDCXX])],
+      [$PHP_FIREBIRD_CXX_SOURCES],
+      [$PHP_FIREBIRD_STDCXX])],
     [PHP_ADD_SOURCES_X([$ext_dir],
-      [$PHP_INTERBASE_CXX_SOURCES],
-      [$PHP_INTERBASE_STDCXX],
-      [shared_objects_interbase],
+      [$PHP_FIREBIRD_CXX_SOURCES],
+      [$PHP_FIREBIRD_STDCXX],
+      [shared_objects_firebird],
       [yes])])
 
 fi

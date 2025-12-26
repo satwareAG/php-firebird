@@ -7,7 +7,7 @@
 //
 // Make sure:
 //   - The `pdo_firebird` extension is enabled (php -m | grep PDO_Firebird)
-//   - PDO reports the `firebird` driver (php -r 'var_dump(PDO::getAvailableDrivers());')
+//   - PDO reports the `firebird` driver (check PDO::getAvailableDrivers())
 //   - satware-docs/benchmarks/config.php is filled with a working DSN and credentials
 //   - The Firebird database contains a table `perf_test(id INTEGER, payload VARCHAR(100))`
 //

@@ -1,111 +1,46 @@
-# Implementation Plan
+# Implementation Plan: AddressSanitizer (ASan) Integration
 
-[Overview]
-Add code quality workflow to GitHub Actions and update local act testing to ensure parity between local and CI validation.
+## Goal
+Enable robust AddressSanitizer (ASan) testing for the `php-firebird` extension by creating a custom PHP build environment with ASan enabled, bypassing the `RTLD_DEEPBIND` conflict inherent in stock PHP binaries.
 
-This implementation addresses a gap identified in the CI pipeline: static analysis (clang-tidy, cppcheck) currently only runs locally via `scripts/host/qa_local.sh` but not in GitHub Actions. By adding a dedicated `code-quality.yml` workflow and updating the act testing script, developers will have consistent code quality validation both locally and in CI.
+## Problem Analysis
+- **Current State:** `scripts/analysis/sanitizers.sh` attempts to use `LD_PRELOAD` with stock PHP binaries.
+- **Issue:** PHP loads extensions with `RTLD_DEEPBIND`, which conflicts with ASan's requirement to be the first loaded library (or preloaded). This causes immediate crashes.
+- **Solution:** Build PHP from source with ASan enabled statically or linked correctly. This ensures the PHP binary itself is ASan-aware and handles memory correctly, allowing the extension (also built with ASan) to be tested effectively.
 
-Key changes:
-1. Create new `.github/workflows/code-quality.yml` workflow for static analysis
-2. Update `scripts/host/test_with_act.sh` to support running the new code-quality job
-3. Update documentation to reflect current job names and new workflow
+## Steps
 
-[Types]
-No new types or data structures are required for this implementation.
+### 1. Research & Configuration
+- [ ] Identify exact `configure` flags for building PHP with ASan.
+  - Likely `CFLAGS="-fsanitize=address -fno-omit-frame-pointer" LDFLAGS="-fsanitize=address"`.
+  - Verify if `--enable-debug` is required or recommended.
+  - Check for any known issues with specific PHP versions (targeting 8.3 as primary).
 
-This is a CI/CD and scripting task that involves YAML workflow files, Bash scripts, and Markdown documentation. No application-level types are affected.
+### 2. Docker Environment
+- [ ] Create `docker/php/Dockerfile-asan`.
+  - Base image: `debian:bookworm-slim` or similar (to match existing `php83-dev` base).
+  - Install build dependencies (compilers, libxml2, sqlite3, etc.).
+  - Download and compile PHP 8.3 source with ASan flags.
+  - Configure it to support the Firebird extension build (install `firebird-dev`).
+- [ ] Update `docker/docker-compose.yml`.
+  - Add a `php83-asan` service using the new Dockerfile.
 
-[Files]
-Files to be created and modified for GitHub Actions code quality integration.
+### 3. Script Updates
+- [ ] Update `scripts/analysis/sanitizers.sh`.
+  - Detect if running in the ASan container.
+  - If in ASan container, skip `LD_PRELOAD` logic and run tests directly.
+  - If not in ASan container, warn or fail (or fallback if possible, though unlikely to work).
+- [ ] Update `scripts/qa.sh`.
+  - Add an option or step to run sanitizer tests using the `php83-asan` container.
+- [ ] Update `scripts/run-sanitizer.sh`.
+  - Ensure it targets the `php83-asan` container.
 
-**New files to be created:**
-- `.github/workflows/code-quality.yml` - GitHub Actions workflow for static analysis (clang-tidy, cppcheck)
+### 4. Verification
+- [ ] Build the new Docker image.
+- [ ] Run the sanitizer tests.
+- [ ] Verify that ASan is active (check for ASan banner or introduce a deliberate leak/bug in `firebird.c` temporarily to confirm detection).
 
-**Existing files to be modified:**
-- `scripts/host/test_with_act.sh` - Add support for `--quality` flag to run code-quality job
-- `docs/development/LOCAL_GITHUB_ACTIONS_TESTING.md` - Update outdated job names and add code-quality documentation
-
-**Files to remain unchanged:**
-- `.github/workflows/main.yml` - Already correct with `linux-matrix-build` job
-- `.github/workflows/coverage.yml` - Already correct for code coverage
-- `scripts/host/qa_local.sh` - Reference implementation for static analysis steps
-- `scripts/container/analysis/clang_tidy.sh` - Container-based clang-tidy (reference)
-- `scripts/container/analysis/cppcheck.sh` - Container-based cppcheck (reference)
-
-[Functions]
-Shell functions to be added and modified.
-
-**New functions in `scripts/host/test_with_act.sh`:**
-- `run_code_quality()` - Execute code-quality workflow via act
-- Updated `usage()` - Add documentation for new `--quality` flag
-
-**Modified functions in `scripts/host/test_with_act.sh`:**
-- `run_act_matrix()` - No changes (already correct)
-- Main argument parsing block - Add `--quality` flag handling
-
-[Classes]
-No classes are involved in this implementation.
-
-This is purely a CI/CD and scripting task with no object-oriented code changes.
-
-[Dependencies]
-System dependencies required for the code-quality workflow.
-
-**GitHub Actions runner dependencies (installed in workflow):**
-- `bear` - Build wrapper for generating compile_commands.json
-- `clang-tools` / `clang-tidy` - Static analysis for C/C++
-- `cppcheck` - Static analysis for C/C++
-- `libxml2-utils` - For XML parsing (xmllint)
-- Standard PHP build dependencies (already in main.yml)
-
-**Local testing dependencies:**
-- `act` - GitHub Actions local runner (already documented as required)
-- Docker - Container runtime (already required)
-
-**No new package.json or composer.json dependencies required.**
-
-[Testing]
-Validation approach for the implementation.
-
-**Manual testing steps:**
-1. Run `scripts/host/test_with_act.sh --quality` to verify code-quality workflow runs locally
-2. Run `scripts/host/test_with_act.sh --php 8.4 --fb 5.0` to verify matrix builds still work
-3. Push branch to GitHub and verify code-quality workflow triggers and passes
-4. Verify clang-tidy and cppcheck output matches local `qa_local.sh` output
-
-**Validation criteria:**
-- Code-quality workflow completes successfully on Ubuntu runner
-- Static analysis detects same issues as local `qa_local.sh`
-- Exit codes properly propagate (failure blocks PR merge)
-- Documentation accurately describes all commands and options
-
-**No automated tests to add** - This is infrastructure/CI configuration.
-
-[Implementation Order]
-Ordered steps to implement changes with minimal risk.
-
-1. **Create `.github/workflows/code-quality.yml`**
-   - Model after `scripts/container/analysis/clang_tidy.sh` and `cppcheck.sh`
-   - Use PHP 8.4 / Firebird 5.0 as fixed matrix (single configuration)
-   - Include bear for compilation database generation
-   - Add clang-tidy and cppcheck steps
-
-2. **Test code-quality.yml locally with act**
-   - Run `act -W .github/workflows/code-quality.yml -j code-quality --rm`
-   - Verify successful completion
-   - Debug any issues before updating scripts
-
-3. **Update `scripts/host/test_with_act.sh`**
-   - Add `--quality` flag to run code-quality job
-   - Add `run_code_quality()` function
-   - Update usage documentation
-
-4. **Update `docs/development/LOCAL_GITHUB_ACTIONS_TESTING.md`**
-   - Replace `linux-comprehensive-build` with `linux-matrix-build`
-   - Add section for code-quality workflow
-   - Update quick commands section
-
-5. **Final validation**
-   - Run `scripts/host/test_with_act.sh --quality`
-   - Run `scripts/host/test_with_act.sh --php 8.3 --fb 4.0`
-   - Push to GitHub and verify workflows run correctly
+## Success Criteria
+- `scripts/analysis/sanitizers.sh` runs without crashing due to `RTLD_DEEPBIND`.
+- ASan reports memory errors if present.
+- Normal tests pass in the ASan environment (no false positives from PHP itself).

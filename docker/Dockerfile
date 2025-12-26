@@ -1,12 +1,13 @@
-# For building linux-x64
+# For building linux-x64 release binaries
+# PHP 8.1+ minimum (no 7.x or 8.0 support)
 FROM debian:bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y \
     build-essential autoconf bison re2c wget tar git patchelf libtommath1
 
-# Download php
-ARG php_vers="7.4.13 8.0.30 8.1.33 8.2.29 8.3.26 8.4.13 8.5.0RC2"
+# Download php (PHP 8.1+ only)
+ARG php_vers="8.1.33 8.2.29 8.3.26 8.4.13 8.5.0RC2"
 RUN --mount=type=cache,target=/usr/src \
     cd /usr/src && \
     set -e && \
@@ -39,16 +40,17 @@ RUN --mount=type=cache,target=/usr/src \
     mkdir -p /opt/$firebird && \
     tar xf $firebird/buildroot.tar.gz -C /opt/$firebird
 
-# Clone php-firebird
+# Clone php-firebird from satwareAG
+ARG branch=main
 RUN --mount=type=cache,target=/usr/src \
     cd /usr/src && \
     if [ -d php-firebird ]; then \
-        cd php-firebird && git pull; \
+        cd php-firebird && git fetch && git checkout $branch && git pull; \
     else \
-        git clone --depth 1 --branch "master" "https://github.com/FirebirdSQL/php-firebird.git"; \
+        git clone --depth 1 --branch "$branch" "https://github.com/satwareAG/php-firebird.git"; \
     fi
 
-# Build php-firebird
+# Build php-firebird extension
 RUN --mount=type=cache,target=/usr/src \
     for php in $php_vers; do \
         php_short=${php%.*} && \
@@ -58,10 +60,8 @@ RUN --mount=type=cache,target=/usr/src \
         /opt/php-$php_short/bin/phpize && \
         ./configure \
             --with-php-config=/opt/php-$php_short/bin/php-config \
-            --with-interbase=/opt/$firebird/opt/firebird || (cat config.log && false) && \
+            --with-firebird=/opt/$firebird/opt/firebird || (cat config.log && false) && \
         make -j$(nproc) && \
-        patchelf --remove-rpath ./modules/interbase.so && \
-        cp ./modules/interbase.so /opt/php${php_short}-interbase-5.0.3-linux.so; \
+        patchelf --remove-rpath ./modules/firebird.so && \
+        cp ./modules/firebird.so /opt/php${php_short}-firebird-5.0.3-linux.so; \
     done
-
-# TODO: git config --global advice.detachedHead false

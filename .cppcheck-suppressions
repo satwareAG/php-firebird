@@ -1,0 +1,42 @@
+# Cppcheck suppressions file for php-firebird
+# ============================================
+#
+# This file documents known false positives due to cppcheck's
+# single-file analysis limitation. These functions are declared
+# in headers and used across multiple translation units.
+#
+# Format: [errorId]:[filename]:[line]
+#
+# See docs/CPPCHECK_CONFIGURATION_RESEARCH.md for details.
+
+# -----------------------------------------------------
+# fbird_datetime.c - Cross-file functions
+# -----------------------------------------------------
+# These functions are declared in fbird_datetime.h and used by:
+#   - firebird.c (lines 3214, 3233)
+#   - fbird_query_bind.c (lines 696, 738)
+
+# staticFunction false positives - functions have external linkage by design
+staticFunction:fbird_datetime.c:50
+staticFunction:fbird_datetime.c:270
+staticFunction:fbird_datetime.c:336
+
+# unusedFunction false positive - function used in other TUs
+unusedFunction:fbird_datetime.c:139
+
+# -----------------------------------------------------
+# System/External header issues
+# -----------------------------------------------------
+# Missing system includes that are correctly resolved at compile time
+missingIncludeSystem
+
+# Intentional preprocessor error (Firebird version check)
+# Line may vary - suppress for entire file
+preprocessorErrorDirective:php_fbird_includes.h
+
+# -----------------------------------------------------
+# Notes:
+# - Line numbers may need adjustment if source files change significantly
+# - To regenerate line numbers after code changes, run cppcheck and update
+# - Alternative: use file-level suppression (staticFunction:fbird_datetime.c)
+# -----------------------------------------------------

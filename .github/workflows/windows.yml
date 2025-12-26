@@ -1,0 +1,102 @@
+name: Windows DLL Build
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      php-versions:
+        description: 'PHP versions (comma-separated)'
+        default: '8.4'
+      firebird-versions:
+        description: 'Firebird versions (comma-separated)'
+        default: '5.0'
+
+permissions:
+  contents: read
+
+env:
+  FIREBIRD_SDK_CACHE_KEY: firebird-sdk-v1
+
+jobs:
+  get-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: set-matrix
+        run: |
+          # Generate matrix JSON
+          # PHP: 8.1, 8.2, 8.3, 8.4
+          # Arch: x64 (x86 optional - FB SDK availability)
+          # TS: nts, ts
+          # FB: 3.0, 4.0, 5.0
+          matrix='{"include":['
+          for php in "8.1" "8.2" "8.3" "8.4"; do
+            for ts in "nts" "ts"; do
+              for fb in "3.0" "4.0" "5.0"; do
+                matrix+='{"php-version":"'$php'","arch":"x64","ts":"'$ts'","firebird-version":"'$fb'","os":"windows-2022"},'
+              done
+            done
+          done
+          matrix="${matrix%,}]}"
+          echo "matrix=$matrix" >> $GITHUB_OUTPUT
+
+  build:
+    needs: get-matrix
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.get-matrix.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Firebird SDK
+        uses: actions/cache@v4
+        id: cache-fb-sdk
+        with:
+          path: C:\firebird-sdk
+          key: ${{ env.FIREBIRD_SDK_CACHE_KEY }}-${{ matrix.firebird-version }}-${{ matrix.arch }}
+
+      - name: Download Firebird SDK
+        if: steps.cache-fb-sdk.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          .\.github\scripts\download-firebird-sdk.ps1 `
+            -Version "${{ matrix.firebird-version }}" `
+            -Architecture "${{ matrix.arch }}" `
+            -DestinationPath "C:\firebird-sdk"
+
+      - name: Set Firebird Environment
+        shell: pwsh
+        run: |
+          $sdkPath = "C:\firebird-sdk"
+          echo "FIREBIRD_HOME=$sdkPath" >> $env:GITHUB_ENV
+          echo "$sdkPath\bin" >> $env:GITHUB_PATH
+          echo "CFLAGS=-I$sdkPath\include" >> $env:GITHUB_ENV
+          echo "LDFLAGS=-L$sdkPath\lib" >> $env:GITHUB_ENV
+
+      - name: Build Extension
+        uses: php/php-windows-builder/extension@v1
+        with:
+          php-version: ${{ matrix.php-version }}
+          arch: ${{ matrix.arch }}
+          ts: ${{ matrix.ts }}
+          args: --with-firebird=${{ env.FIREBIRD_HOME }}
+
+      - name: Rename DLL with metadata
+        shell: pwsh
+        run: |
+          $dllName = "php_firebird-${{ github.ref_name }}-${{ matrix.php-version }}-${{ matrix.ts }}-${{ matrix.arch }}-fb${{ matrix.firebird-version }}.dll"
+          # Find and rename the built DLL
+          Get-ChildItem -Path artifacts -Filter "*.dll" |
+            Rename-Item -NewName $dllName
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: php-firebird-${{ matrix.php-version }}-${{ matrix.ts }}-${{ matrix.arch }}-fb${{ matrix.firebird-version }}
+          path: artifacts/*.dll

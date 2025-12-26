@@ -8,8 +8,8 @@ skip_if_fb_lt(4.0) || skip_if_fbclient_lt(4.0);
 --FILE--
 <?php
 
-require_once("interbase.inc");
-ibase_connect($test_base);
+require_once("firebird.inc");
+fbird_connect($test_base);
 
 // FB3: The maximum identifier length is 31 bytes
 // FB4: The maximum identifier length is 63 characters character set UTF8 (252 bytes)
@@ -27,8 +27,8 @@ function test_table(string $table){
 	$fields_str = join('" INTEGER,"', $fields);
 	$create_sql = sprintf('CREATE TABLE "%s" ("%s" INTEGER)', $table, $fields_str);
 
-	if(ibase_query($create_sql)){
-		ibase_commit();
+	if(fbird_query($create_sql)){
+		fbird_commit();
 	} else {
 		var_dump($create_sql);
 		die;

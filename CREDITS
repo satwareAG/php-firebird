@@ -1,5 +1,32 @@
-InterBase
-Jouni Ahto, Andrew Avdeev, Ard Biesheuvel
+php-firebird - Firebird Database Extension for PHP
+SPDX-License-Identifier: PHP-3.01
 
-Firebird
-You can find the contributors list at https://github.com/FirebirdSQL/php-firebird/graphs/contributors.
+MAINTAINERS
+-----------
+satwareAG Fork (Current):
+  Michael Wegener <mw@satware.com>
+  Jane Alesi <ja@satware.ai>
+
+FirebirdSQL Upstream:
+  Martins Lazdans <marrtins@dqdp.net>
+  Martin Köditz <martin.koeditz@it-syn.de>
+
+ORIGINAL AUTHORS (InterBase Extension)
+--------------------------------------
+  Jouni Ahto <jouni.ahto@exdec.fi>
+  Andrew Avdeev <andy@simgts.mv.ru>
+  Ard Biesheuvel <a.k.biesheuvel@its.tudelft.nl>
+
+CONTRIBUTORS
+------------
+See https://github.com/FirebirdSQL/php-firebird/graphs/contributors
+See https://github.com/satwareAG/php-firebird/graphs/contributors
+
+This extension includes contributions from the PHP Group and many
+individual contributors. The full git history preserves attribution.
+
+HISTORICAL NOTE
+---------------
+This extension originated as ext/interbase in PHP core, maintained by
+the PHP Group. It was externalized and renamed to php-firebird when the
+InterBase database was discontinued and Firebird became the primary target.

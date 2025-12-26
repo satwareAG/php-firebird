@@ -91,6 +91,9 @@ yaml.loT
 # Static Analysis Artifacts
 compile_commands.json
 cppcheck-report.xml
+cppcheck-output.log
+clang-tidy-output.log
+.cppcheck-cache/
 
 *.tar.gz
 *.tar.bz2
@@ -105,3 +108,10 @@ build_scripts/php-fb-config.bat
 /*.log
 /tests/blob.*
 /benchmark
+
+# Composer (PHP dependencies)
+/vendor/
+composer.lock
+
+# LSan suppressions (generated)
+scripts/container/analysis/lsan.supp

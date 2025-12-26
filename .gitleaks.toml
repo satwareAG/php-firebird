@@ -1,0 +1,39 @@
+# Gitleaks configuration for php-firebird
+# Excludes false positives from third-party code and test fixtures
+
+[extend]
+# Use default rules as base
+useDefault = true
+
+[allowlist]
+description = "php-firebird repository allowlist"
+
+# Exclude vendor directory (third-party code) and IDE files
+paths = [
+    '''vendor/.*''',
+    '''node_modules/.*''',
+    '''\.idea/.*''',
+]
+
+# Exclude test debug scripts (contain Docker base image GPG keys, not secrets)
+files = [
+    '''tests/.*_debug.*\.sh$''',
+    '''tests/.*_simple_.*\.sh$''',
+    '''.*_test_results.*\.txt$''',
+]
+
+# GPG key fingerprints from Docker PHP base images are not secrets
+regexes = [
+    '''1198C0117593497A5EC5C199286AF1F9897469DC''',
+    '''AFD8691FDAEDF03BDF6E460563F15A9B715376CA''',
+    '''C28D937575603EB4ABB''',
+]
+
+# Sodium cryptographic function names are not secrets
+stopwords = [
+    "sodium_crypto_aead",
+    "CURLOPT_TLS13_CIPHERS",
+    "chacha20poly1305",
+    "xchacha20poly1305",
+    "aegis256",
+]

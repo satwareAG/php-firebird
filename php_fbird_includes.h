@@ -1,0 +1,393 @@
+/* SPDX-License-Identifier: PHP-3.01
+ * SPDX-FileCopyrightText: The PHP Group and contributors (see CREDITS) */
+
+#ifndef PHP_FBIRD_INCLUDES_H
+#define PHP_FBIRD_INCLUDES_H
+
+#include <ibase.h>
+#ifndef PHP_WIN32
+#include <sys/types.h>
+#include <unistd.h>
+#endif
+
+/* Firebird 3.0+ required - compile-time check */
+#if !defined(FB_API_VER) || FB_API_VER < 30
+#error "Firebird 3.0 or later is required. Please install Firebird 3.0+ client libraries."
+#endif
+
+/* Compatibility for older Firebird headers (pre-4.0) */
+#ifndef isc_tpb_read_consistency
+#define isc_tpb_read_consistency 70
+#endif
+
+#ifndef isc_dpb_set_bind
+#define isc_dpb_set_bind 88
+#endif
+
+#ifndef SQLDA_CURRENT_VERSION
+#define SQLDA_CURRENT_VERSION SQLDA_VERSION1
+#endif
+
+/* Metadata identifier length (bytes). FB 4.0+ supports 63 chars (UTF8 = 4 bytes/char) */
+#ifndef METADATALENGTH
+#	if FB_API_VER >= 40
+#		define METADATALENGTH 252 /* 63 characters * 4 bytes (UTF8) */
+#	else
+#		define METADATALENGTH 31  /* Legacy 31 byte limit */
+#	endif
+#endif
+
+#define RESET_ERRMSG do { IBG(errmsg)[0] = '\0'; IBG(sql_code) = 0; } while (0)
+
+#define IB_STATUS (IBG(status))
+
+#ifdef FBIRD_DEBUG
+#define FBDEBUG(a) php_printf("::: %s (%s:%d)\n", a, __FILE__, __LINE__);
+#endif
+
+#ifndef FBDEBUG
+#define FBDEBUG(a)
+#endif
+
+extern int le_link, le_plink, le_trans;
+#if FB_API_VER >= 40
+extern int le_batch;
+#endif
+
+#define LE_LINK  "Firebird link"
+#define LE_PLINK "Firebird persistent link"
+#define LE_TRANS "Firebird transaction"
+#define LE_EVENT "Firebird event"
+#define LE_BLOB  "Firebird blob"
+#define LE_QUERY "Firebird query"
+#define LE_SCVH  "Firebird service manager handle"
+#define LE_BATCH "Firebird batch"
+
+#define FBIRD_MSGSIZE 512
+#define MAX_ERRMSG (FBIRD_MSGSIZE*2)
+
+#define IB_DEF_DATE_FMT "%Y-%m-%d"
+#define IB_DEF_TIME_FMT "%H:%M:%S"
+
+/* this value should never be > USHRT_MAX */
+#define FBIRD_BLOB_SEG 4096
+
+ZEND_BEGIN_MODULE_GLOBALS(fbird)
+	ISC_STATUS status[256];
+	zend_resource *default_link;
+	zend_long num_links, num_persistent;
+	char errmsg[MAX_ERRMSG];
+	zend_long sql_code;
+	zend_long default_trans_params;
+	zend_long default_lock_timeout; /* only used together with trans_param FBIRD_LOCK_TIMEOUT */
+	zend_long blob_segment_size;    /* configurable BLOB segment size (default: 4096) */
+	void *get_master_interface;
+	void *master_instance;
+	void *get_statement_interface;
+	int client_version;
+	int client_major_version;
+	int client_minor_version;
+	pid_t init_pid;                 /* PID at initialization for fork-safety detection */
+	int exception_mode;             /* Exception mode: 0=SILENT (default), 1=THROW */
+ZEND_END_MODULE_GLOBALS(fbird)
+
+ZEND_EXTERN_MODULE_GLOBALS(fbird)
+
+/* Union to safely hold 64-bit handles even if headers define them as 32-bit integers */
+typedef union {
+	void *ptr;
+	isc_db_handle db;
+	isc_tr_handle tr;
+	isc_stmt_handle stmt;
+	isc_blob_handle blob;
+} fb_safe_handle;
+
+typedef struct {
+	fb_safe_handle handle;
+	struct tr_list *tr_list;
+	unsigned short dialect;
+	struct event *event_head;
+	/* Phase 3: OO API connection wrapper (fb::Connection* from fbc_connect())
+	 * When non-NULL, this connection was created via the modern OO API.
+	 * The handle.ptr may be NULL in this case - use fbc_get_attachment() instead. */
+	void *fbc_connection;
+} fbird_db_link;
+
+typedef struct {
+	fb_safe_handle handle;
+	unsigned short link_cnt;
+	unsigned long affected_rows;
+	/* OO API transaction wrapper (fb::Transaction* from fbt_start())
+	 * When non-NULL, this transaction was created via the modern OO API.
+	 * The handle.tr may be 0 in this case - use fbt_get_handle() instead. */
+	void *fbt_transaction;
+	fbird_db_link *db_link[1]; /* last member */
+} fbird_transaction;
+
+typedef struct tr_list {
+	fbird_transaction *trans;
+	struct tr_list *next;
+} fbird_tr_list;
+
+typedef struct {
+	fb_safe_handle bl_handle;
+	unsigned short type;
+	ISC_QUAD bl_qd;
+	/* Phase 6: OO API blob wrapper (fb::BlobWrapper* from fbb_create()/fbb_open())
+	 * When non-NULL, this blob was created via the modern OO API.
+	 * The bl_handle.blob may be 0 in this case - use fbb_* functions instead. */
+	void *fbb_blob;
+} fbird_blob;
+
+typedef struct event {
+	fbird_db_link *link;
+	zend_resource* link_res;
+	ISC_LONG event_id;
+	unsigned short event_count;
+	char **events;
+    unsigned char *event_buffer;  /* Buffer for event registration (isc_que_events) */
+    unsigned char *result_buffer; /* Buffer for event results (counts) */
+	zval callback;
+	void *thread_ctx;
+	struct event *event_next;
+	enum event_state { NEW, ACTIVE, PENDING_REREGISTER, DEAD } state;
+	int needs_reregistration;
+	unsigned short buffer_size;
+	int callback_count;
+	int max_callbacks;
+	/* Phase 7: OO API event wrapper (fb::EventsWrapper* from fbe_queue())
+	 * When non-NULL, events are queued via the modern OO API.
+	 * Note: The current polling model continues to use isc_wait_for_event()
+	 * for synchronous operation; this field is for future async support. */
+	void *fbe_events;
+} fbird_event;
+
+/* sql variables union
+ * used for convert and binding input variables
+ */
+typedef struct {
+	union {
+#ifdef SQL_BOOLEAN
+		FB_BOOLEAN bval;
+#endif
+		short sval;
+		float fval;
+		double dval;        /* Added for SQL_DOUBLE binding */
+		ISC_LONG lval;
+		ISC_INT64 i64val;   /* Added for SQL_INT64 binding */
+		ISC_QUAD qval;
+		ISC_TIMESTAMP tsval;
+		ISC_DATE dtval;
+		ISC_TIME tmval;
+#if FB_API_VER >= 40
+		ISC_TIMESTAMP_TZ tstzval;
+		ISC_TIME_TZ tmtzval;
+#endif
+	} val;
+	short nullind;
+} BIND_BUF;
+
+typedef struct {
+	ISC_ARRAY_DESC ar_desc;
+	ISC_LONG ar_size; /* size of entire array in bytes */
+	unsigned short el_type, el_size;
+} fbird_array;
+
+typedef struct _ib_query {
+    fbird_db_link *link;
+    fbird_transaction *trans;
+    zend_resource *trans_res;
+    zend_resource *res;
+    fb_safe_handle stmt;
+    XSQLDA *in_sqlda, *out_sqlda;
+    fbird_array *in_array, *out_array;
+    unsigned short type, has_more_rows, is_open;
+    unsigned short in_array_cnt, out_array_cnt;
+    unsigned short dialect;
+    char *query;
+    ISC_UCHAR statement_type;
+    BIND_BUF *bind_buf;
+    ISC_SHORT *in_nullind, *out_nullind;
+    ISC_USHORT in_fields_count, out_fields_count;
+    HashTable *ht_aliases, *ht_ind; // Precomputed for fbird_fetch_*()
+    int was_result_once;
+    /* Whether this query instance owns the statement handle and must DSQL_drop it
+     * in the destructor. Result resources created for SELECT reuse the parent's
+     * statement handle and must NOT drop it to avoid invalidating the prepared
+     * statement (fixes: tests/006.phpt, tests/bug45373.phpt, etc.). */
+    zend_bool owns_stmt_handle;
+    /* Parent/children linkage to allow invalidating dependent results when the
+     * prepared statement is freed (ensures TypeError on use-after-free, as
+     * expected by tests/use_after_free-002.phpt). */
+    struct _ib_query *parent;
+    struct _ib_query *child_head;
+    struct _ib_query *child_next;
+    /* OO API statement wrapper (fb::Statement* from fbs_prepare())
+     * When non-NULL, this statement was prepared via the modern OO API.
+     * The stmt.ptr may be 0 in this case - use fbs_get_statement() instead. */
+    void *fbs_statement;
+    void *fbs_resultset;  /* OO API IResultSet* for cursor operations */
+    /* OO API message buffer for fetch operations (Phase 12+)
+     * These replace XSQLDA-based data transfer when using OO API. */
+    void *out_metadata;     /* IMessageMetadata* from fbs_get_output_metadata() */
+    void *out_msg_buffer;   /* Message buffer for fetch (allocated based on metadata) */
+    unsigned out_msg_length; /* Message buffer size */
+    void *in_metadata;      /* IMessageMetadata* for input parameters */
+    void *in_msg_buffer;    /* Message buffer for input parameters */
+    unsigned in_msg_length; /* Input message buffer size */
+} fbird_query;
+
+#if FB_API_VER >= 40
+/**
+ * Batch operation wrapper for Firebird 4.0+ IBatch interface.
+ * Provides high-performance bulk INSERT operations.
+ */
+typedef struct {
+    void *fbbatch_wrapper;    /* OO API batch wrapper (from fbbatch_create()) */
+    fbird_transaction *trans; /* Associated transaction */
+    fbird_query *query;       /* Parent prepared statement */
+    void *in_metadata;        /* IMessageMetadata for input parameters */
+    void *in_msg_buffer;      /* Message buffer for row data */
+    unsigned in_msg_length;   /* Message buffer size */
+} fbird_batch;
+#endif /* FB_API_VER >= 40 */
+
+enum php_fbird_option {
+	PHP_FBIRD_DEFAULT            = 0,
+	PHP_FBIRD_CREATE             = 0,
+	/* connection flags */
+	PHP_FBIRD_CONNECT_FORCE_NEW  = 2,   /* Force new connection, bypass connection reuse (matches PGSQL_CONNECT_FORCE_NEW) */
+	/* fetch flags */
+	PHP_FBIRD_FETCH_BLOBS        = 1,
+	PHP_FBIRD_FETCH_ARRAYS       = 2,
+	PHP_FBIRD_UNIXTIME           = 4,
+	PHP_FBIRD_FETCH_DATE_OBJ     = 8,  /* Return DATE/TIME/TIMESTAMP as DateTimeImmutable */
+	/* transaction access mode */
+	PHP_FBIRD_WRITE              = 1,
+	PHP_FBIRD_READ               = 2,
+	/* transaction isolation level */
+	PHP_FBIRD_CONCURRENCY        = 4,
+	PHP_FBIRD_COMMITTED          = 8,
+		PHP_FBIRD_REC_NO_VERSION = 32,
+		PHP_FBIRD_REC_VERSION    = 64,
+	PHP_FBIRD_CONSISTENCY        = 16,
+	/* transaction lock resolution */
+	PHP_FBIRD_WAIT               = 128,
+	PHP_FBIRD_NOWAIT             = 256,
+		PHP_FBIRD_LOCK_TIMEOUT   = 512,
+
+	/* Table reservation lock types */
+	PHP_FBIRD_LOCK_SHARED        = 1024,
+	PHP_FBIRD_LOCK_PROTECTED     = 2048,
+	PHP_FBIRD_LOCK_EXCLUSIVE     = 4096, // Not used explicitly in legacy, but good for completeness
+
+	/* Table reservation access types */
+	PHP_FBIRD_LOCK_READ          = 8192,
+	PHP_FBIRD_LOCK_WRITE         = 16384,
+
+	/* Firebird 4.0+ features */
+	PHP_FBIRD_READ_CONSISTENCY   = 32768,
+
+	/* Event timeout return value */
+	PHP_FBIRD_EVENT_TIMEOUT      = -2
+};
+
+#define IBG(v) ZEND_MODULE_GLOBALS_ACCESSOR(fbird, v)
+
+#if defined(ZTS) && defined(COMPILE_DL_FIREBIRD)
+ZEND_TSRMLS_CACHE_EXTERN()
+#endif
+
+#define BLOB_ID_LEN     13
+#define BLOB_ID_MASK    "%x:%hx"
+
+#define BLOB_INPUT      1
+#define BLOB_OUTPUT     2
+
+#ifdef PHP_WIN32
+// Since we target PHP 8.1+ only, always use modern format
+#define LL_MASK "ll"
+#define LL_LIT(lit) lit ## I64
+typedef void (__stdcall *info_func_t)(char*);
+#else
+#define LL_MASK "ll"
+#define LL_LIT(lit) lit ## ll
+typedef void (*info_func_t)(char*);
+#endif
+
+void _php_fbird_error(void);
+void _php_fbird_module_error(const char *, ...)
+	PHP_ATTRIBUTE_FORMAT(printf,1,2);
+
+/* determine if a resource is a link or transaction handle */
+#define PHP_FBIRD_LINK_TRANS(zv, lh, th)                                                    \
+		do {                                                                                \
+			if (!zv) {                                                                      \
+				lh = (fbird_db_link *)zend_fetch_resource2(                                 \
+					IBG(default_link), "Firebird link", le_link, le_plink);                \
+			} else {                                                                        \
+				_php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAM_PASSTHRU, zv, &lh, &th);  \
+			}                                                                               \
+			if (SUCCESS != _php_fbird_def_trans(lh, &th)) { RETURN_FALSE; }                 \
+		} while (0)
+
+int _php_fbird_def_trans(fbird_db_link *ib_link, fbird_transaction **trans);
+void _php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAMETERS, zval *link_id,
+	fbird_db_link **ib_link, fbird_transaction **trans);
+
+/* provided by fbird_query.c */
+void php_fbird_query_minit(INIT_FUNC_ARGS);
+
+/* provided by fbird_blobs.c */
+void php_fbird_blobs_minit(INIT_FUNC_ARGS);
+int _php_fbird_string_to_quad(char const *id, ISC_QUAD *qd);
+zend_string *_php_fbird_quad_to_string(ISC_QUAD const qd);
+int _php_fbird_blob_get(zval *return_value, fbird_blob *ib_blob, zend_ulong max_len);
+int _php_fbird_blob_add(zval *string_arg, fbird_blob *ib_blob);
+
+/* provided by fbird_events.c */
+void php_fbird_events_minit(INIT_FUNC_ARGS);
+void _php_fbird_free_event(fbird_event *event);
+
+/* provided by fbird_service.c */
+void php_fbird_service_minit(INIT_FUNC_ARGS);
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void _php_fbird_insert_alias(HashTable *ht, const char *alias);
+
+#ifdef __cplusplus
+}
+#endif
+
+#ifndef max
+#define max(a,b) ((a)>(b)?(a):(b))
+#endif
+
+#ifdef PHP_DEBUG
+void fbp_dump_buffer(int len, const unsigned char *buffer);
+void fbp_dump_buffer_raw(int len, const unsigned char *buffer);
+#endif
+
+void fbp_error_ex(long level, const char *, ...)
+    PHP_ATTRIBUTE_FORMAT(printf,2,3);
+
+#ifdef PHP_WIN32
+#define fbp_fatal(msg, ...)   fbp_error_ex(E_ERROR,   msg " (%s:%d)\n", ## __VA_ARGS__, __FILE__, __LINE__)
+#define fbp_warning(msg, ...) fbp_error_ex(E_WARNING, msg " (%s:%d)\n", ## __VA_ARGS__, __FILE__, __LINE__)
+#define fbp_notice(msg, ...)  fbp_error_ex(E_NOTICE,  msg " (%s:%d)\n", ## __VA_ARGS__, __FILE__, __LINE__)
+#else
+#define fbp_fatal(msg, ...)   fbp_error_ex(E_ERROR,   msg " (%s:%d)\n" __VA_OPT__(,) __VA_ARGS__, __FILE__, __LINE__)
+#define fbp_warning(msg, ...) fbp_error_ex(E_WARNING, msg " (%s:%d)\n" __VA_OPT__(,) __VA_ARGS__, __FILE__, __LINE__)
+#define fbp_notice(msg, ...)  fbp_error_ex(E_NOTICE,  msg " (%s:%d)\n" __VA_OPT__(,) __VA_ARGS__, __FILE__, __LINE__)
+#endif
+
+typedef ISC_STATUS (ISC_EXPORT *fb_get_statement_interface_t)(
+	ISC_STATUS* status_vector, void* db_handle, isc_stmt_handle* stmt_handle
+);
+
+typedef void* (ISC_EXPORT *fb_get_master_interface_t)(void);
+
+#endif /* PHP_FBIRD_INCLUDES_H */

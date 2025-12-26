@@ -1,19 +1,19 @@
 --TEST--
-IBASE_UNIXTIME: ignore IBASE_UNIXTIME flag for TIME_TZ fields
+FBIRD_UNIXTIME: ignore FBIRD_UNIXTIME flag for TIME_TZ fields
 --SKIPIF--
 <?php
 include("skipif.inc");
 // See also: tests/time_002.phpt
-skip_if_ext_lt(61);
+skip_if_ext_lt(10);
 skip_if_fb_lt(4);
 skip_if_fbclient_lt(4);
 ?>
 --FILE--
 <?php
 
-require("interbase.inc");
+require("firebird.inc");
 require("common.inc");
-ibase_connect($test_base);
+fbird_connect($test_base);
 test_time_tz_unixtime();
 
 ?>

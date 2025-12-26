@@ -17,6 +17,8 @@
 - **New Tests**:
   - `tests/coverage/query_array_complex.phpt`: Covers complex array binding and error handling in `fbird_query_array.c`.
   - `tests/coverage/bind_edge_cases.phpt`: Covers edge cases (INT64 limits, empty strings, large blobs) in `fbird_query_bind.c`.
+  - `tests/coverage/events_error_handling.phpt`: Covers error paths in `fbird_events.c` (invalid resources, argument counts).
+  - `tests/coverage/inspection_deep.phpt`: Covers error paths in `fbird_inspection.c` (non-existent tables, invalid resources).
 - **Status**:
   - Line Coverage: 56.7% (up from 56.6%)
   - Function Coverage: 83.2%
@@ -27,6 +29,5 @@
 - **Coverage Plan**: Created `docs/planning/COVERAGE_EXPANSION_PLAN.md` outlining the strategy to reach >90% coverage.
 
 ## Next Steps
-1. **Continue Coverage Expansion**: Implement tests for `fbird_events.c` and `fbird_inspection.c` as per the plan.
-2. **Fuzz Testing**: Implement the SQL fuzzer to find more edge cases.
-3. **Modernization**: Begin refactoring internal C++ classes to use RAII (smart pointers) to prevent future leaks.
+1. **Fuzz Testing**: Implement the SQL fuzzer to find more edge cases.
+2. **Modernization**: Begin refactoring internal C++ classes to use RAII (smart pointers) to prevent future leaks.

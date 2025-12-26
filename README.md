@@ -117,7 +117,14 @@ sudo make install
 echo "extension=firebird.so" | sudo tee /etc/php8/conf.d/firebird.ini
 ```
 
-#### Windows
+#### Windows (Pre-compiled DLLs)
+We provide pre-compiled Windows DLLs for PHP 8.1-8.4 across multiple Firebird versions (3.0, 4.0, 5.0).
+
+1. Go to the [Releases Page](https://github.com/satwareAG/php-firebird/releases).
+2. Download the DLL matching your PHP version, architecture (x64), thread safety (TS/NTS), and Firebird version.
+3. See the [Windows Installation Guide](docs/WINDOWS_INSTALLATION.md) for detailed instructions and troubleshooting.
+
+#### Windows (Manual Build)
 ```batch
 REM Prerequisites: Visual Studio 2019+ with C++ tools, Git for Windows
 

@@ -48,7 +48,7 @@ We will create specific PHPT tests for the low-coverage areas:
 
 ## Execution Plan
 
-1. **Phase 1 (Immediate)**: Implement tests for `fbird_query_array.c` and `fbird_query_bind.c`.
-2. **Phase 2**: Implement tests for `fbird_events.c` and `fbird_inspection.c`.
+1. **Phase 1 (Completed)**: Implement tests for `fbird_query_array.c` and `fbird_query_bind.c`.
+2. **Phase 2 (Completed)**: Implement tests for `fbird_events.c` and `fbird_inspection.c`.
 3. **Phase 3**: Develop and run the SQL fuzzer.
 4. **Phase 4**: Final coverage report generation and verification.

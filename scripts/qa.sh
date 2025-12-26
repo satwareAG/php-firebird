@@ -5,7 +5,7 @@
 #
 # Options:
 #   --container NAME   Container to use (default: php83-dev)
-#   --mode MODE        fast|standard|full|security (default: standard)
+#   --mode MODE        fast|standard|full|security|fuzz (default: standard)
 #   --skip-build       Skip C extension build (use existing)
 #   --php-only         Only run PHP analysis (PHPStan, PHPCS)
 #   --fail-fast        Stop at first error with detailed output
@@ -16,6 +16,7 @@
 #   standard - Fast + unit tests
 #   full     - Standard + sanitizers (ASan, UBSan) + Valgrind
 #   security - Full + Gitleaks secret scanning
+#   fuzz     - Run fuzzing with ASan
 
 set -e
 
@@ -270,9 +271,23 @@ if [ "$MODE" == "standard" ]; then
 fi
 
 # ============================================================================
-# PHASE 6: Dynamic Analysis (Full/Security modes)
+# PHASE 6: Dynamic Analysis (Full/Security/Fuzz modes)
 # ============================================================================
 echo -e "\n${BLUE}═══ Phase 6: Dynamic Analysis (Sanitizers) ═══${NC}"
+
+# 6.0 Fuzzing (Fuzz mode only)
+if [ "$MODE" == "fuzz" ]; then
+    echo -e "\n${BLUE}>> [6.0] Fuzzing (ASan)...${NC}"
+    check_result "Phase 6" "Fuzzing" "$PROJECT_ROOT/scripts/fuzz_asan.sh 1000"
+    exit $FAILED
+fi
+
+# 6.0 Fuzzing (Full mode)
+if [ "$MODE" == "full" ]; then
+    echo -e "\n${BLUE}>> [6.0] Fuzzing (ASan)...${NC}"
+    # Run fewer iterations in full mode to keep total runtime reasonable
+    check_result "Phase 6" "Fuzzing" "$PROJECT_ROOT/scripts/fuzz_asan.sh 500"
+fi
 
 # 6.1 AddressSanitizer + UBSan
 echo -e "\n${BLUE}>> [6.1] Running Sanitizers (ASan + UBSan)...${NC}"

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [7.0.0-rc.11] - 2025-12-26
 
+### Added
+
+- **Fuzzing Infrastructure**: Integrated comprehensive fuzzing into the QA workflow (`scripts/qa.sh --mode full`)
+  - Modular architecture in `fuzz/` with SARIF reporting
+  - Logic bug detection using Ternary Logic Partitioning (TLP)
+  - Automated ASan integration for memory safety verification
+
 ### Fixed
 
 - **Memory Leaks (ASan)**: Fixed memory leaks in transaction handling (`fbt_start` wrapper) by ensuring `fbt_free()` is called during commit/rollback and resource cleanup. Verified with AddressSanitizer.

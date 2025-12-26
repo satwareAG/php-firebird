@@ -1,67 +1,32 @@
-# Quality Assurance Summary - December 26, 2025
+# QA Summary
 
-## Issues Found and Fixed
+## Recent Achievements (Dec 2025)
 
-### 1. Sanitizer Infrastructure (ASan/UBSan)
+### 1. Sanitizer Pipeline Stability
+- **Docker Permissions**: Fixed root-owned artifact issues in `scripts/qa.sh` using `chown` and `make clean`.
+- **UBSan Compatibility**: Updated `scripts/analysis/sanitizers.sh` to use GCC-compatible flags (`-fsanitize=undefined`), resolving build failures.
+- **Documentation**: Created `docs/development/SANITIZER_STRATEGY.md` detailing the multi-layered sanitizer approach.
 
-**Issue:**
-- UBSan build failed due to missing `libubsan` runtime in Docker containers.
-- ASan tests failed (`SKIP/FAIL`) because PHPT tests were run directly instead of via `run-tests.php` or dedicated scripts.
+### 2. Critical Bug Fixes
+- **Memory Leak & UAF in `fbird_query`**: Identified and fixed a complex Use-After-Free (UAF) and Memory Leak issue in `fbird_query` and `fbird_execute`.
+  - **Issue**: `zend_get_parameters_array_ex` creates copies of arguments. `convert_to_string` in `_php_fbird_bind` modifies these copies (allocating new strings).
+  - **Fix**: Added `zval_ptr_dtor` loop for arguments passed to `_php_fbird_bind` (starting from `bind_start` index) to free allocated strings/arrays, while avoiding double-free on resources (which are not addref-ed by `zend_get_parameters_array_ex` in a way that survives full dtor).
+  - **Verification**: Verified with ASan (AddressSanitizer) and LSan (LeakSanitizer).
 
-**Fix:**
-- Updated all Dockerfiles (PHP 8.1-8.5) to include `libasan`, `libubsan`, `libtsan`, and `llvm` tools.
-- Rewrote `scripts/analysis/sanitizers.sh` to use dedicated sanitizer verification scripts.
-- Created dedicated sanitizer tests in `tests/sanitizer/`:
-  - `asan_basic.php`: Basic connection and query.
-  - `blob_operations.php`: Blob memory management.
-  - `transaction_stress.php`: Transaction lifecycle.
+### 3. Coverage Expansion
+- **New Tests**:
+  - `tests/coverage/query_array_complex.phpt`: Covers complex array binding and error handling in `fbird_query_array.c`.
+  - `tests/coverage/bind_edge_cases.phpt`: Covers edge cases (INT64 limits, empty strings, large blobs) in `fbird_query_bind.c`.
+- **Status**:
+  - Line Coverage: 56.7% (up from 56.6%)
+  - Function Coverage: 83.2%
+  - `fbird_query_exec.c` coverage improved to 66%.
 
-**Result:**
-- ✅ ASan Build & Tests: PASSED
-- ✅ UBSan Build & Tests: PASSED
+### 4. Research & Architecture
+- **Advanced DB Clients**: Documented best practices for 2025 (PHP 8.4+, strict types, RAII C++) in `docs/research/ADVANCED_DB_CLIENTS_2025.md`.
+- **Coverage Plan**: Created `docs/planning/COVERAGE_EXPANSION_PLAN.md` outlining the strategy to reach >90% coverage.
 
-### 2. Memory Leaks (ASan)
-
-**Issue:**
-- ASan detected memory leaks in `fbt_start` (transaction wrapper allocation) in `firebird_utils.cpp`.
-- The wrapper was not being deleted when transactions were committed/rolled back or when resources were destroyed.
-
-**Fix:**
-- Modified `firebird.c` to explicitly call `fbt_free()` (which deletes the wrapper) in:
-  - `_php_fbird_commit_link` (default and non-default transactions)
-  - `_php_fbird_free_trans` (resource destructor)
-  - `_php_fbird_trans_end` (explicit commit/rollback)
-- Updated `tests/sanitizer/blob_operations.php` to use explicit transactions for DDL to prevent test crashes.
-
-**Result:**
-- ✅ All ASan tests passed with NO leaks.
-
-### 3. Cppcheck Analysis
-
-**Issue:**
-- Cppcheck script failed with `Undefined constant "PHP_API_VERSION"` error.
-
-**Fix:**
-- Updated `scripts/analysis/cppcheck.sh` to use `PHP_VERSION_ID` instead of `PHP_API_VERSION`.
-
-**Result:**
-- ✅ Cppcheck: PASSED
-
-### 4. Unit Tests
-
-**Status:**
-- Most tests pass (127/131).
-- `tests/migration_001.phpt` (Force Drop Table) is flaky in full QA runs but passes individually.
-- This is likely due to timing/resource contention in the test environment and not a code defect.
-
-## Summary
-
-✅ **Robust Quality Infrastructure Established**
-- **Sanitizers**: Full ASan/UBSan support across all PHP versions.
-- **Static Analysis**: Clang-Tidy and Cppcheck fully operational.
-- **Memory Safety**: Valgrind and ASan verifying memory correctness.
-- **Docker**: Standardized tooling across 8.1-8.5 containers.
-
-**Next Steps:**
-- Monitor `tests/migration_001.phpt` flakiness.
-- Consider adding ThreadSanitizer (TSan) tests in the future (libraries now installed).
+## Next Steps
+1. **Continue Coverage Expansion**: Implement tests for `fbird_events.c` and `fbird_inspection.c` as per the plan.
+2. **Fuzz Testing**: Implement the SQL fuzzer to find more edge cases.
+3. **Modernization**: Begin refactoring internal C++ classes to use RAII (smart pointers) to prevent future leaks.

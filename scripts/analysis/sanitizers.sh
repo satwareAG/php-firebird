@@ -88,7 +88,9 @@ fi
 # Common sanitizer flags
 COMMON_FLAGS="-fno-omit-frame-pointer -g -O1"
 ASAN_FLAGS="-fsanitize=address,leak"
-UBSAN_FLAGS="-fsanitize=undefined,integer,nullability -fno-sanitize-recover=all"
+# GCC compatibility: remove nullability (Clang only) and integer (too broad/noisy or Clang specific)
+# We stick to standard undefined behavior checks which are supported by both GCC and Clang
+UBSAN_FLAGS="-fsanitize=undefined -fno-sanitize-recover=all"
 
 # Check if we are in the ASan container
 IS_ASAN_CONTAINER=false
@@ -97,14 +99,20 @@ if [ -n "$USE_ZEND_ALLOC" ] && [ "$USE_ZEND_ALLOC" -eq 0 ]; then
     echo -e "${YELLOW}Detected ASan container environment${NC}"
 fi
 
-run_asan_build() {
-    echo -e "\n${BLUE}>> Building with AddressSanitizer + LeakSanitizer...${NC}"
-
-    # Clean previous build
+# Safety cleanup function
+cleanup_build() {
     if [ -f Makefile ]; then
         make clean 2>/dev/null || true
         phpize --clean 2>/dev/null || true
     fi
+    # Force remove artifacts that might be owned by root if we are running as user
+    rm -rf modules/firebird.so .libs/ .deps/ build/ autom4te.cache/ 2>/dev/null || true
+}
+
+run_asan_build() {
+    echo -e "\n${BLUE}>> Building with AddressSanitizer + LeakSanitizer...${NC}"
+
+    cleanup_build
 
     phpize
 
@@ -124,11 +132,7 @@ run_asan_build() {
 run_ubsan_build() {
     echo -e "\n${BLUE}>> Building with UndefinedBehaviorSanitizer...${NC}"
 
-    # Clean previous build
-    if [ -f Makefile ]; then
-        make clean 2>/dev/null || true
-        phpize --clean 2>/dev/null || true
-    fi
+    cleanup_build
 
     phpize
 

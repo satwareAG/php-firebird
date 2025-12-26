@@ -1160,8 +1160,15 @@ PHP_FUNCTION(fbird_query)
 		RETURN_FALSE;
 	}
 
+	for (i = bind_start; i < argc; i++) {
+		Z_TRY_ADDREF(args[i]);
+	}
+
 	if (FAILURE == _php_fbird_exec(INTERNAL_FUNCTION_PARAM_PASSTHRU, ib_query, &args[bind_start], argc - bind_start)) {
 		zend_list_delete(ib_query->res);
+		for (i = bind_start; i < argc; i++) {
+			zval_ptr_dtor(&args[i]);
+		}
 		efree(args);
 		RETURN_FALSE;
 	}
@@ -1170,6 +1177,9 @@ PHP_FUNCTION(fbird_query)
 	    zend_list_delete(ib_query->res);
 	}
 
+	for (i = bind_start; i < argc; i++) {
+		zval_ptr_dtor(&args[i]);
+	}
 	efree(args);
 }
 /* }}} */
@@ -1310,11 +1320,21 @@ PHP_FUNCTION(fbird_execute)
 		RETURN_FALSE;
 	}
 
+	for (i = 1; i < argc; i++) {
+		Z_TRY_ADDREF(args[i]);
+	}
+
 	if (FAILURE == _php_fbird_exec(INTERNAL_FUNCTION_PARAM_PASSTHRU, ib_query, &args[1], argc - 1)) {
+		for (i = 1; i < argc; i++) {
+			zval_ptr_dtor(&args[i]);
+		}
 		efree(args);
 		RETURN_FALSE;
 	}
 
+	for (i = 1; i < argc; i++) {
+		zval_ptr_dtor(&args[i]);
+	}
 	efree(args);
 }
 /* }}} */

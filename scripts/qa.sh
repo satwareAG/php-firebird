@@ -196,6 +196,15 @@ cd "$DOCKER_DIR"
 echo -e "${BLUE}>> Starting container $CONTAINER...${NC}"
 docker compose up -d "$CONTAINER"
 
+# Pre-flight Cleanup: Ensure no root-owned artifacts from previous runs exist
+echo -e "${BLUE}>> Pre-flight cleanup (root)...${NC}"
+docker compose exec -T -u root "$CONTAINER" bash -c "
+    cd /ext
+    if [ -f Makefile ]; then make clean 2>/dev/null || true; fi
+    phpize --clean 2>/dev/null || true
+    rm -rf modules/firebird.so .libs/ .deps/ build/ autom4te.cache/ 2>/dev/null || true
+" 2>/dev/null || true
+
 # Install QA tools in container if missing
 echo -e "${BLUE}>> Ensuring QA tools in container...${NC}"
 docker compose exec -T -u root "$CONTAINER" bash -c "
@@ -273,6 +282,11 @@ if docker compose ps --services | grep -q "php83-asan"; then
     # Ensure it's running
     docker compose up -d php83-asan
     check_result "Phase 6" "AddressSanitizer" "docker compose exec -T php83-asan /ext/scripts/analysis/sanitizers.sh asan"
+    
+    # CLEANUP: ASan container runs as root, so we must clean up build artifacts as root
+    # to prevent permission errors in subsequent steps (like UBSan running as user)
+    echo -e "${BLUE}   Cleaning up ASan build artifacts (root)...${NC}"
+    docker compose exec -T -u root php83-asan bash -c "cd /ext && make clean 2>/dev/null || true && phpize --clean 2>/dev/null || true && rm -rf modules/firebird.so .libs/ .deps/ build/ autom4te.cache/"
 else
     echo -e "${YELLOW}⚠ Dedicated ASan container not found, skipping ASan (requires custom build)${NC}"
 fi

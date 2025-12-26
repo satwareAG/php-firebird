@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Memory Leaks (ASan)**: Fixed memory leaks in transaction handling (`fbt_start` wrapper) by ensuring `fbt_free()` is called during commit/rollback and resource cleanup. Verified with AddressSanitizer.
 - **Segmentation Fault (PHP 8.5 + Firebird 5.0)**: Resolved segfault in `fbird_fetch_date_obj_001` caused by uninitialized memory in date object hydration (commit 92589e4)
 - **CI/CD Infrastructure**:
   - Complete overhaul of GitHub Actions workflows using Docker service containers (replaced IBSurgeon scripts)

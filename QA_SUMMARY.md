@@ -20,7 +20,23 @@
 - ✅ ASan Build & Tests: PASSED
 - ✅ UBSan Build & Tests: PASSED
 
-### 2. Cppcheck Analysis
+### 2. Memory Leaks (ASan)
+
+**Issue:**
+- ASan detected memory leaks in `fbt_start` (transaction wrapper allocation) in `firebird_utils.cpp`.
+- The wrapper was not being deleted when transactions were committed/rolled back or when resources were destroyed.
+
+**Fix:**
+- Modified `firebird.c` to explicitly call `fbt_free()` (which deletes the wrapper) in:
+  - `_php_fbird_commit_link` (default and non-default transactions)
+  - `_php_fbird_free_trans` (resource destructor)
+  - `_php_fbird_trans_end` (explicit commit/rollback)
+- Updated `tests/sanitizer/blob_operations.php` to use explicit transactions for DDL to prevent test crashes.
+
+**Result:**
+- ✅ All ASan tests passed with NO leaks.
+
+### 3. Cppcheck Analysis
 
 **Issue:**
 - Cppcheck script failed with `Undefined constant "PHP_API_VERSION"` error.
@@ -31,7 +47,7 @@
 **Result:**
 - ✅ Cppcheck: PASSED
 
-### 3. Unit Tests
+### 4. Unit Tests
 
 **Status:**
 - Most tests pass (127/131).

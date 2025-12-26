@@ -809,20 +809,24 @@ static void _php_fbird_commit_link(fbird_db_link *link) /* {{{ */
 				/* Default transaction: commit via OO API */
 				if (p->trans->fbt_transaction != NULL) {
 					FBDEBUG("Committing default transaction via OO API...");
-					if (fbt_commit(p->trans->fbt_transaction, IB_STATUS)) {
+					int res = fbt_commit(p->trans->fbt_transaction, IB_STATUS);
+					fbt_free(p->trans->fbt_transaction);
+					p->trans->fbt_transaction = NULL;
+					if (res) {
 						_php_fbird_error();
 					}
-					p->trans->fbt_transaction = NULL;
 				}
 				efree(p->trans); /* default transaction is not a registered resource: clean up */
 			} else {
 				/* Non-default transaction: rollback via OO API */
 				if (p->trans->fbt_transaction != NULL) {
 					FBDEBUG("Rolling back other transaction via OO API...");
-					if (fbt_rollback(p->trans->fbt_transaction, IB_STATUS)) {
+					int res = fbt_rollback(p->trans->fbt_transaction, IB_STATUS);
+					fbt_free(p->trans->fbt_transaction);
+					p->trans->fbt_transaction = NULL;
+					if (res) {
 						_php_fbird_error();
 					}
-					p->trans->fbt_transaction = NULL;
 				}
 				/* set this link pointer to NULL in the transaction */
 				for (j = 0; j < p->trans->link_cnt; ++j) {
@@ -941,11 +945,13 @@ static void _php_fbird_free_trans(zend_resource *rsrc) /* {{{ */
 	/* OO API Only: All transactions use fbt_rollback() */
 	if (trans->fbt_transaction != NULL) {
 		FBDEBUG("Rolling back unhandled OO API transaction...");
-		if (fbt_rollback(trans->fbt_transaction, IB_STATUS)) {
-			_php_fbird_error();
-		}
+		int res = fbt_rollback(trans->fbt_transaction, IB_STATUS);
+		fbt_free(trans->fbt_transaction);
 		trans->fbt_transaction = NULL;
 		trans->handle.ptr = 0;
+		if (res) {
+			_php_fbird_error();
+		}
 	}
 
 	/* now remove this transaction from all the connection-transaction lists */
@@ -2668,6 +2674,7 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit) /* {{
 	 * Fixes: #9, #10 - SIGSEGV due to use-after-free of transaction wrapper
 	 */
 	if ((commit & RETAIN) == 0) {
+		fbt_free(trans->fbt_transaction);
 		trans->fbt_transaction = NULL;
 		trans->handle.ptr = 0;
 	}

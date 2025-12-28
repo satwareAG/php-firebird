@@ -101,42 +101,83 @@ if ($url.EndsWith(".exe")) {
     New-Item -ItemType Directory -Force -Path "$DestinationPath\lib" | Out-Null
     New-Item -ItemType Directory -Force -Path "$DestinationPath\bin" | Out-Null
     
-    # Find and copy SDK structure - handle nested directories
-    $extractedDirInfo = Get-ChildItem "$DestinationPath\extracted" -Directory | Select-Object -First 1
-    if ($extractedDirInfo) {
-        $extractedDir = $extractedDirInfo.FullName
-        Write-Host "Found extracted directory: $extractedDir"
+    # Firebird ZIPs can have two structures:
+    # 1. Flat: extracted/include/ibase.h (FB 4.0, 5.0 ZIPs)
+    # 2. Nested: extracted/Firebird-X.Y.Z/sdk/include/ibase.h (some older archives)
+    
+    $extractedBase = "$DestinationPath\extracted"
+    
+    # Debug: list top-level contents
+    Write-Host "Contents of extracted folder:"
+    Get-ChildItem $extractedBase | ForEach-Object { Write-Host "  $($_.Name)" }
+    
+    # Check for flat structure first (headers directly in extracted/include)
+    if (Test-Path "$extractedBase\include\ibase.h") {
+        Write-Host "Found flat structure (include/ at root)"
+        Copy-Item "$extractedBase\include\*" -Destination "$DestinationPath\include\" -Recurse -Force
+        if (Test-Path "$extractedBase\lib") {
+            Copy-Item "$extractedBase\lib\*" -Destination "$DestinationPath\lib\" -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        if (Test-Path "$extractedBase\bin") {
+            Copy-Item "$extractedBase\bin\*" -Destination "$DestinationPath\bin\" -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        # Copy fbclient.dll from root if exists
+        if (Test-Path "$extractedBase\fbclient.dll") {
+            Copy-Item "$extractedBase\fbclient.dll" -Destination "$DestinationPath\bin\" -Force
+        }
+    }
+    # Check for flat structure with sdk subdirectory
+    elseif (Test-Path "$extractedBase\sdk\include\ibase.h") {
+        Write-Host "Found flat structure with sdk/ subdirectory"
+        Copy-Item "$extractedBase\sdk\include\*" -Destination "$DestinationPath\include\" -Recurse -Force
+        Copy-Item "$extractedBase\sdk\lib\*" -Destination "$DestinationPath\lib\" -Recurse -Force -ErrorAction SilentlyContinue
+        # Copy fbclient.dll from root
+        if (Test-Path "$extractedBase\fbclient.dll") {
+            Copy-Item "$extractedBase\fbclient.dll" -Destination "$DestinationPath\bin\" -Force
+        }
+    }
+    # Check for nested structure (named directory containing install)
+    else {
+        $extractedDirInfo = Get-ChildItem $extractedBase -Directory | Where-Object { $_.Name -like "Firebird*" } | Select-Object -First 1
+        if (-not $extractedDirInfo) {
+            $extractedDirInfo = Get-ChildItem $extractedBase -Directory | Select-Object -First 1
+        }
         
-        # Debug: list contents
-        Write-Host "Contents of extracted directory:"
-        Get-ChildItem $extractedDir | ForEach-Object { Write-Host "  $($_.Name)" }
-        
-        # Check if SDK is in root or nested
-        if (Test-Path "$extractedDir\include\ibase.h") {
-            Write-Host "Found SDK at root level"
-            Copy-Item "$extractedDir\include\*" -Destination "$DestinationPath\include\" -Recurse -Force
-            Copy-Item "$extractedDir\lib\*" -Destination "$DestinationPath\lib\" -Recurse -Force -ErrorAction SilentlyContinue
-            if (Test-Path "$extractedDir\bin") {
-                Copy-Item "$extractedDir\bin\*" -Destination "$DestinationPath\bin\" -Recurse -Force -ErrorAction SilentlyContinue
+        if ($extractedDirInfo) {
+            $extractedDir = $extractedDirInfo.FullName
+            Write-Host "Checking nested directory: $extractedDir"
+            
+            if (Test-Path "$extractedDir\include\ibase.h") {
+                Write-Host "Found SDK at nested root level"
+                Copy-Item "$extractedDir\include\*" -Destination "$DestinationPath\include\" -Recurse -Force
+                Copy-Item "$extractedDir\lib\*" -Destination "$DestinationPath\lib\" -Recurse -Force -ErrorAction SilentlyContinue
+                if (Test-Path "$extractedDir\fbclient.dll") {
+                    Copy-Item "$extractedDir\fbclient.dll" -Destination "$DestinationPath\bin\" -Force
+                }
+            } elseif (Test-Path "$extractedDir\sdk\include\ibase.h") {
+                Write-Host "Found SDK in nested sdk\ subdirectory"
+                Copy-Item "$extractedDir\sdk\include\*" -Destination "$DestinationPath\include\" -Recurse -Force
+                Copy-Item "$extractedDir\sdk\lib\*" -Destination "$DestinationPath\lib\" -Recurse -Force -ErrorAction SilentlyContinue
+                if (Test-Path "$extractedDir\fbclient.dll") {
+                    Copy-Item "$extractedDir\fbclient.dll" -Destination "$DestinationPath\bin\" -Force
+                }
             }
-            # Copy fbclient.dll from root if exists
-            if (Test-Path "$extractedDir\fbclient.dll") {
-                Copy-Item "$extractedDir\fbclient.dll" -Destination "$DestinationPath\bin\" -Force
-            }
-        } elseif (Test-Path "$extractedDir\sdk\include\ibase.h") {
-            # FB 3.0/4.0/5.0 structure with sdk subdirectory
-            Write-Host "Found SDK in sdk\ subdirectory"
-            Copy-Item "$extractedDir\sdk\include\*" -Destination "$DestinationPath\include\" -Recurse -Force
-            Copy-Item "$extractedDir\sdk\lib\*" -Destination "$DestinationPath\lib\" -Recurse -Force -ErrorAction SilentlyContinue
-            # Also copy fbclient.dll from root
-            if (Test-Path "$extractedDir\fbclient.dll") {
-                Copy-Item "$extractedDir\fbclient.dll" -Destination "$DestinationPath\bin\" -Force
-            }
-        } else {
-            Write-Host "WARNING: Could not find SDK structure"
-            Write-Host "Searching for ibase.h..."
-            Get-ChildItem "$DestinationPath\extracted" -Recurse -Filter "ibase.h" | ForEach-Object { 
-                Write-Host "  Found: $($_.FullName)" 
+        }
+    }
+    
+    # Final fallback: search for ibase.h and copy from found location
+    if (-not (Test-Path "$DestinationPath\include\ibase.h")) {
+        Write-Host "Fallback: searching for ibase.h..."
+        $ibaseFile = Get-ChildItem $extractedBase -Recurse -Filter "ibase.h" | Select-Object -First 1
+        if ($ibaseFile) {
+            $includeDir = $ibaseFile.Directory.FullName
+            Write-Host "Found ibase.h at: $includeDir"
+            Copy-Item "$includeDir\*" -Destination "$DestinationPath\include\" -Recurse -Force
+            
+            # Try to find lib directory nearby
+            $parentDir = Split-Path $includeDir -Parent
+            if (Test-Path "$parentDir\lib") {
+                Copy-Item "$parentDir\lib\*" -Destination "$DestinationPath\lib\" -Recurse -Force -ErrorAction SilentlyContinue
             }
         }
     }

@@ -242,40 +242,54 @@ echo "✅ AddressSanitizer testing completed"
 
 ### 3.2 Valgrind Integration
 
-**Valgrind testing script:**
+**Best Practices for PHP Extension Testing (2024-2025):**
+
+1. `USE_ZEND_ALLOC=0` - Disable Zend's memory manager so Valgrind sees real malloc/free
+2. `ZEND_DONT_UNLOAD_MODULES=1` - Keep extension loaded for proper symbol resolution
+3. Use suppression file for known PHP/Firebird client library false positives
+4. Look for `definite` and `indirect` leaks (not just `reachable`)
+5. Use `--track-origins=yes` for better diagnostics
+
+**Valgrind testing script (simplified example - see `scripts/analysis/valgrind.sh` for full version):**
 
 ```bash
 #!/bin/bash
-# scripts/analysis/valgrind.sh
-
+# Example valgrind testing for PHP extensions
 set -e
 
-# Environment variables for better Valgrind analysis
-export ZEND_DONT_UNLOAD_MODULES=1  # Keep modules loaded for stack traces
-export USE_ZEND_ALLOC=0            # Disable Zend allocator for precise tracking
+# CRITICAL: Environment variables for PHP extension Valgrind testing
+export USE_ZEND_ALLOC=0             # Disable Zend allocator for precise tracking
+export ZEND_DONT_UNLOAD_MODULES=1   # Keep modules loaded for stack traces
 
 echo "Running Valgrind memory analysis..."
 
-# Valgrind options for PHP extension testing
+# Valgrind options optimized for PHP extensions
 VALGRIND_OPTS="
-    --tool=memcheck 
-    --leak-check=full 
-    --show-leak-kinds=all 
-    --track-origins=yes 
-    --verbose
+    --tool=memcheck
+    --leak-check=full
+    --show-leak-kinds=definite,indirect,possible
+    --track-origins=yes
     --error-exitcode=1
+    --errors-for-leak-kinds=definite,indirect
     --suppressions=valgrind-php.supp"
 
-# Run simple extension load test
+# Run extension load test
 valgrind $VALGRIND_OPTS php -d extension=./modules/firebird.so -r "echo 'Extension loaded';"
 
 echo "✅ Valgrind analysis completed"
 ```
 
+> **Note:** The full `scripts/analysis/valgrind.sh` includes multiple test modes (--quick, --full, --tests),
+> automatic extension/suppression file detection, and comprehensive function coverage testing.
+
 **Valgrind suppressions file (`valgrind-php.supp`):**
 
 ```ini
-# valgrind-php.supp - Suppress known PHP internal allocations
+# valgrind-php.supp - Suppress known PHP/Firebird internal allocations
+#
+# NOTE: Only suppress 'reachable' leaks (false positives from PHP/Firebird internals).
+# We look for 'definite' and 'indirect' leaks which are actual issues.
+
 {
    php_module_startup
    Memcheck:Leak
@@ -297,9 +311,13 @@ echo "✅ Valgrind analysis completed"
 To generate a new baseline of suppressions (e.g., after a PHP version upgrade):
 
 ```bash
+# Set required environment variables
+export USE_ZEND_ALLOC=0
+export ZEND_DONT_UNLOAD_MODULES=1
+
 valgrind --leak-check=full --gen-suppressions=all \
     php -d extension=./modules/firebird.so -r "echo 'Baseline';" \
-    > valgrind-baseline.log
+    > valgrind-baseline.log 2>&1
 ```
 
 ## 4. CI/CD Pipeline Integration
@@ -370,14 +388,19 @@ address-sanitizer:
 valgrind:
   stage: memory-safety
   image: ubuntu:22.04
+  variables:
+    # CRITICAL: Required for accurate PHP extension memory analysis
+    USE_ZEND_ALLOC: '0'              # Disable Zend allocator for precise tracking
+    ZEND_DONT_UNLOAD_MODULES: '1'    # Keep modules loaded for stack traces
   before_script:
     - apt-get update -qq
     - apt-get install -y valgrind php8.1-dev libfirebird-dev
   script:
-    - ./scripts/test_with_valgrind.sh
+    - ./scripts/analysis/valgrind.sh --full
   artifacts:
     paths:
-      - valgrind-report.log
+      - valgrind-*.log
+    when: always
   allow_failure: true  # Advisory only
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"  # Nightly only
@@ -811,7 +834,7 @@ asan-test:
 
 valgrind-test:
 	@echo "Running Valgrind analysis..."
-	./scripts/test_with_valgrind.sh
+	./scripts/analysis/valgrind.sh --quick
 
 # Quality gate - runs all checks
 quality-gate: static-analysis asan-test

@@ -240,17 +240,29 @@ UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1"
 
 ### Valgrind
 
+**Best Practices (2024-2025):**
+
+1. `USE_ZEND_ALLOC=0` - Disable Zend's memory manager so Valgrind sees real malloc/free
+2. `ZEND_DONT_UNLOAD_MODULES=1` - Keep modules loaded for proper symbol resolution
+3. Use suppression file for known PHP/Firebird false positives
+4. Look for `definite` and `indirect` leaks (not just `reachable`)
+5. Use `--track-origins=yes` for better diagnostics
+
 **Options:**
 ```bash
-valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all \
-         --track-origins=yes --error-exitcode=1 \
+valgrind --tool=memcheck \
+         --leak-check=full \
+         --show-leak-kinds=definite,indirect,possible \
+         --track-origins=yes \
+         --error-exitcode=1 \
+         --errors-for-leak-kinds=definite,indirect \
          --suppressions=valgrind-php.supp
 ```
 
-**Environment:**
+**Environment (CRITICAL):**
 ```bash
-ZEND_DONT_UNLOAD_MODULES=1  # Keep modules for symbolization
-USE_ZEND_ALLOC=0            # Use system allocator
+export USE_ZEND_ALLOC=0             # Disable Zend allocator for precise tracking
+export ZEND_DONT_UNLOAD_MODULES=1   # Keep modules loaded for stack traces
 ```
 
 ## Fuzzing

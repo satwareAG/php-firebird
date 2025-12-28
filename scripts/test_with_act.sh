@@ -8,7 +8,7 @@
 #   --qa           Run code quality checks (PHPStan, PHPCS, clang-tidy, cppcheck)
 #   --matrix       Run PHP/Firebird compatibility matrix via local Docker
 #   --coverage     Run tests with code coverage (mirrors coverage.yml)
-#   --sanitizers   Run Valgrind memory tests (ASan removed due to PHP compatibility)
+#   --sanitizers   Run memory sanitizers (ASan/UBSan with workarounds, or Valgrind via qa.sh)
 #   --full         Run complete CI simulation (QA + Matrix + Coverage)
 #   --syntax       Validate workflow YAML syntax only (requires act)
 #   act [workflow] Run GitHub Actions workflows locally via act
@@ -778,14 +778,15 @@ run_coverage_mode() {
 
 run_sanitizers_mode() {
     echo -e "\n${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║       Memory Testing with Valgrind                           ║${NC}"
+    echo -e "${BLUE}║       Memory Testing with ASan/UBSan                         ║${NC}"
     echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
 
     local sanitizers_failed=0
     cd "$PROJECT_ROOT"
 
-    echo -e "${CYAN}>> Running Valgrind memory tests...${NC}"
-    echo -e "${YELLOW}Note: Using Valgrind (ASan removed due to PHP RTLD_DEEPBIND conflicts)${NC}"
+    echo -e "${CYAN}>> Running ASan + UBSan memory sanitizers...${NC}"
+    echo -e "${YELLOW}Note: Uses GCC sanitizers with libasan preload workaround for PHP${NC}"
+    echo -e "${YELLOW}For Valgrind testing, use: ./scripts/qa.sh --mode full${NC}"
 
     local container="php83-dev"
 

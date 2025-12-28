@@ -102,8 +102,8 @@ echo "Test complete\n";
 ?>
 --EXPECTF--
 Number of columns: 2
-Key: [COL] (length=%d)
-Key: [COL_01] (length=%d)
+Key: [COL] (length=3)
+Key: [COL_01] (length=6)
 OK: Deduplication suffix found
 SUCCESS: All keys are properly trimmed
 OK: Key 'COL' accessible

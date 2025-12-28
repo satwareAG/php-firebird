@@ -159,14 +159,18 @@ jobs:
             find /tmp/fb -name "libfbclient.so*" -exec cp -a {} /opt/firebird/lib/ \;
           fi
           
-          # Copy headers from buildroot path
-          if [ -f /tmp/fb/opt/firebird/include/ibase.h ]; then
+          # Copy headers from buildroot path (preserve directory structure for nested includes)
+          if [ -d /tmp/fb/opt/firebird/include ]; then
             echo "Found headers in buildroot structure"
-            cp /tmp/fb/opt/firebird/include/ibase.h /opt/firebird/include/
-            cp /tmp/fb/opt/firebird/include/firebird/*.h /opt/firebird/include/firebird/ 2>/dev/null || true
+            cp -r /tmp/fb/opt/firebird/include/* /opt/firebird/include/
           else
             # Fallback: search for headers
             find /tmp/fb -name "ibase.h" -exec cp {} /opt/firebird/include/ \;
+          fi
+          
+          # Also add include/firebird to include path via symlink for nested headers
+          if [ -d /opt/firebird/include/firebird ]; then
+            ln -sf /opt/firebird/include/firebird/impl /opt/firebird/include/impl 2>/dev/null || true
           fi
           
           # Create symlinks

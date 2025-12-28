@@ -14,12 +14,11 @@ skip_if_fb_lt(4.0);
  * Firebird 3.0+ may return CHAR-type column aliases with trailing space padding.
  * The extension must trim these before deduplication to ensure consistent keys.
  *
- * This test queries system tables that produce duplicate column names, verifying:
- * 1. Array keys are properly trimmed (no trailing spaces)
- * 2. Deduplication suffixes (_01, _02) are appended to trimmed names
+ * This test uses a deterministic CTE query to produce duplicate column names,
+ * avoiding reliance on system table content which varies by Firebird version.
  *
- * Expected: "RDB$FIELD_NAME", "RDB$FIELD_NAME_01"
- * Bug behavior: "RDB$FIELD_NAME   ", "RDB$FIELD_NAME   _01"
+ * Expected: "COL", "COL_01"
+ * Bug behavior: "COL   ", "COL   _01" (trailing spaces before suffix)
  */
 
 require_once('config.inc');
@@ -30,10 +29,11 @@ if (!$db) {
     die("Could not connect to database\n");
 }
 
-// Query that produces duplicate column names (F.RDB$FIELD_NAME and RF.RDB$FIELD_NAME)
-$sql = "SELECT FIRST 1 F.RDB\$FIELD_NAME, RF.RDB\$FIELD_NAME
-        FROM RDB\$FIELDS F
-        JOIN RDB\$RELATION_FIELDS RF ON RF.RDB\$FIELD_SOURCE = F.RDB\$FIELD_NAME";
+// Deterministic CTE query that produces duplicate column names
+// Using subqueries with the same alias guarantees duplicates
+$sql = "WITH T1 AS (SELECT 1 AS COL FROM RDB\$DATABASE),
+             T2 AS (SELECT 2 AS COL FROM RDB\$DATABASE)
+        SELECT T1.COL, T2.COL FROM T1, T2";
 
 $result = fbird_query($db, $sql);
 if (!$result) {
@@ -72,7 +72,7 @@ foreach ($keys as $key) {
 if ($has_dedup_suffix) {
     echo "OK: Deduplication suffix found\n";
 } else {
-    echo "INFO: No deduplication needed (columns might have different names)\n";
+    echo "FAIL: No deduplication suffix found (expected COL_01)\n";
 }
 
 // Overall result
@@ -83,10 +83,17 @@ if (!$has_trailing_spaces) {
 }
 
 // Verify we can access keys without trailing spaces
-if (isset($row['RDB$FIELD_NAME'])) {
-    echo "OK: Key 'RDB\$FIELD_NAME' accessible\n";
+if (isset($row['COL'])) {
+    echo "OK: Key 'COL' accessible\n";
 } else {
-    echo "FAIL: Key 'RDB\$FIELD_NAME' not found (might be padded)\n";
+    echo "FAIL: Key 'COL' not found (might be padded)\n";
+}
+
+// Verify deduplication key is correct
+if (isset($row['COL_01'])) {
+    echo "OK: Key 'COL_01' accessible\n";
+} else {
+    echo "INFO: Key 'COL_01' not directly accessible\n";
 }
 
 fbird_free_result($result);
@@ -95,9 +102,10 @@ echo "Test complete\n";
 ?>
 --EXPECTF--
 Number of columns: 2
-Key: [RDB$FIELD_NAME] (length=%d)
-Key: [RDB$FIELD_NAME_01] (length=%d)
+Key: [COL] (length=%d)
+Key: [COL_01] (length=%d)
 OK: Deduplication suffix found
 SUCCESS: All keys are properly trimmed
-OK: Key 'RDB$FIELD_NAME' accessible
+OK: Key 'COL' accessible
+OK: Key 'COL_01' accessible
 Test complete

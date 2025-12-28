@@ -246,6 +246,13 @@ jobs:
 
           export LD_LIBRARY_PATH="/opt/firebird-client/lib:/usr/local/lib:/usr/lib:${LD_LIBRARY_PATH:-}"
 
+          # Preload ASan runtime - required because extension is compiled with ASan but PHP isn't
+          ASAN_LIB=$(find /usr/lib -name "libasan.so.*" -type f 2>/dev/null | head -1)
+          if [ -n "$ASAN_LIB" ]; then
+            export LD_PRELOAD="$ASAN_LIB"
+            echo "Preloading ASan runtime: $ASAN_LIB"
+          fi
+
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
 
           echo "=== Testing extension loading ==="
@@ -298,6 +305,13 @@ jobs:
           set -eu
 
           export LD_LIBRARY_PATH="/opt/firebird-client/lib:${LD_LIBRARY_PATH:-}"
+
+          # Preload ASan runtime - required because extension is compiled with ASan but PHP isn't
+          ASAN_LIB=$(find /usr/lib -name "libasan.so.*" -type f 2>/dev/null | head -1)
+          if [ -n "$ASAN_LIB" ]; then
+            export LD_PRELOAD="$ASAN_LIB"
+            echo "Preloading ASan runtime: $ASAN_LIB"
+          fi
 
           echo "=== Running tests with AddressSanitizer + UBSan ==="
 
@@ -558,6 +572,13 @@ jobs:
 
           export LD_LIBRARY_PATH="/opt/firebird-client/lib:/usr/local/lib:/usr/lib:${LD_LIBRARY_PATH:-}"
 
+          # Preload LSan runtime - required because extension is compiled with LSan but PHP isn't
+          LSAN_LIB=$(find /usr/lib -name "liblsan.so.*" -type f 2>/dev/null | head -1)
+          if [ -n "$LSAN_LIB" ]; then
+            export LD_PRELOAD="$LSAN_LIB"
+            echo "Preloading LSan runtime: $LSAN_LIB"
+          fi
+
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
 
           echo "=== Testing extension loading ==="
@@ -609,6 +630,13 @@ jobs:
           set -eu
 
           export LD_LIBRARY_PATH="/opt/firebird-client/lib:${LD_LIBRARY_PATH:-}"
+
+          # Preload LSan runtime - required because extension is compiled with LSan but PHP isn't
+          LSAN_LIB=$(find /usr/lib -name "liblsan.so.*" -type f 2>/dev/null | head -1)
+          if [ -n "$LSAN_LIB" ]; then
+            export LD_PRELOAD="$LSAN_LIB"
+            echo "Preloading LSan runtime: $LSAN_LIB"
+          fi
 
           echo "=== Running tests with LeakSanitizer ==="
 

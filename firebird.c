@@ -885,18 +885,36 @@ static void _php_fbird_close_link(zend_resource *rsrc) /* {{{ */
 	fbird_db_link *link = (fbird_db_link *) rsrc->ptr;
 
 #ifndef PHP_WIN32
-	/* Fork-safety check (Issue #22): Skip cleanup if we're in a forked child.
+	/* Fork-safety check (Issue #22, #36): Skip cleanup if we're in a forked child.
 	 * After pcntl_fork(), child inherits global state including master_instance
 	 * and connection handles. Attempting to close handles in child that were
 	 * created in parent causes segfault. Only the original process should
-	 * perform cleanup operations. */
-	if (IBG(init_pid) != 0 && getpid() != IBG(init_pid)) {
-		FBDEBUG("Skipping link cleanup in forked child process");
+	 * perform cleanup operations.
+	 *
+	 * Two-level check:
+	 * 1. Global init_pid - module-level fork detection
+	 * 2. Per-connection created_pid - connection-level fork detection */
+	pid_t current_pid = getpid();
+	if (IBG(init_pid) != 0 && current_pid != IBG(init_pid)) {
+		FBDEBUG("Skipping link cleanup in forked child process (global)");
+		IBG(num_links)--;
+		efree(link);
+		return;
+	}
+	if (link->created_pid != 0 && current_pid != link->created_pid) {
+		FBDEBUG("Skipping link cleanup in forked child process (per-connection)");
 		IBG(num_links)--;
 		efree(link);
 		return;
 	}
 #endif
+
+	/* Remove cache entry from EG(regular_list) to prevent UAF (Issue #35).
+	 * The cache uses a 16-byte MD5 hash as the string key. */
+	if (link->hash_key[0] != '\0' || memcmp(link->hash_key, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16) != 0) {
+		zend_hash_str_del(&EG(regular_list), link->hash_key, sizeof(link->hash_key) - 1);
+		FBDEBUG("Removed cache entry for normal link");
+	}
 
 	_php_fbird_commit_link(link);
 
@@ -917,15 +935,32 @@ static void _php_fbird_close_plink(zend_resource *rsrc) /* {{{ */
 	fbird_db_link *link = (fbird_db_link *) rsrc->ptr;
 
 #ifndef PHP_WIN32
-	/* Fork-safety check (Issue #22): Skip cleanup if we're in a forked child */
-	if (IBG(init_pid) != 0 && getpid() != IBG(init_pid)) {
-		FBDEBUG("Skipping persistent link cleanup in forked child process");
+	/* Fork-safety check (Issue #22, #36): Skip cleanup if we're in a forked child.
+	 * Two-level check for both module-level and connection-level fork detection. */
+	pid_t current_pid = getpid();
+	if (IBG(init_pid) != 0 && current_pid != IBG(init_pid)) {
+		FBDEBUG("Skipping persistent link cleanup in forked child process (global)");
+		IBG(num_persistent)--;
+		IBG(num_links)--;
+		free(link);
+		return;
+	}
+	if (link->created_pid != 0 && current_pid != link->created_pid) {
+		FBDEBUG("Skipping persistent link cleanup in forked child process (per-connection)");
 		IBG(num_persistent)--;
 		IBG(num_links)--;
 		free(link);
 		return;
 	}
 #endif
+
+	/* Remove cache entries from both regular and persistent lists (Issue #35).
+	 * Persistent connections are cached in EG(persistent_list) with hash key. */
+	if (link->hash_key[0] != '\0' || memcmp(link->hash_key, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16) != 0) {
+		zend_hash_str_del(&EG(regular_list), link->hash_key, sizeof(link->hash_key) - 1);
+		zend_hash_str_del(&EG(persistent_list), link->hash_key, sizeof(link->hash_key) - 1);
+		FBDEBUG("Removed cache entries for persistent link");
+	}
 
 	_php_fbird_commit_link(link);
 
@@ -1514,6 +1549,16 @@ static void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent) /* 
 
 		ib_link->fbc_connection = (void *)(uintptr_t)IBG(status[ISC_STATUS_LENGTH - 1]);
 		IBG(status[ISC_STATUS_LENGTH - 1]) = 0;  /* Clear the temporary storage */
+
+		/* Store hash key for cache invalidation on close (Issue #35) */
+		memcpy(ib_link->hash_key, hash, sizeof(hash));
+
+		/* Store creation PID for fork-safety detection (Issue #36) */
+#ifndef PHP_WIN32
+		ib_link->created_pid = getpid();
+#else
+		ib_link->created_pid = 0;
+#endif
 
 		++IBG(num_links);
 	} while (0);

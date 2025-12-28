@@ -111,6 +111,13 @@ typedef struct {
 	 * When non-NULL, this connection was created via the modern OO API.
 	 * The handle.ptr may be NULL in this case - use fbc_get_attachment() instead. */
 	void *fbc_connection;
+	/* Hash key for connection cache lookup (16-byte MD5).
+	 * Used by fbird_close to remove stale cache entries from EG(regular_list).
+	 * Fixes: Issue #35 - Heap Use-After-Free in fbird_pconnect */
+	char hash_key[16];
+	/* PID at connection creation for fork-safety validation.
+	 * Fixes: Issue #36 - UAF with pcntl_fork/PHPStan parallel mode */
+	pid_t created_pid;
 } fbird_db_link;
 
 typedef struct {

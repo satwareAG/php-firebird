@@ -5,6 +5,22 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-rc.13] - 2025-12-28
+
+### Fixed
+
+- **Issue #35 (Heap Use-After-Free in fbird_pconnect)**: Fixed dangling pointer vulnerability when reusing persistent connections
+  - Added `hash_key[16]` field to `fbird_db_link` struct to store MD5 connection cache key
+  - `_php_fbird_close_link()` and `_php_fbird_close_plink()` now remove cache entry from `EG(regular_list)` before freeing connection
+  - Prevents cache lookup from returning freed memory address on subsequent `fbird_pconnect()` calls
+  - Verified by ASan testing with no UAF detected
+
+- **Issue #36 (Use-After-Free with pcntl_fork/PHPStan parallel mode)**: Enhanced fork-safety detection for connection resources
+  - Added `created_pid` field to `fbird_db_link` struct for per-connection fork detection (in addition to existing global `init_pid`)
+  - Two-level fork-safety check: Both module-level and connection-level PID validation
+  - Child processes now skip cleanup of inherited parent connections, preventing segfault during RSHUTDOWN
+  - Fixes compatibility with PHPStan parallel mode, PHPUnit parallel runner, and other pcntl_fork-based tools
+
 ## [7.0.0-rc.12] - 2025-12-28
 
 ### Added
@@ -401,7 +417,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.12...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.13...HEAD
+[7.0.0-rc.13]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.12...v7.0.0-rc.13
 [7.0.0-rc.12]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.11...v7.0.0-rc.12
 [7.0.0-rc.11]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.10...v7.0.0-rc.11
 [7.0.0-rc.10]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.9...v7.0.0-rc.10

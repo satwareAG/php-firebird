@@ -4,7 +4,7 @@ class BlobOps {
     public static function createBlob(FuzzHarness $h): Closure {
         return function() use ($h) {
             $trans = $h->getRandomTransaction();
-            if ($trans) {
+            if ($trans && is_resource($trans)) {
                 $blob = fbird_blob_create($trans);
                 if ($blob) {
                     fbird_blob_add($blob, "Initial data");
@@ -19,7 +19,7 @@ class BlobOps {
     public static function streamBlob(FuzzHarness $h): Closure {
         return function() use ($h) {
             $trans = $h->getRandomTransaction();
-            if ($trans) {
+            if ($trans && is_resource($trans)) {
                 $blob = fbird_blob_create($trans);
                 if ($blob) {
                     // Write in small chunks
@@ -35,7 +35,7 @@ class BlobOps {
     public static function largeBlob(FuzzHarness $h): Closure {
         return function() use ($h) {
             $trans = $h->getRandomTransaction();
-            if ($trans) {
+            if ($trans && is_resource($trans)) {
                 $blob = fbird_blob_create($trans);
                 if ($blob) {
                     // Write larger chunk
@@ -50,7 +50,7 @@ class BlobOps {
         return function() use ($h) {
             // This is a known edge case: accessing BLOB after commit
             $trans = $h->getRandomTransaction();
-            if ($trans) {
+            if ($trans && is_resource($trans)) {
                 $blob = fbird_blob_create($trans);
                 if ($blob) {
                     fbird_blob_add($blob, "Data");

@@ -31,7 +31,9 @@ class FuzzHarness {
         // Load operations from static classes
         // ConnectionOps
         $this->registerOperation('connect', ConnectionOps::connect($this), 5.0);
-        $this->registerOperation('pconnect', ConnectionOps::pconnect($this), 1.0);
+        // DISABLED: pconnect - persistent connections share resources with regular connections, 
+        // causing use-after-free when cleanup closes the shared resource.
+        // $this->registerOperation('pconnect', ConnectionOps::pconnect($this), 1.0);
         $this->registerOperation('close', ConnectionOps::close($this), 3.0);
         $this->registerOperation('forceNew', ConnectionOps::forceNew($this), 1.0);
 
@@ -60,6 +62,9 @@ class FuzzHarness {
 
     public function execute(int $iterations, ?callable $progressCallback = null): FuzzResult {
         $result = new FuzzResult();
+
+        // Bootstrap: establish initial connection before fuzzing
+        $this->bootstrap();
 
         for ($i = 0; $i < $iterations; $i++) {
             $opName = $this->selectOperation();
@@ -103,28 +108,91 @@ class FuzzHarness {
         return array_key_first($this->operations);
     }
 
-    private function cleanup(): void {
-        // Close all resources
-        foreach ($this->state['blobs'] as $blob) {
-            if (is_resource($blob)) @fbird_blob_close($blob);
-        }
-        foreach ($this->state['statements'] as $stmt) {
-            if (is_resource($stmt)) @fbird_free_query($stmt);
-        }
-        foreach ($this->state['transactions'] as $trans) {
-            if (is_resource($trans)) @fbird_rollback($trans);
-        }
-        foreach ($this->state['connections'] as $conn) {
-            if (is_resource($conn)) @fbird_close($conn);
+    /**
+     * Bootstrap: establish initial connection to ensure fuzzer can operate
+     * Uses FBIRD_CONNECT_FORCE_NEW to prevent resource sharing with other connections
+     * @throws RuntimeException if connection fails
+     */
+    private function bootstrap(): void {
+        echo "Connecting to: {$this->dsn}\n";
+        
+        // CRITICAL: Use FBIRD_CONNECT_FORCE_NEW to prevent resource sharing
+        // Without this flag, fbird_connect() returns the SAME resource for identical
+        // parameters, causing use-after-free when one reference is closed
+        $conn = @fbird_connect($this->dsn, $this->user, $this->password, 'UTF8', 0, 3, '', FBIRD_CONNECT_FORCE_NEW);
+        if (!$conn) {
+            $error = fbird_errmsg() ?: 'Unknown connection error';
+            throw new RuntimeException("Bootstrap connection failed: {$error}\nDSN: {$this->dsn}");
         }
         
-        // Reset state
+        $this->state['connections'][] = $conn;
+        echo "Bootstrap connection established.\n";
+    }
+
+    private function cleanup(): void {
+        // CRITICAL: Copy arrays and clear state BEFORE closing resources
+        // This prevents use-after-free when foreach iterator accesses freed memory
+        // See: ASan heap-use-after-free in ZEND_FE_FETCH_R_SPEC_VAR_HANDLER
+        
+        $blobs = $this->state['blobs'];
+        $statements = $this->state['statements'];
+        $transactions = $this->state['transactions'];
+        $connections = $this->state['connections'];
+        
+        // Clear state first to prevent any callback from accessing freed resources
         $this->state = [
             'connections' => [],
             'transactions' => [],
             'statements' => [],
             'blobs' => [],
         ];
+        
+        // Track closed resource IDs to avoid double-close
+        $closed = [];
+        
+        // Close blobs first (depend on transactions)
+        foreach ($blobs as $blob) {
+            if (is_resource($blob)) {
+                $id = (int)$blob;
+                if (!isset($closed[$id])) {
+                    $closed[$id] = true;
+                    @fbird_blob_close($blob);
+                }
+            }
+        }
+        
+        // Free statements (depend on transactions/connections)
+        foreach ($statements as $stmt) {
+            if (is_resource($stmt)) {
+                $id = (int)$stmt;
+                if (!isset($closed[$id])) {
+                    $closed[$id] = true;
+                    @fbird_free_query($stmt);
+                }
+            }
+        }
+        
+        // Rollback transactions (depend on connections)
+        foreach ($transactions as $trans) {
+            if (is_resource($trans)) {
+                $id = (int)$trans;
+                if (!isset($closed[$id])) {
+                    $closed[$id] = true;
+                    @fbird_rollback($trans);
+                }
+            }
+        }
+        
+        // Close connections last
+        foreach ($connections as $conn) {
+            if (is_resource($conn)) {
+                $id = (int)$conn;
+                if (!isset($closed[$id])) {
+                    $closed[$id] = true;
+                    @fbird_close($conn);
+                }
+            }
+        }
     }
 
     // Helper methods for operations

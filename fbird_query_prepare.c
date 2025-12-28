@@ -222,6 +222,19 @@ void php_fbird_query_minit(INIT_FUNC_ARGS) /* {{{ */
 int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
     fbird_transaction *trans, zend_resource *trans_res, char *query)
 {
+	/* Validate required parameters to prevent NULL pointer dereference */
+	if (!link) {
+		php_error_docref(NULL, E_WARNING, "Invalid database connection resource");
+		return FAILURE;
+	}
+	if (!trans) {
+		php_error_docref(NULL, E_WARNING, "Invalid transaction resource");
+		return FAILURE;
+	}
+	if (!query) {
+		php_error_docref(NULL, E_WARNING, "Query string is NULL");
+		return FAILURE;
+	}
 	/* Return FAILURE, if querystring is empty */
 	if (*query == '\0') {
 		php_error_docref(NULL, E_WARNING, "Querystring empty.");

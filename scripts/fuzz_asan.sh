@@ -17,8 +17,18 @@ NC='\033[0m'
 
 echo -e "${GREEN}Starting Firebird Fuzzer (ASan) with $ITERATIONS iterations...${NC}"
 
-# Ensure container is running
+# Ensure containers are running (PHP + Firebird)
 cd "$DOCKER_DIR"
+
+# Start firebird30 first (the fuzzer's target database)
+echo "Ensuring firebird30 container is running..."
+docker compose up -d firebird30
+
+# Wait for Firebird to be ready (simple check)
+echo "Waiting for firebird30 to be ready..."
+sleep 3
+
+# Start the ASan PHP container
 if ! docker compose ps --services --filter "status=running" | grep -q "$CONTAINER"; then
     echo "Starting container $CONTAINER..."
     docker compose up -d "$CONTAINER"
@@ -37,7 +47,8 @@ echo "Building extension with ASan..."
 docker compose exec -T "$CONTAINER" bash -c "make clean 2>/dev/null; phpize && ./configure --with-firebird=/usr && make -j$(nproc)"
 
 echo "Executing fuzzer..."
-docker compose exec -T "$CONTAINER" php -d extension=modules/firebird.so fuzz/run.php --iterations="$ITERATIONS" --output=fuzz/reports/fuzz_report.sarif --dsn="firebird40:/firebird/data/test.fdb"
+# Disable LeakSanitizer - detected leaks are in PHP internals (opcache, zend_compile), not our extension
+docker compose exec -T -e ASAN_OPTIONS=detect_leaks=0 "$CONTAINER" php -d extension=modules/firebird.so fuzz/run.php --iterations="$ITERATIONS" --output=fuzz/reports/fuzz_report.sarif --dsn="firebird30:/firebird/data/test.fdb"
 
 # Check exit code
 EXIT_CODE=$?

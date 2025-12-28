@@ -81,6 +81,33 @@ echo ""
 
 FAILED=0
 
+# ============================================================================
+# FAST PATH: Fuzz mode - skip all other phases, go directly to fuzzing
+# ============================================================================
+if [ "$MODE" == "fuzz" ]; then
+    echo -e "${BLUE}═══ Fuzz Mode (Direct) ═══${NC}"
+    echo -e "${YELLOW}Skipping phases 1-5, running fuzzing directly...${NC}"
+    echo ""
+    
+    # fuzz_asan.sh handles its own build with ASan flags
+    FUZZ_EXIT=0
+    "$PROJECT_ROOT/scripts/fuzz_asan.sh" 1000 || FUZZ_EXIT=$?
+    
+    # CLEANUP: ASan container runs as root, so we must clean up build artifacts
+    # to prevent permission errors in subsequent operations
+    echo -e "${BLUE}Cleaning up ASan build artifacts...${NC}"
+    cd "$DOCKER_DIR"
+    docker compose exec -T -u root php83-asan bash -c "cd /ext && make clean 2>/dev/null || true && phpize --clean 2>/dev/null || true && rm -rf modules/firebird.so .libs/ .deps/ build/ autom4te.cache/" 2>/dev/null || true
+    
+    if [ $FUZZ_EXIT -eq 0 ]; then
+        echo -e "${GREEN}✓ Fuzzing completed${NC}"
+        exit 0
+    else
+        echo -e "${RED}✗ Fuzzing failed (exit code: $FUZZ_EXIT)${NC}"
+        exit $FUZZ_EXIT
+    fi
+fi
+
 # Helper function to check result and fail fast if requested
 check_result() {
     local PHASE="$1"

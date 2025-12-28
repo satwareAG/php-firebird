@@ -6,7 +6,8 @@ class LogicOps {
     public static function tlpCheck(FuzzHarness $h): Closure {
         return function() use ($h) {
             $trans = $h->getRandomTransaction();
-            if (!$trans) return;
+            // Validate transaction is still a valid resource
+            if (!$trans || !is_resource($trans)) return;
 
             // 1. Setup Table (once per run ideally, but we check flag)
             if (!self::$tableCreated) {
@@ -60,7 +61,8 @@ class LogicOps {
     }
 
     private static function getCount($trans, $sql): int {
-        $res = fbird_query($trans, $sql);
+        if (!$trans || !is_resource($trans)) return 0;
+        $res = @fbird_query($trans, $sql);
         if ($res) {
             $row = fbird_fetch_row($res);
             fbird_free_result($res);
@@ -72,10 +74,11 @@ class LogicOps {
     public static function typeCheck(FuzzHarness $h): Closure {
         return function() use ($h) {
             $conn = $h->getRandomConnection();
-            if (!$conn) return;
+            // Validate connection is still a valid resource
+            if (!$conn || !is_resource($conn)) return;
 
             // Query known types from system tables
-            $res = fbird_query($conn, 'SELECT count(*) as CNT, cast(1.5 as float) as FLT, \'test\' as STR FROM RDB$DATABASE');
+            $res = @fbird_query($conn, 'SELECT count(*) as CNT, cast(1.5 as float) as FLT, \'test\' as STR FROM RDB$DATABASE');
             if ($res) {
                 $obj = fbird_fetch_object($res);
                 fbird_free_result($res);

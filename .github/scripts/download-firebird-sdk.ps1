@@ -102,10 +102,18 @@ if ($url.EndsWith(".exe")) {
     New-Item -ItemType Directory -Force -Path "$DestinationPath\bin" | Out-Null
     
     # Find and copy SDK structure - handle nested directories
-    $extractedDir = Get-ChildItem "$DestinationPath\extracted" -Directory | Select-Object -First 1
-    if ($extractedDir) {
+    $extractedDirInfo = Get-ChildItem "$DestinationPath\extracted" -Directory | Select-Object -First 1
+    if ($extractedDirInfo) {
+        $extractedDir = $extractedDirInfo.FullName
+        Write-Host "Found extracted directory: $extractedDir"
+        
+        # Debug: list contents
+        Write-Host "Contents of extracted directory:"
+        Get-ChildItem $extractedDir | ForEach-Object { Write-Host "  $($_.Name)" }
+        
         # Check if SDK is in root or nested
         if (Test-Path "$extractedDir\include\ibase.h") {
+            Write-Host "Found SDK at root level"
             Copy-Item "$extractedDir\include\*" -Destination "$DestinationPath\include\" -Recurse -Force
             Copy-Item "$extractedDir\lib\*" -Destination "$DestinationPath\lib\" -Recurse -Force -ErrorAction SilentlyContinue
             if (Test-Path "$extractedDir\bin") {
@@ -116,9 +124,20 @@ if ($url.EndsWith(".exe")) {
                 Copy-Item "$extractedDir\fbclient.dll" -Destination "$DestinationPath\bin\" -Force
             }
         } elseif (Test-Path "$extractedDir\sdk\include\ibase.h") {
-            # FB 3.0 structure with sdk subdirectory
+            # FB 3.0/4.0/5.0 structure with sdk subdirectory
+            Write-Host "Found SDK in sdk\ subdirectory"
             Copy-Item "$extractedDir\sdk\include\*" -Destination "$DestinationPath\include\" -Recurse -Force
             Copy-Item "$extractedDir\sdk\lib\*" -Destination "$DestinationPath\lib\" -Recurse -Force -ErrorAction SilentlyContinue
+            # Also copy fbclient.dll from root
+            if (Test-Path "$extractedDir\fbclient.dll") {
+                Copy-Item "$extractedDir\fbclient.dll" -Destination "$DestinationPath\bin\" -Force
+            }
+        } else {
+            Write-Host "WARNING: Could not find SDK structure"
+            Write-Host "Searching for ibase.h..."
+            Get-ChildItem "$DestinationPath\extracted" -Recurse -Filter "ibase.h" | ForEach-Object { 
+                Write-Host "  Found: $($_.FullName)" 
+            }
         }
     }
 }

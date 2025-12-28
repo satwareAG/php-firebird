@@ -256,7 +256,8 @@ jobs:
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
 
           echo "=== Testing extension loading ==="
-          php -d "extension=${EXTENSION_PATH}" -m 2>&1 | tee /tmp/modules.txt
+          # Disable Opcache - it uses RTLD_DEEPBIND which is incompatible with ASan
+          php -d opcache.enable=0 -d "extension=${EXTENSION_PATH}" -m 2>&1 | tee /tmp/modules.txt
           if ! grep -qi firebird /tmp/modules.txt; then
             echo "ERROR: Firebird extension failed to load"
             exit 1
@@ -264,7 +265,7 @@ jobs:
           echo "Firebird extension loaded successfully"
 
           echo "=== Testing database connection ==="
-          php -d "extension=${EXTENSION_PATH}" -r '
+          php -d opcache.enable=0 -d "extension=${EXTENSION_PATH}" -r '
             $host = getenv("FIREBIRD_HOST");
             $dbPath = getenv("FIREBIRD_DB_PATH");
             $connStr = $host . ":" . $dbPath;
@@ -317,7 +318,8 @@ jobs:
 
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
           export TEST_PHP_EXECUTABLE="$(which php)"
-          export PHP_TEST_SHARED_EXTENSIONS="-d extension=${EXTENSION_PATH}"
+          # Disable Opcache - it uses RTLD_DEEPBIND which is incompatible with ASan
+          export PHP_TEST_SHARED_EXTENSIONS="-d opcache.enable=0 -d extension=${EXTENSION_PATH}"
 
           PCNTL_SO=$(find $(php-config --extension-dir) -name "pcntl.so" 2>/dev/null || true)
           if [ -n "$PCNTL_SO" ]; then

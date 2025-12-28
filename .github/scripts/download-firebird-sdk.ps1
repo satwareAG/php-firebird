@@ -121,9 +121,12 @@ if ($url.EndsWith(".exe")) {
         if (Test-Path "$extractedBase\bin") {
             Copy-Item "$extractedBase\bin\*" -Destination "$DestinationPath\bin\" -Recurse -Force -ErrorAction SilentlyContinue
         }
-        # Copy fbclient.dll from root if exists
+        # Copy fbclient.dll from root to multiple locations (build system looks in various places)
         if (Test-Path "$extractedBase\fbclient.dll") {
+            Write-Host "Copying fbclient.dll to bin/, lib/, and root"
             Copy-Item "$extractedBase\fbclient.dll" -Destination "$DestinationPath\bin\" -Force
+            Copy-Item "$extractedBase\fbclient.dll" -Destination "$DestinationPath\lib\" -Force
+            Copy-Item "$extractedBase\fbclient.dll" -Destination "$DestinationPath\" -Force
         }
     }
     # Check for flat structure with sdk subdirectory

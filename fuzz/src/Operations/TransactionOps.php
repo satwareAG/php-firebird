@@ -17,8 +17,9 @@ class TransactionOps {
         return function() use ($h) {
             $trans = $h->getRandomTransaction();
             if ($trans && is_resource($trans)) {
-                fbird_commit($trans);
-                // Remove from state
+                // Use @ suppressor - handle may be invalid if connection was closed
+                $result = @fbird_commit($trans);
+                // Remove from state regardless of success
                 $key = array_search($trans, $h->state['transactions'], true);
                 if ($key !== false) {
                     unset($h->state['transactions'][$key]);
@@ -32,8 +33,9 @@ class TransactionOps {
         return function() use ($h) {
             $trans = $h->getRandomTransaction();
             if ($trans && is_resource($trans)) {
-                fbird_rollback($trans);
-                // Remove from state
+                // Use @ suppressor - handle may be invalid if connection was closed
+                @fbird_rollback($trans);
+                // Remove from state regardless of success
                 $key = array_search($trans, $h->state['transactions'], true);
                 if ($key !== false) {
                     unset($h->state['transactions'][$key]);
@@ -47,8 +49,8 @@ class TransactionOps {
         return function() use ($h) {
             $trans = $h->getRandomTransaction();
             if ($trans && is_resource($trans)) {
-                // Keeps transaction open
-                fbird_commit_ret($trans);
+                // Use @ suppressor - handle may be invalid if connection was closed
+                @fbird_commit_ret($trans);
             }
         };
     }

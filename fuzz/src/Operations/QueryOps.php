@@ -63,6 +63,7 @@ class QueryOps {
                     @fbird_free_query($stmt);
                 }
                 
+                // Commit and don't add to state (transaction is complete)
                 @fbird_commit($trans);
             }
         };

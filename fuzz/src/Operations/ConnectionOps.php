@@ -35,7 +35,31 @@ class ConnectionOps {
         return function() use ($h) {
             $conn = $h->getRandomConnection();
             if ($conn && is_resource($conn)) {
-                fbird_close($conn);
+                // First, rollback and remove any transactions started on this connection
+                // Transactions become invalid when their connection is closed
+                $validTransactions = [];
+                foreach ($h->state['transactions'] as $trans) {
+                    if (is_resource($trans)) {
+                        // Try to rollback - if it fails, the transaction is already invalid
+                        // or belongs to a different connection (we can't tell which)
+                        @fbird_rollback($trans);
+                    }
+                }
+                // Clear all transactions since we can't reliably determine which belong
+                // to which connection. The fuzzer will create new ones.
+                $h->state['transactions'] = [];
+                
+                // Also clear statements since they depend on transactions/connections
+                foreach ($h->state['statements'] as $stmt) {
+                    if (is_resource($stmt)) {
+                        @fbird_free_query($stmt);
+                    }
+                }
+                $h->state['statements'] = [];
+                
+                // Now close the connection
+                @fbird_close($conn);
+                
                 // Remove from state
                 $key = array_search($conn, $h->state['connections'], true);
                 if ($key !== false) {

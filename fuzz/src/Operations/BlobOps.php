@@ -5,10 +5,11 @@ class BlobOps {
         return function() use ($h) {
             $trans = $h->getRandomTransaction();
             if ($trans && is_resource($trans)) {
-                $blob = fbird_blob_create($trans);
+                // Use @ suppressor - transaction may be invalid if connection was closed
+                $blob = @fbird_blob_create($trans);
                 if ($blob) {
-                    fbird_blob_add($blob, "Initial data");
-                    $id = fbird_blob_close($blob);
+                    @fbird_blob_add($blob, "Initial data");
+                    @fbird_blob_close($blob);
                     // Store ID for later retrieval? 
                     // For now we just exercise creation
                 }
@@ -20,13 +21,14 @@ class BlobOps {
         return function() use ($h) {
             $trans = $h->getRandomTransaction();
             if ($trans && is_resource($trans)) {
-                $blob = fbird_blob_create($trans);
+                // Use @ suppressor - transaction may be invalid if connection was closed
+                $blob = @fbird_blob_create($trans);
                 if ($blob) {
                     // Write in small chunks
                     for ($i = 0; $i < 10; $i++) {
-                        fbird_blob_add($blob, str_repeat("x", 100));
+                        @fbird_blob_add($blob, str_repeat("x", 100));
                     }
-                    fbird_blob_close($blob);
+                    @fbird_blob_close($blob);
                 }
             }
         };
@@ -36,11 +38,12 @@ class BlobOps {
         return function() use ($h) {
             $trans = $h->getRandomTransaction();
             if ($trans && is_resource($trans)) {
-                $blob = fbird_blob_create($trans);
+                // Use @ suppressor - transaction may be invalid if connection was closed
+                $blob = @fbird_blob_create($trans);
                 if ($blob) {
                     // Write larger chunk
-                    fbird_blob_add($blob, str_repeat("A", 65535));
-                    fbird_blob_close($blob);
+                    @fbird_blob_add($blob, str_repeat("A", 65535));
+                    @fbird_blob_close($blob);
                 }
             }
         };
@@ -51,11 +54,12 @@ class BlobOps {
             // This is a known edge case: accessing BLOB after commit
             $trans = $h->getRandomTransaction();
             if ($trans && is_resource($trans)) {
-                $blob = fbird_blob_create($trans);
+                // Use @ suppressor - transaction may be invalid if connection was closed
+                $blob = @fbird_blob_create($trans);
                 if ($blob) {
-                    fbird_blob_add($blob, "Data");
+                    @fbird_blob_add($blob, "Data");
                     // Commit transaction while blob is open
-                    fbird_commit($trans);
+                    @fbird_commit($trans);
                     
                     // Attempt to use blob handle (should fail gracefully, not crash)
                     try {

@@ -111,10 +111,19 @@ class FuzzHarness {
     /**
      * Bootstrap: establish initial connection to ensure fuzzer can operate
      * Uses FBIRD_CONNECT_FORCE_NEW to prevent resource sharing with other connections
+     * Also initializes the test table if it doesn't exist
      * @throws RuntimeException if connection fails
      */
     private function bootstrap(): void {
         echo "Connecting to: {$this->dsn}\n";
+        
+        // Set INI defaults for credentials (like tests/config.inc does)
+        ini_set('fbird.default_user', $this->user);
+        ini_set('fbird.default_password', $this->password);
+        
+        // Set environment variables for Firebird client authentication
+        putenv("ISC_USER={$this->user}");
+        putenv("ISC_PASSWORD={$this->password}");
         
         // CRITICAL: Use FBIRD_CONNECT_FORCE_NEW to prevent resource sharing
         // Without this flag, fbird_connect() returns the SAME resource for identical
@@ -127,6 +136,34 @@ class FuzzHarness {
         
         $this->state['connections'][] = $conn;
         echo "Bootstrap connection established.\n";
+        
+        // Initialize test table (like tests/firebird.inc init_db() does)
+        $this->initializeTestTable($conn);
+    }
+    
+    /**
+     * Initialize the test table required for fuzz operations
+     * Creates test1 table if it doesn't exist
+     */
+    private function initializeTestTable($conn): void {
+        // Check if test1 table exists
+        $result = @fbird_query($conn, "SELECT 1 FROM RDB\$RELATIONS WHERE RDB\$RELATION_NAME = 'TEST1'");
+        $exists = $result && fbird_fetch_row($result);
+        if ($result) {
+            fbird_free_result($result);
+        }
+        
+        if (!$exists) {
+            echo "Creating test1 table...\n";
+            $trans = fbird_trans($conn, FBIRD_WRITE | FBIRD_COMMITTED);
+            if ($trans) {
+                @fbird_query($trans, "CREATE TABLE test1 (i INTEGER, c VARCHAR(100))");
+                fbird_commit($trans);
+                echo "test1 table created.\n";
+            }
+        } else {
+            echo "test1 table already exists.\n";
+        }
     }
 
     private function cleanup(): void {

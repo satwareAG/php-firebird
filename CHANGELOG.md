@@ -5,6 +5,16 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-rc.12] - 2025-12-28
+
+### Fixed
+
+- **Fuzz Testing State Management**: Fixed critical state management issues in the fuzzing infrastructure that caused false-positive "failures" during ASan runs
+  - **ConnectionOps::close()**: Now properly clears dependent transactions and statements when closing a connection, preventing "invalid transaction handle" errors from stale references
+  - **FuzzHarness bootstrap**: Added proper test table initialization (`fuzz_test`) during fuzzer bootstrap phase, ensuring database structure exists before operations run
+  - **Edge Case Suppressors**: Added PHP error suppressors (`@`) to BlobOps, TransactionOps, and LogicOps for expected edge cases (e.g., operations on already-closed resources)
+- **QA Verification**: All quality checks now pass (Gitleaks, PHPStan, clang-tidy, cppcheck, unit tests, fuzzing with ASan - 1000 iterations, 0 failures)
+
 ## [7.0.0-rc.11] - 2025-12-26
 
 ### Added
@@ -356,7 +366,13 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.6...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.12...HEAD
+[7.0.0-rc.12]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.11...v7.0.0-rc.12
+[7.0.0-rc.11]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.10...v7.0.0-rc.11
+[7.0.0-rc.10]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.9...v7.0.0-rc.10
+[7.0.0-rc.9]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.8...v7.0.0-rc.9
+[7.0.0-rc.8]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.7...v7.0.0-rc.8
+[7.0.0-rc.7]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.6...v7.0.0-rc.7
 [7.0.0-rc.6]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.5...v7.0.0-rc.6
 [7.0.0-rc.5]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.4...v7.0.0-rc.5
 [7.0.0-rc.4]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.3...v7.0.0-rc.4

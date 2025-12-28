@@ -249,7 +249,9 @@ PHP_FUNCTION(fbird_field_info)
 		return;
 	}
 
-	if(!_php_fbird_fetch_query_res(result_arg, &ib_query)) {
+	/* Validate first argument is a query resource with proper error messages */
+	FBIRD_VALIDATE_QUERY_EX(result_arg, 1, ib_query);
+	if (!ib_query) {
 		RETURN_FALSE;
 	}
 
@@ -270,7 +272,9 @@ PHP_FUNCTION(fbird_num_params)
 		return;
 	}
 
-	if(!_php_fbird_fetch_query_res(result, &ib_query)) {
+	/* Validate first argument is a query resource with proper error messages */
+	FBIRD_VALIDATE_QUERY_EX(result, 1, ib_query);
+	if (!ib_query) {
 		RETURN_FALSE;
 	}
 
@@ -296,7 +300,9 @@ PHP_FUNCTION(fbird_param_info)
 		return;
 	}
 
-	if(!_php_fbird_fetch_query_res(result_arg, &ib_query)) {
+	/* Validate first argument is a query resource with proper error messages */
+	FBIRD_VALIDATE_QUERY_EX(result_arg, 1, ib_query);
+	if (!ib_query) {
 		RETURN_FALSE;
 	}
 
@@ -317,7 +323,9 @@ PHP_FUNCTION(fbird_num_fields)
 		return;
 	}
 
-	if(!_php_fbird_fetch_query_res(result, &ib_query)) {
+	/* Validate first argument is a query resource with proper error messages */
+	FBIRD_VALIDATE_QUERY_EX(result, 1, ib_query);
+	if (!ib_query) {
 		RETURN_FALSE;
 	}
 

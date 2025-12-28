@@ -49,7 +49,7 @@
 #define FBDEBUG(a)
 #endif
 
-extern int le_link, le_plink, le_trans;
+extern int le_link, le_plink, le_trans, le_query;
 #if FB_API_VER >= 40
 extern int le_batch;
 #endif
@@ -389,5 +389,76 @@ typedef ISC_STATUS (ISC_EXPORT *fb_get_statement_interface_t)(
 );
 
 typedef void* (ISC_EXPORT *fb_get_master_interface_t)(void);
+
+/* ============================================================================
+ * Resource Type Validation Macros (TypeError Support)
+ *
+ * These macros provide consistent error handling when wrong resource types
+ * are passed to fbird_* functions. In exception mode (FBIRD_EXCEPTION_MODE_THROW),
+ * they throw TypeError. Otherwise, they emit E_WARNING for backward compatibility.
+ * ============================================================================ */
+
+/* Helper function prototype - implementation in firebird.c */
+const char *_fbird_res_type_name(int type);
+
+/* Validate connection resource (le_link or le_plink) */
+#define FBIRD_VALIDATE_LINK_EX(zv, argnum, var) do { \
+	int _res_type = Z_RES_TYPE_P(zv); \
+	if (_res_type != le_link && _res_type != le_plink) { \
+		if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
+			zend_argument_type_error(argnum, \
+				"must be a Firebird connection resource, %s resource given", \
+				_fbird_res_type_name(_res_type)); \
+			RETURN_THROWS(); \
+		} else { \
+			php_error_docref(NULL, E_WARNING, \
+				"Argument #%d must be a Firebird connection resource, %s resource given", \
+				argnum, _fbird_res_type_name(_res_type)); \
+			RETURN_FALSE; \
+		} \
+	} \
+	var = (fbird_db_link *)zend_fetch_resource2_ex(zv, LE_LINK, le_link, le_plink); \
+	if (!var) { RETURN_FALSE; } \
+} while(0)
+
+/* Validate transaction resource (le_trans) */
+#define FBIRD_VALIDATE_TRANS_EX(zv, argnum, var) do { \
+	int _res_type = Z_RES_TYPE_P(zv); \
+	if (_res_type != le_trans) { \
+		if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
+			zend_argument_type_error(argnum, \
+				"must be a Firebird transaction resource, %s resource given", \
+				_fbird_res_type_name(_res_type)); \
+			RETURN_THROWS(); \
+		} else { \
+			php_error_docref(NULL, E_WARNING, \
+				"Argument #%d must be a Firebird transaction resource, %s resource given", \
+				argnum, _fbird_res_type_name(_res_type)); \
+			RETURN_FALSE; \
+		} \
+	} \
+	var = (fbird_transaction *)zend_fetch_resource_ex(zv, LE_TRANS, le_trans); \
+	if (!var) { RETURN_FALSE; } \
+} while(0)
+
+/* Validate query/result resource (le_query) */
+#define FBIRD_VALIDATE_QUERY_EX(zv, argnum, var) do { \
+	int _res_type = Z_RES_TYPE_P(zv); \
+	if (_res_type != le_query) { \
+		if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
+			zend_argument_type_error(argnum, \
+				"must be a Firebird query/result resource, %s resource given", \
+				_fbird_res_type_name(_res_type)); \
+			RETURN_THROWS(); \
+		} else { \
+			php_error_docref(NULL, E_WARNING, \
+				"Argument #%d must be a Firebird query/result resource, %s resource given", \
+				argnum, _fbird_res_type_name(_res_type)); \
+			RETURN_FALSE; \
+		} \
+	} \
+	var = (fbird_query *)zend_fetch_resource_ex(zv, LE_QUERY, le_query); \
+	if (!var) { RETURN_FALSE; } \
+} while(0)
 
 #endif /* PHP_FBIRD_INCLUDES_H */

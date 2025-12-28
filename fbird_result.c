@@ -488,10 +488,11 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 		RETURN_FALSE;
 	}
 
- if(!_php_fbird_fetch_query_res(res_arg, &ib_query)) {
-        /* Let Zend validate resource via _php_fbird_fetch_query_res */
-        RETURN_FALSE;
-    }
+	/* Validate first argument is a query resource with proper error messages */
+	FBIRD_VALIDATE_QUERY_EX(res_arg, 1, ib_query);
+	if (!ib_query) {
+		RETURN_FALSE;
+	}
 
 	/* Pure OO API: Check message buffer instead of XSQLDA */
 	if (ib_query->out_metadata == NULL || ib_query->out_msg_buffer == NULL ||
@@ -897,7 +898,9 @@ PHP_FUNCTION(fbird_name_result)
 		return;
 	}
 
-	if(!_php_fbird_fetch_query_res(result_arg, &ib_query)) {
+	/* Validate first argument is a query resource with proper error messages */
+	FBIRD_VALIDATE_QUERY_EX(result_arg, 1, ib_query);
+	if (!ib_query) {
 		RETURN_FALSE;
 	}
 

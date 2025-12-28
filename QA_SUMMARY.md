@@ -28,6 +28,11 @@
 - **Advanced DB Clients**: Documented best practices for 2025 (PHP 8.4+, strict types, RAII C++) in `docs/research/ADVANCED_DB_CLIENTS_2025.md`.
 - **Coverage Plan**: Created `docs/planning/COVERAGE_EXPANSION_PLAN.md` outlining the strategy to reach >90% coverage.
 
+### 5. Fuzzing Infrastructure
+- **Integration**: Integrated fuzzing into the main QA workflow (`scripts/qa.sh --mode full`).
+- **Bug Detection**: Fuzzer successfully detected a critical Heap Use-After-Free (UAF) in `fbird_pconnect`.
+- **Architecture**: Implemented a modular fuzzing framework in `fuzz/` with SARIF reporting and ASan integration.
+
 ## Next Steps
-1. **Fuzz Testing**: Implement the SQL fuzzer to find more edge cases.
+1. **Fix UAF Bug**: Resolve the Heap Use-After-Free issue in persistent connections.
 2. **Modernization**: Begin refactoring internal C++ classes to use RAII (smart pointers) to prevent future leaks.

@@ -79,6 +79,24 @@ tests/*.php
 tests/*.sh
 *.dep
 
+# Fuzzer artifacts
+fuzz/crashes/*
+!fuzz/crashes/.gitkeep
+fuzz/reports/*
+# Test artifacts
+tests/*.diff
+tests/*.exp
+tests/*.log
+tests/*.out
+tests/*.php
+tests/*.sh
+*.dep
+
+# Fuzzer artifacts
+fuzz/crashes/*
+!fuzz/crashes/.gitkeep
+fuzz/reports/*
+
 # Coverage and analysis
 *.gcda
 *.gcno

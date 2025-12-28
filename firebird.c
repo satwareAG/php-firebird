@@ -566,6 +566,22 @@ int le_link, le_plink, le_trans;
 int le_batch;
 #endif
 
+/* Helper function to get human-readable name for resource types.
+ * Used by FBIRD_VALIDATE_*_EX macros for TypeError messages.
+ * Note: Only handles globally-visible resource types; local types
+ * (le_blob, le_event) will return "resource". */
+const char *_fbird_res_type_name(int type) {
+	if (type == le_link)  return "connection";
+	if (type == le_plink) return "persistent connection";
+	if (type == le_trans) return "transaction";
+	if (type == le_query) return "query/result";
+#if FB_API_VER >= 40
+	if (type == le_batch) return "batch";
+#endif
+	/* For static resource types defined in other files, return generic name */
+	return "resource";
+}
+
 /* }}} */
 
 /* error handling ---------------------------- */

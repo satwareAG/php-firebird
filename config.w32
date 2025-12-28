@@ -18,6 +18,7 @@ if (PHP_FIREBIRD != 'no') {
         // Define all source files
         var firebird_sources = 'firebird.c ' +
                                'fbird_blobs.c ' +
+                               'fbird_datetime.c ' +
                                'fbird_events.c ' +
                                'fbird_inspection.c ' +
                                'fbird_metadata.c ' +

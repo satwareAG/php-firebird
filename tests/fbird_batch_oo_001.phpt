@@ -8,6 +8,9 @@ require __DIR__ . '/skipif.inc';
 if (!function_exists('fbird_batch_create')) {
     die('skip: IBatch API requires Firebird 4.0+');
 }
+if (get_fb_version() < 4.0) {
+    die('skip IBatch API requires Firebird 4.0+');
+}
 ?>
 --FILE--
 <?php

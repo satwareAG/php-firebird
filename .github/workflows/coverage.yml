@@ -456,10 +456,11 @@ jobs:
           echo "Current Line Coverage: ${COVERAGE}%"
           echo "Required Threshold:    ${COVERAGE_THRESHOLD}%"
 
-          if python3 -c "import sys; sys.exit(0 if float(sys.argv[1]) >= float(sys.argv[2]) else 1)" "$COVERAGE" "$COVERAGE_THRESHOLD"; then
-            echo "✅ Coverage Gate Passed"
+          # Use awk for floating point comparison (no python needed)
+          if awk "BEGIN {exit ($COVERAGE >= $COVERAGE_THRESHOLD) ? 0 : 1}"; then
+            echo "✅ Coverage Gate Passed (${COVERAGE}% >= ${COVERAGE_THRESHOLD}%)"
           else
-            echo "❌ Coverage dropped below baseline (${COVERAGE_THRESHOLD}%)"
+            echo "❌ Coverage dropped below baseline (${COVERAGE}% < ${COVERAGE_THRESHOLD}%)"
             exit 1
           fi
 

@@ -136,7 +136,7 @@ jobs:
       - name: Install Firebird SDK
         run: |
           echo "Installing Firebird ${FB_VERSION}..."
-          mkdir -p /opt/firebird/{lib,include}
+          mkdir -p /opt/firebird/{lib,include/firebird}
           
           curl -fsSL "https://github.com/FirebirdSQL/firebird/releases/download/v${FB_VERSION}/Firebird-${FB_VERSION}.${FB_BUILD}-0-linux-x64.tar.gz" \
             -o /tmp/firebird.tar.gz
@@ -144,11 +144,30 @@ jobs:
           mkdir -p /tmp/fb
           tar -xzf /tmp/firebird.tar.gz -C /tmp/fb --strip-components=1
           
-          # Copy libraries and headers
-          find /tmp/fb -name "libfbclient.so*" -exec cp -a {} /opt/firebird/lib/ \;
-          find /tmp/fb -name "ibase.h" -exec cp {} /opt/firebird/include/ \;
-          mkdir -p /opt/firebird/include/firebird
-          cp -r /tmp/fb/include/firebird/*.h /opt/firebird/include/firebird/ 2>/dev/null || true
+          # Linux Firebird tarballs have nested structure - extract buildroot.tar.gz
+          if [ -f /tmp/fb/buildroot.tar.gz ]; then
+            echo "Extracting nested buildroot.tar.gz..."
+            tar -xzf /tmp/fb/buildroot.tar.gz -C /tmp/fb
+          fi
+          
+          # Copy libraries from the extracted buildroot path
+          if [ -d /tmp/fb/opt/firebird/lib ]; then
+            echo "Found libraries in buildroot structure"
+            cp -a /tmp/fb/opt/firebird/lib/libfbclient.so* /opt/firebird/lib/
+          else
+            # Fallback: search for libraries
+            find /tmp/fb -name "libfbclient.so*" -exec cp -a {} /opt/firebird/lib/ \;
+          fi
+          
+          # Copy headers from buildroot path
+          if [ -f /tmp/fb/opt/firebird/include/ibase.h ]; then
+            echo "Found headers in buildroot structure"
+            cp /tmp/fb/opt/firebird/include/ibase.h /opt/firebird/include/
+            cp /tmp/fb/opt/firebird/include/firebird/*.h /opt/firebird/include/firebird/ 2>/dev/null || true
+          else
+            # Fallback: search for headers
+            find /tmp/fb -name "ibase.h" -exec cp {} /opt/firebird/include/ \;
+          fi
           
           # Create symlinks
           cd /opt/firebird/lib
@@ -163,6 +182,8 @@ jobs:
           
           echo "Firebird SDK installed:"
           ls -la /opt/firebird/lib/
+          echo "Headers:"
+          ls -la /opt/firebird/include/
       
       - name: Determine PHP Full Version
         id: php-version

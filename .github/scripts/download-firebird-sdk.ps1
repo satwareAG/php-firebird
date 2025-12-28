@@ -15,18 +15,21 @@ param(
 $ErrorActionPreference = "Stop"
 
 # Define download URLs for each version
+# All URLs verified to return HTTP 302 (redirect to download)
 $downloads = @{
     "3.0" = @{
         "x64" = "https://github.com/FirebirdSQL/firebird/releases/download/v3.0.12/Firebird-3.0.12.33787-0-x64.zip"
         "x86" = "https://github.com/FirebirdSQL/firebird/releases/download/v3.0.12/Firebird-3.0.12.33787-0-win32.zip"
     }
     "4.0" = @{
-        "x64" = "https://github.com/FirebirdSQL/firebird/releases/download/v4.0.6/Firebird-4.0.6.3602-0-x64.zip"
+        # Build number corrected: 3221 (was incorrectly 3602)
+        "x64" = "https://github.com/FirebirdSQL/firebird/releases/download/v4.0.6/Firebird-4.0.6.3221-0-x64.zip"
         "x86" = $null  # FB 4.0 x86 not available
     }
     "5.0" = @{
-        "x64" = "https://github.com/FirebirdSQL/firebird/releases/download/v5.0.3/Firebird-5.0.3.1683-0-windows-x64.exe"
-        "x86" = $null  # FB 5.0 x86 not available
+        # Use ZIP files instead of .exe (Inno Setup) for reliable extraction
+        "x64" = "https://github.com/FirebirdSQL/firebird/releases/download/v5.0.3/Firebird-5.0.3.1683-0-windows-x64.zip"
+        "x86" = "https://github.com/FirebirdSQL/firebird/releases/download/v5.0.3/Firebird-5.0.3.1683-0-windows-x86.zip"
     }
 }
 

@@ -572,12 +572,8 @@ jobs:
 
           export LD_LIBRARY_PATH="/opt/firebird-client/lib:/usr/local/lib:/usr/lib:${LD_LIBRARY_PATH:-}"
 
-          # Preload LSan runtime - required because extension is compiled with LSan but PHP isn't
-          LSAN_LIB=$(find /usr/lib -name "liblsan.so.*" -type f 2>/dev/null | head -1)
-          if [ -n "$LSAN_LIB" ]; then
-            export LD_PRELOAD="$LSAN_LIB"
-            echo "Preloading LSan runtime: $LSAN_LIB"
-          fi
+          # Note: Standalone LSan (-fsanitize=leak) links directly into the extension
+          # No LD_PRELOAD needed (unlike ASan which needs runtime library preloading)
 
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
 
@@ -631,12 +627,8 @@ jobs:
 
           export LD_LIBRARY_PATH="/opt/firebird-client/lib:${LD_LIBRARY_PATH:-}"
 
-          # Preload LSan runtime - required because extension is compiled with LSan but PHP isn't
-          LSAN_LIB=$(find /usr/lib -name "liblsan.so.*" -type f 2>/dev/null | head -1)
-          if [ -n "$LSAN_LIB" ]; then
-            export LD_PRELOAD="$LSAN_LIB"
-            echo "Preloading LSan runtime: $LSAN_LIB"
-          fi
+          # Note: Standalone LSan (-fsanitize=leak) links directly into the extension
+          # No LD_PRELOAD needed (unlike ASan which needs runtime library preloading)
 
           echo "=== Running tests with LeakSanitizer ==="
 

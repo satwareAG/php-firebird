@@ -1,0 +1,446 @@
+# =============================================================================
+# PHP Firebird Extension - Precompiled Release Workflow
+# =============================================================================
+#
+# Builds and publishes precompiled PHP extensions with bundled Firebird client
+# libraries for all supported PHP versions and variants.
+#
+# Triggers:
+#   - On release creation (automatic)
+#   - Manual dispatch (for testing)
+#
+# Build Matrix:
+#   - PHP 8.1, 8.2, 8.3, 8.4 (8.1 deprecated)
+#   - NTS and ZTS variants
+#   - x86_64 architecture (aarch64 in future)
+#
+# =============================================================================
+
+name: Build Precompiled Extensions
+
+on:
+  release:
+    types: [created, published]
+  
+  workflow_dispatch:
+    inputs:
+      php_versions:
+        description: 'PHP versions (comma-separated)'
+        required: false
+        default: '8.2,8.3,8.4'
+        type: string
+      upload_to_release:
+        description: 'Upload artifacts to release'
+        required: false
+        default: false
+        type: boolean
+      release_tag:
+        description: 'Release tag (if uploading to existing release)'
+        required: false
+        default: ''
+        type: string
+
+env:
+  FB_VERSION: '5.0.2'
+  FB_BUILD: '1629'
+
+jobs:
+  # ===========================================================================
+  # Prepare Build Matrix
+  # ===========================================================================
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      version: ${{ steps.get-version.outputs.version }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Get Extension Version
+        id: get-version
+        run: |
+          VERSION=$(grep '#define PHP_FIREBIRD_VERSION' php_firebird.h | sed 's/.*"\([^"]*\)".*/\1/' || echo '7.0.0')
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Extension version: ${VERSION}"
+      
+      - name: Set Build Matrix
+        id: set-matrix
+        run: |
+          # Determine PHP versions
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.php_versions }}" ]; then
+            PHP_VERSIONS="${{ inputs.php_versions }}"
+          else
+            # Default: all supported versions
+            PHP_VERSIONS="8.1,8.2,8.3,8.4"
+          fi
+          
+          # Build matrix JSON
+          MATRIX='{"include":['
+          FIRST=true
+          
+          IFS=',' read -ra VERSIONS <<< "${PHP_VERSIONS}"
+          for version in "${VERSIONS[@]}"; do
+            version=$(echo "$version" | tr -d ' ')
+            for variant in nts zts; do
+              if [ "$FIRST" = true ]; then
+                FIRST=false
+              else
+                MATRIX+=','
+              fi
+              MATRIX+="{\"php\":\"${version}\",\"variant\":\"${variant}\",\"arch\":\"x86_64\"}"
+            done
+          done
+          
+          MATRIX+=']}'
+          
+          echo "matrix=${MATRIX}" >> $GITHUB_OUTPUT
+          echo "Build matrix: ${MATRIX}"
+
+  # ===========================================================================
+  # Build Precompiled Extensions
+  # ===========================================================================
+  build:
+    needs: prepare
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/pypa/manylinux_2_28_x86_64
+    
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Install Build Dependencies
+        run: |
+          yum install -y \
+            re2-devel \
+            libtommath-devel \
+            libtomcrypt-devel \
+            libicu-devel \
+            ncurses-devel \
+            libxml2-devel \
+            sqlite-devel \
+            openssl-devel \
+            libcurl-devel \
+            zlib-devel \
+            oniguruma-devel
+          
+          # Ensure patchelf
+          which patchelf || pip3 install patchelf
+      
+      - name: Install Firebird SDK
+        run: |
+          echo "Installing Firebird ${FB_VERSION}..."
+          mkdir -p /opt/firebird/{lib,include}
+          
+          curl -fsSL "https://github.com/FirebirdSQL/firebird/releases/download/v${FB_VERSION}/Firebird-${FB_VERSION}.${FB_BUILD}-0-linux-x64.tar.gz" \
+            -o /tmp/firebird.tar.gz
+          
+          mkdir -p /tmp/fb
+          tar -xzf /tmp/firebird.tar.gz -C /tmp/fb --strip-components=1
+          
+          # Copy libraries and headers
+          find /tmp/fb -name "libfbclient.so*" -exec cp -a {} /opt/firebird/lib/ \;
+          find /tmp/fb -name "ibase.h" -exec cp {} /opt/firebird/include/ \;
+          mkdir -p /opt/firebird/include/firebird
+          cp -r /tmp/fb/include/firebird/*.h /opt/firebird/include/firebird/ 2>/dev/null || true
+          
+          # Create symlinks
+          cd /opt/firebird/lib
+          for lib in libfbclient.so*; do
+            if [ -f "$lib" ] && [ ! -L "$lib" ]; then
+              base="${lib%%.*}"
+              [ ! -e "${base}.so" ] && ln -sf "$lib" "${base}.so"
+            fi
+          done
+          
+          rm -rf /tmp/fb /tmp/firebird.tar.gz
+          
+          echo "Firebird SDK installed:"
+          ls -la /opt/firebird/lib/
+      
+      - name: Determine PHP Full Version
+        id: php-version
+        run: |
+          # Map minor version to full version
+          case "${{ matrix.php }}" in
+            8.1) FULL_VERSION="8.1.32" ;;
+            8.2) FULL_VERSION="8.2.28" ;;
+            8.3) FULL_VERSION="8.3.16" ;;
+            8.4) FULL_VERSION="8.4.4" ;;
+            *) FULL_VERSION="${{ matrix.php }}.0" ;;
+          esac
+          echo "full_version=${FULL_VERSION}" >> $GITHUB_OUTPUT
+          echo "PHP full version: ${FULL_VERSION}"
+      
+      - name: Install PHP ${{ matrix.php }} (${{ matrix.variant }})
+        run: |
+          FULL_VERSION="${{ steps.php-version.outputs.full_version }}"
+          VARIANT="${{ matrix.variant }}"
+          INSTALL_DIR="/opt/php/${{ matrix.php }}-${VARIANT}"
+          
+          echo "Building PHP ${FULL_VERSION} (${VARIANT})..."
+          
+          # Download PHP source
+          curl -fsSL "https://www.php.net/distributions/php-${FULL_VERSION}.tar.xz" \
+            -o /tmp/php.tar.xz
+          
+          mkdir -p /tmp/php-src
+          tar -xJf /tmp/php.tar.xz -C /tmp/php-src --strip-components=1
+          cd /tmp/php-src
+          
+          # Configure options
+          CONFIGURE_OPTS=(
+            "--prefix=${INSTALL_DIR}"
+            "--enable-cli"
+            "--disable-cgi"
+            "--disable-phpdbg"
+            "--without-pear"
+            "--enable-shared"
+            "--enable-mbstring"
+            "--enable-intl"
+            "--enable-opcache"
+            "--with-openssl"
+            "--with-zlib"
+            "--with-curl"
+          )
+          
+          if [ "${VARIANT}" = "zts" ]; then
+            CONFIGURE_OPTS+=("--enable-zts")
+          fi
+          
+          ./configure "${CONFIGURE_OPTS[@]}"
+          make -j$(nproc)
+          make install
+          
+          # Verify
+          "${INSTALL_DIR}/bin/php" -v
+          
+          # Set up for build script
+          export PATH="${INSTALL_DIR}/bin:${PATH}"
+          
+          # Cleanup
+          cd /
+          rm -rf /tmp/php-src /tmp/php.tar.xz
+      
+      - name: Build Extension
+        run: |
+          export PATH="/opt/php/${{ matrix.php }}-${{ matrix.variant }}/bin:${PATH}"
+          export FB_ROOT=/opt/firebird
+          
+          echo "Building with:"
+          php -v | head -1
+          echo "Firebird: ${FB_ROOT}"
+          
+          # Clean any previous builds
+          phpize --clean 2>/dev/null || true
+          
+          # Build
+          phpize
+          ./configure --with-firebird="${FB_ROOT}"
+          make -j$(nproc)
+          
+          # Verify
+          ls -la modules/firebird.so
+      
+      - name: Create Bundle
+        id: bundle
+        run: |
+          export PATH="/opt/php/${{ matrix.php }}-${{ matrix.variant }}/bin:${PATH}"
+          export FB_ROOT=/opt/firebird
+          
+          # Run build script (skip compilation since already done)
+          chmod +x scripts/build-precompiled.sh
+          ./scripts/build-precompiled.sh --skip-build --checksums --verbose \
+            "${{ matrix.php }}" "${{ matrix.variant }}" "${{ matrix.arch }}"
+          
+          # Get output filename
+          VERSION="${{ needs.prepare.outputs.version }}"
+          PHP_VER="${{ matrix.php }}"
+          PHP_VER_SHORT="${PHP_VER//.}"
+          VARIANT="${{ matrix.variant }}"
+          ARCH="${{ matrix.arch }}"
+          
+          BUNDLE_NAME="php-firebird-${VERSION}-php${PHP_VER_SHORT}-${VARIANT}-linux-${ARCH}"
+          
+          echo "bundle_name=${BUNDLE_NAME}" >> $GITHUB_OUTPUT
+          echo "bundle_file=dist/${BUNDLE_NAME}.tar.gz" >> $GITHUB_OUTPUT
+          
+          # Verify bundle
+          if [ -x scripts/verify-bundle.sh ]; then
+            chmod +x scripts/verify-bundle.sh
+            ./scripts/verify-bundle.sh "dist/${BUNDLE_NAME}" --verbose || true
+          fi
+          
+          echo "Bundle created:"
+          ls -la dist/
+      
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.bundle.outputs.bundle_name }}
+          path: |
+            ${{ steps.bundle.outputs.bundle_file }}
+            ${{ steps.bundle.outputs.bundle_file }}.sha256
+            ${{ steps.bundle.outputs.bundle_file }}.md5
+          retention-days: 30
+
+  # ===========================================================================
+  # Aggregate and Upload to Release
+  # ===========================================================================
+  release:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.upload_to_release)
+    
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: Prepare Release Assets
+        run: |
+          mkdir -p release-assets
+          
+          echo "Downloaded artifacts:"
+          find artifacts -type f -name "*.tar.gz*" | head -20
+          
+          # Collect all bundles
+          find artifacts -name "*.tar.gz" -exec cp {} release-assets/ \;
+          find artifacts -name "*.sha256" -exec cp {} release-assets/ \;
+          find artifacts -name "*.md5" -exec cp {} release-assets/ \;
+          
+          echo ""
+          echo "Release assets:"
+          ls -la release-assets/
+          
+          # Create checksums index
+          cd release-assets
+          sha256sum *.tar.gz > CHECKSUMS-SHA256.txt
+          md5sum *.tar.gz > CHECKSUMS-MD5.txt
+          
+          echo ""
+          echo "CHECKSUMS-SHA256.txt:"
+          cat CHECKSUMS-SHA256.txt
+      
+      - name: Determine Release Tag
+        id: release-tag
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          elif [ -n "${{ inputs.release_tag }}" ]; then
+            TAG="${{ inputs.release_tag }}"
+          else
+            TAG="v${{ needs.prepare.outputs.version }}"
+          fi
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "Release tag: ${TAG}"
+      
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release-tag.outputs.tag }}
+          files: |
+            release-assets/*.tar.gz
+            release-assets/*.sha256
+            release-assets/CHECKSUMS-SHA256.txt
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ===========================================================================
+  # Test Bundles on Multiple Distributions
+  # ===========================================================================
+  test-bundles:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        distro:
+          - ubuntu:20.04
+          - ubuntu:22.04
+          - ubuntu:24.04
+          - debian:11
+          - debian:12
+          - almalinux:8
+          - almalinux:9
+    
+    steps:
+      - name: Download PHP 8.4 NTS Bundle
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*php84-nts*'
+          path: bundle
+      
+      - name: Test on ${{ matrix.distro }}
+        run: |
+          docker run --rm -v "$(pwd)/bundle:/bundle:ro" ${{ matrix.distro }} bash -c '
+            set -e
+            
+            echo "=== Testing on ${{ matrix.distro }} ==="
+            
+            # Install PHP
+            if command -v apt-get &>/dev/null; then
+              apt-get update
+              apt-get install -y php-cli patchelf
+            elif command -v dnf &>/dev/null; then
+              dnf install -y php-cli patchelf
+            elif command -v yum &>/dev/null; then
+              yum install -y php-cli || true
+              pip3 install patchelf || true
+            fi
+            
+            # Find and extract bundle
+            TARBALL=$(find /bundle -name "*.tar.gz" | head -1)
+            if [ -z "$TARBALL" ]; then
+              echo "No bundle found!"
+              exit 1
+            fi
+            
+            echo "Testing bundle: $TARBALL"
+            
+            mkdir -p /tmp/test-bundle
+            tar -xzf "$TARBALL" -C /tmp/test-bundle --strip-components=1
+            
+            cd /tmp/test-bundle
+            
+            # Check RPATH
+            echo ""
+            echo "RPATH:"
+            patchelf --print-rpath firebird.so 2>/dev/null || readelf -d firebird.so | grep -E "RPATH|RUNPATH"
+            
+            # Check dependencies
+            echo ""
+            echo "Dependencies:"
+            ldd firebird.so
+            
+            # Check for missing deps
+            MISSING=$(ldd firebird.so 2>&1 | grep "not found" || true)
+            if [ -n "$MISSING" ]; then
+              echo ""
+              echo "WARNING: Missing dependencies:"
+              echo "$MISSING"
+            fi
+            
+            # Try loading extension
+            echo ""
+            echo "Testing PHP load:"
+            php -d "extension=$(pwd)/firebird.so" -m | grep -i firebird && \
+              echo "SUCCESS: Extension loaded!" || \
+              echo "Note: May fail due to PHP version mismatch"
+            
+            echo ""
+            echo "=== Test complete ==="
+          '

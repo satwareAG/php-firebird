@@ -15,6 +15,7 @@
 # Autotools generated files
 autom4te.cache/
 build/
+!build/manylinux/
 .deps/
 .libs/
 modules/
@@ -133,3 +134,8 @@ composer.lock
 
 # LSan suppressions (generated)
 scripts/container/analysis/lsan.supp
+
+# act (GitHub Actions local runner)
+.act.env
+.act.secrets
+.actrc

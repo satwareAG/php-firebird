@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [7.0.0-rc.12] - 2025-12-28
 
+### Added
+
+- **Precompiled Extension Distribution**: Self-contained binary packages with bundled Firebird client libraries for drop-in deployment without system-wide dependencies
+  - **Build Infrastructure:**
+    - `build/manylinux/Dockerfile` - Multi-stage build environment based on manylinux_2_28 (AlmaLinux 8, glibc 2.28)
+    - `build/manylinux/docker-compose.yml` - Local development compose for iterative builds
+    - `scripts/build-precompiled.sh` - Automated bundle builder with transitive dependency tracing
+    - `scripts/verify-bundle.sh` - Comprehensive bundle verification (RPATH, ldd, PHP load test)
+    - `scripts/install-php-versions.sh` - PHP version management for build containers
+  - **GitHub Actions Workflow:**
+    - `.github/workflows/release-precompiled.yml` - Automated builds on release creation
+    - Matrix: PHP 8.1-8.4 × NTS/ZTS × x86_64 (10 packages per release)
+    - Cross-distribution testing on Ubuntu 20.04/22.04/24.04, Debian 11/12, AlmaLinux 8/9
+    - Automatic upload to GitHub Releases with SHA256 checksums
+  - **Bundle Features:**
+    - `$ORIGIN`-relative RPATH using `patchelf --force-rpath` (DT_RPATH for strong precedence)
+    - Bundled libraries: libfbclient.so.5, ICU (libicuuc/data/i18n), libtommath, libtomcrypt, libre2
+    - System library whitelist: glibc, libpthread, libstdc++ NOT bundled (use system versions)
+    - No `LD_LIBRARY_PATH` required - just extract and load `extension=<path>/firebird.so`
+  - **Compatibility:**
+    - Linux distributions with glibc 2.28+: Ubuntu 18.10+, Debian 10+, RHEL/CentOS/AlmaLinux/Rocky 8+
+    - Firebird servers: 2.5 (deprecated), 3.0, 4.0, 5.0 (bundled FB 5.x client is backward compatible)
+  - **Documentation:**
+    - `docs/research/PRECOMPILED_EXTENSION_STRATEGY.md` - Comprehensive research document
+    - `docs/plans/PRECOMPILED_DISTRIBUTION_PLAN.md` - Implementation plan
+    - Each bundle includes README.md, LICENSE, DEPRECATION.md
+
 ### Fixed
 
 - **GitHub Actions CI Pipeline**: Complete overhaul of CI infrastructure for reliable cross-version testing

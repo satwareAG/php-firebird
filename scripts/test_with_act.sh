@@ -6,11 +6,22 @@
 #
 # Modes:
 #   --qa           Run code quality checks (PHPStan, PHPCS, clang-tidy, cppcheck)
-#   --matrix       Run PHP/Firebird compatibility matrix
+#   --matrix       Run PHP/Firebird compatibility matrix via local Docker
 #   --coverage     Run tests with code coverage (mirrors coverage.yml)
 #   --sanitizers   Build with ASan/UBSan and run tests (mirrors sanitizers.yml)
 #   --full         Run complete CI simulation (QA + Matrix + Coverage)
 #   --syntax       Validate workflow YAML syntax only (requires act)
+#   act [workflow] Run GitHub Actions workflows locally via act
+#
+# act Mode Usage:
+#   ./scripts/test_with_act.sh act                    # Run all workflows
+#   ./scripts/test_with_act.sh act main               # Run main.yml only
+#   ./scripts/test_with_act.sh act coverage           # Run coverage.yml only
+#   ./scripts/test_with_act.sh act sanitizers         # Run sanitizers.yml only
+#   ./scripts/test_with_act.sh act --list             # List available workflows/jobs
+#   ./scripts/test_with_act.sh act --dryrun           # Dry run (parse only)
+#   ./scripts/test_with_act.sh act --job <job>        # Run specific job
+#   ./scripts/test_with_act.sh act --fail-fast        # Stop on first failure
 #
 # Options:
 #   --php <ver>      PHP version for matrix (8.1, 8.2, 8.3, 8.4, 8.5)
@@ -21,11 +32,13 @@
 #   --help           Show this help message
 #
 # Examples:
-#   ./scripts/test_with_act.sh --qa                    # Quick quality check
-#   ./scripts/test_with_act.sh --matrix --php 8.4 --fb 4.0  # Single matrix cell
-#   ./scripts/test_with_act.sh --matrix --all          # Full matrix (slow!)
-#   ./scripts/test_with_act.sh --full                  # Complete CI simulation
-#   ./scripts/test_with_act.sh --syntax                # Validate workflow YAML
+#   ./scripts/test_with_act.sh --qa                        # Quick quality check
+#   ./scripts/test_with_act.sh --matrix --php 8.4 --fb 4.0 # Single matrix cell
+#   ./scripts/test_with_act.sh --matrix --all              # Full matrix (slow!)
+#   ./scripts/test_with_act.sh --full                      # Complete CI simulation
+#   ./scripts/test_with_act.sh --syntax                    # Validate workflow YAML
+#   ./scripts/test_with_act.sh act main --dryrun           # Dry-run main workflow
+#   ./scripts/test_with_act.sh act --job coverage          # Run coverage job only
 #
 # CI Parity Guarantee:
 #   If ./scripts/test_with_act.sh --full passes locally, GitHub Actions CI MUST pass
@@ -44,17 +57,21 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
+MAGENTA='\033[0;35m'
+BOLD='\033[1m'
 NC='\033[0m'
 
 # Project paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DOCKER_DIR="$PROJECT_ROOT/docker"
+WORKFLOWS_DIR="$PROJECT_ROOT/.github/workflows"
 
 # Workflow files
 WORKFLOW_MAIN=".github/workflows/main.yml"
 WORKFLOW_QUALITY=".github/workflows/code-quality.yml"
 WORKFLOW_COVERAGE=".github/workflows/coverage.yml"
+WORKFLOW_SANITIZERS=".github/workflows/sanitizers.yml"
 
 # Defaults
 MODE=""
@@ -65,12 +82,22 @@ SKIP_BUILD=false
 RUN_ALL_MATRIX=false
 GITLEAKS_CONFIG="$PROJECT_ROOT/.gitleaks.toml"
 
+# act mode defaults
+ACT_WORKFLOW=""
+ACT_JOB=""
+ACT_DRYRUN=false
+ACT_LIST=false
+ACT_FAIL_FAST=false
+ACT_VERBOSE=false
+ACT_EXTRA_ARGS=()
+
 # Exit codes
 EXIT_SUCCESS=0
 EXIT_QUALITY_FAILED=1
 EXIT_BUILD_FAILED=2
 EXIT_TESTS_FAILED=3
 EXIT_SYNTAX_INVALID=4
+EXIT_ACT_FAILED=5
 
 # Results tracking
 declare -A RESULTS
@@ -81,7 +108,7 @@ START_TIME=$(date +%s)
 # ============================================================================
 
 usage() {
-    sed -n '2,32p' "$0" | cut -c3-
+    sed -n '2,45p' "$0" | cut -c3-
     exit 0
 }
 
@@ -110,9 +137,9 @@ check_prerequisites() {
         warnings+=("composer (required for PHPStan/PHPCS)")
     fi
 
-    # Optional: act (only for --syntax mode)
+    # Optional: act (for act mode and --syntax mode)
     if ! command -v act &>/dev/null; then
-        warnings+=("act (only needed for --syntax mode)")
+        warnings+=("act (only needed for act mode and --syntax)")
     fi
 
     # Optional: gitleaks
@@ -137,6 +164,310 @@ check_prerequisites() {
     fi
 
     echo -e "${GREEN}✓ Prerequisites OK${NC}"
+}
+
+# ============================================================================
+# act Mode - GitHub Actions Local Runner
+# ============================================================================
+
+# Check if act is installed
+check_act() {
+    if ! command -v act &>/dev/null; then
+        echo -e "${RED}ERROR: act is not installed${NC}"
+        echo ""
+        echo -e "${YELLOW}Install act:${NC}"
+        echo "  Arch Linux:   sudo pacman -S act"
+        echo "  macOS:        brew install act"
+        echo "  Other:        https://github.com/nektos/act#installation"
+        exit $EXIT_ACT_FAILED
+    fi
+
+    # Check act version
+    local act_version
+    act_version=$(act --version 2>/dev/null | head -1)
+    echo -e "${CYAN}Using: $act_version${NC}"
+}
+
+# Discover available workflows
+discover_workflows() {
+    local workflows=()
+    
+    if [ -d "$WORKFLOWS_DIR" ]; then
+        for workflow in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
+            if [ -f "$workflow" ]; then
+                workflows+=("$workflow")
+            fi
+        done
+    fi
+
+    echo "${workflows[@]}"
+}
+
+# Get workflow name from file
+get_workflow_name() {
+    local workflow_file="$1"
+    local name
+    
+    # Try to extract name from YAML
+    name=$(grep -m1 "^name:" "$workflow_file" 2>/dev/null | sed 's/name:\s*//' | tr -d '"'"'" || true)
+    
+    if [ -z "$name" ]; then
+        # Fallback to filename
+        name=$(basename "$workflow_file" .yml)
+        name=$(basename "$name" .yaml)
+    fi
+    
+    echo "$name"
+}
+
+# Get workflow shortname from file path
+get_workflow_shortname() {
+    local workflow_file="$1"
+    local name
+    
+    name=$(basename "$workflow_file" .yml)
+    name=$(basename "$name" .yaml)
+    
+    echo "$name"
+}
+
+# List all workflows and their jobs
+list_workflows() {
+    echo -e "\n${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BLUE}║       Available GitHub Actions Workflows                     ║${NC}"
+    echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    local workflows
+    mapfile -t workflows < <(find "$WORKFLOWS_DIR" -name "*.yml" -o -name "*.yaml" 2>/dev/null | sort)
+
+    if [ ${#workflows[@]} -eq 0 ]; then
+        echo -e "${YELLOW}No workflows found in $WORKFLOWS_DIR${NC}"
+        return 1
+    fi
+
+    for workflow in "${workflows[@]}"; do
+        if [ -f "$workflow" ]; then
+            local shortname
+            shortname=$(get_workflow_shortname "$workflow")
+            local fullname
+            fullname=$(get_workflow_name "$workflow")
+            
+            echo -e "${CYAN}${BOLD}$shortname${NC} - ${fullname}"
+            echo -e "  ${YELLOW}File:${NC} $workflow"
+            
+            # List jobs using act
+            echo -e "  ${YELLOW}Jobs:${NC}"
+            if act -W "$workflow" -l 2>/dev/null | grep -v "^Stage" | grep -v "^$" | head -20; then
+                :
+            else
+                echo -e "    ${YELLOW}(unable to parse jobs - check YAML syntax)${NC}"
+            fi
+            echo ""
+        fi
+    done
+
+    echo -e "${CYAN}Usage examples:${NC}"
+    echo "  ./scripts/test_with_act.sh act                    # Run all workflows"
+    echo "  ./scripts/test_with_act.sh act main               # Run main.yml only"
+    echo "  ./scripts/test_with_act.sh act coverage           # Run coverage.yml only"
+    echo "  ./scripts/test_with_act.sh act sanitizers         # Run sanitizers.yml only"
+    echo "  ./scripts/test_with_act.sh act --job asan-ubsan   # Run specific job"
+    echo "  ./scripts/test_with_act.sh act main --dryrun      # Dry run"
+}
+
+# Create act environment file
+create_act_env() {
+    local env_file="$PROJECT_ROOT/.act.env"
+    
+    cat > "$env_file" << 'EOF'
+# act environment variables for GitHub Actions local testing
+# Firebird connection settings
+ISC_USER=SYSDBA
+ISC_PASSWORD=masterkey
+FIREBIRD_HOST=firebird
+FIREBIRD_DB_PATH=/var/lib/firebird/data/test.fdb
+
+# Test configuration
+NO_INTERACTION=1
+REPORT_EXIT_STATUS=1
+
+# Coverage settings
+COVERAGE_THRESHOLD=55.0
+EOF
+
+    echo "$env_file"
+}
+
+# Create act secrets file
+create_act_secrets() {
+    local secrets_file="$PROJECT_ROOT/.act.secrets"
+    
+    # Create empty secrets file if it doesn't exist
+    if [ ! -f "$secrets_file" ]; then
+        cat > "$secrets_file" << 'EOF'
+# act secrets file for GitHub Actions local testing
+# Add any required secrets here (one per line: SECRET_NAME=value)
+# These won't be committed if .act.secrets is in .gitignore
+EOF
+    fi
+
+    echo "$secrets_file"
+}
+
+# Run a single workflow with act
+run_act_workflow() {
+    local workflow_file="$1"
+    local shortname
+    shortname=$(get_workflow_shortname "$workflow_file")
+    local fullname
+    fullname=$(get_workflow_name "$workflow_file")
+    
+    echo -e "\n${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
+    printf "${BLUE}║${NC}  Running: ${CYAN}%-48s${NC} ${BLUE}║${NC}\n" "$shortname"
+    echo -e "${BLUE}║${NC}  ${fullname}"
+    echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+
+    local act_args=()
+    
+    # Workflow file
+    act_args+=("-W" "$workflow_file")
+    
+    # Environment file
+    local env_file
+    env_file=$(create_act_env)
+    act_args+=("--env-file" "$env_file")
+    
+    # Secrets file (if exists and not empty)
+    local secrets_file
+    secrets_file=$(create_act_secrets)
+    if [ -f "$secrets_file" ] && [ -s "$secrets_file" ]; then
+        act_args+=("--secret-file" "$secrets_file")
+    fi
+    
+    # Specific job
+    if [ -n "$ACT_JOB" ]; then
+        act_args+=("-j" "$ACT_JOB")
+    fi
+    
+    # Dry run
+    if [ "$ACT_DRYRUN" = true ]; then
+        act_args+=("-n")
+    fi
+    
+    # Verbose
+    if [ "$ACT_VERBOSE" = true ]; then
+        act_args+=("-v")
+    fi
+    
+    # Use medium image for better compatibility
+    # act_args+=("-P" "ubuntu-latest=catthehacker/ubuntu:act-latest")
+    
+    # Add extra args
+    act_args+=("${ACT_EXTRA_ARGS[@]}")
+    
+    echo -e "${CYAN}>> act ${act_args[*]}${NC}"
+    echo ""
+    
+    local start_time
+    start_time=$(date +%s)
+    local exit_code=0
+    
+    if act "${act_args[@]}"; then
+        exit_code=0
+    else
+        exit_code=$?
+    fi
+    
+    local end_time
+    end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+    
+    if [ $exit_code -eq 0 ]; then
+        echo -e "\n${GREEN}✓ Workflow '$shortname' completed successfully (${duration}s)${NC}"
+        RESULTS["act:$shortname"]="PASS"
+    else
+        echo -e "\n${RED}✗ Workflow '$shortname' failed with exit code $exit_code (${duration}s)${NC}"
+        RESULTS["act:$shortname"]="FAIL"
+    fi
+    
+    return $exit_code
+}
+
+# Run act mode - main entry point for act functionality
+run_act_mode() {
+    echo -e "\n${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BLUE}║       GitHub Actions Local Runner (act)                      ║${NC}"
+    echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+
+    check_act
+    
+    # List mode
+    if [ "$ACT_LIST" = true ]; then
+        list_workflows
+        return 0
+    fi
+    
+    cd "$PROJECT_ROOT"
+    
+    local workflows_to_run=()
+    local act_failed=0
+    
+    # Determine which workflows to run
+    if [ -n "$ACT_WORKFLOW" ]; then
+        # Specific workflow requested
+        local workflow_file=""
+        
+        # Check for exact match first
+        if [ -f "$WORKFLOWS_DIR/$ACT_WORKFLOW.yml" ]; then
+            workflow_file="$WORKFLOWS_DIR/$ACT_WORKFLOW.yml"
+        elif [ -f "$WORKFLOWS_DIR/$ACT_WORKFLOW.yaml" ]; then
+            workflow_file="$WORKFLOWS_DIR/$ACT_WORKFLOW.yaml"
+        elif [ -f "$ACT_WORKFLOW" ]; then
+            workflow_file="$ACT_WORKFLOW"
+        elif [ -f ".github/workflows/$ACT_WORKFLOW" ]; then
+            workflow_file=".github/workflows/$ACT_WORKFLOW"
+        fi
+        
+        if [ -z "$workflow_file" ] || [ ! -f "$workflow_file" ]; then
+            echo -e "${RED}ERROR: Workflow not found: $ACT_WORKFLOW${NC}"
+            echo ""
+            echo -e "${YELLOW}Available workflows:${NC}"
+            for wf in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
+                if [ -f "$wf" ]; then
+                    echo "  - $(get_workflow_shortname "$wf")"
+                fi
+            done
+            exit $EXIT_ACT_FAILED
+        fi
+        
+        workflows_to_run+=("$workflow_file")
+    else
+        # Run all workflows
+        mapfile -t workflows_to_run < <(find "$WORKFLOWS_DIR" -name "*.yml" -o -name "*.yaml" 2>/dev/null | sort)
+        
+        if [ ${#workflows_to_run[@]} -eq 0 ]; then
+            echo -e "${RED}ERROR: No workflows found in $WORKFLOWS_DIR${NC}"
+            exit $EXIT_ACT_FAILED
+        fi
+        
+        echo -e "${YELLOW}Running ${#workflows_to_run[@]} workflow(s)...${NC}"
+    fi
+    
+    # Run each workflow
+    for workflow in "${workflows_to_run[@]}"; do
+        if [ -f "$workflow" ]; then
+            if ! run_act_workflow "$workflow"; then
+                act_failed=1
+                if [ "$ACT_FAIL_FAST" = true ]; then
+                    echo -e "${RED}Stopping due to --fail-fast${NC}"
+                    break
+                fi
+            fi
+        fi
+    done
+    
+    return $act_failed
 }
 
 # ============================================================================
@@ -350,18 +681,20 @@ run_syntax_mode() {
     cd "$PROJECT_ROOT"
 
     # Validate each workflow
-    for workflow in "$WORKFLOW_QUALITY" "$WORKFLOW_MAIN"; do
+    for workflow in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
         if [ -f "$workflow" ]; then
-            echo -e "\n${CYAN}>> Validating $workflow...${NC}"
+            local shortname
+            shortname=$(get_workflow_shortname "$workflow")
+            echo -e "\n${CYAN}>> Validating $shortname...${NC}"
 
-            if act -W "$workflow" -n --dryrun 2>&1 | head -20; then
-                echo -e "${GREEN}✓ $workflow syntax valid${NC}"
+            if act -W "$workflow" -n 2>&1 | head -30; then
+                echo -e "${GREEN}✓ $shortname syntax valid${NC}"
+                RESULTS["syntax:$shortname"]="PASS"
             else
-                echo -e "${RED}✗ $workflow syntax invalid${NC}"
+                echo -e "${RED}✗ $shortname syntax invalid${NC}"
+                RESULTS["syntax:$shortname"]="FAIL"
                 syntax_failed=1
             fi
-        else
-            echo -e "${YELLOW}⚠ Workflow not found: $workflow${NC}"
         fi
     done
 
@@ -570,7 +903,7 @@ print_summary() {
             WARN) icon="${YELLOW}⚠${NC}" ;;
             SKIP) icon="${YELLOW}-${NC}" ;;
         esac
-        printf "  %-15s %b %s\n" "$key:" "$icon" "$result"
+        printf "  %-20s %b %s\n" "$key:" "$icon" "$result"
     done
 
     echo -e "\n${CYAN}Duration:${NC} ${duration}s"
@@ -599,6 +932,52 @@ print_summary() {
 # ============================================================================
 
 parse_args() {
+    # Check for act mode first
+    if [ "${1:-}" = "act" ]; then
+        MODE="act"
+        shift
+        
+        # Parse act-specific arguments
+        while [[ "$#" -gt 0 ]]; do
+            case $1 in
+                --list|-l)
+                    ACT_LIST=true
+                    ;;
+                --dryrun|-n)
+                    ACT_DRYRUN=true
+                    ;;
+                --job|-j)
+                    ACT_JOB="$2"
+                    shift
+                    ;;
+                --fail-fast)
+                    ACT_FAIL_FAST=true
+                    ;;
+                --verbose|-v)
+                    ACT_VERBOSE=true
+                    ;;
+                --help|-h)
+                    usage
+                    ;;
+                -*)
+                    # Pass through unknown flags to act
+                    ACT_EXTRA_ARGS+=("$1")
+                    ;;
+                *)
+                    # Workflow name (first non-option argument)
+                    if [ -z "$ACT_WORKFLOW" ]; then
+                        ACT_WORKFLOW="$1"
+                    else
+                        ACT_EXTRA_ARGS+=("$1")
+                    fi
+                    ;;
+            esac
+            shift
+        done
+        return
+    fi
+
+    # Parse regular arguments
     while [[ "$#" -gt 0 ]]; do
         case $1 in
             --qa)
@@ -666,14 +1045,35 @@ main() {
     echo -e "${BLUE}║           CI Pre-flight Validator                            ║${NC}"
     echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo -e "Mode: ${YELLOW}$MODE${NC}"
-    echo -e "PHP: ${YELLOW}$PHP_VERSION${NC} | Firebird: ${YELLOW}$FB_VERSION${NC}"
+    
+    if [ "$MODE" = "act" ]; then
+        if [ -n "$ACT_WORKFLOW" ]; then
+            echo -e "Workflow: ${CYAN}$ACT_WORKFLOW${NC}"
+        else
+            echo -e "Workflow: ${CYAN}all${NC}"
+        fi
+        if [ -n "$ACT_JOB" ]; then
+            echo -e "Job: ${CYAN}$ACT_JOB${NC}"
+        fi
+        if [ "$ACT_DRYRUN" = true ]; then
+            echo -e "Dry Run: ${YELLOW}yes${NC}"
+        fi
+    else
+        echo -e "PHP: ${YELLOW}$PHP_VERSION${NC} | Firebird: ${YELLOW}$FB_VERSION${NC}"
+    fi
     echo ""
 
-    check_prerequisites
+    # Skip prerequisites for act list mode
+    if [ "$MODE" != "act" ] || [ "$ACT_LIST" != true ]; then
+        check_prerequisites
+    fi
 
     local exit_code=0
 
     case "$MODE" in
+        act)
+            run_act_mode || exit_code=$EXIT_ACT_FAILED
+            ;;
         qa)
             run_qa_mode || exit_code=$EXIT_QUALITY_FAILED
             ;;
@@ -698,7 +1098,11 @@ main() {
             ;;
     esac
 
-    print_summary
+    # Print summary for non-list modes
+    if [ "$ACT_LIST" != true ]; then
+        print_summary
+    fi
+    
     exit $exit_code
 }
 

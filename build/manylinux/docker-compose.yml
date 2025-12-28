@@ -1,0 +1,168 @@
+# =============================================================================
+# PHP Firebird Extension - Local Development Docker Compose
+# =============================================================================
+#
+# Provides local development environment for building precompiled extensions.
+#
+# Usage:
+#   # Build the builder image
+#   docker compose -f build/manylinux/docker-compose.yml build
+#
+#   # Build PHP 8.4 NTS extension
+#   docker compose -f build/manylinux/docker-compose.yml run --rm build-84-nts
+#
+#   # Build all variants
+#   docker compose -f build/manylinux/docker-compose.yml up
+#
+#   # Interactive development
+#   docker compose -f build/manylinux/docker-compose.yml run --rm dev
+#
+# =============================================================================
+
+services:
+  # ===========================================================================
+  # Builder Base Image
+  # ===========================================================================
+  builder:
+    build:
+      context: ../..
+      dockerfile: build/manylinux/Dockerfile
+      target: builder
+      args:
+        FB_VERSION: "5.0.2"
+        FB_BUILD: "1613"
+        PHP_VERSIONS: "8.2.28 8.3.16 8.4.4"
+    image: php-firebird-builder:latest
+
+  # ===========================================================================
+  # Interactive Development Shell
+  # ===========================================================================
+  dev:
+    extends:
+      service: builder
+    entrypoint: ["/bin/bash"]
+    stdin_open: true
+    tty: true
+    volumes:
+      - ../..:/src:rw
+    working_dir: /src
+    environment:
+      - FB_ROOT=/opt/firebird
+      - PHP_PREFIX=/opt/php
+
+  # ===========================================================================
+  # PHP 8.2 Builds
+  # ===========================================================================
+  build-82-nts:
+    extends:
+      service: builder
+    volumes:
+      - ../..:/src:rw
+      - dist-cache:/src/dist
+    command: ["8.2", "nts", "x86_64"]
+
+  build-82-zts:
+    extends:
+      service: builder
+    volumes:
+      - ../..:/src:rw
+      - dist-cache:/src/dist
+    command: ["8.2", "zts", "x86_64"]
+
+  # ===========================================================================
+  # PHP 8.3 Builds
+  # ===========================================================================
+  build-83-nts:
+    extends:
+      service: builder
+    volumes:
+      - ../..:/src:rw
+      - dist-cache:/src/dist
+    command: ["8.3", "nts", "x86_64"]
+
+  build-83-zts:
+    extends:
+      service: builder
+    volumes:
+      - ../..:/src:rw
+      - dist-cache:/src/dist
+    command: ["8.3", "zts", "x86_64"]
+
+  # ===========================================================================
+  # PHP 8.4 Builds
+  # ===========================================================================
+  build-84-nts:
+    extends:
+      service: builder
+    volumes:
+      - ../..:/src:rw
+      - dist-cache:/src/dist
+    command: ["8.4", "nts", "x86_64"]
+
+  build-84-zts:
+    extends:
+      service: builder
+    volumes:
+      - ../..:/src:rw
+      - dist-cache:/src/dist
+    command: ["8.4", "zts", "x86_64"]
+
+  # ===========================================================================
+  # Build All Variants (Parallel)
+  # ===========================================================================
+  build-all:
+    extends:
+      service: builder
+    volumes:
+      - ../..:/src:rw
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -e
+        echo "=== Building all PHP variants ==="
+        
+        for version in 8.2 8.3 8.4; do
+          for variant in nts zts; do
+            echo ""
+            echo ">>> Building PHP $${version} ($${variant})..."
+            /usr/local/bin/build-with-php "$${version}" "$${variant}" "x86_64"
+          done
+        done
+        
+        echo ""
+        echo "=== All builds complete ==="
+        ls -la /src/dist/*.tar.gz
+
+  # ===========================================================================
+  # Verification
+  # ===========================================================================
+  verify:
+    extends:
+      service: builder
+    entrypoint: ["/bin/bash", "-c"]
+    volumes:
+      - ../..:/src:ro
+    command:
+      - |
+        echo "=== Verifying all bundles ==="
+        for bundle in /src/dist/php-firebird-*-linux-x86_64; do
+          if [ -d "$$bundle" ]; then
+            echo ""
+            echo ">>> Verifying: $$(basename $$bundle)"
+            /usr/local/bin/verify-bundle.sh "$$bundle" --verbose
+          fi
+        done
+
+# ===========================================================================
+# Volumes for caching
+# ===========================================================================
+volumes:
+  dist-cache:
+    driver: local
+
+# ===========================================================================
+# Networks (default bridge is fine for builds)
+# ===========================================================================
+networks:
+  default:
+    driver: bridge

@@ -47,6 +47,7 @@ if (!$row) {
 
 // Get all keys and check for trailing spaces
 $keys = array_keys($row);
+sort($keys); // Sort for deterministic output
 echo "Number of columns: " . count($keys) . "\n";
 
 $has_trailing_spaces = false;
@@ -63,9 +64,11 @@ foreach ($keys as $key) {
     if (preg_match('/_\d{2}$/', $key)) {
         $has_dedup_suffix = true;
     }
+}
 
-    // Output key for debugging (visible length and actual content)
-    echo "Key: [" . $key . "] (length=" . strlen($key) . ")\n";
+// Output sorted keys for verification
+foreach ($keys as $key) {
+    echo "Key: [" . $key . "]\n";
 }
 
 // Verify we have deduplication (proves duplicate columns were handled)
@@ -100,10 +103,10 @@ fbird_free_result($result);
 fbird_close($db);
 echo "Test complete\n";
 ?>
---EXPECTF--
+--EXPECT--
 Number of columns: 2
-Key: [COL] (length=3)
-Key: [COL_01] (length=6)
+Key: [COL]
+Key: [COL_01]
 OK: Deduplication suffix found
 SUCCESS: All keys are properly trimmed
 OK: Key 'COL' accessible

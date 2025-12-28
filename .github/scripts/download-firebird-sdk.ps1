@@ -49,17 +49,75 @@ if ($url.EndsWith(".exe")) {
     Write-Host "Extracting from Inno Setup installer..."
     & 7z x $tempFile -o"$DestinationPath\extracted" -y
 
-    # Copy SDK files to standard locations
-    Copy-Item "$DestinationPath\extracted\sdk\*" -Destination $DestinationPath -Recurse -Force
-    Copy-Item "$DestinationPath\extracted\fbclient.dll" -Destination "$DestinationPath\bin\" -Force
+    # Firebird 5.0 has a different structure - look for files in multiple locations
+    New-Item -ItemType Directory -Force -Path "$DestinationPath\include" | Out-Null
+    New-Item -ItemType Directory -Force -Path "$DestinationPath\lib" | Out-Null
+    New-Item -ItemType Directory -Force -Path "$DestinationPath\bin" | Out-Null
+    
+    # Try different known paths for Inno Setup extraction
+    $sdkPaths = @("$DestinationPath\extracted\sdk", "$DestinationPath\extracted\{app}\sdk", "$DestinationPath\extracted")
+    $foundSdk = $false
+    foreach ($sdkPath in $sdkPaths) {
+        if (Test-Path "$sdkPath\include\ibase.h") {
+            Write-Host "Found SDK at: $sdkPath"
+            Copy-Item "$sdkPath\include\*" -Destination "$DestinationPath\include\" -Recurse -Force
+            Copy-Item "$sdkPath\lib\*" -Destination "$DestinationPath\lib\" -Recurse -Force -ErrorAction SilentlyContinue
+            $foundSdk = $true
+            break
+        }
+    }
+    
+    # Find fbclient.dll in various locations
+    $fbclientPaths = @(
+        "$DestinationPath\extracted\fbclient.dll",
+        "$DestinationPath\extracted\{app}\fbclient.dll",
+        "$DestinationPath\extracted\WOW64\fbclient.dll"
+    )
+    foreach ($fbPath in $fbclientPaths) {
+        if (Test-Path $fbPath) {
+            Copy-Item $fbPath -Destination "$DestinationPath\bin\" -Force
+            break
+        }
+    }
+    
+    # Also copy lib files
+    $libPaths = @("$DestinationPath\extracted\lib", "$DestinationPath\extracted\{app}\lib")
+    foreach ($libPath in $libPaths) {
+        if (Test-Path $libPath) {
+            Copy-Item "$libPath\*" -Destination "$DestinationPath\lib\" -Recurse -Force -ErrorAction SilentlyContinue
+            break
+        }
+    }
 } else {
     # ZIP file
     Write-Host "Extracting ZIP archive..."
     Expand-Archive -Path $tempFile -DestinationPath "$DestinationPath\extracted" -Force
 
-    # Find and copy SDK structure
+    # Create standard directory structure
+    New-Item -ItemType Directory -Force -Path "$DestinationPath\include" | Out-Null
+    New-Item -ItemType Directory -Force -Path "$DestinationPath\lib" | Out-Null
+    New-Item -ItemType Directory -Force -Path "$DestinationPath\bin" | Out-Null
+    
+    # Find and copy SDK structure - handle nested directories
     $extractedDir = Get-ChildItem "$DestinationPath\extracted" -Directory | Select-Object -First 1
-    Copy-Item "$extractedDir\*" -Destination $DestinationPath -Recurse -Force
+    if ($extractedDir) {
+        # Check if SDK is in root or nested
+        if (Test-Path "$extractedDir\include\ibase.h") {
+            Copy-Item "$extractedDir\include\*" -Destination "$DestinationPath\include\" -Recurse -Force
+            Copy-Item "$extractedDir\lib\*" -Destination "$DestinationPath\lib\" -Recurse -Force -ErrorAction SilentlyContinue
+            if (Test-Path "$extractedDir\bin") {
+                Copy-Item "$extractedDir\bin\*" -Destination "$DestinationPath\bin\" -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            # Copy fbclient.dll from root if exists
+            if (Test-Path "$extractedDir\fbclient.dll") {
+                Copy-Item "$extractedDir\fbclient.dll" -Destination "$DestinationPath\bin\" -Force
+            }
+        } elseif (Test-Path "$extractedDir\sdk\include\ibase.h") {
+            # FB 3.0 structure with sdk subdirectory
+            Copy-Item "$extractedDir\sdk\include\*" -Destination "$DestinationPath\include\" -Recurse -Force
+            Copy-Item "$extractedDir\sdk\lib\*" -Destination "$DestinationPath\lib\" -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 # Clean up

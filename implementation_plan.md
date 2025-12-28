@@ -1,269 +1,128 @@
-# Implementation Plan: PHP Firebird Extension Fuzzer Infrastructure
+# Implementation Plan: CI Pipeline Fixes for php-firebird
 
 [Overview]
-Create a robust, industry-standard fuzzing infrastructure for the PHP Firebird extension using a dedicated `fuzz/` directory structure.
+Fix the remaining CI pipeline issues for the php-firebird extension: sanitizers workflow ASan runtime loading and issue23 test flakiness.
 
-This implementation addresses the root cause issue where `tests/*.php` files are gitignored, preventing fuzzer scripts from being tracked in version control. The solution follows 2025 best practices for PHP extension security testing:
+The php-firebird extension's GitHub Actions CI has three workflows. The coverage workflow passes, but the main workflow has a flaky test (issue23) and the sanitizers workflow fails due to ASan symbol resolution issues. This plan addresses both problems to achieve reliable CI.
 
-1. **Dedicated `fuzz/` directory** - Bypasses the `tests/*.php` gitignore rule and provides clean separation between deterministic phpt tests and stochastic fuzz tests.
-2. **SARIF report format** - Industry-standard JSON schema (v2.1.0) for security findings, enabling direct integration with GitHub/GitLab code scanning dashboards.
-3. **Pre-seeded corpus** - Accelerates coverage discovery by providing initial inputs that exercise all major fbird_* APIs.
-4. **Modular architecture** - Separates fuzzing logic (harness), reporting (SARIF generator), and execution (runner script) for maintainability.
+**Current State:**
+- `coverage.yml`: ✅ PASSES (56.8% coverage, threshold 55%)
+- `main.yml`: ⚠️ 3/4 jobs pass (issue23 test fails on PHP 8.1 / FB 5.0)
+- `sanitizers.yml`: ❌ FAILS (ASan symbols cannot resolve when loading extension)
 
-The fuzzer targets memory safety issues (buffer overflows, use-after-free, memory leaks) and undefined behavior through integration with the existing ASan-enabled Docker container (`php83-asan`).
+**Root Causes Identified:**
+1. **Sanitizers**: Extension compiled with ASan flags references symbols (`__asan_option_detect_stack_use_after_return`) that the PHP binary doesn't have. Solution: Use `LD_PRELOAD` to load the ASan runtime library before PHP starts.
+2. **Issue23 Test**: The test queries system tables (`RDB$FIELDS`, `RDB$RELATION_FIELDS`) with `FIRST 1`. Row order from system tables can vary, and behavior differs between PHP 8.1 and 8.4 on the same Firebird server.
 
 [Types]
-PHP classes and data structures for the fuzzing framework.
+No type definitions required for this implementation.
 
-```php
-// fuzz/src/SarifReport.php
-class SarifReport {
-    private string $schema = 'https://json.schemastore.org/sarif-2.1.0.json';
-    private string $version = '2.1.0';
-    private array $runs = [];
-    
-    public function addRun(string $toolName, string $toolVersion): int;
-    public function addResult(int $runIndex, array $result): void;
-    public function toJson(): string;
-}
-
-// Result structure for SARIF
-interface SarifResult {
-    string $ruleId;        // e.g., "FUZZ001"
-    string $level;         // "error", "warning", "note"
-    string $message;       // Human-readable description
-    ?array $locations;     // File/line info if available
-    ?array $stacks;        // Stack trace for crashes
-    ?string $fingerprint;  // Unique hash for deduplication
-}
-
-// fuzz/src/FuzzHarness.php
-class FuzzHarness {
-    private array $operations = [];
-    private array $state = [
-        'connections' => [],
-        'transactions' => [],
-        'statements' => [],
-        'blobs' => [],
-    ];
-    
-    public function registerOperation(string $name, callable $fn, float $weight): void;
-    public function execute(int $iterations): FuzzResult;
-}
-
-// fuzz/src/FuzzResult.php
-class FuzzResult {
-    public int $iterations;
-    public int $passed;
-    public int $failed;
-    public array $errors;        // Captured error messages
-    public array $coverage;      // API function coverage
-    public float $duration;
-}
-```
+This is a CI/CD and test fix task that modifies GitHub Actions workflow YAML files and PHPT test files. No application code types are involved.
 
 [Files]
-Create a new `fuzz/` directory structure following 2025 PHP extension fuzzing best practices.
+Modify two workflow files and one test file.
 
-**New files to create:**
-- `fuzz/run.php` - Main entry point; parses args, runs harness, outputs SARIF
-- `fuzz/src/SarifReport.php` - SARIF 2.1.0 report generator class
-- `fuzz/src/FuzzHarness.php` - Core fuzzing logic with weighted random operations
-- `fuzz/src/FuzzResult.php` - Result data structure
-- `fuzz/src/Operations/ConnectionOps.php` - fbird_connect, fbird_pconnect, fbird_close operations
-- `fuzz/src/Operations/TransactionOps.php` - fbird_trans, fbird_commit, fbird_rollback operations
-- `fuzz/src/Operations/QueryOps.php` - fbird_query, fbird_prepare, fbird_execute operations
-- `fuzz/src/Operations/BlobOps.php` - fbird_blob_create, fbird_blob_add, fbird_blob_get operations
-- `fuzz/corpus/seed_connect.php` - Seed: connection patterns
-- `fuzz/corpus/seed_transaction.php` - Seed: transaction patterns
-- `fuzz/corpus/seed_blob.php` - Seed: BLOB edge cases
-- `fuzz/corpus/seed_boundary.php` - Seed: INT64/NUMERIC boundary values
-- `fuzz/README.md` - Documentation for fuzzing infrastructure
-- `fuzz/crashes/.gitkeep` - Directory for crash artifacts (gitignored contents)
+**Files to Modify:**
 
-**Existing files to modify:**
-- `scripts/fuzz_asan.sh` - Update to use `fuzz/run.php` instead of `tests/fuzzer.php`
-- `scripts/qa.sh` - Update fuzz mode to reference new location
-- `.gitignore` - Add `fuzz/crashes/*` and `!fuzz/crashes/.gitkeep`
+1. `.github/workflows/sanitizers.yml`
+   - Add `LD_PRELOAD` for ASan runtime in the "Verify extension and connection" step
+   - Add `LD_PRELOAD` for ASan runtime in the "Run tests with sanitizers" step
+   - Add `LD_PRELOAD` for LSan runtime in the LSan job's verification and test steps
+   - Find and export the correct library paths at runtime
 
-**Files to delete:**
-- `tests/fuzzer.php` - Empty placeholder (0 bytes)
-- `docker/fuzz_report.json` - Old report location (will be generated in `fuzz/reports/`)
+2. `tests/issue23_alias_padding_001.phpt`
+   - Replace system table query with a controlled CTE-based query
+   - Ensure deterministic output regardless of database state
+   - Maintain the purpose of testing column alias deduplication with padding
+
+**No New Files Required**
 
 [Functions]
-Core functions in the fuzzing framework.
+No function modifications required for this implementation.
 
-**fuzz/run.php (main entry point):**
-```php
-function main(array $argv): int;
-function parseArgs(array $argv): array;
-function loadCorpus(string $corpusDir): array;
-function outputSarif(SarifReport $report, string $outputPath): void;
-```
-
-**fuzz/src/SarifReport.php:**
-```php
-public function __construct(string $toolName = 'php-firebird-fuzzer', string $toolVersion = '1.0.0');
-public function addRun(string $toolName, string $toolVersion): int;
-public function addResult(int $runIndex, string $ruleId, string $level, string $message, ?array $location = null, ?array $stack = null): void;
-public function setInvocation(int $runIndex, bool $success, ?string $exitCode = null): void;
-public function toJson(int $options = JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES): string;
-public function toArray(): array;
-```
-
-**fuzz/src/FuzzHarness.php:**
-```php
-public function __construct(string $dsn, string $user, string $password);
-public function registerOperation(string $name, callable $fn, float $weight = 1.0): void;
-public function loadDefaultOperations(): void;
-public function execute(int $iterations, ?callable $progressCallback = null): FuzzResult;
-protected function selectOperation(): string;
-protected function executeOperation(string $name): array;
-protected function captureError(): ?array;
-```
-
-**fuzz/src/FuzzResult.php:**
-```php
-public function __construct();
-public function recordSuccess(string $operation): void;
-public function recordFailure(string $operation, array $error): void;
-public function getCoverage(): array;
-public function toArray(): array;
-```
-
-**Operation classes (Operations/*.php):**
-```php
-// Each operation class provides static methods returning closures
-class ConnectionOps {
-    public static function connect(FuzzHarness $h): Closure;
-    public static function pconnect(FuzzHarness $h): Closure;
-    public static function close(FuzzHarness $h): Closure;
-    public static function forceNew(FuzzHarness $h): Closure;
-}
-
-class TransactionOps {
-    public static function begin(FuzzHarness $h): Closure;
-    public static function commit(FuzzHarness $h): Closure;
-    public static function rollback(FuzzHarness $h): Closure;
-    public static function commitRetaining(FuzzHarness $h): Closure;
-    public static function savepoint(FuzzHarness $h): Closure;
-}
-
-class QueryOps {
-    public static function simpleQuery(FuzzHarness $h): Closure;
-    public static function prepareExecute(FuzzHarness $h): Closure;
-    public static function parameterizedInsert(FuzzHarness $h): Closure;
-    public static function fetchAll(FuzzHarness $h): Closure;
-}
-
-class BlobOps {
-    public static function createBlob(FuzzHarness $h): Closure;
-    public static function streamBlob(FuzzHarness $h): Closure;
-    public static function largeBlob(FuzzHarness $h): Closure;
-    public static function postCommitAccess(FuzzHarness $h): Closure;  // Known edge case
-}
-```
+This task modifies shell scripts embedded in YAML workflow files and PHP test scripts. No C functions or PHP library functions are changed.
 
 [Classes]
-Object-oriented design for the fuzzing framework.
+No class modifications required for this implementation.
 
-**New classes:**
-
-1. **SarifReport** (`fuzz/src/SarifReport.php`)
-   - Generates SARIF 2.1.0 compliant JSON reports
-   - Methods: `addRun()`, `addResult()`, `setInvocation()`, `toJson()`
-   - No inheritance
-
-2. **FuzzHarness** (`fuzz/src/FuzzHarness.php`)
-   - Core fuzzer engine with weighted random operation selection
-   - Maintains state of active connections, transactions, statements, blobs
-   - Methods: `registerOperation()`, `execute()`, `loadDefaultOperations()`
-   - No inheritance
-
-3. **FuzzResult** (`fuzz/src/FuzzResult.php`)
-   - Data class for fuzzing results
-   - Tracks iterations, pass/fail counts, errors, coverage
-   - Methods: `recordSuccess()`, `recordFailure()`, `getCoverage()`, `toArray()`
-   - No inheritance
-
-4. **ConnectionOps** (`fuzz/src/Operations/ConnectionOps.php`)
-   - Static factory methods for connection-related operations
-   - No inheritance
-
-5. **TransactionOps** (`fuzz/src/Operations/TransactionOps.php`)
-   - Static factory methods for transaction-related operations
-   - No inheritance
-
-6. **QueryOps** (`fuzz/src/Operations/QueryOps.php`)
-   - Static factory methods for query-related operations
-   - No inheritance
-
-7. **BlobOps** (`fuzz/src/Operations/BlobOps.php`)
-   - Static factory methods for BLOB-related operations
-   - Includes known edge cases from FUZZING_2025.md research
-   - No inheritance
-
-**No existing classes are modified.**
+This is a CI/CD infrastructure fix with no object-oriented code changes.
 
 [Dependencies]
-No new external dependencies required.
+No dependency changes required.
 
-The fuzzing framework uses:
-- PHP 8.3+ built-in functions
-- The firebird extension itself (being tested)
-- Standard PHP JSON functions for SARIF output
-- No Composer packages needed (keeps it lightweight for container environments)
-
-The existing Docker infrastructure (`php83-asan` container) already provides:
-- PHP compiled with AddressSanitizer
-- Firebird client libraries
-- All necessary build tools
+The sanitizers workflow already installs `libasan8`, `libubsan1`, and `liblsan0` packages. No additional packages are needed - the fix is to preload these libraries at runtime.
 
 [Testing]
-Validation strategy for the fuzzing infrastructure.
+Test by pushing changes and verifying CI workflows pass.
 
-**Manual validation:**
-1. Run `php fuzz/run.php --iterations=10 --output=test.sarif` and verify SARIF output validates against schema
-2. Run full suite (`./scripts/fuzz_asan.sh 100`) and confirm no false positives
-3. Verify SARIF can be uploaded to GitHub code scanning (if available)
+**Verification Steps:**
+1. Push changes to a branch
+2. Monitor GitHub Actions workflows
+3. Verify `sanitizers.yml` jobs complete successfully:
+   - ASan + UBSan (PHP 8.3) job should pass
+   - LeakSanitizer (PHP 8.3) job should pass
+4. Verify `main.yml` all 4 matrix jobs pass:
+   - PHP 8.1 / Firebird 3.0
+   - PHP 8.1 / Firebird 5.0
+   - PHP 8.4 / Firebird 3.0
+   - PHP 8.4 / Firebird 5.0
+5. Verify `coverage.yml` continues to pass
 
-**Integration with existing tests:**
-- The fuzzer is NOT a phpt test; it's a separate QA tool
-- Existing phpt tests in `tests/` remain unchanged
-- The `scripts/qa.sh --mode=fuzz` triggers the fuzzer
-
-**Validation checklist:**
-- [ ] SARIF output validates against https://json.schemastore.org/sarif-2.1.0.json
-- [ ] Exit code 0 when no crashes, non-zero when crashes detected
-- [ ] ASan errors are captured and reported in SARIF format
-- [ ] All fbird_* functions are covered by at least one operation
-- [ ] Corpus seeds execute without errors on clean database
+**Expected Outcomes:**
+- Sanitizers workflow: All jobs green
+- Main workflow: All 4 matrix combinations pass
+- Coverage workflow: Continues to pass with >55% coverage
 
 [Implementation Order]
-Sequential implementation steps with minimal dependencies.
+Fix sanitizers first (more complex), then fix the flaky test. Local test script already updated.
 
-1. **Create directory structure** - `fuzz/`, `fuzz/src/`, `fuzz/src/Operations/`, `fuzz/corpus/`, `fuzz/crashes/`
+**Step 0: Update Local Test Script (COMPLETED)**
+Updated `scripts/test_with_act.sh` to use GCC instead of clang and add LD_PRELOAD for ASan runtime, matching the CI changes to be made.
 
-2. **Implement SarifReport class** - Core SARIF 2.1.0 generator (no dependencies)
+**Step 1: Fix Sanitizers Workflow - ASan Job**
+Modify `.github/workflows/sanitizers.yml` to detect and preload the ASan runtime library before running PHP commands in the `asan-ubsan` job.
 
-3. **Implement FuzzResult class** - Simple data class (no dependencies)
+Add before PHP invocations in "Verify extension and connection" step:
+```bash
+# Find and preload ASan runtime for GCC-built sanitized extension
+ASAN_LIB=$(find /usr/lib -name "libasan.so.*" -type f 2>/dev/null | head -1)
+if [ -n "$ASAN_LIB" ]; then
+  export LD_PRELOAD="$ASAN_LIB"
+  echo "Preloading ASan runtime: $ASAN_LIB"
+fi
+```
 
-4. **Implement FuzzHarness class** - Core engine (depends on FuzzResult)
+**Step 2: Fix Sanitizers Workflow - LSan Job**
+Apply similar `LD_PRELOAD` fix to the LeakSanitizer job, preloading `liblsan.so`:
+```bash
+# Find and preload LSan runtime for GCC-built sanitized extension
+LSAN_LIB=$(find /usr/lib -name "liblsan.so.*" -type f 2>/dev/null | head -1)
+if [ -n "$LSAN_LIB" ]; then
+  export LD_PRELOAD="$LSAN_LIB"
+  echo "Preloading LSan runtime: $LSAN_LIB"
+fi
+```
 
-5. **Implement Operation classes** - ConnectionOps, TransactionOps, QueryOps, BlobOps (depend on FuzzHarness)
+**Step 3: Fix Issue23 Test**
+Replace the system table query with a deterministic CTE-based query that:
+- Creates duplicate column names explicitly
+- Does not depend on database state
+- Produces consistent output across PHP versions
 
-6. **Create seed corpus** - Pre-generated PHP scripts exercising edge cases
+New query approach:
+```sql
+WITH DUP AS (SELECT 'VALUE1' AS COL_NAME, 'VALUE2' AS COL_NAME FROM RDB$DATABASE)
+SELECT * FROM DUP
+```
 
-7. **Implement run.php entry point** - Ties everything together (depends on all above)
+**Step 4: Commit and Push**
+- Commit changes with descriptive message following Conventional Commits
+- Push to `satware-main` branch
+- Monitor CI workflows for all-green status
 
-8. **Update scripts/fuzz_asan.sh** - Point to new fuzz/run.php
+**Step 5: Update CHANGELOG**
+- Document the CI fixes in `CHANGELOG.md` under version 7.0.0-rc.12 or create new section if releasing
 
-9. **Update scripts/qa.sh** - Update fuzz mode path
-
-10. **Update .gitignore** - Add fuzz/crashes/* pattern
-
-11. **Delete obsolete files** - Remove tests/fuzzer.php, docker/fuzz_report.json
-
-12. **Create fuzz/README.md** - Document usage and architecture
-
-13. **Validate** - Run fuzzer, verify SARIF output, test in ASan container
+**Step 6: Verify Final State**
+- Confirm all three workflows pass
+- Document any remaining known issues

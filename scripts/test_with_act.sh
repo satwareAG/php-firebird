@@ -452,27 +452,30 @@ run_sanitizers_mode() {
     cd "$PROJECT_ROOT"
 
     echo -e "${CYAN}>> Building and testing with ASan + UBSan...${NC}"
-    echo -e "${YELLOW}Note: Requires clang compiler in Docker container${NC}"
+    echo -e "${YELLOW}Note: Uses GCC with built-in sanitizer support (matching CI)${NC}"
 
     local container="php83-dev"
 
     # Build with sanitizer flags and run tests
+    # Uses GCC (not clang) because GCC has built-in sanitizer support that works
+    # with libasan8/libubsan1 packages without requiring compiler-rt builtins
     if docker compose -f "$DOCKER_DIR/docker-compose.yml" exec -T "$container" bash -c '
         cd /ext
 
-        # Check for clang
-        if ! command -v clang &>/dev/null; then
-            echo "Installing clang..."
-            apt-get update -qq && apt-get install -y -qq clang llvm
+        # Ensure GCC and sanitizer runtime libraries are installed
+        if ! dpkg -l | grep -q libasan; then
+            echo "Installing sanitizer runtime libraries..."
+            apt-get update -qq && apt-get install -y -qq gcc g++ libasan8 libubsan1 liblsan0 2>/dev/null || true
         fi
 
-        export CC=clang
-        export CXX=clang++
+        # Use GCC - it has built-in sanitizer support that works with system libasan
+        export CC=gcc
+        export CXX=g++
         SANITIZE_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g -O1"
         export CFLAGS="-I/opt/firebird/include ${SANITIZE_FLAGS}"
         export CXXFLAGS="-I/opt/firebird/include ${SANITIZE_FLAGS}"
         export LDFLAGS="-L/opt/firebird/lib -fsanitize=address,undefined"
-        export ASAN_OPTIONS="detect_leaks=1:abort_on_error=0:halt_on_error=0"
+        export ASAN_OPTIONS="detect_leaks=1:abort_on_error=0:halt_on_error=0:print_stats=1:verbosity=1"
         export UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=0"
 
         # Clean and rebuild
@@ -483,6 +486,17 @@ run_sanitizers_mode() {
         make -j$(nproc)
 
         echo "=== Running tests with AddressSanitizer + UBSan ==="
+
+        # Find and preload ASan runtime for GCC-built sanitized extension
+        # This is needed because PHP itself was not built with sanitizers
+        ASAN_LIB=$(find /usr/lib -name "libasan.so.*" -type f 2>/dev/null | head -1)
+        if [ -n "$ASAN_LIB" ]; then
+            export LD_PRELOAD="$ASAN_LIB"
+            echo "Preloading ASan runtime: $ASAN_LIB"
+        else
+            echo "Warning: ASan runtime library not found"
+        fi
+
         make test TESTS=tests/ 2>&1 | tee /tmp/sanitizer_output.txt || true
 
         # Check for sanitizer errors

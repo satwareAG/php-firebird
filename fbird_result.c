@@ -39,6 +39,23 @@ typedef struct {
 	char vary_string[1];
 } IBVARY;
 
+/* Windows-compatible setenv/unsetenv wrappers */
+#ifdef PHP_WIN32
+static inline int fbird_setenv(const char *name, const char *value) {
+    return _putenv_s(name, value);
+}
+static inline int fbird_unsetenv(const char *name) {
+    return _putenv_s(name, "");
+}
+#else
+static inline int fbird_setenv(const char *name, const char *value) {
+    return setenv(name, value, 1);
+}
+static inline int fbird_unsetenv(const char *name) {
+    return unsetenv(name);
+}
+#endif
+
 /* Portable UTC epoch conversion helper */
 time_t fbird_timegm_portable(struct tm *tm)
 {
@@ -53,15 +70,15 @@ time_t fbird_timegm_portable(struct tm *tm)
         saved = estrdup(old_tz);
     }
     /* Set UTC and apply */
-    setenv("TZ", "UTC", 1);
+    fbird_setenv("TZ", "UTC");
     tzset();
     time_t ts = mktime(tm);
     /* Restore TZ */
     if (saved) {
-        setenv("TZ", saved, 1);
+        fbird_setenv("TZ", saved);
         efree(saved);
     } else {
-        unsetenv("TZ");
+        fbird_unsetenv("TZ");
     }
     tzset();
     return ts;
@@ -77,14 +94,14 @@ time_t fbird_mktime_with_tz(struct tm *tm, const char *tz)
     if (old_tz_env) {
         saved = estrdup(old_tz_env);
     }
-    setenv("TZ", use_tz, 1);
+    fbird_setenv("TZ", use_tz);
     tzset();
     time_t ts = mktime(tm);
     if (saved) {
-        setenv("TZ", saved, 1);
+        fbird_setenv("TZ", saved);
         efree(saved);
     } else {
-        unsetenv("TZ");
+        fbird_unsetenv("TZ");
     }
     tzset();
     return ts;

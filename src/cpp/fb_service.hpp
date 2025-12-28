@@ -437,3 +437,30 @@ inline void fbsvc_free(void* service_wrapper)
 } // extern "C"
 
 #endif // FB_SERVICE_HPP
+
+/* =============================================================================
+ * Extern "C" wrapper functions for fb_service.hpp C++ classes
+ * ============================================================================= */
+extern "C" {
+
+int fbsvc_detach(void* master_ptr, void* service_wrapper, ISC_STATUS* status_vector) {
+    if (!service_wrapper) return 0; // Nothing to detach
+    if (!master_ptr) return 1;
+    auto* wrapper = static_cast<fb::ServiceWrapper*>(service_wrapper);
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    return wrapper->detach(master, status_vector) ? 0 : 1;
+}
+
+void fbsvc_free(void* service_wrapper) {
+    if (!service_wrapper) return;
+    auto* wrapper = static_cast<fb::ServiceWrapper*>(service_wrapper);
+    delete wrapper;
+}
+
+int fbsvc_is_attached(void* service_wrapper) {
+    if (!service_wrapper) return 0;
+    auto* wrapper = static_cast<fb::ServiceWrapper*>(service_wrapper);
+    return wrapper->isAttached() ? 1 : 0;
+}
+
+} // extern "C"

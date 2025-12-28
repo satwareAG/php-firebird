@@ -63,10 +63,13 @@ jobs:
             build-essential \
             ca-certificates \
             clang \
+            compiler-rt \
             g++ \
             git \
+            libasan8 \
             libicu-dev \
             libtool \
+            libubsan1 \
             llvm \
             netbase \
             netcat-openbsd \
@@ -371,9 +374,12 @@ jobs:
             build-essential \
             ca-certificates \
             clang \
+            compiler-rt \
             g++ \
             git \
+            libasan8 \
             libicu-dev \
+            liblsan0 \
             libtool \
             llvm \
             netbase \

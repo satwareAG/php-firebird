@@ -316,7 +316,7 @@ Connected to Firebird
    PASS - Returned result for non-existent attachment
 
 2. fbird_kill_attachment() with invalid resource:
-   PASS - Error thrown: %s
+   PASS - Error thrown: %A
 
 3. fbird_kill_attachment() with transaction resource:
    PASS - Returned result for non-existent attachment
@@ -325,17 +325,16 @@ Connected to Firebird
    PASS - Returned empty array for non-existent table
 
 5. fbird_list_table_blockers() with invalid resource:
-   PASS - Error thrown: %s
+   PASS - Error thrown: %A
 
 6. fbird_list_table_blockers() with transaction resource:
    PASS - Returned array (count: %d)
 
 7. fbird_drop_table_force() with non-existent table:
-%A
-   PASS - Returned false for non-existent table
+%A   PASS - Returned false for non-existent table
 
 8. fbird_drop_table_force() with invalid resource:
-   PASS - Error thrown: %s
+   PASS - Error thrown: %A
 
 9. fbird_drop_table_force() - Create and drop test table:
    Table exists before drop: Yes
@@ -346,7 +345,7 @@ Connected to Firebird
    PASS - Dropped table with transaction resource
 
 11. fbird_list_table_blockers() on MON$ATTACHMENTS:
-   PASS - Returned array (count: %d)
+   PASS - Returned array (count: %d)%A
 
 12. fbird_list_table_blockers() with empty table name:
    PASS - Returned array for empty table name
@@ -358,7 +357,6 @@ Connected to Firebird
    PASS - Returned result for zero ID
 
 15. fbird_drop_table_force() with table name containing special chars:
-%A
-   PASS - Returned false for non-existent table
+%A   PASS - Returned false for non-existent table
 
 === All Inspection Error Tests Complete ===

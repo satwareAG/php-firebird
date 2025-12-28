@@ -244,29 +244,28 @@ echo "=== All Event Error Tests Complete ===\n";
 === Event Handling Error Tests ===
 
 1. fbird_wait_event() with too few arguments:
-   PASS - Error thrown:%s
+   PASS - Error thrown:%A
 
 2. fbird_wait_event() with too many arguments:
-   PASS - Error thrown:%s
+   PASS - Error thrown:%A
 
 3. fbird_wait_event() with invalid link resource:
-%A
-   PASS - Error thrown:%s
+%A   PASS - Error thrown:%A
 
 4. fbird_set_event_handler() with invalid callback:
    PASS - Returned false for invalid callback
 
 5. fbird_set_event_handler() with invalid link resource:
-   PASS - Error thrown:%s
+   PASS - Error thrown:%A
 
 6. fbird_set_event_handler() with too few arguments:
-   PASS - Error thrown:%s
+   PASS - Error thrown:%A
 
 7. fbird_set_event_handler() with too many arguments:
-   PASS - Error thrown:%s
+   PASS - Error thrown:%A
 
 8. fbird_poll_event() with invalid event resource:
-   PASS - Error thrown:%s
+   PASS - Error thrown:%A
 
 9. fbird_poll_event() on dead event handler:
    PASS - Returned null for dead handler
@@ -279,16 +278,16 @@ echo "=== All Event Error Tests Complete ===\n";
    PASS - Returned as expected (immediate return)
 
 12. fbird_free_event_handler() with invalid resource:
-   PASS - %s
+   PASS - %A
 
 13. fbird_free_event_handler() double free (should be safe):
    PASS - Both calls returned true (safe)
 
 14. fbird_set_event_handler() with default link:
-   PASS - Default link not supported (TypeError thrown)
+   PASS -%A
 
 15. Callback returning false (cancel event handler):
-   Poll result: %s
+   Poll result: %A
    PASS - Poll returned as expected
 
 === All Event Error Tests Complete ===

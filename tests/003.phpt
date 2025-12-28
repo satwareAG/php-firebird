@@ -3,6 +3,8 @@ Firebird: misc sql types (may take a while)
 --SKIPIF--
 <?php
 include("skipif.inc");
+// Column alias deduplication changed in Firebird 4.0
+skip_if_fb_lt(4.0);
 ?>
 --FILE--
 <?php

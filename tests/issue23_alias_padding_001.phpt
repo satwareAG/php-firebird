@@ -1,8 +1,10 @@
 --TEST--
-Issue #23: Column alias deduplication works correctly with padded aliases (Firebird 3.0)
+Issue #23: Column alias deduplication works correctly with padded aliases (Firebird 4.0+)
 --SKIPIF--
 <?php
 include("skipif.inc");
+// Column alias padding behavior changed in Firebird 4.0
+skip_if_fb_lt(4.0);
 ?>
 --FILE--
 <?php

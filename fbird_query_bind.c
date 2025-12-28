@@ -327,7 +327,7 @@ int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query) /* {{{ */
 		unsigned meta_type = fbm_get_type(master, ib_query->in_metadata, i) & ~1;
 
 		/* Set null indicator in message buffer */
-		short *null_ptr = (short *)(ib_query->in_msg_buffer + null_offset);
+		short *null_ptr = (short *)((unsigned char *)ib_query->in_msg_buffer + null_offset);
 		if (var->sqlind && *var->sqlind == -1) {
 			*null_ptr = -1; /* NULL value */
 			continue; /* Skip data transfer for NULL values */
@@ -335,7 +335,7 @@ int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query) /* {{{ */
 		*null_ptr = 0; /* Not NULL */
 
 		/* Get destination pointer in message buffer */
-		unsigned char *dest = ib_query->in_msg_buffer + data_offset;
+		unsigned char *dest = (unsigned char *)ib_query->in_msg_buffer + data_offset;
 
 		/* Transfer data based on SQL type */
 		if (!var->sqldata) {

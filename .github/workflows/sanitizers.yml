@@ -255,9 +255,12 @@ jobs:
 
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
 
+          # OPcache uses RTLD_DEEPBIND which is incompatible with ASan (see github.com/google/sanitizers/issues/611)
+          # Disable it explicitly even with -n because it may be compiled into PHP as a Zend extension
+          PHP_OPTS="-n -d opcache.enable=0 -d opcache.enable_cli=0"
+
           echo "=== Testing extension loading ==="
-          # Use php -n to skip php.ini (which pre-loads opcache with RTLD_DEEPBIND incompatible with ASan)
-          php -n -d "extension=${EXTENSION_PATH}" -m 2>&1 | tee /tmp/modules.txt
+          php ${PHP_OPTS} -d "extension=${EXTENSION_PATH}" -m 2>&1 | tee /tmp/modules.txt
           if ! grep -qi firebird /tmp/modules.txt; then
             echo "ERROR: Firebird extension failed to load"
             exit 1
@@ -265,7 +268,7 @@ jobs:
           echo "Firebird extension loaded successfully"
 
           echo "=== Testing database connection ==="
-          php -n -d "extension=${EXTENSION_PATH}" -r '
+          php ${PHP_OPTS} -d "extension=${EXTENSION_PATH}" -r '
             $host = getenv("FIREBIRD_HOST");
             $dbPath = getenv("FIREBIRD_DB_PATH");
             $connStr = $host . ":" . $dbPath;

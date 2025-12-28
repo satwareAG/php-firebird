@@ -220,17 +220,16 @@ jobs:
           fi
 
       - name: Build extension with AddressSanitizer + UBSan
-        env:
-          CC: clang
-          CXX: clang++
         run: |
           set -eu
 
           export LD_LIBRARY_PATH="/opt/firebird-client/lib:${LD_LIBRARY_PATH:-}"
 
-          # Sanitizer flags
+          # Sanitizer flags - using GCC which has built-in sanitizer support
           SANITIZE_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g -O1"
 
+          export CC=gcc
+          export CXX=g++
           export CFLAGS="-I/opt/firebird-client/include ${SANITIZE_FLAGS}"
           export CXXFLAGS="-I/opt/firebird-client/include ${SANITIZE_FLAGS}"
           export LDFLAGS="-L/opt/firebird-client/lib -fsanitize=address,undefined"
@@ -535,16 +534,16 @@ jobs:
           EOF
 
       - name: Build extension with LeakSanitizer
-        env:
-          CC: clang
-          CXX: clang++
         run: |
           set -eu
 
           export LD_LIBRARY_PATH="/opt/firebird-client/lib:${LD_LIBRARY_PATH:-}"
 
+          # Sanitizer flags - using GCC which has built-in sanitizer support
           SANITIZE_FLAGS="-fsanitize=leak -fno-omit-frame-pointer -g -O1"
 
+          export CC=gcc
+          export CXX=g++
           export CFLAGS="-I/opt/firebird-client/include ${SANITIZE_FLAGS}"
           export CXXFLAGS="-I/opt/firebird-client/include ${SANITIZE_FLAGS}"
           export LDFLAGS="-L/opt/firebird-client/lib -fsanitize=leak"

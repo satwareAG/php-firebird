@@ -37,7 +37,8 @@ namespace {
                                      ISC_STATUS* destination, size_t dest_size) noexcept {
         if (!source || !destination) return;
 
-        const auto copy_count = std::min(source_size, dest_size);
+        // Use parentheses to prevent Windows min/max macro expansion
+        const auto copy_count = (std::min)(source_size, dest_size);
 
         for (size_t i = 0; i < copy_count; ++i) {
             destination[i] = source[i];

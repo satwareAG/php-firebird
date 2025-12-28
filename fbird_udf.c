@@ -94,13 +94,26 @@
 #endif
 
 #ifdef ZTS
-#  include <pthread.h>
+#  ifdef PHP_WIN32
+#    include <windows.h>
+static void ***tsrm_ls;
+static CRITICAL_SECTION mtx_res;
+static int mtx_initialized = 0;
+
+#define LOCK() do { \
+    if (!mtx_initialized) { InitializeCriticalSection(&mtx_res); mtx_initialized = 1; } \
+    EnterCriticalSection(&mtx_res); \
+} while (0)
+#define UNLOCK() do { LeaveCriticalSection(&mtx_res); } while (0)
+#  else
+#    include <pthread.h>
 
 static void ***tsrm_ls;
 pthread_mutex_t mtx_res = PTHREAD_MUTEX_INITIALIZER;
 
 #define LOCK() do { pthread_mutex_lock(&mtx_res); } while (0)
 #define UNLOCK() do { pthread_mutex_unlock(&mtx_res); } while (0)
+#  endif
 #else
 #define LOCK()
 #define UNLOCK()

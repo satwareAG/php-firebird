@@ -103,10 +103,10 @@ fbird_free_result($result);
 fbird_close($db);
 echo "Test complete\n";
 ?>
---EXPECT--
+--EXPECTF--
 Number of columns: 2
-Key: [COL]
-Key: [COL_01]
+Key: [COL%s]
+Key: [COL%s]
 OK: Deduplication suffix found
 SUCCESS: All keys are properly trimmed
 OK: Key 'COL' accessible

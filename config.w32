@@ -39,8 +39,9 @@ if (PHP_FIREBIRD != 'no') {
 
         AC_DEFINE('HAVE_FIREBIRD', 1, 'Have Firebird support');
 
-        // Ensure fbclient.dll is available at runtime
-        ADD_FLAG('DEPS_FIREBIRD', 'fbclient.dll');
+        // Note: fbclient.dll is a runtime dependency, not a build dependency
+        // It must be in PATH or alongside the extension at runtime
+        // DO NOT use ADD_FLAG('DEPS_FIREBIRD', 'fbclient.dll') as it causes nmake to fail
 
     } else {
         WARNING('firebird not enabled; Firebird client libraries and headers not found');

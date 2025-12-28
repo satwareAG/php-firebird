@@ -302,7 +302,13 @@ enum php_fbird_option {
 #define IBG(v) ZEND_MODULE_GLOBALS_ACCESSOR(fbird, v)
 
 #if defined(ZTS) && defined(COMPILE_DL_FIREBIRD)
+#ifdef __cplusplus
+extern "C" {
+#endif
 ZEND_TSRMLS_CACHE_EXTERN()
+#ifdef __cplusplus
+}
+#endif
 #endif
 
 #define BLOB_ID_LEN     13

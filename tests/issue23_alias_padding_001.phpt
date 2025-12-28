@@ -66,10 +66,15 @@ foreach ($keys as $key) {
     }
 }
 
-// Output sorted keys for verification
+// Output sorted keys for verification - just count unique prefixes to avoid order issues
+$col_count = 0;
+$col_01_count = 0;
 foreach ($keys as $key) {
-    echo "Key: [" . $key . "]\n";
+    if ($key === 'COL') $col_count++;
+    if ($key === 'COL_01') $col_01_count++;
 }
+echo "KEY_COL: " . ($col_count > 0 ? "present" : "missing") . "\n";
+echo "KEY_COL_01: " . ($col_01_count > 0 ? "present" : "missing") . "\n";
 
 // Verify we have deduplication (proves duplicate columns were handled)
 if ($has_dedup_suffix) {
@@ -103,10 +108,10 @@ fbird_free_result($result);
 fbird_close($db);
 echo "Test complete\n";
 ?>
---EXPECTF--
+--EXPECT--
 Number of columns: 2
-Key: [COL%s]
-Key: [COL%s]
+KEY_COL: present
+KEY_COL_01: present
 OK: Deduplication suffix found
 SUCCESS: All keys are properly trimmed
 OK: Key 'COL' accessible

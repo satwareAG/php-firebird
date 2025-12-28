@@ -11,6 +11,10 @@ if (!function_exists('fbird_batch_create')) {
 if (!function_exists('fbird_batch_add_blob')) {
     die('skip fbird_batch_add_blob() not available');
 }
+require_once 'firebird.inc';
+if (get_fb_version() < 4.0) {
+    die('skip IBatch API requires Firebird 4.0+');
+}
 ?>
 --FILE--
 <?php

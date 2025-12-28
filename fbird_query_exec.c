@@ -1314,7 +1314,15 @@ PHP_FUNCTION(fbird_execute)
 		WRONG_PARAM_COUNT;
 	}
 
-	ib_query = (fbird_query *)zend_fetch_resource_ex(&args[0], "Firebird query", le_query);
+	/* Validate first argument is a query resource with proper error messages */
+	if (Z_TYPE(args[0]) != IS_RESOURCE) {
+		efree(args);
+		zend_argument_type_error(1, "must be a Firebird query resource, %s given",
+			zend_zval_type_name(&args[0]));
+		RETURN_THROWS();
+	}
+
+	FBIRD_VALIDATE_QUERY_EX(&args[0], 1, ib_query);
 	if (!ib_query) {
 		efree(args);
 		RETURN_FALSE;

@@ -11,9 +11,7 @@ jobs:
     name: Code Coverage (PHP 8.3 / Firebird 5.0)
     runs-on: ubuntu-latest
 
-    # Run Firebird as a service container (same as local docker-compose)
-    # Note: Don't use FIREBIRD_USER=SYSDBA - it already exists and will cause constraint violation
-    # Authentication: Firebird 5.0 requires proper auth config for network connections
+    # Run Firebird as a service container
     services:
       firebird:
         image: firebirdsql/firebird:5
@@ -21,8 +19,7 @@ jobs:
           ISC_PASSWORD: masterkey
           FIREBIRD_DATABASE: test.fdb
           FIREBIRD_PASSWORD: masterkey
-          # Enable legacy authentication for network connections
-          EnableLegacyClientAuth: "true"
+          FIREBIRD_USER: SYSDBA
         ports:
           - 3050:3050
 
@@ -33,7 +30,6 @@ jobs:
       ISC_USER: SYSDBA
       ISC_PASSWORD: masterkey
       FIREBIRD_HOST: firebird
-      # Path to the database file INSIDE the Firebird container (created by docker entrypoint)
       FIREBIRD_DB_PATH: /var/lib/firebird/data/test.fdb
 
     steps:
@@ -70,9 +66,6 @@ jobs:
             lcov
 
           # Create compatibility symlinks for Firebird client libraries
-          # Firebird 3.0/4.0/5.0 clients may need older library versions:
-          # - libncurses.so.5 (Bookworm has .so.6)
-          # - libtommath.so.0 (Bookworm has .so.1)
           echo "Creating library compatibility symlinks..."
           if [ -f /lib/x86_64-linux-gnu/libncurses.so.6 ]; then
             ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /lib/x86_64-linux-gnu/libncurses.so.5
@@ -145,7 +138,6 @@ jobs:
           ls -la "${FB_CLIENT_DIR}/lib/" || echo "No lib directory"
 
           # Install ALL library files from the Firebird client package
-          # libfbclient depends on libtomcrypt and libtommath - all must be available
           echo "=== Installing ALL libraries to system paths ==="
 
           # Copy all actual library files (not symlinks) first
@@ -181,7 +173,7 @@ jobs:
           # Copy headers directly
           cp -a "${FB_CLIENT_DIR}/include"/* /usr/include/ 2>/dev/null || true
 
-          # Configure dynamic linker - add all library paths
+          # Configure dynamic linker
           echo "${FB_CLIENT_DIR}/lib" > /etc/ld.so.conf.d/firebird-client.conf
           echo "/usr/local/lib" >> /etc/ld.so.conf.d/firebird-client.conf
           echo "/usr/lib" >> /etc/ld.so.conf.d/firebird-client.conf
@@ -194,7 +186,7 @@ jobs:
           ls -la /usr/lib/libfbclient* /usr/lib/libtomcrypt* /usr/lib/libib_util* 2>/dev/null || echo "Some libraries missing"
           ls -la /usr/include/ibase.h || echo "Warning: ibase.h not in /usr/include"
 
-          # Verify libfbclient can be loaded (check dependencies)
+          # Verify libfbclient can be loaded
           echo "=== Checking libfbclient dependencies ==="
           ldd /usr/lib/libfbclient.so 2>&1 || echo "Warning: could not check libfbclient dependencies"
 
@@ -206,28 +198,31 @@ jobs:
 
           echo "Firebird ${FB_VERSION} client installed successfully"
 
-      - name: Configure Firebird client
+      - name: Configure Firebird client authentication
         run: |
           set -eu
-          echo "Configuring Firebird client for CI environment..."
-          
-          # Create configuration directory
-          mkdir -p /opt/firebird-client/etc
-          
-          # Create firebird.conf with relaxed security settings for CI
-          # WireCrypt=Enabled allows negotiation (Required by FB3+, ignored by FB2.5)
-          # AuthClient=Legacy_Auth,Srp,Srp256 ensures compatibility
-          cat > /opt/firebird-client/firebird.conf << 'EOF'
+          echo "Configuring Firebird client authentication for CI..."
+
+          # Create firebird.conf in multiple locations where libfbclient might look
+          FB_CONF_CONTENT='# Firebird client configuration for CI
+          AuthClient = Srp256, Srp, Legacy_Auth
           WireCrypt = Enabled
-          AuthClient = Legacy_Auth, Srp, Srp256
-          EOF
-          
-          # Also copy to system location where libfbclient might look
+          '
+
+          # Location 1: /opt/firebird-client (where we installed the client)
+          mkdir -p /opt/firebird-client
+          echo "$FB_CONF_CONTENT" > /opt/firebird-client/firebird.conf
+
+          # Location 2: /etc/firebird (system-wide location)
           mkdir -p /etc/firebird
-          cp /opt/firebird-client/firebird.conf /etc/firebird/
-          
-          echo "Client configuration created:"
-          cat /opt/firebird-client/firebird.conf
+          echo "$FB_CONF_CONTENT" > /etc/firebird/firebird.conf
+
+          # Location 3: FB client's expected location
+          mkdir -p /opt/firebird-client/etc
+          echo "$FB_CONF_CONTENT" > /opt/firebird-client/etc/firebird.conf
+
+          echo "=== Firebird client configuration ==="
+          cat /etc/firebird/firebird.conf
 
       - name: Wait for Firebird service
         run: |
@@ -237,7 +232,7 @@ jobs:
           for i in $(seq 1 60); do
             if nc -z firebird 3050 2>/dev/null; then
               echo "Firebird is listening on firebird:3050"
-              sleep 3
+              sleep 5
               break
             fi
             echo "Waiting for Firebird (attempt ${i}/60)..."
@@ -273,39 +268,74 @@ jobs:
         run: |
           set -eu
 
-          # Ensure Firebird client library is in library path
-          export LD_LIBRARY_PATH="/opt/firebird-client/lib:${LD_LIBRARY_PATH:-}"
+          export LD_LIBRARY_PATH="/opt/firebird-client/lib:/usr/local/lib:/usr/lib:${LD_LIBRARY_PATH:-}"
 
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
 
+          echo "=== Environment ==="
+          echo "FIREBIRD_HOST: ${FIREBIRD_HOST}"
+          echo "FIREBIRD_DB_PATH: ${FIREBIRD_DB_PATH}"
+          echo "ISC_USER: ${ISC_USER}"
+
           echo "=== Checking extension file ==="
           ls -la "$EXTENSION_PATH"
-          ldd "$EXTENSION_PATH" || echo "Could not check extension dependencies"
+          ldd "$EXTENSION_PATH" 2>&1 | grep -i fbclient || echo "Could not check extension dependencies"
 
           echo "=== Testing extension loading ==="
-          # First show any errors, then check if module loaded
-          # Note: Module name is "firebird" (not "fbird")
-          if ! php -d "extension=${EXTENSION_PATH}" -m 2>&1 | grep -qi firebird; then
-            echo "ERROR: Extension failed to load. Showing detailed error:"
-            php -d "extension=${EXTENSION_PATH}" -r 'echo "Extension loaded\n";' 2>&1 || true
+          php -d "extension=${EXTENSION_PATH}" -m 2>&1 | tee /tmp/modules.txt
+          if ! grep -qi firebird /tmp/modules.txt; then
+            echo "ERROR: Firebird extension failed to load"
             exit 1
           fi
-          echo "firebird extension loaded successfully"
+          echo "Firebird extension loaded successfully"
 
-          echo "=== Testing connection to Firebird service ==="
-          # Note: Service manager connection may fail in some container setups
-          # The PHPT tests will verify actual database connectivity
+          echo "=== Testing database connection ==="
           php -d "extension=${EXTENSION_PATH}" -r '
-            if ($se = @fbird_service_attach("firebird", "SYSDBA", "masterkey")) {
-              echo "SUCCESS: Connected to Firebird service\n";
-              $ver = fbird_server_info($se, FBIRD_SVC_SERVER_VERSION);
-              echo "Server version: $ver\n";
-              fbird_service_detach($se);
-            } else {
-              echo "WARNING: Service attach failed: " . fbird_errmsg() . "\n";
-              echo "This may be normal for some Firebird container configurations.\n";
-              echo "PHPT tests will verify actual database connectivity.\n";
+            $host = getenv("FIREBIRD_HOST");
+            $dbPath = getenv("FIREBIRD_DB_PATH");
+            $connStr = $host . ":" . $dbPath;
+            $user = "SYSDBA";
+            $pass = "masterkey";
+
+            echo "Connection string: $connStr\n";
+
+            $db = @fbird_connect($connStr, $user, $pass);
+            if ($db) {
+              echo "SUCCESS: Connected to database!\n";
+              $res = fbird_query($db, "SELECT 1 FROM RDB\$DATABASE");
+              if ($res) {
+                $row = fbird_fetch_row($res);
+                echo "Query test: SELECT 1 returned " . $row[0] . "\n";
+                fbird_free_result($res);
+              }
+              fbird_close($db);
+              exit(0);
             }
+
+            $err = fbird_errmsg();
+            echo "Primary connection failed: $err\n";
+
+            // Try alternate database paths
+            $altPaths = [
+              "/var/lib/firebird/data/test.fdb",
+              "/firebird/data/test.fdb"
+            ];
+
+            foreach ($altPaths as $alt) {
+              if ($alt === $dbPath) continue;
+              $altConn = $host . ":" . $alt;
+              echo "Trying alternate: $altConn ... ";
+              $db = @fbird_connect($altConn, $user, $pass);
+              if ($db) {
+                echo "SUCCESS!\n";
+                fbird_close($db);
+                exit(0);
+              }
+              echo "failed\n";
+            }
+
+            echo "ERROR: All connection attempts failed\n";
+            exit(1);
           '
 
       - name: Run PHPT tests

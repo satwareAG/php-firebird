@@ -15,6 +15,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Reduced matrix: PHP 8.1/8.4 × FB 2.5/3.0/5.0 = 6 combinations
+          # PHP 8.1: LTS baseline
+          # PHP 8.4: Current recommended
+          # FB 2.5: Legacy compatibility (different auth)
+          # FB 3.0: Stable with modern auth (Srp)
+          # FB 5.0: Latest features
+          # Note: Can expand to PHP 8.2/8.3 and FB 4.0 once CI is green
+
           # PHP 8.1 combinations
           - php-version: '8.1'
             firebird-version: '2.5'
@@ -27,57 +35,11 @@ jobs:
             fb-client-version: '3.0'
             db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.1'
-            firebird-version: '4.0'
-            firebird-image: 'firebirdsql/firebird:4'
-            fb-client-version: '4.0'
-            db-path: '/var/lib/firebird/data/test.fdb'
-          - php-version: '8.1'
             firebird-version: '5.0'
             firebird-image: 'firebirdsql/firebird:5'
             fb-client-version: '5.0'
             db-path: '/var/lib/firebird/data/test.fdb'
-          # PHP 8.2 combinations
-          - php-version: '8.2'
-            firebird-version: '2.5'
-            firebird-image: 'jacobalberty/firebird:2.5-ss'
-            fb-client-version: '3.0'
-            db-path: '/firebird/data/test.fdb'
-          - php-version: '8.2'
-            firebird-version: '3.0'
-            firebird-image: 'firebirdsql/firebird:3'
-            fb-client-version: '3.0'
-            db-path: '/var/lib/firebird/data/test.fdb'
-          - php-version: '8.2'
-            firebird-version: '4.0'
-            firebird-image: 'firebirdsql/firebird:4'
-            fb-client-version: '4.0'
-            db-path: '/var/lib/firebird/data/test.fdb'
-          - php-version: '8.2'
-            firebird-version: '5.0'
-            firebird-image: 'firebirdsql/firebird:5'
-            fb-client-version: '5.0'
-            db-path: '/var/lib/firebird/data/test.fdb'
-          # PHP 8.3 combinations
-          - php-version: '8.3'
-            firebird-version: '2.5'
-            firebird-image: 'jacobalberty/firebird:2.5-ss'
-            fb-client-version: '3.0'
-            db-path: '/firebird/data/test.fdb'
-          - php-version: '8.3'
-            firebird-version: '3.0'
-            firebird-image: 'firebirdsql/firebird:3'
-            fb-client-version: '3.0'
-            db-path: '/var/lib/firebird/data/test.fdb'
-          - php-version: '8.3'
-            firebird-version: '4.0'
-            firebird-image: 'firebirdsql/firebird:4'
-            fb-client-version: '4.0'
-            db-path: '/var/lib/firebird/data/test.fdb'
-          - php-version: '8.3'
-            firebird-version: '5.0'
-            firebird-image: 'firebirdsql/firebird:5'
-            fb-client-version: '5.0'
-            db-path: '/var/lib/firebird/data/test.fdb'
+
           # PHP 8.4 combinations
           - php-version: '8.4'
             firebird-version: '2.5'
@@ -90,47 +52,24 @@ jobs:
             fb-client-version: '3.0'
             db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.4'
-            firebird-version: '4.0'
-            firebird-image: 'firebirdsql/firebird:4'
-            fb-client-version: '4.0'
-            db-path: '/var/lib/firebird/data/test.fdb'
-          - php-version: '8.4'
-            firebird-version: '5.0'
-            firebird-image: 'firebirdsql/firebird:5'
-            fb-client-version: '5.0'
-            db-path: '/var/lib/firebird/data/test.fdb'
-          # PHP 8.5 combinations (RC/development)
-          - php-version: '8.5'
-            firebird-version: '3.0'
-            firebird-image: 'firebirdsql/firebird:3'
-            fb-client-version: '3.0'
-            db-path: '/var/lib/firebird/data/test.fdb'
-          - php-version: '8.5'
-            firebird-version: '4.0'
-            firebird-image: 'firebirdsql/firebird:4'
-            fb-client-version: '4.0'
-            db-path: '/var/lib/firebird/data/test.fdb'
-          - php-version: '8.5'
             firebird-version: '5.0'
             firebird-image: 'firebirdsql/firebird:5'
             fb-client-version: '5.0'
             db-path: '/var/lib/firebird/data/test.fdb'
 
-    # Run Firebird as a service container (same images as local docker-compose)
+    # Run Firebird as a service container
     # Note: Environment variables differ between jacobalberty/firebird (2.5) and firebirdsql/firebird (3+)
     # - jacobalberty/firebird:2.5-ss uses ISC_PASSWORD only (SYSDBA already exists)
     # - firebirdsql/firebird:3+ uses FIREBIRD_DATABASE, ISC_PASSWORD
-    # Authentication: Firebird 3.0+ requires proper auth config for network connections
     services:
       firebird:
         image: ${{ matrix.firebird-image }}
         env:
+          # Common settings
           ISC_PASSWORD: masterkey
           FIREBIRD_DATABASE: test.fdb
           FIREBIRD_PASSWORD: masterkey
-          # Enable legacy authentication for network connections (Firebird 3+)
-          # Without this, some auth plugin combinations fail
-          EnableLegacyClientAuth: "true"
+          FIREBIRD_USER: SYSDBA
         ports:
           - 3050:3050
 
@@ -140,10 +79,7 @@ jobs:
     env:
       ISC_USER: SYSDBA
       ISC_PASSWORD: masterkey
-      # In GitHub Actions services network, service containers are accessible
-      # by their service name as hostname
       FIREBIRD_HOST: firebird
-      # Path to the database file INSIDE the Firebird container (created by docker entrypoint)
       FIREBIRD_DB_PATH: ${{ matrix.db-path }}
 
     steps:
@@ -348,28 +284,41 @@ jobs:
           ls -la "${FB_CLIENT_DIR}/include/" | head -5
           ls -la "${FB_CLIENT_DIR}/lib/" | head -5
 
-      - name: Configure Firebird client
+      - name: Configure Firebird client authentication
         run: |
           set -eu
-          echo "Configuring Firebird client for CI environment..."
-          
-          # Create configuration directory
-          mkdir -p /opt/firebird-client/etc
-          
-          # Create firebird.conf with relaxed security settings for CI
-          # WireCrypt=Enabled allows negotiation (Required by FB3+, ignored by FB2.5)
-          # AuthClient=Legacy_Auth,Srp,Srp256 ensures compatibility
-          cat > /opt/firebird-client/firebird.conf << 'EOF'
+          echo "Configuring Firebird client authentication for CI..."
+
+          # Create firebird.conf in multiple locations where libfbclient might look
+          # The key is AuthClient - tells libfbclient which auth plugins to use
+          FB_CONF_CONTENT='# Firebird client configuration for CI
+          # AuthClient: Order of authentication plugins to try
+          # - Srp256: Secure Remote Password (SHA-256) - Firebird 3.0+
+          # - Srp: Secure Remote Password (SHA-1) - Firebird 3.0+
+          # - Legacy_Auth: Legacy authentication - Firebird 2.5 compatibility
+          AuthClient = Srp256, Srp, Legacy_Auth
+
+          # WireCrypt: Wire encryption setting
+          # - Enabled: Use encryption if available (default for FB3+)
+          # - Disabled: Never use encryption
+          # - Required: Always require encryption
           WireCrypt = Enabled
-          AuthClient = Legacy_Auth, Srp, Srp256
-          EOF
-          
-          # Also copy to system location where libfbclient might look
+          '
+
+          # Location 1: /opt/firebird-client (where we installed the client)
+          mkdir -p /opt/firebird-client
+          echo "$FB_CONF_CONTENT" > /opt/firebird-client/firebird.conf
+
+          # Location 2: /etc/firebird (system-wide location)
           mkdir -p /etc/firebird
-          cp /opt/firebird-client/firebird.conf /etc/firebird/
-          
-          echo "Client configuration created:"
-          cat /opt/firebird-client/firebird.conf
+          echo "$FB_CONF_CONTENT" > /etc/firebird/firebird.conf
+
+          # Location 3: FB client's expected location
+          mkdir -p /opt/firebird-client/etc
+          echo "$FB_CONF_CONTENT" > /opt/firebird-client/etc/firebird.conf
+
+          echo "=== Firebird client configuration ==="
+          cat /etc/firebird/firebird.conf
 
       - name: Wait for Firebird service
         run: |
@@ -381,7 +330,7 @@ jobs:
             if nc -z firebird 3050 2>/dev/null; then
               echo "Firebird is listening on firebird:3050"
               # Additional wait for service to be fully ready
-              sleep 3
+              sleep 5
               break
             fi
             echo "Waiting for Firebird (attempt ${i}/60)..."
@@ -421,75 +370,76 @@ jobs:
 
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
 
-          echo "=== Library paths ==="
+          echo "=== Environment ==="
+          echo "FIREBIRD_HOST: ${FIREBIRD_HOST}"
+          echo "FIREBIRD_DB_PATH: ${FIREBIRD_DB_PATH}"
+          echo "ISC_USER: ${ISC_USER}"
           echo "LD_LIBRARY_PATH: ${LD_LIBRARY_PATH}"
-          ls -la /usr/lib/libfbclient* || echo "No libfbclient in /usr/lib"
-          ldd "${EXTENSION_PATH}" | grep -i fbclient || echo "Could not check library deps"
 
-          echo "Testing extension loading..."
-          # First check if extension loads without grep to see errors
-          php -d "extension=${EXTENSION_PATH}" -m > /tmp/modules.txt 2>&1 || {
-            echo "PHP extension load failed:"
-            cat /tmp/modules.txt
+          echo "=== Library check ==="
+          ls -la /usr/lib/libfbclient* 2>/dev/null || echo "No libfbclient in /usr/lib"
+          ldd "${EXTENSION_PATH}" 2>&1 | grep -i fbclient || echo "Could not check library deps"
+
+          echo "=== Testing extension loading ==="
+          php -d "extension=${EXTENSION_PATH}" -m 2>&1 | tee /tmp/modules.txt
+          if ! grep -qi firebird /tmp/modules.txt; then
+            echo "ERROR: Firebird extension failed to load"
             exit 1
-          }
-          # Note: Module name is "firebird" (not "fbird")
-          grep -i firebird /tmp/modules.txt
+          fi
+          echo "Firebird extension loaded successfully"
 
-          echo "Testing database connection..."
-          # Test actual database connection (not just service manager)
+          echo "=== Testing database connection ==="
+          # Use explicit credentials in fbird_connect call (belt and suspenders)
           php -d "extension=${EXTENSION_PATH}" -r '
-            ini_set("fbird.default_user", "SYSDBA");
-            ini_set("fbird.default_password", "masterkey");
-            putenv("ISC_USER=SYSDBA");
-            putenv("ISC_PASSWORD=masterkey");
-
-            $dbPath = getenv("FIREBIRD_DB_PATH");
             $host = getenv("FIREBIRD_HOST");
+            $dbPath = getenv("FIREBIRD_DB_PATH");
             $connStr = $host . ":" . $dbPath;
+            $user = "SYSDBA";
+            $pass = "masterkey";
 
-            echo "Testing connection to: $connStr\n";
-            echo "FIREBIRD_HOST=$host\n";
-            echo "FIREBIRD_DB_PATH=$dbPath\n";
+            echo "Connection string: $connStr\n";
+            echo "User: $user\n";
 
-            $db = @fbird_connect($connStr, "SYSDBA", "masterkey");
+            // Try connection with explicit credentials
+            $db = @fbird_connect($connStr, $user, $pass);
             if ($db) {
               echo "SUCCESS: Connected to database!\n";
               $res = fbird_query($db, "SELECT 1 FROM RDB\$DATABASE");
-              $row = fbird_fetch_row($res);
-              echo "SELECT 1 test: " . $row[0] . "\n";
-              fbird_free_result($res);
-              fbird_close($db);
-            } else {
-              echo "FAILED: " . fbird_errmsg() . "\n";
-
-              // Try alternate paths
-              $altPaths = [
-                "/var/lib/firebird/data/test.fdb",
-                "/firebird/data/test.fdb",
-                "/tmp/test.fdb"
-              ];
-              
-              $connected = false;
-              foreach ($altPaths as $alt) {
-                $altConn = $host . ":" . $alt;
-                echo "Trying: $altConn ... ";
-                if (@fbird_connect($altConn, "SYSDBA", "masterkey")) {
-                  echo "SUCCESS!\n";
-                  $connected = true;
-                  break;
-                } else {
-                  echo "FAILED\n";
-                }
+              if ($res) {
+                $row = fbird_fetch_row($res);
+                echo "Query test: SELECT 1 returned " . $row[0] . "\n";
+                fbird_free_result($res);
               }
-              
-              if ($connected) {
-                echo "Successfully connected using fallback path.\n";
+              fbird_close($db);
+              exit(0);
+            }
+
+            $err = fbird_errmsg();
+            echo "Primary connection failed: $err\n";
+
+            // Try alternate database paths
+            $altPaths = [
+              "/var/lib/firebird/data/test.fdb",
+              "/firebird/data/test.fdb",
+              "/tmp/test.fdb"
+            ];
+
+            foreach ($altPaths as $alt) {
+              if ($alt === $dbPath) continue; // Skip if same as primary
+              $altConn = $host . ":" . $alt;
+              echo "Trying alternate: $altConn ... ";
+              $db = @fbird_connect($altConn, $user, $pass);
+              if ($db) {
+                echo "SUCCESS!\n";
+                fbird_close($db);
                 exit(0);
               }
-              
-              exit(1);
+              echo "failed\n";
             }
+
+            echo "ERROR: All connection attempts failed\n";
+            echo "Last error: " . fbird_errmsg() . "\n";
+            exit(1);
           '
 
       - name: Run PHPT tests

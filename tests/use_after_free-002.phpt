@@ -22,6 +22,8 @@ set_exception_handler("php_fbird_exception_handler");
 test_use_after_fbird_free_query();
 
 ?>
---EXPECT--
+--EXPECTF--
 ---- Batch 1 ----
-Fatal error: Uncaught TypeError: fbird_fetch_assoc(): supplied resource is not a valid Firebird query resource
+
+Warning: fbird_fetch_assoc(): Argument #1 must be a Firebird query/result resource, %s resource given in %s on line %d
+Fatal error: Uncaught TypeError: fbird_free_result(): supplied resource is not a valid Firebird query resource

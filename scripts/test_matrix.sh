@@ -59,6 +59,23 @@ else
 fi
 
 # 4. Parse Firebird Server Target (optional second argument)
+# Auto-detect server based on container name if not explicitly specified
+auto_detect_firebird_server() {
+    local container="$1"
+    case "$container" in
+        *-fb3-*)
+            echo "firebird30"
+            ;;
+        *-fb5-*)
+            echo "firebird50"
+            ;;
+        *)
+            # Default containers use firebird40
+            echo ""
+            ;;
+    esac
+}
+
 FIREBIRD_SERVER=""
 if [ -n "$2" ]; then
     case "$2" in
@@ -111,19 +128,28 @@ for CONTAINER in "${TARGETS[@]}"; do
     docker compose exec -u root "$CONTAINER" chown -R $CURRENT_UID:$CURRENT_GID /ext
 
     # Build environment variable options for docker exec
+    # Determine which Firebird server to use:
+    # 1. Explicit argument takes precedence
+    # 2. Auto-detect from container name (e.g., php85-fb5-dev -> firebird50)
+    # 3. Fall back to container's default environment
+    TARGET_SERVER="$FIREBIRD_SERVER"
+    if [ -z "$TARGET_SERVER" ]; then
+        TARGET_SERVER=$(auto_detect_firebird_server "$CONTAINER")
+    fi
+    
     ENV_OPTS=""
-    if [ -n "$FIREBIRD_SERVER" ]; then
+    if [ -n "$TARGET_SERVER" ]; then
         # When overriding FIREBIRD_HOST we also force FIREBIRD_DB_DIR to /tmp.
         # Reason: some PHP containers mount /firebird volumes that are NOT present
         # (or writable) in the selected Firebird server container, which breaks
         # CREATE DATABASE during SKIPIF/init_db().
-        ENV_OPTS="-e FIREBIRD_HOST=$FIREBIRD_SERVER -e FIREBIRD_DB_DIR=/tmp"
-        echo "Using Firebird server: $FIREBIRD_SERVER (FIREBIRD_DB_DIR=/tmp)"
+        ENV_OPTS="-e FIREBIRD_HOST=$TARGET_SERVER -e FIREBIRD_DB_DIR=/tmp"
+        echo "Using Firebird server: $TARGET_SERVER (FIREBIRD_DB_DIR=/tmp)"
     fi
 
     # Run Build & Test in single session
     # Optimizes overhead and ensures clean build state
-    echo "Running build and test suite (Server: ${FIREBIRD_SERVER:-default}, Tests: ${TEST_TARGETS:-ALL})..."
+    echo "Running build and test suite (Server: ${TARGET_SERVER:-default}, Tests: ${TEST_TARGETS:-ALL})..."
 
     # Construct command with optional target
     CMD="/ext/scripts/build.sh && /ext/scripts/test.sh"

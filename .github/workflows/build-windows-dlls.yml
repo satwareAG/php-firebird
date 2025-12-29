@@ -1,0 +1,245 @@
+# Release Windows DLLs workflow - builds PHP extension for Windows
+name: Build Windows DLLs
+
+on:
+  release:
+    types: [created, published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build for'
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  FIREBIRD_SDK_CACHE_KEY: firebird-sdk-v1
+
+jobs:
+  get-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: set-matrix
+        run: |
+          # Generate matrix JSON
+          # PHP: 8.1, 8.2, 8.3, 8.4, 8.5
+          # Arch: x64
+          # TS: nts, ts
+          # Note: Using Firebird 5.0 SDK for all builds - DLL is compatible with FB 3.0/4.0/5.0
+          # Tests: Run .phpt tests only for PHP 8.1 and 8.5 (oldest and newest) to save CI time
+          matrix='{"include":['
+          for php in "8.1" "8.2" "8.3" "8.4" "8.5"; do
+            for ts in "nts" "ts"; do
+              # Enable tests for PHP 8.1 and 8.5 only
+              if [ "$php" = "8.1" ] || [ "$php" = "8.5" ]; then
+                run_tests="true"
+              else
+                run_tests="false"
+              fi
+              matrix+='{"php-version":"'$php'","arch":"x64","ts":"'$ts'","os":"windows-2022","run-tests":"'$run_tests'"},'
+            done
+          done
+          matrix="${matrix%,}]}"
+          echo "matrix=$matrix" >> $GITHUB_OUTPUT
+
+  build:
+    needs: get-matrix
+    runs-on: ${{ matrix.os }}
+    env:
+      FIREBIRD_VERSION: '5.0'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.get-matrix.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Firebird SDK
+        uses: actions/cache@v4
+        id: cache-fb-sdk
+        with:
+          path: C:\firebird-sdk
+          key: ${{ env.FIREBIRD_SDK_CACHE_KEY }}-${{ env.FIREBIRD_VERSION }}-${{ matrix.arch }}
+
+      - name: Download Firebird SDK
+        if: steps.cache-fb-sdk.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          .\.github\scripts\download-firebird-sdk.ps1 `
+            -Version "${{ env.FIREBIRD_VERSION }}" `
+            -Architecture "${{ matrix.arch }}" `
+            -DestinationPath "C:\firebird-sdk"
+
+      - name: Set Firebird Environment
+        shell: pwsh
+        run: |
+          $sdkPath = "C:\firebird-sdk"
+          echo "FIREBIRD_HOME=$sdkPath" >> $env:GITHUB_ENV
+          echo "$sdkPath\bin" >> $env:GITHUB_PATH
+          echo "CFLAGS=-I$sdkPath\include" >> $env:GITHUB_ENV
+          echo "LDFLAGS=-L$sdkPath\lib" >> $env:GITHUB_ENV
+
+      # Install Firebird Server for test execution (only when tests are enabled)
+      - name: Install Firebird Server for Tests
+        if: matrix.run-tests == 'true'
+        shell: pwsh
+        run: |
+          Write-Host "Installing Firebird Server via Chocolatey..."
+          choco install firebird -y --no-progress
+          
+          # Wait for service to start
+          Write-Host "Waiting for Firebird service to start..."
+          $maxAttempts = 30
+          $attempt = 0
+          while ($attempt -lt $maxAttempts) {
+            $service = Get-Service -Name "FirebirdServerDefaultInstance" -ErrorAction SilentlyContinue
+            if ($service -and $service.Status -eq "Running") {
+              Write-Host "Firebird service is running"
+              break
+            }
+            Start-Sleep -Seconds 2
+            $attempt++
+            Write-Host "Waiting for Firebird service... (attempt $attempt/$maxAttempts)"
+          }
+          
+          if ($attempt -eq $maxAttempts) {
+            Write-Host "Warning: Firebird service not detected as running, but continuing..."
+          }
+          
+          # Get Firebird installation path from registry
+          $regPath = "HKLM:\SOFTWARE\Firebird Project\Firebird Server\Instances"
+          $fbPath = (Get-ItemProperty -Path $regPath -ErrorAction SilentlyContinue).DefaultInstance
+          if (-not $fbPath) {
+            $regPath = "HKLM:\SOFTWARE\WOW6432Node\Firebird Project\Firebird Server\Instances"
+            $fbPath = (Get-ItemProperty -Path $regPath -ErrorAction SilentlyContinue).DefaultInstance
+          }
+          
+          if ($fbPath) {
+            Write-Host "Firebird Server installed at: $fbPath"
+            $fbBin = Join-Path $fbPath ""
+            
+            # CRITICAL: Copy fbclient.dll from server to SDK directory
+            # The extension is built against SDK headers, but at runtime needs
+            # the server's fbclient.dll which has actual networking support
+            $serverFbclient = Join-Path $fbPath "fbclient.dll"
+            $sdkFbclient = "C:\firebird-sdk\bin\fbclient.dll"
+            if (Test-Path $serverFbclient) {
+              Write-Host "Copying server fbclient.dll to SDK location for runtime..."
+              Copy-Item -Force $serverFbclient $sdkFbclient
+              Write-Host "Copied: $serverFbclient -> $sdkFbclient"
+            }
+            
+            # Also prepend Firebird server path to PATH (before SDK)
+            # This ensures server DLLs are found first at runtime
+            echo "$fbPath" >> $env:GITHUB_PATH
+          }
+          
+          # Set environment variables for tests
+          echo "FIREBIRD_HOST=localhost" >> $env:GITHUB_ENV
+          # Create test database directory in Firebird's data folder (where it has write permissions)
+          $testDbDir = "C:\firebird-test-db"
+          New-Item -ItemType Directory -Force -Path $testDbDir | Out-Null
+          # Grant full access to the directory for the Firebird service account
+          icacls $testDbDir /grant "Everyone:(OI)(CI)F" /T
+          icacls $testDbDir /grant "NETWORK SERVICE:(OI)(CI)F" /T
+          echo "FIREBIRD_DB_DIR=$testDbDir" >> $env:GITHUB_ENV
+          Write-Host "Test database directory: $testDbDir"
+          
+          # Set SYSDBA password to 'masterkey' for test compatibility
+          # Firebird 5.0 doesn't have a default password, we must set it
+          if ($fbPath) {
+            $isql = Join-Path $fbPath "isql.exe"
+            if (Test-Path $isql) {
+              Write-Host "Setting SYSDBA password to 'masterkey' for tests..."
+              # Use isql to set the password via security database
+              $secDb = Join-Path $fbPath "security5.fdb"
+              $sql = @"
+              CREATE OR ALTER USER SYSDBA PASSWORD 'masterkey' USING PLUGIN Srp;
+              CREATE OR ALTER USER SYSDBA PASSWORD 'masterkey' USING PLUGIN Legacy_UserManager;
+              COMMIT;
+"@
+              # Write SQL to temp file
+              $sqlFile = [System.IO.Path]::GetTempFileName()
+              $sql | Out-File -FilePath $sqlFile -Encoding ASCII
+              
+              # Execute via embedded connection (no authentication needed for initial setup)
+              & $isql -user SYSDBA $secDb -i $sqlFile 2>&1 | Write-Host
+              Remove-Item $sqlFile -ErrorAction SilentlyContinue
+              Write-Host "SYSDBA password configured"
+            }
+          }
+
+      - name: Verify Firebird Server (test builds only)
+        if: matrix.run-tests == 'true'
+        shell: pwsh
+        run: |
+          Write-Host "Verifying Firebird installation..."
+          
+          # Check service status
+          $service = Get-Service -Name "FirebirdServerDefaultInstance" -ErrorAction SilentlyContinue
+          if ($service) {
+            Write-Host "Service Status: $($service.Status)"
+          } else {
+            Write-Host "Service not found - checking processes..."
+            Get-Process -Name "*firebird*" -ErrorAction SilentlyContinue | Format-Table
+          }
+          
+          # Test TCP connection to Firebird
+          $tcpTest = Test-NetConnection -ComputerName localhost -Port 3050 -WarningAction SilentlyContinue
+          if ($tcpTest.TcpTestSucceeded) {
+            Write-Host "TCP connection to Firebird port 3050: SUCCESS"
+          } else {
+            Write-Host "TCP connection to Firebird port 3050: FAILED"
+            Write-Host "Note: Tests may still work via named pipes or embedded connection"
+          }
+          
+          # List Firebird processes
+          Write-Host "Firebird processes:"
+          Get-Process | Where-Object { $_.ProcessName -like "*firebird*" } | Format-Table Name, Id, Path
+
+      - name: Build Extension
+        uses: php/php-windows-builder/extension@v1
+        with:
+          php-version: ${{ matrix.php-version }}
+          arch: ${{ matrix.arch }}
+          ts: ${{ matrix.ts }}
+          args: --with-firebird=${{ env.FIREBIRD_HOME }}
+          run-tests: ${{ matrix.run-tests }}
+          extension-ref: ${{ github.event.release.tag_name || inputs.tag }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd release-artifacts
+          # Generate checksums for all artifact files (ZIP archives)
+          if ls *.zip 1> /dev/null 2>&1; then
+            sha256sum *.zip > SHA256SUMS.txt
+            echo "Generated checksums for ZIP files:"
+            cat SHA256SUMS.txt
+          elif ls *.dll 1> /dev/null 2>&1; then
+            sha256sum *.dll > SHA256SUMS.txt
+            echo "Generated checksums for DLL files:"
+            cat SHA256SUMS.txt
+          else
+            echo "Warning: No .zip or .dll files found in release-artifacts"
+            ls -la
+          fi
+
+      - name: Upload to Release
+        uses: php/php-windows-builder/release@v1
+        with:
+          release: ${{ github.event.release.tag_name || inputs.tag }}
+          token: ${{ secrets.GITHUB_TOKEN }}

@@ -2,8 +2,15 @@ name: Windows DLL Build
 
 on:
   push:
-    branches: [master, main]
+    branches: [master, main, satware-main]
+    paths:
+      - '*.c'
+      - '*.h'
+      - 'config.w32'
+      - '.github/workflows/windows.yml'
   pull_request:
+  release:
+    types: [created, published]
   workflow_dispatch:
     inputs:
       php-versions:
@@ -12,9 +19,12 @@ on:
       firebird-versions:
         description: 'Firebird versions (comma-separated)'
         default: '5.0'
+      tag:
+        description: 'Release tag to build for (optional)'
+        required: false
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   FIREBIRD_SDK_CACHE_KEY: firebird-sdk-v1
@@ -100,3 +110,45 @@ jobs:
         with:
           name: php-firebird-${{ matrix.php-version }}-${{ matrix.ts }}-${{ matrix.arch }}-fb${{ matrix.firebird-version }}
           path: artifacts/*.dll
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd release-artifacts
+          if ls *.dll 1> /dev/null 2>&1; then
+            sha256sum *.dll > SHA256SUMS-windows.txt
+            echo "Generated checksums for DLL files:"
+            cat SHA256SUMS-windows.txt
+          else
+            echo "Warning: No .dll files found"
+            ls -la
+          fi
+
+      - name: Upload to Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          echo "Uploading Windows DLLs to release: $TAG"
+          cd release-artifacts
+          # Upload all DLLs
+          for dll in *.dll; do
+            if [ -f "$dll" ]; then
+              echo "Uploading: $dll"
+              gh release upload "$TAG" "$dll" --clobber --repo "${{ github.repository }}"
+            fi
+          done
+          # Upload checksum file
+          if [ -f "SHA256SUMS-windows.txt" ]; then
+            gh release upload "$TAG" "SHA256SUMS-windows.txt" --clobber --repo "${{ github.repository }}"
+          fi

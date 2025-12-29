@@ -2,7 +2,7 @@ name: Release Windows DLLs
 
 on:
   release:
-    types: [created]
+    types: [created, published]
   workflow_dispatch:
     inputs:
       tag:

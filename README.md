@@ -2,7 +2,7 @@
 
 A high-performance PHP extension providing native connectivity to Firebird databases. This modernized version targets PHP 8.1+ with C++17 standards and comprehensive development tooling.
 
-> **⚠️ Breaking Changes in v1.0**: This version uses `fbird_*` function names (not `ibase_*`) and builds as `firebird.so` (not `interbase.so`). See the [Migration Guide](#migration-guide) for upgrade instructions.
+> **⚠️ Breaking Changes in v7.0**: This version uses `fbird_*` function names (not `ibase_*`) and builds as `firebird.so` (not `interbase.so`). See the [Migration Guide](#migration-guide) for upgrade instructions.
 
 ## Features
 
@@ -406,7 +406,7 @@ fbird.dateformat = "%Y-%m-%d"
 fbird.timeformat = "%H:%M:%S"
 ```
 
-> **⚠️ Breaking Change (v1.0)**: INI settings have been renamed from `ibase.*` to `fbird.*`. Update your php.ini configuration accordingly.
+> **⚠️ Breaking Change (v7.0)**: INI settings have been renamed from `ibase.*` to `fbird.*`. Update your php.ini configuration accordingly.
 
 ### Supported Input Date/Time Formats
 
@@ -649,7 +649,7 @@ $conn2 = fbird_pconnect($db, $user, $pass);  // Different pool
 ?>
 ```
 
-**Force New Connection (v1.0+):**
+**Force New Connection (v7.0+):**
 
 Use the `FBIRD_CONNECT_FORCE_NEW` flag (value: 2) to bypass connection reuse and create a new database connection:
 

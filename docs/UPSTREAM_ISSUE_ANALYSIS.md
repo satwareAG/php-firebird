@@ -1011,7 +1011,7 @@ The upstream extension also added a check to warn about incorrect order (commit 
 - Would require stable release and maintenance commitment
 - Consider publishing under `firebird` package name
 
-**Recommendation:** Plan for PECL publishing after v1.0 stable release.
+**Recommendation:** Plan for PECL publishing after v7.0 stable release.
 
 ---
 

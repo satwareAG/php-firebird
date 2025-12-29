@@ -119,7 +119,7 @@ fbird_close($db);
 
 ## Exception Handling ⭐
 
-NEW in v1.0: PDO-style exception handling with runtime switchable error modes.
+NEW in v7.0: PDO-style exception handling with runtime switchable error modes.
 
 ### PDO-Style Exception Mode
 

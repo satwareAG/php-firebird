@@ -118,21 +118,33 @@ jobs:
           }
           
           if ($fbPath) {
-            Write-Host "Firebird installed at: $fbPath"
-            # Add Firebird bin to PATH for isql and other tools
-            $fbBin = Join-Path $fbPath "bin"
-            if (Test-Path $fbBin) {
-              echo "$fbBin" >> $env:GITHUB_PATH
+            Write-Host "Firebird Server installed at: $fbPath"
+            $fbBin = Join-Path $fbPath ""
+            
+            # CRITICAL: Copy fbclient.dll from server to SDK directory
+            # The extension is built against SDK headers, but at runtime needs
+            # the server's fbclient.dll which has actual networking support
+            $serverFbclient = Join-Path $fbPath "fbclient.dll"
+            $sdkFbclient = "C:\firebird-sdk\bin\fbclient.dll"
+            if (Test-Path $serverFbclient) {
+              Write-Host "Copying server fbclient.dll to SDK location for runtime..."
+              Copy-Item -Force $serverFbclient $sdkFbclient
+              Write-Host "Copied: $serverFbclient -> $sdkFbclient"
             }
+            
+            # Also prepend Firebird server path to PATH (before SDK)
+            # This ensures server DLLs are found first at runtime
+            echo "$fbPath" >> $env:GITHUB_PATH
           }
           
           # Set environment variables for tests
           echo "FIREBIRD_HOST=localhost" >> $env:GITHUB_ENV
-          # Create test database directory
+          # Create test database directory in Firebird's data folder (where it has write permissions)
           $testDbDir = "C:\firebird-test-db"
           New-Item -ItemType Directory -Force -Path $testDbDir | Out-Null
-          # Grant full access to the directory
+          # Grant full access to the directory for the Firebird service account
           icacls $testDbDir /grant "Everyone:(OI)(CI)F" /T
+          icacls $testDbDir /grant "NETWORK SERVICE:(OI)(CI)F" /T
           echo "FIREBIRD_DB_DIR=$testDbDir" >> $env:GITHUB_ENV
           Write-Host "Test database directory: $testDbDir"
 

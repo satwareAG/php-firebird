@@ -26,15 +26,13 @@ jobs:
         run: |
           # Generate matrix JSON
           # PHP: 8.1, 8.2, 8.3, 8.4
-          # Arch: x64 (x86 optional - FB SDK availability)
+          # Arch: x64
           # TS: nts, ts
-          # FB: 3.0, 4.0, 5.0
+          # Note: Using Firebird 5.0 SDK for all builds - DLL is compatible with FB 3.0/4.0/5.0
           matrix='{"include":['
           for php in "8.1" "8.2" "8.3" "8.4"; do
             for ts in "nts" "ts"; do
-              for fb in "3.0" "4.0" "5.0"; do
-                matrix+='{"php-version":"'$php'","arch":"x64","ts":"'$ts'","firebird-version":"'$fb'","os":"windows-2022"},'
-              done
+              matrix+='{"php-version":"'$php'","arch":"x64","ts":"'$ts'","os":"windows-2022"},'
             done
           done
           matrix="${matrix%,}]}"
@@ -44,7 +42,7 @@ jobs:
     needs: get-matrix
     runs-on: ${{ matrix.os }}
     env:
-      artifact-naming-scheme: php-firebird-${{ matrix.php-version }}-${{ matrix.ts }}-${{ matrix.arch }}-fb${{ matrix.firebird-version }}
+      FIREBIRD_VERSION: '5.0'
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.get-matrix.outputs.matrix) }}
@@ -57,14 +55,14 @@ jobs:
         id: cache-fb-sdk
         with:
           path: C:\firebird-sdk
-          key: ${{ env.FIREBIRD_SDK_CACHE_KEY }}-${{ matrix.firebird-version }}-${{ matrix.arch }}
+          key: ${{ env.FIREBIRD_SDK_CACHE_KEY }}-${{ env.FIREBIRD_VERSION }}-${{ matrix.arch }}
 
       - name: Download Firebird SDK
         if: steps.cache-fb-sdk.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           .\.github\scripts\download-firebird-sdk.ps1 `
-            -Version "${{ matrix.firebird-version }}" `
+            -Version "${{ env.FIREBIRD_VERSION }}" `
             -Architecture "${{ matrix.arch }}" `
             -DestinationPath "C:\firebird-sdk"
 

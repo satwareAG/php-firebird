@@ -251,6 +251,9 @@ services:
       TZ: Europe/Berlin
     volumes:
       - fb50-data:/firebird/data
+      # Init script to create test.fdb on container first start
+      # Fixes: https://github.com/satwareAG/php-firebird/issues/44
+      - ./firebird/init-test-db.sh:/docker-entrypoint-initdb.d/init-test-db.sh:ro
 
 volumes:
   fb25-data:

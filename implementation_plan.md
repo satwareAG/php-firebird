@@ -1,128 +1,74 @@
-# Implementation Plan: CI Pipeline Fixes for php-firebird
+# Implementation Plan: Issue #39 - Windows Extension-Matrix
 
 [Overview]
-Fix the remaining CI pipeline issues for the php-firebird extension: sanitizers workflow ASan runtime loading and issue23 test flakiness.
+Adopt php-windows-builder/extension-matrix action for automatic PHP version detection and build matrix generation.
 
-The php-firebird extension's GitHub Actions CI has three workflows. The coverage workflow passes, but the main workflow has a flaky test (issue23) and the sanitizers workflow fails due to ASan symbol resolution issues. This plan addresses both problems to achieve reliable CI.
+This change replaces the manual bash matrix generation in `.github/workflows/windows.yml` with the official `php/php-windows-builder/extension-matrix@v1` action. The action automatically reads PHP version constraints from `composer.json` and generates the appropriate build matrix, reducing maintenance burden when new PHP versions are released.
 
-**Current State:**
-- `coverage.yml`: ✅ PASSES (56.8% coverage, threshold 55%)
-- `main.yml`: ⚠️ 3/4 jobs pass (issue23 test fails on PHP 8.1 / FB 5.0)
-- `sanitizers.yml`: ❌ FAILS (ASan symbols cannot resolve when loading extension)
-
-**Root Causes Identified:**
-1. **Sanitizers**: Extension compiled with ASan flags references symbols (`__asan_option_detect_stack_use_after_return`) that the PHP binary doesn't have. Solution: Use `LD_PRELOAD` to load the ASan runtime library before PHP starts.
-2. **Issue23 Test**: The test queries system tables (`RDB$FIELDS`, `RDB$RELATION_FIELDS`) with `FIRST 1`. Row order from system tables can vary, and behavior differs between PHP 8.1 and 8.4 on the same Firebird server.
+**Current approach**: Manual shell script generates a hardcoded matrix for PHP 8.1, 8.2, 8.3, 8.4.
+**New approach**: `extension-matrix` reads `"php": ">=8.1"` from composer.json and generates matrix automatically.
 
 [Types]
-No type definitions required for this implementation.
-
-This is a CI/CD and test fix task that modifies GitHub Actions workflow YAML files and PHPT test files. No application code types are involved.
+No type changes required - this is a CI/CD workflow update only.
 
 [Files]
-Modify two workflow files and one test file.
+Modify one workflow file.
 
 **Files to Modify:**
+1. `.github/workflows/windows.yml`
+   - Replace `get-matrix` job bash script with `extension-matrix` action
+   - Update `build` job to use generated matrix including `os` field
+   - Keep Firebird SDK caching and environment setup
+   - Simplify the workflow while preserving release upload functionality
 
-1. `.github/workflows/sanitizers.yml`
-   - Add `LD_PRELOAD` for ASan runtime in the "Verify extension and connection" step
-   - Add `LD_PRELOAD` for ASan runtime in the "Run tests with sanitizers" step
-   - Add `LD_PRELOAD` for LSan runtime in the LSan job's verification and test steps
-   - Find and export the correct library paths at runtime
+**Files to Create:**
+None.
 
-2. `tests/issue23_alias_padding_001.phpt`
-   - Replace system table query with a controlled CTE-based query
-   - Ensure deterministic output regardless of database state
-   - Maintain the purpose of testing column alias deduplication with padding
-
-**No New Files Required**
+**Files to Delete:**
+None.
 
 [Functions]
-No function modifications required for this implementation.
-
-This task modifies shell scripts embedded in YAML workflow files and PHP test scripts. No C functions or PHP library functions are changed.
+No function modifications - this is workflow configuration.
 
 [Classes]
-No class modifications required for this implementation.
-
-This is a CI/CD infrastructure fix with no object-oriented code changes.
+No class modifications - this is workflow configuration.
 
 [Dependencies]
-No dependency changes required.
+No new package dependencies.
 
-The sanitizers workflow already installs `libasan8`, `libubsan1`, and `liblsan0` packages. No additional packages are needed - the fix is to preload these libraries at runtime.
+**GitHub Action Dependency:**
+- `php/php-windows-builder/extension-matrix@v1` - Already available, used by extension@v1 build action
 
 [Testing]
-Test by pushing changes and verifying CI workflows pass.
+Validation through CI/CD workflow execution.
 
-**Verification Steps:**
-1. Push changes to a branch
-2. Monitor GitHub Actions workflows
-3. Verify `sanitizers.yml` jobs complete successfully:
-   - ASan + UBSan (PHP 8.3) job should pass
-   - LeakSanitizer (PHP 8.3) job should pass
-4. Verify `main.yml` all 4 matrix jobs pass:
-   - PHP 8.1 / Firebird 3.0
-   - PHP 8.1 / Firebird 5.0
-   - PHP 8.4 / Firebird 3.0
-   - PHP 8.4 / Firebird 5.0
-5. Verify `coverage.yml` continues to pass
+**Pre-push Validation:**
+- Review generated workflow YAML for syntax errors
+- Verify matrix structure compatibility with existing build job
 
-**Expected Outcomes:**
-- Sanitizers workflow: All jobs green
-- Main workflow: All 4 matrix combinations pass
-- Coverage workflow: Continues to pass with >55% coverage
+**Post-push Validation:**
+- Monitor GitHub Actions workflow execution
+- Verify all PHP version/arch/ts combinations build successfully
+- Compare artifact output with previous workflow runs
 
 [Implementation Order]
-Fix sanitizers first (more complex), then fix the flaky test. Local test script already updated.
+Single-step implementation of workflow update.
 
-**Step 0: Update Local Test Script (COMPLETED)**
-Updated `scripts/test_with_act.sh` to use GCC instead of clang and add LD_PRELOAD for ASan runtime, matching the CI changes to be made.
+1. **Update windows.yml workflow**
+   - Replace `get-matrix` job shell script with `extension-matrix` action
+   - Add `php-version-list` input to explicitly list: `8.1, 8.2, 8.3, 8.4`
+   - Set `arch-list: x64` (x86 not supported due to Firebird SDK limitation)
+   - Set `ts-list: nts, ts`
+   - Update build job to use `${{ matrix.os }}` from generated matrix
+   - Keep Firebird SDK setup steps unchanged
 
-**Step 1: Fix Sanitizers Workflow - ASan Job**
-Modify `.github/workflows/sanitizers.yml` to detect and preload the ASan runtime library before running PHP commands in the `asan-ubsan` job.
+2. **Commit and push changes**
+   - Use conventional commit: `ci(windows): adopt extension-matrix for automatic build matrix`
+   - Reference Issue #39
 
-Add before PHP invocations in "Verify extension and connection" step:
-```bash
-# Find and preload ASan runtime for GCC-built sanitized extension
-ASAN_LIB=$(find /usr/lib -name "libasan.so.*" -type f 2>/dev/null | head -1)
-if [ -n "$ASAN_LIB" ]; then
-  export LD_PRELOAD="$ASAN_LIB"
-  echo "Preloading ASan runtime: $ASAN_LIB"
-fi
-```
+3. **Verify workflow execution**
+   - Check GitHub Actions for successful execution
+   - Verify all builds complete
 
-**Step 2: Fix Sanitizers Workflow - LSan Job**
-Apply similar `LD_PRELOAD` fix to the LeakSanitizer job, preloading `liblsan.so`:
-```bash
-# Find and preload LSan runtime for GCC-built sanitized extension
-LSAN_LIB=$(find /usr/lib -name "liblsan.so.*" -type f 2>/dev/null | head -1)
-if [ -n "$LSAN_LIB" ]; then
-  export LD_PRELOAD="$LSAN_LIB"
-  echo "Preloading LSan runtime: $LSAN_LIB"
-fi
-```
-
-**Step 3: Fix Issue23 Test**
-Replace the system table query with a deterministic CTE-based query that:
-- Creates duplicate column names explicitly
-- Does not depend on database state
-- Produces consistent output across PHP versions
-
-New query approach:
-```sql
-WITH DUP AS (SELECT 'VALUE1' AS COL_NAME, 'VALUE2' AS COL_NAME FROM RDB$DATABASE)
-SELECT * FROM DUP
-```
-
-**Step 4: Commit and Push**
-- Commit changes with descriptive message following Conventional Commits
-- Push to `satware-main` branch
-- Monitor CI workflows for all-green status
-
-**Step 5: Update CHANGELOG**
-- Document the CI fixes in `CHANGELOG.md` under version 7.0.0-rc.12 or create new section if releasing
-
-**Step 6: Verify Final State**
-- Confirm all three workflows pass
-- Document any remaining known issues
+4. **Close Issue #39**
+   - Add completion comment with changes summary

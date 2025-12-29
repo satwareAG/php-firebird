@@ -30,53 +30,55 @@ env:
   FIREBIRD_SDK_CACHE_KEY: firebird-sdk-v1
 
 jobs:
-  get-matrix:
+  # Use php-windows-builder/extension-matrix for automatic PHP version detection
+  # This reads PHP constraints from composer.json and generates the build matrix
+  # See: https://github.com/php/php-windows-builder#get-the-job-matrix-to-build-a-php-extension
+  get-extension-matrix:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      matrix: ${{ steps.extension-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
-      - id: set-matrix
-        run: |
-          # Generate matrix JSON
-          # PHP: 8.1, 8.2, 8.3, 8.4
-          # Arch: x64 (x86 would require separate FB SDK)
-          # TS: nts, ts
-          # FB: 5.0 only - compiled DLL is compatible with all FB client versions
-          # Using single FB version avoids internal artifact naming conflicts
-          # in php-windows-builder/extension action
-          matrix='{"include":['
-          for php in "8.1" "8.2" "8.3" "8.4"; do
-            for ts in "nts" "ts"; do
-              matrix+='{"php-version":"'$php'","arch":"x64","ts":"'$ts'","firebird-version":"5.0","os":"windows-2022"},'
-            done
-          done
-          matrix="${matrix%,}]}"
-          echo "matrix=$matrix" >> $GITHUB_OUTPUT
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get the extension matrix
+        id: extension-matrix
+        uses: php/php-windows-builder/extension-matrix@v1
+        with:
+          # Explicitly list PHP versions (alternatively, rely on composer.json "php": ">=8.1")
+          php-version-list: '8.1, 8.2, 8.3, 8.4'
+          # x64 only - x86 would require separate Firebird SDK builds
+          arch-list: 'x64'
+          # Both thread-safe and non-thread-safe builds
+          ts-list: 'nts, ts'
 
   build:
-    needs: get-matrix
+    needs: get-extension-matrix
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.get-matrix.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.get-extension-matrix.outputs.matrix) }}
+    env:
+      # Firebird SDK version - compiled DLL is compatible with all FB client versions
+      FIREBIRD_VERSION: '5.0'
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Cache Firebird SDK
         uses: actions/cache@v4
         id: cache-fb-sdk
         with:
           path: C:\firebird-sdk
-          key: ${{ env.FIREBIRD_SDK_CACHE_KEY }}-${{ matrix.firebird-version }}-${{ matrix.arch }}
+          key: ${{ env.FIREBIRD_SDK_CACHE_KEY }}-${{ env.FIREBIRD_VERSION }}-${{ matrix.arch }}
 
       - name: Download Firebird SDK
         if: steps.cache-fb-sdk.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           .\.github\scripts\download-firebird-sdk.ps1 `
-            -Version "${{ matrix.firebird-version }}" `
+            -Version "${{ env.FIREBIRD_VERSION }}" `
             -Architecture "${{ matrix.arch }}" `
             -DestinationPath "C:\firebird-sdk"
 

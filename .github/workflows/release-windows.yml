@@ -83,6 +83,7 @@ jobs:
           ts: ${{ matrix.ts }}
           args: --with-firebird=${{ env.FIREBIRD_HOME }}
           run-tests: 'false'
+          artifact-name: php_firebird-${{ matrix.php-version }}-${{ matrix.ts }}-${{ matrix.arch }}-fb${{ matrix.firebird-version }}
 
       - name: Rename DLL with metadata
         shell: pwsh

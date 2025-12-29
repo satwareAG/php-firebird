@@ -308,16 +308,21 @@ echo -e "${YELLOW}Note: Using Valgrind for memory testing (ASan removed due to P
 # special PHP builds due to RTLD_DEEPBIND conflicts
 echo -e "\n${BLUE}>> [6.1] Valgrind Memory Check...${NC}"
 
-# Ensure clean build without any sanitizer flags
+# Ensure clean debug build for accurate Valgrind analysis
+# -g: Debug symbols for line numbers
+# -O0: No optimization for accurate stack traces
+# -fno-omit-frame-pointer: Required for proper stack unwinding
 docker compose exec -T "$CONTAINER" bash -c "
     cd /ext
     # Clean any previous builds
     make clean 2>/dev/null || true
     phpize --clean 2>/dev/null || true
     
-    # Rebuild with debug symbols for better Valgrind output
+    # Rebuild with debug symbols for accurate Valgrind output
     phpize
-    CFLAGS='-g -O0' ./configure --with-firebird=/usr
+    CFLAGS='-g -O0 -fno-omit-frame-pointer' \
+    CXXFLAGS='-g -O0 -fno-omit-frame-pointer' \
+    ./configure --with-firebird=/usr
     make -j\$(nproc)
 "
 

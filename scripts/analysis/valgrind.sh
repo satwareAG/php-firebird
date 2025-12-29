@@ -81,13 +81,21 @@ echo -e "Extension:  ${YELLOW}$EXT_PATH${NC}"
 # ============================================================================
 # Locate Suppressions File
 # ============================================================================
+# Priority order for Docker compatibility:
+# 1. /ext/valgrind-php.supp - Docker mount path (most common in CI)
+# 2. $SCRIPT_DIR/../../valgrind-php.supp - Relative to script location
+# 3. $PROJECT_ROOT/valgrind-php.supp - Calculated project root
+# 4. ./valgrind-php.supp - Current directory fallback
 SUPP_FILE=""
-for path in "$PROJECT_ROOT/valgrind-php.supp" "/ext/valgrind-php.supp" "./valgrind-php.supp"; do
-    if [ -f "$path" ]; then
-        SUPP_FILE="$path"
-        break
-    fi
-done
+if [ -f "/ext/valgrind-php.supp" ]; then
+    SUPP_FILE="/ext/valgrind-php.supp"
+elif [ -f "$SCRIPT_DIR/../../valgrind-php.supp" ]; then
+    SUPP_FILE="$SCRIPT_DIR/../../valgrind-php.supp"
+elif [ -f "$PROJECT_ROOT/valgrind-php.supp" ]; then
+    SUPP_FILE="$PROJECT_ROOT/valgrind-php.supp"
+elif [ -f "./valgrind-php.supp" ]; then
+    SUPP_FILE="./valgrind-php.supp"
+fi
 
 SUPP_OPTS=""
 if [ -n "$SUPP_FILE" ]; then
@@ -102,11 +110,16 @@ echo ""
 # ============================================================================
 # Valgrind Options
 # ============================================================================
+# Best practice options for PHP extension memory analysis (2024-2025):
+# - --track-origins=yes: Shows source of uninitialized values
+# - --num-callers=30: Deep stack traces for complex call chains
+# - --errors-for-leak-kinds=definite,indirect: Fail only on real leaks
 VALGRIND_OPTS="
     --tool=memcheck
     --leak-check=full
     --show-leak-kinds=definite,indirect,possible
     --track-origins=yes
+    --num-callers=30
     --error-exitcode=1
     --errors-for-leak-kinds=definite,indirect
     $SUPP_OPTS"

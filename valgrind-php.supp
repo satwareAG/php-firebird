@@ -1,6 +1,16 @@
 # valgrind-php.supp
 # Valgrind suppressions for PHP Firebird extension development
 # Based on PHP internals best practices and Firebird client library patterns
+#
+# Supported PHP Versions: 8.1, 8.2, 8.3, 8.4
+# Last Updated: 2025-12-29
+#
+# Purpose:
+# Suppress known false positives from PHP internals and Firebird client library
+# to focus on actual memory issues in the php-firebird extension code.
+#
+# Usage:
+# valgrind --suppressions=/ext/valgrind-php.supp <php command>
 
 # ----------------------------------------------------------------------------
 # PHP / Zend Engine Internal Allocations
@@ -109,4 +119,66 @@
    fun:_dl_open
    ...
    fun:php_load_extension
+}
+
+# ----------------------------------------------------------------------------
+# PHP 8.4 Specific Suppressions
+# ----------------------------------------------------------------------------
+# PHP 8.4 introduced property hooks, asymmetric visibility, and other features
+# that may create internal allocations appearing as leaks
+
+{
+   php84_zend_ini_read
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:zend_ini_*
+}
+
+{
+   php84_zend_hash_internal
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:zend_hash_real_init
+}
+
+{
+   php84_zend_string_alloc
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:zend_string_alloc
+   ...
+   fun:php_module_startup
+}
+
+# JIT related (if JIT is enabled)
+{
+   php84_jit_buffer
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:zend_jit_*
+}
+
+# ----------------------------------------------------------------------------
+# glibc / System Library Suppressions
+# ----------------------------------------------------------------------------
+# Common false positives from system libraries
+
+{
+   glibc_dlopen
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:dlopen*
+}
+
+{
+   glibc_getaddrinfo
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:getaddrinfo
 }

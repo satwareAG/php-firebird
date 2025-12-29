@@ -25,14 +25,21 @@ jobs:
       - id: set-matrix
         run: |
           # Generate matrix JSON
-          # PHP: 8.1, 8.2, 8.3, 8.4
+          # PHP: 8.1, 8.2, 8.3, 8.4, 8.5
           # Arch: x64
           # TS: nts, ts
           # Note: Using Firebird 5.0 SDK for all builds - DLL is compatible with FB 3.0/4.0/5.0
+          # Tests: Run .phpt tests only for PHP 8.1 and 8.5 (oldest and newest) to save CI time
           matrix='{"include":['
-          for php in "8.1" "8.2" "8.3" "8.4"; do
+          for php in "8.1" "8.2" "8.3" "8.4" "8.5"; do
             for ts in "nts" "ts"; do
-              matrix+='{"php-version":"'$php'","arch":"x64","ts":"'$ts'","os":"windows-2022"},'
+              # Enable tests for PHP 8.1 and 8.5 only
+              if [ "$php" = "8.1" ] || [ "$php" = "8.5" ]; then
+                run_tests="true"
+              else
+                run_tests="false"
+              fi
+              matrix+='{"php-version":"'$php'","arch":"x64","ts":"'$ts'","os":"windows-2022","run-tests":"'$run_tests'"},'
             done
           done
           matrix="${matrix%,}]}"
@@ -82,7 +89,7 @@ jobs:
           arch: ${{ matrix.arch }}
           ts: ${{ matrix.ts }}
           args: --with-firebird=${{ env.FIREBIRD_HOME }}
-          run-tests: 'false'
+          run-tests: ${{ matrix.run-tests }}
           extension-ref: ${{ github.event.release.tag_name || inputs.tag }}
 
   release:

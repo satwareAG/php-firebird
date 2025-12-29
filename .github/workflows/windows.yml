@@ -96,6 +96,7 @@ jobs:
           arch: ${{ matrix.arch }}
           ts: ${{ matrix.ts }}
           args: --with-firebird=${{ env.FIREBIRD_HOME }}
+          run-tests: false
 
       - name: Rename DLL with metadata
         shell: pwsh

@@ -85,6 +85,7 @@ jobs:
           ts: ${{ matrix.ts }}
           args: --with-firebird=${{ env.FIREBIRD_HOME }}
           run-tests: 'false'
+          extension-ref: ${{ github.event.release.tag_name || inputs.tag }}
 
   release:
     needs: build

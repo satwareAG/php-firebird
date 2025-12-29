@@ -1,3 +1,4 @@
+# Release Windows DLLs workflow - builds PHP extension for Windows
 name: Release Windows DLLs
 
 on:

@@ -57,6 +57,8 @@ jobs:
   build:
     needs: get-matrix
     runs-on: ${{ matrix.os }}
+    env:
+      artifact-naming-scheme: php-firebird-${{ matrix.php-version }}-${{ matrix.ts }}-${{ matrix.arch }}-fb${{ matrix.firebird-version }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.get-matrix.outputs.matrix) }}
@@ -97,20 +99,6 @@ jobs:
           ts: ${{ matrix.ts }}
           args: --with-firebird=${{ env.FIREBIRD_HOME }}
           run-tests: false
-
-      - name: Rename DLL with metadata
-        shell: pwsh
-        run: |
-          $dllName = "php_firebird-${{ github.ref_name }}-${{ matrix.php-version }}-${{ matrix.ts }}-${{ matrix.arch }}-fb${{ matrix.firebird-version }}.dll"
-          # Find and rename the built DLL
-          Get-ChildItem -Path artifacts -Filter "*.dll" |
-            Rename-Item -NewName $dllName
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: php-firebird-${{ matrix.php-version }}-${{ matrix.ts }}-${{ matrix.arch }}-fb${{ matrix.firebird-version }}
-          path: artifacts/*.dll
 
   release:
     needs: build

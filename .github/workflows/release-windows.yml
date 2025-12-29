@@ -147,6 +147,30 @@ jobs:
           icacls $testDbDir /grant "NETWORK SERVICE:(OI)(CI)F" /T
           echo "FIREBIRD_DB_DIR=$testDbDir" >> $env:GITHUB_ENV
           Write-Host "Test database directory: $testDbDir"
+          
+          # Set SYSDBA password to 'masterkey' for test compatibility
+          # Firebird 5.0 doesn't have a default password, we must set it
+          if ($fbPath) {
+            $isql = Join-Path $fbPath "isql.exe"
+            if (Test-Path $isql) {
+              Write-Host "Setting SYSDBA password to 'masterkey' for tests..."
+              # Use isql to set the password via security database
+              $secDb = Join-Path $fbPath "security5.fdb"
+              $sql = @"
+              CREATE OR ALTER USER SYSDBA PASSWORD 'masterkey' USING PLUGIN Srp;
+              CREATE OR ALTER USER SYSDBA PASSWORD 'masterkey' USING PLUGIN Legacy_UserManager;
+              COMMIT;
+"@
+              # Write SQL to temp file
+              $sqlFile = [System.IO.Path]::GetTempFileName()
+              $sql | Out-File -FilePath $sqlFile -Encoding ASCII
+              
+              # Execute via embedded connection (no authentication needed for initial setup)
+              & $isql -user SYSDBA $secDb -i $sqlFile 2>&1 | Write-Host
+              Remove-Item $sqlFile -ErrorAction SilentlyContinue
+              Write-Host "SYSDBA password configured"
+            }
+          }
 
       - name: Verify Firebird Server (test builds only)
         if: matrix.run-tests == 'true'

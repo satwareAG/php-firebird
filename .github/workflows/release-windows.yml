@@ -187,7 +187,19 @@ jobs:
       - name: Generate checksums
         run: |
           cd release-artifacts
-          sha256sum *.dll > SHA256SUMS.txt
+          # Generate checksums for all artifact files (ZIP archives)
+          if ls *.zip 1> /dev/null 2>&1; then
+            sha256sum *.zip > SHA256SUMS.txt
+            echo "Generated checksums for ZIP files:"
+            cat SHA256SUMS.txt
+          elif ls *.dll 1> /dev/null 2>&1; then
+            sha256sum *.dll > SHA256SUMS.txt
+            echo "Generated checksums for DLL files:"
+            cat SHA256SUMS.txt
+          else
+            echo "Warning: No .zip or .dll files found in release-artifacts"
+            ls -la
+          fi
 
       - name: Upload to Release
         uses: php/php-windows-builder/release@v1

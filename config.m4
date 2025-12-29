@@ -6,21 +6,6 @@ PHP_ARG_WITH([firebird],
 
 if test "$PHP_FIREBIRD" != "no"; then
 
-  dnl Detect php-firebird version from git or VERSION file
-  AC_MSG_CHECKING([for php-firebird version])
-  if test -d "$srcdir/.git" -a -x "`which git 2>/dev/null`"; then
-    PHP_FIREBIRD_VERSION=`cd "$srcdir" && git describe --tags --always --dirty 2>/dev/null | sed 's/^v//'`
-    if test -z "$PHP_FIREBIRD_VERSION"; then
-      PHP_FIREBIRD_VERSION="0.0.0-unknown"
-    fi
-  elif test -f "$srcdir/VERSION"; then
-    PHP_FIREBIRD_VERSION=`cat "$srcdir/VERSION"`
-  else
-    PHP_FIREBIRD_VERSION="0.0.0-unknown"
-  fi
-  AC_MSG_RESULT([$PHP_FIREBIRD_VERSION])
-  AC_DEFINE_UNQUOTED([PHP_FIREBIRD_VERSION_STRING], ["$PHP_FIREBIRD_VERSION"], [PHP Firebird extension version])
-
   dnl Check for minimum PHP version (8.1+)
   AC_MSG_CHECKING([for minimum PHP version 8.1])
   old_IFS=$IFS

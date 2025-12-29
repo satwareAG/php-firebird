@@ -308,7 +308,7 @@ extern "C" {
 /**
  * Attach to the service manager using OO API.
  */
-void* fbsvc_attach(void* master_ptr,
+inline void* fbsvc_attach(void* master_ptr,
                           const char* service_name,
                           unsigned spb_length,
                           const unsigned char* spb,
@@ -345,7 +345,7 @@ void* fbsvc_attach(void* master_ptr,
 /**
  * Detach from the service manager.
  */
-int fbsvc_detach(void* master_ptr, void* service_wrapper, ISC_STATUS* status_vector)
+inline int fbsvc_detach(void* master_ptr, void* service_wrapper, ISC_STATUS* status_vector)
 {
     (void)master_ptr; // Unused, kept for API consistency
 
@@ -360,7 +360,7 @@ int fbsvc_detach(void* master_ptr, void* service_wrapper, ISC_STATUS* status_vec
 /**
  * Start a service task.
  */
-int fbsvc_start(void* master_ptr,
+inline int fbsvc_start(void* master_ptr,
                        void* service_wrapper,
                        unsigned spb_length,
                        const unsigned char* spb,
@@ -384,7 +384,7 @@ int fbsvc_start(void* master_ptr,
 /**
  * Query service status/results.
  */
-int fbsvc_query(void* master_ptr,
+inline int fbsvc_query(void* master_ptr,
                        void* service_wrapper,
                        unsigned send_length,
                        const unsigned char* send_items,
@@ -413,7 +413,7 @@ int fbsvc_query(void* master_ptr,
 /**
  * Check if attached to service manager.
  */
-int fbsvc_is_attached(void* service_wrapper)
+inline int fbsvc_is_attached(void* service_wrapper)
 {
     if (!service_wrapper) {
         return 0;
@@ -426,7 +426,7 @@ int fbsvc_is_attached(void* service_wrapper)
 /**
  * Free service wrapper.
  */
-void fbsvc_free(void* service_wrapper)
+inline void fbsvc_free(void* service_wrapper)
 {
     if (service_wrapper) {
         auto* wrapper = static_cast<fb::ServiceWrapper*>(service_wrapper);

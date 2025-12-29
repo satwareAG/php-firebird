@@ -3,7 +3,8 @@ Firebird: misc sql types (may take a while)
 --SKIPIF--
 <?php
 include("skipif.inc");
-// Column alias deduplication changed in Firebird 4.0
+// DECIMAL/NUMERIC precision handling differs significantly in FB < 4.0
+// causing random round-trip failures. FB 4.0+ has improved precision.
 skip_if_fb_lt(4.0);
 ?>
 --FILE--

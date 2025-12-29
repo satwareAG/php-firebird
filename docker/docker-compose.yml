@@ -184,29 +184,6 @@ services:
     depends_on:
       - firebird50
 
-  # PHP 8.3 with AddressSanitizer
-  php83-asan:
-    build:
-      context: php
-      dockerfile: Dockerfile-asan
-    volumes:
-      - ..:/ext
-    # Note: ASan often requires root or specific ptrace capabilities,
-    # but we'll try with the current user first. If it fails, we might need root.
-    # user: "${CURRENT_UID:-1000}:${CURRENT_GID:-1000}"
-    working_dir: /ext
-    command: tail -f /dev/null
-    environment:
-      - PHP_IDE_CONFIG=serverName=php-firebird-dev
-      - FIREBIRD_HOST=firebird40
-      - FIREBIRD_DB_DIR=/firebird
-      - TZ=Europe/Berlin
-      - ASAN_OPTIONS=detect_leaks=1:halt_on_error=1
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    depends_on:
-      - firebird40
-
   # Firebird Database Containers
   firebird25:
     image: "jacobalberty/firebird:2.5-ss"

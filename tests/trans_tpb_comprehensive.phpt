@@ -249,7 +249,7 @@ fbird_close($db);
 
 echo "\n=== ALL TPB TESTS COMPLETED ===\n";
 ?>
---EXPECTF--
+--EXPECT--
 === Test 1: Access Modes ===
 READ mode: READ_ONLY
 WRITE mode: READ_WRITE
@@ -279,7 +279,7 @@ Table reservation (WRITE|PROTECTED): OK
 Table reservation (WRITE|EXCLUSIVE): OK
 
 === Test 7: Firebird 4.0+ READ CONSISTENCY ===
-%AREAD_CONSISTENCY (FB4+):%s
+READ_CONSISTENCY (FB4+): Transaction started OK
 
 === Test 8: Combined Complex Transaction ===
 Complex transaction started:

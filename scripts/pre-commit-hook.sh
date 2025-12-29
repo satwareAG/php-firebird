@@ -77,7 +77,11 @@ if [ -n "$C_FILES" ]; then
             echo -e "${GREEN}OK${NC}"
         else
             echo -e "${RED}FAILED${NC}"
+<<<<<<< HEAD:scripts/pre-commit-hook.sh
             echo -e "${RED}✗ Run './scripts/qa.sh --mode fast' for details${NC}"
+=======
+            echo -e "${RED}✗ Run './scripts/host/qa_full.sh --mode fast' for details${NC}"
+>>>>>>> feature/fbird-extension-release:scripts/host/pre-commit-hook.sh
             FAILED=1
         fi
     else
@@ -92,8 +96,12 @@ echo -n "Checking for debug artifacts... "
 STAGED_FILES=$(git diff --cached --name-only)
 
 # Check for console.log, var_dump, print_r, etc.
+<<<<<<< HEAD:scripts/pre-commit-hook.sh
 # Use \b for word boundaries to avoid false positives like _add(
 DEBUG_PATTERNS='\bvar_dump\(|\bprint_r\(|console\.log\(|error_log.*DEBUG|\bdd\(|\bdump\('
+=======
+DEBUG_PATTERNS='var_dump|print_r|console\.log|error_log.*DEBUG|dd\(|dump\('
+>>>>>>> feature/fbird-extension-release:scripts/host/pre-commit-hook.sh
 if echo "$STAGED_FILES" | xargs -r grep -l -E "$DEBUG_PATTERNS" 2>/dev/null | head -5; then
     echo -e "${YELLOW}WARNING: Debug statements found (review before release)${NC}"
 else

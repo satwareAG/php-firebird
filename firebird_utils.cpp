@@ -15,15 +15,9 @@
 #include <cassert>
 #include <utility>
 #include <tuple>
-
-/* PHP headers must be wrapped in extern "C" when included from C++
- * to ensure proper symbol linkage (especially for TSRM in ZTS builds) */
-extern "C" {
 #include "php.h"
-#include "php_fbird_includes.h"
-}
-
 #include "firebird_utils.h"
+#include "php_fbird_includes.h"
 #include "firebird_utils_internal.h"
 
 //=============================================================================

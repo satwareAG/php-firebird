@@ -35,7 +35,7 @@ SOURCE_FILES=(
 
 # Determine PHP include path for the current PHP version
 PHP_INCLUDE_DIR=$(php-config --include-dir 2>/dev/null || echo "/usr/include/php")
-PHP_API_VERSION=$(php -r 'echo PHP_VERSION_ID;' 2>/dev/null || echo "80300")
+PHP_API_VERSION=$(php -r 'echo PHP_API_VERSION;' 2>/dev/null || echo "20240924")
 
 # Build include paths
 INCLUDE_PATHS=(

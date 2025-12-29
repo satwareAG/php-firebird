@@ -9,10 +9,6 @@ require_once 'skipif.inc';
 if (!defined('FBIRD_BATCH_WRITE') && !function_exists('fbird_batch_create')) {
     die('skip IBatch API requires Firebird 4.0+');
 }
-require_once 'firebird.inc';
-if (get_fb_version() < 4.0) {
-    die('skip IBatch API requires Firebird 4.0+');
-}
 ?>
 --FILE--
 <?php

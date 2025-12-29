@@ -566,22 +566,6 @@ int le_link, le_plink, le_trans;
 int le_batch;
 #endif
 
-/* Helper function to get human-readable name for resource types.
- * Used by FBIRD_VALIDATE_*_EX macros for TypeError messages.
- * Note: Only handles globally-visible resource types; local types
- * (le_blob, le_event) will return "resource". */
-const char *_fbird_res_type_name(int type) {
-	if (type == le_link)  return "connection";
-	if (type == le_plink) return "persistent connection";
-	if (type == le_trans) return "transaction";
-	if (type == le_query) return "query/result";
-#if FB_API_VER >= 40
-	if (type == le_batch) return "batch";
-#endif
-	/* For static resource types defined in other files, return generic name */
-	return "resource";
-}
-
 /* }}} */
 
 /* error handling ---------------------------- */
@@ -825,24 +809,20 @@ static void _php_fbird_commit_link(fbird_db_link *link) /* {{{ */
 				/* Default transaction: commit via OO API */
 				if (p->trans->fbt_transaction != NULL) {
 					FBDEBUG("Committing default transaction via OO API...");
-					int res = fbt_commit(p->trans->fbt_transaction, IB_STATUS);
-					fbt_free(p->trans->fbt_transaction);
-					p->trans->fbt_transaction = NULL;
-					if (res) {
+					if (fbt_commit(p->trans->fbt_transaction, IB_STATUS)) {
 						_php_fbird_error();
 					}
+					p->trans->fbt_transaction = NULL;
 				}
 				efree(p->trans); /* default transaction is not a registered resource: clean up */
 			} else {
 				/* Non-default transaction: rollback via OO API */
 				if (p->trans->fbt_transaction != NULL) {
 					FBDEBUG("Rolling back other transaction via OO API...");
-					int res = fbt_rollback(p->trans->fbt_transaction, IB_STATUS);
-					fbt_free(p->trans->fbt_transaction);
-					p->trans->fbt_transaction = NULL;
-					if (res) {
+					if (fbt_rollback(p->trans->fbt_transaction, IB_STATUS)) {
 						_php_fbird_error();
 					}
+					p->trans->fbt_transaction = NULL;
 				}
 				/* set this link pointer to NULL in the transaction */
 				for (j = 0; j < p->trans->link_cnt; ++j) {
@@ -885,36 +865,18 @@ static void _php_fbird_close_link(zend_resource *rsrc) /* {{{ */
 	fbird_db_link *link = (fbird_db_link *) rsrc->ptr;
 
 #ifndef PHP_WIN32
-	/* Fork-safety check (Issue #22, #36): Skip cleanup if we're in a forked child.
+	/* Fork-safety check (Issue #22): Skip cleanup if we're in a forked child.
 	 * After pcntl_fork(), child inherits global state including master_instance
 	 * and connection handles. Attempting to close handles in child that were
 	 * created in parent causes segfault. Only the original process should
-	 * perform cleanup operations.
-	 *
-	 * Two-level check:
-	 * 1. Global init_pid - module-level fork detection
-	 * 2. Per-connection created_pid - connection-level fork detection */
-	pid_t current_pid = getpid();
-	if (IBG(init_pid) != 0 && current_pid != IBG(init_pid)) {
-		FBDEBUG("Skipping link cleanup in forked child process (global)");
-		IBG(num_links)--;
-		efree(link);
-		return;
-	}
-	if (link->created_pid != 0 && current_pid != link->created_pid) {
-		FBDEBUG("Skipping link cleanup in forked child process (per-connection)");
+	 * perform cleanup operations. */
+	if (IBG(init_pid) != 0 && getpid() != IBG(init_pid)) {
+		FBDEBUG("Skipping link cleanup in forked child process");
 		IBG(num_links)--;
 		efree(link);
 		return;
 	}
 #endif
-
-	/* Remove cache entry from EG(regular_list) to prevent UAF (Issue #35).
-	 * The cache uses a 16-byte MD5 hash as the string key. */
-	if (link->hash_key[0] != '\0' || memcmp(link->hash_key, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16) != 0) {
-		zend_hash_str_del(&EG(regular_list), link->hash_key, sizeof(link->hash_key) - 1);
-		FBDEBUG("Removed cache entry for normal link");
-	}
 
 	_php_fbird_commit_link(link);
 
@@ -935,32 +897,15 @@ static void _php_fbird_close_plink(zend_resource *rsrc) /* {{{ */
 	fbird_db_link *link = (fbird_db_link *) rsrc->ptr;
 
 #ifndef PHP_WIN32
-	/* Fork-safety check (Issue #22, #36): Skip cleanup if we're in a forked child.
-	 * Two-level check for both module-level and connection-level fork detection. */
-	pid_t current_pid = getpid();
-	if (IBG(init_pid) != 0 && current_pid != IBG(init_pid)) {
-		FBDEBUG("Skipping persistent link cleanup in forked child process (global)");
-		IBG(num_persistent)--;
-		IBG(num_links)--;
-		free(link);
-		return;
-	}
-	if (link->created_pid != 0 && current_pid != link->created_pid) {
-		FBDEBUG("Skipping persistent link cleanup in forked child process (per-connection)");
+	/* Fork-safety check (Issue #22): Skip cleanup if we're in a forked child */
+	if (IBG(init_pid) != 0 && getpid() != IBG(init_pid)) {
+		FBDEBUG("Skipping persistent link cleanup in forked child process");
 		IBG(num_persistent)--;
 		IBG(num_links)--;
 		free(link);
 		return;
 	}
 #endif
-
-	/* Remove cache entries from both regular and persistent lists (Issue #35).
-	 * Persistent connections are cached in EG(persistent_list) with hash key. */
-	if (link->hash_key[0] != '\0' || memcmp(link->hash_key, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16) != 0) {
-		zend_hash_str_del(&EG(regular_list), link->hash_key, sizeof(link->hash_key) - 1);
-		zend_hash_str_del(&EG(persistent_list), link->hash_key, sizeof(link->hash_key) - 1);
-		FBDEBUG("Removed cache entries for persistent link");
-	}
 
 	_php_fbird_commit_link(link);
 
@@ -996,13 +941,11 @@ static void _php_fbird_free_trans(zend_resource *rsrc) /* {{{ */
 	/* OO API Only: All transactions use fbt_rollback() */
 	if (trans->fbt_transaction != NULL) {
 		FBDEBUG("Rolling back unhandled OO API transaction...");
-		int res = fbt_rollback(trans->fbt_transaction, IB_STATUS);
-		fbt_free(trans->fbt_transaction);
-		trans->fbt_transaction = NULL;
-		trans->handle.ptr = 0;
-		if (res) {
+		if (fbt_rollback(trans->fbt_transaction, IB_STATUS)) {
 			_php_fbird_error();
 		}
+		trans->fbt_transaction = NULL;
+		trans->handle.ptr = 0;
 	}
 
 	/* now remove this transaction from all the connection-transaction lists */
@@ -1549,16 +1492,6 @@ static void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent) /* 
 
 		ib_link->fbc_connection = (void *)(uintptr_t)IBG(status[ISC_STATUS_LENGTH - 1]);
 		IBG(status[ISC_STATUS_LENGTH - 1]) = 0;  /* Clear the temporary storage */
-
-		/* Store hash key for cache invalidation on close (Issue #35) */
-		memcpy(ib_link->hash_key, hash, sizeof(hash));
-
-		/* Store creation PID for fork-safety detection (Issue #36) */
-#ifndef PHP_WIN32
-		ib_link->created_pid = getpid();
-#else
-		ib_link->created_pid = 0;
-#endif
 
 		++IBG(num_links);
 	} while (0);
@@ -2735,7 +2668,6 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit) /* {{
 	 * Fixes: #9, #10 - SIGSEGV due to use-after-free of transaction wrapper
 	 */
 	if ((commit & RETAIN) == 0) {
-		fbt_free(trans->fbt_transaction);
 		trans->fbt_transaction = NULL;
 		trans->handle.ptr = 0;
 	}

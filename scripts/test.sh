@@ -9,12 +9,12 @@ cd /ext
 # Ensure extension is built and compatible
 if [ ! -f modules/firebird.so ]; then
     echo "Extension not found. Building first..."
-    /ext/scripts/build.sh
+    /ext/scripts/container/build.sh
 else
     # Check if extension loads successfully (handles API mismatch leftovers)
     if ! php -n -d extension=$(pwd)/modules/firebird.so -r "exit(extension_loaded('firebird') ? 0 : 1);" >/dev/null 2>&1; then
         echo "Extension found but failed to load (possible API mismatch). Rebuilding..."
-        /ext/scripts/build.sh
+        /ext/scripts/container/build.sh
     fi
 fi
 
@@ -56,13 +56,7 @@ if [ -d "tests" ]; then
             TARGET="$TARGET $resolved"
         done
     fi
-    # Build extension arguments - always load firebird, conditionally load pcntl if available
-    EXT_ARGS="-d extension=$(pwd)/modules/firebird.so"
-    # Check if pcntl is available (needed for fork tests)
-    if php -m 2>/dev/null | grep -q pcntl; then
-        EXT_ARGS="$EXT_ARGS -d extension=pcntl"
-    fi
-    TEST_PHP_EXECUTABLE=/usr/local/bin/php TEST_PHP_ARGS="-n" php -n run-tests.php $EXT_ARGS $TARGET
+    TEST_PHP_EXECUTABLE=/usr/local/bin/php TEST_PHP_ARGS="-n" php -n run-tests.php -d extension=$(pwd)/modules/firebird.so $TARGET
 else
     echo "No test directory found. Skipping tests."
 fi

@@ -39,23 +39,6 @@ typedef struct {
 	char vary_string[1];
 } IBVARY;
 
-/* Windows-compatible setenv/unsetenv wrappers */
-#ifdef PHP_WIN32
-static inline int fbird_setenv(const char *name, const char *value) {
-    return _putenv_s(name, value);
-}
-static inline int fbird_unsetenv(const char *name) {
-    return _putenv_s(name, "");
-}
-#else
-static inline int fbird_setenv(const char *name, const char *value) {
-    return setenv(name, value, 1);
-}
-static inline int fbird_unsetenv(const char *name) {
-    return unsetenv(name);
-}
-#endif
-
 /* Portable UTC epoch conversion helper */
 time_t fbird_timegm_portable(struct tm *tm)
 {
@@ -70,15 +53,15 @@ time_t fbird_timegm_portable(struct tm *tm)
         saved = estrdup(old_tz);
     }
     /* Set UTC and apply */
-    fbird_setenv("TZ", "UTC");
+    setenv("TZ", "UTC", 1);
     tzset();
     time_t ts = mktime(tm);
     /* Restore TZ */
     if (saved) {
-        fbird_setenv("TZ", saved);
+        setenv("TZ", saved, 1);
         efree(saved);
     } else {
-        fbird_unsetenv("TZ");
+        unsetenv("TZ");
     }
     tzset();
     return ts;
@@ -94,14 +77,14 @@ time_t fbird_mktime_with_tz(struct tm *tm, const char *tz)
     if (old_tz_env) {
         saved = estrdup(old_tz_env);
     }
-    fbird_setenv("TZ", use_tz);
+    setenv("TZ", use_tz, 1);
     tzset();
     time_t ts = mktime(tm);
     if (saved) {
-        fbird_setenv("TZ", saved);
+        setenv("TZ", saved, 1);
         efree(saved);
     } else {
-        fbird_unsetenv("TZ");
+        unsetenv("TZ");
     }
     tzset();
     return ts;
@@ -505,11 +488,10 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 		RETURN_FALSE;
 	}
 
-	/* Validate first argument is a query resource with proper error messages */
-	FBIRD_VALIDATE_QUERY_EX(res_arg, 1, ib_query);
-	if (!ib_query) {
-		RETURN_FALSE;
-	}
+ if(!_php_fbird_fetch_query_res(res_arg, &ib_query)) {
+        /* Let Zend validate resource via _php_fbird_fetch_query_res */
+        RETURN_FALSE;
+    }
 
 	/* Pure OO API: Check message buffer instead of XSQLDA */
 	if (ib_query->out_metadata == NULL || ib_query->out_msg_buffer == NULL ||
@@ -915,9 +897,7 @@ PHP_FUNCTION(fbird_name_result)
 		return;
 	}
 
-	/* Validate first argument is a query resource with proper error messages */
-	FBIRD_VALIDATE_QUERY_EX(result_arg, 1, ib_query);
-	if (!ib_query) {
+	if(!_php_fbird_fetch_query_res(result_arg, &ib_query)) {
 		RETURN_FALSE;
 	}
 

@@ -15,7 +15,6 @@
 # Autotools generated files
 autom4te.cache/
 build/
-!build/manylinux/
 .deps/
 .libs/
 modules/
@@ -80,24 +79,6 @@ tests/*.php
 tests/*.sh
 *.dep
 
-# Fuzzer artifacts
-fuzz/crashes/*
-!fuzz/crashes/.gitkeep
-fuzz/reports/*
-# Test artifacts
-tests/*.diff
-tests/*.exp
-tests/*.log
-tests/*.out
-tests/*.php
-tests/*.sh
-*.dep
-
-# Fuzzer artifacts
-fuzz/crashes/*
-!fuzz/crashes/.gitkeep
-fuzz/reports/*
-
 # Coverage and analysis
 *.gcda
 *.gcno
@@ -134,8 +115,3 @@ composer.lock
 
 # LSan suppressions (generated)
 scripts/container/analysis/lsan.supp
-
-# act (GitHub Actions local runner)
-.act.env
-.act.secrets
-.actrc

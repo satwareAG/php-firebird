@@ -1160,15 +1160,8 @@ PHP_FUNCTION(fbird_query)
 		RETURN_FALSE;
 	}
 
-	for (i = bind_start; i < argc; i++) {
-		Z_TRY_ADDREF(args[i]);
-	}
-
 	if (FAILURE == _php_fbird_exec(INTERNAL_FUNCTION_PARAM_PASSTHRU, ib_query, &args[bind_start], argc - bind_start)) {
 		zend_list_delete(ib_query->res);
-		for (i = bind_start; i < argc; i++) {
-			zval_ptr_dtor(&args[i]);
-		}
 		efree(args);
 		RETURN_FALSE;
 	}
@@ -1177,9 +1170,6 @@ PHP_FUNCTION(fbird_query)
 	    zend_list_delete(ib_query->res);
 	}
 
-	for (i = bind_start; i < argc; i++) {
-		zval_ptr_dtor(&args[i]);
-	}
 	efree(args);
 }
 /* }}} */
@@ -1314,35 +1304,17 @@ PHP_FUNCTION(fbird_execute)
 		WRONG_PARAM_COUNT;
 	}
 
-	/* Validate first argument is a query resource with proper error messages */
-	if (Z_TYPE(args[0]) != IS_RESOURCE) {
-		efree(args);
-		zend_argument_type_error(1, "must be a Firebird query resource, %s given",
-			zend_zval_type_name(&args[0]));
-		RETURN_THROWS();
-	}
-
-	FBIRD_VALIDATE_QUERY_EX(&args[0], 1, ib_query);
+	ib_query = (fbird_query *)zend_fetch_resource_ex(&args[0], "Firebird query", le_query);
 	if (!ib_query) {
 		efree(args);
 		RETURN_FALSE;
 	}
 
-	for (i = 1; i < argc; i++) {
-		Z_TRY_ADDREF(args[i]);
-	}
-
 	if (FAILURE == _php_fbird_exec(INTERNAL_FUNCTION_PARAM_PASSTHRU, ib_query, &args[1], argc - 1)) {
-		for (i = 1; i < argc; i++) {
-			zval_ptr_dtor(&args[i]);
-		}
 		efree(args);
 		RETURN_FALSE;
 	}
 
-	for (i = 1; i < argc; i++) {
-		zval_ptr_dtor(&args[i]);
-	}
 	efree(args);
 }
 /* }}} */

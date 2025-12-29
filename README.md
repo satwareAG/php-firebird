@@ -117,14 +117,7 @@ sudo make install
 echo "extension=firebird.so" | sudo tee /etc/php8/conf.d/firebird.ini
 ```
 
-#### Windows (Pre-compiled DLLs)
-We provide pre-compiled Windows DLLs for PHP 8.1-8.4 across multiple Firebird versions (3.0, 4.0, 5.0).
-
-1. Go to the [Releases Page](https://github.com/satwareAG/php-firebird/releases).
-2. Download the DLL matching your PHP version, architecture (x64), thread safety (TS/NTS), and Firebird version.
-3. See the [Windows Installation Guide](docs/WINDOWS_INSTALLATION.md) for detailed instructions and troubleshooting.
-
-#### Windows (Manual Build)
+#### Windows
 ```batch
 REM Prerequisites: Visual Studio 2019+ with C++ tools, Git for Windows
 
@@ -851,52 +844,25 @@ See [EVENT_TIMEOUT_RFC.md](docs/development/EVENT_TIMEOUT_RFC.md) for implementa
 
 ## Version Compatibility
 
-### Current Version: 7.0.0-rc.13
+### Current Version: 1.0.0
 
 **Supported PHP Versions:**
-- ⚠️ PHP 8.1 (**DEPRECATED** - will be removed in v7.1.0)
+- PHP 8.1 (minimum required)
 - PHP 8.2 (fully supported)
 - PHP 8.3 (fully supported)
 - PHP 8.4 (fully supported)
 - PHP 8.5 (development)
-
-> **⚠️ PHP 8.1 Deprecation Notice**: PHP 8.1 reaches end-of-life on November 25, 2025. Support will be removed in php-firebird v7.1.0. Please upgrade to PHP 8.2 or newer.
 
 **Firebird Client Library (for building):**
 - Firebird 3.0+ client library required (uses OO API)
 - FB 5.0 client recommended (connects to all server versions)
 
 **Firebird Server Connectivity:**
-| Client Library | Server Versions Supported | Notes |
-|----------------|---------------------------|-------|
-| FB 3.0 client | FB 2.5, 3.0 | Legacy |
-| FB 4.0 client | FB 2.5, 3.0, 4.0 | Stable |
-| FB 5.0 client | FB 2.5, 3.0, 4.0, 5.0+ | **Recommended** |
-
-> **⚠️ Firebird 2.5 Server Deprecation**: Firebird 2.5 server support is **DEPRECATED** and will be removed in v7.1.0. Firebird 2.5 reached EOL in September 2020. The FB 5.x client includes backward compatibility, but this configuration is no longer tested. Please migrate to Firebird 4.0+ for security updates.
-
-### Precompiled Binaries (v7.0.0+)
-
-Starting with v7.0.0, we provide precompiled Linux packages with bundled Firebird client libraries:
-
-```bash
-# Download from GitHub Releases
-wget https://github.com/satwareAG/php-firebird/releases/download/v7.0.0/php-firebird-7.0.0-php84-nts-linux-x86_64.tar.gz
-
-# Extract to PHP extension directory
-EXTDIR=$(php -r 'echo ini_get("extension_dir");')
-sudo tar -xzf php-firebird-7.0.0-php84-nts-linux-x86_64.tar.gz -C "$EXTDIR" --strip-components=1
-
-# Enable and verify
-echo "extension=firebird.so" | sudo tee /etc/php/8.4/mods-available/firebird.ini
-sudo phpenmod firebird
-php -m | grep firebird
-```
-
-**Package Compatibility:**
-- **glibc 2.28+** required (Ubuntu 18.10+, Debian 10+, RHEL 8+)
-- **No system Firebird installation needed** - client libraries bundled via `$ORIGIN` rpath
-- **Connects to any Firebird server** (2.5-5.0) using bundled FB 5.x client
+| Client Library | Server Versions Supported |
+|----------------|---------------------------|
+| FB 3.0 client | FB 2.5, 3.0 |
+| FB 4.0 client | FB 2.5, 3.0, 4.0 |
+| FB 5.0 client | FB 2.5, 3.0, 4.0, 5.0+ |
 
 **Dropped Support:**
 - ❌ PHP 7.x (legacy, security issues)

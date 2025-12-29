@@ -82,6 +82,88 @@ jobs:
           echo "CFLAGS=-I$sdkPath\include" >> $env:GITHUB_ENV
           echo "LDFLAGS=-L$sdkPath\lib" >> $env:GITHUB_ENV
 
+      # Install Firebird Server for test execution (only when tests are enabled)
+      - name: Install Firebird Server for Tests
+        if: matrix.run-tests == 'true'
+        shell: pwsh
+        run: |
+          Write-Host "Installing Firebird Server via Chocolatey..."
+          choco install firebird -y --no-progress
+          
+          # Wait for service to start
+          Write-Host "Waiting for Firebird service to start..."
+          $maxAttempts = 30
+          $attempt = 0
+          while ($attempt -lt $maxAttempts) {
+            $service = Get-Service -Name "FirebirdServerDefaultInstance" -ErrorAction SilentlyContinue
+            if ($service -and $service.Status -eq "Running") {
+              Write-Host "Firebird service is running"
+              break
+            }
+            Start-Sleep -Seconds 2
+            $attempt++
+            Write-Host "Waiting for Firebird service... (attempt $attempt/$maxAttempts)"
+          }
+          
+          if ($attempt -eq $maxAttempts) {
+            Write-Host "Warning: Firebird service not detected as running, but continuing..."
+          }
+          
+          # Get Firebird installation path from registry
+          $regPath = "HKLM:\SOFTWARE\Firebird Project\Firebird Server\Instances"
+          $fbPath = (Get-ItemProperty -Path $regPath -ErrorAction SilentlyContinue).DefaultInstance
+          if (-not $fbPath) {
+            $regPath = "HKLM:\SOFTWARE\WOW6432Node\Firebird Project\Firebird Server\Instances"
+            $fbPath = (Get-ItemProperty -Path $regPath -ErrorAction SilentlyContinue).DefaultInstance
+          }
+          
+          if ($fbPath) {
+            Write-Host "Firebird installed at: $fbPath"
+            # Add Firebird bin to PATH for isql and other tools
+            $fbBin = Join-Path $fbPath "bin"
+            if (Test-Path $fbBin) {
+              echo "$fbBin" >> $env:GITHUB_PATH
+            }
+          }
+          
+          # Set environment variables for tests
+          echo "FIREBIRD_HOST=localhost" >> $env:GITHUB_ENV
+          # Create test database directory
+          $testDbDir = "C:\firebird-test-db"
+          New-Item -ItemType Directory -Force -Path $testDbDir | Out-Null
+          # Grant full access to the directory
+          icacls $testDbDir /grant "Everyone:(OI)(CI)F" /T
+          echo "FIREBIRD_DB_DIR=$testDbDir" >> $env:GITHUB_ENV
+          Write-Host "Test database directory: $testDbDir"
+
+      - name: Verify Firebird Server (test builds only)
+        if: matrix.run-tests == 'true'
+        shell: pwsh
+        run: |
+          Write-Host "Verifying Firebird installation..."
+          
+          # Check service status
+          $service = Get-Service -Name "FirebirdServerDefaultInstance" -ErrorAction SilentlyContinue
+          if ($service) {
+            Write-Host "Service Status: $($service.Status)"
+          } else {
+            Write-Host "Service not found - checking processes..."
+            Get-Process -Name "*firebird*" -ErrorAction SilentlyContinue | Format-Table
+          }
+          
+          # Test TCP connection to Firebird
+          $tcpTest = Test-NetConnection -ComputerName localhost -Port 3050 -WarningAction SilentlyContinue
+          if ($tcpTest.TcpTestSucceeded) {
+            Write-Host "TCP connection to Firebird port 3050: SUCCESS"
+          } else {
+            Write-Host "TCP connection to Firebird port 3050: FAILED"
+            Write-Host "Note: Tests may still work via named pipes or embedded connection"
+          }
+          
+          # List Firebird processes
+          Write-Host "Firebird processes:"
+          Get-Process | Where-Object { $_.ProcessName -like "*firebird*" } | Format-Table Name, Id, Path
+
       - name: Build Extension
         uses: php/php-windows-builder/extension@v1
         with:

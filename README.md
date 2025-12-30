@@ -907,13 +907,56 @@ php -m | grep firebird
 
 ## Security
 
+> **⚠️ SQL INJECTION WARNING**: Never concatenate user input directly into SQL queries. Always use parameterized queries.
+
+### SQL Injection Prevention
+
+**✅ SAFE - Always use parameterized queries:**
+```php
+<?php
+// Prepared statements - RECOMMENDED
+$stmt = fbird_prepare($db, "SELECT * FROM users WHERE username = ? AND active = ?");
+$result = fbird_execute($stmt, $username, 1);
+
+// Inline parameters
+$result = fbird_query($db, "SELECT * FROM accounts WHERE id = ?", $accountId);
+```
+
+**❌ UNSAFE - Never do this:**
+```php
+<?php
+// SQL Injection vulnerable - NEVER concatenate user input!
+$result = fbird_query($db, "SELECT * FROM users WHERE username = '$username'");
+
+// Even with addslashes() - NOT safe for Firebird!
+$result = fbird_query($db, "SELECT * FROM users WHERE username = '" . addslashes($username) . "'");
+```
+
+### Escaping Functions
+
+For cases where parameterized queries cannot be used (dynamic SQL generation), use `fbird_escape_string()`:
+
+```php
+<?php
+// Escape single quotes (' → '') for safe SQL string literals
+$safe = fbird_escape_string($userInput);
+$sql = "SELECT * FROM users WHERE notes LIKE '%" . $safe . "%'";
+```
+
+> **Note**: `fbird_escape_string()` is a **secondary defense**. Parameterized queries are always preferred.
+
 ### Security Features
+
+- **Parameterized Queries**: Primary defense against SQL injection
 - **Input Validation**: Comprehensive parameter checking
-- **Memory Safety**: AddressSanitizer integration
-- **SQL Injection Protection**: Prepared statement support
+- **Memory Safety**: AddressSanitizer integration for development
 - **Resource Management**: Automatic cleanup prevents leaks
+- **String Escaping**: `fbird_escape_string()` for dynamic SQL edge cases
+
+For comprehensive security guidance, see [docs/SECURITY.md](docs/SECURITY.md).
 
 ### Reporting Security Issues
+
 For security-related issues, please email the maintainers directly rather than creating public issues.
 
 ## License

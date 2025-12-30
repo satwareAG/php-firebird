@@ -1,0 +1,65 @@
+Test 1: INT64 Limits
+Test 2: Empty String
+Test 3: Large String
+Test 4: Explicit NULL
+array(4) {
+  ["ID"]=>
+  int(%d)
+  ["VAL_BIGINT"]=>
+  int(9223372036854775807)
+  ["VAL_VARCHAR"]=>
+  NULL
+  ["VAL_BLOB"]=>
+  NULL
+}
+array(4) {
+  ["ID"]=>
+  int(%d)
+  ["VAL_BIGINT"]=>
+  int(-9223372036854775808)
+  ["VAL_VARCHAR"]=>
+  NULL
+  ["VAL_BLOB"]=>
+  NULL
+}
+array(4) {
+  ["ID"]=>
+  int(%d)
+  ["VAL_BIGINT"]=>
+  NULL
+  ["VAL_VARCHAR"]=>
+  string(0) ""
+  ["VAL_BLOB"]=>
+  NULL
+}
+array(4) {
+  ["ID"]=>
+  int(%d)
+  ["VAL_BIGINT"]=>
+  NULL
+  ["VAL_VARCHAR"]=>
+  string(3) "   "
+  ["VAL_BLOB"]=>
+  NULL
+}
+array(4) {
+  ["ID"]=>
+  int(%d)
+  ["VAL_BIGINT"]=>
+  NULL
+  ["VAL_VARCHAR"]=>
+  NULL
+  ["VAL_BLOB"]=>
+  string(10) "BLOB FOUND"
+}
+array(4) {
+  ["ID"]=>
+  int(%d)
+  ["VAL_BIGINT"]=>
+  NULL
+  ["VAL_VARCHAR"]=>
+  NULL
+  ["VAL_BLOB"]=>
+  NULL
+}
+Done

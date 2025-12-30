@@ -145,6 +145,72 @@ Checks: >
 - **AddressSanitizer**: Fast memory error detection (all platforms)
 - **XDebug**: PHP-level debugging integration
 
+### Memory Debugging: ASan vs Valgrind
+
+We use **both** AddressSanitizer and Valgrind as complementary tools, following PHP core team practices.
+
+**Tool Comparison:**
+
+| Aspect | AddressSanitizer | Valgrind |
+|--------|------------------|----------|
+| **Speed** | 2-4x slowdown | 20-50x slowdown |
+| **Compile-time** | Required | Not required |
+| **Heap buffer overflow** |  |  |
+| **Stack buffer overflow** |  |  |
+| **Use-after-free** |  |  |
+| **Uninitialized reads** |  |  |
+| **Memory leaks** | Basic | Comprehensive |
+
+**When to Use Each:**
+
+| Scenario | Recommended Tool |
+|----------|------------------|
+| Daily development | ASan |
+| CI fast feedback | ASan |
+| Fuzzing | ASan |
+| Pre-release QA | Both |
+| Investigating specific leaks | Valgrind |
+| Uninitialized memory bugs | Valgrind |
+
+**Running ASan (Primary Tool):**
+```bash
+# Use the ASan-enabled PHP container
+docker-compose -f docker/docker-compose.yml run php83-asan
+
+# Or compile with ASan flags
+CXXFLAGS="-fsanitize=address,undefined -g" ./configure --with-firebird
+make && make test
+
+# Run fuzzer with ASan
+./scripts/fuzz_asan.sh
+```
+
+**Running Valgrind (Complementary Tool):**
+```bash
+# Quick check (essential tests only)
+./scripts/run-valgrind.sh --quick
+
+# Full test suite
+./scripts/run-valgrind.sh
+
+# Specific test
+./scripts/run-valgrind.sh tests/fbird_blob_001.phpt
+
+# Save output to log file
+./scripts/run-valgrind.sh --log valgrind-report.txt
+```
+
+**Critical Environment Variables for Valgrind:**
+- `USE_ZEND_ALLOC=0`: Bypass Zend Memory Manager (required for accurate tracking)
+- `ZEND_DONT_UNLOAD_MODULES=1`: Keep modules loaded for accurate stack traces
+
+The `scripts/run-valgrind.sh` script sets these automatically.
+
+**Suppressions:**
+Known false positives are suppressed via `valgrind-php.supp`. Add new suppressions only after confirming they are genuine false positives.
+
+**Reference:** See `docs/research/asan-vs-valgrind-php-extensions.md` for detailed research and rationale.
+
 ## Architecture Considerations
 
 ### PHP Extension Constraints

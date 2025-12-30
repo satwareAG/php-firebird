@@ -49,6 +49,12 @@ class FuzzHarness {
         $this->registerOperation('query_insert', QueryOps::parameterizedInsert($this), 5.0);
         $this->registerOperation('query_fetch', QueryOps::fetchAll($this), 8.0);
 
+        // SqlGenerator random query operations (Issue #32)
+        $this->registerOperation('query_random_select', QueryOps::randomSelect($this), 8.0);
+        $this->registerOperation('query_random_params', QueryOps::randomParams($this), 6.0);
+        $this->registerOperation('query_random_insert', QueryOps::randomInsert($this), 4.0);
+        $this->registerOperation('query_edge_strings', QueryOps::edgeCaseStrings($this), 5.0);
+
         // BlobOps
         $this->registerOperation('blob_create', BlobOps::createBlob($this), 3.0);
         $this->registerOperation('blob_stream', BlobOps::streamBlob($this), 3.0);

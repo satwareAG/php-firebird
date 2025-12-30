@@ -1,0 +1,43 @@
+Warning: PHP Startup: Unable to load dynamic library 'pcntl' (tried: /usr/local/lib/php/extensions/debug-non-zts-20230831/pcntl (/usr/local/lib/php/extensions/debug-non-zts-20230831/pcntl: cannot open shared object file: No such file or directory), /usr/local/lib/php/extensions/debug-non-zts-20230831/pcntl.so (/usr/local/lib/php/extensions/debug-non-zts-20230831/pcntl.so: cannot open shared object file: No such file or directory)) in Unknown on line 0
+Test 1: Array with NULLs
+int(1)
+int(1)
+Test 2: Array with mixed types
+int(1)
+Test 3: Too many arguments
+Executed with extra args
+Test 4: Too few arguments
+Caught expected error: Argument count mismatch
+array(3) {
+  ["VAL_INT"]=>
+  int(1)
+  ["VAL_STR"]=>
+  NULL
+  ["VAL_BLOB"]=>
+  NULL
+}
+array(3) {
+  ["VAL_INT"]=>
+  NULL
+  ["VAL_STR"]=>
+  string(4) "test"
+  ["VAL_BLOB"]=>
+  NULL
+}
+array(3) {
+  ["VAL_INT"]=>
+  int(123)
+  ["VAL_STR"]=>
+  string(3) "456"
+  ["VAL_BLOB"]=>
+  NULL
+}
+array(3) {
+  ["VAL_INT"]=>
+  int(1)
+  ["VAL_STR"]=>
+  string(4) "test"
+  ["VAL_BLOB"]=>
+  NULL
+}
+Done

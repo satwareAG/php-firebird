@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **FB5 Memory Investigation Closed**: Valgrind-reported "leak" of 145,408 bytes (2×72,704) in Firebird 5.0 confirmed as expected upstream behavior
+  - Root cause: ICU/iconv library buffers intentionally retained by Firebird until process exit
+  - Per Firebird maintainer AlexPeshkoff (GitHub issue #7849): Sanitizers don't give correct results with Firebird due to custom memory allocator and global destructor schema
+  - FB5 shows larger allocations than FB3/FB4 due to newer ICU libraries, UTF8 default charset, and enhanced collation support
+  - Existing `valgrind-php.supp` suppressions are appropriate and aligned with upstream guidance
+  - Documentation: `docs/research/fb5-memory-leak-investigation-2025-12-30.md`
+
 ### Added
 
 - **`fbird_escape_string()` function** (Issue #47): Escape strings for safe SQL use

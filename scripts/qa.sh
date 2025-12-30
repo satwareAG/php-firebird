@@ -5,7 +5,9 @@
 #
 # Options:
 #   --container NAME   Container to use (default: php83-dev)
-#   --mode MODE        fast|standard|full|security|fuzz (default: standard)
+#   --mode MODE        fast|standard|full|security|fuzz|matrix (default: standard)
+#   --valgrind         Run Valgrind memory analysis (can combine with --container)
+#   --asan             Run AddressSanitizer tests (uses php83-asan container)
 #   --skip-build       Skip C extension build (use existing)
 #   --php-only         Only run PHP analysis (PHPStan, PHPCS)
 #   --fail-fast        Stop at first error with detailed output
@@ -17,6 +19,19 @@
 #   full     - Standard + Valgrind memory analysis + UBSan
 #   security - Full + Gitleaks secret scanning
 #   fuzz     - Run fuzzing (without ASan due to PHP compatibility issues)
+#   matrix   - Test across PHP 8.1/FB3 (oldest) and PHP 8.5/FB5 (newest)
+#
+# Matrix Testing:
+#   The 'matrix' mode runs the full test suite across:
+#     - php81-fb3-dev (PHP 8.1 + Firebird 3.0) - oldest supported
+#     - php85-fb5-dev (PHP 8.5 + Firebird 5.0) - newest supported
+#
+# Examples:
+#   ./scripts/qa.sh --mode fast                    # Quick static analysis
+#   ./scripts/qa.sh --mode matrix                  # Test oldest + newest combinations
+#   ./scripts/qa.sh --valgrind --container php81-fb3-dev  # Valgrind on PHP 8.1/FB3
+#   ./scripts/qa.sh --valgrind --container php85-fb5-dev  # Valgrind on PHP 8.5/FB5
+#   ./scripts/qa.sh --asan                         # ASan with php83-asan container
 
 set -e
 
@@ -26,6 +41,8 @@ MODE="standard"
 SKIP_BUILD=false
 PHP_ONLY=false
 FAIL_FAST=false
+RUN_VALGRIND=false
+RUN_ASAN=false
 
 # Colors
 RED='\033[0;31m'
@@ -45,6 +62,15 @@ while [[ $# -gt 0 ]]; do
             MODE="$2"
             shift 2
             ;;
+        --valgrind)
+            RUN_VALGRIND=true
+            shift
+            ;;
+        --asan)
+            RUN_ASAN=true
+            CONTAINER="php83-asan"
+            shift
+            ;;
         --skip-build)
             SKIP_BUILD=true
             shift
@@ -58,7 +84,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help)
-            head -20 "$0" | tail -16
+            head -35 "$0" | tail -31
             exit 0
             ;;
         *)
@@ -77,9 +103,278 @@ echo -e "${BLUE}╚════════════════════�
 echo ""
 echo -e "Container: ${YELLOW}$CONTAINER${NC}"
 echo -e "Mode:      ${YELLOW}$MODE${NC}"
+if [ "$RUN_VALGRIND" = true ]; then
+    echo -e "Valgrind:  ${YELLOW}enabled${NC}"
+fi
+if [ "$RUN_ASAN" = true ]; then
+    echo -e "ASan:      ${YELLOW}enabled${NC}"
+fi
 echo ""
 
 FAILED=0
+
+# ============================================================================
+# MATRIX MODE: Test across oldest and newest PHP/Firebird combinations
+# ============================================================================
+if [ "$MODE" == "matrix" ]; then
+    echo -e "${BLUE}═══ Matrix Testing Mode ═══${NC}"
+    echo -e "${YELLOW}Testing across PHP/Firebird version combinations...${NC}"
+    echo ""
+    
+    # Matrix configurations: container:firebird_server:description
+    MATRIX_CONFIGS=(
+        "php81-fb3-dev:firebird30:PHP 8.1 + Firebird 3.0 (oldest)"
+        "php85-fb5-dev:firebird50:PHP 8.5 + Firebird 5.0 (newest)"
+    )
+    
+    MATRIX_FAILED=0
+    
+    for config in "${MATRIX_CONFIGS[@]}"; do
+        IFS=':' read -r container server description <<< "$config"
+        
+        echo -e "\n${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${BLUE}║  Matrix: $description${NC}"
+        echo -e "${BLUE}╠══════════════════════════════════════════════════════════════╣${NC}"
+        echo -e "${BLUE}║  Container: $container${NC}"
+        echo -e "${BLUE}║  Server:    $server${NC}"
+        echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+        
+        cd "$DOCKER_DIR"
+        
+        # Start the required containers
+        echo -e "${BLUE}>> Starting containers...${NC}"
+        docker compose up -d "$container" "$server"
+        
+        # Wait for Firebird server to be ready
+        echo -e "${BLUE}>> Waiting for $server to be ready...${NC}"
+        sleep 5
+        
+        # Pre-flight cleanup
+        echo -e "${BLUE}>> Pre-flight cleanup...${NC}"
+        docker compose exec -T -u root "$container" bash -c "
+            cd /ext
+            if [ -f Makefile ]; then make clean 2>/dev/null || true; fi
+            phpize --clean 2>/dev/null || true
+            rm -rf modules/firebird.so .libs/ .deps/ build/ autom4te.cache/ 2>/dev/null || true
+        " 2>/dev/null || true
+        
+        # Build extension
+        echo -e "${BLUE}>> Building extension...${NC}"
+        BUILD_EXIT=0
+        docker compose exec -T "$container" bash -c "
+            cd /ext
+            phpize
+            # Detect Firebird location (FB3 uses /opt/firebird, others use /usr)
+            if [ -d /opt/firebird ]; then
+                CPPFLAGS='-I/opt/firebird/include' ./configure --with-firebird=/opt/firebird
+            else
+                CPPFLAGS='-I/usr/include/firebird' ./configure --with-firebird=/usr
+            fi
+            make -j\$(nproc)
+        " || BUILD_EXIT=$?
+        
+        if [ $BUILD_EXIT -ne 0 ]; then
+            echo -e "${RED}✗ Build failed for $description${NC}"
+            MATRIX_FAILED=1
+            continue
+        fi
+        echo -e "${GREEN}✓ Build succeeded${NC}"
+        
+        # Run tests
+        echo -e "${BLUE}>> Running tests...${NC}"
+        TEST_EXIT=0
+        docker compose exec -T "$container" bash -c "
+            cd /ext
+            /ext/scripts/test.sh
+        " || TEST_EXIT=$?
+        
+        if [ $TEST_EXIT -ne 0 ]; then
+            echo -e "${RED}✗ Tests failed for $description${NC}"
+            MATRIX_FAILED=1
+        else
+            echo -e "${GREEN}✓ Tests passed for $description${NC}"
+        fi
+        
+        # Run Valgrind memory check
+        echo -e "${BLUE}>> Running Valgrind memory analysis...${NC}"
+        VALGRIND_EXIT=0
+        docker compose exec -T "$container" bash -c "
+            cd /ext
+            # Rebuild with debug symbols
+            make clean
+            CFLAGS='-g -O0 -fno-omit-frame-pointer' \
+            CXXFLAGS='-g -O0 -fno-omit-frame-pointer' \
+            make -j\$(nproc)
+            
+            # Run quick Valgrind test
+            /ext/scripts/analysis/valgrind.sh --quick
+        " || VALGRIND_EXIT=$?
+        
+        if [ $VALGRIND_EXIT -ne 0 ]; then
+            echo -e "${YELLOW}⚠ Valgrind reported issues for $description${NC}"
+        else
+            echo -e "${GREEN}✓ Valgrind clean for $description${NC}"
+        fi
+        
+        # Cleanup
+        echo -e "${BLUE}>> Cleanup...${NC}"
+        docker compose exec -T -u root "$container" bash -c "
+            cd /ext
+            make clean 2>/dev/null || true
+            phpize --clean 2>/dev/null || true
+            rm -rf modules/firebird.so .libs/ .deps/ autom4te.cache/ 2>/dev/null || true
+        " 2>/dev/null || true
+    done
+    
+    echo -e "\n${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
+    if [ $MATRIX_FAILED -eq 0 ]; then
+        echo -e "${GREEN}║           ✓ MATRIX TESTING COMPLETED SUCCESSFULLY            ║${NC}"
+    else
+        echo -e "${RED}║           ✗ MATRIX TESTING HAD FAILURES                      ║${NC}"
+    fi
+    echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+    
+    exit $MATRIX_FAILED
+fi
+
+# ============================================================================
+# DIRECT VALGRIND MODE: Run Valgrind on specified container
+# ============================================================================
+if [ "$RUN_VALGRIND" = true ] && [ "$MODE" != "full" ] && [ "$MODE" != "security" ]; then
+    echo -e "${BLUE}═══ Direct Valgrind Mode ═══${NC}"
+    echo -e "${YELLOW}Running Valgrind memory analysis on $CONTAINER...${NC}"
+    echo ""
+    
+    cd "$DOCKER_DIR"
+    
+    # Start container
+    echo -e "${BLUE}>> Starting container $CONTAINER...${NC}"
+    docker compose up -d "$CONTAINER"
+    
+    # Pre-flight cleanup
+    echo -e "${BLUE}>> Pre-flight cleanup (root)...${NC}"
+    docker compose exec -T -u root "$CONTAINER" bash -c "
+        cd /ext
+        if [ -f Makefile ]; then make clean 2>/dev/null || true; fi
+        phpize --clean 2>/dev/null || true
+        rm -rf modules/firebird.so .libs/ .deps/ build/ autom4te.cache/ 2>/dev/null || true
+    " 2>/dev/null || true
+    
+    # Build with debug symbols
+    echo -e "${BLUE}>> Building extension with debug symbols...${NC}"
+    docker compose exec -T "$CONTAINER" bash -c "
+        cd /ext
+        phpize
+        # Detect Firebird location
+        if [ -d /opt/firebird ]; then
+            CPPFLAGS='-I/opt/firebird/include' \
+            CFLAGS='-g -O0 -fno-omit-frame-pointer' \
+            CXXFLAGS='-g -O0 -fno-omit-frame-pointer' \
+            ./configure --with-firebird=/opt/firebird
+        else
+            CPPFLAGS='-I/usr/include/firebird' \
+            CFLAGS='-g -O0 -fno-omit-frame-pointer' \
+            CXXFLAGS='-g -O0 -fno-omit-frame-pointer' \
+            ./configure --with-firebird=/usr
+        fi
+        make -j\$(nproc)
+    "
+    echo -e "${GREEN}✓ Extension built with debug symbols${NC}"
+    
+    # Run Valgrind
+    echo -e "${BLUE}>> Running Valgrind...${NC}"
+    VALGRIND_EXIT=0
+    docker compose exec -T "$CONTAINER" /ext/scripts/analysis/valgrind.sh --full || VALGRIND_EXIT=$?
+    
+    # Cleanup
+    echo -e "${BLUE}>> Cleanup...${NC}"
+    docker compose exec -T -u root "$CONTAINER" bash -c "
+        cd /ext
+        make clean 2>/dev/null || true
+        phpize --clean 2>/dev/null || true
+        rm -rf modules/firebird.so .libs/ .deps/ autom4te.cache/ 2>/dev/null || true
+    " 2>/dev/null || true
+    
+    if [ $VALGRIND_EXIT -eq 0 ]; then
+        echo -e "${GREEN}✓ Valgrind analysis completed${NC}"
+    else
+        echo -e "${RED}✗ Valgrind found issues (exit code: $VALGRIND_EXIT)${NC}"
+    fi
+    
+    exit $VALGRIND_EXIT
+fi
+
+# ============================================================================
+# DIRECT ASAN MODE: Run AddressSanitizer tests
+# ============================================================================
+if [ "$RUN_ASAN" = true ]; then
+    echo -e "${BLUE}═══ Direct ASan Mode ═══${NC}"
+    echo -e "${YELLOW}Running AddressSanitizer tests on $CONTAINER...${NC}"
+    echo -e "${YELLOW}Note: ASan requires specially built PHP (php83-asan container)${NC}"
+    echo ""
+    
+    cd "$DOCKER_DIR"
+    
+    # Start ASan container and Firebird
+    echo -e "${BLUE}>> Starting containers...${NC}"
+    docker compose up -d "$CONTAINER" firebird40
+    
+    # Wait for Firebird
+    echo -e "${BLUE}>> Waiting for Firebird to be ready...${NC}"
+    sleep 5
+    
+    # Pre-flight cleanup (ASan container runs as root)
+    echo -e "${BLUE}>> Pre-flight cleanup...${NC}"
+    docker compose exec -T "$CONTAINER" bash -c "
+        cd /ext
+        if [ -f Makefile ]; then make clean 2>/dev/null || true; fi
+        phpize --clean 2>/dev/null || true
+        rm -rf modules/firebird.so .libs/ .deps/ build/ autom4te.cache/ 2>/dev/null || true
+    " 2>/dev/null || true
+    
+    # Build extension with ASan flags (inherited from container environment)
+    echo -e "${BLUE}>> Building extension with ASan...${NC}"
+    docker compose exec -T "$CONTAINER" bash -c "
+        cd /ext
+        phpize
+        CPPFLAGS='-I/usr/include/firebird' ./configure --with-firebird=/usr
+        make -j\$(nproc)
+    "
+    echo -e "${GREEN}✓ Extension built with ASan${NC}"
+    
+    # Run tests under ASan
+    echo -e "${BLUE}>> Running tests with ASan...${NC}"
+    ASAN_EXIT=0
+    docker compose exec -T "$CONTAINER" bash -c "
+        cd /ext
+        # Export ASan options (also set in Dockerfile but ensure they're active)
+        export ASAN_OPTIONS='exitcode=139:abort_on_error=0:detect_leaks=1:halt_on_error=0'
+        export USE_ZEND_ALLOC=0
+        export ZEND_DONT_UNLOAD_MODULES=1
+        
+        # Run tests
+        /ext/scripts/test.sh
+    " || ASAN_EXIT=$?
+    
+    # Cleanup
+    echo -e "${BLUE}>> Cleanup...${NC}"
+    docker compose exec -T "$CONTAINER" bash -c "
+        cd /ext
+        make clean 2>/dev/null || true
+        phpize --clean 2>/dev/null || true
+        rm -rf modules/firebird.so .libs/ .deps/ autom4te.cache/ 2>/dev/null || true
+    " 2>/dev/null || true
+    
+    if [ $ASAN_EXIT -eq 0 ]; then
+        echo -e "${GREEN}✓ ASan tests completed${NC}"
+    elif [ $ASAN_EXIT -eq 139 ]; then
+        echo -e "${RED}✗ ASan detected memory errors (exit code 139)${NC}"
+    else
+        echo -e "${RED}✗ ASan tests failed (exit code: $ASAN_EXIT)${NC}"
+    fi
+    
+    exit $ASAN_EXIT
+fi
 
 # ============================================================================
 # FAST PATH: Fuzz mode - skip all other phases, go directly to fuzzing
@@ -257,7 +552,12 @@ if [ "$SKIP_BUILD" = false ]; then
         cd /ext
         if [ -f Makefile ]; then make clean 2>/dev/null || true; phpize --clean 2>/dev/null || true; fi
         phpize
-        CPPFLAGS='-I/usr/include/firebird' ./configure --with-firebird=/usr
+        # Detect Firebird location (FB3 uses /opt/firebird, others use /usr)
+        if [ -d /opt/firebird ]; then
+            CPPFLAGS='-I/opt/firebird/include' ./configure --with-firebird=/opt/firebird
+        else
+            CPPFLAGS='-I/usr/include/firebird' ./configure --with-firebird=/usr
+        fi
         bear -- make -j\$(nproc)
     "
     echo -e "${GREEN}✓ Extension built successfully${NC}"
@@ -320,9 +620,17 @@ docker compose exec -T "$CONTAINER" bash -c "
     
     # Rebuild with debug symbols for accurate Valgrind output
     phpize
-    CFLAGS='-g -O0 -fno-omit-frame-pointer' \
-    CXXFLAGS='-g -O0 -fno-omit-frame-pointer' \
-    ./configure --with-firebird=/usr
+    # Detect Firebird location
+    if [ -d /opt/firebird ]; then
+        CPPFLAGS='-I/opt/firebird/include' \
+        CFLAGS='-g -O0 -fno-omit-frame-pointer' \
+        CXXFLAGS='-g -O0 -fno-omit-frame-pointer' \
+        ./configure --with-firebird=/opt/firebird
+    else
+        CFLAGS='-g -O0 -fno-omit-frame-pointer' \
+        CXXFLAGS='-g -O0 -fno-omit-frame-pointer' \
+        ./configure --with-firebird=/usr
+    fi
     make -j\$(nproc)
 "
 

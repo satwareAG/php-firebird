@@ -1,9 +1,15 @@
 FROM debian:bookworm-slim
 
 ENV PHP_VERSION=8.3.14
-ENV CFLAGS="-fsanitize=address -fno-omit-frame-pointer -g -O1"
+# ASan compile flags - includes ZEND_TRACK_ARENA_ALLOC for tracking Zend arena allocations
+ENV CFLAGS="-fsanitize=address -fno-omit-frame-pointer -g -O1 -DZEND_TRACK_ARENA_ALLOC"
 ENV LDFLAGS="-fsanitize=address"
+# Required for ASan to work correctly with PHP extensions
 ENV USE_ZEND_ALLOC=0
+# Prevents PHP from unloading modules before ASan can report leaks (accurate stack traces)
+ENV ZEND_DONT_UNLOAD_MODULES=1
+# PHP-src compatible ASan options: exitcode=139 for CI detection, abort_on_error=0 for consistent behavior
+ENV ASAN_OPTIONS="exitcode=139:abort_on_error=0:detect_leaks=1:check_initialization_order=1:strict_init_order=1:detect_stack_use_after_return=1:halt_on_error=0"
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \

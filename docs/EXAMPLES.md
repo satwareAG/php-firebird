@@ -7,6 +7,7 @@ Practical examples for the php-firebird extension, highlighting **unique feature
 ## Table of Contents
 
 - [Basic Operations](#basic-operations)
+- [Security Best Practices](#security-best-practices-)
 - [Exception Handling](#exception-handling-)
   - [PDO-Style Exception Mode](#pdo-style-exception-mode)
   - [SILENT vs THROW Comparison](#silent-vs-throw-comparison)
@@ -19,6 +20,228 @@ Practical examples for the php-firebird extension, highlighting **unique feature
   - [Connection Reuse & Force New](#4-connection-reuse--force-new)
 - [Advanced Topics](#advanced-topics)
 - [Migration Recipes](#migration-recipes)
+
+---
+
+## Security Best Practices ⭐
+
+Preventing SQL injection is **critical** for database security. See the comprehensive [Security Guide](SECURITY.md) for detailed information.
+
+### Parameterized Queries (Primary Defense)
+
+**Always use parameterized queries** - they provide complete SQL injection protection by separating SQL structure from data:
+
+```php
+<?php
+// ✅ SAFE: Parameterized query - user input cannot affect SQL structure
+$stmt = fbird_prepare($db, "SELECT * FROM users WHERE username = ? AND status = ?");
+$result = fbird_execute($stmt, $username, 'active');
+
+// ✅ SAFE: Direct parameterized query
+$result = fbird_query($db, 
+    "SELECT * FROM products WHERE category = ? AND price < ?",
+    $category, $maxPrice
+);
+
+// ❌ UNSAFE: String concatenation - NEVER do this!
+// $result = fbird_query($db, "SELECT * FROM users WHERE username = '$username'");
+?>
+```
+
+### Secure Authentication Pattern
+
+```php
+<?php
+function authenticate(mixed $db, string $username, string $password): ?array {
+    // ✅ SAFE: Parameterized query prevents SQL injection
+    $stmt = fbird_prepare($db, 
+        "SELECT id, username, password_hash FROM users WHERE username = ? AND active = 1"
+    );
+    $result = fbird_execute($stmt, $username);
+    $user = fbird_fetch_assoc($result);
+    fbird_free_query($stmt);
+    
+    if ($user && password_verify($password, $user['PASSWORD_HASH'])) {
+        return ['id' => $user['ID'], 'username' => $user['USERNAME']];
+    }
+    return null;
+}
+
+// Usage - user input safely handled
+$user = authenticate($db, $_POST['username'], $_POST['password']);
+?>
+```
+
+### Secure Search with LIKE
+
+```php
+<?php
+function searchProducts(mixed $db, string $searchTerm): array {
+    // ✅ SAFE: Parameterized LIKE query
+    // Escape LIKE wildcards in the search term itself
+    $escapedTerm = str_replace(['%', '_'], ['\%', '\_'], $searchTerm);
+    
+    $stmt = fbird_prepare($db,
+        "SELECT id, name, description FROM products 
+         WHERE name LIKE ? ESCAPE '\\' 
+         ORDER BY name"
+    );
+    $result = fbird_execute($stmt, '%' . $escapedTerm . '%');
+    
+    $products = [];
+    while ($row = fbird_fetch_assoc($result)) {
+        $products[] = $row;
+    }
+    fbird_free_query($stmt);
+    return $products;
+}
+?>
+```
+
+### Secure Dynamic IN Clause
+
+```php
+<?php
+function getProductsByIds(mixed $db, array $productIds): array {
+    if (empty($productIds)) {
+        return [];
+    }
+    
+    // ✅ SAFE: Build parameterized IN clause
+    $placeholders = implode(', ', array_fill(0, count($productIds), '?'));
+    $sql = "SELECT * FROM products WHERE id IN ($placeholders)";
+    
+    $stmt = fbird_prepare($db, $sql);
+    $result = fbird_execute($stmt, ...$productIds);
+    
+    $products = [];
+    while ($row = fbird_fetch_assoc($result)) {
+        $products[] = $row;
+    }
+    fbird_free_query($stmt);
+    return $products;
+}
+
+// Usage with user-provided IDs (after validation)
+$ids = array_filter($_POST['product_ids'], 'is_numeric');
+$products = getProductsByIds($db, array_map('intval', $ids));
+?>
+```
+
+### Using fbird_escape_string() (Secondary Defense)
+
+For rare cases where parameterized queries cannot be used (dynamic identifiers, complex SQL generation):
+
+```php
+<?php
+// ✅ SAFE: Escaping for dynamic table/column names
+function getColumnValue(mixed $db, string $table, string $column, int $id): mixed {
+    // Validate identifiers against whitelist
+    $allowedTables = ['users', 'products', 'orders'];
+    $allowedColumns = ['name', 'description', 'status'];
+    
+    if (!in_array($table, $allowedTables, true) || 
+        !in_array($column, $allowedColumns, true)) {
+        throw new InvalidArgumentException('Invalid table or column');
+    }
+    
+    // Use parameterized query for the value
+    $sql = "SELECT \"$column\" FROM \"$table\" WHERE id = ?";
+    $stmt = fbird_prepare($db, $sql);
+    $result = fbird_execute($stmt, $id);
+    $row = fbird_fetch_row($result);
+    fbird_free_query($stmt);
+    
+    return $row ? $row[0] : null;
+}
+
+// For string values in dynamic SQL (rare cases only)
+$safeName = fbird_escape_string($userInput);
+$sql = "SELECT * FROM categories WHERE name = '$safeName'";
+?>
+```
+
+### Secure Bulk Operations
+
+```php
+<?php
+function bulkInsertProducts(mixed $db, array $products): array {
+    $trans = fbird_trans(FBIRD_WRITE | FBIRD_COMMITTED, $db);
+    
+    // ✅ SAFE: Prepared statement with parameters for bulk insert
+    $stmt = fbird_prepare($trans, 
+        "INSERT INTO products (name, price, category) VALUES (?, ?, ?)"
+    );
+    
+    $inserted = 0;
+    $errors = [];
+    
+    foreach ($products as $i => $product) {
+        try {
+            fbird_execute($stmt, 
+                $product['name'],
+                $product['price'],
+                $product['category']
+            );
+            $inserted++;
+        } catch (Firebird\Exception $e) {
+            $errors[] = "Row $i: " . $e->getMessage();
+        }
+    }
+    
+    if (empty($errors)) {
+        fbird_commit($trans);
+    } else {
+        fbird_rollback($trans);
+    }
+    
+    fbird_free_query($stmt);
+    return ['inserted' => $inserted, 'errors' => $errors];
+}
+?>
+```
+
+### Input Validation Layer
+
+```php
+<?php
+class ProductValidator {
+    public static function validateId(mixed $input): int {
+        if (!is_numeric($input) || (int)$input <= 0) {
+            throw new InvalidArgumentException('Invalid product ID');
+        }
+        return (int)$input;
+    }
+    
+    public static function validateName(string $input): string {
+        $name = trim($input);
+        if (strlen($name) < 1 || strlen($name) > 100) {
+            throw new InvalidArgumentException('Name must be 1-100 characters');
+        }
+        return $name;
+    }
+    
+    public static function validatePrice(mixed $input): float {
+        if (!is_numeric($input) || (float)$input < 0) {
+            throw new InvalidArgumentException('Invalid price');
+        }
+        return (float)$input;
+    }
+}
+
+// Usage: Validate THEN use parameterized queries
+$id = ProductValidator::validateId($_GET['id']);
+$stmt = fbird_prepare($db, "SELECT * FROM products WHERE id = ?");
+$result = fbird_execute($stmt, $id);
+?>
+```
+
+**Security Checklist:**
+- [ ] All user input uses parameterized queries
+- [ ] Dynamic identifiers validated against whitelist
+- [ ] Input validation before database operations
+- [ ] Exception mode enabled for proper error handling
+- [ ] No string concatenation with user data in SQL
 
 ---
 

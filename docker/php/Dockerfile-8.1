@@ -21,15 +21,13 @@ RUN apt-get update && apt-get install -y \
     gdb \
     valgrind \
     lcov \
-    libgtest-dev \
-    cmake \
     cppcheck \
     clang-tidy \
     bear \
     python3-pip \
-    libasan6 \
+    libasan8 \
     libubsan1 \
-    libtsan0 \
+    libtsan2 \
     llvm \
     && ln -s /usr/lib/x86_64-linux-gnu/libfbclient.so /usr/lib/libfbclient.so \
     && apt-get clean \

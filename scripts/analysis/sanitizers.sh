@@ -152,9 +152,12 @@ run_tests_with_sanitizer() {
 
     echo -e "\n${BLUE}>> Running tests with $sanitizer_name...${NC}"
 
-    # Sanitizer runtime options
-    export ASAN_OPTIONS="abort_on_error=1:detect_leaks=1:check_initialization_order=1:strict_init_order=1:detect_stack_use_after_return=1"
-    export UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1"
+    # Sanitizer runtime options (PHP-src compatible patterns)
+    # exitcode=139 (128+11=SIGSEGV): PHP-src CI convention for ASan detection
+    # exitcode=138 (128+10=SIGBUS): UBSAN exit code for CI detection
+    # abort_on_error=0: Don't abort, use exitcode instead for better CI integration
+    export ASAN_OPTIONS="exitcode=139:abort_on_error=0:detect_leaks=1:check_initialization_order=1:strict_init_order=1:detect_stack_use_after_return=1:halt_on_error=0"
+    export UBSAN_OPTIONS="exitcode=138:print_stacktrace=1:halt_on_error=0"
     export LSAN_OPTIONS="suppressions=/ext/scripts/analysis/lsan.supp:print_suppressions=0"
 
     # Find llvm-symbolizer for better stack traces

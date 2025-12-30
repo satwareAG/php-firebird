@@ -51,7 +51,8 @@ RUN_VERIFY=false
 # Auto-detect extension version from php_firebird.h
 if [ -f "php_firebird.h" ]; then
     # Look for PHP_FIREBIRD_VERSION_STRING (set by configure)
-    DETECTED_VERSION=$(grep -E '#define PHP_FIREBIRD_VERSION_STRING' php_firebird.h | sed 's/.*"\([^"]*\)".*/\1/' | head -1)
+    # Use || true to prevent grep exit code 1 from failing under set -e
+    DETECTED_VERSION=$(grep -E '#define PHP_FIREBIRD_VERSION_STRING' php_firebird.h 2>/dev/null | sed 's/.*"\([^"]*\)".*/\1/' | head -1 || true)
     # If empty or contains "unknown", use fallback
     if [ -z "$DETECTED_VERSION" ] || [[ "$DETECTED_VERSION" == *"unknown"* ]]; then
         DETECTED_VERSION="7.0.0"

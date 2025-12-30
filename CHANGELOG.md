@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Linux Bundle Workflow**: Fixed multiple issues in `release-precompiled.yml` and `build-precompiled.sh` for GitHub Actions matrix builds
+  - Fixed grep exit code 1 causing script termination under `set -euo pipefail` (added `|| true` fallback)
+  - Fixed VERSION extraction searching for wrong macro name
+  - Added explicit `shell: bash` to Create Bundle step for POSIX-compliant expansion
+  - Added debug tracing (`set -x`) for troubleshooting CI environments
+  - All 10 Linux builds now passing (PHP 8.2-8.5 × NTS/ZTS × x86_64)
+
+- **Windows Build CI**: Created `v7.0.0-rc1` tag to workaround php-windows-builder "/" issue with branch names
+  - All 10 Windows builds passing (PHP 8.1-8.4 × TS/NTS × x64)
+
 ### Changed
 
 - **FB5 Memory Investigation Closed**: Valgrind-reported "leak" of 145,408 bytes (2×72,704) in Firebird 5.0 confirmed as expected upstream behavior

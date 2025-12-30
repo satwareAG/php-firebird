@@ -5,6 +5,16 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`fbird_escape_string()` function** (Issue #47): Escape strings for safe SQL use
+  - Doubles single quotes (`'` → `''`) per Firebird SQL standard
+  - No connection required (pure string operation)
+  - Follows SQLite3::escapeString() pattern
+  - Test: `tests/fbird_escape_string_001.phpt`
+
 ## [7.0.0-rc.13] - 2025-12-28
 
 ### Fixed

@@ -614,6 +614,25 @@ function fbird_errcode(): int|false {}
  */
 function fbird_sqlstate(): string|false {}
 
+/**
+ * Escape a string for safe use in SQL queries.
+ *
+ * Escapes single quotes by doubling them (' ’ '').
+ * Firebird SQL uses '' (two single quotes) as the escape sequence for
+ * a literal single quote within string literals.
+ *
+ * Note: This function does NOT add surrounding quotes to the string.
+ * You must still wrap the result in single quotes in your SQL.
+ *
+ * Example:
+ *   $name = fbird_escape_string("O'Reilly");  // Returns: O''Reilly
+ *   $sql = "SELECT * FROM users WHERE name = '$name'";
+ *
+ * @param string $string The string to escape
+ * @return string The escaped string with single quotes doubled
+ */
+function fbird_escape_string(string $string): string {}
+
 // ============================================================================
 // EVENT FUNCTIONS
 // ============================================================================

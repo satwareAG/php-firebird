@@ -45,6 +45,10 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_INFO(arginfo_fbird_sqlstate, 0)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_escape_string, 0, 1, IS_STRING, 0)
+	ZEND_ARG_TYPE_INFO(0, string, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_set_exception_mode, 0, 0, 1)
 	ZEND_ARG_TYPE_INFO(0, mode, IS_LONG, 0)
 ZEND_END_ARG_INFO()
@@ -487,6 +491,7 @@ static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_errmsg, 		arginfo_fbird_errmsg)
 	PHP_FE(fbird_errcode, 		arginfo_fbird_errcode)
 	PHP_FE(fbird_sqlstate, 		arginfo_fbird_sqlstate)
+	PHP_FE(fbird_escape_string, arginfo_fbird_escape_string)
 	PHP_FE(fbird_set_exception_mode, arginfo_fbird_set_exception_mode)
 	PHP_FE(fbird_get_exception_mode, arginfo_fbird_get_exception_mode)
 
@@ -667,6 +672,51 @@ PHP_FUNCTION(fbird_sqlstate)
 	}
 
 	RETURN_STRINGL(sqlstate, 5);
+}
+/* }}} */
+
+/* {{{ proto string fbird_escape_string(string string)
+   Escape a string for safe use in SQL queries by doubling single quotes */
+PHP_FUNCTION(fbird_escape_string)
+{
+	zend_string *str;
+
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_STR(str)
+	ZEND_PARSE_PARAMETERS_END();
+
+	/* Count single quotes to calculate required buffer size */
+	size_t quote_count = 0;
+	const char *p = ZSTR_VAL(str);
+	size_t len = ZSTR_LEN(str);
+
+	for (size_t i = 0; i < len; i++) {
+		if (p[i] == '\'') {
+			quote_count++;
+		}
+	}
+
+	/* If no quotes, return copy of original string */
+	if (quote_count == 0) {
+		RETURN_STR_COPY(str);
+	}
+
+	/* Allocate buffer for escaped string (original + extra quotes) */
+	zend_string *escaped = zend_string_alloc(len + quote_count, 0);
+	char *out = ZSTR_VAL(escaped);
+
+	/* Copy string, doubling single quotes */
+	for (size_t i = 0; i < len; i++) {
+		if (p[i] == '\'') {
+			*out++ = '\'';
+			*out++ = '\'';
+		} else {
+			*out++ = p[i];
+		}
+	}
+	*out = '\0';
+
+	RETURN_NEW_STR(escaped);
 }
 /* }}} */
 

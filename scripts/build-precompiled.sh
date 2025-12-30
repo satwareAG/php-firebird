@@ -635,11 +635,22 @@ client libraries. No system-wide Firebird installation required.
 - openSUSE Leap 15.1+
 
 ### Firebird Servers
-The bundled Firebird 5.x client is backward compatible:
-- ✅ Firebird 5.0
-- ✅ Firebird 4.0  
-- ✅ Firebird 3.0
-- ⚠️ Firebird 2.5 (deprecated, will be removed in v7.1.0)
+The bundled Firebird 5.x client is **backward compatible** with all Firebird
+server versions via wire protocol negotiation:
+
+| Server Version | Protocol | Status |
+|----------------|----------|--------|
+| Firebird 5.0 | 18-19 | ✅ Full support |
+| Firebird 4.0 | 16-17 | ✅ Full support |
+| Firebird 3.0 | 13-15 | ✅ Full support |
+| Firebird 2.5 | 12 | ⚠️ Deprecated (EOL Sep 2020) |
+
+**How it works**: The client sends its supported protocol versions (10-19).
+The server selects the highest common version. This enables a single binary
+to connect to any supported Firebird server version.
+
+**Note**: Windows local XNET connections require exact version matching.
+Use TCP/IP (localhost:3050) for cross-version local connections on Windows.
 
 ## Installation
 
@@ -742,11 +753,11 @@ in version 7.1.0.
 updates are provided.
 
 **Technical Note**: The bundled Firebird 5.x client maintains backward
-compatibility with Firebird 2.5 servers, but this configuration is no
-longer tested and may have issues with:
-- Legacy authentication (Legacy_Auth)
-- Wire encryption negotiation
-- Character set handling
+compatibility with Firebird 2.5 servers via wire protocol negotiation, but
+this configuration is no longer tested and may have issues with:
+- Legacy authentication (Legacy_Auth required)
+- Wire encryption negotiation (WireCrypt must be Enabled, not Required)
+- Character set handling with older metadata
 
 **Action Required**: Migrate to Firebird 4.0+ for security updates and
 modern features like inline blob handling, batch operations, and INT128.
@@ -757,6 +768,36 @@ modern features like inline blob handling, batch operations, and INT128.
 |---------|---------|--------|
 | 7.0.x | ⚠️ Deprecated | ⚠️ Deprecated |
 | 7.1.0+ | ❌ Removed | ❌ Removed |
+
+---
+
+## Technical: Single Client Library Strategy
+
+Starting with php-firebird 7.0.0, all distribution bundles include **only**
+the latest Firebird 5.x client library. This is safe because:
+
+1. **Wire Protocol Negotiation**: The Firebird client and server negotiate
+   the highest common protocol version during connection establishment.
+
+2. **Protocol Versions Supported**:
+   | Protocol | Firebird Version | Features |
+   |----------|------------------|----------|
+   | 10 | 1.0+ | Baseline (from InterBase 6.0) |
+   | 11 | 2.1+ | Message batching |
+   | 12 | 2.5+ | Async cancellation |
+   | 13-15 | 3.0+ | Auth plugins, encryption, compression |
+   | 16-17 | 4.0+ | Statement timeouts |
+   | 18-19 | 5.0+ | Scrollable cursors, inline blobs |
+
+3. **Backwards Compatibility**: The Firebird 5.x client supports all
+   protocols (10-19). When connecting to an older server, it automatically
+   negotiates down to the server's maximum supported protocol.
+
+4. **Feature Availability**: Features requiring newer protocols gracefully
+   degrade or are unavailable on older servers. Core database operations
+   (connect, query, transactions, blobs) work on all supported versions.
+
+For more details, see: docs/research/firebird-client-compatibility.md
 EOF
 fi
 

@@ -46,7 +46,7 @@ jobs:
         uses: php/php-windows-builder/extension-matrix@v1
         with:
           # Explicitly list PHP versions (alternatively, rely on composer.json "php": ">=8.1")
-          php-version-list: '8.1, 8.2, 8.3, 8.4'
+          php-version-list: '8.1, 8.2, 8.3, 8.4, 8.5'
           # x64 only - x86 would require separate Firebird SDK builds
           arch-list: 'x64'
           # Both thread-safe and non-thread-safe builds

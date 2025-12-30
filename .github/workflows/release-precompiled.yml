@@ -10,7 +10,7 @@
 #   - Manual dispatch (for testing)
 #
 # Build Matrix:
-#   - PHP 8.1, 8.2, 8.3, 8.4 (8.1 deprecated)
+#   - PHP 8.1, 8.2, 8.3, 8.4, 8.5 (8.1 deprecated)
 #   - NTS and ZTS variants
 #   - x86_64 architecture (aarch64 in future)
 #
@@ -27,7 +27,7 @@ on:
       php_versions:
         description: 'PHP versions (comma-separated)'
         required: false
-        default: '8.2,8.3,8.4'
+        default: '8.2,8.3,8.4,8.5'
         type: string
       upload_to_release:
         description: 'Upload artifacts to release'
@@ -73,7 +73,7 @@ jobs:
             PHP_VERSIONS="${{ inputs.php_versions }}"
           else
             # Default: all supported versions
-            PHP_VERSIONS="8.1,8.2,8.3,8.4"
+            PHP_VERSIONS="8.1,8.2,8.3,8.4,8.5"
           fi
           
           # Build matrix JSON
@@ -198,6 +198,7 @@ jobs:
             8.2) FULL_VERSION="8.2.28" ;;
             8.3) FULL_VERSION="8.3.16" ;;
             8.4) FULL_VERSION="8.4.4" ;;
+            8.5) FULL_VERSION="8.5.0" ;;
             *) FULL_VERSION="${{ matrix.php }}.0" ;;
           esac
           echo "full_version=${FULL_VERSION}" >> $GITHUB_OUTPUT

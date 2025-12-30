@@ -440,10 +440,10 @@ run_test() {
     local test_script
     test_script=$(generate_test_script "$host" "$port" "$test_type")
     
-    # Run test in PHP container
+    # Run test in PHP container with extension loaded
     local output
     output=$(echo "$test_script" | docker compose -f "${PROJECT_ROOT}/docker/docker-compose.yml" \
-        exec -T "$PHP_CONTAINER" php -- "$dsn" "$DB_USER" "$DB_PASS" 2>&1) || true
+        exec -T "$PHP_CONTAINER" php -d extension=/ext/modules/firebird.so -- "$dsn" "$DB_USER" "$DB_PASS" 2>&1) || true
     
     if [[ "$output" == SUCCESS:* ]]; then
         log_success "FB $version - $description: ${output#SUCCESS:}"
@@ -515,18 +515,28 @@ ensure_php_container() {
         sleep 5
     fi
     
-    # Verify extension is loaded
+    # Check if extension needs to be built
+    if [[ ! -f "${PROJECT_ROOT}/modules/firebird.so" ]]; then
+        log_info "Building php-firebird extension..."
+        docker compose -f "${PROJECT_ROOT}/docker/docker-compose.yml" \
+            exec -T "$PHP_CONTAINER" bash -c "cd /ext && phpize && ./configure --with-firebird=/opt/firebird && make -j\$(nproc)" 2>&1 || {
+            log_fail "Failed to build extension"
+            exit 1
+        }
+    fi
+    
+    # Verify extension can be loaded
     log_info "Verifying php-firebird extension..."
     local ext_check
     ext_check=$(docker compose -f "${PROJECT_ROOT}/docker/docker-compose.yml" \
-        exec -T "$PHP_CONTAINER" php -m 2>&1 | grep -i fbird || echo "")
+        exec -T "$PHP_CONTAINER" php -d extension=/ext/modules/firebird.so -m 2>&1 | grep -i firebird || echo "")
     
     if [[ -z "$ext_check" ]]; then
-        log_fail "php-firebird extension not loaded in $PHP_CONTAINER"
+        log_fail "php-firebird extension cannot be loaded in $PHP_CONTAINER"
         echo ""
         echo "Please build the extension first:"
         echo "  docker compose -f docker/docker-compose.yml exec $PHP_CONTAINER bash"
-        echo "  phpize && ./configure && make && make install"
+        echo "  phpize && ./configure --with-firebird=/opt/firebird && make"
         exit 1
     fi
     

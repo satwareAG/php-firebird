@@ -287,13 +287,24 @@ jobs:
         id: bundle
         shell: bash
         run: |
+          set -x  # Enable trace mode for debugging
           export PATH="/opt/php/${{ matrix.php }}-${{ matrix.variant }}/bin:${PATH}"
           export FB_ROOT=/opt/firebird
           
+          # Debug: Check bash version and environment
+          echo "=== Debug Info ==="
+          bash --version
+          echo "PWD: $(pwd)"
+          echo "FB_ROOT: ${FB_ROOT}"
+          ls -la "${FB_ROOT}/lib/" || echo "FB_ROOT/lib not found"
+          ls -la modules/ || echo "modules/ not found"
+          which patchelf || echo "patchelf not found"
+          echo "=== End Debug ==="
+          
           # Run build script (skip compilation since already done)
           chmod +x scripts/build-precompiled.sh
-          ./scripts/build-precompiled.sh --skip-build --checksums --verbose \
-            "${{ matrix.php }}" "${{ matrix.variant }}" "${{ matrix.arch }}"
+          bash -x scripts/build-precompiled.sh --skip-build --checksums --verbose \
+            "${{ matrix.php }}" "${{ matrix.variant }}" "${{ matrix.arch }}" 2>&1
           
           # Get output filename
           VERSION="${{ needs.prepare.outputs.version }}"

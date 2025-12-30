@@ -61,7 +61,16 @@ jobs:
       - name: Get Extension Version
         id: get-version
         run: |
-          VERSION=$(grep '#define PHP_FIREBIRD_VERSION' php_firebird.h | sed 's/.*"\([^"]*\)".*/\1/' || echo '7.0.0')
+          # Look for PHP_FIREBIRD_VERSION_STRING (set by configure) or fallback
+          VERSION=$(grep -E '#define PHP_FIREBIRD_VERSION_STRING' php_firebird.h | sed 's/.*"\([^"]*\)".*/\1/' | head -1)
+          # If empty or contains "unknown", use fallback from git tag or default
+          if [ -z "$VERSION" ] || [[ "$VERSION" == *"unknown"* ]]; then
+            if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+              VERSION="${GITHUB_REF#refs/tags/v}"
+            else
+              VERSION="7.0.0"
+            fi
+          fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Extension version: ${VERSION}"
       

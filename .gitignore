@@ -139,3 +139,6 @@ scripts/container/analysis/lsan.supp
 .act.env
 .act.secrets
 .actrc
+
+# Distribution bundles (release artifacts)
+dist/

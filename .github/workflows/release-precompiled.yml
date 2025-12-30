@@ -285,6 +285,7 @@ jobs:
       
       - name: Create Bundle
         id: bundle
+        shell: bash
         run: |
           export PATH="/opt/php/${{ matrix.php }}-${{ matrix.variant }}/bin:${PATH}"
           export FB_ROOT=/opt/firebird

@@ -170,6 +170,51 @@ check_prerequisites() {
 # act Mode - GitHub Actions Local Runner
 # ============================================================================
 
+# Workflows that use service containers (Firebird) - these have bugs in act v0.2.83
+WORKFLOWS_WITH_SERVICES=("main" "coverage" "sanitizers")
+
+# Check if workflow uses service containers
+workflow_uses_services() {
+    local workflow_name="$1"
+    for svc_workflow in "${WORKFLOWS_WITH_SERVICES[@]}"; do
+        if [[ "$workflow_name" == "$svc_workflow" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Show service container warning
+show_service_warning() {
+    local workflow_name="$1"
+    echo -e "\n${YELLOW}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${YELLOW}║       ⚠️  SERVICE CONTAINER WARNING                          ║${NC}"
+    echo -e "${YELLOW}╚══════════════════════════════════════════════════════════════╝${NC}"
+    echo -e ""
+    echo -e "${YELLOW}Workflow '${workflow_name}' uses service containers (Firebird).${NC}"
+    echo -e "${YELLOW}act v0.2.83 has a bug causing panics with service containers.${NC}"
+    echo -e ""
+    echo -e "${CYAN}Recommended alternatives:${NC}"
+    case "$workflow_name" in
+        main)
+            echo -e "  ${GREEN}./scripts/test_with_act.sh --matrix${NC}  # PHP/Firebird matrix tests"
+            echo -e "  ${GREEN}./scripts/test_with_act.sh --matrix --php 8.4 --fb 5.0${NC}  # Single cell"
+            ;;
+        coverage)
+            echo -e "  ${GREEN}./scripts/test_with_act.sh --coverage${NC}  # Code coverage"
+            ;;
+        sanitizers)
+            echo -e "  ${GREEN}./scripts/test_with_act.sh --sanitizers${NC}  # ASan/UBSan tests"
+            ;;
+    esac
+    echo -e ""
+    echo -e "${CYAN}For workflows without services, act works well:${NC}"
+    echo -e "  ${GREEN}./scripts/test_with_act.sh act code-quality${NC}  # Quality checks"
+    echo -e ""
+    echo -e "See: ${CYAN}docs/development/LOCAL_CI_TESTING.md${NC}"
+    echo -e ""
+}
+
 # Check if act is installed
 check_act() {
     if ! command -v act &>/dev/null; then
@@ -186,6 +231,11 @@ check_act() {
     local act_version
     act_version=$(act --version 2>/dev/null | head -1)
     echo -e "${CYAN}Using: $act_version${NC}"
+    
+    # Warn about service container bug in v0.2.83
+    if echo "$act_version" | grep -q "0.2.83"; then
+        echo -e "${YELLOW}⚠ Note: v0.2.83 has known issues with service containers${NC}"
+    fi
 }
 
 # Discover available workflows

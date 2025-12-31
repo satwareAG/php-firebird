@@ -1,0 +1,25 @@
+# .actrc - act configuration for GitHub Actions local testing
+# See: https://nektosact.com/usage/index.html
+#
+# This file configures act for maximum CI parity with GitHub Actions.
+# Format: One flag per line, no comments on flag lines.
+
+# Use catthehacker/ubuntu:act-latest for ubuntu-latest runner
+# This provides better GitHub Actions compatibility than the default micro image
+# Options: 
+#   - micro (node:16-buster-slim) - minimal, fast but missing many tools
+#   - medium (catthehacker/ubuntu:act-latest) - good balance [SELECTED]
+#   - large (catthehacker/ubuntu:full-latest) - ~18GB, near-full GH parity
+-P ubuntu-latest=catthehacker/ubuntu:act-latest
+-P ubuntu-22.04=catthehacker/ubuntu:act-22.04
+-P ubuntu-20.04=catthehacker/ubuntu:act-20.04
+
+# Use x86_64 architecture (standard for CI)
+--container-architecture=linux/amd64
+
+# Enable offline mode for faster runs when actions are cached
+# Uncomment if you want faster runs and have already cached actions:
+# --action-offline-mode
+
+# Artifact server path (required for actions/upload-artifact and actions/download-artifact)
+--artifact-server-path=/tmp/act-artifacts

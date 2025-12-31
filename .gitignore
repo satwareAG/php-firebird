@@ -138,7 +138,6 @@ scripts/container/analysis/lsan.supp
 # act (GitHub Actions local runner)
 .act.env
 .act.secrets
-.actrc
 
 # Distribution bundles (release artifacts)
 dist/

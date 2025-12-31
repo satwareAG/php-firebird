@@ -1,216 +1,268 @@
-# Local CI Testing with Act
+# Local CI Testing with act
 
-This guide explains how to run GitHub Actions workflows locally using [act](https://github.com/nektos/act) for faster debugging and validation before pushing changes.
+This document describes how to run GitHub Actions workflows locally using `act` and the hybrid testing strategy for the php-firebird project.
+
+## Overview
+
+The php-firebird project uses a **hybrid testing strategy** because some workflows use GitHub Actions service containers (Firebird database), which have limited support in `act` v0.2.83.
+
+### Testing Strategy Decision Matrix
+
+| Workflow | Service Containers | Best Local Method | Command |
+|----------|-------------------|-------------------|---------|
+| `code-quality.yml` | No | **act** (direct) | `./scripts/test_with_act.sh act code-quality` |
+| `main.yml` | Yes (Firebird) | **Docker Compose** | `./scripts/test_with_act.sh --matrix` |
+| `coverage.yml` | Yes (Firebird) | **Docker Compose** | `./scripts/test_with_act.sh --coverage` |
+| `sanitizers.yml` | Yes (Firebird) | **Docker Compose** | `./scripts/test_with_act.sh --sanitizers` |
+| `codeql.yml` | No | **act** (limited) | `act -W .github/workflows/codeql.yml` |
 
 ## Prerequisites
 
-### Install act
+### Required Tools
 
 ```bash
-# Arch/Manjaro/CachyOS
-yay -S act
+# act - GitHub Actions local runner
+sudo pacman -S act              # Arch Linux
+brew install act                # macOS
+# See: https://github.com/nektos/act#installation
 
-# macOS
-brew install act
+# Docker (required)
+docker --version                # Must be installed
 
-# Other platforms
-curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
+# Optional: docker-compose for hybrid testing
+docker compose version          # V2+ required
 ```
 
-### Verify Installation
+### Configuration
+
+The project includes an `.actrc` file that configures act for optimal CI parity:
 
 ```bash
-act --version
-# Expected: act version 0.2.x
+# View current configuration
+cat .actrc
+
+# Key settings:
+# - Uses catthehacker/ubuntu:act-latest images (medium size, good compatibility)
+# - x86_64 architecture for consistent builds
+# - Artifact server path for upload/download-artifact support
 ```
 
-## Understanding the Workflow Structure
+## Quick Start
 
-The `php-firebird` CI uses a 20-job matrix:
-- **PHP versions**: 8.1, 8.2, 8.3, 8.4, 8.5
-- **Firebird versions**: 2.5, 3.0, 4.0, 5.0
-
-Each job runs in a `php:X.X-cli-bookworm` Docker container with Firebird installed via IBSurgeon scripts.
-
-## Running Tests Locally
-
-### List Available Workflows
+### Full CI Simulation (Recommended)
 
 ```bash
+# Run complete CI pre-flight check (matches GitHub Actions behavior)
+./scripts/test_with_act.sh --full
+
+# This runs:
+# 1. QA checks (PHPStan, PHPCS, clang-tidy, cppcheck, gitleaks)
+# 2. Matrix tests (PHP × Firebird combinations via Docker Compose)
+```
+
+### Individual Workflows
+
+```bash
+# Code Quality (works with act directly)
+./scripts/test_with_act.sh act code-quality
+
+# Matrix Build (uses Docker Compose due to service containers)
+./scripts/test_with_act.sh --matrix --php 8.4 --fb 5.0
+
+# Coverage (uses Docker Compose)
+./scripts/test_with_act.sh --coverage
+
+# Sanitizers (uses Docker Compose)
+./scripts/test_with_act.sh --sanitizers
+```
+
+## act Usage Details
+
+### Basic Commands
+
+```bash
+# List all workflows and jobs
 act -l
+
+# Dry-run a workflow (validate syntax)
+act -W .github/workflows/code-quality.yml -n
+
+# Run a specific workflow
+act -W .github/workflows/code-quality.yml
+
+# Run a specific job
+act -j php-analysis -W .github/workflows/code-quality.yml
+
+# Run with verbose output
+act -v -W .github/workflows/code-quality.yml
 ```
 
-### Run Specific Matrix Combination
-
-For faster debugging, run a single matrix combination:
+### Environment Variables and Secrets
 
 ```bash
-# Run PHP 8.3 with Firebird 4.0
-act -j linux-matrix-build \
-    --matrix php-version:8.3 \
-    --matrix firebird-version:4.0
+# Using environment variables
+act -e event.json --env-file .act.env
+
+# Using secrets
+act -s MY_SECRET=value
+act --secret-file .act.secrets
+
+# Using GitHub token (for API calls)
+act -s GITHUB_TOKEN="$(gh auth token)"
 ```
 
-### Run Full Matrix (All 20 Combinations)
+### Runner Image Selection
 
-⚠️ **Warning**: This takes a long time and significant resources.
+| Image Size | Image Name | Size | Use Case |
+|------------|------------|------|----------|
+| **Micro** | `node:16-buster-slim` | ~200MB | Fast, minimal |
+| **Medium** | `catthehacker/ubuntu:act-latest` | ~2GB | Default, good balance |
+| **Large** | `catthehacker/ubuntu:full-latest` | ~18GB | Full GitHub parity |
 
 ```bash
-act -W .github/workflows/main.yml
+# Override runner image for a single run
+act -P ubuntu-latest=catthehacker/ubuntu:full-latest
+
+# The .actrc file sets medium as default
 ```
 
-### Run with Verbose Output
+## Known Limitations
+
+### Service Container Bug (act v0.2.83)
+
+**Issue**: Workflows with `services:` blocks cause a panic in act v0.2.83:
+```
+panic: runtime error: invalid memory address or nil pointer dereference
+[signal SIGSEGV: segmentation violation code=0x1 addr=0xc8 pc=...]
+```
+
+**Affected Workflows**:
+- `main.yml` (Firebird service container)
+- `coverage.yml` (Firebird service container)
+- `sanitizers.yml` (Firebird service container)
+
+**Workaround**: Use Docker Compose via `test_with_act.sh --matrix`, `--coverage`, or `--sanitizers` modes.
+
+### Other act Limitations
+
+| Feature | GitHub Actions | act | Workaround |
+|---------|----------------|-----|------------|
+| Service containers | ✅ Full support | ⚠️ Buggy | Use Docker Compose |
+| Caching (actions/cache) | ✅ Full support | ⚠️ Limited | Manual caching |
+| Artifacts | ⚠️ Limited | ✅ `--artifact-server-path` | Set in .actrc |
+| Matrix expansion | ✅ Full support | ✅ Supported | - |
+| Container jobs | ✅ Full support | ✅ Supported | - |
+| Secrets | ✅ Encrypted | ✅ Via flags/files | Use --secret-file |
+| GITHUB_TOKEN | ✅ Auto-provided | ❌ Manual | Use `gh auth token` |
+
+## Hybrid Testing Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    test_with_act.sh                             │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────────┐    ┌────────────────────────────────────┐  │
+│  │  act mode       │    │  Docker Compose modes              │  │
+│  │                 │    │                                     │  │
+│  │  • code-quality │    │  • --qa       (qa.sh)              │  │
+│  │  • codeql       │    │  • --matrix   (test_matrix.sh)     │  │
+│  │                 │    │  • --coverage (coverage.sh)        │  │
+│  │  Direct workflow│    │  • --sanitizers                    │  │
+│  │  execution      │    │                                     │  │
+│  └─────────────────┘    │  Uses existing Docker containers   │  │
+│         │               │  from docker/docker-compose.yml    │  │
+│         ▼               └────────────────────────────────────┘  │
+│  ┌─────────────────┐              │                             │
+│  │ act runner      │              ▼                             │
+│  │ (catthehacker)  │    ┌────────────────────────────────────┐  │
+│  └─────────────────┘    │ Local Firebird containers          │  │
+│                         │ • firebird25, firebird30           │  │
+│                         │ • firebird40, firebird50           │  │
+│                         │ • php81-dev ... php85-dev          │  │
+│                         └────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## CI Parity Checklist
+
+Before pushing, ensure all checks pass locally:
 
 ```bash
-act -j linux-matrix-build \
-    --matrix php-version:8.3 \
-    --matrix firebird-version:4.0 \
-    --verbose
+# ✅ Quick validation (QA only, ~2 min)
+./scripts/test_with_act.sh --qa
+
+# ✅ Standard validation (QA + single matrix cell, ~5 min)
+./scripts/test_with_act.sh --full
+
+# ✅ Full validation (QA + all matrix combinations, ~20 min)
+./scripts/test_with_act.sh --full --all
 ```
 
-## Configuration for GitHub Actions Parity
+### What Each Mode Tests
 
-### Container Images
+| Mode | PHPStan | PHPCS | clang-tidy | cppcheck | Gitleaks | PHPT Tests | Coverage |
+|------|---------|-------|------------|----------|----------|------------|----------|
+| `--qa` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| `--matrix` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| `--coverage` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| `--full` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 
-Act uses different default images than GitHub Actions. For exact parity:
+## Troubleshooting
+
+### act crashes with panic
+
+**Symptom**: `panic: runtime error: invalid memory address or nil pointer dereference`
+
+**Cause**: Service containers not fully supported in act v0.2.83
+
+**Solution**: Use Docker Compose modes instead:
+```bash
+# Instead of: act -W .github/workflows/main.yml
+# Use:
+./scripts/test_with_act.sh --matrix
+```
+
+### Workflow syntax validation
 
 ```bash
-# Use the same PHP bookworm images as the workflow
-act -P php:8.3-cli-bookworm=php:8.3-cli-bookworm
+# Validate all workflow files
+act -l
+
+# Dry-run specific workflow
+act -W .github/workflows/code-quality.yml -n
+
+# Check for YAML errors with verbose output
+act -W .github/workflows/main.yml -n -v 2>&1 | head -50
 ```
 
-### Environment Variables
-
-Set the same environment variables as the workflow:
+### Image not found
 
 ```bash
-act -j linux-matrix-build \
-    --env ISC_USER=SYSDBA \
-    --env ISC_PASSWORD=masterkey \
-    --env FIREBIRD_HOST=127.0.0.1 \
-    --env TEST_DEBUG=1 \
-    --matrix php-version:8.3 \
-    --matrix firebird-version:4.0
+# Pull required images manually
+docker pull catthehacker/ubuntu:act-latest
+docker pull php:8.4-cli-bookworm
+docker pull firebirdsql/firebird:5
+
+# Use --pull=false to skip pulling if images exist
+act --pull=false -W .github/workflows/code-quality.yml
 ```
 
-### Secrets (if needed)
+### Slow initial runs
+
+First run downloads actions from GitHub. Enable offline mode after first successful run:
 
 ```bash
-# Interactive secrets prompt
-act -s GITHUB_TOKEN
+# First run (downloads actions)
+act -W .github/workflows/code-quality.yml
 
-# From file
-act --secret-file .secrets
+# Subsequent runs (use cached actions)
+# Edit .actrc and uncomment: --action-offline-mode
 ```
 
-### `.actrc` Configuration File
+## References
 
-Create a `.actrc` file in the project root for persistent settings:
-
-```
--P php:8.1-cli-bookworm=php:8.1-cli-bookworm
--P php:8.2-cli-bookworm=php:8.2-cli-bookworm
--P php:8.3-cli-bookworm=php:8.3-cli-bookworm
--P php:8.4-cli-bookworm=php:8.4-cli-bookworm
--P php:8.5-cli-bookworm=php:8.5-cli-bookworm
---container-architecture linux/amd64
-```
-
-## Limitations and Workarounds
-
-### 1. Service Containers
-
-Act doesn't fully support `services:` like GitHub Actions. Our workflow uses in-container Firebird installation which works with act.
-
-### 2. Network Differences
-
-The workflow connects to Firebird on `127.0.0.1:3050` within the container. This works identically in act.
-
-### 3. Architecture (Apple Silicon)
-
-On M1/M2 Macs, force x86_64 architecture:
-
-```bash
-act --container-architecture linux/amd64
-```
-
-### 4. Caching
-
-Act doesn't share Docker layer cache with GitHub Actions. First runs take longer.
-
-## Debugging Tips
-
-### Interactive Shell
-
-Run a shell in the container for debugging:
-
-```bash
-act -j linux-matrix-build \
-    --matrix php-version:8.3 \
-    --matrix firebird-version:4.0 \
-    --reuse \
-    --step "Build PHP extension"
-```
-
-### Skip Steps
-
-Run only specific steps:
-
-```bash
-# Run up to and including "Build PHP extension" step
-act -j linux-matrix-build \
-    --matrix php-version:8.3 \
-    --matrix firebird-version:4.0 \
-    --step "build"
-```
-
-### Dry Run
-
-See what would be executed without running:
-
-```bash
-act -n
-```
-
-## Common Issues
-
-### Issue: Extension Not Loaded in Tests
-
-**Symptom**: `php -m` shows "Extension not listed" during PHPT tests.
-
-**Solution**: The workflow uses `PHP_TEST_SHARED_EXTENSIONS` environment variable to pass `-d extension=...` to run-tests.php. This is the correct variable - NOT `TEST_PHP_ARGS`.
-
-### Issue: Firebird Connection Refused
-
-**Symptom**: Tests fail with "connection refused" errors.
-
-**Solution**: Ensure Firebird server started successfully. Check:
-```bash
-nc -z 127.0.0.1 3050
-```
-
-### Issue: Permission Denied on /opt/firebird/data
-
-**Symptom**: Tests fail creating databases.
-
-**Solution**: The workflow creates `/opt/firebird/data` with `chmod 777`. Verify this step completed.
-
-## Quick Reference
-
-```bash
-# Most common command for local testing
-act -j linux-matrix-build \
-    --matrix php-version:8.3 \
-    --matrix firebird-version:4.0 \
-    -v
-
-# Check GitHub run status for comparison
-gh run list --branch $(git branch --show-current) --limit 5
-gh run view <run-id> --log
-```
-
-## See Also
-
-- [nektos/act Documentation](https://github.com/nektos/act)
-- [GitHub Actions Workflow Syntax](https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions)
-- [php-firebird CI Workflow](.github/workflows/main.yml)
+- [act Documentation](https://nektosact.com/)
+- [act GitHub Repository](https://github.com/nektos/act)
+- [catthehacker Docker Images](https://github.com/catthehacker/docker_images)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)

@@ -432,21 +432,24 @@ jobs:
           path: bundle
       
       - name: Test on ${{ matrix.distro }}
+        timeout-minutes: 10
         run: |
           docker run --rm -v "$(pwd)/bundle:/bundle:ro" ${{ matrix.distro }} bash -c '
             set -e
             
             echo "=== Testing on ${{ matrix.distro }} ==="
             
-            # Install PHP
+            # Install PHP and dependencies
             if command -v apt-get &>/dev/null; then
               apt-get update
-              apt-get install -y php-cli patchelf
+              apt-get install -y php-cli patchelf binutils || apt-get install -y php-cli binutils
             elif command -v dnf &>/dev/null; then
-              dnf install -y php-cli patchelf
+              # Enable EPEL for patchelf on RHEL/AlmaLinux
+              dnf install -y epel-release || true
+              dnf install -y php-cli patchelf binutils || dnf install -y php-cli binutils
             elif command -v yum &>/dev/null; then
-              yum install -y php-cli || true
-              pip3 install patchelf || true
+              yum install -y epel-release || true
+              yum install -y php-cli patchelf binutils || yum install -y php-cli binutils || true
             fi
             
             # Find and extract bundle

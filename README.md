@@ -56,9 +56,11 @@ Choosing between PDO\_Firebird and php-firebird depends on your project requirem
 > **⚠️ Firebird 3.0+ Client Library Required**: This extension requires the Firebird 3.0+ client library (fbclient) for building, as it uses the modern OO API (FB_API_VER >= 30). However, newer client libraries can connect to older servers: FB 3.0 client → FB 2.5-3.0 servers, FB 4.0 client → FB 2.5-4.0 servers, FB 5.0 client → FB 2.5-5.0 servers.
 
 ### Supported Platforms
-- Linux (Ubuntu 20.04+, Debian 11+, openSUSE 15.3+)
+- Linux (Ubuntu 20.04+, Debian 11+, Rocky/AlmaLinux 8+, openSUSE 15.3+)
 - Windows 10/11 (Visual Studio 2019+)
 - macOS 10.15+ (Xcode 11+)
+
+> **Note**: glibc 2.28+ is required for precompiled binaries. PHP 8.1+ is required; use third-party repos if your distribution has an older default PHP version.
 
 ## Quick Start
 
@@ -894,9 +896,31 @@ php -m | grep firebird
 ```
 
 **Package Compatibility:**
-- **glibc 2.28+** required (Ubuntu 18.10+, Debian 10+, RHEL 8+)
+- **glibc 2.28+** required (Ubuntu 18.10+, Debian 11+, RHEL 8+)
+- **PHP 8.1+** required - use third-party repos if your distribution has an older default
 - **No system Firebird installation needed** - client libraries bundled via `$ORIGIN` rpath
 - **Connects to any Firebird server** (2.5-5.0) using bundled FB 5.x client
+
+**Installing PHP 8.1+ on Older Distributions:**
+
+If your distribution ships with PHP < 8.1, use these third-party repositories:
+
+```bash
+# Ubuntu 20.04 / Debian 11 (ondrej/php PPA)
+sudo apt-get install -y software-properties-common
+sudo add-apt-repository -y ppa:ondrej/php  # Ubuntu
+# For Debian: https://packages.sury.org/php/README.txt
+sudo apt-get update
+sudo apt-get install -y php8.4-cli php8.4-common
+
+# Rocky Linux 8/9 / AlmaLinux 8/9 (remi repo)
+sudo dnf install -y https://rpms.remirepo.net/enterprise/remi-release-$(rpm -E %rhel).rpm
+sudo dnf module reset php
+sudo dnf module enable php:remi-8.4
+sudo dnf install -y php php-cli
+```
+
+After installing PHP 8.1+, install the precompiled extension bundle matching your PHP version.
 
 **Dropped Support:**
 - ❌ PHP 7.x (legacy, security issues)

@@ -114,12 +114,13 @@ jobs:
       - name: Generate checksums
         run: |
           cd release-artifacts
-          if ls *.dll 1> /dev/null 2>&1; then
-            sha256sum *.dll > SHA256SUMS-windows.txt
-            echo "Generated checksums for DLL files:"
+          # PHP Windows Builder produces .zip packages containing the DLL
+          if ls *.zip 1> /dev/null 2>&1; then
+            sha256sum *.zip > SHA256SUMS-windows.txt
+            echo "Generated checksums for Windows packages:"
             cat SHA256SUMS-windows.txt
           else
-            echo "Warning: No .dll files found"
+            echo "Warning: No .zip files found"
             ls -la
           fi
 
@@ -128,13 +129,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.event.release.tag_name || inputs.tag }}"
-          echo "Uploading Windows DLLs to release: $TAG"
+          echo "Uploading Windows packages to release: $TAG"
           cd release-artifacts
-          # Upload all DLLs
-          for dll in *.dll; do
-            if [ -f "$dll" ]; then
-              echo "Uploading: $dll"
-              gh release upload "$TAG" "$dll" --clobber --repo "${{ github.repository }}"
+          # Upload all ZIP packages (PHP Windows Builder output)
+          for pkg in *.zip; do
+            if [ -f "$pkg" ]; then
+              echo "Uploading: $pkg"
+              gh release upload "$TAG" "$pkg" --clobber --repo "${{ github.repository }}"
             fi
           done
           # Upload checksum file

@@ -1,0 +1,479 @@
+# =============================================================================
+# PHP Firebird Extension - Release Workflow
+# =============================================================================
+# Automated release pipeline for building and publishing precompiled bundles.
+#
+# Triggers:
+#   - Push of version tags (v7.*)
+#   - Manual workflow dispatch for testing
+#
+# Outputs:
+#   - Linux manylinux bundles (PHP 8.2-8.5, x86_64)
+#   - Windows DLLs (PHP 8.2-8.4, NTS/TS, x64)
+#   - SHA256 checksums
+#   - GitHub Release (draft for review)
+#
+# =============================================================================
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v7.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v7.0.0)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Dry run (no release created)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  packages: read
+
+env:
+  # PHP versions to build
+  PHP_VERSIONS_LINUX: '8.2 8.3 8.4 8.5'
+  PHP_VERSIONS_WINDOWS: '8.2 8.3 8.4'
+  # Firebird client version
+  FIREBIRD_VERSION: '5.0.2'
+
+jobs:
+  # ===========================================================================
+  # Prepare - Extract version and validate
+  # ===========================================================================
+  prepare:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      version_num: ${{ steps.version.outputs.version_num }}
+      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
+      dry_run: ${{ steps.version.outputs.dry_run }}
+    steps:
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+            DRY_RUN="${{ inputs.dry_run }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+            DRY_RUN="false"
+          fi
+          
+          # Validate version format
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
+            echo "::error::Invalid version format: $VERSION"
+            exit 1
+          fi
+          
+          VERSION_NUM="${VERSION#v}"
+          IS_PRERELEASE="false"
+          if [[ "$VERSION" =~ -(alpha|beta|rc) ]]; then
+            IS_PRERELEASE="true"
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version_num=$VERSION_NUM" >> $GITHUB_OUTPUT
+          echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+          echo "dry_run=$DRY_RUN" >> $GITHUB_OUTPUT
+          
+          echo "Version: $VERSION ($VERSION_NUM)"
+          echo "Pre-release: $IS_PRERELEASE"
+          echo "Dry run: $DRY_RUN"
+
+  # ===========================================================================
+  # Linux Builds - manylinux bundles
+  # ===========================================================================
+  linux-build:
+    name: Linux Build (PHP ${{ matrix.php }})
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3', '8.4', '8.5']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.version }}
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build manylinux Docker image
+        run: |
+          docker build \
+            --build-arg PHP_VERSIONS="${{ matrix.php }}" \
+            -t php-firebird-manylinux:${{ matrix.php }} \
+            -f docker/manylinux/Dockerfile \
+            .
+      
+      - name: Build extension bundle
+        run: |
+          mkdir -p dist
+          docker run --rm \
+            -v $(pwd)/dist:/dist \
+            -e EXT_VERSION=${{ needs.prepare.outputs.version_num }} \
+            php-firebird-manylinux:${{ matrix.php }}
+      
+      - name: List artifacts
+        run: |
+          ls -la dist/
+          for f in dist/*.tar.gz; do
+            echo "=== Contents of $(basename $f) ==="
+            tar tzf "$f" | head -20
+          done
+      
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-php${{ matrix.php }}
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+          retention-days: 7
+
+  # ===========================================================================
+  # Windows Builds - DLLs
+  # ===========================================================================
+  windows-build:
+    name: Windows Build (PHP ${{ matrix.php }}-${{ matrix.ts }})
+    needs: prepare
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3', '8.4']
+        ts: ['nts', 'ts']
+    env:
+      PHP_VERSION: ${{ matrix.php }}
+      THREAD_SAFE: ${{ matrix.ts }}
+      VS_VERSION: vs17
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.version }}
+      
+      - name: Setup PHP SDK
+        shell: cmd
+        run: |
+          mkdir C:\php-sdk
+          cd C:\php-sdk
+          curl -LO https://github.com/php/php-sdk-binary-tools/archive/refs/heads/master.zip
+          tar -xf master.zip
+          ren php-sdk-binary-tools-master php-sdk-binary-tools
+      
+      - name: Download PHP devel pack
+        shell: powershell
+        run: |
+          $phpVer = "${{ matrix.php }}"
+          $ts = "${{ matrix.ts }}"
+          $tsStr = if ($ts -eq "ts") { "" } else { "-nts" }
+          
+          # Get latest PHP version for this minor version
+          $releases = Invoke-RestMethod "https://windows.php.net/downloads/releases/releases.json"
+          $fullVersion = ($releases.PSObject.Properties | Where-Object { $_.Name -like "$phpVer.*" } | Select-Object -First 1).Name
+          
+          if (-not $fullVersion) {
+            # Fallback to archives for PHP 8.5 or other versions
+            $fullVersion = "$phpVer.0"
+          }
+          
+          $url = "https://windows.php.net/downloads/releases/php-devel-pack-$fullVersion$tsStr-Win32-$env:VS_VERSION-x64.zip"
+          Write-Host "Downloading: $url"
+          
+          try {
+            Invoke-WebRequest -Uri $url -OutFile php-devel.zip
+          } catch {
+            # Try archives
+            $url = "https://windows.php.net/downloads/releases/archives/php-devel-pack-$fullVersion$tsStr-Win32-$env:VS_VERSION-x64.zip"
+            Write-Host "Trying archive: $url"
+            Invoke-WebRequest -Uri $url -OutFile php-devel.zip
+          }
+          
+          Expand-Archive php-devel.zip -DestinationPath C:\php-sdk
+          Get-ChildItem C:\php-sdk\php-*-devel* | Rename-Item -NewName php-devel
+      
+      - name: Download Firebird SDK
+        shell: powershell
+        run: |
+          $fbVer = "$env:FIREBIRD_VERSION"
+          $url = "https://github.com/FirebirdSQL/firebird/releases/download/v$fbVer/Firebird-$fbVer-windows-x64.zip"
+          Write-Host "Downloading Firebird SDK: $url"
+          Invoke-WebRequest -Uri $url -OutFile firebird-sdk.zip
+          Expand-Archive firebird-sdk.zip -DestinationPath C:\firebird
+          
+          # Find the extracted directory
+          $fbDir = Get-ChildItem C:\firebird | Select-Object -First 1
+          Move-Item "$fbDir\*" C:\firebird\ -ErrorAction SilentlyContinue
+      
+      - name: Build extension
+        shell: cmd
+        run: |
+          call C:\php-sdk\php-sdk-binary-tools\phpsdk-${{ env.VS_VERSION }}-x64.bat
+          
+          set PATH=C:\php-sdk\php-devel;%PATH%
+          set INCLUDE=C:\firebird\include;%INCLUDE%
+          set LIB=C:\firebird\lib;%LIB%
+          
+          phpize
+          configure --with-firebird=C:\firebird
+          nmake
+      
+      - name: Package DLL
+        shell: powershell
+        run: |
+          $version = "${{ needs.prepare.outputs.version_num }}"
+          $phpVer = "${{ matrix.php }}"
+          $ts = "${{ matrix.ts }}"
+          
+          $dllName = "php_firebird-$version-php$phpVer-$ts-x64-fb5.0.dll"
+          
+          mkdir dist -ErrorAction SilentlyContinue
+          
+          if (Test-Path "Release_TS\php_firebird.dll") {
+            Copy-Item "Release_TS\php_firebird.dll" "dist\$dllName"
+          } elseif (Test-Path "Release\php_firebird.dll") {
+            Copy-Item "Release\php_firebird.dll" "dist\$dllName"
+          } elseif (Test-Path "x64\Release_TS\php_firebird.dll") {
+            Copy-Item "x64\Release_TS\php_firebird.dll" "dist\$dllName"
+          } elseif (Test-Path "x64\Release\php_firebird.dll") {
+            Copy-Item "x64\Release\php_firebird.dll" "dist\$dllName"
+          } else {
+            Write-Error "DLL not found!"
+            Get-ChildItem -Recurse -Filter "*.dll"
+            exit 1
+          }
+          
+          # Generate checksum
+          $hash = (Get-FileHash "dist\$dllName" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $dllName" | Out-File -FilePath "dist\$dllName.sha256" -Encoding ascii
+          
+          Write-Host "Built: $dllName"
+          Write-Host "SHA256: $hash"
+      
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-php${{ matrix.php }}-${{ matrix.ts }}
+          path: dist/*
+          retention-days: 7
+
+  # ===========================================================================
+  # Verify Builds
+  # ===========================================================================
+  verify-linux:
+    name: Verify Linux Builds
+    needs: [prepare, linux-build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Download all Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: linux-*
+          merge-multiple: true
+      
+      - name: List downloaded artifacts
+        run: |
+          ls -la dist/
+      
+      - name: Verify bundles on Ubuntu 24.04
+        run: |
+          for bundle in dist/*.tar.gz; do
+            echo "=== Testing $(basename $bundle) ==="
+            
+            docker run --rm -v $(pwd)/dist:/dist ubuntu:24.04 bash -c "
+              apt-get update -qq && apt-get install -y -qq php-cli > /dev/null 2>&1
+              cd /tmp
+              tar xzf /dist/$(basename $bundle)
+              cd php-firebird-*
+              export LD_LIBRARY_PATH=\$(pwd)/lib:\$LD_LIBRARY_PATH
+              php -d 'extension=\$(pwd)/firebird.so' -m | grep firebird && echo '✓ OK' || echo '✗ FAILED'
+            " || echo "Skipped (PHP version mismatch)"
+            
+            echo ""
+          done
+
+  # ===========================================================================
+  # Create Release
+  # ===========================================================================
+  release:
+    name: Create GitHub Release
+    needs: [prepare, linux-build, windows-build, verify-linux]
+    runs-on: ubuntu-latest
+    if: needs.prepare.outputs.dry_run != 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.version }}
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: Consolidate release files
+        run: |
+          mkdir -p release
+          
+          # Move all files to release directory
+          find artifacts -type f \( -name "*.tar.gz" -o -name "*.dll" -o -name "*.sha256" \) \
+            -exec cp {} release/ \;
+          
+          # Generate consolidated checksum file
+          cd release
+          sha256sum *.tar.gz *.dll 2>/dev/null | sort > SHA256SUMS.txt
+          
+          echo "=== Release files ==="
+          ls -la
+          echo ""
+          echo "=== SHA256SUMS.txt ==="
+          cat SHA256SUMS.txt
+      
+      - name: Extract changelog
+        id: changelog
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          VERSION_NUM="${{ needs.prepare.outputs.version_num }}"
+          
+          # Extract changelog section for this version
+          if [ -f "CHANGELOG.md" ]; then
+            # Try to extract section between version headers
+            NOTES=$(sed -n "/^## \[${VERSION_NUM}\]/,/^## \[/p" CHANGELOG.md | head -n -1)
+            if [ -z "$NOTES" ]; then
+              # Fallback: try v-prefixed version
+              NOTES=$(sed -n "/^## ${VERSION}/,/^## /p" CHANGELOG.md | head -n -1)
+            fi
+          fi
+          
+          if [ -z "$NOTES" ]; then
+            NOTES="See [CHANGELOG.md](CHANGELOG.md) for details."
+          fi
+          
+          # Save to file for multiline output
+          echo "$NOTES" > /tmp/changelog.md
+          echo "changelog_file=/tmp/changelog.md" >> $GITHUB_OUTPUT
+      
+      - name: Generate release notes
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          VERSION_NUM="${{ needs.prepare.outputs.version_num }}"
+          
+          cat > release/RELEASE_NOTES.md << 'EOF'
+          ## Downloads
+          
+          ### Linux (x86_64, glibc 2.28+)
+          
+          Self-contained bundles with bundled Firebird 5.x client. No system dependencies required.
+          
+          | PHP | Download |
+          |-----|----------|
+          EOF
+          
+          for php in 82 83 84 85; do
+            BUNDLE="php-firebird-${VERSION_NUM}-php${php}-nts-linux-x86_64.tar.gz"
+            if [ -f "release/${BUNDLE}" ]; then
+              echo "| ${php:0:1}.${php:1} | [${BUNDLE}](https://github.com/satwareAG/php-firebird/releases/download/${VERSION}/${BUNDLE}) |" >> release/RELEASE_NOTES.md
+            fi
+          done
+          
+          cat >> release/RELEASE_NOTES.md << 'EOF'
+          
+          ### Windows (x64)
+          
+          | PHP | Thread Safe | Download |
+          |-----|-------------|----------|
+          EOF
+          
+          for php in 8.2 8.3 8.4; do
+            for ts in nts ts; do
+              DLL="php_firebird-${VERSION_NUM}-php${php}-${ts}-x64-fb5.0.dll"
+              TS_LABEL=$([ "$ts" = "ts" ] && echo "Yes" || echo "No")
+              if [ -f "release/${DLL}" ]; then
+                echo "| ${php} | ${TS_LABEL} | [${DLL}](https://github.com/satwareAG/php-firebird/releases/download/${VERSION}/${DLL}) |" >> release/RELEASE_NOTES.md
+              fi
+            done
+          done
+          
+          cat >> release/RELEASE_NOTES.md << 'EOF'
+          
+          ### Verification
+          
+          ```bash
+          # Download SHA256SUMS.txt and verify
+          sha256sum -c SHA256SUMS.txt
+          ```
+          
+          ### Quick Install (Linux)
+          
+          ```bash
+          curl -sSL https://raw.githubusercontent.com/satwareAG/php-firebird/main/scripts/install.sh | bash
+          ```
+          
+          ### Requirements
+          
+          - **Linux**: glibc 2.28+ (Ubuntu 20.04+, Debian 10+, RHEL 8+, Fedora 29+)
+          - **Windows**: Visual C++ 2022 Redistributable
+          - **Firebird Server**: 2.5 - 5.x (wire protocol auto-negotiation)
+          
+          EOF
+          
+          # Append changelog
+          echo "### Changelog" >> release/RELEASE_NOTES.md
+          echo "" >> release/RELEASE_NOTES.md
+          cat /tmp/changelog.md >> release/RELEASE_NOTES.md
+          
+          echo "=== Generated Release Notes ==="
+          cat release/RELEASE_NOTES.md
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.version }}
+          name: php-firebird ${{ needs.prepare.outputs.version }}
+          body_path: release/RELEASE_NOTES.md
+          draft: true
+          prerelease: ${{ needs.prepare.outputs.is_prerelease == 'true' }}
+          files: |
+            release/*.tar.gz
+            release/*.dll
+            release/*.sha256
+            release/SHA256SUMS.txt
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Release summary
+        run: |
+          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version**: ${{ needs.prepare.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status**: Draft release created" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| File | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+          for f in release/*.tar.gz release/*.dll; do
+            if [ -f "$f" ]; then
+              SIZE=$(ls -lh "$f" | awk '{print $5}')
+              echo "| $(basename $f) | $SIZE |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Next steps**: Review the draft release and publish when ready." >> $GITHUB_STEP_SUMMARY

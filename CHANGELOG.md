@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Linux Bundle SONAME Symlink (Critical)**: Fixed root cause of "libfbclient.so.2: cannot open shared object" runtime error
+  - **Root Cause**: The `bundle_library()` function in `build-precompiled.sh` was not creating the SONAME symlink
+  - When copying `libfbclient.so.5.0.3`, it created `libfbclient.so` symlink but missed `libfbclient.so.2`
+  - The extension links against the SONAME (`libfbclient.so.2`), not the versioned filename
+  - Dynamic linker correctly searched `$ORIGIN/lib/libfbclient.so.2` per RPATH, but file didn't exist
+  - **Fix**: Added `objdump -p` SONAME extraction to create the required intermediate symlink
+  - Added `objdump` to required tools check in build script
+  - **Impact**: Precompiled bundles now load correctly on all glibc 2.28+ distributions
+
+- **Linux Bundle Test Logic**: Fixed misleading success message in test-bundles workflow
+  - Previous logic grepped stdout+stderr combined, showing "SUCCESS" even when PHP Warning appeared
+  - Now captures stdout and stderr separately, verifies module appears in clean module list
+  - Added PHP version compatibility check - skip gracefully when system PHP differs from bundle PHP
+  - Better diagnostics for SONAME symlink issues
+
 - **Linux Bundle Workflow**: Fixed multiple issues in `release-precompiled.yml` and `build-precompiled.sh` for GitHub Actions matrix builds
   - Fixed grep exit code 1 causing script termination under `set -euo pipefail` (added `|| true` fallback)
   - Fixed VERSION extraction searching for wrong macro name

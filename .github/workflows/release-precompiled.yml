@@ -592,11 +592,29 @@ jobs:
               echo "[ERROR] libfbclient NOT found in lib/ - this is the problem!"
             fi
             
-            # Try loading extension with LD_DEBUG
+            # Check PHP version compatibility first
             echo ""
-            echo "=== Step 9: Test PHP extension loading ==="
+            echo "=== Step 9: Check PHP version compatibility ==="
             echo "PHP version:"
             php -v | head -1
+            PHP_MAJOR=$(php -r "echo PHP_MAJOR_VERSION;")
+            PHP_MINOR=$(php -r "echo PHP_MINOR_VERSION;")
+            echo "Detected: PHP ${PHP_MAJOR}.${PHP_MINOR}"
+            
+            # Bundle is built for PHP 8.4, check if system PHP is compatible
+            if [ "$PHP_MAJOR" -lt 8 ] || ([ "$PHP_MAJOR" -eq 8 ] && [ "$PHP_MINOR" -lt 4 ]); then
+              echo ""
+              echo ">>> SKIP: System PHP ${PHP_MAJOR}.${PHP_MINOR} differs from bundle PHP 8.4"
+              echo ">>> This is expected - bundles are version-specific"
+              echo ">>> RPATH mechanism itself is verified via structure checks above"
+              echo ""
+              echo "=== Test complete (PHP version mismatch - skipped load test) ==="
+              exit 0
+            fi
+            
+            # Try loading extension with LD_DEBUG
+            echo ""
+            echo "=== Step 10: Test PHP extension loading ==="
             
             # First try with LD_DEBUG to see library resolution
             echo ""
@@ -604,24 +622,43 @@ jobs:
             LD_DEBUG=libs php -d "extension=$(pwd)/firebird.so" -r "echo \"loaded\";" 2>&1 | grep -E "(firebird|fbclient|found|error|cannot)" | head -20 || true
             
             echo ""
-            echo "Loading extension:"
-            if php -d "extension=$(pwd)/firebird.so" -m 2>&1 | grep -qi firebird; then
-              echo "[OK] SUCCESS: Extension loaded!"
-              php -d "extension=$(pwd)/firebird.so" -r "echo \"fbird_connect exists: \" . (function_exists(\"fbird_connect\") ? \"yes\" : \"no\") . \"\\n\";"
+            echo "Loading extension (capturing stdout separately from stderr):"
+            
+            # Critical fix: Capture stdout and stderr separately
+            LOAD_STDOUT=$(php -d "extension=$(pwd)/firebird.so" -m 2>/dev/null || true)
+            LOAD_STDERR=$(php -d "extension=$(pwd)/firebird.so" -m 2>&1 >/dev/null || true)
+            
+            if echo "$LOAD_STDOUT" | grep -qi "^firebird$"; then
+              # Verify further with function check
+              FUNC_CHECK=$(php -d "extension=$(pwd)/firebird.so" -r "echo function_exists(\"fbird_connect\") ? \"YES\" : \"NO\";" 2>/dev/null || echo "NO")
+              if [ "$FUNC_CHECK" = "YES" ]; then
+                echo "[OK] SUCCESS: Extension loaded correctly!"
+                echo "Loaded modules containing firebird:"
+                echo "$LOAD_STDOUT" | grep -i firebird
+                echo "fbird_connect function: available"
+              else
+                echo "[FAIL] Extension appeared in module list but functions not available"
+                echo "Stderr: $LOAD_STDERR"
+                exit 1
+              fi
             else
               echo "[FAIL] Extension failed to load"
-              echo "Error output:"
-              php -d "extension=$(pwd)/firebird.so" -m 2>&1 | tail -10
+              echo "Stdout: $LOAD_STDOUT" | tail -5 || true
+              echo "Stderr: $LOAD_STDERR" | tail -10 || true
               
-              # See if it is a PHP version mismatch vs library issue
-              LOAD_ERROR=$(php -d "extension=$(pwd)/firebird.so" -m 2>&1 || true)
-              if echo "$LOAD_ERROR" | grep -q "cannot open shared object"; then
+              # Diagnose the specific error
+              if echo "$LOAD_STDERR" | grep -q "cannot open shared object"; then
+                MISSING_LIB=$(echo "$LOAD_STDERR" | grep -oP "[^ ]+\.so[^ :]*" | head -1)
                 echo ""
-                echo ">>> DIAGNOSIS: Library loading failed - RPATH issue"
-              elif echo "$LOAD_ERROR" | grep -q "Warning.*API"; then
+                echo ">>> DIAGNOSIS: Library loading failed - missing: $MISSING_LIB"
+                echo ">>> Check if SONAME symlink exists in lib/"
+                echo "Searching for pattern in lib/:"
+                ls -la lib/ | grep -E "$(echo "$MISSING_LIB" | sed "s/\.so.*//")" || echo "  (not found)"
+              elif echo "$LOAD_STDERR" | grep -q "Warning.*API"; then
                 echo ""
-                echo ">>> DIAGNOSIS: PHP API version mismatch (expected for different PHP versions)"
+                echo ">>> DIAGNOSIS: PHP API version mismatch"
               fi
+              exit 1
             fi
             
             echo ""

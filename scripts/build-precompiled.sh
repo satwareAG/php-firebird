@@ -228,6 +228,15 @@ bundle_library() {
             ln -sf "$real_name" "${dest_dir}/${lib_name}"
         fi
         
+        # CRITICAL: Create SONAME symlink (e.g., libfbclient.so.2 -> libfbclient.so.5.0.3)
+        # The extension links against the SONAME, not the versioned filename
+        local soname
+        soname=$(objdump -p "$real_path" 2>/dev/null | grep -E '^\s+SONAME' | awk '{print $2}' || true)
+        if [ -n "$soname" ] && [ "$soname" != "$real_name" ] && [ ! -e "${dest_dir}/${soname}" ]; then
+            ln -sf "$real_name" "${dest_dir}/${soname}"
+            log_verbose "${indent}  Created SONAME symlink: ${soname} -> ${real_name}"
+        fi
+        
         # Also create .so symlink if needed (without version suffix)
         local base="${lib_name%%.*}"
         if [ ! -e "${dest_dir}/${base}.so" ]; then
@@ -393,6 +402,7 @@ echo ""
 check_command make
 check_command patchelf
 check_command tar
+check_command objdump
 
 if [ "$SKIP_BUILD" = false ]; then
     check_command phpize

@@ -5,6 +5,31 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-rc.25] - 2025-12-31
+
+### Fixed
+
+- **CI Test-Bundles PHP Version Matching**: Fixed test-bundles job downloading wrong PHP version bundle for each distribution
+  - **Root Cause**: Workflow hardcoded `'*php84-nts*'` download pattern, but test distributions have different system PHP versions
+  - Ubuntu 22.04 (PHP 8.1), Ubuntu 24.04 (PHP 8.3), Debian 12 (PHP 8.2) were all trying to load PHP 8.4 bundles
+  - PHP extensions are ABI-incompatible across major.minor versions, causing "System PHP differs from bundle PHP" skips
+  - **Fix**: Changed matrix from simple distro list to include objects with `distro` and `php` fields
+  - Download pattern now uses `'*php${{ matrix.php }}-nts*'` to match each distribution's system PHP
+  - Fixed invalid UTF-8 encoding (byte 0x92 Windows-1252 right quote) in YAML comments
+
+### Changed
+
+- **CI Test Distribution Coverage**: Updated test-bundles matrix with corrected PHP version mappings
+  - Ubuntu 22.04 → PHP 8.1 (`*php81-nts*`)
+  - Ubuntu 24.04 → PHP 8.3 (`*php83-nts*`)
+  - Ubuntu 24.10 → PHP 8.3 (`*php83-nts*`) **NEW**
+  - Debian 12 → PHP 8.2 (`*php82-nts*`)
+  - Fedora 41 → PHP 8.3 (`*php83-nts*`) **NEW**
+
+### Removed
+
+- **AlmaLinux 9 from CI**: Removed from test-bundles matrix (default PHP 8.0 is below minimum supported PHP 8.1)
+
 ## [Unreleased]
 
 ### Fixed
@@ -463,7 +488,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.13...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.25...HEAD
+[7.0.0-rc.25]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.13...v7.0.0-rc.25
 [7.0.0-rc.13]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.12...v7.0.0-rc.13
 [7.0.0-rc.12]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.11...v7.0.0-rc.12
 [7.0.0-rc.11]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.10...v7.0.0-rc.11

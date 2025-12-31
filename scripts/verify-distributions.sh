@@ -146,42 +146,39 @@ php -d "extension=$(pwd)/firebird.so" -r "
 test_ubuntu() {
     log_info "=== Testing Ubuntu Distributions ==="
     
-    # Ubuntu 20.04 (Focal) - glibc 2.31
-    test_distribution "ubuntu2004" "ubuntu:20.04" "php-cli" "81" || true
-    
-    # Ubuntu 22.04 (Jammy) - glibc 2.35
+    # Ubuntu 22.04 (Jammy) - glibc 2.35, PHP 8.1
     test_distribution "ubuntu2204" "ubuntu:22.04" "php-cli" "81" || true
     
-    # Ubuntu 24.04 (Noble) - glibc 2.39
+    # Ubuntu 24.04 (Noble) - glibc 2.39, PHP 8.3
     test_distribution "ubuntu2404" "ubuntu:24.04" "php-cli" "83" || true
+    
+    # Note: Ubuntu 20.04 removed - default PHP 7.4.3 too old (requires 8.1+)
 }
 
 # Test Debian distributions
 test_debian() {
     log_info "=== Testing Debian Distributions ==="
     
-    # Debian 10 (Buster) - glibc 2.28 (minimum target)
-    test_distribution "debian10" "debian:buster" "php-cli" "81" || true
-    
-    # Debian 11 (Bullseye) - glibc 2.31
-    test_distribution "debian11" "debian:bullseye" "php-cli" "81" || true
-    
-    # Debian 12 (Bookworm) - glibc 2.36
+    # Debian 12 (Bookworm) - glibc 2.36, PHP 8.2
     test_distribution "debian12" "debian:bookworm" "php-cli" "82" || true
+    
+    # Note: Debian 10/11 removed - default PHP 7.3/7.4 too old (requires 8.1+)
 }
 
 # Test RHEL-based distributions
 test_rocky() {
     log_info "=== Testing Rocky/RHEL Distributions ==="
     
-    # Rocky Linux 8 - glibc 2.28 (minimum target)
-    test_distribution "rocky8" "rockylinux:8" "php-cli" "81" || true
+    # Note: All RHEL-based distributions removed from default testing
+    # - Rocky 8: PHP 7.2.24 (requires 8.1+)
+    # - Rocky 9: PHP 8.0.30 (requires 8.1+)
+    # - AlmaLinux 8: PHP 7.2.24 (requires 8.1+)
+    #
+    # These distributions require EPEL/Remi repositories for PHP 8.1+
+    # Manual testing possible with custom PHP installation
     
-    # Rocky Linux 9 - glibc 2.34
-    test_distribution "rocky9" "rockylinux:9" "php-cli" "81" || true
-    
-    # AlmaLinux 8 (same as manylinux base)
-    test_distribution "almalinux8" "almalinux:8" "php-cli" "81" || true
+    log_warn "RHEL-based distributions skipped - default PHP packages too old"
+    log_warn "php-firebird requires PHP 8.1+; Rocky/Alma need EPEL/Remi repos"
 }
 
 # Print summary

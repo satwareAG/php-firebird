@@ -613,10 +613,22 @@ jobs:
             PHP_MINOR=$(php -r "echo PHP_MINOR_VERSION;")
             echo "Detected: PHP ${PHP_MAJOR}.${PHP_MINOR}"
             
-            # Bundle is built for PHP 8.4, check if system PHP is compatible
-            if [ "$PHP_MAJOR" -lt 8 ] || ([ "$PHP_MAJOR" -eq 8 ] && [ "$PHP_MINOR" -lt 4 ]); then
+            # Extract bundle PHP version from tarball filename (e.g., php83-nts -> 8.3)
+            BUNDLE_PHP_SHORT=$(basename "$TARBALL" | grep -oP "php\K[0-9]+" || echo "")
+            if [ -n "$BUNDLE_PHP_SHORT" ]; then
+              BUNDLE_PHP_MAJOR="${BUNDLE_PHP_SHORT:0:1}"
+              BUNDLE_PHP_MINOR="${BUNDLE_PHP_SHORT:1}"
+            else
+              echo "WARNING: Could not extract PHP version from tarball name"
+              BUNDLE_PHP_MAJOR="8"
+              BUNDLE_PHP_MINOR="4"
+            fi
+            echo "Bundle built for: PHP ${BUNDLE_PHP_MAJOR}.${BUNDLE_PHP_MINOR}"
+            
+            # Check if system PHP matches bundle PHP version
+            if [ "$PHP_MAJOR" != "$BUNDLE_PHP_MAJOR" ] || [ "$PHP_MINOR" != "$BUNDLE_PHP_MINOR" ]; then
               echo ""
-              echo ">>> SKIP: System PHP ${PHP_MAJOR}.${PHP_MINOR} differs from bundle PHP 8.4"
+              echo ">>> SKIP: System PHP ${PHP_MAJOR}.${PHP_MINOR} differs from bundle PHP ${BUNDLE_PHP_MAJOR}.${BUNDLE_PHP_MINOR}"
               echo ">>> This is expected - bundles are version-specific"
               echo ">>> RPATH mechanism itself is verified via structure checks above"
               echo ""

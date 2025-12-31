@@ -301,7 +301,7 @@ jobs:
           echo "EXT_VERSION: ${EXT_VERSION}"
           ls -la "${FB_ROOT}/lib/" || echo "FB_ROOT/lib not found"
           ls -la modules/ || echo "modules/ not found"
-          which patchelf || echo "patchelf not found"
+          which patchelf && patchelf --version || echo "patchelf not found"
           echo "=== End Debug ==="
           
           # Run build script (skip compilation since already done)
@@ -321,13 +321,58 @@ jobs:
           echo "bundle_name=${BUNDLE_NAME}" >> $GITHUB_OUTPUT
           echo "bundle_file=dist/${BUNDLE_NAME}.tar.gz" >> $GITHUB_OUTPUT
           
-          # Verify bundle
+          # ============================================================
+          # Critical verification: Check bundle structure and RPATH
+          # ============================================================
+          echo ""
+          echo "=== CRITICAL: Bundle verification ==="
+          DIST_DIR="dist/${BUNDLE_NAME}"
+          
+          echo "1. Bundle directory structure:"
+          ls -la "${DIST_DIR}/" || echo "ERROR: dist dir not found!"
+          
+          echo ""
+          echo "2. lib/ directory contents:"
+          if [ -d "${DIST_DIR}/lib" ]; then
+            ls -la "${DIST_DIR}/lib/" | head -20
+            echo "Total files: $(find "${DIST_DIR}/lib" -type f | wc -l)"
+          else
+            echo "ERROR: lib/ directory MISSING!"
+          fi
+          
+          echo ""
+          echo "3. RPATH of firebird.so (must be \$ORIGIN/lib):"
+          if [ -f "${DIST_DIR}/firebird.so" ]; then
+            patchelf --print-rpath "${DIST_DIR}/firebird.so" || echo "patchelf failed"
+            readelf -d "${DIST_DIR}/firebird.so" | grep -E "RPATH|RUNPATH" || echo "No RPATH found!"
+          else
+            echo "ERROR: firebird.so not found in bundle!"
+          fi
+          
+          echo ""
+          echo "4. libfbclient verification:"
+          if ls "${DIST_DIR}"/lib/libfbclient.so* 2>/dev/null; then
+            echo "[OK] libfbclient found"
+            ls -la "${DIST_DIR}"/lib/libfbclient.so*
+          else
+            echo "[ERROR] libfbclient.so NOT FOUND in bundle lib/"
+            echo "This will cause runtime loading failure!"
+          fi
+          
+          echo ""
+          echo "5. Tarball contents preview:"
+          tar -tzf "dist/${BUNDLE_NAME}.tar.gz" | head -30
+          
+          echo "=== End bundle verification ==="
+          
+          # Run full verify script
           if [ -x scripts/verify-bundle.sh ]; then
             chmod +x scripts/verify-bundle.sh
             ./scripts/verify-bundle.sh "dist/${BUNDLE_NAME}" --verbose || true
           fi
           
-          echo "Bundle created:"
+          echo ""
+          echo "Bundle files created:"
           ls -la dist/
       
       - name: Upload Artifact
@@ -450,54 +495,134 @@ jobs:
             if command -v apt-get &>/dev/null; then
               export DEBIAN_FRONTEND=noninteractive
               apt-get update
-              apt-get install -y php-cli patchelf binutils || apt-get install -y php-cli binutils
+              apt-get install -y php-cli patchelf binutils file || apt-get install -y php-cli binutils file
             elif command -v dnf &>/dev/null; then
               # Enable EPEL for patchelf on RHEL/AlmaLinux
               dnf install -y epel-release || true
-              dnf install -y php-cli patchelf binutils || dnf install -y php-cli binutils
+              dnf install -y php-cli patchelf binutils file || dnf install -y php-cli binutils file
             elif command -v yum &>/dev/null; then
               yum install -y epel-release || true
-              yum install -y php-cli patchelf binutils || yum install -y php-cli binutils || true
+              yum install -y php-cli patchelf binutils file || yum install -y php-cli binutils file || true
             fi
             
             # Find and extract bundle
+            echo ""
+            echo "=== Step 1: Find bundle tarball ==="
             TARBALL=$(find /bundle -name "*.tar.gz" | head -1)
             if [ -z "$TARBALL" ]; then
-              echo "No bundle found!"
+              echo "ERROR: No bundle found in /bundle!"
+              ls -laR /bundle || echo "Cannot list /bundle"
               exit 1
             fi
             
             echo "Testing bundle: $TARBALL"
+            echo "Tarball size: $(ls -lh "$TARBALL" | awk "{print \$5}")"
             
+            # List tarball contents BEFORE extraction
+            echo ""
+            echo "=== Step 2: Tarball contents ==="
+            tar -tzf "$TARBALL" | head -30
+            
+            # Extract bundle
+            echo ""
+            echo "=== Step 3: Extract bundle ==="
             mkdir -p /tmp/test-bundle
             tar -xzf "$TARBALL" -C /tmp/test-bundle --strip-components=1
             
+            # Verify extraction
+            echo ""
+            echo "=== Step 4: Bundle structure after extraction ==="
+            echo "Contents of /tmp/test-bundle:"
+            ls -la /tmp/test-bundle/
+            
+            if [ -d /tmp/test-bundle/lib ]; then
+              echo ""
+              echo "Contents of /tmp/test-bundle/lib/:"
+              ls -la /tmp/test-bundle/lib/ | head -20
+              LIB_COUNT=$(find /tmp/test-bundle/lib -name "*.so*" | wc -l)
+              echo "Total .so files in lib/: $LIB_COUNT"
+            else
+              echo ""
+              echo "ERROR: lib/ directory NOT FOUND in bundle!"
+              echo "This is the root cause - bundled libraries are missing"
+            fi
+            
             cd /tmp/test-bundle
+            
+            # Check firebird.so exists
+            echo ""
+            echo "=== Step 5: Verify firebird.so ==="
+            if [ ! -f firebird.so ]; then
+              echo "ERROR: firebird.so not found!"
+              exit 1
+            fi
+            file firebird.so
             
             # Check RPATH
             echo ""
-            echo "RPATH:"
-            patchelf --print-rpath firebird.so 2>/dev/null || readelf -d firebird.so | grep -E "RPATH|RUNPATH"
+            echo "=== Step 6: RPATH verification ==="
+            if command -v patchelf &>/dev/null; then
+              RPATH=$(patchelf --print-rpath firebird.so 2>/dev/null || echo "FAILED")
+              echo "RPATH from patchelf: $RPATH"
+            fi
+            echo "RPATH/RUNPATH from readelf:"
+            readelf -d firebird.so 2>/dev/null | grep -E "RPATH|RUNPATH" || echo "(none found)"
             
-            # Check dependencies
-            echo ""
-            echo "Dependencies:"
-            ldd firebird.so
-            
-            # Check for missing deps
-            MISSING=$(ldd firebird.so 2>&1 | grep "not found" || true)
-            if [ -n "$MISSING" ]; then
+            # Check if RPATH is correctly set to $ORIGIN/lib
+            if ! readelf -d firebird.so 2>/dev/null | grep -qE "RPATH|RUNPATH"; then
               echo ""
-              echo "WARNING: Missing dependencies:"
-              echo "$MISSING"
+              echo "WARNING: No RPATH/RUNPATH set on firebird.so!"
+              echo "This means bundled libraries in lib/ cannot be found!"
             fi
             
-            # Try loading extension
+            # Show ldd output (note: ldd does NOT respect RPATH)
             echo ""
-            echo "Testing PHP load:"
-            php -d "extension=$(pwd)/firebird.so" -m | grep -i firebird && \
-              echo "SUCCESS: Extension loaded!" || \
-              echo "Note: May fail due to PHP version mismatch"
+            echo "=== Step 7: ldd output (does NOT respect RPATH) ==="
+            echo "NOTE: ldd shows system library resolution, NOT RPATH resolution"
+            echo "Missing libs here are expected if using RPATH bundling"
+            ldd firebird.so || true
+            
+            # Check specific library presence
+            echo ""
+            echo "=== Step 8: Check libfbclient ==="
+            if ls lib/libfbclient.so* 2>/dev/null; then
+              echo "[OK] libfbclient found in lib/"
+              ls -la lib/libfbclient.so*
+            else
+              echo "[ERROR] libfbclient NOT found in lib/ - this is the problem!"
+            fi
+            
+            # Try loading extension with LD_DEBUG
+            echo ""
+            echo "=== Step 9: Test PHP extension loading ==="
+            echo "PHP version:"
+            php -v | head -1
+            
+            # First try with LD_DEBUG to see library resolution
+            echo ""
+            echo "Library resolution trace (LD_DEBUG):"
+            LD_DEBUG=libs php -d "extension=$(pwd)/firebird.so" -r "echo \"loaded\";" 2>&1 | grep -E "(firebird|fbclient|found|error|cannot)" | head -20 || true
+            
+            echo ""
+            echo "Loading extension:"
+            if php -d "extension=$(pwd)/firebird.so" -m 2>&1 | grep -qi firebird; then
+              echo "[OK] SUCCESS: Extension loaded!"
+              php -d "extension=$(pwd)/firebird.so" -r "echo \"fbird_connect exists: \" . (function_exists(\"fbird_connect\") ? \"yes\" : \"no\") . \"\\n\";"
+            else
+              echo "[FAIL] Extension failed to load"
+              echo "Error output:"
+              php -d "extension=$(pwd)/firebird.so" -m 2>&1 | tail -10
+              
+              # See if it is a PHP version mismatch vs library issue
+              LOAD_ERROR=$(php -d "extension=$(pwd)/firebird.so" -m 2>&1 || true)
+              if echo "$LOAD_ERROR" | grep -q "cannot open shared object"; then
+                echo ""
+                echo ">>> DIAGNOSIS: Library loading failed - RPATH issue"
+              elif echo "$LOAD_ERROR" | grep -q "Warning.*API"; then
+                echo ""
+                echo ">>> DIAGNOSIS: PHP API version mismatch (expected for different PHP versions)"
+              fi
+            fi
             
             echo ""
             echo "=== Test complete ==="

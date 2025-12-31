@@ -441,6 +441,7 @@ jobs:
             
             # Install PHP and dependencies
             if command -v apt-get &>/dev/null; then
+              export DEBIAN_FRONTEND=noninteractive
               apt-get update
               apt-get install -y php-cli patchelf binutils || apt-get install -y php-cli binutils
             elif command -v dnf &>/dev/null; then

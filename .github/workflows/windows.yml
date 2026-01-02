@@ -105,6 +105,9 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
     steps:
+      - name: Checkout (for gh CLI context)
+        uses: actions/checkout@v4
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -122,6 +125,43 @@ jobs:
           else
             echo "Warning: No .zip files found"
             ls -la
+          fi
+
+      - name: Ensure release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          echo "Checking if release exists for tag: $TAG"
+          
+          # For release events, the release definitely exists
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "✓ Triggered by release event - release exists"
+            exit 0
+          fi
+          
+          # For workflow_dispatch, check if release exists
+          if gh release view "$TAG" --repo "${{ github.repository }}" &>/dev/null; then
+            echo "✓ Release already exists for tag: $TAG"
+          else
+            echo "⚠ No release found for tag: $TAG"
+            echo "Creating draft release for Windows DLL artifacts..."
+            
+            # Determine if this is a prerelease (contains rc, alpha, beta, dev)
+            PRERELEASE_FLAG=""
+            if [[ "$TAG" =~ (rc|alpha|beta|dev) ]]; then
+              PRERELEASE_FLAG="--prerelease"
+              echo "  (marking as prerelease due to version identifier)"
+            fi
+            
+            gh release create "$TAG" \
+              --repo "${{ github.repository }}" \
+              --draft \
+              $PRERELEASE_FLAG \
+              --title "php-firebird $TAG (Windows DLLs)" \
+              --notes "Windows DLL build artifacts for $TAG. This draft release was auto-created by the Windows build workflow."
+            
+            echo "✓ Created draft release: $TAG"
           fi
 
       - name: Upload to Release

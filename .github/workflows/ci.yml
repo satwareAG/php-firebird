@@ -1,4 +1,4 @@
-name: Linux PHP + Firebird (Docker Services)
+name: CI
 
 on:
   push:

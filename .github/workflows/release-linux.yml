@@ -18,7 +18,7 @@
 # Best practices: Uses manylinux_2_28 for broad Linux compatibility
 # =============================================================================
 
-name: Build Precompiled Extensions
+name: Release (Linux)
 
 on:
   push:

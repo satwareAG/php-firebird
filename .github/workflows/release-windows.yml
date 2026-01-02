@@ -12,7 +12,7 @@
 # Best practices from: https://github.com/php/php-windows-builder
 # =============================================================================
 
-name: Windows DLL Build
+name: Release (Windows)
 
 on:
   push:
@@ -23,7 +23,7 @@ on:
       - '*.c'
       - '*.h'
       - 'config.w32'
-      - '.github/workflows/windows.yml'
+      - '.github/workflows/release-windows.yml'
   pull_request:
   release:
     types: [created, published]

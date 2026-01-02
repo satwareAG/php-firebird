@@ -26,12 +26,7 @@ extern "C" {
 #include "firebird_utils.h"
 #include "firebird_utils_internal.h"
 
-//=============================================================================
-// C++17 Utility Functions
-//=============================================================================
-
 namespace string_utils {
-    // C++17: Efficient string processing with string_view
     inline void add_php_string_from_view(zval* array, const char* key, std::string_view value) noexcept {
         add_assoc_stringl(array, key, value.data(), value.size());
     }
@@ -40,7 +35,6 @@ namespace string_utils {
         add_index_stringl(array, index, value.data(), value.size());
     }
 
-    // Step 4.1: Additional utility functions with const/noexcept optimization
     constexpr bool is_valid_time_component(unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions) noexcept {
         return hours <= 23 && minutes <= 59 && seconds <= 59 && fractions <= 9999;
     }
@@ -50,12 +44,7 @@ namespace string_utils {
     }
 }
 
-//=============================================================================
-// Step 2: Modernized Functions with std::optional Safety
-//=============================================================================
-
 namespace {
-    // Step 2.1: Internal C++17 implementation with std::optional safety
     std::optional<unsigned> get_client_version_impl(void* master_ptr) noexcept {
         if (!master_ptr) {
             return std::nullopt;
@@ -72,12 +61,10 @@ namespace {
             return util->getClientVersion();
 
         } catch (...) {
-            // Never let C++ exceptions cross extern "C" boundaries
             return std::nullopt;
         }
     }
 
-    // Step 2.2: Input validation structures for time encoding
     struct TimeComponents {
         unsigned hours, minutes, seconds, fractions;
 
@@ -89,7 +76,6 @@ namespace {
         }
     };
 
-    // Step 2.2: Internal C++17 implementation for time encoding
     std::optional<ISC_TIME> encode_time_impl(void* master_ptr, const TimeComponents& components) noexcept {
         if (!master_ptr || !components.is_valid()) {
             return std::nullopt;
@@ -110,7 +96,6 @@ namespace {
         }
     }
 
-    // Step 2.3: Input validation structures for date encoding
     struct DateComponents {
         unsigned year, month, day;
 
@@ -121,7 +106,6 @@ namespace {
         }
     };
 
-    // Step 2.3: Internal C++17 implementation for date encoding
     std::optional<ISC_DATE> encode_date_impl(void* master_ptr, const DateComponents& components) noexcept {
         if (!master_ptr || !components.is_valid()) {
             return std::nullopt;
@@ -142,13 +126,11 @@ namespace {
     }
 
 #if FB_API_VER >= 40
-    // Step 3.1: Structured bindings support for timestamp decoding
     struct DecodedTimestampTz {
         unsigned year{0}, month{0}, day{0};
         unsigned hours{0}, minutes{0}, seconds{0}, fractions{0};
         std::string timeZone;
 
-        // C++17: Enable structured binding assignment
         [[nodiscard]] auto tie() const noexcept {
             return std::tie(year, month, day, hours, minutes, seconds, fractions);
         }
@@ -161,7 +143,6 @@ namespace {
         }
     };
 
-    // Step 3.1: Internal C++17 implementation with structured bindings
     std::optional<DecodedTimestampTz> decode_timestamp_tz_impl(
         void* master_ptr, const ISC_TIMESTAMP_TZ* timestampTz) noexcept {
 
@@ -178,7 +159,6 @@ namespace {
                 return std::nullopt;
             }
 
-            // Temporary storage for decode operation (initialized to avoid analyzer warnings)
             unsigned year = 0, month = 0, day = 0, hours = 0, minutes = 0, seconds = 0, fractions = 0;
             constexpr size_t TZ_BUFFER_SIZE = 64;
             std::array<char, TZ_BUFFER_SIZE> tz_buffer{};
@@ -192,7 +172,6 @@ namespace {
                 return std::nullopt;
             }
 
-            // C++17: Create result with designated initializers style
             return DecodedTimestampTz{
                 year, month, day,
                 hours, minutes, seconds, fractions,
@@ -204,7 +183,6 @@ namespace {
         }
     }
 
-    // Step 3.2: Modern field info insertion with complete RAII
     int insert_field_info_modern(void* master_ptr, ISC_STATUS* status_vec,
                                 bool is_output_var, int field_num, zval* target_array,
                                 Firebird::IStatement* statement) noexcept {
@@ -212,7 +190,6 @@ namespace {
             FirebirdMasterWrapper master(master_ptr);
             FirebirdStatusManager status_mgr(status_vec, master.getMaster());
 
-            // Get appropriate metadata with RAII management
             auto* metadata = is_output_var
                 ? statement->getOutputMetadata(status_mgr.get())
                 : statement->getInputMetadata(status_mgr.get());
@@ -223,7 +200,6 @@ namespace {
 
             FirebirdMetadataWrapper meta_wrapper(metadata, true);
 
-            // C++17: Use string_view for efficient string handling
             const auto field_name = meta_wrapper.getFieldName(status_mgr.get(), field_num);
             const auto alias_name = meta_wrapper.getAlias(status_mgr.get(), field_num);
             const auto relation_name = meta_wrapper.getRelation(status_mgr.get(), field_num);
@@ -232,7 +208,6 @@ namespace {
                 return -1;
             }
 
-            // Use string utilities for efficient PHP array population
             string_utils::add_php_string_indexed(target_array, 0, field_name);
             string_utils::add_php_string_from_view(target_array, "name", field_name);
 
@@ -249,7 +224,6 @@ namespace {
         }
     }
 
-    // Step 3.3: Modern alias insertion with RAII metadata management
     int insert_aliases_modern(void* master_ptr, ISC_STATUS* status_vec, fbird_query* ib_query,
                              Firebird::IStatement* statement) noexcept {
         try {
@@ -270,14 +244,12 @@ namespace {
 
             assert(cols == ib_query->out_fields_count);
 
-            // Modern range-based processing with RAII metadata
             for (unsigned i = 0; i < cols; ++i) {
                 const auto alias = meta_wrapper.getAlias(status_mgr.get(), i);
                 if (status_mgr.hasError()) {
                     return -1;
                 }
 
-                // Convert string_view to C string for existing PHP function
                 std::string alias_str(alias);
                 _php_fbird_insert_alias(ib_query->ht_aliases, alias_str.c_str());
             }

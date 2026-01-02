@@ -29,7 +29,7 @@
 #include "fbird_datetime.h"
 
 /* Helper function for safer SQLVAR data copying */
-int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, int field_index, const char *query_context) /* {{{ */
+int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, int field_index, const char *query_context)
 {
 	/* Validate input parameters */
 	if (!dest_var || !src_var) {
@@ -279,7 +279,6 @@ int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 
 	return SUCCESS;
 }
-/* }}} */
 
 /**
  * Transfer bound XSQLDA values to OO API message buffer.
@@ -296,7 +295,7 @@ int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
  * @param ib_query Query structure with populated in_sqlda and allocated in_msg_buffer
  * @return SUCCESS or FAILURE
  */
-int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query) /* {{{ */
+int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query)
 {
 	/* Validate prerequisites */
 	if (!ib_query->in_msg_buffer || !ib_query->in_metadata || !ib_query->in_sqlda) {
@@ -473,9 +472,8 @@ int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query) /* {{{ */
 
 	return SUCCESS;
 }
-/* }}} */
 
-static int _php_fbird_scale_double_to_int64(double dval, int sqlscale, ISC_INT64 *out) /* {{{ */
+static int _php_fbird_scale_double_to_int64(double dval, int sqlscale, ISC_INT64 *out)
 {
 	if (!out) {
 		return FAILURE;
@@ -495,9 +493,8 @@ static int _php_fbird_scale_double_to_int64(double dval, int sqlscale, ISC_INT64
 	*out = (ISC_INT64)ll;
 	return SUCCESS;
 }
-/* }}} */
 
-int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
+int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 {
 	BIND_BUF *buf = ib_query->bind_buf;
 	XSQLDA *sqlda = ib_query->in_sqlda;
@@ -1164,6 +1161,5 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars) /* {{{ */
 	} /* for */
 	return rv;
 }
-/* }}} */
 
 #endif /* HAVE_FIREBIRD */

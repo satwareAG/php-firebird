@@ -31,7 +31,7 @@
 #define ISC_LONG_MIN    INT_MIN
 #define ISC_LONG_MAX    INT_MAX
 
-int _php_fbird_alloc_array(fbird_array **ib_arrayp, XSQLDA *sqlda, /* {{{ */
+int _php_fbird_alloc_array(fbird_array **ib_arrayp, XSQLDA *sqlda,
 	fb_safe_handle link, fb_safe_handle trans, unsigned short *array_cnt)
 {
 	unsigned short i, n;
@@ -204,9 +204,8 @@ int _php_fbird_alloc_array(fbird_array **ib_arrayp, XSQLDA *sqlda, /* {{{ */
 	*ib_arrayp = ar;
 	return SUCCESS;
 }
-/* }}} */
 
-int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {{{ */
+int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size,
 	fbird_array *array, int dim)
 {
 	zval null_val, *pnull_val = &null_val;
@@ -541,6 +540,5 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size, /* {{{ */
 	}
 	return SUCCESS;
 }
-/* }}} */
 
 #endif /* HAVE_FIREBIRD */

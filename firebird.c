@@ -584,7 +584,6 @@ const char *_fbird_res_type_name(int type) {
 	return "resource";
 }
 
-/* }}} */
 
 PHP_FUNCTION(fbird_errmsg)
 {
@@ -742,7 +741,7 @@ static const zend_function_entry firebird_exception_methods[] = {
 };
 
 /* print firebird error and save it for fbird_errmsg() */
-void _php_fbird_error(void) /* {{{ */
+void _php_fbird_error(void)
 {
 	char *s = IBG(errmsg);
 	const ISC_STATUS *statusp = IB_STATUS;
@@ -766,10 +765,9 @@ void _php_fbird_error(void) /* {{{ */
 		php_error_docref(NULL, E_WARNING, "%s", IBG(errmsg));
 	}
 }
-/* }}} */
 
 /* print php firebird module error and save it for fbird_errmsg() */
-void _php_fbird_module_error(const char *msg, ...) /* {{{ */
+void _php_fbird_module_error(const char *msg, ...)
 {
 	va_list ap;
 
@@ -787,19 +785,16 @@ void _php_fbird_module_error(const char *msg, ...) /* {{{ */
 		php_error_docref(NULL, E_WARNING, "%s", IBG(errmsg));
 	}
 }
-/* }}} */
 
-/* {{{ internal macros, functions and structures */
 typedef struct {
 	isc_db_handle *db_ptr;
 	zend_long tpb_len;
 	char *tpb_ptr;
 } ISC_TEB;
 
-/* }}} */
 
 /* Fill ib_link and trans with the correct database link and transaction. */
-void _php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAMETERS, /* {{{ */
+void _php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAMETERS,
 	zval *link_id, fbird_db_link **ib_link, fbird_transaction **trans)
 {
 	FBDEBUG("Transaction or database link?");
@@ -821,11 +816,10 @@ void _php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAMETERS, /* {{{ */
 	*trans = NULL;
 	*ib_link = (fbird_db_link *)zend_fetch_resource2_ex(link_id, LE_LINK, le_link, le_plink);
 }
-/* }}} */
 
 /* destructors ---------------------- */
 
-static void _php_fbird_commit_link(fbird_db_link *link) /* {{{ */
+static void _php_fbird_commit_link(fbird_db_link *link)
 {
 	unsigned short i = 0, j;
 	fbird_tr_list *l;
@@ -884,17 +878,15 @@ static void _php_fbird_commit_link(fbird_db_link *link) /* {{{ */
 	}
 }
 
-/* }}} */
 
-static void php_fbird_commit_link_rsrc(zend_resource *rsrc) /* {{{ */
+static void php_fbird_commit_link_rsrc(zend_resource *rsrc)
 {
 	fbird_db_link *link = (fbird_db_link *) rsrc->ptr;
 
 	_php_fbird_commit_link(link);
 }
-/* }}} */
 
-static void _php_fbird_close_link(zend_resource *rsrc) /* {{{ */
+static void _php_fbird_close_link(zend_resource *rsrc)
 {
 	fbird_db_link *link = (fbird_db_link *) rsrc->ptr;
 
@@ -942,9 +934,8 @@ static void _php_fbird_close_link(zend_resource *rsrc) /* {{{ */
 	IBG(num_links)--;
 	efree(link);
 }
-/* }}} */
 
-static void _php_fbird_close_plink(zend_resource *rsrc) /* {{{ */
+static void _php_fbird_close_plink(zend_resource *rsrc)
 {
 	fbird_db_link *link = (fbird_db_link *) rsrc->ptr;
 
@@ -994,9 +985,8 @@ static void _php_fbird_close_plink(zend_resource *rsrc) /* {{{ */
 	IBG(num_links)--;
 	free(link);
 }
-/* }}} */
 
-static void _php_fbird_free_trans(zend_resource *rsrc) /* {{{ */
+static void _php_fbird_free_trans(zend_resource *rsrc)
 {
 	fbird_transaction *trans = (fbird_transaction *)rsrc->ptr;
 	unsigned short i;
@@ -1040,10 +1030,9 @@ static void _php_fbird_free_trans(zend_resource *rsrc) /* {{{ */
 	}
 	efree(trans);
 }
-/* }}} */
 
 #if FB_API_VER >= 40
-static void _php_fbird_free_batch(zend_resource *rsrc) /* {{{ */
+static void _php_fbird_free_batch(zend_resource *rsrc)
 {
 	fbird_batch *batch = (fbird_batch *)rsrc->ptr;
 
@@ -1084,7 +1073,6 @@ static void _php_fbird_free_batch(zend_resource *rsrc) /* {{{ */
 
 	efree(batch);
 }
-/* }}} */
 #endif /* FB_API_VER >= 40 */
 
 /*
@@ -1166,7 +1154,6 @@ static PHP_INI_DISP(php_fbird_trans_displayer)
 	}
 }
 
-/* {{{ startup, shutdown and info functions */
 PHP_INI_BEGIN()
 	PHP_INI_ENTRY_EX("fbird.allow_persistent", "1", PHP_INI_SYSTEM, NULL, zend_ini_boolean_displayer_cb)
 	PHP_INI_ENTRY_EX("fbird.max_persistent", "-1", PHP_INI_SYSTEM, NULL, display_link_numbers)
@@ -1405,7 +1392,6 @@ PHP_MINFO_FUNCTION(fbird)
 	DISPLAY_INI_ENTRIES();
 
 }
-/* }}} */
 
 enum connect_args { DB = 0, USER = 1, PASS = 2, CSET = 3, ROLE = 4, BUF = 0, DLECT = 1, SYNC = 2 };
 
@@ -1413,7 +1399,7 @@ static char const dpb_args[] = {
 	0, isc_dpb_user_name, isc_dpb_password, isc_dpb_lc_ctype, isc_dpb_sql_role_name, 0
 };
 
-int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db) /* {{{ */
+int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db)
 {
     void* connection = NULL;
 
@@ -1444,9 +1430,8 @@ int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db) 
 
     return SUCCESS;
 }
-/* }}} */
 
-static void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent) /* {{{ */
+static void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 {
 	char *c, hash[16], *args[] = { NULL, NULL, NULL, NULL, NULL };
 	int i;
@@ -1603,26 +1588,19 @@ static void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent) /* 
 	Z_TRY_ADDREF_P(return_value);
 	Z_TRY_ADDREF_P(return_value);
 }
-/* }}} */
 
-/* {{{ proto fbird_connect([string database [, string username [, string password [, string charset [, int buffers [, int dialect [, string role]]]]]]])
-   Open a connection to a Firebird database */
 PHP_FUNCTION(fbird_connect)
 {
 	_php_fbird_connect(INTERNAL_FUNCTION_PARAM_PASSTHRU, 0);
 }
-/* }}} */
 
-/* {{{ proto fbird_pconnect([string database [, string username [, string password [, string charset [, int buffers [, int dialect [, string role]]]]]]])
-   Open a persistent connection to a Firebird database */
 PHP_FUNCTION(fbird_pconnect)
 {
 	_php_fbird_connect(INTERNAL_FUNCTION_PARAM_PASSTHRU, INI_INT("fbird.allow_persistent"));
 }
-/* }}} */
 
 /* Helper function for consolidated resource validation with proper error differentiation */
-static int _php_fbird_validate_link_resource(zend_resource *link_res, bool is_default_link, bool clear_default) /* {{{ */
+static int _php_fbird_validate_link_resource(zend_resource *link_res, bool is_default_link, bool clear_default)
 {
 	if (link_res == NULL) {
 		return FAILURE;
@@ -1649,10 +1627,9 @@ static int _php_fbird_validate_link_resource(zend_resource *link_res, bool is_de
 
 	return SUCCESS;
 }
-/* }}} */
 
 /* Helper function for thread-safe default link adoption */
-static void _php_fbird_adopt_new_default_link(zend_resource *closing_link) /* {{{ */
+static void _php_fbird_adopt_new_default_link(zend_resource *closing_link)
 {
 	/* Only search if we're actually clearing the current default */
 	if (IBG(default_link) != closing_link) {
@@ -1663,10 +1640,9 @@ static void _php_fbird_adopt_new_default_link(zend_resource *closing_link) /* {{
 	 * This maintains existing behavior while providing the infrastructure for adoption. */
 	IBG(default_link) = NULL;
 }
-/* }}} */
 
 /* Helper function for optimized resource cleanup */
-static void _php_fbird_close_resource(zend_resource *link_res) /* {{{ */
+static void _php_fbird_close_resource(zend_resource *link_res)
 {
 	/* For persistent connections, check reference count more carefully */
 	if (link_res->type == le_plink && GC_REFCOUNT(link_res) > 1) {
@@ -1677,10 +1653,7 @@ static void _php_fbird_close_resource(zend_resource *link_res) /* {{{ */
 		zend_list_close(link_res);
 	}
 }
-/* }}} */
 
-/* {{{ proto bool fbird_close([resource link_identifier])
-   Close a Firebird connection */
 PHP_FUNCTION(fbird_close)
 {
 	zval *link_arg = NULL;
@@ -1733,10 +1706,7 @@ PHP_FUNCTION(fbird_close)
 
 	RETURN_TRUE;
 }
-/* }}} */
 
-/* {{{ proto fbird_drop_db([resource link_identifier])
-   Drop a Firebird database */
 PHP_FUNCTION(fbird_drop_db)
 {
 	zval *link_arg = NULL;
@@ -1790,14 +1760,11 @@ PHP_FUNCTION(fbird_drop_db)
 
 	RETURN_TRUE;
 }
-/* }}} */
 
-/* {{{ proto resource fbird_transaction([int trans_args [, resource link_identifier [, ... ], int trans_args [, resource link_identifier [, ... ]] [, ...]]])
-   Start a transaction */
 
 #define TPB_MAX_SIZE 2048
 
-void _php_fbird_populate_trans(zend_long trans_argl, zend_long trans_timeout, char *last_tpb, unsigned short *len) /* {{{ */
+void _php_fbird_populate_trans(zend_long trans_argl, zend_long trans_timeout, char *last_tpb, unsigned short *len)
 {
 	/* No explicit flags: leave TPB empty so Firebird uses its defaults. */
 	if (trans_argl == PHP_FBIRD_DEFAULT) {
@@ -1840,9 +1807,8 @@ void _php_fbird_populate_trans(zend_long trans_argl, zend_long trans_timeout, ch
 	/* Free the OO API allocated buffer */
 	fbxpb_free_tpb(tpb_buffer);
 }
-/* }}} */
 
-void _php_fbird_populate_trans_from_array(zval *options, zend_long *trans_timeout, char *last_tpb, unsigned short *len) /* {{{ */
+void _php_fbird_populate_trans_from_array(zval *options, zend_long *trans_timeout, char *last_tpb, unsigned short *len)
 {
 	unsigned char *p = (unsigned char *) last_tpb;
 	unsigned char *end = p + TPB_MAX_SIZE;
@@ -1980,10 +1946,7 @@ void _php_fbird_populate_trans_from_array(zval *options, zend_long *trans_timeou
 
 	*len = (unsigned short) (p - (unsigned char *) last_tpb);
 }
-/* }}} */
 
-/* {{{ proto resource fbird_trans_start([resource link_identifier, ] array options)
-   Start a transaction with array-based options */
 PHP_FUNCTION(fbird_trans_start)
 {
 	zval *link_arg = NULL, *options_arg = NULL;
@@ -2075,9 +2038,8 @@ PHP_FUNCTION(fbird_trans_start)
 	RETVAL_RES(zend_register_resource(ib_trans, le_trans));
 	Z_TRY_ADDREF_P(return_value);
 }
-/* }}} */
 
-static void _php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAMETERS, const char *format) /* {{{ */
+static void _php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAMETERS, const char *format)
 {
 	zval *trans_arg = NULL;
 	char *name;
@@ -2168,34 +2130,22 @@ static void _php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAMETERS, const char *
 	efree(query);
 	RETURN_TRUE;
 }
-/* }}} */
 
-/* {{{ proto bool fbird_savepoint(resource trans_handle, string name)
-   Create a named savepoint */
 PHP_FUNCTION(fbird_savepoint)
 {
 	_php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAM_PASSTHRU, "SAVEPOINT %s");
 }
-/* }}} */
 
-/* {{{ proto bool fbird_rollback_savepoint(resource trans_handle, string name)
-   Rollback to a named savepoint */
 PHP_FUNCTION(fbird_rollback_savepoint)
 {
 	_php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAM_PASSTHRU, "ROLLBACK TO SAVEPOINT %s");
 }
-/* }}} */
 
-/* {{{ proto bool fbird_release_savepoint(resource trans_handle, string name)
-   Release a named savepoint */
 PHP_FUNCTION(fbird_release_savepoint)
 {
 	_php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAM_PASSTHRU, "RELEASE SAVEPOINT %s");
 }
-/* }}} */
 
-/* {{{ proto array fbird_trans_info(resource trans_handle)
-   Return information about a transaction */
 PHP_FUNCTION(fbird_trans_info)
 {
 	zval *trans_arg;
@@ -2291,10 +2241,7 @@ PHP_FUNCTION(fbird_trans_info)
 	/* Since we don't track STATE in struct, we infer it is ACTIVE if valid resource */
 	add_assoc_string(return_value, "state", "ACTIVE");
 }
-/* }}} */
 
-/* {{{ proto array fbird_connection_info([resource link_identifier])
-   Return database connection statistics and information */
 PHP_FUNCTION(fbird_connection_info)
 {
 	zval *link_arg = NULL;
@@ -2416,7 +2363,6 @@ PHP_FUNCTION(fbird_connection_info)
 		p += len;
 	}
 }
-/* }}} */
 
 PHP_FUNCTION(fbird_trans)
 {
@@ -2624,9 +2570,8 @@ register_trans:
 	RETVAL_RES(zend_register_resource(ib_trans, le_trans));
 	Z_TRY_ADDREF_P(return_value);
 }
-/* }}} */
 
-int _php_fbird_def_trans(fbird_db_link *ib_link, fbird_transaction **trans) /* {{{ */
+int _php_fbird_def_trans(fbird_db_link *ib_link, fbird_transaction **trans)
 {
 	if (ib_link == NULL) {
 		php_error_docref(NULL, E_WARNING, "Invalid database link");
@@ -2695,9 +2640,8 @@ int _php_fbird_def_trans(fbird_db_link *ib_link, fbird_transaction **trans) /* {
 	}
 	return SUCCESS;
 }
-/* }}} */
 
-static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit) /* {{{ */
+static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 {
 	fbird_transaction *trans = NULL;
 	int res_id = 0;
@@ -2779,39 +2723,26 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit) /* {{
 	}
 	RETURN_TRUE;
 }
-/* }}} */
 
-/* {{{ proto fbird_commit( resource link_identifier )
-   Commit transaction */
 PHP_FUNCTION(fbird_commit)
 {
 	_php_fbird_trans_end(INTERNAL_FUNCTION_PARAM_PASSTHRU, COMMIT);
 }
-/* }}} */
 
-/* {{{ proto fbird_rollback( resource link_identifier )
-   Rollback transaction */
 PHP_FUNCTION(fbird_rollback)
 {
 	_php_fbird_trans_end(INTERNAL_FUNCTION_PARAM_PASSTHRU, ROLLBACK);
 }
-/* }}} */
 
-/* {{{ proto fbird_commit_ret( resource link_identifier )
-   Commit transaction and retain the transaction context */
 PHP_FUNCTION(fbird_commit_ret)
 {
 	_php_fbird_trans_end(INTERNAL_FUNCTION_PARAM_PASSTHRU, COMMIT | RETAIN);
 }
-/* }}} */
 
-/* {{{ proto fbird_rollback_ret( resource link_identifier )
-   Rollback transaction and retain the transaction context */
 PHP_FUNCTION(fbird_rollback_ret)
 {
 	_php_fbird_trans_end(INTERNAL_FUNCTION_PARAM_PASSTHRU, ROLLBACK | RETAIN);
 }
-/* }}} */
 
 static int is_valid_identifier(const char *s, size_t len)
 {
@@ -2844,8 +2775,6 @@ static int is_valid_identifier(const char *s, size_t len)
 	return 1;
 }
 
-/* {{{ proto fbird_gen_id(string generator [, int increment [, resource link_identifier ]])
-   Increments the named generator and returns its new value */
 PHP_FUNCTION(fbird_gen_id)
 {
 	zval *link = NULL;
@@ -2979,14 +2908,11 @@ void fbp_error_ex(long level, const char *msg, ...)
 	php_error(level, "%s", buf);
 }
 
-/* }}} */
 
 /* =============================================================================
  * Limbo Transaction Functions (Two-Phase Commit Recovery)
  * ============================================================================= */
 
-/* {{{ proto array|false fbird_get_limbo_transactions([resource link_identifier [, int max_count]])
-   Get list of limbo (in-doubt) transaction IDs */
 PHP_FUNCTION(fbird_get_limbo_transactions)
 {
 	zval *link_arg = NULL;
@@ -3046,10 +2972,7 @@ PHP_FUNCTION(fbird_get_limbo_transactions)
 
 	efree(trans_ids);
 }
-/* }}} */
 
-/* {{{ proto resource|false fbird_reconnect_transaction(resource link_identifier, int transaction_id)
-   Reconnect to a limbo transaction for recovery */
 PHP_FUNCTION(fbird_reconnect_transaction)
 {
 	zval *link_arg;
@@ -3111,15 +3034,12 @@ PHP_FUNCTION(fbird_reconnect_transaction)
 	RETVAL_RES(zend_register_resource(ib_trans, le_trans));
 	Z_TRY_ADDREF_P(return_value);
 }
-/* }}} */
 
 #if FB_API_VER >= 40
 /* =============================================================================
  * IBatch API Functions (Firebird 4.0+ Bulk Operations)
  * ============================================================================= */
 
-/* {{{ proto resource|false fbird_batch_create(resource query [, resource trans_identifier])
-   Create a batch from a prepared statement for bulk operations */
 PHP_FUNCTION(fbird_batch_create)
 {
 	zval *query_arg, *trans_arg = NULL;
@@ -3198,10 +3118,7 @@ PHP_FUNCTION(fbird_batch_create)
 
 	RETVAL_RES(zend_register_resource(ib_batch, le_batch));
 }
-/* }}} */
 
-/* {{{ proto bool fbird_batch_add(resource batch, mixed ...$args)
-   Add a row of parameters to the batch */
 PHP_FUNCTION(fbird_batch_add)
 {
 	zval *batch_arg;
@@ -3588,10 +3505,7 @@ PHP_FUNCTION(fbird_batch_add)
 
 	RETURN_TRUE;
 }
-/* }}} */
 
-/* {{{ proto array|false fbird_batch_execute(resource batch)
-   Execute the batch and return results */
 PHP_FUNCTION(fbird_batch_execute)
 {
 	zval *batch_arg;
@@ -3641,10 +3555,7 @@ PHP_FUNCTION(fbird_batch_execute)
 	add_assoc_long(return_value, "success_count", success_count);
 	add_assoc_long(return_value, "error_count", error_count);
 }
-/* }}} */
 
-/* {{{ proto bool fbird_batch_cancel(resource batch)
-   Cancel the batch without executing */
 PHP_FUNCTION(fbird_batch_cancel)
 {
 	zval *batch_arg;
@@ -3672,10 +3583,7 @@ PHP_FUNCTION(fbird_batch_cancel)
 
 	RETURN_TRUE;
 }
-/* }}} */
 
-/* {{{ proto string|false fbird_batch_add_blob(resource batch, string data [, int type])
-   Create inline BLOB in batch context and return BLOB ID */
 PHP_FUNCTION(fbird_batch_add_blob)
 {
 	zval *batch_arg;
@@ -3707,10 +3615,7 @@ PHP_FUNCTION(fbird_batch_add_blob)
 	/* Convert BLOB ID to hex string for PHP */
 	RETURN_NEW_STR(_php_fbird_quad_to_string(blob_id));
 }
-/* }}} */
 
-/* {{{ proto string|false fbird_batch_register_blob(resource batch, string blob_id)
-   Register existing BLOB for batch use */
 PHP_FUNCTION(fbird_batch_register_blob)
 {
 	zval *batch_arg;
@@ -3747,7 +3652,6 @@ PHP_FUNCTION(fbird_batch_register_blob)
 	/* Convert batch BLOB ID to hex string for PHP */
 	RETURN_NEW_STR(_php_fbird_quad_to_string(batch_blob_id));
 }
-/* }}} */
 #endif /* FB_API_VER >= 40 */
 
 

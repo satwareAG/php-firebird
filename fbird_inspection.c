@@ -258,8 +258,6 @@ static int _fbird_drop_table(fbird_db_link *link, fbird_transaction *trans, cons
 }
 
 
-/* {{{ proto bool fbird_kill_attachment(resource link_or_trans, int attachment_id)
-   Terminates a specific connection */
 PHP_FUNCTION(fbird_kill_attachment)
 {
 	zval *link_arg;
@@ -281,10 +279,7 @@ PHP_FUNCTION(fbird_kill_attachment)
 
 	RETURN_TRUE;
 }
-/* }}} */
 
-/* {{{ proto array fbird_list_table_blockers(resource link_or_trans, string table_name)
-   Returns blocking attachment information using OO API */
 PHP_FUNCTION(fbird_list_table_blockers)
 {
 	zval *link_arg;
@@ -482,10 +477,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
 	fbs_close_cursor(stmt, IB_STATUS);
 	fbs_free(stmt, IB_STATUS);
 }
-/* }}} */
 
-/* {{{ proto bool fbird_drop_table_force(resource link_or_trans, string table_name)
-   Drops a table by first killing locking connections */
 PHP_FUNCTION(fbird_drop_table_force)
 {
 	zval *link_arg;
@@ -515,4 +507,3 @@ PHP_FUNCTION(fbird_drop_table_force)
 		RETURN_FALSE;
 	}
 }
-/* }}} */

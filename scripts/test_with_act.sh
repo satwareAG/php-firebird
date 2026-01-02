@@ -15,9 +15,11 @@
 #
 # act Mode Usage:
 #   ./scripts/test_with_act.sh act                    # Run all workflows
-#   ./scripts/test_with_act.sh act main               # Run main.yml only
+#   ./scripts/test_with_act.sh act ci                 # Run ci.yml only
 #   ./scripts/test_with_act.sh act coverage           # Run coverage.yml only
 #   ./scripts/test_with_act.sh act sanitizers         # Run sanitizers.yml only
+#   ./scripts/test_with_act.sh act release-linux      # Run release-linux.yml only
+#   ./scripts/test_with_act.sh act release-windows    # Run release-windows.yml only
 #   ./scripts/test_with_act.sh act --list             # List available workflows/jobs
 #   ./scripts/test_with_act.sh act --dryrun           # Dry run (parse only)
 #   ./scripts/test_with_act.sh act --job <job>        # Run specific job
@@ -37,7 +39,7 @@
 #   ./scripts/test_with_act.sh --matrix --all              # Full matrix (slow!)
 #   ./scripts/test_with_act.sh --full                      # Complete CI simulation
 #   ./scripts/test_with_act.sh --syntax                    # Validate workflow YAML
-#   ./scripts/test_with_act.sh act main --dryrun           # Dry-run main workflow
+#   ./scripts/test_with_act.sh act ci --dryrun             # Dry-run CI workflow
 #   ./scripts/test_with_act.sh act --job coverage          # Run coverage job only
 #
 # CI Parity Guarantee:
@@ -68,10 +70,12 @@ DOCKER_DIR="$PROJECT_ROOT/docker"
 WORKFLOWS_DIR="$PROJECT_ROOT/.github/workflows"
 
 # Workflow files
-WORKFLOW_MAIN=".github/workflows/main.yml"
+WORKFLOW_CI=".github/workflows/ci.yml"
 WORKFLOW_QUALITY=".github/workflows/code-quality.yml"
 WORKFLOW_COVERAGE=".github/workflows/coverage.yml"
 WORKFLOW_SANITIZERS=".github/workflows/sanitizers.yml"
+WORKFLOW_RELEASE_LINUX=".github/workflows/release-linux.yml"
+WORKFLOW_RELEASE_WINDOWS=".github/workflows/release-windows.yml"
 
 # Defaults
 MODE=""
@@ -171,7 +175,8 @@ check_prerequisites() {
 # ============================================================================
 
 # Workflows that use service containers (Firebird) - these have bugs in act v0.2.83
-WORKFLOWS_WITH_SERVICES=("main" "coverage" "sanitizers")
+# Note: "ci" was previously named "main"
+WORKFLOWS_WITH_SERVICES=("ci" "coverage" "sanitizers")
 
 # Check if workflow uses service containers
 workflow_uses_services() {
@@ -196,7 +201,7 @@ show_service_warning() {
     echo -e ""
     echo -e "${CYAN}Recommended alternatives:${NC}"
     case "$workflow_name" in
-        main)
+        ci)
             echo -e "  ${GREEN}./scripts/test_with_act.sh --matrix${NC}  # PHP/Firebird matrix tests"
             echo -e "  ${GREEN}./scripts/test_with_act.sh --matrix --php 8.4 --fb 5.0${NC}  # Single cell"
             ;;
@@ -210,6 +215,8 @@ show_service_warning() {
     echo -e ""
     echo -e "${CYAN}For workflows without services, act works well:${NC}"
     echo -e "  ${GREEN}./scripts/test_with_act.sh act code-quality${NC}  # Quality checks"
+    echo -e "  ${GREEN}./scripts/test_with_act.sh act release-linux${NC}  # Linux release build"
+    echo -e "  ${GREEN}./scripts/test_with_act.sh act release-windows${NC}  # Windows release build"
     echo -e ""
     echo -e "See: ${CYAN}docs/development/LOCAL_CI_TESTING.md${NC}"
     echo -e ""
@@ -319,11 +326,13 @@ list_workflows() {
 
     echo -e "${CYAN}Usage examples:${NC}"
     echo "  ./scripts/test_with_act.sh act                    # Run all workflows"
-    echo "  ./scripts/test_with_act.sh act main               # Run main.yml only"
+    echo "  ./scripts/test_with_act.sh act ci                 # Run ci.yml only"
     echo "  ./scripts/test_with_act.sh act coverage           # Run coverage.yml only"
     echo "  ./scripts/test_with_act.sh act sanitizers         # Run sanitizers.yml only"
+    echo "  ./scripts/test_with_act.sh act release-linux      # Run release-linux.yml only"
+    echo "  ./scripts/test_with_act.sh act release-windows    # Run release-windows.yml only"
     echo "  ./scripts/test_with_act.sh act --job asan-ubsan   # Run specific job"
-    echo "  ./scripts/test_with_act.sh act main --dryrun      # Dry run"
+    echo "  ./scripts/test_with_act.sh act ci --dryrun        # Dry run"
 }
 
 # Create act environment file
@@ -667,12 +676,12 @@ run_qa_mode() {
 }
 
 # ============================================================================
-# Matrix Mode (mirrors main.yml linux-matrix-build)
+# Matrix Mode (mirrors ci.yml linux-matrix-build)
 # ============================================================================
 
 run_matrix_mode() {
     echo -e "\n${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║       CI Build Matrix (mirrors main.yml)                     ║${NC}"
+    echo -e "${BLUE}║       CI Build Matrix (mirrors ci.yml)                       ║${NC}"
     echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
 
     local matrix_failed=0

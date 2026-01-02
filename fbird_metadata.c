@@ -60,7 +60,7 @@ void _php_fbird_insert_alias(HashTable *ht, const char *alias)
 	zend_hash_str_add_new(ht, alias, alias_len, &t2);
 }
 
-void _php_fbird_field_info(zval *return_value, fbird_query *ib_query, int is_outvar, int num) /* {{{ */
+void _php_fbird_field_info(zval *return_value, fbird_query *ib_query, int is_outvar, int num)
 {
 	unsigned short len;
 	char buf[16], *s = buf;
@@ -233,10 +233,7 @@ void _php_fbird_field_info(zval *return_value, fbird_query *ib_query, int is_out
 		add_assoc_string(return_value, "type", s);
 	}
 }
-/* }}} */
 
-/* {{{ proto array fbird_field_info(resource query_result, int field_number)
-   Get information about a field */
 PHP_FUNCTION(fbird_field_info)
 {
 	zval *result_arg;
@@ -257,10 +254,7 @@ PHP_FUNCTION(fbird_field_info)
 
 	_php_fbird_field_info(return_value, ib_query, 1, (ISC_SHORT)field_arg);
 }
-/* }}} */
 
-/* {{{ proto int fbird_num_params(resource query)
-   Get the number of params in a prepared query */
 PHP_FUNCTION(fbird_num_params)
 {
 	zval *result;
@@ -284,10 +278,7 @@ PHP_FUNCTION(fbird_num_params)
 	 */
 	RETURN_LONG(ib_query->in_fields_count);
 }
-/* }}} */
 
-/* {{{ proto array fbird_param_info(resource query, int field_number)
-   Get information about a parameter */
 PHP_FUNCTION(fbird_param_info)
 {
 	zval *result_arg;
@@ -308,10 +299,7 @@ PHP_FUNCTION(fbird_param_info)
 
 	_php_fbird_field_info(return_value, ib_query, 0, field_arg);
 }
-/* }}} */
 
-/* {{{ proto int fbird_num_fields(resource query_result)
-   Get the number of fields in result */
 PHP_FUNCTION(fbird_num_fields)
 {
 	zval *result;
@@ -335,7 +323,6 @@ PHP_FUNCTION(fbird_num_fields)
 	 */
 	RETURN_LONG(ib_query->out_fields_count);
 }
-/* }}} */
 
 // We can't rely on aliasname coming from XSQLVAR if we want long field names
 // (>31). We also can't rely on parsing buffer from isc_dsql_sql_info() because

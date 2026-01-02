@@ -25,14 +25,9 @@
 #include <utility>
 #include <tuple>
 
-//=============================================================================
-// C++17 RAII Wrapper Classes for Firebird Interface Management
-//=============================================================================
-
 namespace {
     constexpr size_t DEFAULT_STATUS_VECTOR_SIZE = 20;
 
-    // C++17: Modern status vector operations (C++17 compatible)
     constexpr void copy_status_vector(const ISC_STATUS* source, size_t source_size,
                                      ISC_STATUS* destination, size_t dest_size) noexcept {
         if (!source || !destination) return;

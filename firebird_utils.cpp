@@ -263,10 +263,6 @@ namespace {
 #endif // FB_API_VER >= 40
 } // end anonymous namespace
 
-// =============================================================================
-// Namespace fb::getMaster() implementation
-// =============================================================================
-
 // Undefine min/max macros from php_fbird_includes.h to avoid C++ STL conflicts
 #ifdef min
 #undef min
@@ -298,14 +294,12 @@ Firebird::IMaster* getMaster() noexcept {
 /* Returns the client version. 0 bytes are minor version, 1 bytes are major version. */
 extern "C" unsigned fbu_get_client_version(void *master_ptr)
 {
-    // Step 2.1: Use internal C++17 implementation with safe fallback
     auto version = get_client_version_impl(master_ptr);
     return version.value_or(0);
 }
 
 extern "C" ISC_TIME fbu_encode_time(void *master_ptr, unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions)
 {
-    // Step 2.2: Use internal C++17 implementation with input validation
     TimeComponents components{hours, minutes, seconds, fractions};
     auto result = encode_time_impl(master_ptr, components);
     return result.value_or(0);
@@ -313,15 +307,10 @@ extern "C" ISC_TIME fbu_encode_time(void *master_ptr, unsigned hours, unsigned m
 
 extern "C" ISC_DATE fbu_encode_date(void *master_ptr, unsigned year, unsigned month, unsigned day)
 {
-    // Step 2.3: Use internal C++17 implementation with input validation
     DateComponents components{year, month, day};
     auto result = encode_date_impl(master_ptr, components);
     return result.value_or(0);
 }
-
-// =============================================================================
-// Phase 11: Type Encoding/Decoding Functions (FB 3.0+)
-// =============================================================================
 
 extern "C" ISC_TIMESTAMP fbu_encode_timestamp(void *master_ptr, unsigned year, unsigned month, unsigned day,
     unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions)
@@ -470,17 +459,12 @@ extern "C" void fbu_decode_timestamp(void *master_ptr, const ISC_TIMESTAMP* time
     }
 }
 
-// C++17: Modern status copying (replaces manual memcpy)
 static void fbu_copy_status(const ISC_STATUS* from, ISC_STATUS* to, size_t maxLength)
 {
     if (!from || !to || maxLength == 0) return;
 
     copy_status_vector(from, maxLength, to, maxLength);
 }
-
-// =============================================================================
-// OO API Connection Functions (fbc_*)
-// =============================================================================
 
 extern "C" void* fbc_connect(
     void* master_ptr,
@@ -718,10 +702,6 @@ extern "C" unsigned fbc_get_server_version(void* connection) {
     auto* conn = reinterpret_cast<fb::Connection*>(connection);
     return conn->getVersion().getVersion();
 }
-
-// =============================================================================
-// OO API Transaction Functions (fbt_*)
-// =============================================================================
 
 #include "src/cpp/fb_transaction.hpp"
 
@@ -1046,11 +1026,9 @@ extern "C" void fbu_decode_timestamp_tz(void *master_ptr, const ISC_TIMESTAMP_TZ
 	unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions,
 	unsigned time_zone_buffer_length, char* time_zone_buffer) // NOLINT(readability-function-cognitive-complexity)
 {
-    // Step 3.1: Use internal C++17 implementation with structured bindings
     auto decoded = decode_timestamp_tz_impl(master_ptr, timestamp_tz);
 
     if (decoded.has_value()) {
-        // C++17: Structured binding assignment for cleaner multi-parameter handling
         auto [y, m, d, h, min, s, f] = decoded->tie();
 
         // Assign to output parameters (maintaining exact original behavior)
@@ -1086,7 +1064,6 @@ extern "C" void fbu_decode_timestamp_tz(void *master_ptr, const ISC_TIMESTAMP_TZ
 
 extern "C" int fbu_insert_aliases(void *master_ptr, ISC_STATUS* status, fbird_query *ib_query, void *statement_ptr)
 {
-    // Step 3.3: Use internal C++17 implementation with RAII metadata management
     if (master_ptr == nullptr || ib_query == nullptr || statement_ptr == nullptr) {
         return -1;
     }
@@ -1098,7 +1075,6 @@ extern "C" int fbu_insert_aliases(void *master_ptr, ISC_STATUS* status, fbird_qu
 extern "C" int fbu_insert_field_info(void *master_ptr, ISC_STATUS* status, int is_outvar, int num,
 	zval *into_array, void *statement_ptr)
 {
-    // Step 3.2: Use internal C++17 implementation with complete RAII
     if (master_ptr == nullptr || into_array == nullptr || statement_ptr == nullptr) {
         return -1;
     }
@@ -1162,10 +1138,6 @@ extern "C" int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* times
 }
 
 #endif // FB_API_VER >= 40
-
-// =============================================================================
-// OO API Statement Functions (fbs_*)
-// =============================================================================
 
 #if FB_API_VER >= 30
 
@@ -2261,10 +2233,8 @@ extern "C" int fba_lookup_bounds(
 
 #endif // FB_API_VER >= 30 (Phase 9 Array functions)
 
-// Phase 6: Blob OO API - C interop implementations
-// These non-inline implementations are needed because inline functions in headers
-// don't get proper linkage when called from C code.
-
+// Non-inline implementations needed for C linkage (inline functions in headers
+// don't get proper linkage when called from C code)
 extern "C" void* fbb_create(
     void* master_ptr,
     void* attachment_ptr,

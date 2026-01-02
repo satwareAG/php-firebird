@@ -35,7 +35,6 @@ static PHP_GINIT_FUNCTION(fbird);
 
 zend_class_entry *firebird_exception_ce;
 
-/* {{{ arginfo */
 ZEND_BEGIN_ARG_INFO(arginfo_fbird_errmsg, 0)
 ZEND_END_ARG_INFO()
 
@@ -435,9 +434,7 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_batch_register_blob, 0, 0, 2)
 	ZEND_ARG_TYPE_INFO(0, blob_id, IS_STRING, 0)
 ZEND_END_ARG_INFO()
 #endif /* FB_API_VER >= 40 */
-/* }}} */
 
-/* {{{ extension definition structures */
 static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_connect, 		arginfo_fbird_connect)
 	PHP_FE(fbird_pconnect, 		arginfo_fbird_pconnect)
@@ -589,10 +586,6 @@ const char *_fbird_res_type_name(int type) {
 
 /* }}} */
 
-/* error handling ---------------------------- */
-
-/* {{{ proto fbird_errmsg(void)
-   Return error message */
 PHP_FUNCTION(fbird_errmsg)
 {
 	if (zend_parse_parameters_none() == FAILURE) {
@@ -605,34 +598,22 @@ PHP_FUNCTION(fbird_errmsg)
 
 	RETURN_FALSE;
 }
-/* }}} */
 
-/* {{{ proto fbird_get_client_version(void)
-   Return client version in form major.minor */
 PHP_FUNCTION(fbird_get_client_version)
 {
 	RETURN_DOUBLE((double)IBG(client_major_version) + (double)IBG(client_minor_version) / 10);
 }
-/* }}} */
 
-/* {{{ proto fbird_get_client_major_version(void)
-   Return client major version */
 PHP_FUNCTION(fbird_get_client_major_version)
 {
 	RETURN_LONG(IBG(client_major_version));
 }
-/* }}} */
 
-/* {{{ proto fbird_get_client_minor_version(void)
-   Return client minor version */
 PHP_FUNCTION(fbird_get_client_minor_version)
 {
 	RETURN_LONG(IBG(client_minor_version));
 }
-/* }}} */
 
-/* {{{ proto fbird_errcode(void)
-   Return error code */
 PHP_FUNCTION(fbird_errcode)
 {
 	if (zend_parse_parameters_none() == FAILURE) {
@@ -644,10 +625,7 @@ PHP_FUNCTION(fbird_errcode)
 	}
 	RETURN_FALSE;
 }
-/* }}} */
 
-/* {{{ proto fbird_sqlstate(void)
-   Return SQLSTATE error code for the last error */
 PHP_FUNCTION(fbird_sqlstate)
 {
 	char sqlstate[6]; /* 5 chars + null terminator */
@@ -673,10 +651,7 @@ PHP_FUNCTION(fbird_sqlstate)
 
 	RETURN_STRINGL(sqlstate, 5);
 }
-/* }}} */
 
-/* {{{ proto string fbird_escape_string(string string)
-   Escape a string for safe use in SQL queries by doubling single quotes */
 PHP_FUNCTION(fbird_escape_string)
 {
 	zend_string *str;
@@ -718,10 +693,7 @@ PHP_FUNCTION(fbird_escape_string)
 
 	RETURN_NEW_STR(escaped);
 }
-/* }}} */
 
-/* {{{ proto bool fbird_set_exception_mode(int mode)
-   Set runtime exception mode for Firebird errors */
 PHP_FUNCTION(fbird_set_exception_mode)
 {
 	zend_long mode;
@@ -739,10 +711,7 @@ PHP_FUNCTION(fbird_set_exception_mode)
 	IBG(exception_mode) = (int)mode;
 	RETURN_TRUE;
 }
-/* }}} */
 
-/* {{{ proto int fbird_get_exception_mode(void)
-   Get current runtime exception mode */
 PHP_FUNCTION(fbird_get_exception_mode)
 {
 	if (zend_parse_parameters_none() == FAILURE) {
@@ -751,10 +720,7 @@ PHP_FUNCTION(fbird_get_exception_mode)
 
 	RETURN_LONG(IBG(exception_mode));
 }
-/* }}} */
 
-/* {{{ proto string Firebird\Exception::getSqlState()
-   Return SQLSTATE error code for this exception */
 PHP_METHOD(FirebirdException, getSqlState)
 {
 	char sqlstate[6]; /* 5 chars + null terminator */
@@ -769,9 +735,7 @@ PHP_METHOD(FirebirdException, getSqlState)
 	/* Always return the SQLSTATE (even if "00000" for compatibility) */
 	RETURN_STRINGL(sqlstate, 5);
 }
-/* }}} */
 
-/* Firebird\Exception method table */
 static const zend_function_entry firebird_exception_methods[] = {
 	PHP_ME(FirebirdException, getSqlState, arginfo_firebird_exception_getSqlState, ZEND_ACC_PUBLIC)
 	PHP_FE_END

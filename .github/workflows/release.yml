@@ -229,14 +229,42 @@ jobs:
         shell: powershell
         run: |
           $fbVer = "$env:FIREBIRD_VERSION"
-          $url = "https://github.com/FirebirdSQL/firebird/releases/download/v$fbVer/Firebird-$fbVer-windows-x64.zip"
-          Write-Host "Downloading Firebird SDK: $url"
+          
+          # Use GitHub API to find the correct asset (filename includes build number)
+          $releaseUrl = "https://api.github.com/repos/FirebirdSQL/firebird/releases/tags/v$fbVer"
+          Write-Host "Fetching release info from $releaseUrl"
+          
+          $release = Invoke-RestMethod -Uri $releaseUrl -Headers @{"Accept"="application/vnd.github.v3+json"}
+          
+          # Find Windows x64 zip (not withDebugSymbols, not .exe)
+          $asset = $release.assets | Where-Object { 
+            $_.name -match "windows-x64\.zip$" -and $_.name -notmatch "withDebugSymbols"
+          } | Select-Object -First 1
+          
+          if (-not $asset) {
+            Write-Error "Could not find Windows x64 zip asset for Firebird $fbVer"
+            Write-Host "Available assets:"
+            $release.assets | ForEach-Object { Write-Host "  - $($_.name)" }
+            exit 1
+          }
+          
+          $url = $asset.browser_download_url
+          Write-Host "Downloading Firebird SDK: $($asset.name)"
+          Write-Host "URL: $url"
+          
           Invoke-WebRequest -Uri $url -OutFile firebird-sdk.zip
           Expand-Archive firebird-sdk.zip -DestinationPath C:\firebird
           
-          # Find the extracted directory
-          $fbDir = Get-ChildItem C:\firebird | Select-Object -First 1
-          Move-Item "$fbDir\*" C:\firebird\ -ErrorAction SilentlyContinue
+          # Find the extracted directory (Firebird extracts to a subdirectory)
+          $fbDir = Get-ChildItem C:\firebird -Directory | Select-Object -First 1
+          if ($fbDir) {
+            Write-Host "Moving contents from $($fbDir.FullName) to C:\firebird"
+            Get-ChildItem $fbDir.FullName | Move-Item -Destination C:\firebird -Force
+            Remove-Item $fbDir.FullName -Force -ErrorAction SilentlyContinue
+          }
+          
+          Write-Host "Firebird SDK installed to C:\firebird"
+          Get-ChildItem C:\firebird | Select-Object -First 10
       
       - name: Build extension
         shell: cmd

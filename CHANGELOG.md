@@ -63,7 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **AlmaLinux 9 from CI**: Removed from test-bundles matrix (default PHP 8.0 is below minimum supported PHP 8.1)
 
-## [Unreleased]
+## [7.0.0-rc.36] - 2026-01-03
 
 ### Fixed
 

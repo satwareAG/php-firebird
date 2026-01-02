@@ -1,8 +1,24 @@
+# =============================================================================
+# PHP Firebird Extension - Windows DLL Build
+# =============================================================================
+# Builds Windows DLLs using official php/php-windows-builder actions.
+#
+# Triggers:
+#   - Tag push (v7.*) - immutable releases
+#   - Release created/published - non-immutable releases
+#   - Pull requests (build only, no release)
+#   - Manual dispatch (testing)
+#
+# Best practices from: https://github.com/php/php-windows-builder
+# =============================================================================
+
 name: Windows DLL Build
 
 on:
   push:
-    branches: [master, main, satware-main]
+    tags:
+      - 'v7.*'
+    branches: [satware-main]
     paths:
       - '*.c'
       - '*.h'
@@ -13,12 +29,6 @@ on:
     types: [created, published]
   workflow_dispatch:
     inputs:
-      php-versions:
-        description: 'PHP versions (comma-separated)'
-        default: '8.4'
-      firebird-versions:
-        description: 'Firebird versions (comma-separated)'
-        default: '5.0'
       tag:
         description: 'Release tag to build for (optional)'
         required: false
@@ -27,12 +37,13 @@ permissions:
   contents: write
 
 env:
-  FIREBIRD_SDK_CACHE_KEY: firebird-sdk-v1
+  FIREBIRD_SDK_CACHE_KEY: firebird-sdk-v2
 
 jobs:
-  # Use php-windows-builder/extension-matrix for automatic PHP version detection
-  # This reads PHP constraints from composer.json and generates the build matrix
-  # See: https://github.com/php/php-windows-builder#get-the-job-matrix-to-build-a-php-extension
+  # ===========================================================================
+  # Generate build matrix using php-windows-builder/extension-matrix
+  # Reads PHP constraints from composer.json
+  # ===========================================================================
   get-extension-matrix:
     runs-on: ubuntu-latest
     outputs:
@@ -45,13 +56,13 @@ jobs:
         id: extension-matrix
         uses: php/php-windows-builder/extension-matrix@v1
         with:
-          # Explicitly list PHP versions (alternatively, rely on composer.json "php": ">=8.1")
-          php-version-list: '8.1, 8.2, 8.3, 8.4, 8.5'
-          # x64 only - x86 would require separate Firebird SDK builds
+          php-version-list: '8.2, 8.3, 8.4, 8.5'
           arch-list: 'x64'
-          # Both thread-safe and non-thread-safe builds
           ts-list: 'nts, ts'
 
+  # ===========================================================================
+  # Build Windows DLLs
+  # ===========================================================================
   build:
     needs: get-extension-matrix
     runs-on: ${{ matrix.os }}
@@ -59,7 +70,6 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.get-extension-matrix.outputs.matrix) }}
     env:
-      # Firebird SDK version - compiled DLL is compatible with all FB client versions
       FIREBIRD_VERSION: '5.0'
 
     steps:
@@ -100,85 +110,33 @@ jobs:
           args: --with-firebird=${{ env.FIREBIRD_HOME }}
           run-tests: false
 
+  # ===========================================================================
+  # Upload artifacts to GitHub Release
+  # Uses official php-windows-builder/release action
+  # ===========================================================================
   release:
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
+    if: |
+      github.event_name == 'release' ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.tag != '')
     steps:
-      - name: Checkout (for gh CLI context)
-        uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: release-artifacts
-          merge-multiple: true
-
-      - name: Generate checksums
+      - name: Determine release tag
+        id: tag
         run: |
-          cd release-artifacts
-          # PHP Windows Builder produces .zip packages containing the DLL
-          if ls *.zip 1> /dev/null 2>&1; then
-            sha256sum *.zip > SHA256SUMS-windows.txt
-            echo "Generated checksums for Windows packages:"
-            cat SHA256SUMS-windows.txt
-          else
-            echo "Warning: No .zip files found"
-            ls -la
-          fi
-
-      - name: Ensure release exists
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG="${{ github.event.release.tag_name || inputs.tag }}"
-          echo "Checking if release exists for tag: $TAG"
-          
-          # For release events, the release definitely exists
           if [ "${{ github.event_name }}" = "release" ]; then
-            echo "✓ Triggered by release event - release exists"
-            exit 0
-          fi
-          
-          # For workflow_dispatch, check if release exists
-          if gh release view "$TAG" --repo "${{ github.repository }}" &>/dev/null; then
-            echo "✓ Release already exists for tag: $TAG"
+            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           else
-            echo "⚠ No release found for tag: $TAG"
-            echo "Creating draft release for Windows DLL artifacts..."
-            
-            # Determine if this is a prerelease (contains rc, alpha, beta, dev)
-            PRERELEASE_FLAG=""
-            if [[ "$TAG" =~ (rc|alpha|beta|dev) ]]; then
-              PRERELEASE_FLAG="--prerelease"
-              echo "  (marking as prerelease due to version identifier)"
-            fi
-            
-            gh release create "$TAG" \
-              --repo "${{ github.repository }}" \
-              --draft \
-              $PRERELEASE_FLAG \
-              --title "php-firebird $TAG (Windows DLLs)" \
-              --notes "Windows DLL build artifacts for $TAG. This draft release was auto-created by the Windows build workflow."
-            
-            echo "✓ Created draft release: $TAG"
+            echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Upload to Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG="${{ github.event.release.tag_name || inputs.tag }}"
-          echo "Uploading Windows packages to release: $TAG"
-          cd release-artifacts
-          # Upload all ZIP packages (PHP Windows Builder output)
-          for pkg in *.zip; do
-            if [ -f "$pkg" ]; then
-              echo "Uploading: $pkg"
-              gh release upload "$TAG" "$pkg" --clobber --repo "${{ github.repository }}"
-            fi
-          done
-          # Upload checksum file
-          if [ -f "SHA256SUMS-windows.txt" ]; then
-            gh release upload "$TAG" "SHA256SUMS-windows.txt" --clobber --repo "${{ github.repository }}"
-          fi
+      - name: Upload artifact to the release
+        uses: php/php-windows-builder/release@v1
+        with:
+          release: ${{ steps.tag.outputs.tag }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Create draft release if it doesn't exist (for tag push)
+          draft: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}

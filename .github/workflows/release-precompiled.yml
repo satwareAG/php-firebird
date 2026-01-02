@@ -1,27 +1,31 @@
 # =============================================================================
-# PHP Firebird Extension - Precompiled Release Workflow
+# PHP Firebird Extension - Linux Precompiled Release Workflow
 # =============================================================================
 #
 # Builds and publishes precompiled PHP extensions with bundled Firebird client
 # libraries for all supported PHP versions and variants.
 #
 # Triggers:
-#   - On release creation (automatic)
+#   - Tag push (v7.*) - immutable releases
+#   - Release created/published - non-immutable releases
 #   - Manual dispatch (for testing)
 #
 # Build Matrix:
-#   - PHP 8.1, 8.2, 8.3, 8.4, 8.5 (8.1 deprecated)
+#   - PHP 8.2, 8.3, 8.4, 8.5
 #   - NTS and ZTS variants
 #   - x86_64 architecture (aarch64 in future)
 #
+# Best practices: Uses manylinux_2_28 for broad Linux compatibility
 # =============================================================================
 
 name: Build Precompiled Extensions
 
 on:
+  push:
+    tags:
+      - 'v7.*'
   release:
     types: [created, published]
-  
   workflow_dispatch:
     inputs:
       php_versions:
@@ -391,7 +395,10 @@ jobs:
   release:
     needs: [prepare, build]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.upload_to_release)
+    if: |
+      github.event_name == 'release' ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.upload_to_release)
     
     permissions:
       contents: write
@@ -432,6 +439,8 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "release" ]; then
             TAG="${{ github.event.release.tag_name }}"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF#refs/tags/}"
           elif [ -n "${{ inputs.release_tag }}" ]; then
             TAG="${{ inputs.release_tag }}"
           else
@@ -449,6 +458,8 @@ jobs:
             release-assets/*.sha256
             release-assets/CHECKSUMS-SHA256.txt
           fail_on_unmatched_files: false
+          # Create draft release for tag push (immutable releases)
+          draft: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

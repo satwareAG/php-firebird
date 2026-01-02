@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.4
 # =============================================================================
 # PHP Firebird Extension - manylinux_2_28 Builder
 # =============================================================================
@@ -194,7 +195,7 @@ RUN set -eux && \
 # =============================================================================
 
 # Create the build script that will be run inside the container
-RUN cat > /usr/local/bin/build-bundles.sh << 'SCRIPT'
+RUN <<'SCRIPT' cat > /usr/local/bin/build-bundles.sh
 #!/bin/bash
 set -euo pipefail
 
@@ -358,7 +359,6 @@ log_info "All bundles built successfully!"
 log_info "Output files:"
 ls -lh "${OUTPUT_DIR}"/*.tar.gz
 SCRIPT
-
 RUN chmod +x /usr/local/bin/build-bundles.sh
 
 # =============================================================================

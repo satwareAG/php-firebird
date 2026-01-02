@@ -404,13 +404,12 @@ typedef ISC_STATUS (ISC_EXPORT *fb_get_statement_interface_t)(
 
 typedef void* (ISC_EXPORT *fb_get_master_interface_t)(void);
 
-/* ============================================================================
- * Resource Type Validation Macros (TypeError Support)
+/* Resource Type Validation Macros (TypeError Support)
  *
  * These macros provide consistent error handling when wrong resource types
  * are passed to fbird_* functions. In exception mode (FBIRD_EXCEPTION_MODE_THROW),
  * they throw TypeError. Otherwise, they emit E_WARNING for backward compatibility.
- * ============================================================================ */
+ */
 
 /* Helper function prototype - implementation in firebird.c */
 const char *_fbird_res_type_name(int type);

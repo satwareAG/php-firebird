@@ -29,7 +29,7 @@
 
 /* le_query is defined in fbird_query_prepare.c */
 
-static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, zval *args, int bind_n) /* {{{ */
+static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, zval *args, int bind_n)
 {
 	int rv = FAILURE;
 	ISC_STATUS isc_result;
@@ -980,9 +980,7 @@ _php_fbird_ex_error:
 	}
 	return rv;
 }
-/* }}} */
 
-/* {{{ proto mixed fbird_query([resource link_identifier, [ resource link_identifier, ]] string query [, mixed bind_arg [, mixed bind_arg [, ...]]]) */
 PHP_FUNCTION(fbird_query)
 {
 	zval *args;
@@ -1182,9 +1180,7 @@ PHP_FUNCTION(fbird_query)
 	}
 	efree(args);
 }
-/* }}} */
 
-/* {{{ proto resource fbird_prepare([resource link_identifier, [ resource link_identifier, ]] string query) */
 PHP_FUNCTION(fbird_prepare)
 {
 	zval *args;
@@ -1295,9 +1291,7 @@ PHP_FUNCTION(fbird_prepare)
 	RETVAL_RES(ib_query->res);
 	Z_TRY_ADDREF_P(return_value);
 }
-/* }}} */
 
-/* {{{ proto mixed fbird_execute(resource query [, mixed bind_arg [, mixed bind_arg [, ...]]]) */
 PHP_FUNCTION(fbird_execute)
 {
 	zval *args;
@@ -1345,9 +1339,7 @@ PHP_FUNCTION(fbird_execute)
 	}
 	efree(args);
 }
-/* }}} */
 
-/* {{{ proto bool fbird_free_query(resource query) */
 void _php_fbird_free_query_impl(INTERNAL_FUNCTION_PARAMETERS, int as_result)
 {
 	zval *query_arg;
@@ -1370,9 +1362,7 @@ PHP_FUNCTION(fbird_free_query)
 {
 	_php_fbird_free_query_impl(INTERNAL_FUNCTION_PARAM_PASSTHRU, 0);
 }
-/* }}} */
 
-/* {{{ proto int fbird_affected_rows([ resource link_identifier ]) */
 PHP_FUNCTION(fbird_affected_rows)
 {
 	zval *link_arg = NULL;
@@ -1401,7 +1391,6 @@ PHP_FUNCTION(fbird_affected_rows)
 		RETURN_FALSE;
 	}
 }
-/* }}} */
 
 static zval * _php_fbird_hash_to_zval_array(HashTable *ht, int *count)
 {
@@ -1421,8 +1410,6 @@ static zval * _php_fbird_hash_to_zval_array(HashTable *ht, int *count)
     return arr;
 }
 
-/* {{{ proto int fbird_execute_statement(resource trans_handle, string query [, array params])
-   Execute DML/DDL statement within a specific transaction and return affected rows */
 PHP_FUNCTION(fbird_execute_statement)
 {
     zval *trans_arg, *params_arg = NULL;
@@ -1493,10 +1480,7 @@ PHP_FUNCTION(fbird_execute_statement)
         RETVAL_LONG(0);
     }
 }
-/* }}} */
 
-/* {{{ proto resource fbird_execute_query(resource trans_handle, string query [, array params])
-   Execute SELECT statement within a specific transaction and return result resource */
 PHP_FUNCTION(fbird_execute_query)
 {
     zval *trans_arg, *params_arg = NULL;
@@ -1578,10 +1562,7 @@ PHP_FUNCTION(fbird_execute_query)
        So we DO NOT delete ib_query->res on success.
     */
 }
-/* }}} */
 
-/* {{{ proto mixed fbird_execute_auto(resource link_identifier, string query [, array params])
-   Execute statement in an autonomous transaction (start -> execute -> commit/rollback) */
 PHP_FUNCTION(fbird_execute_auto)
 {
     zval *link_arg, *params_arg = NULL;
@@ -1687,7 +1668,6 @@ PHP_FUNCTION(fbird_execute_auto)
 
     /* Return value is already set by _php_fbird_exec (TRUE/affected_rows) */
 }
-/* }}} */
 
 int _php_fbird_fetch_query_res(zval *from, fbird_query **ib_query)
 {

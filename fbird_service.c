@@ -25,7 +25,7 @@ typedef struct {
 
 static int le_service;
 
-static void _php_fbird_free_service(zend_resource *rsrc) /* {{{ */
+static void _php_fbird_free_service(zend_resource *rsrc)
 {
 	fbird_service *sv = (fbird_service *) rsrc->ptr;
 
@@ -51,7 +51,6 @@ static void _php_fbird_free_service(zend_resource *rsrc) /* {{{ */
 
 	efree(sv);
 }
-/* }}} */
 
 /* the svc api seems to get confused after an error has occurred,
    so invalidate the handle on errors */
@@ -59,7 +58,7 @@ static void _php_fbird_free_service(zend_resource *rsrc) /* {{{ */
 	do { zend_list_delete(svm->res); _php_fbird_error(); } while (0)
 
 
-void php_fbird_service_minit(INIT_FUNC_ARGS) /* {{{ */
+void php_fbird_service_minit(INIT_FUNC_ARGS)
 {
 	le_service = zend_register_list_destructors_ex(_php_fbird_free_service, NULL,
 		LE_SCVH, module_number);
@@ -127,9 +126,8 @@ void php_fbird_service_minit(INIT_FUNC_ARGS) /* {{{ */
 	REGISTER_LONG_CONSTANT("FBIRD_SVC_SVR_DB_INFO", isc_info_svc_svr_db_info, CONST_PERSISTENT);
 	REGISTER_LONG_CONSTANT("FBIRD_SVC_GET_USERS", isc_info_svc_get_users, CONST_PERSISTENT);
 }
-/* }}} */
 
-static void _php_fbird_user(INTERNAL_FUNCTION_PARAMETERS, char operation) /* {{{ */
+static void _php_fbird_user(INTERNAL_FUNCTION_PARAMETERS, char operation)
 {
 	/* user = 0, password = 1, first_name = 2, middle_name = 3, last_name = 4 */
 	static char const user_flags[] = { isc_spb_sec_username, isc_spb_sec_password,
@@ -175,34 +173,22 @@ static void _php_fbird_user(INTERNAL_FUNCTION_PARAMETERS, char operation) /* {{{
 
 	RETURN_TRUE;
 }
-/* }}} */
 
-/* {{{ proto fbird_add_user(resource service_handle, string user_name, string password [, string first_name [, string middle_name [, string last_name]]])
-   Add a user to security database */
 PHP_FUNCTION(fbird_add_user)
 {
 	_php_fbird_user(INTERNAL_FUNCTION_PARAM_PASSTHRU, isc_action_svc_add_user);
 }
-/* }}} */
 
-/* {{{ proto fbird_modify_user(resource service_handle, string user_name, string password [, string first_name [, string middle_name [, string last_name]]])
-   Modify a user in security database */
 PHP_FUNCTION(fbird_modify_user)
 {
 	_php_fbird_user(INTERNAL_FUNCTION_PARAM_PASSTHRU, isc_action_svc_modify_user);
 }
-/* }}} */
 
-/* {{{ proto fbird_delete_user(resource service_handle, string user_name, string password [, string first_name [, string middle_name [, string last_name]]])
-   Delete a user from security database */
 PHP_FUNCTION(fbird_delete_user)
 {
 	_php_fbird_user(INTERNAL_FUNCTION_PARAM_PASSTHRU, isc_action_svc_delete_user);
 }
-/* }}} */
 
-/* {{{ proto resource fbird_service_attach([string host [, string dba_username [, string dba_password]]])
-   Connect to the service manager */
 PHP_FUNCTION(fbird_service_attach)
 {
 	size_t hlen = 0, ulen = 0, plen = 0;
@@ -293,10 +279,7 @@ PHP_FUNCTION(fbird_service_attach)
 	Z_TRY_ADDREF_P(return_value);
 	svm->res = Z_RES_P(return_value);
 }
-/* }}} */
 
-/* {{{ proto bool fbird_service_detach(resource service_handle)
-   Disconnect from the service manager */
 PHP_FUNCTION(fbird_service_detach)
 {
 	zval *res;
@@ -311,9 +294,8 @@ PHP_FUNCTION(fbird_service_detach)
 
 	RETURN_TRUE;
 }
-/* }}} */
 
-static void _php_fbird_service_query(INTERNAL_FUNCTION_PARAMETERS, /* {{{ */
+static void _php_fbird_service_query(INTERNAL_FUNCTION_PARAMETERS,
 	fbird_service *svm, char info_action)
 {
 	static char spb[] = { isc_info_svc_timeout, 10, 0, 0, 0 };
@@ -461,9 +443,8 @@ query_loop:
 		}
 	}
 }
-/* }}} */
 
-static void _php_fbird_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operation) /* {{{ */
+static void _php_fbird_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operation)
 {
 	/**
 	 * It appears that the service API is a little bit confused about which flag
@@ -515,25 +496,18 @@ static void _php_fbird_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operati
 		_php_fbird_service_query(INTERNAL_FUNCTION_PARAM_PASSTHRU, svm, isc_info_svc_line);
 	}
 }
-/* }}} */
 
-/* {{{ proto fbird_backup(resource service_handle, string source_db, string dest_file [, int options [, bool verbose]])
-   Initiates a backup task in the service manager and returns immediately */
 PHP_FUNCTION(fbird_backup)
 {
 	_php_fbird_backup_restore(INTERNAL_FUNCTION_PARAM_PASSTHRU, isc_action_svc_backup);
 }
-/* }}} */
 
-/* {{{ proto fbird_restore(resource service_handle, string source_file, string dest_db [, int options [, bool verbose]])
-   Initiates a restore task in the service manager and returns immediately */
 PHP_FUNCTION(fbird_restore)
 {
 	_php_fbird_backup_restore(INTERNAL_FUNCTION_PARAM_PASSTHRU, isc_action_svc_restore);
 }
-/* }}} */
 
-static void _php_fbird_service_action(INTERNAL_FUNCTION_PARAMETERS, char svc_action) /* {{{ */
+static void _php_fbird_service_action(INTERNAL_FUNCTION_PARAMETERS, char svc_action)
 {
 	zval *res;
 	char buf[128], *db;
@@ -623,26 +597,17 @@ options_argument:
 		RETURN_TRUE;
 	}
 }
-/* }}} */
 
-/* {{{ proto fbird_maintain_db(resource service_handle, string db, int action [, int argument])
-   Execute a maintenance command on the database server */
 PHP_FUNCTION(fbird_maintain_db)
 {
 	_php_fbird_service_action(INTERNAL_FUNCTION_PARAM_PASSTHRU, isc_action_svc_properties);
 }
-/* }}} */
 
-/* {{{ proto fbird_db_info(resource service_handle, string db, int action [, int argument])
-   Request statistics about a database */
 PHP_FUNCTION(fbird_db_info)
 {
 	_php_fbird_service_action(INTERNAL_FUNCTION_PARAM_PASSTHRU, isc_action_svc_db_stats);
 }
-/* }}} */
 
-/* {{{ proto fbird_server_info(resource service_handle, int action)
-   Request information about a database server */
 PHP_FUNCTION(fbird_server_info)
 {
 	zval *res;
@@ -660,7 +625,6 @@ PHP_FUNCTION(fbird_server_info)
 
 	_php_fbird_service_query(INTERNAL_FUNCTION_PARAM_PASSTHRU, svm, (char)action);
 }
-/* }}} */
 
 #else
 

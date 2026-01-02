@@ -1005,8 +1005,13 @@ static void _php_fbird_close_plink(zend_resource *rsrc) /* {{{ */
 #endif
 
 	/* Remove cache entries from both regular and persistent lists (Issue #35).
-	 * Persistent connections are cached in EG(persistent_list) with hash key. */
-	if (link->hash_key[0] != '\0' || memcmp(link->hash_key, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16) != 0) {
+	 * Persistent connections are cached in EG(persistent_list) with hash key.
+	 *
+	 * CRITICAL: Skip EG() access during MSHUTDOWN (Issue #50, #51).
+	 * During module shutdown, EG(regular_list) and EG(persistent_list) may already
+	 * be destroyed, causing SIGSEGV (exit code 139) if accessed. */
+	if (!IBG(in_mshutdown) &&
+		(link->hash_key[0] != '\0' || memcmp(link->hash_key, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16) != 0)) {
 		zend_hash_str_del(&EG(regular_list), link->hash_key, sizeof(link->hash_key) - 1);
 		zend_hash_str_del(&EG(persistent_list), link->hash_key, sizeof(link->hash_key) - 1);
 		FBDEBUG("Removed cache entries for persistent link");
@@ -1278,6 +1283,9 @@ static PHP_GINIT_FUNCTION(fbird)
 
 	/* Exception mode: SILENT (0) by default for backward compatibility */
 	fbird_globals->exception_mode = FBIRD_EXCEPTION_MODE_SILENT;
+
+	/* MSHUTDOWN detection flag for safe persistent resource cleanup (Issue #50, #51) */
+	fbird_globals->in_mshutdown = 0;
 }
 
 PHP_MINIT_FUNCTION(fbird)
@@ -1356,6 +1364,12 @@ PHP_MINIT_FUNCTION(fbird)
 
 PHP_MSHUTDOWN_FUNCTION(fbird)
 {
+	/* Set in_mshutdown flag FIRST to prevent EG() access in persistent resource destructors.
+	 * During MSHUTDOWN, EG(regular_list) and EG(persistent_list) may already be destroyed.
+	 * Fixes: Issue #50 (SIGSEGV exit code 139), Issue #51 (EG() access during MSHUTDOWN)
+	 */
+	IBG(in_mshutdown) = 1;
+
 #ifndef PHP_WIN32
 	/*
 	 * Firebird client library registers an atexit() handler for cleanup.

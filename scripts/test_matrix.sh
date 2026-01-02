@@ -148,7 +148,9 @@ for CONTAINER in "${TARGETS[@]}"; do
     fi
 
     # Run Build & Test in single session
-    # Optimizes overhead and ensures clean build state
+    # CRITICAL: build.sh must clean .dep files between PHP versions
+    # These dependency files contain absolute paths to PHP headers (e.g., /usr/local/include/php/main/php_stdint.h)
+    # that differ between PHP versions, causing "No rule to make target" errors if not cleaned.
     echo "Running build and test suite (Server: ${TARGET_SERVER:-default}, Tests: ${TEST_TARGETS:-ALL})..."
 
     # Construct command with optional target

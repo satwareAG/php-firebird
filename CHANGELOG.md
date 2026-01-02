@@ -34,6 +34,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Issue #50, #51 (SIGSEGV during PHP shutdown)**: Fixed crash (exit code 139) when using persistent connections
+  - **Root Cause**: `_php_fbird_close_plink()` accessed `EG(regular_list)` and `EG(persistent_list)` during MSHUTDOWN when these executor globals may already be destroyed
+  - **Fix**: Added `in_mshutdown` flag to module globals that is set at the start of `PHP_MSHUTDOWN_FUNCTION`
+  - Persistent link destructor now checks this flag before attempting to modify EG() hash tables
+  - Test: `tests/fbird_pconnect_shutdown_001.phpt`
+  - **Impact**: Resolves crashes in PHPUnit tests, CLI scripts, and any scenario where persistent connections are destroyed during module shutdown
+
+- **Build Contamination in Test Matrix**: Fixed spurious test failures in `test_matrix.sh` due to stale build artifacts
+  - **Root Cause**: `.dep` files generated during `make` contain absolute paths to PHP header files specific to each container's PHP version
+  - When running `test_matrix.sh`, these stale `.dep` files from a previous container caused contaminated builds
+  - **Fix**: Added cleanup of `.dep`, `.lo`, and `.libs` files in `scripts/build.sh` before each build
+  - Added comment in `scripts/test_matrix.sh` documenting this behavior
+  - **Impact**: Test matrix now produces consistent, isolated builds across all 7 PHP/Firebird version combinations
+
 - **Linux Bundle SONAME Symlink (Critical)**: Fixed root cause of "libfbclient.so.2: cannot open shared object" runtime error
   - **Root Cause**: The `bundle_library()` function in `build-precompiled.sh` was not creating the SONAME symlink
   - When copying `libfbclient.so.5.0.3`, it created `libfbclient.so` symlink but missed `libfbclient.so.2`

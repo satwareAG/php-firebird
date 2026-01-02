@@ -8,10 +8,16 @@ if [ -d /ext ]; then
   cd /ext
 fi
 
-# Clean previous builds
+# Clean previous builds thoroughly
+# Remove dependency files first - they contain absolute paths to PHP headers
+# that differ between PHP versions and cause "No rule to make target" errors
+find . -name '*.dep' -delete 2>/dev/null || true
+find . -name '*.lo' -delete 2>/dev/null || true
+rm -rf .libs 2>/dev/null || true
+
 if [ -f Makefile ]; then
-    make clean
-    phpize --clean
+    make clean 2>/dev/null || true
+    phpize --clean 2>/dev/null || true
 fi
 
 # Prepare build environment

@@ -67,6 +67,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Issue #55 (NULL pointer dereference in resource destructors)**: Fixed SIGSEGV at `si_addr=0x4` in PHPStan/Psalm parallel workers
+  - **Root Cause**: In forked child processes, `zend_resource->ptr` can be NULL when inherited resource descriptors are destroyed during shutdown
+  - Resource destructors (`_php_fbird_close_link`, `_php_fbird_close_plink`) accessed `link->created_pid` (at offset 4) without NULL check
+  - Accessing `((fbird_db_link *)NULL)->created_pid` = dereferencing address `0x0 + 4 = 0x4` → SIGSEGV
+  - **Fix**: Added NULL pointer guard at start of both destructors: `if (link == NULL) return;`
+  - **strace Evidence**: `si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x4` confirmed NULL+offset access pattern
+  - **Impact**: PHPStan/Psalm workers no longer crash during shutdown after analyzing doctrine-firebird-driver codebase
+  - **Note**: This fix complements the earlier `in_mshutdown` fix from rc.35 (different crash scenario)
+
+### Changed
+
+- **Code Quality Refactoring**: Removed noise comments following "Good Code Needs No Documentation" paradigm
+  - Removed ~90 lines of section dividers, development artifacts, and feature annotations
+  - Patterns removed: `// ===...===` dividers, `// Step X.Y:` markers, `// Phase X:` markers, `// C++17:` annotations
+  - Preserved technical rationale comments explaining "why" (Firebird-specific behavior, API compatibility, fork-safety)
+  - Affected files: `firebird_utils.cpp`, `firebird_utils_internal.h`, `firebird.c`, `php_fbird_includes.h`, `firebird_utils.h`
+  - All commits atomic (<200 LOC), validated with QA after each change
+  - Final validation: 135/138 tests passed, all static analysis clean
+
+### Fixed
+
 - **Issue #50, #51 (SIGSEGV during PHP shutdown)**: Fixed crash (exit code 139) when using persistent connections
   - **Root Cause**: `_php_fbird_close_plink()` accessed `EG(regular_list)` and `EG(persistent_list)` during MSHUTDOWN when these executor globals may already be destroyed
   - **Fix**: Added `in_mshutdown` flag to module globals that is set at the start of `PHP_MSHUTDOWN_FUNCTION`

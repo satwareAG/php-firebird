@@ -890,6 +890,13 @@ static void _php_fbird_close_link(zend_resource *rsrc)
 {
 	fbird_db_link *link = (fbird_db_link *) rsrc->ptr;
 
+	/* NULL pointer guard (Issue #55): In forked PHPStan workers, rsrc->ptr may be NULL
+	 * when inherited resource descriptors are destroyed during child process shutdown.
+	 * Accessing link->created_pid with NULL pointer causes SIGSEGV at si_addr=0x4. */
+	if (link == NULL) {
+		return;
+	}
+
 #ifndef PHP_WIN32
 	/* Fork-safety check (Issue #22, #36): Skip cleanup if we're in a forked child.
 	 * After pcntl_fork(), child inherits global state including master_instance
@@ -941,6 +948,13 @@ static void _php_fbird_close_link(zend_resource *rsrc)
 static void _php_fbird_close_plink(zend_resource *rsrc)
 {
 	fbird_db_link *link = (fbird_db_link *) rsrc->ptr;
+
+	/* NULL pointer guard (Issue #55): In forked PHPStan workers, rsrc->ptr may be NULL
+	 * when inherited resource descriptors are destroyed during child process shutdown.
+	 * Accessing link->created_pid with NULL pointer causes SIGSEGV at si_addr=0x4. */
+	if (link == NULL) {
+		return;
+	}
 
 #ifndef PHP_WIN32
 	/* Fork-safety check (Issue #22, #36): Skip cleanup if we're in a forked child.

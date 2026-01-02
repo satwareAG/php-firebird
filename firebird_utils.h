@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: PHP-3.01
  * SPDX-FileCopyrightText: The PHP Group and contributors (see CREDITS) */
 
-#ifndef PDO_FIREBIRD_UTILS_H
-#define PDO_FIREBIRD_UTILS_H
+#ifndef FIREBIRD_UTILS_H
+#define FIREBIRD_UTILS_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -1467,4 +1467,4 @@ void fbbatch_free_result(fbbatch_completion_result* result);
 }
 #endif
 
-#endif	/* PDO_FIREBIRD_UTILS_H */
+#endif	/* FIREBIRD_UTILS_H */

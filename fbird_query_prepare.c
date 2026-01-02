@@ -28,7 +28,7 @@
 int le_query;
 
 /* Implementation of _php_fbird_set_query_info */
-int _php_fbird_set_query_info(fbird_query *ib_query) /* {{{ */
+int _php_fbird_set_query_info(fbird_query *ib_query)
 {
 	/*
 	 * Firebird 3.0+ OO API - uses IStatement interface methods
@@ -49,9 +49,8 @@ int _php_fbird_set_query_info(fbird_query *ib_query) /* {{{ */
 
 	return SUCCESS;
 }
-/* }}} */
 
-void _php_fbird_alloc_xsqlda_vars(XSQLDA *sqlda, ISC_SHORT *nullinds) /* {{{ */
+void _php_fbird_alloc_xsqlda_vars(XSQLDA *sqlda, ISC_SHORT *nullinds)
 {
 	int i;
 	XSQLVAR *var;
@@ -90,9 +89,8 @@ void _php_fbird_alloc_xsqlda_vars(XSQLDA *sqlda, ISC_SHORT *nullinds) /* {{{ */
 		}
 	}
 }
-/* }}} */
 
-void _php_fbird_free_xsqlda(XSQLDA *sqlda) /* {{{ */
+void _php_fbird_free_xsqlda(XSQLDA *sqlda)
 {
 	int i;
 	XSQLVAR *var;
@@ -110,9 +108,8 @@ void _php_fbird_free_xsqlda(XSQLDA *sqlda) /* {{{ */
 		efree(sqlda);
 	}
 }
-/* }}} */
 
-void _php_fbird_free_query(fbird_query *ib_query) /* {{{ */
+void _php_fbird_free_query(fbird_query *ib_query)
 {
 	FBDEBUG("Freeing query...");
 
@@ -136,9 +133,8 @@ void _php_fbird_free_query(fbird_query *ib_query) /* {{{ */
 
 	efree(ib_query);
 }
-/* }}} */
 
-void php_fbird_free_query_rsrc(zend_resource *rsrc) /* {{{ */
+void php_fbird_free_query_rsrc(zend_resource *rsrc)
 {
     fbird_query *ib_query = (fbird_query *)rsrc->ptr;
 
@@ -208,18 +204,15 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc) /* {{{ */
         _php_fbird_free_query(ib_query);
     }
 }
-/* }}} */
 
-void php_fbird_query_minit(INIT_FUNC_ARGS) /* {{{ */
+void php_fbird_query_minit(INIT_FUNC_ARGS)
 {
 	(void)type;
 	le_query = zend_register_list_destructors_ex(php_fbird_free_query_rsrc, NULL,
 		LE_QUERY, module_number);
 }
-/* }}} */
 
-/* Allocate and prepare query */
-int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link, /* {{{ */
+int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link,
     fbird_transaction *trans, zend_resource *trans_res, char *query)
 {
 	/* Validate required parameters to prevent NULL pointer dereference */
@@ -478,6 +471,5 @@ _php_fbird_alloc_query_error:
 
 	return FAILURE;
 }
-/* }}} */
 
 #endif /* HAVE_FIREBIRD */

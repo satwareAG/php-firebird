@@ -107,7 +107,7 @@ time_t fbird_mktime_with_tz(struct tm *tm, const char *tz)
     return ts;
 }
 
-static int _php_fbird_var_zval(zval *val, void *data, int type, int len, /* {{{ */
+static int _php_fbird_var_zval(zval *val, void *data, int type, int len,
     int scale, int subtype, size_t flag)
 {
 	static ISC_INT64 const scales[] = { 1, 10, 100, 1000,
@@ -424,9 +424,8 @@ format_date_time:
 	} /* switch (type) */
 	return SUCCESS;
 }
-/* }}}	*/
 
-static int _php_fbird_arr_zval(zval *ar_zval, char *data, zend_ulong data_size, /* {{{ */
+static int _php_fbird_arr_zval(zval *ar_zval, char *data, zend_ulong data_size,
 	fbird_array *ib_array, int dim, size_t flag)
 {
 	/**
@@ -490,9 +489,8 @@ static int _php_fbird_arr_zval(zval *ar_zval, char *data, zend_ulong data_size, 
 	}
 	return SUCCESS;
 }
-/* }}} */
 
-static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) /* {{{ */
+static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 {
 	zval *res_arg, *result;
 	zend_long flag = 0;
@@ -870,26 +868,17 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type) 
 
 	RETVAL_ARR(ht_ret);
 }
-/* }}} */
 
-/* {{{ proto fbird_fetch_row(resource result [, int fetch_flags])
-   Fetch a row  from the results of a query */
 PHP_FUNCTION(fbird_fetch_row)
 {
 	_php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAM_PASSTHRU, FETCH_ROW);
 }
-/* }}} */
 
-/* {{{ proto fbird_fetch_assoc(resource result [, int fetch_flags])
-   Fetch a row  from the results of a query */
 PHP_FUNCTION(fbird_fetch_assoc)
 {
 	_php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAM_PASSTHRU, FETCH_ARRAY);
 }
-/* }}} */
 
-/* {{{ proto fbird_fetch_object(resource result [, int fetch_flags])
-   Fetch a object from the results of a query */
 PHP_FUNCTION(fbird_fetch_object)
 {
 	_php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAM_PASSTHRU, FETCH_ARRAY);
@@ -898,10 +887,7 @@ PHP_FUNCTION(fbird_fetch_object)
 		convert_to_object(return_value);
 	}
 }
-/* }}} */
 
-/* {{{ proto fbird_name_result(resource result, string name)
-   Assign a name to a result for use with ... WHERE CURRENT OF <name> statements */
 PHP_FUNCTION(fbird_name_result)
 {
 	zval *result_arg;
@@ -934,14 +920,10 @@ PHP_FUNCTION(fbird_name_result)
 
 	RETURN_TRUE;
 }
-/* }}} */
 
-/* {{{ proto bool fbird_free_result(resource result)
-   Free the memory used by a result */
 PHP_FUNCTION(fbird_free_result)
 {
 	_php_fbird_free_query_impl(INTERNAL_FUNCTION_PARAM_PASSTHRU, 1);
 }
-/* }}} */
 
 #endif /* HAVE_FIREBIRD */

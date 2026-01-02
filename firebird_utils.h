@@ -8,12 +8,11 @@
 extern "C" {
 #endif
 
-/* =============================================================================
- * Firebird 3.0+ OO API Required
+/* Firebird 3.0+ OO API Required
  *
  * This extension requires Firebird 3.0 or later. The modern OO API introduced
  * in Firebird 3.0 (FB_API_VER >= 30) is mandatory.
- * ============================================================================= */
+ */
 #if FB_API_VER < 30
 #error "This extension requires Firebird 3.0 or later (FB_API_VER >= 30). Legacy API is not supported."
 #endif
@@ -1090,12 +1089,11 @@ unsigned char* fbxpb_build_tpb(
  */
 void fbxpb_free_tpb(unsigned char* buffer);
 
-/* =============================================================================
- * Limbo Transaction Functions (Two-Phase Commit Recovery)
+/* Limbo Transaction Functions (Two-Phase Commit Recovery)
  *
  * These functions support recovery of transactions that were prepared but
  * not committed in a two-phase commit scenario (limbo transactions).
- * ============================================================================= */
+ */
 
 /**
  * Get list of limbo transaction IDs from a database.
@@ -1138,13 +1136,12 @@ void* fbt_reconnect(
     ISC_STATUS* status_vector
 );
 
-/* =============================================================================
- * IBatch API Functions (Firebird 4.0+ Bulk Operations)
+/* IBatch API Functions (Firebird 4.0+ Bulk Operations)
  *
  * The IBatch interface provides high-performance bulk INSERT operations.
  * Using batch operations can provide 10-12x speedup for large data loads.
  * These functions are only available when compiled with FB_API_VER >= 40.
- * ============================================================================= */
+ */
 
 #if FB_API_VER >= 40
 
@@ -1263,12 +1260,11 @@ unsigned fbbatch_get_blob_alignment(
     ISC_STATUS* status_vector
 );
 
-/* =============================================================================
- * IBatch BLOB Handling Functions
+/* IBatch BLOB Handling Functions
  *
  * These functions provide advanced BLOB handling within batch operations,
  * allowing inline BLOB creation without pre-creating BLOBs separately.
- * ============================================================================= */
+ */
 
 /**
  * Add inline BLOB data to the batch.
@@ -1381,12 +1377,11 @@ int fbbatch_set_default_bpb(
     ISC_STATUS* status_vector
 );
 
-/* =============================================================================
- * IBatch Detailed Error Reporting
+/* IBatch Detailed Error Reporting
  *
  * These structures and functions provide detailed per-row error information
  * from batch execution, including SQLSTATE codes and error messages.
- * ============================================================================= */
+ */
 
 /**
  * Per-row error entry from batch execution.

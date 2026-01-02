@@ -19,7 +19,6 @@ Files audited for legacy `isc_*` API usage:
 - `fbird_blobs.c` - BLOB operations
 - `fbird_query*.c` - Query execution
 - `fbird_datetime.c` - Date/time handling
-- `fbird_udf.c` - UDF support
 
 ## Legacy API Status
 
@@ -46,7 +45,7 @@ These functions are **NOT legacy-only** - they remain valid in Firebird 3.0+:
 
 | Function | Location | Purpose |
 |----------|----------|---------|
-| `isc_encode_timestamp()` | fbird_query_array.c, fbird_udf.c | Date/time encoding |
+| `isc_encode_timestamp()` | fbird_query_array.c | Date/time encoding |
 | `isc_encode_sql_date()` | fbird_datetime.c | SQL DATE encoding |
 | `isc_encode_sql_time()` | fbird_datetime.c | SQL TIME encoding |
 | `isc_decode_timestamp()` | fbird_datetime.c | Timestamp decoding |

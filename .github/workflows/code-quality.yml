@@ -126,11 +126,6 @@ jobs:
             },
             {
               "directory": "${{ github.workspace }}",
-              "command": "gcc -I/usr/include/php/20230831 -I/usr/include/firebird -DHAVE_CONFIG_H -c fbird_udf.c -o fbird_udf.o",
-              "file": "fbird_udf.c"
-            },
-            {
-              "directory": "${{ github.workspace }}",
               "command": "g++ -I/usr/include/php/20230831 -I/usr/include/firebird -DHAVE_CONFIG_H -std=c++17 -c firebird_utils.cpp -o firebird_utils.o",
               "file": "firebird_utils.cpp"
             }

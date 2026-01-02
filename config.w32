@@ -29,7 +29,6 @@ if (PHP_FIREBIRD != 'no') {
                                'fbird_query_array.c ' +
                                'fbird_result.c ' +
                                'fbird_service.c ' +
-                               'fbird_udf.c ' +
                                'firebird_utils.cpp';
 
         // Register extension

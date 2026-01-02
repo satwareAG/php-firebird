@@ -30,7 +30,6 @@ SOURCE_FILES=(
     fbird_query_prepare.c
     fbird_result.c
     fbird_service.c
-    fbird_udf.c
 )
 
 # Determine PHP include path for the current PHP version

@@ -23,6 +23,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed redundant inline comments restating obvious code
   - Affected files: `firebird.c`, `fbird_blobs.c`, `fbird_events.c`, `fbird_service.c`, `fbird_query_exec.c`, `fbird_result.c`, `fbird_query_prepare.c`, `fbird_metadata.c`, `fbird_query_bind.c`, `fbird_inspection.c`, `fbird_query_array.c`
 
+### Removed
+
+- **`fbird_udf.c` and related documentation**: Removed legacy UDF (User Defined Function) library
+  - **Security**: Critical vulnerability - allowed arbitrary PHP code execution with Firebird server privileges
+  - **Architecture**: Was NOT part of the PHP extension (separate library for Firebird server)
+  - **Obsolete**: Used deprecated Firebird legacy API, modern pattern is application-side logic
+  - Removed files: `fbird_udf.c`, `docs/UDF_RESEARCH_AND_RECOMMENDATION.md`
+  - Updated: analysis scripts, Windows build config, CI workflow
+
 ## [7.0.0-rc.25] - 2025-12-31
 
 ### Fixed

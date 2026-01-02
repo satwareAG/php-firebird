@@ -45,7 +45,7 @@ static int le_event;
  * ============================================================================
  */
 
-static void _php_fbird_event_free(unsigned char *event_buf, unsigned char *result_buf) /* {{{ */
+static void _php_fbird_event_free(unsigned char *event_buf, unsigned char *result_buf)
 {
 	if (event_buf) {
 		isc_free((ISC_SCHAR *)event_buf);
@@ -54,9 +54,8 @@ static void _php_fbird_event_free(unsigned char *event_buf, unsigned char *resul
 		isc_free((ISC_SCHAR *)result_buf);
 	}
 }
-/* }}} */
 
-void _php_fbird_free_event(fbird_event *event) /* {{{ */
+void _php_fbird_free_event(fbird_event *event)
 {
 	unsigned short i;
 
@@ -111,22 +110,19 @@ void _php_fbird_free_event(fbird_event *event) /* {{{ */
 		efree(event->events);
 	}
 }
-/* }}} */
 
-static void _php_fbird_free_event_rsrc(zend_resource *rsrc) /* {{{ */
+static void _php_fbird_free_event_rsrc(zend_resource *rsrc)
 {
 	fbird_event *e = (fbird_event *) rsrc->ptr;
 	_php_fbird_free_event(e);
 	efree(e);
 }
-/* }}} */
 
-void php_fbird_events_minit(INIT_FUNC_ARGS) /* {{{ */
+void php_fbird_events_minit(INIT_FUNC_ARGS)
 {
 	le_event = zend_register_list_destructors_ex(_php_fbird_free_event_rsrc, NULL,
 		LE_EVENT, module_number);
 }
-/* }}} */
 
 /**
  * Build event buffers for event operations.
@@ -144,12 +140,7 @@ static void _php_fbird_event_block(unsigned short count, char **events,
 		events[5], events[6], events[7], events[8], events[9],
 		events[10], events[11], events[12], events[13], events[14]);
 }
-/* }}} */
 
-/* {{{ proto string fbird_wait_event([resource link_identifier,] string event [, string event [, ...]])
-   Waits for any one of the passed Firebird events to be posted by the database, and returns its name.
-   This is a synchronous blocking call - the function does not return until an event fires.
-   Thread-safe: executes entirely in the PHP thread. */
 PHP_FUNCTION(fbird_wait_event)
 {
 	zval *args;
@@ -240,17 +231,7 @@ PHP_FUNCTION(fbird_wait_event)
 	_php_fbird_event_free(event_buffer, result_buffer);
 	RETURN_FALSE;
 }
-/* }}} */
 
-/* {{{ proto resource fbird_set_event_handler([resource link_identifier,] callback handler, string event [, string event [, ...]])
-   Register a callback for handling the named events.
-
-   NOTE (PHP 8.1+ Thread-Safety):
-   This function registers the event handler but does NOT use async callbacks.
-   You MUST call fbird_poll_event() to check for events and trigger callbacks.
-   This polling model is thread-safe - all PHP callbacks execute in the PHP thread.
-
-   Returns an event resource that must be passed to fbird_poll_event(). */
 PHP_FUNCTION(fbird_set_event_handler)
 {
 	zval *args, *cb_arg;
@@ -358,7 +339,6 @@ PHP_FUNCTION(fbird_set_event_handler)
 	RETVAL_RES(zend_register_resource(event, le_event));
 	Z_TRY_ADDREF_P(return_value);
 }
-/* }}} */
 
 #ifndef PHP_WIN32
 /* Signal handler for alarm-based timeout */
@@ -369,24 +349,6 @@ static void fbird_timeout_handler(int sig) {
 }
 #endif
 
-/* {{{ proto mixed fbird_poll_event(resource event [, int timeout_ms])
-   Poll for pending events and call the registered callback if an event fired.
-
-   This is the thread-safe way to handle Firebird events in PHP 8.1+.
-   The callback is called from within this function (in the PHP thread).
-
-   Parameters:
-   - event: Event resource from fbird_set_event_handler()
-   - timeout_ms: Optional timeout in milliseconds. -1 = block forever (default),
-                 0 = immediate return if no event, >0 = timeout in ms
-
-   Returns:
-   - string: Event name that fired (callback was called)
-   - FBIRD_EVENT_TIMEOUT (-2): Timeout reached before any event
-   - false: Error occurred
-   - null: Handler was cancelled or no event pending
-
-   If the callback returns false, the event handler is marked as cancelled. */
 PHP_FUNCTION(fbird_poll_event)
 {
 	zval *event_arg;
@@ -581,10 +543,7 @@ PHP_FUNCTION(fbird_poll_event)
 	/* No event detected in this poll cycle */
 	RETURN_NULL();
 }
-/* }}} */
 
-/* {{{ proto bool fbird_free_event_handler(resource event)
-   Frees the event handler set by fbird_set_event_handler() */
 PHP_FUNCTION(fbird_free_event_handler)
 {
 	zval *event_arg;
@@ -607,6 +566,5 @@ PHP_FUNCTION(fbird_free_event_handler)
 		RETURN_FALSE;
 	}
 }
-/* }}} */
 
 #endif /* HAVE_FIREBIRD */

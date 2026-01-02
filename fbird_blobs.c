@@ -172,7 +172,7 @@ static const unsigned char stream_bpb[] = {
 
 static int le_blob;
 
-static void _php_fbird_free_blob(zend_resource *rsrc) /* {{{ */
+static void _php_fbird_free_blob(zend_resource *rsrc)
 {
 	fbird_blob *ib_blob = (fbird_blob *)rsrc->ptr;
 
@@ -197,16 +197,14 @@ static void _php_fbird_free_blob(zend_resource *rsrc) /* {{{ */
 	}
 	efree(ib_blob);
 }
-/* }}} */
 
-void php_fbird_blobs_minit(INIT_FUNC_ARGS) /* {{{ */
+void php_fbird_blobs_minit(INIT_FUNC_ARGS)
 {
 	le_blob = zend_register_list_destructors_ex(_php_fbird_free_blob, NULL,
 		LE_BLOB, module_number);
 }
-/* }}} */
 
-int _php_fbird_string_to_quad(char const *id, ISC_QUAD *qd) /* {{{ */
+int _php_fbird_string_to_quad(char const *id, ISC_QUAD *qd)
 {
 	/* Parse format "HHHHHHHH:LLLL" (8 hex digits : 4 hex digits)
 	 * Example: "74292B00:7FFC"
@@ -222,25 +220,22 @@ int _php_fbird_string_to_quad(char const *id, ISC_QUAD *qd) /* {{{ */
 
 	return 0;
 }
-/* }}} */
 
-zend_string *_php_fbird_quad_to_string(ISC_QUAD const qd) /* {{{ */
+zend_string *_php_fbird_quad_to_string(ISC_QUAD const qd)
 {
 	/* Format: "HHHHHHHH:LLLL" (8 hex digits : 4 hex digits) for batch API compatibility
 	 * Example: "74292B00:7FFC" (13 characters total) */
 	return strpprintf(0, "%08x:%04hx", qd.gds_quad_high, (unsigned short)qd.gds_quad_low);
 }
-/* }}} */
 
-typedef struct { /* {{{ */
-	ISC_LONG  max_segment;		/* Length of longest segment */
-	ISC_LONG  num_segments;		/* Total number of segments */
-	ISC_LONG  total_length;		/* Total length of blob */
-	int		  bl_stream;		/* blob is stream ? */
-/* }}} */
+typedef struct {
+	ISC_LONG  max_segment;
+	ISC_LONG  num_segments;
+	ISC_LONG  total_length;
+	int       bl_stream;
 } FBIRD_BLOBINFO;
 
-int _php_fbird_blob_get(zval *return_value, fbird_blob *ib_blob, zend_ulong max_len) /* {{{ */
+int _php_fbird_blob_get(zval *return_value, fbird_blob *ib_blob, zend_ulong max_len)
 {
 	/* Safety check: verify blob handle is valid before any operation */
 	if (!ib_blob || !ib_blob->fbb_blob) {
@@ -322,9 +317,8 @@ int _php_fbird_blob_get(zval *return_value, fbird_blob *ib_blob, zend_ulong max_
 	}
 	return SUCCESS;
 }
-/* }}} */
 
-int _php_fbird_blob_add(zval *string_arg, fbird_blob *ib_blob) /* {{{ */
+int _php_fbird_blob_add(zval *string_arg, fbird_blob *ib_blob)
 {
 	zend_ulong put_cnt = 0, rem_cnt;
 
@@ -356,9 +350,8 @@ int _php_fbird_blob_add(zval *string_arg, fbird_blob *ib_blob) /* {{{ */
 	}
 	return SUCCESS;
 }
-/* }}} */
 
-static int _php_fbird_blob_info_oo(void *fbb_blob, FBIRD_BLOBINFO *bl_info) /* {{{ */
+static int _php_fbird_blob_info_oo(void *fbb_blob, FBIRD_BLOBINFO *bl_info)
 {
 	/*
 	 * Firebird 3.0+ OO API Blob Info
@@ -418,10 +411,7 @@ static int _php_fbird_blob_info_oo(void *fbb_blob, FBIRD_BLOBINFO *bl_info) /* {
 	} /* for */
 	return SUCCESS;
 }
-/* }}} */
 
-/* {{{ proto resource fbird_blob_create([resource link_identifier])
-   Create blob for adding data */
 PHP_FUNCTION(fbird_blob_create)
 {
 	zval *link = NULL;
@@ -467,11 +457,7 @@ PHP_FUNCTION(fbird_blob_create)
 
 	RETVAL_RES(zend_register_resource(ib_blob, le_blob));
 }
-/* }}} */
 
-/* {{{ proto resource fbird_blob_create_seekable([ resource link_identifier ])
-   Create blob for adding data with seek support.
-   This creates the blob in STREAM mode which enables random access via fbird_blob_seek(). */
 PHP_FUNCTION(fbird_blob_create_seekable)
 {
 	zval *link = NULL;
@@ -517,10 +503,7 @@ PHP_FUNCTION(fbird_blob_create_seekable)
 
 	RETVAL_RES(zend_register_resource(ib_blob, le_blob));
 }
-/* }}} */
 
-/* {{{ proto resource fbird_blob_open([ resource link_identifier, ] string blob_id)
-   Open blob for retrieving data parts */
 PHP_FUNCTION(fbird_blob_open)
 {
 	char *blob_id;
@@ -576,10 +559,7 @@ PHP_FUNCTION(fbird_blob_open)
 	efree(ib_blob);
 	RETURN_FALSE;
 }
-/* }}} */
 
-/* {{{ proto bool fbird_blob_add(resource blob_handle, string data)
-   Add data into created blob */
 PHP_FUNCTION(fbird_blob_add)
 {
 	zval *blob_arg, *string_arg;
@@ -607,10 +587,7 @@ PHP_FUNCTION(fbird_blob_add)
 	}
 	RETURN_TRUE;
 }
-/* }}} */
 
-/* {{{ proto string fbird_blob_get(resource blob_handle, int len)
-   Get len bytes data from open blob */
 PHP_FUNCTION(fbird_blob_get)
 {
 	zval *blob_arg;
@@ -638,9 +615,8 @@ PHP_FUNCTION(fbird_blob_get)
 		RETURN_FALSE;
 	}
 }
-/* }}} */
 
-static void _php_fbird_blob_end(INTERNAL_FUNCTION_PARAMETERS, int bl_end) /* {{{ */
+static void _php_fbird_blob_end(INTERNAL_FUNCTION_PARAMETERS, int bl_end)
 {
 	zval *blob_arg;
 	fbird_blob *ib_blob;
@@ -709,26 +685,17 @@ static void _php_fbird_blob_end(INTERNAL_FUNCTION_PARAMETERS, int bl_end) /* {{{
 	 */
 	zend_list_close(Z_RES_P(blob_arg));
 }
-/* }}} */
 
-/* {{{ proto string fbird_blob_close(resource blob_handle)
-   Close blob */
 PHP_FUNCTION(fbird_blob_close)
 {
 	_php_fbird_blob_end(INTERNAL_FUNCTION_PARAM_PASSTHRU, BLOB_CLOSE);
 }
-/* }}} */
 
-/* {{{ proto bool fbird_blob_cancel(resource blob_handle)
-   Cancel creating blob */
 PHP_FUNCTION(fbird_blob_cancel)
 {
 	_php_fbird_blob_end(INTERNAL_FUNCTION_PARAM_PASSTHRU, BLOB_CANCEL);
 }
-/* }}} */
 
-/* {{{ proto array fbird_blob_info([ resource link_identifier, ] string|resource blob_id_or_stream)
-   Return blob length and other useful info */
 PHP_FUNCTION(fbird_blob_info)
 {
 	char *blob_id = NULL;
@@ -853,10 +820,7 @@ PHP_FUNCTION(fbird_blob_info)
 	zend_string *str_id = _php_fbird_quad_to_string(ib_blob.bl_qd);
 	add_assoc_str(return_value, "id", str_id);
 }
-/* }}} */
 
-/* {{{ proto bool fbird_blob_echo([ resource link_identifier, ] string blob_id)
-   Output blob contents to browser */
 PHP_FUNCTION(fbird_blob_echo)
 {
 	char *blob_id;
@@ -930,10 +894,7 @@ PHP_FUNCTION(fbird_blob_echo)
 	_php_fbird_error();
 	RETURN_FALSE;
 }
-/* }}} */
 
-/* {{{ proto string fbird_blob_import([ resource link_identifier, ] resource file)
-   Create blob, copy file in it, and close it */
 PHP_FUNCTION(fbird_blob_import)
 {
 	zval *link = NULL, *file;
@@ -996,10 +957,7 @@ PHP_FUNCTION(fbird_blob_import)
 	_php_fbird_error();
 	RETURN_FALSE;
 }
-/* }}} */
 
-/* {{{ proto resource|false fbird_blob_create_stream([ resource link_identifier ])
-   Create blob and return it as a stream */
 PHP_FUNCTION(fbird_blob_create_stream)
 {
 	zval *link = NULL;
@@ -1058,10 +1016,7 @@ PHP_FUNCTION(fbird_blob_create_stream)
 
 	php_stream_to_zval(stream, return_value);
 }
-/* }}} */
 
-/* {{{ proto resource|false fbird_blob_open_stream([ resource link_identifier, ] string blob_id)
-   Open blob and return it as a stream */
 PHP_FUNCTION(fbird_blob_open_stream)
 {
 	char *blob_id;
@@ -1125,11 +1080,7 @@ PHP_FUNCTION(fbird_blob_open_stream)
 
 	php_stream_to_zval(stream, return_value);
 }
-/* }}} */
 
-/* {{{ proto resource fbird_blob_open_seekable([ resource link_identifier, ] string blob_id)
-   Open blob for retrieving data parts with seek support.
-   This opens the blob in STREAM mode which enables random access via fbird_blob_seek(). */
 PHP_FUNCTION(fbird_blob_open_seekable)
 {
 	char *blob_id;
@@ -1185,12 +1136,7 @@ PHP_FUNCTION(fbird_blob_open_seekable)
 	efree(ib_blob);
 	RETURN_FALSE;
 }
-/* }}} */
 
-/* {{{ proto int|false fbird_blob_seek(resource blob_handle, int offset [, int whence])
-   Seek to position in a stream blob. Returns new position or false on error.
-   whence: FBIRD_BLOB_SEEK_SET (0), FBIRD_BLOB_SEEK_CUR (1), FBIRD_BLOB_SEEK_END (2)
-   Note: Only works on blobs opened with fbird_blob_open_seekable(). */
 PHP_FUNCTION(fbird_blob_seek)
 {
 	zval *blob_arg;
@@ -1237,6 +1183,5 @@ PHP_FUNCTION(fbird_blob_seek)
 
 	RETURN_LONG(result_position);
 }
-/* }}} */
 
 #endif /* HAVE_FIREBIRD */

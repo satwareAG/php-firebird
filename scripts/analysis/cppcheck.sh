@@ -23,7 +23,6 @@ SOURCE_FILES=(
     fbird_events.c
     fbird_inspection.c
     fbird_metadata.c
-    fbird_query.c
     fbird_query_array.c
     fbird_query_bind.c
     fbird_query_exec.c

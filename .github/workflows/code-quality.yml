@@ -106,11 +106,6 @@ jobs:
             },
             {
               "directory": "${{ github.workspace }}",
-              "command": "gcc -I/usr/include/php/20230831 -I/usr/include/firebird -DHAVE_CONFIG_H -c fbird_query.c -o fbird_query.o",
-              "file": "fbird_query.c"
-            },
-            {
-              "directory": "${{ github.workspace }}",
               "command": "gcc -I/usr/include/php/20230831 -I/usr/include/firebird -DHAVE_CONFIG_H -c fbird_query_exec.c -o fbird_query_exec.o",
               "file": "fbird_query_exec.c"
             },

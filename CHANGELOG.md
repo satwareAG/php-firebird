@@ -32,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed files: `fbird_udf.c`, `docs/UDF_RESEARCH_AND_RECOMMENDATION.md`
   - Updated: analysis scripts, Windows build config, CI workflow
 
+- **`fbird_query.c` placeholder file**: Removed empty placeholder from previous refactoring
+  - File contained only comments explaining it was refactored into `fbird_query_exec.c`, `fbird_result.c`, `fbird_metadata.c`
+  - Was in Windows build (config.w32) but not Unix build (config.m4) - inconsistency fixed
+  - Compiled to nothing, just added dead weight to repository
+  - Updated: config.w32, analysis scripts, CI workflow compile_commands.json
+
 ## [7.0.0-rc.25] - 2025-12-31
 
 ### Fixed

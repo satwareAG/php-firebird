@@ -5,6 +5,24 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-rc.35] - 2026-01-02
+
+### Fixed
+
+- **Issue #55 (SIGSEGV in PHPStan parallel workers)**: Fixed segfault when parallel analysis tools exit
+  - **Root Cause**: `_php_fbird_close_link()` was missing the `!IBG(in_mshutdown)` check that `_php_fbird_close_plink()` already had
+  - When PHPStan/Psalm workers exit, they may trigger resource cleanup during MSHUTDOWN when `EG(regular_list)` is already destroyed
+  - **Fix**: Added the missing shutdown check before accessing `EG(regular_list)` in normal link destructor
+  - **Impact**: Enables full parallel processing in PHPStan, Psalm, PHPUnit parallel runner without segfaults
+  - Related: #50, #51 (persistent connection variant of this bug fixed in rc.25)
+
+### Changed
+
+- **Code Cleanup**: Removed ~386 lines of legacy comment bloat following "Good Code Needs No Documentation" paradigm
+  - Removed `/* {{{ proto ... */` and `/* }}} */` markers from all source files
+  - Removed redundant inline comments restating obvious code
+  - Affected files: `firebird.c`, `fbird_blobs.c`, `fbird_events.c`, `fbird_service.c`, `fbird_query_exec.c`, `fbird_result.c`, `fbird_query_prepare.c`, `fbird_metadata.c`, `fbird_query_bind.c`, `fbird_inspection.c`, `fbird_query_array.c`
+
 ## [7.0.0-rc.25] - 2025-12-31
 
 ### Fixed
@@ -502,7 +520,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.25...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.35...HEAD
+[7.0.0-rc.35]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.25...v7.0.0-rc.35
 [7.0.0-rc.25]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.13...v7.0.0-rc.25
 [7.0.0-rc.13]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.12...v7.0.0-rc.13
 [7.0.0-rc.12]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.11...v7.0.0-rc.12

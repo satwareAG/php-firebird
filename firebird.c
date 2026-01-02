@@ -2911,11 +2911,7 @@ void fbp_error_ex(long level, const char *msg, ...)
 	php_error(level, "%s", buf);
 }
 
-
-/* =============================================================================
- * Limbo Transaction Functions (Two-Phase Commit Recovery)
- * ============================================================================= */
-
+/* Limbo Transaction Functions (Two-Phase Commit Recovery) */
 PHP_FUNCTION(fbird_get_limbo_transactions)
 {
 	zval *link_arg = NULL;
@@ -3039,10 +3035,7 @@ PHP_FUNCTION(fbird_reconnect_transaction)
 }
 
 #if FB_API_VER >= 40
-/* =============================================================================
- * IBatch API Functions (Firebird 4.0+ Bulk Operations)
- * ============================================================================= */
-
+/* IBatch API Functions (Firebird 4.0+ Bulk Operations) */
 PHP_FUNCTION(fbird_batch_create)
 {
 	zval *query_arg, *trans_arg = NULL;

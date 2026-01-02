@@ -29,6 +29,16 @@ const FBIRD_CONNECT_FORCE_NEW = 2;
 const FBIRD_VER = 10;
 
 // ============================================================================
+// EXCEPTION MODE CONSTANTS
+// ============================================================================
+
+/** Exception mode: suppress errors (default) */
+const FBIRD_EXCEPTION_MODE_SILENT = 0;
+
+/** Exception mode: throw exceptions on errors */
+const FBIRD_EXCEPTION_MODE_THROW = 1;
+
+// ============================================================================
 // FETCH FLAGS
 // ============================================================================
 
@@ -633,6 +643,21 @@ function fbird_sqlstate(): string|false {}
  */
 function fbird_escape_string(string $string): string {}
 
+/**
+ * Set the exception mode for error handling.
+ *
+ * @param int $mode FBIRD_EXCEPTION_MODE_SILENT (0) or FBIRD_EXCEPTION_MODE_THROW (1)
+ * @return bool True on success
+ */
+function fbird_set_exception_mode(int $mode): bool {}
+
+/**
+ * Get the current exception mode.
+ *
+ * @return int Current mode: FBIRD_EXCEPTION_MODE_SILENT (0) or FBIRD_EXCEPTION_MODE_THROW (1)
+ */
+function fbird_get_exception_mode(): int {}
+
 // ============================================================================
 // EVENT FUNCTIONS
 // ============================================================================
@@ -921,3 +946,34 @@ function fbird_batch_cancel(mixed $batch): bool {}
  * @return int|false Alignment in bytes or false on error
  */
 function fbird_batch_get_blob_alignment(mixed $batch): int|false {}
+
+// ============================================================================
+// INSPECTION FUNCTIONS (Database/Attachment Management)
+// ============================================================================
+
+/**
+ * Kill a database attachment by ID.
+ *
+ * @param resource $link_or_trans Connection or transaction resource
+ * @param int $attachment_id Attachment ID to kill
+ * @return bool True on success, false on error
+ */
+function fbird_kill_attachment(mixed $link_or_trans, int $attachment_id): bool {}
+
+/**
+ * List attachments blocking a table.
+ *
+ * @param resource $link_or_trans Connection or transaction resource
+ * @param string $table_name Table name to check
+ * @return array<int, array{attachment_id: int, user: string}>|false Blocker info or false on error
+ */
+function fbird_list_table_blockers(mixed $link_or_trans, string $table_name): array|false {}
+
+/**
+ * Force drop a table by killing blocking attachments.
+ *
+ * @param resource $link_or_trans Connection or transaction resource
+ * @param string $table_name Table name to drop
+ * @return bool True on success, false on error
+ */
+function fbird_drop_table_force(mixed $link_or_trans, string $table_name): bool {}

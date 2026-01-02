@@ -1,5 +1,7 @@
 # PHP Firebird Extension (Modernized)
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/satwareAG/php-firebird)
+
 A high-performance PHP extension providing native connectivity to Firebird databases. This modernized version targets PHP 8.1+ with C++17 standards and comprehensive development tooling.
 
 > **⚠️ Breaking Changes in v7.0**: This version uses `fbird_*` function names (not `ibase_*`) and builds as `firebird.so` (not `interbase.so`). See the [Migration Guide](#migration-guide) for upgrade instructions.

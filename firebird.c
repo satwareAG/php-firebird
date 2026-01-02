@@ -916,8 +916,11 @@ static void _php_fbird_close_link(zend_resource *rsrc)
 #endif
 
 	/* Remove cache entry from EG(regular_list) to prevent UAF (Issue #35).
-	 * The cache uses a 16-byte MD5 hash as the string key. */
-	if (link->hash_key[0] != '\0' || memcmp(link->hash_key, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16) != 0) {
+	 *
+	 * CRITICAL: Skip EG() access during MSHUTDOWN (Issue #50, #51, #55).
+	 * During module shutdown, EG(regular_list) may already be destroyed. */
+	if (!IBG(in_mshutdown) &&
+		(link->hash_key[0] != '\0' || memcmp(link->hash_key, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16) != 0)) {
 		zend_hash_str_del(&EG(regular_list), link->hash_key, sizeof(link->hash_key) - 1);
 		FBDEBUG("Removed cache entry for normal link");
 	}

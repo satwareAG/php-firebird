@@ -178,31 +178,52 @@ jobs:
         run: |
           $phpVer = "${{ matrix.php }}"
           $ts = "${{ matrix.ts }}"
-          $tsStr = if ($ts -eq "ts") { "" } else { "-nts" }
           
-          # Get latest PHP version for this minor version
+          # Determine VS version based on PHP version (8.2/8.3 use vs16, 8.4+ use vs17)
+          $vsVersion = if ([version]$phpVer -ge [version]"8.4") { "vs17" } else { "vs16" }
+          Write-Host "PHP $phpVer uses $vsVersion"
+          
+          # Build the API key for the build variant (e.g., "nts-vs16-x64" or "ts-vs17-x64")
+          $tsPrefix = if ($ts -eq "ts") { "ts" } else { "nts" }
+          $buildKey = "$tsPrefix-$vsVersion-x64"
+          
+          # Get release info from API
           $releases = Invoke-RestMethod "https://windows.php.net/downloads/releases/releases.json"
-          $fullVersion = ($releases.PSObject.Properties | Where-Object { $_.Name -like "$phpVer.*" } | Select-Object -First 1).Name
+          $phpRelease = $releases.$phpVer
           
-          if (-not $fullVersion) {
-            # Fallback to archives for PHP 8.5 or other versions
-            $fullVersion = "$phpVer.0"
+          if (-not $phpRelease) {
+            Write-Error "PHP $phpVer not found in releases.json"
+            exit 1
           }
           
-          $url = "https://windows.php.net/downloads/releases/php-devel-pack-$fullVersion$tsStr-Win32-$env:VS_VERSION-x64.zip"
+          $fullVersion = $phpRelease.version
+          Write-Host "Latest PHP $phpVer version: $fullVersion"
+          
+          # Get devel pack path from API
+          $buildInfo = $phpRelease.$buildKey
+          if (-not $buildInfo -or -not $buildInfo.devel_pack) {
+            Write-Error "Build variant $buildKey not found for PHP $phpVer"
+            exit 1
+          }
+          
+          $develPackPath = $buildInfo.devel_pack.path
+          $url = "https://windows.php.net/downloads/releases/$develPackPath"
           Write-Host "Downloading: $url"
           
           try {
             Invoke-WebRequest -Uri $url -OutFile php-devel.zip
           } catch {
-            # Try archives
-            $url = "https://windows.php.net/downloads/releases/archives/php-devel-pack-$fullVersion$tsStr-Win32-$env:VS_VERSION-x64.zip"
+            # Try archives as fallback
+            $url = "https://windows.php.net/downloads/releases/archives/$develPackPath"
             Write-Host "Trying archive: $url"
             Invoke-WebRequest -Uri $url -OutFile php-devel.zip
           }
           
           Expand-Archive php-devel.zip -DestinationPath C:\php-sdk
           Get-ChildItem C:\php-sdk\php-*-devel* | Rename-Item -NewName php-devel
+          
+          # Export VS version for later steps
+          echo "VS_VERSION=$vsVersion" >> $env:GITHUB_ENV
       
       - name: Download Firebird SDK
         shell: powershell
@@ -220,7 +241,7 @@ jobs:
       - name: Build extension
         shell: cmd
         run: |
-          call C:\php-sdk\php-sdk-binary-tools\phpsdk-${{ env.VS_VERSION }}-x64.bat
+          call C:\php-sdk\php-sdk-binary-tools\phpsdk-%VS_VERSION%-x64.bat
           
           set PATH=C:\php-sdk\php-devel;%PATH%
           set INCLUDE=C:\firebird\include;%INCLUDE%

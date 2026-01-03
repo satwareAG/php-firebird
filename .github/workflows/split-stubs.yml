@@ -38,6 +38,10 @@ jobs:
           repository_organization: 'satwareAG'
           repository_name: 'php-firebird-stubs'
           
+          # Git commit identity
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          user_name: 'github-actions[bot]'
+          
           # Branch to push to in the target repository
           branch: 'main'
           

@@ -1,0 +1,2 @@
+# Export ignore - exclude these files from composer dist archives
+/.gitattributes export-ignore

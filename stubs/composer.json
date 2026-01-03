@@ -1,0 +1,48 @@
+{
+    "name": "satwareag/php-firebird-stubs",
+    "description": "IDE and static analysis stubs for the php-firebird extension",
+    "type": "library",
+    "keywords": [
+        "firebird",
+        "fbird",
+        "database",
+        "stubs",
+        "phpstan",
+        "psalm",
+        "ide",
+        "static-analysis"
+    ],
+    "homepage": "https://github.com/satwareAG/php-firebird",
+    "license": "PHP-3.01",
+    "authors": [
+        {
+            "name": "satware AG",
+            "email": "info@satware.com",
+            "homepage": "https://satware.com"
+        }
+    ],
+    "require": {
+        "php": ">=8.1"
+    },
+    "autoload": {
+        "files": [
+            "firebird-stubs.php",
+            "firebird-classes.php"
+        ]
+    },
+    "suggest": {
+        "satwareag/php-firebird": "The actual php-firebird extension for runtime use"
+    },
+    "support": {
+        "issues": "https://github.com/satwareAG/php-firebird/issues",
+        "source": "https://github.com/satwareAG/php-firebird"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "7.0.x-dev"
+        }
+    }
+}

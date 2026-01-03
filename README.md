@@ -718,6 +718,41 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development guidelines inclu
 - **Thread Safety**: Support for both ZTS and NTS builds
 - **Memory Model**: RAII principles with automatic resource cleanup
 
+## IDE and Static Analysis Support
+
+For IDE autocompletion and static analysis tools (PHPStan, Psalm), install the stubs package:
+
+```bash
+composer require --dev satwareag/php-firebird-stubs
+```
+
+This provides:
+- **IDE Autocompletion**: Full function signatures and parameter hints for PhpStorm, VSCode (Intelephense), etc.
+- **PHPStan/Psalm Support**: Type stubs for static analysis of code using `fbird_*` functions
+- **Inline Documentation**: PHPDoc comments describing each function and constant
+
+### PHPStan Configuration
+
+The stubs are automatically loaded via Composer. For explicit configuration in `phpstan.neon`:
+
+```neon
+parameters:
+    scanFiles:
+        - vendor/satwareag/php-firebird-stubs/firebird-stubs.php
+        - vendor/satwareag/php-firebird-stubs/firebird-classes.php
+```
+
+### Psalm Configuration
+
+Add to your `psalm.xml`:
+
+```xml
+<stubs>
+    <file name="vendor/satwareag/php-firebird-stubs/firebird-stubs.php"/>
+    <file name="vendor/satwareag/php-firebird-stubs/firebird-classes.php"/>
+</stubs>
+```
+
 ## Function Reference
 
 ### Connection Functions

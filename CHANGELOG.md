@@ -5,6 +5,19 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-rc.43] - 2026-01-03
+
+### Fixed
+
+- **Issue #56 (SIGSEGV during PHP shutdown)**: Fixed segmentation fault in `fb::Connection::detachNoThrow()` during resource cleanup
+  - **Root Cause**: During PHP shutdown, the stored `master_` pointer in `fb::Connection` objects could become invalid if the Firebird client library cleaned up its global state before PHP's resource destructors ran
+  - **Crash Signature**: SIGSEGV in `detachNoThrow()` when calling `master_->getStatus()` on corrupted/freed IMaster pointer
+  - **Fix**: Changed `detachNoThrow()` to call `getMaster()` (which returns the current `IBG(master_instance)` global) instead of using the stored `master_` pointer
+    - If `getMaster()` returns NULL (Firebird already shut down), safely skip the detach operation
+    - This prevents accessing potentially invalid stored pointers during shutdown
+  - **Impact**: Extension now safely handles shutdown scenarios where Firebird client library cleanup order varies
+  - **Note**: This is a surgical fix that doesn't modify the complex connection caching logic in `firebird.c`
+
 ## [7.0.0-rc.42] - 2026-01-03
 
 ### Fixed
@@ -635,7 +648,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.42...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.43...HEAD
+[7.0.0-rc.43]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.42...v7.0.0-rc.43
 [7.0.0-rc.42]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.39...v7.0.0-rc.42
 [7.0.0-rc.39]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.38...v7.0.0-rc.39
 [7.0.0-rc.38]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.37...v7.0.0-rc.38

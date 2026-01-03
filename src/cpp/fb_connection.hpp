@@ -533,9 +533,15 @@ inline bool Connection::detachNoThrow() noexcept {
     }
 
     try {
-        if (master_) {
+        // Get a FRESH master pointer instead of using stored master_.
+        // During PHP shutdown, the stored master_ may point to freed memory
+        // if the Firebird client library cleanup ran before PHP's resource destructors.
+        // getMaster() returns the current global IBG(master_instance), which will
+        // be NULL if already cleaned up, allowing us to safely skip the detach.
+        Firebird::IMaster* current_master = getMaster();
+        if (current_master) {
             // Use CheckStatusWrapper for Firebird template API
-            Firebird::IStatus* raw_status = master_->getStatus();
+            Firebird::IStatus* raw_status = current_master->getStatus();
             Firebird::CheckStatusWrapper check_status(raw_status);
             attachment_->detach(&check_status);
             // Use hasData() for FB3 compatibility (see Connection::create comment)
@@ -544,6 +550,7 @@ inline bool Connection::detachNoThrow() noexcept {
                 return false;
             }
         }
+        // If master is NULL, skip detach - Firebird is already shutting down
         attachment_.reset();
         return true;
     } catch (...) {

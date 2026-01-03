@@ -27,6 +27,9 @@ jobs:
       
       - name: Split stubs directory
         uses: danharrin/monorepo-split-github-action@v2.4.0
+        env:
+          # PAT environment variable required by the action
+          PAT: ${{ secrets.STUBS_REPO_TOKEN }}
         with:
           # Source directory containing the package
           package_directory: 'stubs'
@@ -34,11 +37,6 @@ jobs:
           # Target repository in format: organization/repository
           repository_organization: 'satwareAG'
           repository_name: 'php-firebird-stubs'
-          
-          # PAT with contents:write scope for the target repository
-          # Create at: https://github.com/settings/tokens?type=beta
-          # Required scopes: Contents (Read and write) for satwareAG/php-firebird-stubs
-          repository_access_token: ${{ secrets.STUBS_REPO_TOKEN }}
           
           # Branch to push to in the target repository
           branch: 'main'

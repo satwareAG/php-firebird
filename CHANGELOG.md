@@ -5,6 +5,18 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-rc.44] - 2026-01-03
+
+### Fixed
+
+- **Issue #56 (SIGSEGV in `fb::ServiceWrapper::detach()`)**: Fixed segmentation fault in service destructor during PHP request shutdown
+  - **Root Cause**: `_php_fbird_free_service()` contained dead code for Phase 8 OO API cleanup (`fbsvc_detach`) that was checking an unused pointer (`sv->fbsvc_service`)
+  - Although initialized to NULL, heap corruption in complex environments (like doctrine-firebird-driver tests) could overwrite this pointer with garbage
+  - The destructor then attempted to call `detach()` on the garbage pointer, causing SIGSEGV
+  - **Fix**: Removed the dead OO API cleanup code and commented out the unused struct member
+  - **Impact**: Eliminates the crash vector entirely; service cleanup now relies solely on the stable Legacy API (`isc_service_detach`)
+  - **Verification**: Validated with reproduction test `tests/bug_issue56_service_shutdown.phpt` and full QA suite
+
 ## [7.0.0-rc.43] - 2026-01-03
 
 ### Fixed

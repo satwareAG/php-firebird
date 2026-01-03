@@ -18,7 +18,7 @@ typedef struct {
 	char *hostname;
 	char *username;
 	zend_resource *res;
-	void *fbsvc_service; /* OO API ServiceWrapper* (Phase 8) */
+	/* void *fbsvc_service; OO API ServiceWrapper* (Phase 8) - Removed to prevent Issue #56 crash */
 	pid_t created_pid;   /* PID when service was created (fork detection, Issue #56) */
 } fbird_service;
 
@@ -83,11 +83,10 @@ static void _php_fbird_free_service(zend_resource *rsrc)
 	}
 
 	/* Guard 5: master_instance validation before OO API calls */
-	if (sv->fbsvc_service != NULL && IBG(master_instance) != NULL) {
-		fbsvc_detach(IBG(master_instance), sv->fbsvc_service, IB_STATUS);
-		fbsvc_free(sv->fbsvc_service);
-		sv->fbsvc_service = NULL;
-	}
+	/* Phase 8 OO API not yet implemented for services.
+	 * Removed dead code that checked sv->fbsvc_service to prevent SIGSEGV
+	 * if heap corruption overwrites this unused pointer (Issue #56).
+	 */
 
 	/* Legacy API cleanup - only if handle is valid */
 	if (sv->handle != 0) {
@@ -326,7 +325,7 @@ PHP_FUNCTION(fbird_service_attach)
 	svm->handle = handle;
 	svm->hostname = hlen > 0 ? estrdup(host) : NULL;
 	svm->username = ulen > 0 ? estrdup(user) : NULL;
-	svm->fbsvc_service = NULL;  /* Phase 8: OO API wrapper, initialized on demand */
+	/* svm->fbsvc_service = NULL; Phase 8: OO API wrapper */
 #ifndef PHP_WIN32
 	svm->created_pid = getpid();  /* Issue #56: Track creation PID for fork detection */
 #else

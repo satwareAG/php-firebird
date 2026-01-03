@@ -19,6 +19,7 @@ typedef struct {
 	char *username;
 	zend_resource *res;
 	void *fbsvc_service; /* OO API ServiceWrapper* (Phase 8) */
+	pid_t created_pid;   /* PID when service was created (fork detection, Issue #56) */
 } fbird_service;
 
 static int le_service;
@@ -27,17 +28,75 @@ static void _php_fbird_free_service(zend_resource *rsrc)
 {
 	fbird_service *sv = (fbird_service *) rsrc->ptr;
 
-	/* Phase 8: Clean up OO API wrapper first (if used) */
-	if (sv->fbsvc_service) {
+	/* Guard 1: NULL pointer check (Issue #56)
+	 * In forked PHP workers, rsrc->ptr may be NULL when inherited resource
+	 * descriptors are destroyed during child process shutdown. */
+	if (sv == NULL) {
+		return;
+	}
+
+#ifndef PHP_WIN32
+	/* Guard 2: Fork-safety - Global level (Issue #22, #36, #56 pattern)
+	 * After pcntl_fork(), child inherits global state including master_instance.
+	 * Attempting to detach handles in child that were created in parent causes
+	 * segfault. Only the original process should perform cleanup. */
+	pid_t current_pid = getpid();
+	if (IBG(init_pid) != 0 && current_pid != IBG(init_pid)) {
+		/* In forked child - just free the struct, don't call Firebird API */
+		if (sv->hostname) {
+			efree(sv->hostname);
+		}
+		if (sv->username) {
+			efree(sv->username);
+		}
+		efree(sv);
+		return;
+	}
+
+	/* Guard 3: Fork-safety - Service level
+	 * Even if global init_pid matches, this specific service may have been
+	 * created in a different process (e.g., worker spawned after module init). */
+	if (sv->created_pid != 0 && current_pid != sv->created_pid) {
+		if (sv->hostname) {
+			efree(sv->hostname);
+		}
+		if (sv->username) {
+			efree(sv->username);
+		}
+		efree(sv);
+		return;
+	}
+#endif
+
+	/* Guard 4: MSHUTDOWN safety
+	 * During module shutdown, master_instance may be in undefined state.
+	 * Skip API calls but still free PHP-allocated memory. */
+	if (IBG(in_mshutdown)) {
+		if (sv->hostname) {
+			efree(sv->hostname);
+		}
+		if (sv->username) {
+			efree(sv->username);
+		}
+		efree(sv);
+		return;
+	}
+
+	/* Guard 5: master_instance validation before OO API calls */
+	if (sv->fbsvc_service != NULL && IBG(master_instance) != NULL) {
 		fbsvc_detach(IBG(master_instance), sv->fbsvc_service, IB_STATUS);
 		fbsvc_free(sv->fbsvc_service);
 		sv->fbsvc_service = NULL;
 	}
 
-	if (isc_service_detach(IB_STATUS, (isc_svc_handle *)&sv->handle)) {
-		_php_fbird_error();
+	/* Legacy API cleanup - only if handle is valid */
+	if (sv->handle != 0) {
+		if (isc_service_detach(IB_STATUS, (isc_svc_handle *)&sv->handle)) {
+			_php_fbird_error();
+		}
 	}
 
+	/* Free PHP-allocated memory */
 	if (sv->hostname) {
 		efree(sv->hostname);
 	}
@@ -268,6 +327,11 @@ PHP_FUNCTION(fbird_service_attach)
 	svm->hostname = hlen > 0 ? estrdup(host) : NULL;
 	svm->username = ulen > 0 ? estrdup(user) : NULL;
 	svm->fbsvc_service = NULL;  /* Phase 8: OO API wrapper, initialized on demand */
+#ifndef PHP_WIN32
+	svm->created_pid = getpid();  /* Issue #56: Track creation PID for fork detection */
+#else
+	svm->created_pid = 0;
+#endif
 
 	RETVAL_RES(zend_register_resource(svm, le_service));
 	Z_TRY_ADDREF_P(return_value);

@@ -5,6 +5,23 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-rc.39] - 2026-01-03
+
+### Fixed
+
+- **Issue #56 (SIGSEGV in `fb::ServiceWrapper::detach()`)**: Fixed segmentation fault in service handle destructor during PHP request shutdown
+  - **Root Cause**: `_php_fbird_free_service()` was missing all safety guards present in other resource destructors
+  - In forked child processes (pcntl_fork, PHPStan parallel, PHPUnit parallel), service handles inherited from parent would crash when destroyed
+  - **Crash Signature**: `si_addr=0x4` - NULL pointer dereference with struct field offset (classic fork-safety issue)
+  - **Fix**: Added 5 safety guards following patterns from `_php_fbird_close_link()` and `_php_fbird_free_trans()`:
+    1. **NULL pointer check**: Early return if `rsrc->ptr` is NULL (inherited resource in forked process)
+    2. **Fork-safety (global)**: Check `IBG(init_pid)` - skip cleanup if current PID differs from module init PID
+    3. **Fork-safety (service level)**: Added `created_pid` field to `fbird_service` struct for per-service fork detection
+    4. **MSHUTDOWN guard**: Skip API calls during module shutdown when `IBG(in_mshutdown)` is true
+    5. **master_instance validation**: Check `IBG(master_instance) != NULL` before OO API calls
+  - **Impact**: Service handles now safe in forked processes, PHPStan/PHPUnit parallel modes, and MSHUTDOWN scenarios
+  - Related: #22 (fork-safety for connections), #36 (fork-safety for transactions), #55 (MSHUTDOWN guard for connections)
+
 ## [7.0.0-rc.35] - 2026-01-02
 
 ### Fixed
@@ -586,7 +603,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.38...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.39...HEAD
+[7.0.0-rc.39]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.38...v7.0.0-rc.39
 [7.0.0-rc.38]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.37...v7.0.0-rc.38
 [7.0.0-rc.37]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.36...v7.0.0-rc.37
 [7.0.0-rc.36]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.35...v7.0.0-rc.36

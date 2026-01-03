@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Issue #56 Investigation Update**: Added detailed analysis for doctrine-firebird-driver heap corruption
+  - **Finding**: Memory allocators are consistent (C++ new/delete, PHP emalloc/efree - no cross-allocator mismatch)
+  - **Key Insight**: `USE_ZEND_ALLOC=0` eliminates crash, proving Zend MM interaction issue
+  - **GDB Analysis**: "Builder" string in RDI register indicates use-after-free (memory reallocated by PHP)
+  - **Valgrind**: 0 errors on basic operations, issue only manifests after many test iterations
+  - **ASAN**: Blocked by PHP's RTLD_DEEPBIND incompatibility with sanitizers
+  - **Documentation**: Created `docs/plans/2026-01-03-issue-56-heap-corruption-fix.md` with implementation plan
+  - **Status**: Awaiting minimal reproduction case from doctrine-firebird-driver team
+
 - **Comprehensive Destructor Safety Audit**: Extended Issue #56 fix to all resource destructors
   - **BLOB handles** (`fbird_blobs.c`): Added NULL pointer guard, fork-safety (global + per-resource `created_pid`), MSHUTDOWN guard
   - **Event handlers** (`fbird_events.c`): Added NULL pointer guard, fork-safety, MSHUTDOWN guard

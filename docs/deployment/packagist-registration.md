@@ -137,6 +137,24 @@ curl -X POST \
 - Verify PAT has "Contents: Read and write" permission
 - Verify PAT has access to `satwareAG/php-firebird-stubs`
 
+### Split workflow fails with "Public access token is missing"
+The PAT must be passed as an environment variable `PAT`, not as an input:
+```yaml
+- uses: danharrin/monorepo-split-github-action@v2.4.0
+  env:
+    PAT: ${{ secrets.STUBS_REPO_TOKEN }}
+  with:
+    # ... other inputs
+```
+
+### Split workflow fails with "Author identity unknown"
+Add git identity configuration to the workflow:
+```yaml
+with:
+  user_email: 'github-actions[bot]@users.noreply.github.com'
+  user_name: 'github-actions[bot]'
+```
+
 ### Packagist shows outdated version
 Trigger a manual update:
 ```bash

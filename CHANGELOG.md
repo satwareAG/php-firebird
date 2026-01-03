@@ -569,7 +569,9 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.35...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.37...HEAD
+[7.0.0-rc.37]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.36...v7.0.0-rc.37
+[7.0.0-rc.36]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.35...v7.0.0-rc.36
 [7.0.0-rc.35]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.25...v7.0.0-rc.35
 [7.0.0-rc.25]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.13...v7.0.0-rc.25
 [7.0.0-rc.13]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.12...v7.0.0-rc.13

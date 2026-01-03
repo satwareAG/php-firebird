@@ -1,0 +1,47 @@
+# Mono-repo subtree split workflow for php-firebird-stubs
+# Splits the stubs/ directory to the dedicated satwareAG/php-firebird-stubs repository
+# See: docs/research/mono-repo-stubs-strategy.md
+
+name: Split Stubs Package
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'stubs/**'
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  split:
+    name: Split stubs/ to dedicated repository
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history required for subtree split
+      
+      - name: Split stubs directory
+        uses: danharrin/monorepo-split-github-action@v2.4.0
+        with:
+          # Source directory containing the package
+          package_directory: 'stubs'
+          
+          # Target repository in format: organization/repository
+          repository_organization: 'satwareAG'
+          repository_name: 'php-firebird-stubs'
+          
+          # PAT with contents:write scope for the target repository
+          # Create at: https://github.com/settings/tokens?type=beta
+          # Required scopes: Contents (Read and write) for satwareAG/php-firebird-stubs
+          repository_access_token: ${{ secrets.STUBS_REPO_TOKEN }}
+          
+          # Branch to push to in the target repository
+          branch: 'main'
+          
+          # Preserve tag in split repository (for Packagist versioning)
+          tag: ${{ github.ref_type == 'tag' && github.ref_name || '' }}

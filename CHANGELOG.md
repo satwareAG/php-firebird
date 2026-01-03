@@ -63,6 +63,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **AlmaLinux 9 from CI**: Removed from test-bundles matrix (default PHP 8.0 is below minimum supported PHP 8.1)
 
+## [7.0.0-rc.37] - 2026-01-03
+
+### Fixed
+
+- **Issue #55 (PHPStan SIGSEGV during reflection)**: Fixed segmentation fault when PHPStan analyzes code with firebird extension loaded
+  - **Root Cause**: Several arginfo definitions used `ZEND_ARG_TYPE_INFO(0, ..., IS_RESOURCE, ...)` which specifies `IS_RESOURCE` as a type hint
+  - In PHP 8.x, `IS_RESOURCE` is NOT a valid type-hint for function signatures (resources aren't type-hintable in PHP 8)
+  - When PHPStan uses PHP's reflection APIs, it calls `zend_type_to_string()` on arginfo types
+  - `zend_type_to_string()` returns NULL for `IS_RESOURCE`, and calling code crashes accessing offset 4 of NULL pointer (SIGSEGV at `si_addr=0x4`)
+  - **Fix**: Changed all `ZEND_ARG_TYPE_INFO(0, param, IS_RESOURCE, ...)` to `ZEND_ARG_INFO(0, param)` (untyped)
+  - **Affected arginfo**: `arginfo_fbird_close`, `arginfo_fbird_connection_info`, `arginfo_fbird_get_limbo_transactions`, `arginfo_fbird_reconnect_transaction`, and all `arginfo_fbird_batch_*` entries
+  - **Impact**: PHPStan/Psalm can now analyze codebases that use the firebird extension without segfaulting
+
 ## [7.0.0-rc.36] - 2026-01-03
 
 ### Fixed

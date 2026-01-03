@@ -82,7 +82,7 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_pconnect, 0, 0, 0)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_close, 0, 0, 0)
-	ZEND_ARG_TYPE_INFO(0, link_identifier, IS_RESOURCE, 1)
+	ZEND_ARG_INFO(0, link_identifier)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_drop_db, 0, 0, 0)
@@ -389,48 +389,48 @@ ZEND_BEGIN_ARG_INFO(arginfo_fbird_get_client_minor_version, 0)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_connection_info, 0, 0, 0)
-	ZEND_ARG_TYPE_INFO(0, link_identifier, IS_RESOURCE, 1)
+	ZEND_ARG_INFO(0, link_identifier)
 ZEND_END_ARG_INFO()
 
 /* Limbo Transaction Functions (Two-Phase Commit Recovery) */
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_get_limbo_transactions, 0, 0, 0)
-	ZEND_ARG_TYPE_INFO(0, link_identifier, IS_RESOURCE, 1)
+	ZEND_ARG_INFO(0, link_identifier)
 	ZEND_ARG_TYPE_INFO(0, max_count, IS_LONG, 0)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_reconnect_transaction, 0, 0, 2)
-	ZEND_ARG_TYPE_INFO(0, link_identifier, IS_RESOURCE, 0)
+	ZEND_ARG_INFO(0, link_identifier)
 	ZEND_ARG_TYPE_INFO(0, transaction_id, IS_LONG, 0)
 ZEND_END_ARG_INFO()
 
 /* IBatch API Functions (Firebird 4.0+ Bulk Operations) */
 #if FB_API_VER >= 40
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_batch_create, 0, 0, 1)
-	ZEND_ARG_TYPE_INFO(0, query, IS_RESOURCE, 0)
-	ZEND_ARG_TYPE_INFO(0, trans_identifier, IS_RESOURCE, 1)
+	ZEND_ARG_INFO(0, query)
+	ZEND_ARG_INFO(0, trans_identifier)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_batch_add, 0, 0, 1)
-	ZEND_ARG_TYPE_INFO(0, batch, IS_RESOURCE, 0)
+	ZEND_ARG_INFO(0, batch)
 	ZEND_ARG_VARIADIC_INFO(0, bind_args)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_batch_execute, 0, 0, 1)
-	ZEND_ARG_TYPE_INFO(0, batch, IS_RESOURCE, 0)
+	ZEND_ARG_INFO(0, batch)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_batch_cancel, 0, 0, 1)
-	ZEND_ARG_TYPE_INFO(0, batch, IS_RESOURCE, 0)
+	ZEND_ARG_INFO(0, batch)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_batch_add_blob, 0, 0, 2)
-	ZEND_ARG_TYPE_INFO(0, batch, IS_RESOURCE, 0)
+	ZEND_ARG_INFO(0, batch)
 	ZEND_ARG_TYPE_INFO(0, data, IS_STRING, 0)
 	ZEND_ARG_TYPE_INFO(0, blob_type, IS_LONG, 0)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_batch_register_blob, 0, 0, 2)
-	ZEND_ARG_TYPE_INFO(0, batch, IS_RESOURCE, 0)
+	ZEND_ARG_INFO(0, batch)
 	ZEND_ARG_TYPE_INFO(0, blob_id, IS_STRING, 0)
 ZEND_END_ARG_INFO()
 #endif /* FB_API_VER >= 40 */

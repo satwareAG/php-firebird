@@ -95,10 +95,21 @@ make clean && phpize --clean
 
 ### 1. Setup and Branching
 ```bash
-git clone https://github.com/FirebirdSQL/php-firebird.git
+git clone https://github.com/satwareAG/php-firebird.git
 cd php-firebird
+
+# For new features, branch from satware-main
+git checkout satware-main
 git checkout -b feature/your-feature-name
+
+# For release candidate work
+git checkout release/v7.0.0-rc
 ```
+
+**Branch Strategy:**
+- `satware-main` - Main development branch
+- `release/v7.0.0-rc` - Current release candidate branch
+- `feature/*` - Feature branches (merge to satware-main)
 
 ### 2. Code Development
 - Follow .editorconfig standards automatically

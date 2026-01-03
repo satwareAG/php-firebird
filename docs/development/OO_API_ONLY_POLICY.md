@@ -47,9 +47,21 @@ This document explains our architectural decision to use only the OO API and how
 
 | Component | Minimum Version | Recommended | Notes |
 |-----------|-----------------|-------------|-------|
-| **Firebird Client Library** | 3.0 | 4.0.5+ | **REQUIRED** for OO API |
+| **Firebird Client Library** | 3.0 | 5.0+ | **REQUIRED** for OO API |
 | **Firebird Server** | 2.5 | 4.0+ | Any version works |
 | **PHP** | 8.1 | 8.4+ | Extension requirement |
+
+### Compile-Time Enforcement
+
+The extension enforces FB 3.0+ requirement at compile time in `php_firebird.h`:
+
+```c
+#if FB_API_VER < 30
+  #error "FATAL: This extension requires Firebird 3.0+ OO API (FB_API_VER >= 30)"
+#endif
+```
+
+This fails the build immediately with a clear error message if attempted with an older Firebird client library.
 
 ---
 

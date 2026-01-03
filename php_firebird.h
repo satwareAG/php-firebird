@@ -13,6 +13,10 @@ extern zend_module_entry firebird_module_entry;
   static_assert(false, "FATAL: FB_API_VER is not defined. Assumed very old, unsupported client library");
 #endif
 
+#if FB_API_VER < 30
+  #error "FATAL: This extension requires Firebird 3.0+ OO API (FB_API_VER >= 30)"
+#endif
+
 /* Version string: defined by configure script via AC_DEFINE_UNQUOTED.
  * Fallback for manual builds or missing configure detection. */
 #ifndef PHP_FIREBIRD_VERSION_STRING

@@ -18,9 +18,7 @@ typedef struct {
 	char *hostname;
 	char *username;
 	zend_resource *res;
-#if FB_API_VER >= 30
 	void *fbsvc_service; /* OO API ServiceWrapper* (Phase 8) */
-#endif
 } fbird_service;
 
 static int le_service;
@@ -29,14 +27,12 @@ static void _php_fbird_free_service(zend_resource *rsrc)
 {
 	fbird_service *sv = (fbird_service *) rsrc->ptr;
 
-#if FB_API_VER >= 30
 	/* Phase 8: Clean up OO API wrapper first (if used) */
 	if (sv->fbsvc_service) {
 		fbsvc_detach(IBG(master_instance), sv->fbsvc_service, IB_STATUS);
 		fbsvc_free(sv->fbsvc_service);
 		sv->fbsvc_service = NULL;
 	}
-#endif
 
 	if (isc_service_detach(IB_STATUS, (isc_svc_handle *)&sv->handle)) {
 		_php_fbird_error();
@@ -271,9 +267,7 @@ PHP_FUNCTION(fbird_service_attach)
 	svm->handle = handle;
 	svm->hostname = hlen > 0 ? estrdup(host) : NULL;
 	svm->username = ulen > 0 ? estrdup(user) : NULL;
-#if FB_API_VER >= 30
 	svm->fbsvc_service = NULL;  /* Phase 8: OO API wrapper, initialized on demand */
-#endif
 
 	RETVAL_RES(zend_register_resource(svm, le_service));
 	Z_TRY_ADDREF_P(return_value);

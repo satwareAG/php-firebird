@@ -61,14 +61,12 @@ void _php_fbird_free_event(fbird_event *event)
 
 	event->state = DEAD;
 
-#if FB_API_VER >= 30
 	/* Phase 7: Free OO API event wrapper if present */
 	if (event->fbe_events) {
 		fbe_cancel(IBG(master_instance), event->fbe_events, NULL);
 		fbe_free(event->fbe_events);
 		event->fbe_events = NULL;
 	}
-#endif
 
 	if (event->link != NULL) {
 		fbird_event **node;

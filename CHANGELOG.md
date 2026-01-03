@@ -63,6 +63,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **AlmaLinux 9 from CI**: Removed from test-bundles matrix (default PHP 8.0 is below minimum supported PHP 8.1)
 
+## [7.0.0-rc.38] - 2026-01-03
+
+### Changed
+
+- **FB_API_VER >= 30 Preprocessor Cleanup**: Removed redundant compile-time guards since Firebird 3.0+ OO API is the required minimum
+  - **Added** central compile-time check in `php_firebird.h` that fails with clear error if FB_API_VER < 30
+  - **Removed** 12 redundant `#if FB_API_VER >= 30` guards from 6 source files:
+    - `fbird_inspection.c`: Removed guard around `firebird_utils.h` include and duplicate version check
+    - `fbird_events.c`: Removed guard around Phase 7 OO API event wrapper cleanup
+    - `fbird_service.c`: Removed 3 guards around struct member, destructor cleanup, initialization
+    - `firebird_utils_internal.h`: Removed wrapping guard (preserved `#if FB_API_VER >= 40` blocks inside)
+    - `firebird_utils.cpp`: Removed 6 guards around includes and phase implementations
+  - **Preserved** all `#if FB_API_VER >= 40` guards (still needed for Firebird 4.0+ features like IBatch)
+  - **Added** cppcheck suppression for intentional `#error` directive in `.cppcheck-suppressions`
+  - **Rationale**: Extension requires FB 3.0+ OO API; guards were vestigial from legacy compatibility layer
+  - **Impact**: Cleaner codebase, clearer error message for users with unsupported Firebird client
+
 ## [7.0.0-rc.37] - 2026-01-03
 
 ### Fixed
@@ -569,7 +586,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.37...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.38...HEAD
+[7.0.0-rc.38]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.37...v7.0.0-rc.38
 [7.0.0-rc.37]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.36...v7.0.0-rc.37
 [7.0.0-rc.36]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.35...v7.0.0-rc.36
 [7.0.0-rc.35]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.25...v7.0.0-rc.35

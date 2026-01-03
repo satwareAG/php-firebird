@@ -33,6 +33,7 @@ missingIncludeSystem
 # Intentional preprocessor error (Firebird version check)
 # Line may vary - suppress for entire file
 preprocessorErrorDirective:php_fbird_includes.h
+preprocessorErrorDirective:php_firebird.h
 
 # -----------------------------------------------------
 # Notes:

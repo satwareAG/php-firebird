@@ -3,7 +3,6 @@
 
 #include <ibase.h>
 
-#if FB_API_VER >= 30
 #include <firebird/Interface.h>
 #include <cstring>
 #include <memory>
@@ -1005,8 +1004,6 @@ extern "C" int fbc_get_info(
     }
 }
 
-#endif // FB_API_VER >= 30
-
 #if FB_API_VER >= 40
 /* Decodes a time with time zone into its time components. */
 extern "C" void fbu_decode_time_tz(void *master_ptr, const ISC_TIME_TZ* time_tz, unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions,
@@ -1138,8 +1135,6 @@ extern "C" int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* times
 }
 
 #endif // FB_API_VER >= 40
-
-#if FB_API_VER >= 30
 
 #include "src/cpp/fb_statement.hpp"
 
@@ -1561,34 +1556,25 @@ extern "C" unsigned fbs_get_output_count(void* master_ptr, void* statement_ptr, 
     return count;
 }
 
-#endif // FB_API_VER >= 30 (Phase 5 Statement functions)
-
 /* =============================================================================
  * OO API Blob Functions (fbb_*)
  * ============================================================================= */
-#if FB_API_VER >= 30
 #define FBB_NO_INLINE_IMPL
 #include "src/cpp/fb_blob.hpp"
-#endif // FB_API_VER >= 30 (Phase 6 Blob functions)
 
 /* =============================================================================
  * OO API Event Functions (fbe_*)
  * ============================================================================= */
-#if FB_API_VER >= 30
 #include "src/cpp/fb_events.hpp"
-#endif // FB_API_VER >= 30 (Phase 7 Event functions)
 
 /* =============================================================================
  * OO API Service Functions (fbsvc_*)
  * ============================================================================= */
-#if FB_API_VER >= 30
 #include "src/cpp/fb_service.hpp"
-#endif // FB_API_VER >= 30 (Phase 8 Service functions)
 
 /* =============================================================================
  * OO API Array Functions (fba_*)
  * ============================================================================= */
-#if FB_API_VER >= 30
 #include "src/cpp/fb_array.hpp"
 
 extern "C" int fba_get_slice(
@@ -2230,8 +2216,6 @@ extern "C" int fba_lookup_bounds(
         return 1;
     }
 }
-
-#endif // FB_API_VER >= 30 (Phase 9 Array functions)
 
 // Non-inline implementations needed for C linkage (inline functions in headers
 // don't get proper linkage when called from C code)

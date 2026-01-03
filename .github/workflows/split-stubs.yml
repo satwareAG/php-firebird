@@ -7,7 +7,7 @@ name: Split Stubs Package
 on:
   push:
     branches:
-      - main
+      - satware-main
     paths:
       - 'stubs/**'
     tags:

@@ -176,6 +176,47 @@ static void _php_fbird_free_blob(zend_resource *rsrc)
 {
 	fbird_blob *ib_blob = (fbird_blob *)rsrc->ptr;
 
+	/* Guard 1: NULL check */
+	if (ib_blob == NULL) {
+		return;
+	}
+
+#ifndef PHP_WIN32
+	/* Guard 2+3: Fork-safety - skip Firebird API calls if we're in a forked child process.
+	 * Firebird handles are not safe to use across fork boundaries.
+	 * Fixes: Issue #56 - SIGSEGV in forked child processes (PHPStan parallel mode) */
+	pid_t current_pid = getpid();
+
+	/* Guard 2: Global fork detection - different process than module init */
+	if (IBG(init_pid) != 0 && current_pid != IBG(init_pid)) {
+		FBDEBUG("_php_fbird_free_blob: Skipping cleanup in forked child (init_pid mismatch)");
+		efree(ib_blob);
+		return;
+	}
+
+	/* Guard 3: Resource-specific fork detection - different process than resource creation */
+	if (ib_blob->created_pid != 0 && current_pid != ib_blob->created_pid) {
+		FBDEBUG("_php_fbird_free_blob: Skipping cleanup in forked child (created_pid mismatch)");
+		efree(ib_blob);
+		return;
+	}
+#endif
+
+	/* Guard 4: MSHUTDOWN guard - EG() globals are already destroyed during module shutdown.
+	 * Attempting to access executor globals after MSHUTDOWN causes SIGSEGV. */
+	if (IBG(in_mshutdown)) {
+		FBDEBUG("_php_fbird_free_blob: Skipping cleanup during MSHUTDOWN");
+		efree(ib_blob);
+		return;
+	}
+
+	/* Guard 5: OO API validation - master_instance required for fbb_* functions */
+	if (IBG(master_instance) == NULL) {
+		FBDEBUG("_php_fbird_free_blob: Skipping cleanup - master_instance is NULL");
+		efree(ib_blob);
+		return;
+	}
+
 	/*
 	 * Firebird 3.0+ OO API Blob Cancel (Resource Cleanup)
 	 *
@@ -431,6 +472,9 @@ PHP_FUNCTION(fbird_blob_create)
 	ib_blob->bl_handle.ptr = 0;
 	ib_blob->type = BLOB_INPUT;
 	ib_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
+#ifndef PHP_WIN32
+	ib_blob->created_pid = getpid();  /* Initialize immediately after emalloc */
+#endif
 
 	/*
 	 * Firebird 3.0+ OO API Blob Creation
@@ -477,6 +521,9 @@ PHP_FUNCTION(fbird_blob_create_seekable)
 	ib_blob->bl_handle.ptr = 0;
 	ib_blob->type = BLOB_INPUT;
 	ib_blob->fbb_blob = NULL;
+#ifndef PHP_WIN32
+	ib_blob->created_pid = getpid();  /* Initialize immediately after emalloc */
+#endif
 
 	/*
 	 * Firebird 3.0+ OO API Blob Creation (Stream Mode)
@@ -522,6 +569,9 @@ PHP_FUNCTION(fbird_blob_open)
 	ib_blob->bl_handle.ptr = 0;
 	ib_blob->type = BLOB_OUTPUT;
 	ib_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
+#ifndef PHP_WIN32
+	ib_blob->created_pid = getpid();  /* Initialize immediately after emalloc */
+#endif
 
 	do {
 		if (! _php_fbird_string_to_quad(blob_id, &ib_blob->bl_qd)) {
@@ -979,6 +1029,9 @@ PHP_FUNCTION(fbird_blob_create_stream)
 	ib_blob->bl_handle.ptr = 0;
 	ib_blob->type = BLOB_INPUT;
 	ib_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
+#ifndef PHP_WIN32
+	ib_blob->created_pid = getpid();  /* Initialize immediately after emalloc */
+#endif
 
 	/*
 	 * Firebird 3.0+ OO API Blob Create (Stream)
@@ -1037,6 +1090,9 @@ PHP_FUNCTION(fbird_blob_open_stream)
 	ib_blob->bl_handle.ptr = 0;
 	ib_blob->type = BLOB_OUTPUT;
 	ib_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
+#ifndef PHP_WIN32
+	ib_blob->created_pid = getpid();  /* Initialize immediately after emalloc */
+#endif
 
 	if (! _php_fbird_string_to_quad(blob_id, &ib_blob->bl_qd)) {
 		_php_fbird_module_error("String is not a BLOB ID");
@@ -1099,6 +1155,9 @@ PHP_FUNCTION(fbird_blob_open_seekable)
 	ib_blob->bl_handle.ptr = 0;
 	ib_blob->type = BLOB_OUTPUT;
 	ib_blob->fbb_blob = NULL;
+#ifndef PHP_WIN32
+	ib_blob->created_pid = getpid();  /* Initialize immediately after emalloc */
+#endif
 
 	do {
 		if (! _php_fbird_string_to_quad(blob_id, &ib_blob->bl_qd)) {

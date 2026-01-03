@@ -62,7 +62,8 @@ void _php_fbird_free_event(fbird_event *event)
 	event->state = DEAD;
 
 	/* Phase 7: Free OO API event wrapper if present */
-	if (event->fbe_events) {
+	/* Guard: Only call fbe_* functions if master_instance is valid */
+	if (event->fbe_events && IBG(master_instance) != NULL) {
 		fbe_cancel(IBG(master_instance), event->fbe_events, NULL);
 		fbe_free(event->fbe_events);
 		event->fbe_events = NULL;
@@ -112,6 +113,41 @@ void _php_fbird_free_event(fbird_event *event)
 static void _php_fbird_free_event_rsrc(zend_resource *rsrc)
 {
 	fbird_event *e = (fbird_event *) rsrc->ptr;
+
+	/* Guard 1: NULL check */
+	if (e == NULL) {
+		return;
+	}
+
+#ifndef PHP_WIN32
+	/* Guard 2+3: Fork-safety - skip Firebird API calls if we're in a forked child process.
+	 * Firebird handles are not safe to use across fork boundaries.
+	 * Fixes: Issue #56 - SIGSEGV in forked child processes (PHPStan parallel mode) */
+	pid_t current_pid = getpid();
+
+	/* Guard 2: Global fork detection - different process than module init */
+	if (IBG(init_pid) != 0 && current_pid != IBG(init_pid)) {
+		FBDEBUG("_php_fbird_free_event_rsrc: Skipping cleanup in forked child (init_pid mismatch)");
+		efree(e);
+		return;
+	}
+
+	/* Guard 3: Resource-specific fork detection - different process than resource creation */
+	if (e->created_pid != 0 && current_pid != e->created_pid) {
+		FBDEBUG("_php_fbird_free_event_rsrc: Skipping cleanup in forked child (created_pid mismatch)");
+		efree(e);
+		return;
+	}
+#endif
+
+	/* Guard 4: MSHUTDOWN guard - EG() globals are already destroyed during module shutdown.
+	 * Attempting to access executor globals after MSHUTDOWN causes SIGSEGV. */
+	if (IBG(in_mshutdown)) {
+		FBDEBUG("_php_fbird_free_event_rsrc: Skipping cleanup during MSHUTDOWN");
+		efree(e);
+		return;
+	}
+
 	_php_fbird_free_event(e);
 	efree(e);
 }
@@ -333,6 +369,10 @@ PHP_FUNCTION(fbird_set_event_handler)
 	event->state = ACTIVE;
 	event->event_next = ib_link->event_head;
 	ib_link->event_head = event;
+
+#ifndef PHP_WIN32
+	event->created_pid = getpid();
+#endif
 
 	RETVAL_RES(zend_register_resource(event, le_event));
 	Z_TRY_ADDREF_P(return_value);

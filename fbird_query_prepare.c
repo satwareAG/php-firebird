@@ -138,7 +138,48 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc)
 {
     fbird_query *ib_query = (fbird_query *)rsrc->ptr;
 
-    if (ib_query != NULL) {
+    /* Guard 1: NULL check */
+    if (ib_query == NULL) {
+        return;
+    }
+
+#ifndef PHP_WIN32
+    /* Guard 2+3: Fork-safety - skip Firebird API calls if we're in a forked child process.
+     * Firebird handles are not safe to use across fork boundaries.
+     * Fixes: Issue #56 - SIGSEGV in forked child processes (PHPStan parallel mode) */
+    pid_t current_pid = getpid();
+
+    /* Guard 2: Global fork detection - different process than module init */
+    if (IBG(init_pid) != 0 && current_pid != IBG(init_pid)) {
+        FBDEBUG("php_fbird_free_query_rsrc: Skipping cleanup in forked child (init_pid mismatch)");
+        efree(ib_query);
+        return;
+    }
+
+    /* Guard 3: Resource-specific fork detection - different process than resource creation */
+    if (ib_query->created_pid != 0 && current_pid != ib_query->created_pid) {
+        FBDEBUG("php_fbird_free_query_rsrc: Skipping cleanup in forked child (created_pid mismatch)");
+        efree(ib_query);
+        return;
+    }
+#endif
+
+    /* Guard 4: MSHUTDOWN guard - EG() globals are already destroyed during module shutdown.
+     * Attempting to access executor globals after MSHUTDOWN causes SIGSEGV. */
+    if (IBG(in_mshutdown)) {
+        FBDEBUG("php_fbird_free_query_rsrc: Skipping cleanup during MSHUTDOWN");
+        efree(ib_query);
+        return;
+    }
+
+    /* Guard 5: OO API validation - master_instance required for fbs_* functions */
+    if (IBG(master_instance) == NULL) {
+        FBDEBUG("php_fbird_free_query_rsrc: Skipping cleanup - master_instance is NULL");
+        efree(ib_query);
+        return;
+    }
+
+    {
         FBDEBUG("Preparing to free query by dtor...");
 
         /* If this is a child result, unlink it from the parent's list to prevent
@@ -235,6 +276,9 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link,
 	}
 
 	fbird_query *ib_query = ecalloc(1, sizeof(fbird_query));
+#ifndef PHP_WIN32
+	ib_query->created_pid = getpid();  /* Initialize immediately after allocation */
+#endif
 	/* Ensure linkage fields are initialized explicitly for clarity */
 	ib_query->parent = NULL;
 	ib_query->child_head = NULL;

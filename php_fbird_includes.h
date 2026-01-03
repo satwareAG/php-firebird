@@ -129,6 +129,9 @@ typedef struct {
 	 * When non-NULL, this transaction was created via the modern OO API.
 	 * The handle.tr may be 0 in this case - use fbt_get_handle() instead. */
 	void *fbt_transaction;
+#ifndef PHP_WIN32
+	pid_t created_pid;   /* PID when transaction was created (fork detection) */
+#endif
 	fbird_db_link *db_link[1]; /* last member */
 } fbird_transaction;
 
@@ -145,6 +148,9 @@ typedef struct {
 	 * When non-NULL, this blob was created via the modern OO API.
 	 * The bl_handle.blob may be 0 in this case - use fbb_* functions instead. */
 	void *fbb_blob;
+#ifndef PHP_WIN32
+	pid_t created_pid;   /* PID when blob was created (fork detection) */
+#endif
 } fbird_blob;
 
 typedef struct event {
@@ -168,6 +174,9 @@ typedef struct event {
 	 * Note: The current polling model continues to use isc_wait_for_event()
 	 * for synchronous operation; this field is for future async support. */
 	void *fbe_events;
+#ifndef PHP_WIN32
+	pid_t created_pid;   /* PID when event was created (fork detection) */
+#endif
 } fbird_event;
 
 /* sql variables union
@@ -243,6 +252,9 @@ typedef struct _ib_query {
     void *in_metadata;      /* IMessageMetadata* for input parameters */
     void *in_msg_buffer;    /* Message buffer for input parameters */
     unsigned in_msg_length; /* Input message buffer size */
+#ifndef PHP_WIN32
+    pid_t created_pid;      /* PID when query was created (fork detection) */
+#endif
 } fbird_query;
 
 #if FB_API_VER >= 40
@@ -257,6 +269,9 @@ typedef struct {
     void *in_metadata;        /* IMessageMetadata for input parameters */
     void *in_msg_buffer;      /* Message buffer for row data */
     unsigned in_msg_length;   /* Message buffer size */
+#ifndef PHP_WIN32
+    pid_t created_pid;        /* PID when batch was created (fork detection) */
+#endif
 } fbird_batch;
 #endif /* FB_API_VER >= 40 */
 

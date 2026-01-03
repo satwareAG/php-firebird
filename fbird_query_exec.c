@@ -129,6 +129,9 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 				trans->link_cnt = 1;
 				trans->affected_rows = 0;
 				trans->fbt_transaction = new_trans;
+#ifndef PHP_WIN32
+				trans->created_pid = getpid();
+#endif
 				trans->db_link[0] = ib_query->link;
 
 				if (ib_query->link->tr_list == NULL) {
@@ -493,6 +496,9 @@ execute_done:
       ib_query->statement_type == isc_info_sql_stmt_delete) {
 			/* Create a new query structure for this specific result */
 			fbird_query *result_query = ecalloc(1, sizeof(fbird_query));
+#ifndef PHP_WIN32
+			result_query->created_pid = getpid();
+#endif
 
 			/* Initialize error cleanup flag */
 			int cleanup_needed = 1;
@@ -689,6 +695,9 @@ cleanup_result_query:
 
             /* Create a new query structure for this specific result */
             fbird_query *result_query = ecalloc(1, sizeof(fbird_query));
+#ifndef PHP_WIN32
+            result_query->created_pid = getpid();
+#endif
 
 			/* Initialize error cleanup flag */
 			int cleanup_needed = 1;
@@ -1604,6 +1613,9 @@ PHP_FUNCTION(fbird_execute_auto)
     trans->link_cnt = 1;
     trans->affected_rows = 0;
     trans->fbt_transaction = oo_trans;
+#ifndef PHP_WIN32
+    trans->created_pid = getpid();
+#endif
     trans->db_link[0] = link;
     /* We do NOT register this transaction as a resource because it's strictly local scope */
 

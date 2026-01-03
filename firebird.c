@@ -1008,16 +1008,48 @@ static void _php_fbird_free_trans(zend_resource *rsrc)
 	fbird_transaction *trans = (fbird_transaction *)rsrc->ptr;
 	unsigned short i;
 
+	/* Guard 1: NULL check */
+	if (trans == NULL) {
+		return;
+	}
+
 	FBDEBUG("Cleaning up transaction resource...");
 
 #ifndef PHP_WIN32
-	/* Fork-safety check (Issue #22): Skip cleanup if we're in a forked child */
-	if (IBG(init_pid) != 0 && getpid() != IBG(init_pid)) {
-		FBDEBUG("Skipping transaction cleanup in forked child process");
+	/* Guard 2+3: Fork-safety - skip Firebird API calls if we're in a forked child process.
+	 * Firebird handles are not safe to use across fork boundaries.
+	 * Fixes: Issue #56 - SIGSEGV in forked child processes (PHPStan parallel mode) */
+	pid_t current_pid = getpid();
+
+	/* Guard 2: Global fork detection - different process than module init */
+	if (IBG(init_pid) != 0 && current_pid != IBG(init_pid)) {
+		FBDEBUG("_php_fbird_free_trans: Skipping cleanup in forked child (init_pid mismatch)");
+		efree(trans);
+		return;
+	}
+
+	/* Guard 3: Resource-specific fork detection - different process than resource creation */
+	if (trans->created_pid != 0 && current_pid != trans->created_pid) {
+		FBDEBUG("_php_fbird_free_trans: Skipping cleanup in forked child (created_pid mismatch)");
 		efree(trans);
 		return;
 	}
 #endif
+
+	/* Guard 4: MSHUTDOWN guard - EG() globals are already destroyed during module shutdown.
+	 * Attempting to access executor globals after MSHUTDOWN causes SIGSEGV. */
+	if (IBG(in_mshutdown)) {
+		FBDEBUG("_php_fbird_free_trans: Skipping cleanup during MSHUTDOWN");
+		efree(trans);
+		return;
+	}
+
+	/* Guard 5: OO API validation - master_instance required for fbt_* functions */
+	if (IBG(master_instance) == NULL) {
+		FBDEBUG("_php_fbird_free_trans: Skipping cleanup - master_instance is NULL");
+		efree(trans);
+		return;
+	}
 
 	/* OO API Only: All transactions use fbt_rollback() */
 	if (trans->fbt_transaction != NULL) {
@@ -1053,12 +1085,33 @@ static void _php_fbird_free_batch(zend_resource *rsrc)
 {
 	fbird_batch *batch = (fbird_batch *)rsrc->ptr;
 
+	/* Guard 1: NULL check */
+	if (batch == NULL) {
+		return;
+	}
+
 	FBDEBUG("Cleaning up batch resource...");
 
 #ifndef PHP_WIN32
-	/* Fork-safety check (Issue #22): Skip cleanup if we're in a forked child */
-	if (IBG(init_pid) != 0 && getpid() != IBG(init_pid)) {
-		FBDEBUG("Skipping batch cleanup in forked child process");
+	/* Guard 2+3: Fork-safety - skip Firebird API calls if we're in a forked child process.
+	 * Firebird handles are not safe to use across fork boundaries.
+	 * Fixes: Issue #56 - SIGSEGV in forked child processes (PHPStan parallel mode) */
+	pid_t current_pid = getpid();
+
+	/* Guard 2: Global fork detection - different process than module init */
+	if (IBG(init_pid) != 0 && current_pid != IBG(init_pid)) {
+		FBDEBUG("_php_fbird_free_batch: Skipping cleanup in forked child (init_pid mismatch)");
+		/* Only free memory allocated by child, not Firebird handles */
+		if (batch->in_msg_buffer != NULL) {
+			efree(batch->in_msg_buffer);
+		}
+		efree(batch);
+		return;
+	}
+
+	/* Guard 3: Resource-specific fork detection - different process than resource creation */
+	if (batch->created_pid != 0 && current_pid != batch->created_pid) {
+		FBDEBUG("_php_fbird_free_batch: Skipping cleanup in forked child (created_pid mismatch)");
 		/* Only free memory allocated by child, not Firebird handles */
 		if (batch->in_msg_buffer != NULL) {
 			efree(batch->in_msg_buffer);
@@ -1067,6 +1120,27 @@ static void _php_fbird_free_batch(zend_resource *rsrc)
 		return;
 	}
 #endif
+
+	/* Guard 4: MSHUTDOWN guard - EG() globals are already destroyed during module shutdown.
+	 * Attempting to access executor globals after MSHUTDOWN causes SIGSEGV. */
+	if (IBG(in_mshutdown)) {
+		FBDEBUG("_php_fbird_free_batch: Skipping cleanup during MSHUTDOWN");
+		if (batch->in_msg_buffer != NULL) {
+			efree(batch->in_msg_buffer);
+		}
+		efree(batch);
+		return;
+	}
+
+	/* Guard 5: OO API validation - master_instance required for fbbatch_* functions */
+	if (IBG(master_instance) == NULL) {
+		FBDEBUG("_php_fbird_free_batch: Skipping cleanup - master_instance is NULL");
+		if (batch->in_msg_buffer != NULL) {
+			efree(batch->in_msg_buffer);
+		}
+		efree(batch);
+		return;
+	}
 
 	/* Cancel and close the batch if still open */
 	if (batch->fbbatch_wrapper != NULL) {
@@ -2019,6 +2093,9 @@ PHP_FUNCTION(fbird_trans_start)
 	}
 
 	ib_trans = (fbird_transaction *) safe_emalloc(1-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
+#ifndef PHP_WIN32
+	ib_trans->created_pid = getpid();  /* Initialize immediately after allocation */
+#endif
 	ib_trans->fbt_transaction = fbt_start(
 		IBG(master_instance),
 		attachment,
@@ -2501,6 +2578,9 @@ PHP_FUNCTION(fbird_trans)
 
 				/* Allocate and register transaction with OO API wrapper */
 				ib_trans = (fbird_transaction *) safe_emalloc(link_cnt-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
+#ifndef PHP_WIN32
+				ib_trans->created_pid = getpid();  /* Initialize immediately after allocation */
+#endif
 				ib_trans->handle.ptr = tr_handle;
 				ib_trans->link_cnt = link_cnt;
 				ib_trans->affected_rows = 0;
@@ -2559,6 +2639,9 @@ PHP_FUNCTION(fbird_trans)
 
 		/* Allocate and register transaction with OO API wrapper */
 		ib_trans = (fbird_transaction *) safe_emalloc(link_cnt-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
+#ifndef PHP_WIN32
+		ib_trans->created_pid = getpid();  /* Initialize immediately after allocation */
+#endif
 		ib_trans->handle.ptr = tr_handle;
 		ib_trans->link_cnt = link_cnt;
 		ib_trans->affected_rows = 0;
@@ -2607,6 +2690,9 @@ int _php_fbird_def_trans(fbird_db_link *ib_link, fbird_transaction **trans)
 
 		if (tr == NULL) {
 			tr = (fbird_transaction *) emalloc(sizeof(fbird_transaction));
+#ifndef PHP_WIN32
+			tr->created_pid = getpid();  /* Initialize immediately after allocation */
+#endif
 			tr->handle.ptr = 0;
 			tr->link_cnt = 1;
 			tr->affected_rows = 0;
@@ -3025,6 +3111,9 @@ PHP_FUNCTION(fbird_reconnect_transaction)
 
 	/* Allocate and initialize transaction structure */
 	ib_trans = (fbird_transaction *)safe_emalloc(1, sizeof(fbird_transaction), 0);
+#ifndef PHP_WIN32
+	ib_trans->created_pid = getpid();  /* Initialize immediately after allocation */
+#endif
 	ib_trans->fbt_transaction = reconnected_trans;
 	ib_trans->handle.ptr = fbt_get_handle(reconnected_trans);
 	ib_trans->link_cnt = 1;
@@ -3125,6 +3214,9 @@ PHP_FUNCTION(fbird_batch_create)
 	ib_batch->in_msg_length = msg_length;
 	ib_batch->in_msg_buffer = emalloc(msg_length);
 	memset(ib_batch->in_msg_buffer, 0, msg_length);
+#ifndef PHP_WIN32
+	ib_batch->created_pid = getpid();
+#endif
 
 	RETVAL_RES(zend_register_resource(ib_batch, le_batch));
 }

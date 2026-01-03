@@ -5,6 +5,29 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-rc.42] - 2026-01-03
+
+### Fixed
+
+- **Comprehensive Destructor Safety Audit**: Extended Issue #56 fix to all resource destructors
+  - **BLOB handles** (`fbird_blobs.c`): Added NULL pointer guard, fork-safety (global + per-resource `created_pid`), MSHUTDOWN guard
+  - **Event handlers** (`fbird_events.c`): Added NULL pointer guard, fork-safety, MSHUTDOWN guard
+  - **Prepared queries** (`fbird_query_prepare.c`): Added NULL pointer guard, fork-safety, MSHUTDOWN guard
+  - **Results** (`fbird_query_exec.c`): Added NULL pointer guard, fork-safety, MSHUTDOWN guard
+  - **Connections** (`firebird.c`): Verified existing guards, added `created_pid` to result and query resources
+  - **Pattern Applied**: 5-layer safety model now consistent across all 7 resource types:
+    1. NULL pointer check (inherited resources in forked processes)
+    2. Fork-safety (global `IBG(init_pid)` check)
+    3. Fork-safety (per-resource `created_pid` field)
+    4. MSHUTDOWN guard (`IBG(in_mshutdown)` flag)
+    5. Master instance validation (`IBG(master_instance) != NULL`)
+  - **Impact**: All resource types now safe for PHPStan parallel, PHPUnit parallel, pcntl_fork, and MSHUTDOWN scenarios
+  - **Test Result**: 135/138 tests pass (3 skipped - expected)
+
+### Changed
+
+- **Added `created_pid` tracking** to `fbird_result`, `fbird_query`, `fbird_blob`, and `fbird_event` structs in `php_fbird_includes.h`
+
 ## [7.0.0-rc.39] - 2026-01-03
 
 ### Fixed
@@ -21,6 +44,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     5. **master_instance validation**: Check `IBG(master_instance) != NULL` before OO API calls
   - **Impact**: Service handles now safe in forked processes, PHPStan/PHPUnit parallel modes, and MSHUTDOWN scenarios
   - Related: #22 (fork-safety for connections), #36 (fork-safety for transactions), #55 (MSHUTDOWN guard for connections)
+
+## [7.0.0-rc.38] - 2026-01-03
+
+### Changed
+
+- **FB_API_VER >= 30 Preprocessor Cleanup**: Removed redundant compile-time guards since Firebird 3.0+ OO API is the required minimum
+  - **Added** central compile-time check in `php_firebird.h` that fails with clear error if FB_API_VER < 30
+  - **Removed** 12 redundant `#if FB_API_VER >= 30` guards from 6 source files:
+    - `fbird_inspection.c`: Removed guard around `firebird_utils.h` include and duplicate version check
+    - `fbird_events.c`: Removed guard around Phase 7 OO API event wrapper cleanup
+    - `fbird_service.c`: Removed 3 guards around struct member, destructor cleanup, initialization
+    - `firebird_utils_internal.h`: Removed wrapping guard (preserved `#if FB_API_VER >= 40` blocks inside)
+    - `firebird_utils.cpp`: Removed 6 guards around includes and phase implementations
+  - **Preserved** all `#if FB_API_VER >= 40` guards (still needed for Firebird 4.0+ features like IBatch)
+  - **Added** cppcheck suppression for intentional `#error` directive in `.cppcheck-suppressions`
+  - **Rationale**: Extension requires FB 3.0+ OO API; guards were vestigial from legacy compatibility layer
+  - **Impact**: Cleaner codebase, clearer error message for users with unsupported Firebird client
+
+## [7.0.0-rc.37] - 2026-01-03
+
+### Fixed
+
+- **Issue #55 (PHPStan SIGSEGV during reflection)**: Fixed segmentation fault when PHPStan analyzes code with firebird extension loaded
+  - **Root Cause**: Several arginfo definitions used `ZEND_ARG_TYPE_INFO(0, ..., IS_RESOURCE, ...)` which specifies `IS_RESOURCE` as a type hint
+  - In PHP 8.x, `IS_RESOURCE` is NOT a valid type-hint for function signatures (resources aren't type-hintable in PHP 8)
+  - When PHPStan uses PHP's reflection APIs, it calls `zend_type_to_string()` on arginfo types
+  - `zend_type_to_string()` returns NULL for `IS_RESOURCE`, and calling code crashes accessing offset 4 of NULL pointer (SIGSEGV at `si_addr=0x4`)
+  - **Fix**: Changed all `ZEND_ARG_TYPE_INFO(0, param, IS_RESOURCE, ...)` to `ZEND_ARG_INFO(0, param)` (untyped)
+  - **Affected arginfo**: `arginfo_fbird_close`, `arginfo_fbird_connection_info`, `arginfo_fbird_get_limbo_transactions`, `arginfo_fbird_reconnect_transaction`, and all `arginfo_fbird_batch_*` entries
+  - **Impact**: PHPStan/Psalm can now analyze codebases that use the firebird extension without segfaulting
+
+## [7.0.0-rc.36] - 2026-01-03
+
+### Fixed
+
+- **Issue #55 (NULL pointer dereference in resource destructors)**: Fixed SIGSEGV at `si_addr=0x4` in PHPStan/Psalm parallel workers
+  - **Root Cause**: In forked child processes, `zend_resource->ptr` can be NULL when inherited resource descriptors are destroyed during shutdown
+  - Resource destructors (`_php_fbird_close_link`, `_php_fbird_close_plink`) accessed `link->created_pid` (at offset 4) without NULL check
+  - Accessing `((fbird_db_link *)NULL)->created_pid` = dereferencing address `0x0 + 4 = 0x4` → SIGSEGV
+  - **Fix**: Added NULL pointer guard at start of both destructors: `if (link == NULL) return;`
+  - **strace Evidence**: `si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x4` confirmed NULL+offset access pattern
+  - **Impact**: PHPStan/Psalm workers no longer crash during shutdown after analyzing doctrine-firebird-driver codebase
+  - **Note**: This fix complements the earlier `in_mshutdown` fix from rc.35 (different crash scenario)
+
+### Changed
+
+- **Code Quality Refactoring**: Removed noise comments following "Good Code Needs No Documentation" paradigm
+  - Removed ~90 lines of section dividers, development artifacts, and feature annotations
+  - Patterns removed: `// ===...===` dividers, `// Step X.Y:` markers, `// Phase X:` markers, `// C++17:` annotations
+  - Preserved technical rationale comments explaining "why" (Firebird-specific behavior, API compatibility, fork-safety)
+  - Affected files: `firebird_utils.cpp`, `firebird_utils_internal.h`, `firebird.c`, `php_fbird_includes.h`, `firebird_utils.h`
+  - All commits atomic (<200 LOC), validated with QA after each change
+  - Final validation: 135/138 tests passed, all static analysis clean
 
 ## [7.0.0-rc.35] - 2026-01-02
 
@@ -80,60 +156,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **AlmaLinux 9 from CI**: Removed from test-bundles matrix (default PHP 8.0 is below minimum supported PHP 8.1)
 
-## [7.0.0-rc.38] - 2026-01-03
-
-### Changed
-
-- **FB_API_VER >= 30 Preprocessor Cleanup**: Removed redundant compile-time guards since Firebird 3.0+ OO API is the required minimum
-  - **Added** central compile-time check in `php_firebird.h` that fails with clear error if FB_API_VER < 30
-  - **Removed** 12 redundant `#if FB_API_VER >= 30` guards from 6 source files:
-    - `fbird_inspection.c`: Removed guard around `firebird_utils.h` include and duplicate version check
-    - `fbird_events.c`: Removed guard around Phase 7 OO API event wrapper cleanup
-    - `fbird_service.c`: Removed 3 guards around struct member, destructor cleanup, initialization
-    - `firebird_utils_internal.h`: Removed wrapping guard (preserved `#if FB_API_VER >= 40` blocks inside)
-    - `firebird_utils.cpp`: Removed 6 guards around includes and phase implementations
-  - **Preserved** all `#if FB_API_VER >= 40` guards (still needed for Firebird 4.0+ features like IBatch)
-  - **Added** cppcheck suppression for intentional `#error` directive in `.cppcheck-suppressions`
-  - **Rationale**: Extension requires FB 3.0+ OO API; guards were vestigial from legacy compatibility layer
-  - **Impact**: Cleaner codebase, clearer error message for users with unsupported Firebird client
-
-## [7.0.0-rc.37] - 2026-01-03
-
-### Fixed
-
-- **Issue #55 (PHPStan SIGSEGV during reflection)**: Fixed segmentation fault when PHPStan analyzes code with firebird extension loaded
-  - **Root Cause**: Several arginfo definitions used `ZEND_ARG_TYPE_INFO(0, ..., IS_RESOURCE, ...)` which specifies `IS_RESOURCE` as a type hint
-  - In PHP 8.x, `IS_RESOURCE` is NOT a valid type-hint for function signatures (resources aren't type-hintable in PHP 8)
-  - When PHPStan uses PHP's reflection APIs, it calls `zend_type_to_string()` on arginfo types
-  - `zend_type_to_string()` returns NULL for `IS_RESOURCE`, and calling code crashes accessing offset 4 of NULL pointer (SIGSEGV at `si_addr=0x4`)
-  - **Fix**: Changed all `ZEND_ARG_TYPE_INFO(0, param, IS_RESOURCE, ...)` to `ZEND_ARG_INFO(0, param)` (untyped)
-  - **Affected arginfo**: `arginfo_fbird_close`, `arginfo_fbird_connection_info`, `arginfo_fbird_get_limbo_transactions`, `arginfo_fbird_reconnect_transaction`, and all `arginfo_fbird_batch_*` entries
-  - **Impact**: PHPStan/Psalm can now analyze codebases that use the firebird extension without segfaulting
-
-## [7.0.0-rc.36] - 2026-01-03
-
-### Fixed
-
-- **Issue #55 (NULL pointer dereference in resource destructors)**: Fixed SIGSEGV at `si_addr=0x4` in PHPStan/Psalm parallel workers
-  - **Root Cause**: In forked child processes, `zend_resource->ptr` can be NULL when inherited resource descriptors are destroyed during shutdown
-  - Resource destructors (`_php_fbird_close_link`, `_php_fbird_close_plink`) accessed `link->created_pid` (at offset 4) without NULL check
-  - Accessing `((fbird_db_link *)NULL)->created_pid` = dereferencing address `0x0 + 4 = 0x4` → SIGSEGV
-  - **Fix**: Added NULL pointer guard at start of both destructors: `if (link == NULL) return;`
-  - **strace Evidence**: `si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x4` confirmed NULL+offset access pattern
-  - **Impact**: PHPStan/Psalm workers no longer crash during shutdown after analyzing doctrine-firebird-driver codebase
-  - **Note**: This fix complements the earlier `in_mshutdown` fix from rc.35 (different crash scenario)
-
-### Changed
-
-- **Code Quality Refactoring**: Removed noise comments following "Good Code Needs No Documentation" paradigm
-  - Removed ~90 lines of section dividers, development artifacts, and feature annotations
-  - Patterns removed: `// ===...===` dividers, `// Step X.Y:` markers, `// Phase X:` markers, `// C++17:` annotations
-  - Preserved technical rationale comments explaining "why" (Firebird-specific behavior, API compatibility, fork-safety)
-  - Affected files: `firebird_utils.cpp`, `firebird_utils_internal.h`, `firebird.c`, `php_fbird_includes.h`, `firebird_utils.h`
-  - All commits atomic (<200 LOC), validated with QA after each change
-  - Final validation: 135/138 tests passed, all static analysis clean
-
-### Fixed
+### Fixed (rc.25 continued)
 
 - **Issue #50, #51 (SIGSEGV during PHP shutdown)**: Fixed crash (exit code 139) when using persistent connections
   - **Root Cause**: `_php_fbird_close_plink()` accessed `EG(regular_list)` and `EG(persistent_list)` during MSHUTDOWN when these executor globals may already be destroyed
@@ -603,7 +626,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.39...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.42...HEAD
+[7.0.0-rc.42]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.39...v7.0.0-rc.42
 [7.0.0-rc.39]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.38...v7.0.0-rc.39
 [7.0.0-rc.38]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.37...v7.0.0-rc.38
 [7.0.0-rc.37]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.36...v7.0.0-rc.37
@@ -622,6 +646,5 @@ grep -r "ibase\." config/
 [7.0.0-rc.4]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.3...v7.0.0-rc.4
 [7.0.0-rc.3]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.2...v7.0.0-rc.3
 [7.0.0-rc.2]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.1...v7.0.0-rc.2
-[7.0.0-rc.1]: https://github.com/satwareAG/php-firebird/compare/v6.2.0...v7.0.0-rc.1
-[6.2.0]: https://github.com/satwareAG/php-firebird/releases/tag/v6.2.0
+[7.0.0-rc.1]: https://github.com/satwareAG/php-firebird/compare/v1.0.0...v7.0.0-rc.1
 [1.0.0]: https://github.com/satwareAG/php-firebird/releases/tag/v1.0.0

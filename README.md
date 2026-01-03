@@ -1,5 +1,8 @@
 # PHP Firebird Extension (Modernized)
 
+[![CI](https://github.com/satwareAG/php-firebird/actions/workflows/ci.yml/badge.svg)](https://github.com/satwareAG/php-firebird/actions/workflows/ci.yml)
+[![License: PHP-3.01](https://img.shields.io/badge/License-PHP--3.01-blue.svg)](LICENSE)
+[![PHP 8.2+](https://img.shields.io/badge/PHP-8.2%2B-8892BF.svg)](https://www.php.net/)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/satwareAG/php-firebird)
 
 A high-performance PHP extension providing native connectivity to Firebird databases. This modernized version targets PHP 8.1+ with C++17 standards and comprehensive development tooling.
@@ -890,7 +893,7 @@ See [EVENT_TIMEOUT_RFC.md](docs/development/EVENT_TIMEOUT_RFC.md) for implementa
 
 ## Version Compatibility
 
-### Current Version: 7.0.0-rc.13
+### Current Version: 7.0.0
 
 **Supported PHP Versions:**
 - ⚠️ PHP 8.1 (**DEPRECATED** - will be removed in v7.1.0)

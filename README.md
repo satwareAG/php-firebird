@@ -715,6 +715,43 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development guidelines inclu
 - **Debugging**: GDB/LLDB with PHP symbols
 - **IDE Support**: CLion, VS Code, Visual Studio
 
+### Debugging Memory Issues
+
+For debugging segmentation faults, memory leaks, and use-after-free bugs in the extension:
+
+```bash
+# Run QA suite with Valgrind memory checking
+./scripts/qa.sh --valgrind --container php83-dev
+
+# Valgrind direct (requires USE_ZEND_ALLOC=0 to bypass PHP's allocator)
+USE_ZEND_ALLOC=0 valgrind --leak-check=full --track-origins=yes \
+  php -d extension=modules/firebird.so tests/stress_shutdown.phpt
+
+# GDB backtrace on crash
+gdb -batch -ex 'run' -ex 'bt 30' \
+  --args php -d extension=modules/firebird.so tests/test.phpt
+
+# strace for signal tracing (identify SIGSEGV patterns)
+strace -f -e trace=signal \
+  php -d extension=modules/firebird.so tests/test.phpt 2>&1
+```
+
+**Quick Debug Commands in Docker:**
+```bash
+# Valgrind in container
+docker compose -f docker/docker-compose.yml exec -T php83-dev bash -c \
+  "USE_ZEND_ALLOC=0 valgrind --leak-check=full \
+   php -d extension=modules/firebird.so tests/stress_shutdown.phpt 2>&1"
+```
+
+For comprehensive debugging documentation including:
+- Interpreting Valgrind output (use-after-free, memory leaks)
+- GDB crash analysis and core dumps
+- strace signal patterns (`si_addr` analysis)
+- Common crash signatures and fixes
+
+See **[docs/development/DEBUGGING.md](docs/development/DEBUGGING.md)**.
+
 ### Architecture
 - **Language**: C (main extension) + C++ (utilities) with C++17 standard
 - **API**: Zend Extension API with modern PHP 8.1+ features

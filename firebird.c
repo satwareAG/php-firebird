@@ -976,18 +976,19 @@ static void _php_fbird_close_plink(zend_resource *rsrc)
 	}
 #endif
 
-	/* Remove cache entries from both regular and persistent lists (Issue #35).
-	 * Persistent connections are cached in EG(persistent_list) with hash key.
+	/* Skip EG() hash table access in persistent destructor (Issue #56).
 	 *
-	 * CRITICAL: Skip EG() access during MSHUTDOWN (Issue #50, #51).
-	 * During module shutdown, EG(regular_list) and EG(persistent_list) may already
-	 * be destroyed, causing SIGSEGV (exit code 139) if accessed. */
-	if (!IBG(in_mshutdown) &&
-		(link->hash_key[0] != '\0' || memcmp(link->hash_key, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16) != 0)) {
-		zend_hash_str_del(&EG(regular_list), link->hash_key, sizeof(link->hash_key) - 1);
-		zend_hash_str_del(&EG(persistent_list), link->hash_key, sizeof(link->hash_key) - 1);
-		FBDEBUG("Removed cache entries for persistent link");
-	}
+	 * CRITICAL: When _php_fbird_close_plink() is called as the persistent destructor
+	 * during module shutdown, EG(regular_list) has ALREADY been destroyed during
+	 * php_request_shutdown() -> zend_deactivate(). Attempting to access it causes
+	 * use-after-free (Valgrind: "Invalid read... inside a block free'd by zend_deactivate").
+	 *
+	 * The cache entries in EG(regular_list) (index_ptr pointing to this plink) are
+	 * already cleaned up during request shutdown. We don't need to remove them here.
+	 *
+	 * Note: We also skip EG(persistent_list) deletion because we're being CALLED FROM
+	 * the persistent list destruction, so the entry is already being removed. */
+	FBDEBUG("Persistent link destructor - skipping EG() access");
 
 	_php_fbird_commit_link(link);
 
@@ -1829,15 +1830,34 @@ PHP_FUNCTION(fbird_drop_db)
 	/* OO API Only: All connections use fbc_drop_database() */
 	if (ib_link->fbc_connection != NULL) {
 		FBDEBUG("Dropping database via OO API...");
-		drop_result = fbc_drop_database(ib_link->fbc_connection, IB_STATUS);
+		/* CRITICAL: NULL the pointer BEFORE fbc_drop_database() (Issue #56).
+		 * fbc_drop_database() always frees the Connection* (via delete), even on error.
+		 * If we don't NULL first and the function fails, the pointer becomes dangling.
+		 * Later, _php_fbird_close_plink() would call fbc_disconnect() on freed memory,
+		 * causing double-free. */
+		void *temp_conn = ib_link->fbc_connection;
+		ib_link->fbc_connection = NULL;
+		ib_link->handle.ptr = 0;
+		drop_result = fbc_drop_database(temp_conn, IB_STATUS);
 		if (drop_result != 0) {
 			_php_fbird_error();
 			RETURN_FALSE;
 		}
-		/* fbc_drop_database() already frees the connection wrapper */
-		ib_link->fbc_connection = NULL;
-		ib_link->handle.ptr = 0;
 	}
+
+	/* For persistent links: Clear the fbc_connection pointer BEFORE any hash operations
+	 * to prevent _php_fbird_close_plink() destructor from calling fbc_disconnect() on
+	 * the already-freed Connection object.
+	 *
+	 * NOTE: We do NOT call zend_hash_str_del() here because:
+	 * 1. It would trigger _php_fbird_close_plink() destructor which frees ib_link
+	 * 2. Then any subsequent access to ib_link (including this function) is UAF
+	 * 3. The persistent list entry will be cleaned up during MSHUTDOWN, but with
+	 *    fbc_connection=NULL, the destructor will safely skip the disconnect call.
+	 *
+	 * (Issue #56: fbird_drop_db on persistent connections causes SIGSEGV)
+	 */
+	FBDEBUG("fbird_drop_db: fbc_connection already NULLed, persistent list cleanup deferred");
 
 	/* drop_database() doesn't invalidate the transaction handles */
 	for (l = ib_link->tr_list; l != NULL; l = l->next) {

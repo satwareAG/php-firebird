@@ -5,6 +5,20 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-rc.45] - 2026-01-04
+
+### Fixed
+
+- **Issue #56 (Use-After-Free in `fbird_drop_db`)**: Fixed Valgrind-reported UAF and invalid read errors when dropping databases with persistent connections
+  - **Root Cause 1 (fbird_drop_db)**: `zend_hash_str_del(&EG(persistent_list), ...)` at line 1859 triggered `_php_fbird_close_plink()` destructor which freed `ib_link`, then line 1861 accessed freed memory with `memset(ib_link->hash_key, ...)` - classic use-after-free
+  - **Root Cause 2 (_php_fbird_close_plink)**: Destructor accessed `EG(regular_list)` during MSHUTDOWN after it was already freed by `zend_deactivate()` during request shutdown, causing invalid read in `zend_hash_str_del()`
+  - **Fix**: 
+    - Removed `zend_hash_str_del()` call from `fbird_drop_db` - persistent list cleanup deferred to MSHUTDOWN where destructor sees NULL `fbc_connection` and safely skips disconnect
+    - Removed ALL `EG()` hash table access from `_php_fbird_close_plink()` destructor - cache entries already cleaned up during request shutdown
+  - **Valgrind Verification**: 0 errors from 0 contexts (was 9 errors from 9 contexts)
+  - **strace Signature**: `si_addr=0x71f0028` (40 bytes inside block already freed by `zend_hash_str_del`)
+  - **Impact**: `fbird_drop_db()` now safe with persistent connections in all scenarios including PHPStan parallel mode
+
 ## [7.0.0-rc.44] - 2026-01-03
 
 ### Fixed
@@ -660,7 +674,9 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.43...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.45...HEAD
+[7.0.0-rc.45]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.44...v7.0.0-rc.45
+[7.0.0-rc.44]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.43...v7.0.0-rc.44
 [7.0.0-rc.43]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.42...v7.0.0-rc.43
 [7.0.0-rc.42]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.39...v7.0.0-rc.42
 [7.0.0-rc.39]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.38...v7.0.0-rc.39

@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y \
     vim \
     gdb \
     valgrind \
+    strace \
     lcov \
     libncurses6 \
     libtommath1 \

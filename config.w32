@@ -15,20 +15,26 @@ if (PHP_FIREBIRD != 'no') {
                   'This extension requires Firebird client 3.0 or later with OO API support.');
         }
 
-        // Define all source files
-        var firebird_sources = 'firebird.c ' +
-                               'fbird_blobs.c ' +
-                               'fbird_datetime.c ' +
-                               'fbird_events.c ' +
-                               'fbird_inspection.c ' +
-                               'fbird_metadata.c ' +
-                               'fbird_query_exec.c ' +
-                               'fbird_query_prepare.c ' +
-                               'fbird_query_bind.c ' +
-                               'fbird_query_array.c ' +
-                               'fbird_result.c ' +
-                               'fbird_service.c ' +
-                               'firebird_utils.cpp';
+        // Add include paths for header files
+        // - include/ contains public headers (php_firebird.h, php_fbird_*.h, etc.)
+        // - src/ contains C++ wrapper headers (src/cpp/fb_*.hpp)
+        ADD_FLAG('CFLAGS_FIREBIRD', '/I' + configure_module_dirname + '\\include');
+        ADD_FLAG('CFLAGS_FIREBIRD', '/I' + configure_module_dirname + '\\src');
+
+        // Define all source files (in src/ directory)
+        var firebird_sources = 'src/firebird.c ' +
+                               'src/fbird_blobs.c ' +
+                               'src/fbird_datetime.c ' +
+                               'src/fbird_events.c ' +
+                               'src/fbird_inspection.c ' +
+                               'src/fbird_metadata.c ' +
+                               'src/fbird_query_exec.c ' +
+                               'src/fbird_query_prepare.c ' +
+                               'src/fbird_query_bind.c ' +
+                               'src/fbird_query_array.c ' +
+                               'src/fbird_result.c ' +
+                               'src/fbird_service.c ' +
+                               'src/firebird_utils.cpp';
 
         // Register extension
         // /EHsc enables C++ exception handling (required for firebird_utils.cpp)

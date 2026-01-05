@@ -6,7 +6,7 @@
  * the Firebird 3.0+ OO API.
  *
  * Usage:
- *   #include "src/php_fbird_compat.h"
+ *   #include "php_fbird_compat.h"
  *   if (fbird_link_is_oo(link)) { ... }
  */
 

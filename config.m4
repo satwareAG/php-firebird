@@ -91,19 +91,26 @@ if test "$PHP_FIREBIRD" != "no"; then
   fi
 
   AC_DEFINE(HAVE_FIREBIRD,1,[ ])
+
+  dnl Add include paths for header files
+  dnl - include/ contains public headers (php_firebird.h, php_fbird_*.h, etc.)
+  dnl - src/ contains C++ wrapper headers (src/cpp/fb_*.hpp)
+  PHP_ADD_INCLUDE([$ext_dir/include])
+  PHP_ADD_INCLUDE([$ext_dir/src])
+
   dnl Enable extra debug logging for array slice operations when requested.
   dnl This is a build-time flag used by `src/cpp/fb_array.hpp`.
   dnl
   dnl Usage:
   dnl   CPPFLAGS="-DFBIRD_ARRAY_DEBUG" ./configure --with-firebird=/usr
   dnl
-  PHP_NEW_EXTENSION(firebird, firebird.c fbird_query_exec.c fbird_query_prepare.c fbird_query_bind.c fbird_query_array.c fbird_datetime.c fbird_result.c fbird_metadata.c fbird_service.c fbird_events.c fbird_blobs.c fbird_inspection.c, $ext_shared,, -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1,[cxx])
+  PHP_NEW_EXTENSION(firebird, src/firebird.c src/fbird_query_exec.c src/fbird_query_prepare.c src/fbird_query_bind.c src/fbird_query_array.c src/fbird_datetime.c src/fbird_result.c src/fbird_metadata.c src/fbird_service.c src/fbird_events.c src/fbird_blobs.c src/fbird_inspection.c, $ext_shared,, -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1,[cxx])
   PHP_SUBST(FIREBIRD_SHARED_LIBADD)
 
   PHP_REQUIRE_CXX()
   PHP_CXX_COMPILE_STDCXX([17], [mandatory], [PHP_FIREBIRD_STDCXX])
 
-  PHP_FIREBIRD_CXX_SOURCES="firebird_utils.cpp"
+  PHP_FIREBIRD_CXX_SOURCES="src/firebird_utils.cpp"
 
   AS_VAR_IF([ext_shared], [no],
     [PHP_ADD_SOURCES([$ext_dir],

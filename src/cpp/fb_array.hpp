@@ -32,7 +32,7 @@
 #include <cstring>
 #include <cstdint>
 
-#include "fb_blr_compat.h"
+#include "cpp/fb_blr_compat.h"
 #include "fb_status.hpp"
 
 // Charset ids for BLR *2 types (blr_text2/blr_varying2).

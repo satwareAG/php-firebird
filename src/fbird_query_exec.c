@@ -25,7 +25,7 @@
 #include "php_fbird_query_bind.h"
 #include "php_fbird_query_array.h"
 #include "firebird_utils.h"
-#include "src/php_fbird_compat.h"
+#include "php_fbird_compat.h"
 
 /* le_query is defined in fbird_query_prepare.c */
 

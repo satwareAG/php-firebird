@@ -753,7 +753,7 @@ PHP_FUNCTION(fbird_blob_info)
 	zval *link = NULL, *arg1 = NULL;
 	fbird_db_link *ib_link;
 	fbird_transaction *trans = NULL;
-	fbird_blob ib_blob = { {0}, BLOB_INPUT, {0, 0}, NULL };  /* Phase 6: explicit fbb_blob init */
+	fbird_blob ib_blob = { 0, {0}, BLOB_INPUT, {0, 0}, NULL };  /* magic=0, Phase 6: explicit fbb_blob init */
 	FBIRD_BLOBINFO bl_info;
 	php_stream *stream = NULL;
 	fbird_blob *ext_blob = NULL;
@@ -878,7 +878,7 @@ PHP_FUNCTION(fbird_blob_echo)
 	zval *link = NULL;
 	fbird_db_link *ib_link;
 	fbird_transaction *trans = NULL;
-	fbird_blob ib_blob_id = { {0}, BLOB_OUTPUT, {0, 0}, NULL };  /* Phase 6: explicit fbb_blob init */
+	fbird_blob ib_blob_id = { 0, {0}, BLOB_OUTPUT, {0, 0}, NULL };  /* magic=0, Phase 6: explicit fbb_blob init */
 	char bl_data[FBIRD_BLOB_SEG];
 	unsigned actual_len;
 	int result;
@@ -950,7 +950,7 @@ PHP_FUNCTION(fbird_blob_import)
 	zval *link = NULL, *file;
 	int size;
 	unsigned b;
-	fbird_blob ib_blob = { {0}, 0, {0, 0}, NULL };  /* Phase 6: explicit fbb_blob init */
+	fbird_blob ib_blob = { 0, {0}, 0, {0, 0}, NULL };  /* magic=0, Phase 6: explicit fbb_blob init */
 	fbird_db_link *ib_link;
 	fbird_transaction *trans = NULL;
 	char bl_data[FBIRD_BLOB_SEG];

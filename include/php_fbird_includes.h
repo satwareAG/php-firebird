@@ -104,6 +104,7 @@ typedef union {
 } fb_safe_handle;
 
 typedef struct {
+	uint32_t magic;           /* UAF guard: FBIRD_MAGIC_LINK on alloc, FBIRD_MAGIC_FREED on free */
 	fb_safe_handle handle;
 	struct tr_list *tr_list;
 	unsigned short dialect;
@@ -122,6 +123,7 @@ typedef struct {
 } fbird_db_link;
 
 typedef struct {
+	uint32_t magic;              /* UAF guard: FBIRD_MAGIC_TRANS on alloc, FBIRD_MAGIC_FREED on free */
 	fb_safe_handle handle;
 	unsigned short link_cnt;
 	unsigned long affected_rows;
@@ -141,6 +143,7 @@ typedef struct tr_list {
 } fbird_tr_list;
 
 typedef struct {
+	uint32_t magic;              /* UAF guard: FBIRD_MAGIC_BLOB on alloc, FBIRD_MAGIC_FREED on free */
 	fb_safe_handle bl_handle;
 	unsigned short type;
 	ISC_QUAD bl_qd;
@@ -154,6 +157,7 @@ typedef struct {
 } fbird_blob;
 
 typedef struct event {
+	uint32_t magic;              /* UAF guard: FBIRD_MAGIC_EVENT on alloc, FBIRD_MAGIC_FREED on free */
 	fbird_db_link *link;
 	zend_resource* link_res;
 	ISC_LONG event_id;
@@ -211,6 +215,7 @@ typedef struct {
 } fbird_array;
 
 typedef struct _ib_query {
+    uint32_t magic;              /* UAF guard: FBIRD_MAGIC_QUERY on alloc, FBIRD_MAGIC_FREED on free */
     fbird_db_link *link;
     fbird_transaction *trans;
     zend_resource *trans_res;
@@ -263,6 +268,7 @@ typedef struct _ib_query {
  * Provides high-performance bulk INSERT operations.
  */
 typedef struct {
+    uint32_t magic;              /* UAF guard: FBIRD_MAGIC_BATCH on alloc, FBIRD_MAGIC_FREED on free */
     void *fbbatch_wrapper;    /* OO API batch wrapper (from fbbatch_create()) */
     fbird_transaction *trans; /* Associated transaction */
     fbird_query *query;       /* Parent prepared statement */
@@ -488,5 +494,91 @@ const char *_fbird_res_type_name(int type);
 	var = (fbird_query *)zend_fetch_resource_ex(zv, LE_QUERY, le_query); \
 	if (!var) { RETURN_FALSE; } \
 } while(0)
+
+/* ============================================================================
+ * UAF (Use-After-Free) Detection Guards
+ * ============================================================================
+ * Magic number validation pattern for memory safety.
+ * Each resource struct has a magic field as its first member.
+ * On allocation: magic = FBIRD_MAGIC_<TYPE>
+ * On free: magic = FBIRD_MAGIC_FREED (poison value)
+ *
+ * This allows detection of:
+ * 1. Use-after-free (magic == FBIRD_MAGIC_FREED)
+ * 2. Corrupt/invalid pointers (magic != expected)
+ * 3. Type confusion (wrong magic for resource type)
+ */
+
+/* Magic number constants - unique per resource type */
+#define FBIRD_MAGIC_LINK    0xFB01C0DE  /* Connection/link resource */
+#define FBIRD_MAGIC_TRANS   0xFB02C0DE  /* Transaction resource */
+#define FBIRD_MAGIC_QUERY   0xFB03C0DE  /* Query/result resource */
+#define FBIRD_MAGIC_BLOB    0xFB04C0DE  /* BLOB resource */
+#define FBIRD_MAGIC_EVENT   0xFB05C0DE  /* Event resource */
+#define FBIRD_MAGIC_SERVICE 0xFB06C0DE  /* Service manager resource */
+#define FBIRD_MAGIC_BATCH   0xFB07C0DE  /* Batch operations resource (FB4.0+) */
+#define FBIRD_MAGIC_FREED   0xDEADFB1D  /* Poison value after free */
+
+/* Initialize magic number on allocation */
+#define FBIRD_INIT_MAGIC(ptr, magic_val) \
+	do { (ptr)->magic = (magic_val); } while(0)
+
+/* Poison magic number on free (UAF detection) */
+#define FBIRD_POISON_MAGIC(ptr) \
+	do { (ptr)->magic = FBIRD_MAGIC_FREED; } while(0)
+
+/* Check if resource was already freed */
+#define FBIRD_IS_FREED(ptr) ((ptr)->magic == FBIRD_MAGIC_FREED)
+
+/* Validate magic number - throws on UAF or corruption */
+#define FBIRD_VALIDATE_MAGIC(ptr, expected_magic, type_name) \
+	do { \
+		if ((ptr)->magic == FBIRD_MAGIC_FREED) { \
+			zend_throw_exception_ex(zend_ce_error, 0, \
+				"Use-after-free: %s resource was already freed", type_name); \
+			RETURN_THROWS(); \
+		} \
+		if ((ptr)->magic != (expected_magic)) { \
+			zend_throw_exception_ex(zend_ce_error, 0, \
+				"Invalid %s resource (magic number mismatch: 0x%08X != 0x%08X)", \
+				type_name, (ptr)->magic, (expected_magic)); \
+			RETURN_THROWS(); \
+		} \
+	} while(0)
+
+/* Validate magic with custom return behavior (for non-RETURN_THROWS contexts) */
+#define FBIRD_VALIDATE_MAGIC_EX(ptr, expected_magic, type_name, on_fail) \
+	do { \
+		if ((ptr)->magic == FBIRD_MAGIC_FREED) { \
+			_php_fbird_module_error("Use-after-free: %s resource was already freed", type_name); \
+			on_fail; \
+		} \
+		if ((ptr)->magic != (expected_magic)) { \
+			_php_fbird_module_error("Invalid %s resource (magic number mismatch)", type_name); \
+			on_fail; \
+		} \
+	} while(0)
+
+/* Convenience macros for each resource type */
+#define FBIRD_VALIDATE_LINK_MAGIC(ptr) \
+	FBIRD_VALIDATE_MAGIC(ptr, FBIRD_MAGIC_LINK, "connection")
+
+#define FBIRD_VALIDATE_TRANS_MAGIC(ptr) \
+	FBIRD_VALIDATE_MAGIC(ptr, FBIRD_MAGIC_TRANS, "transaction")
+
+#define FBIRD_VALIDATE_QUERY_MAGIC(ptr) \
+	FBIRD_VALIDATE_MAGIC(ptr, FBIRD_MAGIC_QUERY, "query")
+
+#define FBIRD_VALIDATE_BLOB_MAGIC(ptr) \
+	FBIRD_VALIDATE_MAGIC(ptr, FBIRD_MAGIC_BLOB, "blob")
+
+#define FBIRD_VALIDATE_EVENT_MAGIC(ptr) \
+	FBIRD_VALIDATE_MAGIC(ptr, FBIRD_MAGIC_EVENT, "event")
+
+#define FBIRD_VALIDATE_SERVICE_MAGIC(ptr) \
+	FBIRD_VALIDATE_MAGIC(ptr, FBIRD_MAGIC_SERVICE, "service")
+
+#define FBIRD_VALIDATE_BATCH_MAGIC(ptr) \
+	FBIRD_VALIDATE_MAGIC(ptr, FBIRD_MAGIC_BATCH, "batch")
 
 #endif /* PHP_FBIRD_INCLUDES_H */

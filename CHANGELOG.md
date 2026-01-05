@@ -5,6 +5,26 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-rc.46] - 2026-01-05
+
+### Added
+
+- **Memory Safety Audit Infrastructure**: Comprehensive UAF detection and code quality improvements
+  - **UAF Guard Macros**: Added `FBIRD_MAGIC_*` constants and `FBIRD_VALIDATE_MAGIC()` macro in `php_fbird_includes.h` for use-after-free detection during development
+  - **Magic Fields**: Added `uint32_t magic` as first field to all resource structs (`fbird_db_link`, `fbird_trans`, `fbird_query`, `fbird_blob`, `fbird_event`, `fbird_batch`) for runtime validation
+  - **ASAN CI Script**: Created `scripts/run-asan-ci.sh` for automated AddressSanitizer testing
+  - **UAF Detection Tests**: Added 5 PHPT tests documenting safe behavior when using resources after free:
+    - `tests/uaf_query_after_free.phpt` - Query resource after `fbird_free_query()`
+    - `tests/uaf_trans_after_commit.phpt` - Transaction after `fbird_commit()`
+    - `tests/uaf_blob_after_close.phpt` - Blob after `fbird_blob_close()`
+    - `tests/uaf_event_after_free.phpt` - Event after `fbird_free_event_handler()`
+    - `tests/uaf_result_parent_freed.phpt` - Result after parent query freed
+
+### Changed
+
+- **Type Renaming**: Renamed internal types for consistency (`_ib_query` → `_fbird_query`, `BIND_BUF` → `fbird_bind_buf`)
+- **Documentation**: Added memory safety audit plan (`docs/plans/2026-01-05-code-quality-memory-safety-audit.md`)
+
 ## [7.0.0-rc.45] - 2026-01-04
 
 ### Fixed

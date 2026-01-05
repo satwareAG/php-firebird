@@ -141,3 +141,6 @@ scripts/container/analysis/lsan.supp
 
 # Distribution bundles (release artifacts)
 dist/
+
+# Test binaries (compiled test programs)
+test_array

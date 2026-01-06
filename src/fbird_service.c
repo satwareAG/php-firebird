@@ -203,6 +203,10 @@ static void _php_fbird_user(INTERNAL_FUNCTION_PARAMETERS, char operation)
 
 	svm = (fbird_service *)zend_fetch_resource_ex(res, "Firebird service manager handle",
 		le_service);
+	if (svm == NULL) {
+		/* Resource was invalidated (e.g., after previous error or detach) */
+		RETURN_FALSE;
+	}
 
 	buf[0] = operation;
 
@@ -525,6 +529,10 @@ static void _php_fbird_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operati
 
 	svm = (fbird_service *)zend_fetch_resource_ex(res,
 		"Firebird service manager handle", le_service);
+	if (svm == NULL) {
+		/* Resource was invalidated (e.g., after previous error or detach) */
+		RETURN_FALSE;
+	}
 
 	/* fill the param buffer */
 	spb_len = slprintf(buf, sizeof(buf), "%c%c%c%c%s%c%c%c%s%c%c%c%c%c",
@@ -582,6 +590,10 @@ static void _php_fbird_service_action(INTERNAL_FUNCTION_PARAMETERS, char svc_act
 
 	svm = (fbird_service *)zend_fetch_resource_ex(res,
 		"Firebird service manager handle", le_service);
+	if (svm == NULL) {
+		/* Resource was invalidated (e.g., after previous error or detach) */
+		RETURN_FALSE;
+	}
 
 	if (svc_action == isc_action_svc_db_stats) {
 		switch (action) {
@@ -679,6 +691,10 @@ PHP_FUNCTION(fbird_server_info)
 
 	svm = (fbird_service *)zend_fetch_resource_ex(res,
 		"Firebird service manager handle", le_service);
+	if (svm == NULL) {
+		/* Resource was invalidated (e.g., after previous error or detach) */
+		RETURN_FALSE;
+	}
 
 	_php_fbird_service_query(INTERNAL_FUNCTION_PARAM_PASSTHRU, svm, (char)action);
 }

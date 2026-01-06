@@ -581,4 +581,132 @@ const char *_fbird_res_type_name(int type);
 #define FBIRD_VALIDATE_BATCH_MAGIC(ptr) \
 	FBIRD_VALIDATE_MAGIC(ptr, FBIRD_MAGIC_BATCH, "batch")
 
+/* ============================================================================
+ * Destructor Guard Macros (Shutdown Segfault Prevention)
+ * ============================================================================
+ * These macros provide defense-in-depth protection against SIGSEGV during
+ * PHP shutdown, addressing Issues #50, #51, #55, #56, #64.
+ *
+ * Root causes prevented:
+ * 1. Use-after-free: Accessing freed memory in destructors
+ * 2. EG() access during MSHUTDOWN: Executor globals destroyed before persistent cleanup
+ * 3. Resource ordering: Parent resources freed before children
+ * 4. Double-free: Pointers freed multiple times
+ * 5. NULL dereference: Accessing invalidated handles after explicit close
+ *
+ * Usage in destructors:
+ *   static void _php_fbird_free_XXX(zend_resource *rsrc) {
+ *       type *res = (type *)rsrc->ptr;
+ *       FBIRD_DESTRUCTOR_GUARD(res, "_php_fbird_free_XXX");
+ *       // ... cleanup logic ...
+ *   }
+ */
+
+/**
+ * FBIRD_DESTRUCTOR_GUARD - Guard macro for resource destructor functions
+ *
+ * Performs two safety checks before destructor logic executes:
+ * 1. NULL pointer check: Prevents dereference of already-freed resources
+ * 2. MSHUTDOWN flag check: Prevents EG() access during module shutdown
+ *
+ * @param resource_ptr   Pointer to the resource structure
+ * @param resource_name  Debug name for logging (destructor function name)
+ */
+#define FBIRD_DESTRUCTOR_GUARD(resource_ptr, resource_name) \
+	do { \
+		/* Guard 1: NULL pointer check */ \
+		if ((resource_ptr) == NULL) { \
+			FBDEBUG(resource_name ": NULL pointer, skipping"); \
+			return; \
+		} \
+		/* Guard 2: MSHUTDOWN flag check - EG() is invalid during module shutdown */ \
+		if (IBG(in_mshutdown)) { \
+			FBDEBUG(resource_name ": MSHUTDOWN active, skipping cleanup"); \
+			return; \
+		} \
+	} while(0)
+
+/**
+ * FBIRD_DESTRUCTOR_GUARD_EX - Extended guard with rsrc->ptr clearing
+ *
+ * Same as FBIRD_DESTRUCTOR_GUARD but also clears rsrc->ptr to NULL
+ * when MSHUTDOWN is active, preventing double-free on subsequent calls.
+ *
+ * Note: During MSHUTDOWN, we cannot safely efree() or access EG() lists,
+ * so we simply mark the resource as handled and return.
+ *
+ * @param rsrc           Pointer to the zend_resource
+ * @param resource_ptr   Pointer to the resource structure
+ * @param resource_name  Debug name for logging
+ */
+#define FBIRD_DESTRUCTOR_GUARD_EX(rsrc, resource_ptr, resource_name) \
+	do { \
+		/* Guard 1: NULL pointer check */ \
+		if ((resource_ptr) == NULL) { \
+			FBDEBUG(resource_name ": NULL pointer, skipping"); \
+			return; \
+		} \
+		/* Guard 2: MSHUTDOWN flag check - mark as handled and skip */ \
+		if (IBG(in_mshutdown)) { \
+			FBDEBUG(resource_name ": MSHUTDOWN active, marking handled"); \
+			(rsrc)->ptr = NULL; \
+			return; \
+		} \
+	} while(0)
+
+/**
+ * FBIRD_FUNCTION_GUARD - Guard macro for public API functions
+ *
+ * Validates handle pointer before function execution.
+ * Emits E_WARNING and returns the specified value on invalid handle.
+ *
+ * @param handle_ptr   Pointer to validate
+ * @param handle_name  Human-readable name for error message
+ * @param return_val   Value to return on failure
+ */
+#define FBIRD_FUNCTION_GUARD(handle_ptr, handle_name, return_val) \
+	do { \
+		if ((handle_ptr) == NULL) { \
+			php_error_docref(NULL, E_WARNING, \
+				"Supplied %s is not a valid handle", handle_name); \
+			return (return_val); \
+		} \
+	} while(0)
+
+/**
+ * FBIRD_FUNCTION_GUARD_EX - Guard with exception mode support
+ *
+ * Like FBIRD_FUNCTION_GUARD but throws TypeError in exception mode.
+ *
+ * @param handle_ptr   Pointer to validate
+ * @param handle_name  Human-readable name for error message
+ */
+#define FBIRD_FUNCTION_GUARD_EX(handle_ptr, handle_name) \
+	do { \
+		if ((handle_ptr) == NULL) { \
+			if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
+				zend_throw_exception_ex(zend_ce_type_error, 0, \
+					"Supplied %s is not a valid handle", handle_name); \
+				RETURN_THROWS(); \
+			} else { \
+				php_error_docref(NULL, E_WARNING, \
+					"Supplied %s is not a valid handle", handle_name); \
+				RETURN_FALSE; \
+			} \
+		} \
+	} while(0)
+
+/**
+ * Resource state enumeration (for future enhanced tracking)
+ *
+ * Can be used to track resource lifecycle state more precisely
+ * than just NULL/non-NULL or magic number checks.
+ */
+typedef enum {
+	FBIRD_STATE_ACTIVE = 0,    /* Resource is valid and usable */
+	FBIRD_STATE_DETACHED = 1,  /* Resource detached (e.g., service_detach) */
+	FBIRD_STATE_CLOSED = 2,    /* Resource explicitly closed */
+	FBIRD_STATE_ERROR = 3      /* Resource in error state */
+} fbird_resource_state;
+
 #endif /* PHP_FBIRD_INCLUDES_H */

@@ -1,0 +1,28 @@
+=== Test: BLOB ID Parsing Coverage ===
+Test tables created
+
+--- Test 1: Create BLOB and retrieve ID ---
+Created BLOB with ID: string(13) "00000000:0001"
+BLOB ID type: string
+bool(true)
+Stored ID: 1
+Content length: 53
+Content matches: YES
+
+--- Test 2: Multiple BLOBs with different content ---
+Created 5 blobs
+
+--- Test 3: Binary BLOB handling ---
+bool(true)
+
+Warning: Trying to access array offset on false in /ext/tests/coverage/bind_blob_id.php on line 136
+
+Deprecated: fbird_blob_open(): Passing null to parameter #2 ($blob_id) of type string is deprecated in /ext/tests/coverage/bind_blob_id.php on line 139
+
+Warning: fbird_blob_open(): String is not a BLOB ID in /ext/tests/coverage/bind_blob_id.php on line 139
+
+Fatal error: Uncaught TypeError: fbird_blob_get(): Argument #1 ($blob_handle) must be of type resource, false given in /ext/tests/coverage/bind_blob_id.php:140
+Stack trace:
+#0 /ext/tests/coverage/bind_blob_id.php(140): fbird_blob_get(false, 100)
+#1 {main}
+  thrown in /ext/tests/coverage/bind_blob_id.php on line 140

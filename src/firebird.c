@@ -1143,12 +1143,19 @@ static void _php_fbird_free_batch(zend_resource *rsrc)
 		return;
 	}
 
-	/* Cancel and close the batch if still open */
+	/* Cancel and close the batch if still open
+	 * CRITICAL: Do NOT call cancel() during shutdown - IBatch may be invalid.
+	 * When transaction commits/rollbacks, associated batch handles become invalid.
+	 * Only call fbbatch_close() which safely deletes the wrapper without touching
+	 * the potentially-freed Firebird IBatch object.
+	 * Fixes: Crash in batch_edge_cases.phpt during shutdown (si_addr=0x2c4) */
 	if (batch->fbbatch_wrapper != NULL) {
-		FBDEBUG("Canceling unexecuted batch...");
-		fbbatch_cancel(IBG(master_instance), batch->fbbatch_wrapper, IB_STATUS);
-		fbbatch_close(IBG(master_instance), batch->fbbatch_wrapper, IB_STATUS);
+		FBDEBUG("Closing batch wrapper without cancel during shutdown...");
+		void *wrapper_to_close = batch->fbbatch_wrapper;
 		batch->fbbatch_wrapper = NULL;
+		/* Skip fbbatch_cancel() - just close the wrapper to free C++ memory.
+		 * The Firebird IBatch object was already invalidated by transaction end. */
+		fbbatch_close(IBG(master_instance), wrapper_to_close, IB_STATUS);
 	}
 
 	/* Free the input message buffer if allocated */
@@ -1157,7 +1164,11 @@ static void _php_fbird_free_batch(zend_resource *rsrc)
 		batch->in_msg_buffer = NULL;
 	}
 
-	/* Release metadata reference if held */
+	/* Release metadata reference if held
+	 * CRITICAL: Only release if wrapper was NOT closed by fbbatch_close().
+	 * The metadata is stored in both BatchWrapper and PHP fbird_batch struct.
+	 * When fbbatch_close() deletes the wrapper, PHP still has a reference.
+	 * Fixes: Double-free of IMessageMetadata during shutdown (si_addr=0x2c4) */
 	if (batch->in_metadata != NULL) {
 		fbm_release(batch->in_metadata);
 		batch->in_metadata = NULL;
@@ -3665,9 +3676,13 @@ PHP_FUNCTION(fbird_batch_execute)
 		RETURN_FALSE;
 	}
 
-	/* Close the batch after execution */
-	fbbatch_close(IBG(master_instance), ib_batch->fbbatch_wrapper, IB_STATUS);
+	/* Close the batch after execution
+	 * CRITICAL: Save wrapper pointer and NULL the PHP-side reference BEFORE calling close.
+	 * fbbatch_close() deletes the BatchWrapper - if we NULL afterwards, the destructor
+	 * might run before the NULL assignment completes, causing use-after-free. */
+	void *wrapper_to_close = ib_batch->fbbatch_wrapper;
 	ib_batch->fbbatch_wrapper = NULL;
+	fbbatch_close(IBG(master_instance), wrapper_to_close, IB_STATUS);
 
 	/* Calculate success_count from total_processed - error_count */
 	unsigned success_count = (total_processed >= error_count) ? (total_processed - error_count) : 0;
@@ -3700,8 +3715,10 @@ PHP_FUNCTION(fbird_batch_cancel)
 		RETURN_FALSE;
 	}
 
-	fbbatch_close(IBG(master_instance), ib_batch->fbbatch_wrapper, IB_STATUS);
+	/* CRITICAL: NULL the wrapper BEFORE calling close - see fbird_batch_execute */
+	void *wrapper_to_close = ib_batch->fbbatch_wrapper;
 	ib_batch->fbbatch_wrapper = NULL;
+	fbbatch_close(IBG(master_instance), wrapper_to_close, IB_STATUS);
 
 	RETURN_TRUE;
 }

@@ -106,10 +106,15 @@ static void _php_fbird_free_service(zend_resource *rsrc)
 	efree(sv);
 }
 
-/* the svc api seems to get confused after an error has occurred,
-   so invalidate the handle on errors */
+/* Error handler for service API operations.
+   PHP 8.4 compatibility: Removed zend_list_delete which caused refcount
+   issues leading to heap corruption during shutdown. The service handle
+   remains valid for potential retry/recovery operations.
+   If users need to invalidate after errors, they should call fbird_service_detach. */
 #define FBIRD_SVC_ERROR(svm) \
-	do { zend_list_delete(svm->res); _php_fbird_error(); } while (0)
+	do { \
+		_php_fbird_error(); \
+	} while (0)
 
 
 void php_fbird_service_minit(INIT_FUNC_ARGS)

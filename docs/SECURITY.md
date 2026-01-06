@@ -11,7 +11,93 @@
 5. [Safe vs Unsafe Code Examples](#safe-vs-unsafe-code-examples)
 6. [Driver Comparison](#driver-comparison)
 7. [Best Practices Checklist](#best-practices-checklist)
-8. [Reporting Security Issues](#reporting-security-issues)
+8. [Shutdown Safety (Memory/Crash Protection)](#shutdown-safety-memorycash-protection)
+9. [Reporting Security Issues](#reporting-security-issues)
+
+---
+
+## Shutdown Safety (Memory/Crash Protection)
+
+The php-firebird extension includes comprehensive guards against segmentation faults (SIGSEGV) during PHP shutdown. These protections are critical for production stability.
+
+### Overview
+
+PHP's resource cleanup order during shutdown is non-deterministic. When multiple resources have dependencies (e.g., result → query → transaction → connection), destructors may be called in an order that violates these dependencies. Without proper guards, this leads to crashes.
+
+### Protection Mechanisms
+
+The extension implements a three-layer guard pattern in all resource destructors:
+
+```c
+// Standard guard pattern used in all destructors
+#define FBIRD_DESTRUCTOR_GUARD(action)                                  \
+    do {                                                                \
+        if (FBIRD_G(is_mshutdown)) {                                   \
+            /* Module shutdown - skip API calls */                      \
+            return;                                                     \
+        }                                                              \
+        if (UNEXPECTED(FBIRD_G(is_forked))) {                          \
+            /* Forked child process - skip to prevent corruption */    \
+            return;                                                     \
+        }                                                              \
+        action;                                                        \
+    } while (0)
+```
+
+| Guard | Purpose | Threat Mitigated |
+|-------|---------|------------------|
+| **NULL Check** | Skip cleanup if pointer already freed | Double-free, use-after-free |
+| **MSHUTDOWN Flag** | Skip API calls during module shutdown | Calls into unloaded libraries |
+| **Fork Safety** | Skip cleanup in child processes | Database corruption |
+
+### Protected Resource Types
+
+All 8 resource destructors implement the guard pattern:
+
+| Resource | Destructor | Guards |
+|----------|------------|--------|
+| Connection | `_php_fbird_close_link()` | NULL + MSHUTDOWN + Fork |
+| Persistent Connection | `_php_fbird_free_plink()` | NULL + MSHUTDOWN + Fork |
+| Transaction | `_php_fbird_trans_dtor()` | NULL + MSHUTDOWN + Fork |
+| Query | `php_fbird_free_query_rsrc()` | NULL + MSHUTDOWN + Fork |
+| Result | `_php_fbird_free_result()` | NULL + MSHUTDOWN + Fork |
+| Blob | `_php_fbird_free_blob()` | NULL + MSHUTDOWN + Fork |
+| Event | `_php_fbird_free_event_rsrc()` | NULL + MSHUTDOWN + Fork |
+| Service | `php_fbird_service_destructor()` | NULL + MSHUTDOWN + Fork |
+
+### Testing Shutdown Safety
+
+The extension includes dedicated tests for shutdown scenarios:
+
+```bash
+# Run shutdown safety tests
+./scripts/test-shutdown-safety.sh
+
+# Run with Valgrind memory checking
+./scripts/test-shutdown-safety.sh --valgrind
+
+# Run with AddressSanitizer
+./scripts/test-shutdown-safety.sh --asan
+```
+
+**Test Files:**
+- `tests/shutdown_resource_cleanup.phpt` - Basic resource cleanup
+- `tests/shutdown_persistent_link.phpt` - Persistent connection cleanup
+- `tests/shutdown_nested_resources.phpt` - Complex resource hierarchies
+- `tests/fbird_pconnect_shutdown_001.phpt` - Fork safety
+
+### CI/CD Integration
+
+The GitHub Actions CI pipeline includes a dedicated `shutdown-safety` job that:
+1. Runs all shutdown tests under Valgrind
+2. Fails on any memory errors (use-after-free, invalid reads/writes)
+3. Uses leak detection to identify resource leaks
+
+### Related Issues
+
+- [Issue #50](https://github.com/satwareAG/php-firebird/issues/50): Persistent connection MSHUTDOWN guards
+- [Issue #51](https://github.com/satwareAG/php-firebird/issues/51): Resource cleanup ordering
+- [Issue #56](https://github.com/satwareAG/php-firebird/issues/56): Fork safety after pcntl_fork()
 
 ---
 

@@ -5,6 +5,29 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-rc.47] - 2026-01-06
+
+### Added
+
+- **Shutdown Safety Testing Infrastructure**: Comprehensive validation for SIGSEGV prevention during PHP shutdown
+  - **Test Suite**: 3 new PHPT tests for shutdown resource cleanup scenarios:
+    - `tests/shutdown_resource_cleanup.phpt` - Basic resource cleanup safety
+    - `tests/shutdown_persistent_link.phpt` - Persistent connection cleanup
+    - `tests/shutdown_nested_resources.phpt` - Complex resource hierarchy (blobs, queries, transactions)
+  - **Validation Script**: `scripts/test-shutdown-safety.sh` for local Valgrind/ASAN testing
+    - Usage: `--valgrind` for memory error detection, `--asan` for AddressSanitizer
+  - **CI Integration**: Dedicated `shutdown-safety` job in `.github/workflows/ci.yml`
+    - Runs all 4 shutdown tests under Valgrind with definite leak detection
+    - Fails build on any memory errors (use-after-free, invalid reads/writes)
+  - **Documentation**: Added "Shutdown Safety (Memory/Crash Protection)" section to `docs/SECURITY.md`
+    - Documents the 3-layer guard pattern (NULL + MSHUTDOWN + Fork safety)
+    - Lists all 8 protected resource destructors
+    - References related issues (#50, #51, #56)
+
+### Changed
+
+- **Verified existing guard pattern**: Audited `_php_fbird_free_blob()`, `_php_fbird_free_event_rsrc()`, and `php_fbird_free_query_rsrc()` destructors - all already have complete NULL/MSHUTDOWN/Fork guards from rc.42
+
 ## [7.0.0-rc.46] - 2026-01-05
 
 ### Added

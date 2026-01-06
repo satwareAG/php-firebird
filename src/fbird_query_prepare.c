@@ -446,7 +446,7 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link,
 		}
 
 		/* Also allocate bind_buf for parameter binding */
-		ib_query->bind_buf = safe_emalloc(sizeof(BIND_BUF), ib_query->in_fields_count, 0);
+		ib_query->bind_buf = safe_emalloc(sizeof(fbird_bind_buf), ib_query->in_fields_count, 0);
 		ib_query->in_nullind = safe_emalloc(sizeof(*ib_query->in_nullind), ib_query->in_fields_count, 0);
 
 		/* Allocate in_sqlda from OO API metadata for compatibility with _php_fbird_bind().

@@ -206,7 +206,7 @@ typedef struct {
 #endif
 	} val;
 	short nullind;
-} BIND_BUF;
+} fbird_bind_buf;
 
 typedef struct {
 	ISC_ARRAY_DESC ar_desc;
@@ -214,7 +214,7 @@ typedef struct {
 	unsigned short el_type, el_size;
 } fbird_array;
 
-typedef struct _ib_query {
+typedef struct _fbird_query {
     uint32_t magic;              /* UAF guard: FBIRD_MAGIC_QUERY on alloc, FBIRD_MAGIC_FREED on free */
     fbird_db_link *link;
     fbird_transaction *trans;
@@ -228,7 +228,7 @@ typedef struct _ib_query {
     unsigned short dialect;
     char *query;
     ISC_UCHAR statement_type;
-    BIND_BUF *bind_buf;
+    fbird_bind_buf *bind_buf;
     ISC_SHORT *in_nullind, *out_nullind;
     ISC_USHORT in_fields_count, out_fields_count;
     HashTable *ht_aliases, *ht_ind; // Precomputed for fbird_fetch_*()
@@ -241,9 +241,9 @@ typedef struct _ib_query {
     /* Parent/children linkage to allow invalidating dependent results when the
      * prepared statement is freed (ensures TypeError on use-after-free, as
      * expected by tests/use_after_free-002.phpt). */
-    struct _ib_query *parent;
-    struct _ib_query *child_head;
-    struct _ib_query *child_next;
+    struct _fbird_query *parent;
+    struct _fbird_query *child_head;
+    struct _fbird_query *child_next;
     /* OO API statement wrapper (fb::Statement* from fbs_prepare())
      * When non-NULL, this statement was prepared via the modern OO API.
      * The stmt.ptr may be 0 in this case - use fbs_get_statement() instead. */

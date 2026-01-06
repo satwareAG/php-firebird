@@ -496,7 +496,7 @@ static int _php_fbird_scale_double_to_int64(double dval, int sqlscale, ISC_INT64
 
 int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 {
-	BIND_BUF *buf = ib_query->bind_buf;
+	fbird_bind_buf *buf = ib_query->bind_buf;
 	XSQLDA *sqlda = ib_query->in_sqlda;
 
 	int i, array_cnt = 0, rv = SUCCESS;

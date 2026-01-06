@@ -31,9 +31,10 @@ unusedFunction:fbird_datetime.c:139
 missingIncludeSystem
 
 # Intentional preprocessor error (Firebird version check)
-# Line may vary - suppress for entire file
-preprocessorErrorDirective:php_fbird_includes.h
-preprocessorErrorDirective:php_firebird.h
+# These #error directives ensure Firebird 3.0+ is installed
+# They are compile-time guards, not actual code errors
+preprocessorErrorDirective:include/php_fbird_includes.h
+preprocessorErrorDirective:include/php_firebird.h
 
 # -----------------------------------------------------
 # Notes:

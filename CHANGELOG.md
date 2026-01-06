@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Release Documentation Maintenance**: Updated README with frontmatter and 2026 context
 - **Shutdown Safety Testing Infrastructure**: Comprehensive validation for SIGSEGV prevention during PHP shutdown
   - **Test Suite**: 3 new PHPT tests for shutdown resource cleanup scenarios:
     - `tests/shutdown_resource_cleanup.phpt` - Basic resource cleanup safety

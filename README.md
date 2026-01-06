@@ -1,3 +1,16 @@
+---
+description: >-
+  High-performance PHP extension providing native connectivity to Firebird 
+  databases, modernized for PHP 8.1+ and C++17.
+tags:
+  - php
+  - firebird
+  - database-driver
+  - cpp17
+  - extension
+last_updated: 2026-01-06
+---
+
 # PHP Firebird Extension (Modernized)
 
 [![CI](https://github.com/satwareAG/php-firebird/actions/workflows/ci.yml/badge.svg)](https://github.com/satwareAG/php-firebird/actions/workflows/ci.yml)

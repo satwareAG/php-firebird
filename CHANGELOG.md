@@ -5,6 +5,16 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-rc.49] - 2026-01-07
+
+### Fixed
+
+- **Shell script grep exit code handling**: Fixed "integer expression expected" errors in `scripts/analysis/cppcheck.sh`
+  - **Root Cause**: `grep -c` returns exit code 1 when no matches are found (even though it outputs "0")
+  - Previous pattern `VAR=$(grep -c ... || echo 0)` resulted in "0\n0" breaking integer comparisons
+  - **Fix**: Changed to `VAR=$(grep -c ...) || VAR=0` which correctly handles all grep failure modes
+  - Affected variables: ERRORS, WARNINGS, PERFORMANCE, PORTABILITY in XML report parsing
+
 ## [7.0.0-rc.48] - 2026-01-07
 
 ### Fixed

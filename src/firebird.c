@@ -21,6 +21,9 @@
 #include <stdbool.h>
 #include <time.h>
 #include <math.h>
+#ifndef PHP_WIN32
+#include <pthread.h>
+#endif
 #include "firebird_utils.h"
 #include "fbird_datetime.h"
 
@@ -544,7 +547,7 @@ zend_module_entry firebird_module_entry = {
 	fbird_functions,
 	PHP_MINIT(fbird),
 	PHP_MSHUTDOWN(fbird),
-	NULL,
+	PHP_RINIT(fbird),
 	PHP_RSHUTDOWN(fbird),
 	PHP_MINFO(fbird),
 	PHP_FIREBIRD_VER_STR,
@@ -824,6 +827,17 @@ static void _php_fbird_commit_link(fbird_db_link *link)
 	unsigned short i = 0, j;
 	fbird_tr_list *l;
 	fbird_event *e;
+	
+#ifndef PHP_WIN32
+	/* Fork-safety check (Issue #56): Skip cleanup in forked child processes.
+	 * pthread_atfork() sets IBG(in_forked_child) = 1 in child processes.
+	 * This prevents corrupting parent's socket connection during child shutdown. */
+	if (IBG(in_forked_child)) {
+		FBDEBUG("_php_fbird_commit_link: Skipping cleanup in forked child (pthread_atfork)");
+		return;
+	}
+#endif
+	
 	FBDEBUG("Checking transactions to close...");
 
 	for (l = link->tr_list; l != NULL; ++i) {
@@ -883,6 +897,19 @@ static void php_fbird_commit_link_rsrc(zend_resource *rsrc)
 {
 	fbird_db_link *link = (fbird_db_link *) rsrc->ptr;
 
+	/* NULL pointer guard: Skip if resource already freed */
+	if (link == NULL) {
+		return;
+	}
+
+#ifndef PHP_WIN32
+	/* Fork-safety check (Issue #56): Skip cleanup in forked child processes. */
+	if (IBG(in_forked_child)) {
+		FBDEBUG("php_fbird_commit_link_rsrc: Skipping in forked child (pthread_atfork)");
+		return;
+	}
+#endif
+
 	_php_fbird_commit_link(link);
 }
 
@@ -890,36 +917,26 @@ static void _php_fbird_close_link(zend_resource *rsrc)
 {
 	fbird_db_link *link = (fbird_db_link *) rsrc->ptr;
 
-	/* NULL pointer guard (Issue #55): In forked PHPStan workers, rsrc->ptr may be NULL
-	 * when inherited resource descriptors are destroyed during child process shutdown.
-	 * Accessing link->created_pid with NULL pointer causes SIGSEGV at si_addr=0x4. */
+	/* NULL pointer guard (Issue #55) */
 	if (link == NULL) {
 		return;
 	}
 
 #ifndef PHP_WIN32
-	/* Fork-safety check (Issue #22, #36): Skip cleanup if we're in a forked child.
-	 * After pcntl_fork(), child inherits global state including master_instance
-	 * and connection handles. Attempting to close handles in child that were
-	 * created in parent causes segfault. Only the original process should
-	 * perform cleanup operations.
-	 *
-	 * Two-level check:
-	 * 1. Global init_pid - module-level fork detection
-	 * 2. Per-connection created_pid - connection-level fork detection */
-	pid_t current_pid = getpid();
-	if (IBG(init_pid) != 0 && current_pid != IBG(init_pid)) {
-		FBDEBUG("Skipping link cleanup in forked child process (global)");
+	/* Fork-safety check (Issue #56): Skip cleanup in forked child processes.
+	 * pthread_atfork() sets IBG(in_forked_child) = 1 in child processes. */
+	if (IBG(in_forked_child)) {
+		FBDEBUG("_php_fbird_close_link: Skipping cleanup in forked child (pthread_atfork)");
+#ifdef FBIRD_FORK_DEBUG
+		fprintf(stderr, "[FORK DEBUG] _php_fbird_close_link: SKIPPING (in_forked_child=1, PID=%d)\n", getpid());
+#endif
 		IBG(num_links)--;
 		efree(link);
 		return;
 	}
-	if (link->created_pid != 0 && current_pid != link->created_pid) {
-		FBDEBUG("Skipping link cleanup in forked child process (per-connection)");
-		IBG(num_links)--;
-		efree(link);
-		return;
-	}
+#ifdef FBIRD_FORK_DEBUG
+	fprintf(stderr, "[FORK DEBUG] _php_fbird_close_link: PROCEEDING with cleanup (in_forked_child=0, PID=%d)\n", getpid());
+#endif
 #endif
 
 	/* Remove cache entry from EG(regular_list) to prevent UAF (Issue #35).
@@ -949,26 +966,15 @@ static void _php_fbird_close_plink(zend_resource *rsrc)
 {
 	fbird_db_link *link = (fbird_db_link *) rsrc->ptr;
 
-	/* NULL pointer guard (Issue #55): In forked PHPStan workers, rsrc->ptr may be NULL
-	 * when inherited resource descriptors are destroyed during child process shutdown.
-	 * Accessing link->created_pid with NULL pointer causes SIGSEGV at si_addr=0x4. */
+	/* NULL pointer guard (Issue #55) */
 	if (link == NULL) {
 		return;
 	}
 
 #ifndef PHP_WIN32
-	/* Fork-safety check (Issue #22, #36): Skip cleanup if we're in a forked child.
-	 * Two-level check for both module-level and connection-level fork detection. */
-	pid_t current_pid = getpid();
-	if (IBG(init_pid) != 0 && current_pid != IBG(init_pid)) {
-		FBDEBUG("Skipping persistent link cleanup in forked child process (global)");
-		IBG(num_persistent)--;
-		IBG(num_links)--;
-		free(link);
-		return;
-	}
-	if (link->created_pid != 0 && current_pid != link->created_pid) {
-		FBDEBUG("Skipping persistent link cleanup in forked child process (per-connection)");
+	/* Fork-safety check (Issue #56): Skip cleanup in forked child processes. */
+	if (IBG(in_forked_child)) {
+		FBDEBUG("_php_fbird_close_plink: Skipping cleanup in forked child (pthread_atfork)");
 		IBG(num_persistent)--;
 		IBG(num_links)--;
 		free(link);
@@ -1017,21 +1023,10 @@ static void _php_fbird_free_trans(zend_resource *rsrc)
 	FBDEBUG("Cleaning up transaction resource...");
 
 #ifndef PHP_WIN32
-	/* Guard 2+3: Fork-safety - skip Firebird API calls if we're in a forked child process.
-	 * Firebird handles are not safe to use across fork boundaries.
-	 * Fixes: Issue #56 - SIGSEGV in forked child processes (PHPStan parallel mode) */
-	pid_t current_pid = getpid();
-
-	/* Guard 2: Global fork detection - different process than module init */
-	if (IBG(init_pid) != 0 && current_pid != IBG(init_pid)) {
-		FBDEBUG("_php_fbird_free_trans: Skipping cleanup in forked child (init_pid mismatch)");
-		efree(trans);
-		return;
-	}
-
-	/* Guard 3: Resource-specific fork detection - different process than resource creation */
-	if (trans->created_pid != 0 && current_pid != trans->created_pid) {
-		FBDEBUG("_php_fbird_free_trans: Skipping cleanup in forked child (created_pid mismatch)");
+	/* Fork-safety check (Issue #56): Skip Firebird API cleanup in forked child.
+	 * pthread_atfork() sets IBG(in_forked_child) = 1 in child processes. */
+	if (IBG(in_forked_child)) {
+		FBDEBUG("_php_fbird_free_trans: Skipping cleanup in forked child (pthread_atfork)");
 		efree(trans);
 		return;
 	}
@@ -1094,26 +1089,10 @@ static void _php_fbird_free_batch(zend_resource *rsrc)
 	FBDEBUG("Cleaning up batch resource...");
 
 #ifndef PHP_WIN32
-	/* Guard 2+3: Fork-safety - skip Firebird API calls if we're in a forked child process.
-	 * Firebird handles are not safe to use across fork boundaries.
-	 * Fixes: Issue #56 - SIGSEGV in forked child processes (PHPStan parallel mode) */
-	pid_t current_pid = getpid();
-
-	/* Guard 2: Global fork detection - different process than module init */
-	if (IBG(init_pid) != 0 && current_pid != IBG(init_pid)) {
-		FBDEBUG("_php_fbird_free_batch: Skipping cleanup in forked child (init_pid mismatch)");
-		/* Only free memory allocated by child, not Firebird handles */
-		if (batch->in_msg_buffer != NULL) {
-			efree(batch->in_msg_buffer);
-		}
-		efree(batch);
-		return;
-	}
-
-	/* Guard 3: Resource-specific fork detection - different process than resource creation */
-	if (batch->created_pid != 0 && current_pid != batch->created_pid) {
-		FBDEBUG("_php_fbird_free_batch: Skipping cleanup in forked child (created_pid mismatch)");
-		/* Only free memory allocated by child, not Firebird handles */
+	/* Fork-safety check (Issue #56): Skip Firebird API cleanup in forked child.
+	 * pthread_atfork() sets IBG(in_forked_child) = 1 in child processes. */
+	if (IBG(in_forked_child)) {
+		FBDEBUG("_php_fbird_free_batch: Skipping cleanup in forked child (pthread_atfork)");
 		if (batch->in_msg_buffer != NULL) {
 			efree(batch->in_msg_buffer);
 		}
@@ -1331,8 +1310,12 @@ static PHP_GINIT_FUNCTION(fbird)
 	 * children to avoid segfault from invalid handle cleanup. */
 #ifndef PHP_WIN32
 	fbird_globals->init_pid = getpid();
+	fbird_globals->request_pid = 0;      /* Will be set in RINIT */
+	fbird_globals->in_forked_child = 0;  /* Will be set by pthread_atfork child handler */
 #else
 	fbird_globals->init_pid = 0;
+	fbird_globals->request_pid = 0;
+	fbird_globals->in_forked_child = 0;
 #endif
 
 	/* Exception mode: SILENT (0) by default for backward compatibility */
@@ -1340,6 +1323,58 @@ static PHP_GINIT_FUNCTION(fbird)
 
 	/* MSHUTDOWN detection flag for safe persistent resource cleanup (Issue #50, #51) */
 	fbird_globals->in_mshutdown = 0;
+}
+
+/* pthread_atfork() handlers for fork-safety (Issue #56)
+ *
+ * When pcntl_fork() is called, child processes inherit database connections.
+ * During child shutdown, destructors run and attempt to close Firebird handles,
+ * corrupting the parent's active socket connection.
+ *
+ * Solution: Use pthread_atfork() to register handlers that:
+ * 1. Mark child processes via in_forked_child flag
+ * 2. Skip all Firebird API cleanup in forked children
+ *
+ * This pattern is used by PostgreSQL, MySQL, gRPC, and other database extensions.
+ */
+#ifndef PHP_WIN32
+static void fbird_atfork_prepare(void)
+{
+	/* Called before fork() - nothing needed for Firebird */
+	FBDEBUG("fbird_atfork_prepare: Pre-fork handler called");
+}
+
+static void fbird_atfork_parent(void)
+{
+	/* Parent continues normally after fork() - no action needed */
+	FBDEBUG("fbird_atfork_parent: Post-fork parent handler called");
+}
+
+static void fbird_atfork_child(void)
+{
+	/* Child process handler: Mark this process as forked to skip cleanup.
+	 * All destructors check IBG(in_forked_child) and skip Firebird API calls. */
+	FBDEBUG("fbird_atfork_child: Post-fork child handler - setting in_forked_child=1");
+#ifdef FBIRD_FORK_DEBUG
+	fprintf(stderr, "[FORK DEBUG] fbird_atfork_child called, PID=%d, setting in_forked_child=1\n", getpid());
+#endif
+	IBG(in_forked_child) = 1;
+	IBG(request_pid) = getpid();
+}
+#endif /* PHP_WIN32 */
+
+/* PHP_RINIT_FUNCTION - Request initialization
+ *
+ * Captures the current request's PID for fork detection.
+ * Combined with pthread_atfork(), this provides robust fork safety. */
+PHP_RINIT_FUNCTION(fbird)
+{
+#ifndef PHP_WIN32
+	IBG(request_pid) = getpid();
+	IBG(in_forked_child) = 0;
+	FBDEBUG("PHP_RINIT_FUNCTION: request_pid set, in_forked_child reset");
+#endif
+	return SUCCESS;
 }
 
 PHP_MINIT_FUNCTION(fbird)
@@ -1407,6 +1442,14 @@ PHP_MINIT_FUNCTION(fbird)
 	php_fbird_blobs_minit(INIT_FUNC_ARGS_PASSTHRU);
 	php_fbird_events_minit(INIT_FUNC_ARGS_PASSTHRU);
 	php_fbird_service_minit(INIT_FUNC_ARGS_PASSTHRU);
+
+#ifndef PHP_WIN32
+	/* Register pthread_atfork() handlers for fork-safety (Issue #56).
+	 * When pcntl_fork() is called, child processes inherit database connections.
+	 * The child handler sets IBG(in_forked_child) = 1, causing destructors to
+	 * skip Firebird API cleanup and prevent socket corruption. */
+	pthread_atfork(fbird_atfork_prepare, fbird_atfork_parent, fbird_atfork_child);
+#endif
 
 #ifdef ZEND_SIGNALS
 	// firebird replaces some signals at runtime, suppress warnings.

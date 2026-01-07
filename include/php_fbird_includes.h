@@ -87,7 +87,9 @@ ZEND_BEGIN_MODULE_GLOBALS(fbird)
 	int client_version;
 	int client_major_version;
 	int client_minor_version;
-	pid_t init_pid;                 /* PID at initialization for fork-safety detection */
+	pid_t init_pid;                 /* PID at GINIT for fork-safety detection */
+	pid_t request_pid;              /* PID at request start (RINIT) for request-level fork detection */
+	int in_forked_child;            /* Flag: 1 if in child process after pcntl_fork() (set by pthread_atfork) */
 	int exception_mode;             /* Exception mode: 0=SILENT (default), 1=THROW */
 	zend_bool in_mshutdown;         /* Flag: 1 during MSHUTDOWN to prevent EG() access */
 ZEND_END_MODULE_GLOBALS(fbird)

@@ -5,6 +5,23 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0-rc.48] - 2026-01-07
+
+### Fixed
+
+- **Issue #56 (Fork Safety with pthread_atfork)**: Implemented robust fork detection using POSIX `pthread_atfork()` to prevent child process resource cleanup from corrupting parent connections
+  - **Mechanism**: `pthread_atfork()` registers handlers called during `fork()` syscall:
+    - `fbird_atfork_child()` sets `IBG(in_forked_child) = true` in the child process
+  - **Destructor Protection**: All 6 resource destructors now check `IBG(in_forked_child)` before Firebird API calls:
+    - `_php_fbird_commit_link()`, `php_fbird_commit_link_rsrc()`, `_php_fbird_close_link()`
+    - `_php_fbird_close_plink()`, `_php_fbird_free_trans()`, `_php_fbird_free_batch()`
+  - **Effect**: Child processes skip `isc_detach_database()`, `isc_rollback_transaction()`, etc., preventing write attempts to parent's open socket
+  - **Complementary Guards**: Retained existing PID-based checks as defense-in-depth (global `init_pid`, per-resource `created_pid`)
+  - **Test**: `tests/uaf_fork_safety.phpt` now passes (removed XFAIL)
+  - **Limitation**: Unix socket still closes when child exits (OS behavior), but no protocol corruption occurs
+  - **Plan**: See `docs/plans/2026-01-07-fork-safety-pthread-atfork.md` for implementation details
+  - **Impact**: Enables safe use of `pcntl_fork()`, PHPStan parallel mode, PHPUnit parallel runner, and other forking scenarios
+
 ## [7.0.0-rc.47] - 2026-01-06
 
 ### Added

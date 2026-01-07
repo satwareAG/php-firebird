@@ -92,10 +92,10 @@ if command -v xmllint &> /dev/null; then
     PERFORMANCE=$(xmllint --xpath 'count(//error[@severity="performance"])' cppcheck-report.xml 2>/dev/null || echo 0)
     PORTABILITY=$(xmllint --xpath 'count(//error[@severity="portability"])' cppcheck-report.xml 2>/dev/null || echo 0)
 else
-    ERRORS=$(grep -c 'severity="error"' cppcheck-report.xml 2>/dev/null || echo 0)
-    WARNINGS=$(grep -c 'severity="warning"' cppcheck-report.xml 2>/dev/null || echo 0)
-    PERFORMANCE=$(grep -c 'severity="performance"' cppcheck-report.xml 2>/dev/null || echo 0)
-    PORTABILITY=$(grep -c 'severity="portability"' cppcheck-report.xml 2>/dev/null || echo 0)
+    ERRORS=$(grep -c 'severity="error"' cppcheck-report.xml 2>/dev/null) || ERRORS=0
+    WARNINGS=$(grep -c 'severity="warning"' cppcheck-report.xml 2>/dev/null) || WARNINGS=0
+    PERFORMANCE=$(grep -c 'severity="performance"' cppcheck-report.xml 2>/dev/null) || PERFORMANCE=0
+    PORTABILITY=$(grep -c 'severity="portability"' cppcheck-report.xml 2>/dev/null) || PORTABILITY=0
 fi
 
 echo ""

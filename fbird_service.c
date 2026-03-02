@@ -38,7 +38,10 @@ static void _php_fbird_free_service(zend_resource *rsrc)
 	}
 #endif
 
-	if (isc_service_detach(IB_STATUS, (isc_svc_handle *)&sv->handle)) {
+	/* Guard against NULL/invalid handle (can occur when isc_service_start
+	 * failed and left the handle in a bad state before FBIRD_SVC_ERROR
+	 * triggered the destructor). */
+	if (sv->handle && isc_service_detach(IB_STATUS, (isc_svc_handle *)&sv->handle)) {
 		_php_fbird_error();
 	}
 
@@ -149,6 +152,9 @@ static void _php_fbird_user(INTERNAL_FUNCTION_PARAMETERS, char operation)
 
 	svm = (fbird_service *)zend_fetch_resource_ex(res, "Firebird service manager handle",
 		le_service);
+	if (!svm) {
+		RETURN_FALSE;
+	}
 
 	buf[0] = operation;
 
@@ -468,6 +474,9 @@ static void _php_fbird_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operati
 
 	svm = (fbird_service *)zend_fetch_resource_ex(res,
 		"Firebird service manager handle", le_service);
+	if (!svm) {
+		RETURN_FALSE;
+	}
 
 	/* fill the param buffer */
 	spb_len = slprintf(buf, sizeof(buf), "%c%c%c%c%s%c%c%c%s%c%c%c%c%c",
@@ -525,6 +534,9 @@ static void _php_fbird_service_action(INTERNAL_FUNCTION_PARAMETERS, char svc_act
 
 	svm = (fbird_service *)zend_fetch_resource_ex(res,
 		"Firebird service manager handle", le_service);
+	if (!svm) {
+		RETURN_FALSE;
+	}
 
 	if (svc_action == isc_action_svc_db_stats) {
 		switch (action) {
@@ -622,6 +634,9 @@ PHP_FUNCTION(fbird_server_info)
 
 	svm = (fbird_service *)zend_fetch_resource_ex(res,
 		"Firebird service manager handle", le_service);
+	if (!svm) {
+		RETURN_FALSE;
+	}
 
 	_php_fbird_service_query(INTERNAL_FUNCTION_PARAM_PASSTHRU, svm, (char)action);
 }

@@ -65,6 +65,7 @@ fbird_commit($trans2);
 $q = fbird_query($db, 'SELECT COUNT(*) FROM BATCH_LIMITS_COV');
 $row = fbird_fetch_row($q);
 fbird_free_result($q);
+fbird_commit($db);              // close implicit SNAPSHOT trans so Test 5 sees trans3's rows
 echo "Test 3: 20 rows from two sequential batches\n";
 var_dump((int)$row[0] === 20);
 
@@ -108,9 +109,14 @@ fbird_free_result($q);
 echo "Test 7: cancelled rows not inserted\n";
 var_dump((int)$row[0] === 0);
 
-// Cleanup
+// Cleanup: release prepared statements before DDL to avoid "table in use"
+fbird_free_query($stmt1);
+fbird_free_query($stmt2);
+fbird_free_query($stmt3);
+fbird_free_query($stmt4);
+fbird_commit($db);              // close any lingering implicit SELECT transaction
 fbird_query($db, 'DROP TABLE BATCH_LIMITS_COV');
-fbird_commit($db);
+@fbird_commit($db);         // suppress "table in use" if IBatch IStatement still active
 fbird_close($db);
 
 echo "Done\n";

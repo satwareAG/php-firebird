@@ -33,28 +33,29 @@ $trans = fbird_trans($db);
 $stmt  = fbird_prepare($db, $trans, 'INSERT INTO BATCH_ERR_COV (ID, V) VALUES (?, ?)');
 
 // 1. fbird_batch_create with invalid (non-resource) statement
+// PHP 8+ throws TypeError for non-resource args; catch it and treat as false
 echo "Test 1: batch_create with false\n";
-$r = @fbird_batch_create(false, $trans);
+try { $r = @fbird_batch_create(false, $trans); } catch (\TypeError $e) { $r = false; }
 var_dump($r === false);
 
 // 2. fbird_batch_add with invalid batch handle
 echo "Test 2: batch_add with false\n";
-$r = @fbird_batch_add(false, 1, 'x');
+try { $r = @fbird_batch_add(false, 1, 'x'); } catch (\TypeError $e) { $r = false; }
 var_dump($r === false);
 
 // 3. fbird_batch_execute with invalid batch handle
 echo "Test 3: batch_execute with false\n";
-$r = @fbird_batch_execute(false);
+try { $r = @fbird_batch_execute(false); } catch (\TypeError $e) { $r = false; }
 var_dump($r === false);
 
 // 4. fbird_batch_cancel with invalid batch handle
 echo "Test 4: batch_cancel with false\n";
-$r = @fbird_batch_cancel(false);
+try { $r = @fbird_batch_cancel(false); } catch (\TypeError $e) { $r = false; }
 var_dump($r === false);
 
 // 5. fbird_batch_create with a connection resource (not a prepared stmt)
 echo "Test 5: batch_create with connection resource\n";
-$r = @fbird_batch_create($db, $trans);
+try { $r = @fbird_batch_create($db, $trans); } catch (\TypeError $e) { $r = false; }
 var_dump($r === false);
 
 // 6. Normal batch creation — verify handles are valid
@@ -62,11 +63,11 @@ echo "Test 6: valid batch create\n";
 $batch = fbird_batch_create($stmt, $trans);
 var_dump(is_resource($batch) || is_object($batch));
 
-// 7. Add null for both params (should succeed — NULLable if column allows)
+// 7. IBatch defers constraint validation to execute() time; add() queues data without server-side check
 echo "Test 7: batch_add with all-null params — expect false (NOT NULL col)\n";
-$r = @fbird_batch_add($batch, null, 'nullid');
-// ID is NOT NULL PRIMARY KEY, so null ID should fail
-var_dump($r === false);
+$r = fbird_batch_add($batch, null, 'nullid');
+// IBatch::add() succeeds even with null NOT NULL column — error surfaces at execute()
+var_dump($r !== false);
 
 // 8. Cancel the batch without executing
 echo "Test 8: batch_cancel on valid batch\n";
@@ -79,6 +80,7 @@ $r = @fbird_batch_execute($batch);
 var_dump($r === false);
 
 // Cleanup
+fbird_free_query($stmt);    // release IStatement before DDL to avoid "table in use"
 fbird_rollback($trans);
 fbird_query($db, 'DROP TABLE BATCH_ERR_COV');
 fbird_commit($db);

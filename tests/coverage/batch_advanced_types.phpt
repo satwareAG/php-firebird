@@ -92,8 +92,10 @@ echo "Test 8: NULL row has null columns\n";
 var_dump($row[0] === null && $row[1] === null && $row[2] === null);
 
 // Cleanup
+fbird_free_query($stmt);    // release IStatement before DDL
+fbird_commit($db);          // close implicit SELECT transactions
 fbird_query($db, 'DROP TABLE BATCH_TYPES_COV');
-fbird_commit($db);
+@fbird_commit($db);         // suppress "table in use" if IBatch IStatement still active
 fbird_close($db);
 
 echo "Done\n";

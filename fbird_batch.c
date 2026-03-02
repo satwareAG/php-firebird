@@ -13,6 +13,7 @@
 #include "php_firebird.h"
 #include "php_fbird_includes.h"
 #include "php_fbird_batch.h"
+#include "fbird_datetime.h"
 #include "firebird_utils.h"
 
 #if FB_API_VER >= 40

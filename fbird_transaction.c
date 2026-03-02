@@ -16,6 +16,10 @@
 #include "php_fbird_connection.h"
 #include "firebird_utils.h"
 
+#define ROLLBACK    0
+#define COMMIT      1
+#define RETAIN      2
+
 void _php_fbird_free_trans(zend_resource *rsrc)
 {
 	fbird_transaction *trans = (fbird_transaction *)rsrc->ptr;
@@ -1044,7 +1048,7 @@ PHP_FUNCTION(fbird_rollback_ret)
 	_php_fbird_trans_end(INTERNAL_FUNCTION_PARAM_PASSTHRU, ROLLBACK | RETAIN);
 }
 
-static int is_valid_identifier(const char *s, size_t len)
+int is_valid_identifier(const char *s, size_t len)
 {
 	size_t i;
 	if (len == 0) return 0;

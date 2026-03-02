@@ -164,7 +164,10 @@ PHP_METHOD(FirebirdException, getSqlState)
 	RETURN_STRINGL(sqlstate, 5);
 }
 
-static const zend_function_entry firebird_exception_methods[] = {
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_firebird_exception_getSqlState, 0, 0, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
+const zend_function_entry firebird_exception_methods[] = {
 	PHP_ME(FirebirdException, getSqlState, arginfo_firebird_exception_getSqlState, ZEND_ACC_PUBLIC)
 	PHP_FE_END
 };

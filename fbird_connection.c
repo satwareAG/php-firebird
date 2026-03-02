@@ -16,12 +16,7 @@
 #include "php_fbird_connection.h"
 #include "firebird_utils.h"
 
-typedef struct {
-	isc_db_handle *db_ptr;
-	zend_long tpb_len;
-	char *tpb_ptr;
-} ISC_TEB;
-
+/* ISC_TEB is defined in php_fbird_includes.h */
 
 /* Fill ib_link and trans with the correct database link and transaction. */
 void _php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAMETERS,

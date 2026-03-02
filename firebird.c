@@ -31,7 +31,7 @@
 #define COMMIT      1
 #define RETAIN      2
 
-#define CHECK_LINK(link) { if (link==NULL) { php_error_docref(NULL, E_WARNING, "A link to the server could not be established"); RETURN_FALSE; } }
+/* CHECK_LINK is now defined in php_fbird_includes.h */
 
 ZEND_DECLARE_MODULE_GLOBALS(fbird)
 static PHP_GINIT_FUNCTION(fbird);
@@ -902,45 +902,6 @@ PHP_MINFO_FUNCTION(fbird)
 
 }
 
-enum connect_args { DB = 0, USER = 1, PASS = 2, CSET = 3, ROLE = 4, BUF = 0, DLECT = 1, SYNC = 2 };
-
-static char const dpb_args[] = {
-	0, isc_dpb_user_name, isc_dpb_password, isc_dpb_lc_ctype, isc_dpb_sql_role_name, 0
-};
-
-int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db)
-{
-    void* connection = NULL;
-
-    /* Use OO API as the connection method */
-    connection = fbc_connect(
-        IBG(master_instance),
-        args[DB], len[DB],                          /* database path */
-        args[USER], len[USER],                      /* username */
-        args[PASS], len[PASS],                      /* password */
-        args[CSET], len[CSET],                      /* charset */
-        args[ROLE], len[ROLE],                      /* SQL role */
-        (int)largs[BUF],                            /* num_buffers */
-        largs[DLECT] ? (int)largs[DLECT] : SQL_DIALECT_CURRENT, /* dialect */
-        (int)largs[SYNC],                           /* force_write */
-        IB_STATUS                                   /* status vector */
-    );
-
-    if (!connection) {
-        _php_fbird_error();
-        return FAILURE;
-    }
-
-    /* Store the OO API connection pointer in the status vector's last slot
-     * for retrieval by _php_fbird_connect() */
-    IBG(status[ISC_STATUS_LENGTH - 1]) = (ISC_STATUS)(uintptr_t)connection;
-
-    *db = NULL;
-
-    return SUCCESS;
-}
-
-
 PHP_FUNCTION(fbird_gen_id)
 {
 	zval *link = NULL;
@@ -1197,5 +1158,4 @@ PHP_FUNCTION(fbird_reconnect_transaction)
 	Z_TRY_ADDREF_P(return_value);
 }
 
-#if FB_API_VER >= 40
-/* IBatch API Functions (Firebird 4.0+ Bulk Operations) */
+#endif /* HAVE_FIREBIRD */

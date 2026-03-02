@@ -8,4 +8,7 @@
  * firebird.c can pass it to zend_register_list_destructors_ex(). */
 void _php_fbird_free_trans(zend_resource *rsrc);
 
+/* Identifier validation — used by firebird.c (fbird_gen_id) */
+int is_valid_identifier(const char *s, size_t len);
+
 #endif /* PHP_FBIRD_TRANSACTION_H */

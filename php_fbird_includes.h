@@ -37,6 +37,21 @@
 #	endif
 #endif
 
+/* ISC_TEB compat: Firebird 4+ removed this from ibase.h but we use it
+ * internally as a simple holder struct for tpb_len/tpb_ptr per connection. */
+#ifndef ISC_TEB
+typedef struct {
+	isc_db_handle *db_ptr;
+	short tpb_len;
+	char *tpb_ptr;
+} ISC_TEB;
+#endif
+
+/* CHECK_LINK macro — shared by firebird.c and fbird_connection.c */
+#define CHECK_LINK(link) { if ((link)==NULL) { \
+	php_error_docref(NULL, E_WARNING, "A link to the server could not be established"); \
+	RETURN_FALSE; } }
+
 #define RESET_ERRMSG do { IBG(errmsg)[0] = '\0'; IBG(sql_code) = 0; } while (0)
 
 #define IB_STATUS (IBG(status))
@@ -328,6 +343,9 @@ typedef void (__stdcall *info_func_t)(char*);
 #define LL_LIT(lit) lit ## ll
 typedef void (*info_func_t)(char*);
 #endif
+
+extern zend_class_entry *firebird_exception_ce;
+extern const zend_function_entry firebird_exception_methods[];
 
 void _php_fbird_error(void);
 void _php_fbird_module_error(const char *, ...)

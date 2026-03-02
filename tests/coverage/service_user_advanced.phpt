@@ -4,7 +4,12 @@ Coverage: Service user management edge cases (add/modify/delete boundaries)
 firebird
 --SKIPIF--
 <?php
-require_once __DIR__ . '/../firebird.inc';
+// Do NOT include firebird.inc here — it registers cleanup_db() which would drop
+// the shared test.fdb when SKIPIF exits, corrupting subsequent tests.
+if (!extension_loaded('firebird')) die('skip firebird extension not available');
+$host     = getenv('FIREBIRD_HOST') ?: 'localhost';
+$user     = getenv('ISC_USER')      ?: 'SYSDBA';
+$password = getenv('ISC_PASSWORD')  ?: 'masterkey';
 $svc = @fbird_service_attach($host, $user, $password);
 if (!$svc) die('skip: cannot attach to Firebird service manager');
 fbird_service_detach($svc);

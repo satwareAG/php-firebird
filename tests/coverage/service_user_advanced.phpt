@@ -16,6 +16,9 @@ fbird_service_detach($svc);
 ?>
 --FILE--
 <?php
+// PHP 8.4 deprecated implicit nullable params in internal function arginfo;
+// suppress deprecation/notice output to keep expected output stable across PHP versions.
+error_reporting(E_ALL & ~E_DEPRECATED & ~E_NOTICE);
 require_once __DIR__ . '/../firebird.inc';
 
 $host     = getenv('FIREBIRD_HOST') ?: 'localhost';

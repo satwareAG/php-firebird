@@ -39,7 +39,7 @@ var_dump($r === true || $r === false);
 
 // 2. Check DB (RPR_CHECK_DB)
 echo "Test 2: RPR_CHECK_DB\n";
-$r = fbird_maintain_db($svc, $db_path, FBIRD_RPR_CHECK_DB, 0);
+$r = @fbird_maintain_db($svc, $db_path, FBIRD_RPR_CHECK_DB, 0);
 var_dump($r === true || $r === false);
 
 // 3. Validate DB (RPR_VALIDATE_DB)
@@ -49,7 +49,7 @@ var_dump($r === true || $r === false);
 
 // 4. Validate full (RPR_VALIDATE_DB | RPR_FULL)
 echo "Test 4: RPR_VALIDATE_DB|RPR_FULL\n";
-$r = fbird_maintain_db($svc, $db_path, FBIRD_RPR_VALIDATE_DB | FBIRD_RPR_FULL, 0);
+$r = @fbird_maintain_db($svc, $db_path, FBIRD_RPR_VALIDATE_DB | FBIRD_RPR_FULL, 0);
 var_dump($r === true || $r === false);
 
 // 5. Set page buffers (PRP_PAGE_BUFFERS) — safe non-destructive

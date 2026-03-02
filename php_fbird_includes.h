@@ -329,6 +329,9 @@ typedef void (__stdcall *info_func_t)(char*);
 typedef void (*info_func_t)(char*);
 #endif
 
+extern zend_class_entry *firebird_exception_ce;
+extern const zend_function_entry firebird_exception_methods[];
+
 void _php_fbird_error(void);
 void _php_fbird_module_error(const char *, ...)
 	PHP_ATTRIBUTE_FORMAT(printf,1,2);

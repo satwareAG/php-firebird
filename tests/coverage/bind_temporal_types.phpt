@@ -83,9 +83,10 @@ echo "Test 9: ISO date stored correctly\n";
 // Date may be returned as '2024-06-15' or Unix int — just check non-null
 var_dump($row[0] !== null);
 
-// Cleanup
+// Cleanup: commit implicit tx, then DDL. Use @ on final commit (prepared stmt may hold table).
+@fbird_commit($dbh);
 fbird_query($dbh, 'DROP TABLE BIND_TEMP_COV');
-fbird_commit($dbh);
+@fbird_commit($dbh);
 fbird_close($dbh);
 
 echo "Done\n";

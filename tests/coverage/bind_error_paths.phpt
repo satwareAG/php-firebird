@@ -40,12 +40,17 @@ if ($r === false) {
 } else {
     echo "Executed (missing arg)\n";
 }
-fbird_commit($dbh);
+// fbird_execute failure may roll back the implicit transaction; suppress stale-handle warning
+@fbird_commit($dbh);
 
-// Test 3: fbird_execute with false (not a prepared statement resource)
+// Test 3: fbird_execute with false — PHP 8 TypeError is NOT suppressed by @, use try/catch
 echo "Test 3: execute with false handle\n";
-$r = @fbird_execute(false, 1, 'x');
-var_dump($r === false);
+try {
+    $r = fbird_execute(false, 1, 'x');
+    var_dump($r === false);
+} catch (\TypeError $e) {
+    var_dump(true); // TypeError = invalid argument type rejected
+}
 
 // Test 4: fbird_execute with connection resource (wrong type)
 echo "Test 4: execute with connection resource\n";
@@ -70,23 +75,33 @@ echo "Test 6: fbird_num_params on valid stmt\n";
 $n = fbird_num_params($stmt);
 var_dump((int)$n === 2);
 
+// fbird_num_params/fbird_param_info throw TypeError in PHP 8 with false (@ doesn't suppress)
 echo "Test 7: fbird_num_params on false\n";
-$n = @fbird_num_params(false);
-var_dump($n === false || $n === null || $n === 0);
+try {
+    $n = fbird_num_params(false);
+    var_dump($n === false || $n === null || $n === 0);
+} catch (\TypeError $e) {
+    var_dump(true); // TypeError = invalid argument rejected
+}
 
 // Test 8: fbird_param_info on invalid statement
 echo "Test 8: fbird_param_info on false\n";
-$info = @fbird_param_info(false, 0);
-var_dump($info === false || $info === null);
+try {
+    $info = fbird_param_info(false, 0);
+    var_dump($info === false || $info === null);
+} catch (\TypeError $e) {
+    var_dump(true); // TypeError = invalid argument rejected
+}
 
 // Test 9: fbird_param_info out-of-range index on valid stmt
 echo "Test 9: fbird_param_info out-of-range index\n";
 $info = @fbird_param_info($stmt, 99);
 var_dump($info === false || $info === null);
 
-// Cleanup
+// Cleanup: @ on final commit — prepared stmt may still hold the table
+@fbird_commit($dbh);
 fbird_query($dbh, 'DROP TABLE BIND_ERR_COV');
-fbird_commit($dbh);
+@fbird_commit($dbh);
 fbird_close($dbh);
 
 echo "Done\n";

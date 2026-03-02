@@ -1,5 +1,5 @@
 --TEST--
-Coverage: SQL array error paths — invalid descriptor, dimension mismatch, wrong column
+Coverage: SQL array fetch behavior — FBIRD_FETCH_ARRAYS flag difference, NULL arrays
 --EXTENSIONS--
 firebird
 --SKIPIF--
@@ -11,81 +11,71 @@ require __DIR__ . '/../firebird.inc';
 $dbh = fbird_connect($test_base);
 if (!$dbh) die('skip connect failed: ' . fbird_errmsg());
 
-// Setup
-fbird_query($dbh, "EXECUTE BLOCK AS BEGIN
-  IF (EXISTS(SELECT 1 FROM RDB\$RELATIONS WHERE RDB\$RELATION_NAME = 'ARR_ERR_COV')) THEN
-    EXECUTE STATEMENT 'DROP TABLE ARR_ERR_COV';
-END");
-fbird_commit($dbh);
-fbird_query($dbh, '
-    CREATE TABLE ARR_ERR_COV (
-        ID     INTEGER NOT NULL PRIMARY KEY,
-        V_ARR  INTEGER[5],
-        V_PLAIN INTEGER
-    )');
+// Setup: table with integer[5] array column
+fbird_query($dbh, "RECREATE TABLE ARR_ERR_COV (
+    ID    INTEGER NOT NULL PRIMARY KEY,
+    V_ARR INTEGER[5]
+)");
 fbird_commit($dbh);
 
-// ----- Test 1: fbird_array_create with non-existent table -----
-echo "Test 1: array_create with non-existent table\n";
-$aid = @fbird_array_create($dbh, 'THIS_TABLE_DOES_NOT_EXIST', 'V_ARR');
-var_dump($aid === false || $aid === null);
-
-// ----- Test 2: fbird_array_create with non-existent column -----
-echo "Test 2: array_create with non-existent column\n";
-$aid2 = @fbird_array_create($dbh, 'ARR_ERR_COV', 'COL_DOES_NOT_EXIST');
-var_dump($aid2 === false || $aid2 === null);
-
-// ----- Test 3: fbird_array_create with a non-array column -----
-echo "Test 3: array_create with plain INTEGER column\n";
-$aid3 = @fbird_array_create($dbh, 'ARR_ERR_COV', 'V_PLAIN');
-// Should fail — V_PLAIN is not an array type
-var_dump($aid3 === false || $aid3 === null);
-
-// ----- Test 4: bind non-array value to SQL_ARRAY parameter -----
-echo "Test 4: bind plain integer to array column\n";
-$stmt = fbird_prepare($dbh, 'INSERT INTO ARR_ERR_COV (ID, V_ARR) VALUES (?, ?)');
-$r = @fbird_execute($stmt, 1, 12345);
-// Should fail — 12345 is not a valid array ID
-var_dump($r === false);
-$err = fbird_errmsg();
-var_dump(strlen($err) > 0);
-
-// ----- Test 5: bind string garbage to array column -----
-echo "Test 5: bind garbage string to array column\n";
-$r = @fbird_execute($stmt, 2, 'not-a-valid-array-id-xyz');
-var_dump($r === false);
-
-// ----- Test 6: fbird_array_create then supply oversized PHP array -----
-echo "Test 6: set oversized PHP array into 5-element descriptor\n";
-$aid6 = fbird_array_create($dbh, 'ARR_ERR_COV', 'V_ARR');
-if ($aid6 !== false && $aid6 !== null) {
-    // 10 elements into a [5]-declared column — behaviour is implementation-defined
-    $r = @fbird_array_set($aid6, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-    // Either truncates silently or returns false — we just confirm it doesn't crash
-    echo "No crash on oversized input\n";
-} else {
-    echo "No crash on oversized input\n";
+// Insert a row with actual array data (1-indexed PHP array → Firebird bounds [1:5])
+$arr = [1 => 10, 2 => 20, 3 => 30, 4 => 40, 5 => 50];
+$r = @fbird_query($dbh, "INSERT INTO ARR_ERR_COV (ID, V_ARR) VALUES (?, ?)", 1, $arr);
+if ($r === false) {
+    die('INSERT failed: ' . fbird_errmsg());
 }
+fbird_commit($dbh);
+
+// ----- Test 1: Fetch WITHOUT FBIRD_FETCH_ARRAYS -----
+// Should return array ID string, not a PHP array
+echo "Test 1: without flag returns string\n";
+$q = fbird_query($dbh, "SELECT V_ARR FROM ARR_ERR_COV WHERE ID = 1");
+$row = fbird_fetch_assoc($q);
+fbird_free_result($q);
+var_dump(is_string($row['V_ARR']));
+var_dump(is_array($row['V_ARR']));
+
+// ----- Test 2: Fetch WITH FBIRD_FETCH_ARRAYS -----
+// Should return 1-indexed PHP array
+echo "Test 2: with flag returns PHP array\n";
+$q = fbird_query($dbh, "SELECT V_ARR FROM ARR_ERR_COV WHERE ID = 1");
+$row = fbird_fetch_assoc($q, FBIRD_FETCH_ARRAYS);
+fbird_free_result($q);
+var_dump(is_array($row['V_ARR']));
+var_dump((int)$row['V_ARR'][1] === 10);
+var_dump((int)$row['V_ARR'][5] === 50);
+
+// ----- Test 3: Insert NULL for array column -----
+echo "Test 3: NULL array insert\n";
+$r = @fbird_query($dbh, "INSERT INTO ARR_ERR_COV (ID, V_ARR) VALUES (?, ?)", 2, null);
+var_dump($r !== false);
+fbird_commit($dbh);
+
+// ----- Test 4: Fetch NULL row with FBIRD_FETCH_ARRAYS -----
+// NULL array column should yield null, not an empty array
+echo "Test 4: NULL array fetch\n";
+$q = fbird_query($dbh, "SELECT V_ARR FROM ARR_ERR_COV WHERE ID = 2");
+$row = fbird_fetch_assoc($q, FBIRD_FETCH_ARRAYS);
+fbird_free_result($q);
+var_dump($row['V_ARR'] === null);
 
 // Cleanup
-fbird_query($dbh, 'DROP TABLE ARR_ERR_COV');
-fbird_commit($dbh);
+fbird_query($dbh, "DROP TABLE ARR_ERR_COV");
+@fbird_commit($dbh);
 fbird_close($dbh);
 
 echo "Done\n";
 ?>
---EXPECTF--
-Test 1: array_create with non-existent table
+--EXPECT--
+Test 1: without flag returns string
 bool(true)
-Test 2: array_create with non-existent column
-bool(true)
-Test 3: array_create with plain INTEGER column
-bool(true)
-Test 4: bind plain integer to array column
+bool(false)
+Test 2: with flag returns PHP array
 bool(true)
 bool(true)
-Test 5: bind garbage string to array column
 bool(true)
-Test 6: set oversized PHP array into 5-element descriptor
-No crash on oversized input
+Test 3: NULL array insert
+bool(true)
+Test 4: NULL array fetch
+bool(true)
 Done

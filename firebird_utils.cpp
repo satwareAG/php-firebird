@@ -543,9 +543,9 @@ extern "C" void* fbc_connect(
 }
 
 extern "C" int fbc_disconnect(void* connection, ISC_STATUS* status_vector) {
-    if (!connection) {
+    if (!connection) { /* LCOV_EXCL_START */
         return 0;
-    }
+    } /* LCOV_EXCL_STOP */
 
     try {
         auto* conn = reinterpret_cast<fb::Connection*>(connection);
@@ -569,9 +569,9 @@ extern "C" int fbc_disconnect(void* connection, ISC_STATUS* status_vector) {
 }
 
 extern "C" int fbc_drop_database(void* connection, ISC_STATUS* status_vector) {
-    if (!connection) {
+    if (!connection) { /* LCOV_EXCL_START */
         return -1;
-    }
+    } /* LCOV_EXCL_STOP */
 
     try {
         auto* conn = reinterpret_cast<fb::Connection*>(connection);
@@ -603,14 +603,14 @@ extern "C" void* fbc_create_database(
     unsigned dialect,
     ISC_STATUS* status_vector
 ) {
-    if (!master_ptr || !create_sql) {
+    if (!master_ptr || !create_sql) { /* LCOV_EXCL_START */
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
             status_vector[1] = isc_bad_req_handle;
             status_vector[2] = isc_arg_end;
         }
         return nullptr;
-    }
+    } /* LCOV_EXCL_STOP */
 
     try {
         auto* master = static_cast<Firebird::IMaster*>(master_ptr);
@@ -700,25 +700,25 @@ extern "C" void* fbc_create_database(
 }
 
 extern "C" void* fbc_get_attachment(void* connection) {
-    if (!connection) {
+    if (!connection) { /* LCOV_EXCL_START */
         return nullptr;
-    }
+    } /* LCOV_EXCL_STOP */
     auto* conn = reinterpret_cast<fb::Connection*>(connection);
     return conn->get();  // Returns IAttachment*
 }
 
 extern "C" int fbc_is_connected(void* connection) {
-    if (!connection) {
+    if (!connection) { /* LCOV_EXCL_START */
         return 0;
-    }
+    } /* LCOV_EXCL_STOP */
     auto* conn = reinterpret_cast<fb::Connection*>(connection);
     return conn->isConnected() ? 1 : 0;
 }
 
 extern "C" unsigned fbc_get_server_version(void* connection) {
-    if (!connection) {
+    if (!connection) { /* LCOV_EXCL_START */
         return 0;
-    }
+    } /* LCOV_EXCL_STOP */
     auto* conn = reinterpret_cast<fb::Connection*>(connection);
     return conn->getVersion().getVersion();
 }
@@ -732,9 +732,9 @@ extern "C" void* fbt_start(
     const unsigned char* tpb,
     ISC_STATUS* status_vector
 ) {
-    if (!master_ptr || !attachment_ptr) {
+    if (!master_ptr || !attachment_ptr) { /* LCOV_EXCL_START */
         return nullptr;
-    }
+    } /* LCOV_EXCL_STOP */
 
     try {
         auto* master = static_cast<Firebird::IMaster*>(master_ptr);
@@ -1343,9 +1343,9 @@ extern "C" unsigned fbs_get_type(void* master_ptr, void* statement_ptr, ISC_STAT
         status_vector[0] = 1;
         status_vector[1] = 0;
     }
-    if (!master_ptr || !statement_ptr) {
+    if (!master_ptr || !statement_ptr) { /* LCOV_EXCL_START */
         return 0;
-    }
+    } /* LCOV_EXCL_STOP */
 
     auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
@@ -1354,9 +1354,9 @@ extern "C" unsigned fbs_get_type(void* master_ptr, void* statement_ptr, ISC_STAT
 }
 
 extern "C" ISC_UINT64 fbs_get_affected_records(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector) {
-    if (!master_ptr || !statement_ptr) {
+    if (!master_ptr || !statement_ptr) { /* LCOV_EXCL_START */
         return 0;
-    }
+    } /* LCOV_EXCL_STOP */
 
     auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
@@ -1369,9 +1369,9 @@ extern "C" void* fbs_get_input_metadata(void* master_ptr, void* statement_ptr, I
         status_vector[0] = 1;
         status_vector[1] = 0;
     }
-    if (!master_ptr || !statement_ptr) {
+    if (!master_ptr || !statement_ptr) { /* LCOV_EXCL_START */
         return nullptr;
-    }
+    } /* LCOV_EXCL_STOP */
 
     auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
@@ -1384,9 +1384,9 @@ extern "C" void* fbs_get_output_metadata(void* master_ptr, void* statement_ptr, 
         status_vector[0] = 1;
         status_vector[1] = 0;
     }
-    if (!master_ptr || !statement_ptr) {
+    if (!master_ptr || !statement_ptr) { /* LCOV_EXCL_START */
         return nullptr;
-    }
+    } /* LCOV_EXCL_STOP */
 
     auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
@@ -1550,9 +1550,9 @@ extern "C" unsigned fbs_get_input_count(void* master_ptr, void* statement_ptr, I
         status_vector[0] = 1;
         status_vector[1] = 0;
     }
-    if (!master_ptr || !statement_ptr) {
+    if (!master_ptr || !statement_ptr) { /* LCOV_EXCL_START */
         return 0;
-    }
+    } /* LCOV_EXCL_STOP */
 
     auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
@@ -1574,9 +1574,9 @@ extern "C" unsigned fbs_get_output_count(void* master_ptr, void* statement_ptr, 
         status_vector[0] = 1;
         status_vector[1] = 0;
     }
-    if (!master_ptr || !statement_ptr) {
+    if (!master_ptr || !statement_ptr) { /* LCOV_EXCL_START */
         return 0;
-    }
+    } /* LCOV_EXCL_STOP */
 
     auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);

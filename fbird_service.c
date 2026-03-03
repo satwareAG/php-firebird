@@ -55,10 +55,25 @@ static void _php_fbird_free_service(zend_resource *rsrc)
 	efree(sv);
 }
 
-/* the svc api seems to get confused after an error has occurred,
-   so invalidate the handle on errors */
+/* After a service API error, just report the Firebird error and return.
+ *
+ * We do NOT call zend_list_delete here.  On Firebird 3.0 and 4.0, a failed
+ * isc_service_start (e.g. duplicate user, or an unsupported option) does NOT
+ * corrupt the service handle; it remains usable for subsequent operations or
+ * a normal detach.  Calling zend_list_delete while the PHP $svc variable still
+ * holds a reference produces a double-decrement of GC_REFCOUNT: once in
+ * FBIRD_SVC_ERROR and once when the PHP variable is reassigned or the destructor
+ * is called.  On PHP 8.4 the resulting use-after-free is detected as
+ * "zend_mm_heap corrupted".
+ *
+ * Note: tests that use Firebird 5.0 APIs removed in FB5 (isc_action_svc_*_user,
+ * RPR_VALIDATE_DB, PRP_* in certain modes) are skipped on FB5 via their
+ * --SKIPIF-- sections, so we never reach this path with a truly-corrupted
+ * handle. */
 #define FBIRD_SVC_ERROR(svm) \
-	do { zend_list_delete(svm->res); _php_fbird_error(); } while (0)
+	do { \
+		_php_fbird_error(); \
+	} while (0)
 
 
 void php_fbird_service_minit(INIT_FUNC_ARGS)
@@ -136,7 +151,8 @@ static void _php_fbird_user(INTERNAL_FUNCTION_PARAMETERS, char operation)
 	static char const user_flags[] = { isc_spb_sec_username, isc_spb_sec_password,
 	    isc_spb_sec_firstname, isc_spb_sec_middlename, isc_spb_sec_lastname };
 	char buf[128], *args[] = { NULL, NULL, NULL, NULL, NULL };
-	int i, args_len[] = { 0, 0, 0, 0, 0 };
+	size_t args_len[] = { 0, 0, 0, 0, 0 };
+	int i;
 	unsigned short spb_len = 1;
 	zval *res;
 	fbird_service *svm;

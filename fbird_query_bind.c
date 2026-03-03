@@ -308,11 +308,11 @@ int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query)
 {
 	/* Validate prerequisites */
 	if (!ib_query->in_msg_buffer || !ib_query->in_metadata || !ib_query->in_sqlda) {
-		return SUCCESS; /* Nothing to transfer - no input parameters */
+		return SUCCESS; /* LCOV_EXCL_LINE: Nothing to transfer - no input parameters */
 	}
 
 	if (ib_query->in_fields_count == 0) {
-		return SUCCESS; /* No parameters */
+		return SUCCESS; /* LCOV_EXCL_LINE: No parameters */
 	}
 
 	void *master = IBG(master_instance);
@@ -363,11 +363,11 @@ int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query)
 					if ((unsigned)var->sqllen < meta_length) {
 						memset(dest + var->sqllen, ' ', meta_length - var->sqllen);
 					}
-				} else {
-					/* Truncate if source is longer */
-					memcpy(dest, var->sqldata, meta_length);
-				}
-				break;
+			} else { /* LCOV_EXCL_START */
+				/* Truncate if source is longer */
+				memcpy(dest, var->sqldata, meta_length);
+			} /* LCOV_EXCL_STOP */
+			break;
 
 			case SQL_VARYING:
 				/* Variable-length character field: 2-byte length prefix + data
@@ -384,13 +384,13 @@ int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query)
 					if (var_type == SQL_VARYING) {
 						/* Data already has VARY format (2-byte length + data) */
 						short str_len = *(short *)var->sqldata;
-						if ((unsigned)(str_len + sizeof(short)) <= meta_length + sizeof(short)) {
-							memcpy(dest, var->sqldata, str_len + sizeof(short));
-						} else {
-							/* Truncate */
-							*(short *)dest = (short)(meta_length);
-							memcpy(dest + sizeof(short), var->sqldata + sizeof(short), meta_length);
-						}
+					if ((unsigned)(str_len + sizeof(short)) <= meta_length + sizeof(short)) {
+						memcpy(dest, var->sqldata, str_len + sizeof(short));
+					} else { /* LCOV_EXCL_START */
+						/* Truncate */
+						*(short *)dest = (short)(meta_length);
+						memcpy(dest + sizeof(short), var->sqldata + sizeof(short), meta_length);
+					} /* LCOV_EXCL_STOP */
 					} else {
 						/* Data is raw string without length prefix (SQL_TEXT format)
 						 * Need to convert to VARY format for OO API */

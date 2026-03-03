@@ -2,9 +2,9 @@ name: Code Quality
 
 on:
   push:
-    branches: [main, master, 'feature/**']
+    branches: [main, master, satware-main, 'feature/**', 'fix/**']
   pull_request:
-    branches: [main, master]
+    branches: [main, master, satware-main]
 
 # Cancel in-progress runs for the same branch
 concurrency:
@@ -50,6 +50,22 @@ jobs:
 
       - name: Run PHPCS
         run: vendor/bin/phpcs --report=checkstyle src/ | cs2pr || vendor/bin/phpcs src/
+
+  # ==========================================================================
+  # Stub Sync Check (php-firebird-stubs / doctrine-firebird-driver protection)
+  # ==========================================================================
+  stubs-sync:
+    name: Stubs Sync Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check stubs are in sync with firebird.c PHP_FE registrations
+        run: |
+          chmod +x scripts/check-stubs-sync.sh
+          bash scripts/check-stubs-sync.sh
 
   # ==========================================================================
   # C/C++ Static Analysis (clang-tidy + cppcheck)
@@ -212,17 +228,19 @@ jobs:
   quality-summary:
     name: Quality Gate
     runs-on: ubuntu-latest
-    needs: [php-analysis, c-analysis, secrets-scan]
+    needs: [php-analysis, stubs-sync, c-analysis, secrets-scan]
     if: always()
 
     steps:
       - name: Check job results
         run: |
           echo "PHP Analysis: ${{ needs.php-analysis.result }}"
+          echo "Stubs Sync: ${{ needs.stubs-sync.result }}"
           echo "C/C++ Analysis: ${{ needs.c-analysis.result }}"
           echo "Secrets Scan: ${{ needs.secrets-scan.result }}"
 
           if [ "${{ needs.php-analysis.result }}" = "failure" ] || \
+             [ "${{ needs.stubs-sync.result }}" = "failure" ] || \
              [ "${{ needs.c-analysis.result }}" = "failure" ] || \
              [ "${{ needs.secrets-scan.result }}" = "failure" ]; then
             echo "❌ Quality gate failed"

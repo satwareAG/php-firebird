@@ -324,6 +324,30 @@ function fbird_prepare(
 function fbird_execute(mixed $query, mixed ...$bind_args): mixed {}
 
 /**
+ * @param resource $trans_handle
+ * @param string $query
+ * @param array<int, mixed>|null $params
+ * @return int|false
+ */
+function fbird_execute_statement(mixed $trans_handle, string $query, ?array $params = null): int|false {}
+
+/**
+ * @param resource $trans_handle
+ * @param string $query
+ * @param array<int, mixed>|null $params
+ * @return resource|false
+ */
+function fbird_execute_query(mixed $trans_handle, string $query, ?array $params = null): mixed {}
+
+/**
+ * @param resource $link_identifier
+ * @param string $query
+ * @param array<int, mixed>|null $params
+ * @return resource|int|false
+ */
+function fbird_execute_auto(mixed $link_identifier, string $query, ?array $params = null): mixed {}
+
+/**
  * @param resource $query
  * @return bool
  */
@@ -627,7 +651,7 @@ function fbird_sqlstate(): string|false {}
 /**
  * Escape a string for safe use in SQL queries.
  *
- * Escapes single quotes by doubling them (' ’ '').
+ * Escapes single quotes by doubling them (' â€™ '').
  * Firebird SQL uses '' (two single quotes) as the escape sequence for
  * a literal single quote within string literals.
  *
@@ -849,17 +873,6 @@ function fbird_get_client_minor_version(): int {}
 function fbird_connection_info(mixed $link_identifier = null): array|false {}
 
 // ============================================================================
-// TIME FORMAT FUNCTION
-// ============================================================================
-
-/**
- * @param string $format
- * @param int $type
- * @return bool
- */
-function fbird_timefmt(string $format, int $type = 0): bool {}
-
-// ============================================================================
 // LIMBO TRANSACTION FUNCTIONS (Two-Phase Commit Recovery)
 // ============================================================================
 
@@ -938,14 +951,6 @@ function fbird_batch_execute(mixed $batch): array|false {}
  * @return bool True on success, false on error
  */
 function fbird_batch_cancel(mixed $batch): bool {}
-
-/**
- * Get the BLOB alignment requirement for a batch.
- *
- * @param resource $batch Batch resource from fbird_batch_create()
- * @return int|false Alignment in bytes or false on error
- */
-function fbird_batch_get_blob_alignment(mixed $batch): int|false {}
 
 // ============================================================================
 // INSPECTION FUNCTIONS (Database/Attachment Management)

@@ -1,7 +1,14 @@
 --TEST--
 fbird_service_user: Add, Modify, Delete, and List Users
 --SKIPIF--
-<?php include("skipif.inc"); ?>
+<?php
+include("skipif.inc");
+// Firebird 5.0 removed the legacy isc_action_svc_add/modify/delete_user service API.
+// User management on FB5 requires SQL (CREATE USER / ALTER USER / DROP USER).
+if (function_exists('fbird_get_client_major_version') && fbird_get_client_major_version() >= 5) {
+    die('skip Firebird 5.0+ removed legacy service-based user management; SQL-based user management required');
+}
+?>
 --FILE--
 <?php
 require("firebird.inc");

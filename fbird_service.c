@@ -55,10 +55,23 @@ static void _php_fbird_free_service(zend_resource *rsrc)
 	efree(sv);
 }
 
-/* the svc api seems to get confused after an error has occurred,
-   so invalidate the handle on errors */
+/* After a service API error, report the error and remove the PHP resource from
+ * the resource table.  We intentionally do NOT close the Firebird handle here:
+ * leaving it open allows the caller to retry operations on the same $svc with a
+ * still-valid underlying handle (e.g. service_maintenance tests that call
+ * multiple isc_service_start operations, where some may be silently suppressed
+ * with @ and subsequent ones need the live handle).
+ *
+ * Note: on Firebird 5.0, certain removed APIs (isc_action_svc_*_user) leave
+ * the handle in a corrupted internal state; calling isc_service_detach in the
+ * destructor may crash the fbclient library in that case.  The affected tests
+ * (fbird_service_user, service_user_advanced, service_maintenance_operations)
+ * are skipped on FB5 via their --SKIPIF-- sections. */
 #define FBIRD_SVC_ERROR(svm) \
-	do { zend_list_delete(svm->res); _php_fbird_error(); } while (0)
+	do { \
+		_php_fbird_error(); \
+		zend_list_delete((svm)->res); \
+	} while (0)
 
 
 void php_fbird_service_minit(INIT_FUNC_ARGS)

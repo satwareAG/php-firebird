@@ -7,6 +7,11 @@ firebird
 // Do NOT include firebird.inc here — it registers cleanup_db() which would drop
 // the shared test.fdb when SKIPIF exits, corrupting subsequent tests.
 if (!extension_loaded('firebird')) die('skip firebird extension not available');
+// Firebird 5.0 removed the legacy isc_action_svc_add/modify/delete_user service API.
+// User management on FB5 requires SQL (ALTER USER / CREATE USER).
+if (function_exists('fbird_get_client_major_version') && fbird_get_client_major_version() >= 5) {
+    die('skip Firebird 5.0+ removed legacy service-based user management (isc_action_svc_*_user); SQL-based user management required');
+}
 $host     = getenv('FIREBIRD_HOST') ?: 'localhost';
 $user     = getenv('ISC_USER')      ?: 'SYSDBA';
 $password = getenv('ISC_PASSWORD')  ?: 'masterkey';

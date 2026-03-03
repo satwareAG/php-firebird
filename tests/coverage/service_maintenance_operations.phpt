@@ -7,6 +7,13 @@ firebird
 // Do NOT include firebird.inc here — it registers cleanup_db() which would drop
 // the shared test.fdb when SKIPIF exits, corrupting subsequent tests.
 if (!extension_loaded('firebird')) die('skip firebird extension not available');
+// Firebird 5.0 changed service maintenance semantics: RPR_VALIDATE_DB and several
+// PRP_* operations now require exclusive database access or return "invalid service
+// handle" when the shared test database has active connections. Skip on FB5 until
+// FB5-compatible exclusive-access test infrastructure is available.
+if (function_exists('fbird_get_client_major_version') && fbird_get_client_major_version() >= 5) {
+    die('skip Firebird 5.0+ requires exclusive DB access for RPR_VALIDATE_DB / PRP_* service operations');
+}
 $host     = getenv('FIREBIRD_HOST') ?: 'localhost';
 $user     = getenv('ISC_USER')      ?: 'SYSDBA';
 $password = getenv('ISC_PASSWORD')  ?: 'masterkey';

@@ -145,9 +145,44 @@ if [ "$MODE" == "matrix" ]; then
         echo -e "${BLUE}>> Starting containers...${NC}"
         docker compose up -d "$container" "$server"
         
-        # Wait for Firebird server to be ready
+        # Wait for Firebird server to be ready (up to 30 s, TCP port 3050 check)
         echo -e "${BLUE}>> Waiting for $server to be ready...${NC}"
-        sleep 5
+        FB_READY=0
+        for i in $(seq 1 30); do
+            # Use bash /dev/tcp trick — portable, no nc/isql needed
+            if docker compose exec -T "$server" bash -c \
+                "timeout 1 bash -c '</dev/tcp/localhost/3050' 2>/dev/null"; then
+                FB_READY=1
+                break
+            fi
+            sleep 1
+        done
+        if [ $FB_READY -eq 0 ]; then
+            echo -e "${YELLOW}⚠ $server not reachable after 30 s — continuing anyway${NC}"
+        else
+            echo -e "${GREEN}✓ $server is ready (port 3050 open)${NC}"
+        fi
+
+        # Ensure test.fdb exists on Firebird server (init script only runs on
+        # first volume creation; subsequent container restarts skip it).
+        echo -e "${BLUE}>> Ensuring test.fdb exists on $server...${NC}"
+        docker compose exec -T "$server" bash -c '
+            DB_PATH="/firebird/data/test.fdb"
+            if [ -f "$DB_PATH" ]; then
+                echo "  test.fdb already present"
+            else
+                echo "  Creating test.fdb..."
+                # Try isql-fb first (FB5), fall back to isql (FB3)
+                ISQL_CMD="isql-fb"
+                command -v isql-fb >/dev/null 2>&1 || ISQL_CMD="isql"
+                "$ISQL_CMD" -user SYSDBA -password masterkey <<EOF
+CREATE DATABASE '"'"'$DB_PATH'"'"' USER '"'"'SYSDBA'"'"' PASSWORD '"'"'masterkey'"'"' PAGE_SIZE 16384 DEFAULT CHARACTER SET UTF8;
+COMMIT;
+EXIT;
+EOF
+                [ -f "$DB_PATH" ] && echo "  ✓ test.fdb created" || echo "  ⚠ test.fdb creation failed (tests may still work via temp databases)"
+            fi
+        ' 2>/dev/null || true
         
         # Pre-flight cleanup
         echo -e "${BLUE}>> Pre-flight cleanup...${NC}"
@@ -155,6 +190,9 @@ if [ "$MODE" == "matrix" ]; then
             cd /ext
             if [ -f Makefile ]; then make clean 2>/dev/null || true; fi
             phpize --clean 2>/dev/null || true
+            find . -name '*.dep' -delete 2>/dev/null || true
+            find . -name '*.lo' -delete 2>/dev/null || true
+            rm -f compile_commands.json 2>/dev/null || true
             rm -rf modules/firebird.so .libs/ .deps/ build/ autom4te.cache/ 2>/dev/null || true
         " 2>/dev/null || true
         
@@ -176,6 +214,10 @@ if [ "$MODE" == "matrix" ]; then
         if [ $BUILD_EXIT -ne 0 ]; then
             echo -e "${RED}✗ Build failed for $description${NC}"
             MATRIX_FAILED=1
+            if [ "$FAIL_FAST" = true ]; then
+                echo -e "${RED}✗ --fail-fast: aborting matrix after build failure${NC}"
+                exit 1
+            fi
             continue
         fi
         echo -e "${GREEN}✓ Build succeeded${NC}"
@@ -191,6 +233,10 @@ if [ "$MODE" == "matrix" ]; then
         if [ $TEST_EXIT -ne 0 ]; then
             echo -e "${RED}✗ Tests failed for $description${NC}"
             MATRIX_FAILED=1
+            if [ "$FAIL_FAST" = true ]; then
+                echo -e "${RED}✗ --fail-fast: aborting matrix after test failure${NC}"
+                exit 1
+            fi
         else
             echo -e "${GREEN}✓ Tests passed for $description${NC}"
         fi
@@ -257,6 +303,9 @@ if [ "$RUN_VALGRIND" = true ] && [ "$MODE" != "full" ] && [ "$MODE" != "security
         cd /ext
         if [ -f Makefile ]; then make clean 2>/dev/null || true; fi
         phpize --clean 2>/dev/null || true
+        find . -name '*.dep' -delete 2>/dev/null || true
+        find . -name '*.lo' -delete 2>/dev/null || true
+        rm -f compile_commands.json 2>/dev/null || true
         rm -rf modules/firebird.so .libs/ .deps/ build/ autom4te.cache/ 2>/dev/null || true
     " 2>/dev/null || true
     
@@ -525,6 +574,9 @@ docker compose exec -T -u root "$CONTAINER" bash -c "
     cd /ext
     if [ -f Makefile ]; then make clean 2>/dev/null || true; fi
     phpize --clean 2>/dev/null || true
+    find . -name '*.dep' -delete 2>/dev/null || true
+    find . -name '*.lo' -delete 2>/dev/null || true
+    rm -f compile_commands.json 2>/dev/null || true
     rm -rf modules/firebird.so .libs/ .deps/ build/ autom4te.cache/ 2>/dev/null || true
 " 2>/dev/null || true
 

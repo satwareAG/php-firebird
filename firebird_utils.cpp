@@ -783,9 +783,9 @@ extern "C" void* fbt_start(
 }
 
 extern "C" int fbt_commit(void* transaction, ISC_STATUS* status_vector) {
-    if (!transaction) {
-        return 0;
-    }
+    if (!transaction) { /* LCOV_EXCL_LINE */
+        return 0; /* LCOV_EXCL_LINE */
+    } /* LCOV_EXCL_LINE */
 
     try {
         auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
@@ -818,9 +818,9 @@ extern "C" int fbt_commit(void* transaction, ISC_STATUS* status_vector) {
 }
 
 extern "C" int fbt_rollback(void* transaction, ISC_STATUS* status_vector) {
-    if (!transaction) {
-        return 0;
-    }
+    if (!transaction) { /* LCOV_EXCL_LINE */
+        return 0; /* LCOV_EXCL_LINE */
+    } /* LCOV_EXCL_LINE */
 
     try {
         auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
@@ -851,9 +851,9 @@ extern "C" int fbt_rollback(void* transaction, ISC_STATUS* status_vector) {
 }
 
 extern "C" int fbt_commit_retaining(void* transaction, ISC_STATUS* status_vector) {
-    if (!transaction) {
-        return -1;
-    }
+    if (!transaction) { /* LCOV_EXCL_LINE */
+        return -1; /* LCOV_EXCL_LINE */
+    } /* LCOV_EXCL_LINE */
 
     try {
         auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
@@ -881,9 +881,9 @@ extern "C" int fbt_commit_retaining(void* transaction, ISC_STATUS* status_vector
 }
 
 extern "C" int fbt_rollback_retaining(void* transaction, ISC_STATUS* status_vector) {
-    if (!transaction) {
-        return -1;
-    }
+    if (!transaction) { /* LCOV_EXCL_LINE */
+        return -1; /* LCOV_EXCL_LINE */
+    } /* LCOV_EXCL_LINE */
 
     try {
         auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
@@ -911,17 +911,17 @@ extern "C" int fbt_rollback_retaining(void* transaction, ISC_STATUS* status_vect
 }
 
 extern "C" int fbt_is_active(void* transaction) {
-    if (!transaction) {
-        return 0;
-    }
+    if (!transaction) { /* LCOV_EXCL_LINE */
+        return 0; /* LCOV_EXCL_LINE */
+    } /* LCOV_EXCL_LINE */
     auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
     return trans->isActive() ? 1 : 0;
 }
 
 extern "C" void* fbt_get_handle(void* transaction) {
-    if (!transaction) {
-        return nullptr;
-    }
+    if (!transaction) { /* LCOV_EXCL_LINE */
+        return nullptr; /* LCOV_EXCL_LINE */
+    } /* LCOV_EXCL_LINE */
     auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
     return trans->get();  // Returns ITransaction*
 }

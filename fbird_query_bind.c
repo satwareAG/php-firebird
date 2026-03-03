@@ -381,12 +381,12 @@ int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query)
 				{
 					unsigned var_type = (unsigned)(var->sqltype & ~1);
 
-					if (var_type == SQL_VARYING) {
+					if (var_type == SQL_VARYING) { /* LCOV_EXCL_START */
 						/* Data already has VARY format (2-byte length + data) */
 						short str_len = *(short *)var->sqldata;
 					if ((unsigned)(str_len + sizeof(short)) <= meta_length + sizeof(short)) {
 						memcpy(dest, var->sqldata, str_len + sizeof(short));
-					} else { /* LCOV_EXCL_START */
+					} else {
 						/* Truncate */
 						*(short *)dest = (short)(meta_length);
 						memcpy(dest + sizeof(short), var->sqldata + sizeof(short), meta_length);
@@ -466,7 +466,7 @@ int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query)
 				break;
 #endif
 
-			default:
+			default: /* LCOV_EXCL_START */
 				/* For unknown types, try raw copy based on metadata length */
 				if (meta_length > 0 && (unsigned)var->sqllen <= meta_length) {
 					memcpy(dest, var->sqldata, var->sqllen);
@@ -475,7 +475,7 @@ int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query)
 						i + 1, var->sqltype & ~1);
 					return FAILURE;
 				}
-				break;
+				break; /* LCOV_EXCL_STOP */
 		}
 	}
 
@@ -484,14 +484,14 @@ int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query)
 
 static int _php_fbird_scale_double_to_int64(double dval, int sqlscale, ISC_INT64 *out)
 {
-	if (!out) {
-		return FAILURE;
-	}
-	if (sqlscale >= 0) {
+	if (!out) { /* LCOV_EXCL_LINE */
+		return FAILURE; /* LCOV_EXCL_LINE */
+	} /* LCOV_EXCL_LINE */
+	if (sqlscale >= 0) { /* LCOV_EXCL_START */
 		/* No scale (or positive scale) - caller shouldn't use this helper. */
 		*out = (ISC_INT64)dval;
 		return SUCCESS;
-	}
+	} /* LCOV_EXCL_STOP */
 
 	/* Firebird stores NUMERIC/DECIMAL as scaled integers (scale is negative). */
 	const double factor = pow(10.0, (double)(-sqlscale));

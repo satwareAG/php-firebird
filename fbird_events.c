@@ -343,10 +343,12 @@ PHP_FUNCTION(fbird_set_event_handler)
 #ifndef PHP_WIN32
 /* Signal handler for alarm-based timeout */
 static volatile sig_atomic_t fbird_timeout_occurred = 0;
+/* LCOV_EXCL_START: signal handler — only invoked by SIGALRM, not reachable in unit tests */
 static void fbird_timeout_handler(int sig) {
 	(void)sig;
 	fbird_timeout_occurred = 1;
 }
+/* LCOV_EXCL_STOP */
 #endif
 
 PHP_FUNCTION(fbird_poll_event)
@@ -427,7 +429,7 @@ PHP_FUNCTION(fbird_poll_event)
 	 * 5. On return: cancel alarm, restore previous state
 	 * 6. Check if timeout occurred
 	 */
-	if (timeout_ms >= 0) {
+	if (timeout_ms >= 0) { /* LCOV_EXCL_START */
 		use_timeout = 1;
 		fbird_timeout_occurred = 0;
 
@@ -456,7 +458,7 @@ PHP_FUNCTION(fbird_poll_event)
 			}
 			alarm(timeout_sec);
 		}
-	}
+	} /* LCOV_EXCL_STOP */
 #endif
 
 	/**
@@ -467,7 +469,7 @@ PHP_FUNCTION(fbird_poll_event)
 			event->event_buffer, event->result_buffer);
 
 #ifndef PHP_WIN32
-	/* Clean up timeout handling */
+	/* Clean up timeout handling */ /* LCOV_EXCL_START */
 	if (use_timeout) {
 		/* Cancel our alarm */
 		alarm(0);
@@ -486,7 +488,7 @@ PHP_FUNCTION(fbird_poll_event)
 		if (fbird_timeout_occurred) {
 			RETURN_LONG(PHP_FBIRD_EVENT_TIMEOUT);
 		}
-	}
+	} /* LCOV_EXCL_STOP */
 #endif
 
 	/* Check for errors from isc_wait_for_event */

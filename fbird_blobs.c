@@ -188,8 +188,13 @@ static void _php_fbird_free_blob(zend_resource *rsrc)
 			/* If the blob handle is invalid (e.g. transaction committed/rolled back),
 			 * we can safely ignore the error as there's nothing to cancel/close. */
 			if (IB_STATUS[1] != isc_bad_segstr_handle) {
-				_php_fbird_module_error("You can lose data. Close any blob after reading from or "
-					"writing to it. Use fbird_blob_close() before calling fbird_close()");
+				/* Fix #82: _php_fbird_module_error() calls php_error_docref()/zend_throw_exception()
+				 * which access EG() globals that may already be destroyed during MSHUTDOWN.
+				 * Guard with in_mshutdown to prevent SIGSEGV (exit code 139). */
+				if (!IBG(in_mshutdown)) {
+					_php_fbird_module_error("You can lose data. Close any blob after reading from or "
+						"writing to it. Use fbird_blob_close() before calling fbird_close()");
+				}
 			}
 		}
 		fbb_free(ib_blob->fbb_blob);

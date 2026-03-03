@@ -42,7 +42,12 @@ static void _php_fbird_free_service(zend_resource *rsrc)
 	 * failed and left the handle in a bad state before FBIRD_SVC_ERROR
 	 * triggered the destructor). */
 	if (sv->handle && isc_service_detach(IB_STATUS, (isc_svc_handle *)&sv->handle)) {
-		_php_fbird_error();
+		/* Fix #82: _php_fbird_error() calls php_error_docref()/zend_throw_exception()
+		 * which access EG() globals that may already be destroyed during MSHUTDOWN.
+		 * Guard with in_mshutdown to prevent SIGSEGV (exit code 139). */
+		if (!IBG(in_mshutdown)) {
+			_php_fbird_error();
+		}
 	}
 
 	if (sv->hostname) {

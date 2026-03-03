@@ -418,6 +418,64 @@ function fbird_free_query(mixed $query): bool {}
  */
 function fbird_free_result(mixed $result): bool {}
 
+/**
+ * Execute a DML/DDL statement with an explicit transaction (one-shot).
+ *
+ * Prepares and executes a non-SELECT SQL statement against the given transaction.
+ * Throws if a SELECT is executed (use fbird_execute_query() for SELECT).
+ *
+ * @param resource       $trans_handle Transaction resource
+ * @param string         $query        SQL statement
+ * @param array<mixed>   $params       Bind parameters (optional)
+ * @return int|false     Affected row count (0 if none) or false on error
+ * @since 7.0.0
+ */
+function fbird_execute_statement(mixed $trans_handle, string $query, array $params = []): int|false {}
+
+/**
+ * Execute a SELECT statement with an explicit transaction (one-shot).
+ *
+ * Prepares and executes a SELECT (or DML with RETURNING) against the given
+ * transaction and returns the result resource. Throws if a non-SELECT is executed.
+ *
+ * @param resource       $trans_handle Transaction resource
+ * @param string         $query        SQL SELECT statement
+ * @param array<mixed>   $params       Bind parameters (optional)
+ * @return resource|false Result resource or false on error
+ * @since 7.0.0
+ */
+function fbird_execute_query(mixed $trans_handle, string $query, array $params = []): mixed {}
+
+/**
+ * Execute a DML/DDL statement in an autonomous (auto-committed) transaction.
+ *
+ * Starts an OO API transaction, prepares and executes the SQL, then commits.
+ * Cannot be used with SELECT (cursor would be closed on commit).
+ *
+ * @param resource       $link_identifier Connection resource
+ * @param string         $query           SQL statement
+ * @param array<mixed>   $params          Bind parameters (optional)
+ * @return int|false     Affected row count (0 if none) or false on error
+ * @since 7.0.0
+ */
+function fbird_execute_auto(mixed $link_identifier, string $query, array $params = []): int|false {}
+
+/**
+ * Execute a parameterized query with explicit link and transaction.
+ *
+ * Combines fbird_prepare() + fbird_execute() into a single call for performance.
+ * Required by doctrine-firebird-driver to pass both a connection and an explicit
+ * transaction handle simultaneously.
+ *
+ * @param resource       $link_identifier Connection resource
+ * @param resource       $trans_handle    Transaction resource
+ * @param string         $query           SQL statement
+ * @param array<mixed>   $params          Bind parameters (optional)
+ * @return resource|int|bool Result resource (SELECT), affected count (DML), or false on error
+ * @since 7.0.0
+ */
+function fbird_query_params_tx(mixed $link_identifier, mixed $trans_handle, string $query, array $params = []): mixed {}
+
 // ============================================================================
 // FETCH FUNCTIONS
 // ============================================================================

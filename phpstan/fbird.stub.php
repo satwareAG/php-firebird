@@ -335,6 +335,51 @@ function fbird_free_query(mixed $query): bool {}
  */
 function fbird_free_result(mixed $result): bool {}
 
+/**
+ * Execute a DML/DDL statement with an explicit transaction (one-shot).
+ *
+ * @param resource     $trans_handle Transaction resource
+ * @param string       $query        SQL statement
+ * @param array<mixed> $params       Bind parameters (optional)
+ * @return int|false Affected row count (0 if none) or false on error
+ */
+function fbird_execute_statement(mixed $trans_handle, string $query, array $params = []): int|false {}
+
+/**
+ * Execute a SELECT statement with an explicit transaction (one-shot).
+ *
+ * @param resource     $trans_handle Transaction resource
+ * @param string       $query        SQL SELECT statement
+ * @param array<mixed> $params       Bind parameters (optional)
+ * @return resource|false Result resource or false on error
+ */
+function fbird_execute_query(mixed $trans_handle, string $query, array $params = []): mixed {}
+
+/**
+ * Execute a DML/DDL statement in an autonomous (auto-committed) transaction.
+ *
+ * @param resource     $link_identifier Connection resource
+ * @param string       $query           SQL statement
+ * @param array<mixed> $params          Bind parameters (optional)
+ * @return int|false Affected row count (0 if none) or false on error
+ */
+function fbird_execute_auto(mixed $link_identifier, string $query, array $params = []): int|false {}
+
+/**
+ * Execute a parameterized query with explicit link and transaction.
+ *
+ * Required by doctrine-firebird-driver: passes both connection and explicit
+ * transaction handle simultaneously (unlike fbird_execute_query which infers
+ * the link from the transaction).
+ *
+ * @param resource     $link_identifier Connection resource
+ * @param resource     $trans_handle    Transaction resource
+ * @param string       $query           SQL statement
+ * @param array<mixed> $params          Bind parameters (optional)
+ * @return resource|int|bool Result resource (SELECT), affected count (DML), or false on error
+ */
+function fbird_query_params_tx(mixed $link_identifier, mixed $trans_handle, string $query, array $params = []): mixed {}
+
 // ============================================================================
 // FETCH FUNCTIONS
 // ============================================================================
@@ -627,7 +672,7 @@ function fbird_sqlstate(): string|false {}
 /**
  * Escape a string for safe use in SQL queries.
  *
- * Escapes single quotes by doubling them (' ’ '').
+ * Escapes single quotes by doubling them (' â€™ '').
  * Firebird SQL uses '' (two single quotes) as the escape sequence for
  * a literal single quote within string literals.
  *

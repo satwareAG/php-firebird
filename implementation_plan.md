@@ -1,186 +1,215 @@
-# Implementation Plan: Split firebird.c (Issue #57)
+# Implementation Plan: php-firebird v7.0.0-final
 
 [Overview]
-Split the 3668-line `firebird.c` into five focused compilation units (each ≤800 lines) while keeping the trimmed `firebird.c` ≤1250 lines, satisfying the v7.0.0 milestone target of ≤1500 lines.
+Bring php-firebird from v7.0.0-rc.51 to v7.0.0-final by implementing the missing `fbird_query_params_tx` function required by doctrine-firebird-driver, adding missing stubs for existing functions, pushing code coverage from 65.2% to ≥80%, modernizing remaining legacy `isc_*` API calls to the Firebird 3+ OO API, and validating doctrine-firebird-driver integration.
 
-`firebird.c` is a monolithic 3668-line file containing: error-handling PHP functions, connection management internals, transaction management, batch operations (FB 4.0+), INI configuration, module lifecycle hooks (MINIT/MSHUTDOWN/MINFO), the `zend_function_entry` table, and utility functions (`gen_id`, limbo transactions). The file has grown beyond maintainability. The existing codebase already follows a per-concern split pattern (`fbird_service.c`, `fbird_blobs.c`, `fbird_events.c`, etc.), so this refactoring aligns with the existing architecture.
+This plan targets three interdependent workstreams executed in sequence: **(A) Doctrine API completeness** — implement `fbird_query_params_tx` and add missing stubs for `fbird_execute_query`, `fbird_execute_statement`, `fbird_execute_auto` (registered in firebird.c but absent from stubs); **(B) Coverage push** — write `.phpt` tests for the six files still below 80%; **(C) Legacy API modernization** — migrate remaining legacy `isc_*` function calls in `fbird_service.c`, `fbird_events.c`, and `fbird_query_array.c` to the FB3+ OO C++ wrapper layer while keeping `isc_tpb_*` and `isc_info_*` constants (which are not deprecated). The Firebird 3+ client library (`libfbclient.so`) is used throughout; the client supports connecting to Firebird 2.5–5.0 servers via wire protocol.
 
-**Key constraint**: This is a *source-level* refactoring only — no public API changes, no behaviour changes, zero test regressions. Every function that moves must be callable by the same callers after the move, using the same `#include` chain.
+**Compatibility target**: Firebird 2.5–5.0 servers via Firebird 3+ client. The OO API (IAttachment, ITransaction, IStatement, IBlob, IService) is available in all Firebird 3+ clients. Legacy isc_* API calls are deprecated in Firebird 5.0 and will be removed in Firebird 6.0.
 
-**Dependency graph** (existing headers already handle most cross-file symbols):
-- `php_fbird_includes.h` already declares: `extern int le_link, le_plink, le_trans, le_query, le_batch`, `void _php_fbird_error(void)`, `void _php_fbird_module_error(...)`, `void _php_fbird_get_link_trans(...)`, all typedef structs
-- `php_firebird.h` already declares all `PHP_FUNCTION(...)` prototypes
+**Key constraint**: No public PHP API changes except adding `fbird_query_params_tx`. Backwards-compatible. Zero test regressions.
 
-New headers are needed **only** for the 4 static resource destructor callbacks passed to `zend_register_list_destructors_ex` in `PHP_MINIT_FUNCTION` (which stays in `firebird.c`).
+**Investigation findings**:
+- `fbird_query_params_tx` does NOT exist anywhere in the codebase (zero matches) — must be implemented
+- `fbird_execute_query`, `fbird_execute_statement`, `fbird_execute_auto` are registered in `firebird.c` (lines 460-462) and declared in `php_firebird.h` (lines 51-53) but are MISSING from both stub files
+- `fbsvc_*` wrappers (fbsvc_attach, fbsvc_detach, fbsvc_start, fbsvc_query) are declared in `firebird_utils.h` but only used in cleanup paths in `fbird_service.c`
+- `fbe_*` event wrappers present and used only in cleanup; `fba_*` array wrappers declared but not yet used in `fbird_query_array.c`
+- 39 tests already in `tests/coverage/` from Phase 1; new tests slot alongside
 
 ---
 
 [Types]
-No new types; all structs (`fbird_db_link`, `fbird_transaction`, `fbird_query`, `fbird_batch`, etc.) remain in `php_fbird_includes.h`.
+No new C-level types required; `fbird_query_params_tx` reuses existing `fbird_db_link`, `fbird_transaction`, `fbird_query` structs.
 
-All type definitions, enums (`php_fbird_option`), and module globals (`ZEND_BEGIN_MODULE_GLOBALS(fbird)`) remain in `php_fbird_includes.h` unchanged.
+For modernization of `fbird_service.c` OO path, the existing `fbird_service.fbsvc_service` pointer (void* to `fb::ServiceWrapper*`) is already defined and allocated — no new struct members needed.
 
 ---
 
 [Files]
-Five source files are created/modified; three new headers are required.
 
-### New `.c` files (extract from `firebird.c`)
+### New/Modified files
 
-| New file | firebird.c source lines | Est. lines | Content |
-|----------|------------------------|------------|---------|
-| `fbird_error.c` | 588–795 | ~210 | `fbird_errmsg`, `fbird_errcode`, `fbird_sqlstate`, `fbird_escape_string`, `fbird_set_exception_mode`, `fbird_get_exception_mode`, `fbird_get_client_version/major/minor`, `_php_fbird_error`, `_php_fbird_module_error` |
-| `fbird_connection.c` | 797–1005, 1451–1966 | ~730 | `_php_fbird_get_link_trans`, `_php_fbird_commit_link`, `php_fbird_commit_link_rsrc`, `_php_fbird_close_link`, `_php_fbird_close_plink`, `_php_fbird_connect`, `_php_fbird_validate_link_resource`, `_php_fbird_adopt_new_default_link`, `_php_fbird_close_resource`, `fbird_connect`, `fbird_pconnect`, `fbird_close`, `fbird_drop_db` |
-| `fbird_transaction.c` | 1006–1051, 1967–2793 | ~875 | `_php_fbird_free_trans`, `fbird_trans_start`, `fbird_savepoint`, `fbird_rollback_savepoint`, `fbird_release_savepoint`, `fbird_trans_info`, `fbird_connection_info`, `fbird_trans`, `fbird_commit`, `fbird_rollback`, `fbird_commit_ret`, `fbird_rollback_ret` |
-| `fbird_batch.c` | 1052–1099, 3053–3668 | ~665 | `_php_fbird_free_batch`, `fbird_batch_create`, `fbird_batch_add`, `fbird_batch_execute`, `fbird_batch_cancel`, `fbird_batch_add_blob`, `fbird_batch_register_blob` |
+| File | Change | Reason |
+|------|--------|--------|
+| `fbird_query_exec.c` | Add `PHP_FUNCTION(fbird_query_params_tx)` | Missing function used by doctrine |
+| `php_firebird.h` | Add `PHP_FUNCTION(fbird_query_params_tx)` declaration | Public header |
+| `firebird.c` | Add arginfo + `PHP_FE(fbird_query_params_tx, ...)` to function table | Register function |
+| `stubs/firebird-stubs.php` | Add stubs for `fbird_query_params_tx`, `fbird_execute_query`, `fbird_execute_statement`, `fbird_execute_auto` | PHPStan + IDE support — these 3 existing functions have no stubs |
+| `phpstan/fbird.stub.php` | Add same 4 function stubs | PHPStan |
+| `fbird_service.c` | Migrate `isc_service_attach` / `isc_service_detach` / `isc_service_start` / `isc_service_query` to OO API via existing `fbsvc_*` wrappers | Legacy API removal under `#if FB_API_VER >= 30` |
+| `fbird_events.c` | Migrate `isc_event_block`, `isc_free`, `isc_wait_for_event`, `isc_event_counts` to `IEvents` via `src/cpp/fb_events.hpp` | Legacy API removal |
+| `fbird_query_array.c` | Migrate `isc_array_lookup_bounds`, `isc_encode_timestamp/date/time` to OO API via `fba_*` wrappers | Legacy API removal |
+| `tests/coverage/*.phpt` | Add 6 new test files covering coverage gaps | Reach 80% coverage gate |
+| `NEXT_STEPS.md` | Update to reflect Phase 2 completion | Documentation |
 
-### New `.h` header files
+### New test files
 
-| New header | Declares |
-|------------|---------|
-| `php_fbird_connection.h` | `_php_fbird_commit_link(fbird_db_link*)`, `php_fbird_commit_link_rsrc(zend_resource*)`, `_php_fbird_close_link(zend_resource*)`, `_php_fbird_close_plink(zend_resource*)` |
-| `php_fbird_transaction.h` | `_php_fbird_free_trans(zend_resource*)` |
-| `php_fbird_batch.h` | (conditional `#if FB_API_VER >= 40`) `_php_fbird_free_batch(zend_resource*)` |
-
-### Modified files
-
-| File | Change |
-|------|--------|
-| `firebird.c` | Remove lines 588–1005, 1451–2793, 3053–3668; add `#include` for 3 new headers; keep: license+includes+arginfo+function_entry_table (~537 lines), INI/GINIT (1100–1258), MINIT/MSHUTDOWN/RSHUTDOWN/MINFO (1259–1449), gen_id+limbo (2795–3052) |
-| `config.m4` | Append `fbird_error.c fbird_connection.c fbird_transaction.c fbird_batch.c` to `PHP_NEW_EXTENSION` source list (line 100) |
-
-**Each new `.c` file includes at minimum:**
-```c
-#include "php_fbird_includes.h"      /* types, globals, resource IDs */
-#include "php_firebird.h"             /* PHP_FUNCTION declarations */
-#include "php_fbird_<module>.h"       /* own header if needed */
-/* + any additional module-specific headers (e.g. fbird_datetime.h) */
-```
-
-`fbird_transaction.c` also needs `#include "php_fbird_connection.h"` (calls `_php_fbird_commit_link`).
-`fbird_error.c` does NOT need a new header (symbols already in `php_fbird_includes.h`).
+| File | Coverage target |
+|------|----------------|
+| `tests/coverage/exec_cursor_named.phpt` | `fbird_query_exec.c` cursor + named resultset paths |
+| `tests/coverage/blob_seek_segments.phpt` | `src/cpp/fb_blob.hpp` seek + segmented read paths (already exists, needs validation) |
+| `tests/coverage/service_all_ops.phpt` | `fbird_service.c` + `src/cpp/fb_service.hpp` query paths |
+| `tests/coverage/events_cancel_timeout.phpt` | `fbird_events.c` cancel + timeout paths |
+| `tests/coverage/array_multidim_types.phpt` | `fbird_query_array.c` multi-dim + CHAR/FLOAT/DATE arrays |
+| `tests/coverage/query_params_tx.phpt` | `fbird_query_params_tx` new function |
 
 ---
 
 [Functions]
-Functions are moved verbatim — no signature changes, no logic changes.
 
-### Functions moving to `fbird_error.c`
+### New functions
 
-| Function | Current location | Change |
-|----------|-----------------|--------|
-| `PHP_FUNCTION(fbird_errmsg)` | firebird.c:588 | Move — no signature change |
-| `PHP_FUNCTION(fbird_get_client_version)` | firebird.c:601 | Move |
-| `PHP_FUNCTION(fbird_get_client_major_version)` | firebird.c:606 | Move |
-| `PHP_FUNCTION(fbird_get_client_minor_version)` | firebird.c:611 | Move |
-| `PHP_FUNCTION(fbird_errcode)` | firebird.c:616 | Move |
-| `PHP_FUNCTION(fbird_sqlstate)` | firebird.c:628 | Move |
-| `PHP_FUNCTION(fbird_escape_string)` | firebird.c:654 | Move |
-| `PHP_FUNCTION(fbird_set_exception_mode)` | firebird.c:696 | Move |
-| `PHP_FUNCTION(fbird_get_exception_mode)` | firebird.c:714 | Move |
-| `void _php_fbird_error(void)` | firebird.c:744 | Move; declaration stays in php_fbird_includes.h |
-| `void _php_fbird_module_error(...)` | firebird.c:770 | Move; declaration stays in php_fbird_includes.h |
+| Function | File | Signature | Purpose |
+|----------|------|-----------|---------|
+| `PHP_FUNCTION(fbird_query_params_tx)` | `fbird_query_exec.c` | `fbird_query_params_tx(resource $link, resource $trans, string $sql, array $params): resource\|false` | Execute parameterized query against explicit transaction. Used by doctrine-firebird-driver Connection.php:892. Combines fbird_prepare + fbird_execute into single call for performance. Returns result resource or false on error. |
 
-### Functions moving to `fbird_connection.c`
+**Implementation pattern for `fbird_query_params_tx`:**
+```c
+/* Modeled after fbird_execute_query (lines 1484-1563 in fbird_query_exec.c) */
+/* Accepts: link, trans, SQL string, params array */
+/* 1. Parse params: zend_parse_parameters "rrsa/" → link_res, trans_res, sql, params_array */
+/* 2. Fetch link resource (le_link/le_plink via zend_fetch_resource2_ex) */
+/* 3. Fetch trans resource (le_trans via zend_fetch_resource_ex) */
+/* 4. Call _php_fbird_prepare() */
+/* 5. Convert params HashTable → zval array via _php_fbird_hash_to_zval_array() */
+/* 6. Call _php_fbird_exec() */
+/* 7. Cleanup bind_args, delete ib_query->res on non-resource result */
+/* Return: result resource (SELECT) or false/error */
+/* Key difference from fbird_execute_query: accepts explicit $link AND $trans */
+```
 
-| Function | Current location | Change |
-|----------|-----------------|--------|
-| `void _php_fbird_get_link_trans(...)` | firebird.c:797 | Move; declaration stays in php_fbird_includes.h |
-| `static void _php_fbird_commit_link(fbird_db_link*)` | firebird.c:822 | Move; change from `static` → non-static; declare in php_fbird_connection.h |
-| `static void php_fbird_commit_link_rsrc(zend_resource*)` | firebird.c:882 | Move; change from `static` → non-static; declare in php_fbird_connection.h |
-| `static void _php_fbird_close_link(zend_resource*)` | firebird.c:889 | Move; change from `static` → non-static; declare in php_fbird_connection.h |
-| `static void _php_fbird_close_plink(zend_resource*)` | firebird.c:948 | Move; change from `static` → non-static; declare in php_fbird_connection.h |
-| `static void _php_fbird_connect(...)` | firebird.c:1451 | Move; remains static within fbird_connection.c |
-| `static int _php_fbird_validate_link_resource(...)` | firebird.c:1618 | Move; remains static |
-| `static void _php_fbird_adopt_new_default_link(...)` | firebird.c:1649 | Move; remains static |
-| `static void _php_fbird_close_resource(...)` | firebird.c:1662 | Move; remains static |
-| `PHP_FUNCTION(fbird_connect)` | firebird.c:1609 | Move |
-| `PHP_FUNCTION(fbird_pconnect)` | firebird.c:1614 | Move |
-| `PHP_FUNCTION(fbird_close)` | firebird.c:1674 | Move |
-| `PHP_FUNCTION(fbird_drop_db)` | firebird.c:1727 | Move |
+### Modified functions
 
-### Functions moving to `fbird_transaction.c`
-
-| Function | Current location | Change |
-|----------|-----------------|--------|
-| `static void _php_fbird_free_trans(zend_resource*)` | firebird.c:1006 | Move; change from `static` → non-static; declare in php_fbird_transaction.h |
-| `PHP_FUNCTION(fbird_trans_start)` | firebird.c:1967 | Move |
-| `PHP_FUNCTION(fbird_savepoint)` | firebird.c:2151 | Move |
-| `PHP_FUNCTION(fbird_rollback_savepoint)` | firebird.c:2156 | Move |
-| `PHP_FUNCTION(fbird_release_savepoint)` | firebird.c:2161 | Move |
-| `PHP_FUNCTION(fbird_trans_info)` | firebird.c:2166 | Move |
-| `PHP_FUNCTION(fbird_connection_info)` | firebird.c:2262 | Move |
-| `PHP_FUNCTION(fbird_trans)` | firebird.c:2384 | Move |
-| `PHP_FUNCTION(fbird_commit)` | firebird.c:2744 | Move |
-| `PHP_FUNCTION(fbird_rollback)` | firebird.c:2749 | Move |
-| `PHP_FUNCTION(fbird_commit_ret)` | firebird.c:2754 | Move |
-| `PHP_FUNCTION(fbird_rollback_ret)` | firebird.c:2759 | Move |
-
-### Functions moving to `fbird_batch.c`
-
-| Function | Current location | Change |
-|----------|-----------------|--------|
-| `static void _php_fbird_free_batch(zend_resource*)` (FB_API_VER >= 40) | firebird.c:1052 | Move; change from `static` → non-static; declare in php_fbird_batch.h |
-| `PHP_FUNCTION(fbird_batch_create)` | firebird.c:3053 | Move |
-| `PHP_FUNCTION(fbird_batch_add)` | firebird.c:3132 | Move |
-| `PHP_FUNCTION(fbird_batch_execute)` | firebird.c:3519 | Move |
-| `PHP_FUNCTION(fbird_batch_cancel)` | firebird.c:3569 | Move |
-| `PHP_FUNCTION(fbird_batch_add_blob)` | firebird.c:3597 | Move |
-| `PHP_FUNCTION(fbird_batch_register_blob)` | firebird.c:3629 | Move |
-
-### Functions staying in `firebird.c`
-
-`PHP_MINIT_FUNCTION(fbird)`, `PHP_MSHUTDOWN_FUNCTION(fbird)`, `PHP_RSHUTDOWN_FUNCTION(fbird)`, `PHP_MINFO_FUNCTION(fbird)`, `static PHP_GINIT_FUNCTION(fbird)`, `static PHP_INI_DISP(php_fbird_password_displayer_cb)`, `static PHP_INI_DISP(php_fbird_trans_displayer)`, `PHP_FUNCTION(fbird_gen_id)`, `PHP_FUNCTION(fbird_get_limbo_transactions)`, `PHP_FUNCTION(fbird_reconnect_transaction)`, `_fbird_res_type_name`, all arginfo (`ZEND_BEGIN_ARG_INFO`) declarations, `static const zend_function_entry firebird_functions[]`.
+| Function | File | Change |
+|----------|------|--------|
+| `_php_fbird_free_service()` | `fbird_service.c` | Use `fbsvc_detach()` OO path for all detach (not just `#if FB_API_VER >= 30`) |
+| `PHP_FUNCTION(fbird_service_attach)` | `fbird_service.c` | Add FB3+ OO attach path via `fbsvc_attach()` |
+| `PHP_FUNCTION(fbird_backup)` | `fbird_service.c` | Use OO service wrapper for start/query |
+| `PHP_FUNCTION(fbird_restore)` | `fbird_service.c` | Use OO service wrapper |
+| `PHP_FUNCTION(fbird_maintain_db)` | `fbird_service.c` | Use OO service wrapper |
+| `PHP_FUNCTION(fbird_db_info)` | `fbird_service.c` | Use OO service query |
+| `PHP_FUNCTION(fbird_server_info)` | `fbird_service.c` | Use OO service query |
+| `_php_fbird_make_event_block()` | `fbird_events.c` | Replace `isc_event_block()` + `isc_free()` with OO IEvents |
+| `_php_fbird_wait_and_fill_event()` | `fbird_events.c` | Replace `isc_wait_for_event()` + `isc_event_counts()` with OO |
+| `_php_fbird_get_array_descriptor()` | `fbird_query_array.c` | Replace `isc_array_lookup_bounds()` with `fba_lookup_bounds()` OO API wrapper |
+| `_php_fbird_write_array()` | `fbird_query_array.c` | Replace `isc_encode_timestamp/date/time` with OO datetime encoding |
 
 ---
 
 [Classes]
-No class changes; `Firebird\Exception` registration stays in `PHP_MINIT_FUNCTION` in `firebird.c`.
+No class changes. `Firebird\Exception` registration unchanged.
 
 ---
 
 [Dependencies]
-No new external library dependencies; no changes to Firebird client linkage.
+No new external dependencies.
 
-Internal compilation dependencies change:
-- `fbird_transaction.c` gains a compile-time dependency on `php_fbird_connection.h` (to call `_php_fbird_commit_link`)
-- `firebird.c` gains `#include "php_fbird_connection.h"`, `#include "php_fbird_transaction.h"`, `#include "php_fbird_batch.h"` (for destructor callbacks in `PHP_MINIT_FUNCTION`)
-- `config.m4` PHP_NEW_EXTENSION source list gains 4 new `.c` files
+Internal:
+- `fbird_service.c` gains full use of `fbsvc_*` C wrappers (already in `firebird_utils.h` lines 773-842)
+- `fbird_events.c` needs to use `fbe_*` wrappers (`fbe_queue`, `fbe_cancel`, `fbe_has_event_fired`, `fbe_get_event_data`) already in `firebird_utils.h` lines 706-759
+- `fbird_query_array.c` needs `fba_lookup_bounds`, `fba_get_slice`, `fba_put_slice` from `firebird_utils.h` lines 859-904
+- Doctrine-firebird-driver requires `^7.0.0-rc.52` → needs stubs package update post-release
 
 ---
 
 [Testing]
-Full regression testing via the existing Docker-based `.phpt` test suite; no new test files needed for this refactoring.
 
-```bash
-# Full test run (no regressions expected)
-docker compose run --rm php83-dev make test
+All tests run inside Docker via `docker compose -f docker/docker-compose.yml run --rm php84-fb3-dev`.
 
-# Build verification (catches linking errors)
-docker compose run --rm php83-dev phpize && ./configure --with-firebird && make -j$(nproc)
+**Coverage gap targets** (from NEXT_STEPS.md):
 
-# Coverage smoke-check (verifies gcov instrumentation still works)
-docker compose run --rm php83-dev /ext/scripts/coverage.sh
+| File | Current lines uncovered | Target |
+|------|------------------------|--------|
+| `fbird_query_exec.c` | 88 | Cursor + EXECUTE PROCEDURE paths |
+| `src/cpp/fb_blob.hpp` | 104 | seek, segmented mode, unclosed blobs |
+| `fbird_service.c` / `fb_service.hpp` | 139 | OO service query ops |
+| `fbird_events.c` | 45 | cancel + timeout |
+| `fbird_query_array.c` | 90 | multi-dim, typed arrays |
+| `src/cpp/fb_array.hpp` | 38 | typed put operations |
+
+**Note**: `tests/coverage/blob_seek_segments.phpt` already exists in the repo — verify it runs and covers target lines before creating a duplicate.
+
+**Test invocation pattern** (all new tests):
+```phpt
+--TEST--
+fbird_query_params_tx: execute parameterized query with explicit transaction
+--SKIPIF--
+<?php
+require_once __DIR__ . '/../config.inc';
+if (!extension_loaded('firebird')) die('skip firebird extension not loaded');
+if (!@fbird_connect(FBIRD_TEST_DB, FBIRD_TEST_USER, FBIRD_TEST_PASS)) die('skip cannot connect');
+?>
+--FILE--
+<?php
+require_once __DIR__ . '/../config.inc';
+// test body
+echo "ok\n";
+?>
+--EXPECT--
+ok
 ```
 
-Verification criteria (all must pass):
-1. `make` exits 0 (no compiler errors or warnings)
-2. All existing `.phpt` tests pass (zero new failures)
-3. `fbird_errmsg()`, `fbird_connect()`, `fbird_trans()`, `fbird_batch_create()` callable from PHP (extension loads correctly)
+**Verification commands:**
+```bash
+# Run new test
+docker compose -f docker/docker-compose.yml run --rm php84-fb3-dev /ext/scripts/test.sh tests/coverage/query_params_tx.phpt
+
+# Full coverage
+docker compose -f docker/docker-compose.yml run --rm php84-fb3-dev /ext/scripts/coverage.sh
+
+# Check total %
+grep -E "^LF:|^LH:" coverage/lcov_filtered.info | \
+  awk '/^LF:/{lf+=substr($0,4)} /^LH:/{lh+=substr($0,4)} END{printf "%d/%d = %.1f%%\n",lh,lf,lh/lf*100}'
+
+# Full test matrix
+docker compose -f docker/docker-compose.yml run --rm php84-fb3-dev make test
+
+# ASan/UBSan
+docker compose -f docker/docker-compose.yml run --rm php84-dev /ext/scripts/run-sanitizer.sh
+```
 
 ---
 
 [Implementation Order]
-Implement in 7 atomic steps, each independently compilable and committable.
+Implement in 5 phases, each with its own feature branch, independent PR, and test verification.
 
-1. **Create `php_fbird_connection.h`** — declare 4 destructor callbacks that move out of firebird.c
-2. **Create `php_fbird_transaction.h`** — declare `_php_fbird_free_trans`
-3. **Create `php_fbird_batch.h`** — declare `_php_fbird_free_batch` (conditional on FB_API_VER >= 40)
-4. **Create `fbird_error.c`** — extract lines 588–795 from firebird.c; add `#include "php_fbird_includes.h"` + `#include "php_firebird.h"` at top
-5. **Create `fbird_connection.c`** — extract lines 797–1005 + 1451–1966; de-static 4 callbacks; add includes
-6. **Create `fbird_transaction.c`** — extract lines 1006–1051 + 1967–2793; de-static `_php_fbird_free_trans`; add `#include "php_fbird_connection.h"`
-7. **Create `fbird_batch.c`** — extract lines 1052–1099 + 3053–3668; de-static `_php_fbird_free_batch`
-8. **Modify `firebird.c`** — delete extracted line ranges; add `#include` for 3 new headers; verify remaining ~1200 lines compile
-9. **Modify `config.m4`** — add 4 new `.c` files to `PHP_NEW_EXTENSION` source list (line 100)
-10. **Build + test** — `docker compose run --rm php83-dev make test` → zero failures
-11. **Commit + PR** — branch `refactor/split-firebird-c`, target `satware-main`, closes #57
+**Phase A — `fbird_query_params_tx` + missing stubs (doctrine blocker)**
+1. Create `feat/query-params-tx` branch from `satware-main`
+2. Add stubs to `stubs/firebird-stubs.php` for `fbird_execute_query`, `fbird_execute_statement`, `fbird_execute_auto` (already registered, missing from stubs)
+3. Add same stubs to `phpstan/fbird.stub.php`
+4. Add `PHP_FUNCTION(fbird_query_params_tx)` to `fbird_query_exec.c` — modeled after `fbird_execute_query` but with explicit `$link` parameter
+5. Add arginfo to `firebird.c`, `PHP_FE` registration, declaration in `php_firebird.h`
+6. Add stub to `stubs/firebird-stubs.php` and `phpstan/fbird.stub.php`
+7. Write `tests/coverage/query_params_tx.phpt` (RED → GREEN)
+8. Run full test matrix, PR to `satware-main`
+
+**Phase B — Coverage push to 80%**
+9. Create `test/coverage-phase2` branch
+10. Validate `tests/coverage/blob_seek_segments.phpt` runs on FB3 (already exists)
+11. Write `tests/coverage/exec_cursor_named.phpt` (cursor + EXECUTE PROCEDURE)
+12. Write `tests/coverage/service_all_ops.phpt` (service query ops)
+13. Write `tests/coverage/events_cancel_timeout.phpt` (event cancel + timeout)
+14. Write `tests/coverage/array_multidim_types.phpt` (multi-dim arrays)
+15. Run coverage, verify ≥80%, PR to `satware-main`
+
+**Phase C — fbird_service.c OO API migration**
+16. Create `refactor/service-oo-api` branch
+17. Migrate `fbird_service_attach` to OO path via `fbsvc_attach()`
+18. Migrate `fbird_backup/restore/maintain_db/db_info/server_info` to use `fbsvc_*` wrappers exclusively
+19. Remove legacy `isc_service_*` calls (under `#if FB_API_VER >= 30` guard → make unconditional)
+20. Run full test matrix, PR to `satware-main`
+
+**Phase D — fbird_events.c OO API migration**
+21. Create `refactor/events-oo-api` branch
+22. Migrate `isc_event_block` → `fbe_queue()` OO wrapper
+23. Migrate `isc_wait_for_event` + `isc_event_counts` → `fbe_*` OO equivalents
+24. Remove `isc_free()` calls (replaced by `fbe_free()` in cleanup)
+25. Run full test matrix + ASan, PR to `satware-main`
+
+**Phase E — fbird_query_array.c OO migration + release**
+26. Create `refactor/array-oo-api` branch
+27. Migrate `isc_array_lookup_bounds` → `fba_lookup_bounds()`
+28. Migrate `isc_encode_timestamp/date/time` → OO datetime utilities
+29. Run full test matrix, coverage final check (must be ≥80%)
+30. Bump VERSION to `7.0.0`, tag, GitHub release
+31. Update doctrine-firebird-driver `composer.json` to require `ext-firebird: ^7.0.0`

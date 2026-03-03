@@ -61,7 +61,6 @@ When adding a new `fbird_*` function, the stub entry MUST include:
 Do NOT add stubs for functions that are NOT registered via `PHP_FE`:
 
 - `fbird_timefmt` — declared in header but intentionally not exported (removed)
-- `fbird_batch_get_blob_alignment` — was a stub-only placeholder (removed)
 
 A "phantom stub" misleads doctrine-firebird-driver into thinking a function is callable
 at runtime when it is not, hiding catastrophic runtime errors from static analysis.

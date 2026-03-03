@@ -846,6 +846,10 @@ Add to your `psalm.xml`:
 - `fbird_batch_add()` - Add row with automatic type conversion
 - `fbird_batch_add_blob()` - Create inline BLOB, returns "HHHHHHHH:LLLL" ID
 - `fbird_batch_register_blob()` - Register existing BLOB for batch use
+- `fbird_batch_get_blob_alignment()` - Get inline BLOB alignment requirement in bytes
+- `fbird_batch_append_blob_data()` - Append data chunk to in-progress batch BLOB
+- `fbird_batch_add_blob_stream()` - Add BLOB data via IBatch addBlobStream protocol
+- `fbird_batch_set_default_bpb()` - Set default BLOB Property Block for all batch BLOBs
 - `fbird_batch_execute()` - Execute batch (returns total_processed, success_count, error_count)
 - `fbird_batch_cancel()` - Cancel without executing
 

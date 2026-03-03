@@ -18,6 +18,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     and `php_fbird_trans_displayer` callbacks in `firebird.c`
   - Plus 6 additional coverage tests for datetime, bind, and exec code paths
 - **Coverage baseline** raised from **61.8% → 65.2%** (5,089 / 7,802 lines on FB3 build)
+- **Three new Batch API functions** completing the Firebird 4.0+ IBatch PHP surface:
+  - `fbird_batch_append_blob_data(resource $batch, string $data): bool` — append a data chunk
+    to the BLOB currently being constructed in the batch (multi-part BLOB assembly)
+  - `fbird_batch_add_blob_stream(resource $batch, string $data): bool` — add BLOB data via
+    the IBatch `addBlobStream` streaming protocol
+  - `fbird_batch_set_default_bpb(resource $batch, string $bpb): bool` — set the default BLOB
+    Property Block (BPB) for all BLOBs in this batch (encoding, charset control)
+  - All three functions had complete C++ wrappers in `firebird_utils.cpp` but lacked PHP_FUNCTION
+    glue, arginfo, PHP_FE registration, stubs, and tests — now fully wired
+  - Stubs count: **82 → 85** functions; both `stubs/firebird-stubs.php` and
+    `phpstan/fbird.stub.php` updated; `scripts/check-stubs-sync.sh` exits 0
 
 ### Technical Notes
 

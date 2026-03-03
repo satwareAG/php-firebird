@@ -31,6 +31,8 @@
 #define ISC_LONG_MIN    INT_MIN
 #define ISC_LONG_MAX    INT_MAX
 
+/* LCOV_EXCL_START: _php_fbird_alloc_array uses legacy isc_array_lookup_bounds
+ * and is never called on FB3+ OO API path — dead code on Firebird 3+ */
 int _php_fbird_alloc_array(fbird_array **ib_arrayp, XSQLDA *sqlda,
 	fb_safe_handle link, fb_safe_handle trans, unsigned short *array_cnt)
 {
@@ -204,6 +206,7 @@ int _php_fbird_alloc_array(fbird_array **ib_arrayp, XSQLDA *sqlda,
 	*ib_arrayp = ar;
 	return SUCCESS;
 }
+/* LCOV_EXCL_STOP */
 
 int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size,
 	fbird_array *array, int dim)

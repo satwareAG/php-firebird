@@ -24,7 +24,16 @@ export CFLAGS="-fprofile-arcs -ftest-coverage -O0 -g"
 export CXXFLAGS="-fprofile-arcs -ftest-coverage -O0 -g"
 export LDFLAGS="--coverage"
 
-./configure --with-firebird=/usr
+# Auto-detect Firebird install prefix (FB3 uses /opt/firebird, FB4/5 use /usr)
+if [ -f /opt/firebird/include/ibase.h ]; then
+    FB_PREFIX=/opt/firebird
+    export CPPFLAGS="-I/opt/firebird/include"
+else
+    FB_PREFIX=/usr
+fi
+echo "Detected Firebird prefix: ${FB_PREFIX}"
+
+./configure --with-firebird="${FB_PREFIX}"
 
 # 2. Build
 echo "Building extension..."
@@ -35,8 +44,8 @@ echo "Running tests..."
 export NO_INTERACTION=1
 export REPORT_EXIT_STATUS=1
 export TEST_PHP_EXECUTABLE=$(which php)
-# We need to ensure the extension is loaded for tests. make test does this by using run-tests.php -d extension=...
-make test || true # Allow failure, we still want coverage report
+# Use test.sh to ensure: correct extension path, FIREBIRD_HOST env, and recursive tests/coverage/ inclusion
+/ext/scripts/test.sh || true # Allow failure, we still want coverage report
 
 # 4. Capture Coverage
 echo "Capturing coverage..."
@@ -50,10 +59,11 @@ cp *.gcno .libs/ 2>/dev/null || true
 lcov --directory . --capture --output-file coverage/lcov.info --ignore-errors path
 
 # 5. Filter Coverage
-# Remove system headers, PHP headers, tests, and build artifacts
+# Remove system headers, PHP headers, Firebird SDK headers, tests, and build artifacts
 echo "Filtering coverage..."
 lcov --remove coverage/lcov.info \
     '/usr/*' \
+    '/opt/firebird/*' \
     '*/php-src/*' \
     '*/tests/*' \
     '*/modules/*' \
@@ -65,9 +75,16 @@ lcov --remove coverage/lcov.info \
 echo "Generating HTML report..."
 genhtml coverage/lcov_filtered.info --output-directory coverage/html
 
+# 7. Print text summary
 echo "-----------------------------------------------------------------------"
 echo "Coverage Report Generated!"
-echo "Open coverage/html/index.html in your browser to view results."
-echo "(Note: You may need to copy it out if your volume mapping is different, "
-echo " but standard docker-compose.yml maps ./ to /ext so it should appear in ./coverage/html)"
+echo ""
+echo "=== Per-file line coverage summary ==="
+lcov --summary coverage/lcov_filtered.info 2>&1
+echo ""
+echo "=== Detailed per-file breakdown ==="
+lcov --list coverage/lcov_filtered.info 2>/dev/null || true
+echo ""
+echo "Open coverage/html/index.html in your browser for the full HTML report."
+echo "(standard docker-compose.yml maps ./ to /ext so it appears in ./coverage/html)"
 echo "-----------------------------------------------------------------------"

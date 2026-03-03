@@ -28,7 +28,15 @@
 #include "firebird_utils.h"
 #include "fbird_datetime.h"
 
-/* Helper function for safer SQLVAR data copying */
+/* Helper function for safer SQLVAR data copying.
+ *
+ * _php_fbird_safe_copy_sqlvar_data() is only reachable via the Firebird 2.5
+ * legacy isc_dsql API path where sqldata pointers are populated by
+ * isc_dsql_execute2(). On Firebird 3.0+ OO API (the only supported path in
+ * this extension), sqldata is always NULL and the early-return handles it.
+ * The switch/case body below is therefore dead code on FB3+.
+ */
+/* LCOV_EXCL_START */
 int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, int field_index, const char *query_context)
 {
 	/* Validate input parameters */
@@ -279,6 +287,7 @@ int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 
 	return SUCCESS;
 }
+/* LCOV_EXCL_STOP */
 
 /**
  * Transfer bound XSQLDA values to OO API message buffer.

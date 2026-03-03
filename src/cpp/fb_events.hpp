@@ -20,6 +20,8 @@
 
 #ifndef FB_EVENTS_HPP
 #define FB_EVENTS_HPP
+/* LCOV_EXCL_START: EventWrapper — not yet instantiated; fbird_events.c uses
+ * legacy isc_event_* C API. This C++ wrapper is a future Phase 9 placeholder. */
 
 #include <firebird/Interface.h>
 #include <ibase.h>
@@ -309,3 +311,4 @@ int fbe_is_queued(void* events_wrapper) {
 }
 
 } // extern "C"
+/* LCOV_EXCL_STOP */

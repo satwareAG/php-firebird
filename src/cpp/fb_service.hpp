@@ -18,6 +18,8 @@
 
 #ifndef FB_SERVICE_HPP
 #define FB_SERVICE_HPP
+/* LCOV_EXCL_START: Phase 8 ServiceWrapper — not yet instantiated on FB3 path;
+ * fbird_service.c uses legacy isc_service_* C API exclusively. */
 
 #include <firebird/Interface.h>
 #include <ibase.h>
@@ -436,4 +438,5 @@ void fbsvc_free(void* service_wrapper)
 
 } // extern "C"
 
+/* LCOV_EXCL_STOP */
 #endif // FB_SERVICE_HPP

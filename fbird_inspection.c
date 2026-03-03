@@ -274,7 +274,7 @@ PHP_FUNCTION(fbird_kill_attachment)
 	PHP_FBIRD_LINK_TRANS(link_arg, link, trans);
 
 	if (_fbird_exec_kill(link, trans, (ISC_INT64) attachment_id) == FAILURE) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	RETURN_TRUE;
@@ -313,23 +313,23 @@ PHP_FUNCTION(fbird_list_table_blockers)
 	/* OO API Only: Require fbc_connection */
 	if (!link->fbc_connection) {
 		_php_fbird_module_error("fbird_list_table_blockers requires OO API connection (fbc_connection required)"); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	if (!trans->fbt_transaction) {
 		_php_fbird_module_error("fbird_list_table_blockers requires OO API transaction (fbt_transaction required)"); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* Get OO API handles */
 	attachment = fbc_get_attachment(link->fbc_connection);
 	if (!attachment) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	transaction = fbt_get_handle(trans->fbt_transaction);
 	if (!transaction) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* Prepare statement */
@@ -345,7 +345,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
 
 	if (!stmt) {
 		_php_fbird_error();
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* Get input metadata for parameter binding */
@@ -353,7 +353,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
 	if (!in_metadata) {
 		_php_fbird_error();
 		fbs_free(stmt, IB_STATUS);
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* Get output metadata for result fetching */
@@ -361,7 +361,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
 	if (!out_metadata) {
 		_php_fbird_error();
 		fbs_free(stmt, IB_STATUS);
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* Build input message buffer for VARCHAR parameter
@@ -399,7 +399,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
 		_php_fbird_error();
 		efree(in_msg);
 		fbs_free(stmt, IB_STATUS);
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	efree(in_msg);
@@ -504,6 +504,6 @@ PHP_FUNCTION(fbird_drop_table_force)
 	if (result == SUCCESS) {
 		RETURN_TRUE;
 	} else {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 }

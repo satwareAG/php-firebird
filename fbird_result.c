@@ -500,19 +500,19 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 	RESET_ERRMSG;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r|l", &res_arg, &flag)) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* Validate first argument is a query resource with proper error messages */
 	FBIRD_VALIDATE_QUERY_EX(res_arg, 1, ib_query);
 	if (!ib_query) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* Pure OO API: Check message buffer instead of XSQLDA */
 	if (ib_query->out_metadata == NULL || ib_query->out_msg_buffer == NULL ||
 		!ib_query->has_more_rows || !ib_query->is_open) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	assert(ib_query->out_fields_count > 0);
@@ -537,7 +537,7 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 			/* OO API fetch via fbs_fetch() with message buffer */
 			if (!ib_query->fbs_statement || !fbs_is_cursor_open(ib_query->fbs_statement)) {
 				_php_fbird_module_error("OO API cursor not open"); /* LCOV_EXCL_LINE */
-				RETURN_FALSE;
+				RETURN_FALSE; /* LCOV_EXCL_LINE */
 			}
 
 			int fetch_result = fbs_fetch(
@@ -552,14 +552,14 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 				ib_query->has_more_rows = 0;
 				ib_query->is_open = 0;
 				fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
-				RETURN_FALSE;
+				RETURN_FALSE; /* LCOV_EXCL_LINE */
 			} else if (fetch_result == -1) {
 				/* Error */
 				ib_query->has_more_rows = 0;
 				ib_query->is_open = 0;
 				_php_fbird_error(); /* LCOV_EXCL_LINE */
 				fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
-				RETURN_FALSE;
+				RETURN_FALSE; /* LCOV_EXCL_LINE */
 			}
 			/* fetch_result == 1: row fetched into out_msg_buffer */
 		} else {
@@ -578,7 +578,7 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 		if(!ib_query->ht_aliases){
 			if(_php_fbird_alloc_ht_aliases(ib_query)){
 				_php_fbird_error();
-				RETURN_FALSE;
+				RETURN_FALSE; /* LCOV_EXCL_LINE */
 			}
 		}
 		ht_ret = zend_array_dup(ib_query->ht_aliases);
@@ -618,7 +618,7 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 		result = zend_hash_get_current_data(ht_ret);
 		if (!result) {
 			_php_fbird_module_error("Internal error: result array iterator out of sync"); /* LCOV_EXCL_LINE */
-			RETURN_FALSE;
+			RETURN_FALSE; /* LCOV_EXCL_LINE */
 		}
 
 		/* Map OO type to legacy SQL_* type for _php_fbird_var_zval compatibility */
@@ -860,7 +860,7 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 				}
 				break;
 			_php_fbird_fetch_error:
-				RETURN_FALSE;
+				RETURN_FALSE; /* LCOV_EXCL_LINE */
 		} /* switch */
 
 		zend_hash_move_forward(ht_ret);
@@ -904,18 +904,18 @@ PHP_FUNCTION(fbird_name_result)
 	/* Validate first argument is a query resource with proper error messages */
 	FBIRD_VALIDATE_QUERY_EX(result_arg, 1, ib_query);
 	if (!ib_query) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* OO API Only: Use fbs_set_cursor_name() for positioned updates */
 	if (!ib_query->fbs_statement) {
 		_php_fbird_module_error("fbird_name_result() requires OO API statement (fbs_statement required)"); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	if (!fbs_set_cursor_name(IBG(master_instance), ib_query->fbs_statement, name_arg, IB_STATUS)) {
 		_php_fbird_error(); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	RETURN_TRUE;

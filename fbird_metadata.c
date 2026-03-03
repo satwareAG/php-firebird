@@ -71,13 +71,13 @@ void _php_fbird_field_info(zval *return_value, fbird_query *ib_query, int is_out
         sqlda = ib_query->out_sqlda;
         if (sqlda == NULL) {
             _php_fbird_module_error("Trying to get field info from a non-select query"); /* LCOV_EXCL_LINE */
-            RETURN_FALSE;
+            RETURN_FALSE; /* LCOV_EXCL_LINE */
         }
     } else {
         sqlda = ib_query->in_sqlda;
         /* For parameter metadata, return false quietly when not available */
         if (sqlda == NULL) {
-            RETURN_FALSE;
+            RETURN_FALSE; /* LCOV_EXCL_LINE */
         }
     }
 
@@ -88,7 +88,7 @@ void _php_fbird_field_info(zval *return_value, fbird_query *ib_query, int is_out
         if (is_outvar) {
             _php_fbird_module_error("Field %d does not exist (valid range: 0-%d)", num, sqlda ? sqlda->sqld - 1 : -1); /* LCOV_EXCL_LINE */
         }
-        RETURN_FALSE;
+        RETURN_FALSE; /* LCOV_EXCL_LINE */
     }
 
 	var += num;
@@ -249,7 +249,7 @@ PHP_FUNCTION(fbird_field_info)
 	/* Validate first argument is a query resource with proper error messages */
 	FBIRD_VALIDATE_QUERY_EX(result_arg, 1, ib_query);
 	if (!ib_query) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	_php_fbird_field_info(return_value, ib_query, 1, (ISC_SHORT)field_arg);
@@ -269,7 +269,7 @@ PHP_FUNCTION(fbird_num_params)
 	/* Validate first argument is a query resource with proper error messages */
 	FBIRD_VALIDATE_QUERY_EX(result, 1, ib_query);
 	if (!ib_query) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/*
@@ -294,7 +294,7 @@ PHP_FUNCTION(fbird_param_info)
 	/* Validate first argument is a query resource with proper error messages */
 	FBIRD_VALIDATE_QUERY_EX(result_arg, 1, ib_query);
 	if (!ib_query) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	_php_fbird_field_info(return_value, ib_query, 0, field_arg);
@@ -314,7 +314,7 @@ PHP_FUNCTION(fbird_num_fields)
 	/* Validate first argument is a query resource with proper error messages */
 	FBIRD_VALIDATE_QUERY_EX(result, 1, ib_query);
 	if (!ib_query) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/*

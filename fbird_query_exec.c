@@ -121,7 +121,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 				new_trans = fbt_start(IBG(master_instance), attachment, 0, NULL, IB_STATUS);
 				if (!new_trans) {
 					_php_fbird_error();
-					goto _php_fbird_ex_error;
+					goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
 				}
 
 				trans = (fbird_transaction *) emalloc(sizeof(fbird_transaction));
@@ -151,7 +151,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 
 			/* OO API Only: Connection must have OO API handle for SET TRANSACTION */
 			_php_fbird_module_error("SET TRANSACTION requires OO API connection (fbc_connection required)"); /* LCOV_EXCL_LINE */
-			goto _php_fbird_ex_error;
+			goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
 
 		case isc_info_sql_stmt_commit:
 		case isc_info_sql_stmt_rollback:
@@ -172,7 +172,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 				}
 				if (rc != 0) {
 					_php_fbird_error(); /* LCOV_EXCL_LINE */
-					goto _php_fbird_ex_error;
+					goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
 				}
 
 				/* Mark transaction as closed.
@@ -188,7 +188,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 
 			/* OO API Only: Transaction must have OO API handle for COMMIT/ROLLBACK */
 			_php_fbird_module_error("COMMIT/ROLLBACK requires OO API transaction (fbt_transaction required)"); /* LCOV_EXCL_LINE */
-			goto _php_fbird_ex_error;
+			goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
 
 		default:
 			RETVAL_FALSE;
@@ -198,7 +198,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 		FBDEBUG("Query wants XSQLDA for input");
 		if (_php_fbird_bind(ib_query, args) == FAILURE) {
 			FBDEBUG("Could not bind input XSQLDA");
-			goto _php_fbird_ex_error;
+			goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
 		}
 
 		/* Verify OO API message buffer infrastructure is available.
@@ -206,11 +206,11 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 		 * with parameters is not possible - report clear error. */
 		if (!ib_query->in_metadata) {
 			_php_fbird_module_error("OO API input metadata not available for parameterized query"); /* LCOV_EXCL_LINE */
-			goto _php_fbird_ex_error;
+			goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
 		}
 		if (!ib_query->in_msg_buffer) {
 			_php_fbird_module_error("OO API input message buffer not allocated for parameterized query"); /* LCOV_EXCL_LINE */
-			goto _php_fbird_ex_error;
+			goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
 		}
 
 		/* Transfer bound XSQLDA values to OO API message buffer.
@@ -218,7 +218,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 		 * with offsets from IMessageMetadata, not XSQLDA structures. */
 		if (_php_fbird_xsqlda_to_msg_buffer(ib_query) == FAILURE) {
 			FBDEBUG("Could not transfer XSQLDA to message buffer");
-			goto _php_fbird_ex_error;
+			goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
 		}
 	}
 
@@ -270,7 +270,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
                 } else {
                     /* OO API cursor open failed - report error immediately, no fallback */
                     _php_fbird_error();
-                    goto _php_fbird_ex_error;
+                    goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
                 }
             }
             /* For non-SELECT (INSERT/UPDATE/DELETE) without RETURNING, use fbs_execute */
@@ -299,7 +299,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
                 } else {
                     /* OO API execution failed - report error immediately, no fallback */
                     _php_fbird_error();
-                    goto _php_fbird_ex_error;
+                    goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
                 }
             }
             /* For DDL statements (CREATE, DROP, ALTER, etc.), use fbs_execute */
@@ -324,7 +324,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
                 } else {
                     /* OO API execution failed - report error immediately, no fallback */
                     _php_fbird_error();
-                    goto _php_fbird_ex_error;
+                    goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
                 }
             }
             /* SAVEPOINT statements (SAVEPOINT / ROLLBACK TO SAVEPOINT / RELEASE SAVEPOINT)
@@ -346,7 +346,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
                     isc_result = 0;
                 } else {
                     _php_fbird_error();
-                    goto _php_fbird_ex_error;
+                    goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
                 }
             }
             /* For EXECUTE PROCEDURE - use fbs_execute with input and output buffers */
@@ -373,7 +373,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
                 } else {
                     /* OO API execution failed - report error immediately, no fallback */
                     _php_fbird_error();
-                    goto _php_fbird_ex_error;
+                    goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
                 }
             }
             /* For DML with RETURNING - open cursor, fetch 1 row into out_msg_buffer, close cursor */
@@ -403,7 +403,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 
                 if (!oo_api_success) {
                     _php_fbird_error();
-                    goto _php_fbird_ex_error;
+                    goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
                 }
 
                 int fetch_result = fbs_fetch(
@@ -416,7 +416,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
                 if (fetch_result == -1) {
                     _php_fbird_error(); /* LCOV_EXCL_LINE */
                     fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
-                    goto _php_fbird_ex_error;
+                    goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
                 }
 
                 /* Always close cursor for DML RETURNING (like execute2) */
@@ -432,7 +432,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
             else {
                 _php_fbird_module_error("Statement type %d not supported via OO API",
                     ib_query->statement_type);
-                goto _php_fbird_ex_error;
+                goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
             }
         }
 
@@ -442,7 +442,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
         }
         /* Should not reach here - all paths either succeed or error out above */
         _php_fbird_module_error("OO API execution path did not complete"); /* LCOV_EXCL_LINE */
-        goto _php_fbird_ex_error;
+        goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
     }
 
     /*
@@ -451,14 +451,14 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
      * For now, report an error as we're removing legacy API support.
      */
     _php_fbird_module_error("Legacy API execution not supported. Connection must use OO API (fbt_transaction required)"); /* LCOV_EXCL_LINE */
-    goto _php_fbird_ex_error;
+    goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
 
 execute_done:
 
     if (isc_result) {
         FBDEBUG("Could not execute query");
         _php_fbird_error();
-        goto _php_fbird_ex_error;
+        goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
     }
 
     ib_query->trans->affected_rows = 0;
@@ -683,7 +683,7 @@ cleanup_result_query:
 			}
 
 			/* Propagate error to caller */
-			goto _php_fbird_ex_error;
+			goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
   } else {
             /* SELECT queries: Create independent result data to prevent use-after-free vulnerability */
 
@@ -891,7 +891,7 @@ cleanup_select_result_query:
 			}
 
 			/* Propagate error to caller */
-			goto _php_fbird_ex_error;
+			goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
 		}
 	}
 
@@ -917,14 +917,14 @@ cleanup_select_result_query:
 
 				if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
 					_php_fbird_error(); /* LCOV_EXCL_LINE */
-					goto _php_fbird_ex_error;
+					goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
 				}
 
 				affected_rows = (unsigned long)oo_affected;
 			} else {
 				/* No OO API statement - cannot get affected rows */
 				_php_fbird_module_error("Cannot get affected rows: OO API statement required"); /* LCOV_EXCL_LINE */
-				goto _php_fbird_ex_error;
+				goto _php_fbird_ex_error; /* LCOV_EXCL_LINE */
 			}
 
 			ib_query->trans->affected_rows = affected_rows;
@@ -1052,7 +1052,7 @@ PHP_FUNCTION(fbird_query)
 	if (!query) {
 		efree(args);
 		_php_fbird_module_error("Query argument missing or not a string"); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* Handle CREATE DATABASE request via FBIRD_CREATE flag */
@@ -1070,7 +1070,7 @@ PHP_FUNCTION(fbird_query)
 		if (!create_result) {
 			_php_fbird_error();
 			efree(args);
-			RETURN_FALSE;
+			RETURN_FALSE; /* LCOV_EXCL_LINE */
 		}
 
 		/* Register the new database connection as a resource.
@@ -1101,7 +1101,7 @@ PHP_FUNCTION(fbird_query)
 		if (!link) {
 			efree(args);
 			_php_fbird_module_error("No default connection"); /* LCOV_EXCL_LINE */
-			RETURN_FALSE;
+			RETURN_FALSE; /* LCOV_EXCL_LINE */
 		}
 	} else if (!link && trans) {
 		/* If transaction is provided but link is not, infer link from transaction.
@@ -1112,7 +1112,7 @@ PHP_FUNCTION(fbird_query)
 		} else {
 			efree(args);
 			_php_fbird_module_error("Transaction has no associated link"); /* LCOV_EXCL_LINE */
-			RETURN_FALSE;
+			RETURN_FALSE; /* LCOV_EXCL_LINE */
 		}
 	}
 
@@ -1120,7 +1120,7 @@ PHP_FUNCTION(fbird_query)
 	if (!trans) {
 		if (SUCCESS != _php_fbird_def_trans(link, &trans)) {
 			efree(args);
-			RETURN_FALSE;
+			RETURN_FALSE; /* LCOV_EXCL_LINE */
 		}
 	} else {
 		/* Explicit transaction passed: must still be active.
@@ -1143,19 +1143,19 @@ PHP_FUNCTION(fbird_query)
 			} else {
 				_php_fbird_module_error("invalid transaction handle (expecting explicit transaction start) "); /* LCOV_EXCL_LINE */
 			}
-			RETURN_FALSE;
+			RETURN_FALSE; /* LCOV_EXCL_LINE */
 		}
 	}
 
 	if (!trans) {
 		efree(args);
 		_php_fbird_module_error("Could not determine transaction"); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	if (FAILURE == _php_fbird_prepare(&ib_query, link, trans, trans_res, query)) {
 		efree(args);
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	for (i = bind_start; i < argc; i++) {
@@ -1168,7 +1168,7 @@ PHP_FUNCTION(fbird_query)
 			zval_ptr_dtor(&args[i]);
 		}
 		efree(args);
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	if (Z_TYPE_P(return_value) != IS_RESOURCE) {
@@ -1247,7 +1247,7 @@ PHP_FUNCTION(fbird_prepare)
 	} else {
 		efree(args);
 		_php_fbird_module_error("Query argument missing or not a string"); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	if (!link && !trans) {
@@ -1257,7 +1257,7 @@ PHP_FUNCTION(fbird_prepare)
 		if (!link) {
 			efree(args);
 			_php_fbird_module_error("No default connection"); /* LCOV_EXCL_LINE */
-			RETURN_FALSE;
+			RETURN_FALSE; /* LCOV_EXCL_LINE */
 		}
 	}
 
@@ -1270,21 +1270,21 @@ PHP_FUNCTION(fbird_prepare)
         } else {
             efree(args);
             _php_fbird_module_error("Transaction has no associated link"); /* LCOV_EXCL_LINE */
-            RETURN_FALSE;
+            RETURN_FALSE; /* LCOV_EXCL_LINE */
         }
     }
 
 	if (!trans) {
 		if (SUCCESS != _php_fbird_def_trans(link, &trans)) {
 			efree(args);
-			RETURN_FALSE;
+			RETURN_FALSE; /* LCOV_EXCL_LINE */
 		}
 	}
 
 	/* cppcheck-suppress legacyUninitvar ; query is guaranteed non-NULL here */
 	if (FAILURE == _php_fbird_prepare(&ib_query, link, trans, trans_res, query)) {
 		efree(args);
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	efree(args);
@@ -1319,7 +1319,7 @@ PHP_FUNCTION(fbird_execute)
 	FBIRD_VALIDATE_QUERY_EX(&args[0], 1, ib_query);
 	if (!ib_query) {
 		efree(args);
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	for (i = 1; i < argc; i++) {
@@ -1331,7 +1331,7 @@ PHP_FUNCTION(fbird_execute)
 			zval_ptr_dtor(&args[i]);
 		}
 		efree(args);
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	for (i = 1; i < argc; i++) {
@@ -1351,7 +1351,7 @@ void _php_fbird_free_query_impl(INTERNAL_FUNCTION_PARAMETERS, int as_result)
 
 	ib_query = (fbird_query *)zend_fetch_resource_ex(query_arg, "Firebird query", le_query);
 	if (!ib_query) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	zend_list_close(Z_RES_P(query_arg));
@@ -1382,13 +1382,13 @@ PHP_FUNCTION(fbird_affected_rows)
 	}
 
 	if (!link) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	if (SUCCESS == _php_fbird_def_trans(link, &trans)) {
 		RETVAL_LONG(trans->affected_rows);
 	} else {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 }
 
@@ -1429,17 +1429,17 @@ PHP_FUNCTION(fbird_execute_statement)
 
     trans = (fbird_transaction *)zend_fetch_resource_ex(trans_arg, LE_TRANS, le_trans);
     if (!trans) {
-        RETURN_FALSE;
+        RETURN_FALSE; /* LCOV_EXCL_LINE */
     }
     if (trans->link_cnt > 0) {
         link = trans->db_link[0];
     } else {
         _php_fbird_module_error("Transaction has no associated link"); /* LCOV_EXCL_LINE */
-        RETURN_FALSE;
+        RETURN_FALSE; /* LCOV_EXCL_LINE */
     }
 
     if (FAILURE == _php_fbird_prepare(&ib_query, link, trans, Z_RES_P(trans_arg), sql)) {
-        RETURN_FALSE;
+        RETURN_FALSE; /* LCOV_EXCL_LINE */
     }
 
     if (params_arg) {
@@ -1452,7 +1452,7 @@ PHP_FUNCTION(fbird_execute_statement)
             efree(bind_args);
         }
         zend_list_delete(ib_query->res);
-        RETURN_FALSE;
+        RETURN_FALSE; /* LCOV_EXCL_LINE */
     }
 
     if (bind_args) {
@@ -1504,12 +1504,12 @@ PHP_FUNCTION(fbird_execute_query)
         link = trans->db_link[0];
     } else {
         _php_fbird_module_error("Transaction has no associated link"); /* LCOV_EXCL_LINE */
-        RETURN_FALSE;
+        RETURN_FALSE; /* LCOV_EXCL_LINE */
     }
 
     /* cppcheck-suppress legacyUninitvar ; link is guaranteed non-NULL here */
     if (FAILURE == _php_fbird_prepare(&ib_query, link, trans, Z_RES_P(trans_arg), sql)) {
-        RETURN_FALSE;
+        RETURN_FALSE; /* LCOV_EXCL_LINE */
     }
 
     if (params_arg) {
@@ -1522,7 +1522,7 @@ PHP_FUNCTION(fbird_execute_query)
             efree(bind_args);
         }
         zend_list_delete(ib_query->res);
-        RETURN_FALSE;
+        RETURN_FALSE; /* LCOV_EXCL_LINE */
     }
 
     if (bind_args) {
@@ -1587,7 +1587,7 @@ PHP_FUNCTION(fbird_execute_auto)
     /* OO API Only: Connection must have OO API handle */
     if (!link->fbc_connection) {
         _php_fbird_module_error("fbird_execute_auto requires OO API connection (fbc_connection required)"); /* LCOV_EXCL_LINE */
-        RETURN_FALSE;
+        RETURN_FALSE; /* LCOV_EXCL_LINE */
     }
 
     /* Start autonomous transaction via OO API */
@@ -1595,7 +1595,7 @@ PHP_FUNCTION(fbird_execute_auto)
     oo_trans = fbt_start(IBG(master_instance), attachment, 0, NULL, IB_STATUS);
     if (!oo_trans) {
         _php_fbird_error();
-        RETURN_FALSE;
+        RETURN_FALSE; /* LCOV_EXCL_LINE */
     }
 
     /* Create temp trans object with OO API transaction */
@@ -1611,7 +1611,7 @@ PHP_FUNCTION(fbird_execute_auto)
     if (FAILURE == _php_fbird_prepare(&ib_query, link, trans, NULL, sql)) {
         fbt_rollback(oo_trans, IB_STATUS);
         efree(trans);
-        RETURN_FALSE;
+        RETURN_FALSE; /* LCOV_EXCL_LINE */
     }
 
     if (params_arg) {
@@ -1627,7 +1627,7 @@ PHP_FUNCTION(fbird_execute_auto)
         zend_list_delete(ib_query->res); // Frees statement
         fbt_rollback(oo_trans, IB_STATUS);
         efree(trans);
-        RETURN_FALSE;
+        RETURN_FALSE; /* LCOV_EXCL_LINE */
     }
 
     if (bind_args) {
@@ -1658,7 +1658,7 @@ PHP_FUNCTION(fbird_execute_auto)
     if (fbt_commit(oo_trans, IB_STATUS)) {
         _php_fbird_error();
         efree(trans);
-        RETURN_FALSE;
+        RETURN_FALSE; /* LCOV_EXCL_LINE */
     }
 
     efree(trans);

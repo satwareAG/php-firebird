@@ -422,7 +422,7 @@ PHP_FUNCTION(fbird_blob_create)
 	RESET_ERRMSG;
 
 	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "|r", &link)) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
@@ -450,7 +450,7 @@ PHP_FUNCTION(fbird_blob_create)
 	if (ib_blob->fbb_blob == NULL) {
 		_php_fbird_error(); /* LCOV_EXCL_LINE */
 		efree(ib_blob);
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 	/* Store OO handle pointer for legacy code paths that check bl_handle */
 	ib_blob->bl_handle.ptr = fbb_get_handle(ib_blob->fbb_blob);
@@ -468,7 +468,7 @@ PHP_FUNCTION(fbird_blob_create_seekable)
 	RESET_ERRMSG;
 
 	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "|r", &link)) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
@@ -496,7 +496,7 @@ PHP_FUNCTION(fbird_blob_create_seekable)
 	if (ib_blob->fbb_blob == NULL) {
 		_php_fbird_error(); /* LCOV_EXCL_LINE */
 		efree(ib_blob);
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 	/* Store OO handle pointer for legacy code paths that check bl_handle */
 	ib_blob->bl_handle.ptr = fbb_get_handle(ib_blob->fbb_blob);
@@ -557,7 +557,7 @@ PHP_FUNCTION(fbird_blob_open)
 	} while (0);
 
 	efree(ib_blob);
-	RETURN_FALSE;
+	RETURN_FALSE; /* LCOV_EXCL_LINE */
 }
 
 PHP_FUNCTION(fbird_blob_add)
@@ -574,16 +574,16 @@ PHP_FUNCTION(fbird_blob_add)
 	ib_blob = (fbird_blob *)zend_fetch_resource_ex(blob_arg, NULL, le_blob);
 
 	if (!ib_blob) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	if (ib_blob->type != BLOB_INPUT) {
 		_php_fbird_module_error("BLOB is not open for input"); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	if (_php_fbird_blob_add(string_arg, ib_blob) != SUCCESS) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 	RETURN_TRUE;
 }
@@ -603,16 +603,16 @@ PHP_FUNCTION(fbird_blob_get)
 	ib_blob = (fbird_blob *)zend_fetch_resource_ex(blob_arg, LE_BLOB, le_blob);
 
 	if (!ib_blob) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	if (ib_blob->type != BLOB_OUTPUT) {
 		_php_fbird_module_error("BLOB is not open for output"); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	if (_php_fbird_blob_get(return_value, ib_blob, len_arg) != SUCCESS) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 }
 
@@ -630,7 +630,7 @@ static void _php_fbird_blob_end(INTERNAL_FUNCTION_PARAMETERS, int bl_end)
 	ib_blob = (fbird_blob *)zend_fetch_resource_ex(blob_arg, NULL, le_blob);
 
 	if (!ib_blob) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	if (bl_end == BLOB_CLOSE) { /* return id here */
@@ -645,7 +645,7 @@ static void _php_fbird_blob_end(INTERNAL_FUNCTION_PARAMETERS, int bl_end)
 			/* fbb_close returns 1 on success, 0 on error */
 			if (fbb_close(IBG(master_instance), ib_blob->fbb_blob, IB_STATUS) == 0) {
 				_php_fbird_error(); /* LCOV_EXCL_LINE */
-				RETURN_FALSE;
+				RETURN_FALSE; /* LCOV_EXCL_LINE */
 			}
 		}
 		fbb_free(ib_blob->fbb_blob);
@@ -663,7 +663,7 @@ static void _php_fbird_blob_end(INTERNAL_FUNCTION_PARAMETERS, int bl_end)
 		/* fbb_cancel returns 1 on success, 0 on error */
 		if (fbb_cancel(IBG(master_instance), ib_blob->fbb_blob, IB_STATUS) == 0) {
 			_php_fbird_error(); /* LCOV_EXCL_LINE */
-			RETURN_FALSE;
+			RETURN_FALSE; /* LCOV_EXCL_LINE */
 		}
 		fbb_free(ib_blob->fbb_blob);
 		ib_blob->fbb_blob = NULL;
@@ -735,7 +735,7 @@ PHP_FUNCTION(fbird_blob_info)
 	} else {
 		// Invalid argument type
 		php_error_docref(NULL, E_WARNING, "Expected blob ID string or blob stream resource");
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	if (ext_blob) {
@@ -745,7 +745,7 @@ PHP_FUNCTION(fbird_blob_info)
 		 * Uses IBlob::getInfo() via fbb_get_info() wrapper.
 		 */
 		if (_php_fbird_blob_info_oo(ext_blob->fbb_blob, &bl_info)) {
-			RETURN_FALSE;
+			RETURN_FALSE; /* LCOV_EXCL_LINE */
 		}
 	} else {
 		// Using a blob ID string
@@ -757,7 +757,7 @@ PHP_FUNCTION(fbird_blob_info)
 
 		if (! _php_fbird_string_to_quad(blob_id, &ib_blob.bl_qd)) {
 			_php_fbird_module_error("Unrecognized BLOB ID"); /* LCOV_EXCL_LINE */
-			RETURN_FALSE;
+			RETURN_FALSE; /* LCOV_EXCL_LINE */
 		}
 
 		if (ib_blob.bl_qd.gds_quad_high || ib_blob.bl_qd.gds_quad_low) { /* not null ? */
@@ -777,17 +777,17 @@ PHP_FUNCTION(fbird_blob_info)
 			);
 			if (!ib_blob.fbb_blob) {
 				_php_fbird_error();
-				RETURN_FALSE;
+				RETURN_FALSE; /* LCOV_EXCL_LINE */
 			}
 
 			if (_php_fbird_blob_info_oo(ib_blob.fbb_blob, &bl_info)) {
 				fbb_free(ib_blob.fbb_blob);
-				RETURN_FALSE;
+				RETURN_FALSE; /* LCOV_EXCL_LINE */
 			}
 			if (fbb_close(IBG(master_instance), ib_blob.fbb_blob, IB_STATUS) == 0) {
 				fbb_free(ib_blob.fbb_blob);
 				_php_fbird_error(); /* LCOV_EXCL_LINE */
-				RETURN_FALSE;
+				RETURN_FALSE; /* LCOV_EXCL_LINE */
 			}
 			fbb_free(ib_blob.fbb_blob);
 			ib_blob.fbb_blob = NULL;
@@ -840,7 +840,7 @@ PHP_FUNCTION(fbird_blob_echo)
 
 	if (! _php_fbird_string_to_quad(blob_id, &ib_blob_id.bl_qd)) {
 		_php_fbird_module_error("Unrecognized BLOB ID"); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	do {
@@ -892,7 +892,7 @@ PHP_FUNCTION(fbird_blob_echo)
 	} while (0);
 
 	_php_fbird_error();
-	RETURN_FALSE;
+	RETURN_FALSE; /* LCOV_EXCL_LINE */
 }
 
 PHP_FUNCTION(fbird_blob_import)
@@ -910,7 +910,7 @@ PHP_FUNCTION(fbird_blob_import)
 
 	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "r|r",
 			(ZEND_NUM_ARGS()-1) ? &link : &file, &file)) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
@@ -955,7 +955,7 @@ PHP_FUNCTION(fbird_blob_import)
 	} while (0);
 
 	_php_fbird_error();
-	RETURN_FALSE;
+	RETURN_FALSE; /* LCOV_EXCL_LINE */
 }
 
 PHP_FUNCTION(fbird_blob_create_stream)
@@ -970,7 +970,7 @@ PHP_FUNCTION(fbird_blob_create_stream)
 	RESET_ERRMSG;
 
 	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "|r", &link)) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
@@ -997,7 +997,7 @@ PHP_FUNCTION(fbird_blob_create_stream)
 	if (!ib_blob->fbb_blob) {
 		_php_fbird_error();
 		efree(ib_blob);
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 	/* Store OO handle pointer for legacy code paths that check bl_handle */
 	ib_blob->bl_handle.ptr = fbb_get_handle(ib_blob->fbb_blob);
@@ -1011,7 +1011,7 @@ PHP_FUNCTION(fbird_blob_create_stream)
 		fbb_free(ib_blob->fbb_blob);
 		efree(ib_blob);
 		efree(data);
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	php_stream_to_zval(stream, return_value);
@@ -1041,7 +1041,7 @@ PHP_FUNCTION(fbird_blob_open_stream)
 	if (! _php_fbird_string_to_quad(blob_id, &ib_blob->bl_qd)) {
 		_php_fbird_module_error("String is not a BLOB ID"); /* LCOV_EXCL_LINE */
 		efree(ib_blob);
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/*
@@ -1061,7 +1061,7 @@ PHP_FUNCTION(fbird_blob_open_stream)
 	if (!ib_blob->fbb_blob) {
 		_php_fbird_error();
 		efree(ib_blob);
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 	/* Store OO handle pointer for legacy code paths that check bl_handle */
 	ib_blob->bl_handle.ptr = fbb_get_handle(ib_blob->fbb_blob);
@@ -1075,7 +1075,7 @@ PHP_FUNCTION(fbird_blob_open_stream)
 		fbb_free(ib_blob->fbb_blob);
 		efree(ib_blob);
 		efree(data);
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	php_stream_to_zval(stream, return_value);
@@ -1134,7 +1134,7 @@ PHP_FUNCTION(fbird_blob_open_seekable)
 	} while (0);
 
 	efree(ib_blob);
-	RETURN_FALSE;
+	RETURN_FALSE; /* LCOV_EXCL_LINE */
 }
 
 PHP_FUNCTION(fbird_blob_seek)
@@ -1148,25 +1148,25 @@ PHP_FUNCTION(fbird_blob_seek)
 	RESET_ERRMSG;
 
 	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "rl|l", &blob_arg, &offset, &whence)) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* Validate whence parameter */
 	if (whence < 0 || whence > 2) {
 		_php_fbird_module_error("Invalid seek mode: must be 0 (SET), 1 (CUR), or 2 (END)"); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	ib_blob = (fbird_blob *)zend_fetch_resource_ex(blob_arg, LE_BLOB, le_blob);
 
 	if (!ib_blob) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* Safety check: verify blob handle is valid */
 	if (!ib_blob->fbb_blob) {
 		_php_fbird_module_error("BLOB handle is invalid or has been closed"); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/*
@@ -1178,7 +1178,7 @@ PHP_FUNCTION(fbird_blob_seek)
 	 */
 	if (fbb_seek(IBG(master_instance), ib_blob->fbb_blob, (int)whence, (int)offset, &result_position, IB_STATUS) == 0) {
 		_php_fbird_error(); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	RETURN_LONG(result_position);

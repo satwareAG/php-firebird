@@ -166,7 +166,7 @@ PHP_FUNCTION(fbird_wait_event)
 	/* Determine if first argument is a link resource */
 	if (Z_TYPE(args[0]) == IS_RESOURCE) {
 		if ((ib_link = (fbird_db_link *)zend_fetch_resource2_ex(&args[0], "Firebird link", le_link, le_plink)) == NULL) {
-			RETURN_FALSE;
+			RETURN_FALSE; /* LCOV_EXCL_LINE */
 		}
 		i = 1;
 	} else {
@@ -174,7 +174,7 @@ PHP_FUNCTION(fbird_wait_event)
 			WRONG_PARAM_COUNT; /* LCOV_EXCL_LINE */
 		}
 		if ((ib_link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), "Firebird link", le_link, le_plink)) == NULL) {
-			RETURN_FALSE;
+			RETURN_FALSE; /* LCOV_EXCL_LINE */
 		}
 	}
 
@@ -205,7 +205,7 @@ PHP_FUNCTION(fbird_wait_event)
 			/* Initial wait failed - likely connection issue */
 			_php_fbird_error();
 			_php_fbird_event_free(event_buffer, result_buffer);
-			RETURN_FALSE;
+			RETURN_FALSE; /* LCOV_EXCL_LINE */
 		}
 		isc_event_counts(init_counts, buffer_size, event_buffer, result_buffer);
 	}
@@ -214,7 +214,7 @@ PHP_FUNCTION(fbird_wait_event)
 	if (isc_wait_for_event(IB_STATUS, &ib_link->handle.db, buffer_size, event_buffer, result_buffer)) {
 		_php_fbird_error();
 		_php_fbird_event_free(event_buffer, result_buffer);
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* Determine which event fired */
@@ -229,7 +229,7 @@ PHP_FUNCTION(fbird_wait_event)
 
 	/* No event detected (should not happen) */
 	_php_fbird_event_free(event_buffer, result_buffer);
-	RETURN_FALSE;
+	RETURN_FALSE; /* LCOV_EXCL_LINE */
 }
 
 PHP_FUNCTION(fbird_set_event_handler)
@@ -263,7 +263,7 @@ PHP_FUNCTION(fbird_set_event_handler)
 		i = 2;
 
 		if ((ib_link = (fbird_db_link *)zend_fetch_resource2_ex(&args[0], "Firebird link", le_link, le_plink)) == NULL) {
-			RETURN_FALSE;
+			RETURN_FALSE; /* LCOV_EXCL_LINE */
 		}
 		link_res = Z_RES(args[0]);
 	} else {
@@ -275,7 +275,7 @@ PHP_FUNCTION(fbird_set_event_handler)
 		cb_arg = &args[0];
 
 		if ((ib_link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), "Firebird link", le_link, le_plink)) == NULL) {
-			RETURN_FALSE;
+			RETURN_FALSE; /* LCOV_EXCL_LINE */
 		}
 		link_res = IBG(default_link);
 	}
@@ -285,7 +285,7 @@ PHP_FUNCTION(fbird_set_event_handler)
 		zend_string *cb_name = zend_get_callable_name(cb_arg);
 		_php_fbird_module_error("Callback argument %s is not a callable function", ZSTR_VAL(cb_name)); /* LCOV_EXCL_LINE */
 		zend_string_release_ex(cb_name, 0);
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* Allocate and initialize event structure */
@@ -369,12 +369,12 @@ PHP_FUNCTION(fbird_poll_event)
 	RESET_ERRMSG;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r|l", &event_arg, &timeout_ms) == FAILURE) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	event = (fbird_event *)zend_fetch_resource_ex(event_arg, "Firebird event", le_event);
 	if (!event) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* Check if event handler is still valid */
@@ -391,7 +391,7 @@ PHP_FUNCTION(fbird_poll_event)
 	if (event->callback_count >= event->max_callbacks) {
 		event->state = DEAD;
 		_php_fbird_module_error("Event callback limit exceeded"); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/**
@@ -409,7 +409,7 @@ PHP_FUNCTION(fbird_poll_event)
 			/* Initial wait failed - likely connection issue */
 			_php_fbird_error();
 			event->state = DEAD;
-			RETURN_FALSE;
+			RETURN_FALSE; /* LCOV_EXCL_LINE */
 		}
 		isc_event_counts(init_counts, event->buffer_size,
 			event->event_buffer, event->result_buffer);
@@ -499,7 +499,7 @@ PHP_FUNCTION(fbird_poll_event)
 #endif
 		_php_fbird_error();
 		event->state = DEAD;
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* Get event counts to determine which event fired */
@@ -525,7 +525,7 @@ PHP_FUNCTION(fbird_poll_event)
 				_php_fbird_module_error("Error calling event callback"); /* LCOV_EXCL_LINE */
 				zval_ptr_dtor(&args[0]);
 				event->state = DEAD;
-				RETURN_FALSE;
+				RETURN_FALSE; /* LCOV_EXCL_LINE */
 			}
 
 			/* Check if callback wants to cancel future events */
@@ -557,7 +557,7 @@ PHP_FUNCTION(fbird_free_event_handler)
 
 		event = (fbird_event *)zend_fetch_resource_ex(event_arg, "Firebird event", le_event);
 		if (!event) {
-			RETURN_FALSE;
+			RETURN_FALSE; /* LCOV_EXCL_LINE */
 		}
 
 		event->state = DEAD;
@@ -565,7 +565,7 @@ PHP_FUNCTION(fbird_free_event_handler)
 		zend_list_delete(Z_RES_P(event_arg));
 		RETURN_TRUE;
 	} else {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 }
 

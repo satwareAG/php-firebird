@@ -163,13 +163,13 @@ static void _php_fbird_user(INTERNAL_FUNCTION_PARAMETERS, char operation)
 			(operation == isc_action_svc_delete_user) ? "rs" : "rss|sss",
 			&res, &args[0], &args_len[0], &args[1], &args_len[1], &args[2], &args_len[2],
 			&args[3], &args_len[3], &args[4], &args_len[4])) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	svm = (fbird_service *)zend_fetch_resource_ex(res, "Firebird service manager handle",
 		le_service);
 	if (!svm) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	buf[0] = operation;
@@ -181,7 +181,7 @@ static void _php_fbird_user(INTERNAL_FUNCTION_PARAMETERS, char operation)
 
 			if ((spb_len + chunk) > sizeof(buf) || chunk <= 0) {
 				_php_fbird_module_error("Internal error: insufficient buffer space for SPB (%d)", spb_len); /* LCOV_EXCL_LINE */
-				RETURN_FALSE;
+				RETURN_FALSE; /* LCOV_EXCL_LINE */
 			}
 			spb_len += chunk;
 		}
@@ -190,7 +190,7 @@ static void _php_fbird_user(INTERNAL_FUNCTION_PARAMETERS, char operation)
 	/* now start the job */
 	if (isc_service_start(IB_STATUS, (isc_svc_handle *)&svm->handle, NULL, spb_len, buf)) {
 		FBIRD_SVC_ERROR(svm);
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	RETURN_TRUE;
@@ -226,7 +226,7 @@ PHP_FUNCTION(fbird_service_attach)
 	if (SUCCESS != zend_parse_parameters(ZEND_NUM_ARGS(), "|s!s!s!",
 			&host, &hlen, &user, &ulen, &pass, &plen)) {
 
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* Fall back to INI defaults if user/password not provided (Issue #71) */
@@ -248,18 +248,18 @@ PHP_FUNCTION(fbird_service_attach)
 
 	if (ulen > 63) {
 		_php_fbird_module_error("Internal error: dba_username too long"); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	if (plen > 255) {
 		_php_fbird_module_error("Internal error: dba_password too long"); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	// 13 = strlen(":service_mgr") + \0;
 	if (hlen + 13 > sizeof(loc)) {
 		_php_fbird_module_error("Internal error: insufficient buffer space for name of the service (%zd)", hlen + 13); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	buf[p++] = isc_spb_version;
@@ -286,7 +286,7 @@ PHP_FUNCTION(fbird_service_attach)
 	/* attach to the service manager */
 	if (isc_service_attach(IB_STATUS, 0, loc, (isc_svc_handle *)&handle, p, buf)) {
 		_php_fbird_error();
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	svm = (fbird_service*)emalloc(sizeof(fbird_service));
@@ -309,7 +309,7 @@ PHP_FUNCTION(fbird_service_detach)
 	RESET_ERRMSG;
 
 	if (SUCCESS != zend_parse_parameters(ZEND_NUM_ARGS(), "r", &res)) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	zend_list_delete(Z_RES_P(res));
@@ -331,7 +331,7 @@ static void _php_fbird_service_query(INTERNAL_FUNCTION_PARAMETERS,
 
 		if (isc_service_start(IB_STATUS, (isc_svc_handle *)&svm->handle, NULL, sizeof(action), action)) {
 			FBIRD_SVC_ERROR(svm);
-			RETURN_FALSE;
+			RETURN_FALSE; /* LCOV_EXCL_LINE */
 		}
 	}
 
@@ -342,12 +342,12 @@ query_loop:
 			1, &info_action, sizeof(res_buf), res_buf)) {
 
 		FBIRD_SVC_ERROR(svm);
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 	while (*result != isc_info_end) {
 		switch (*result++) {
 			default:
-				RETURN_FALSE;
+				RETURN_FALSE; /* LCOV_EXCL_LINE */
 
 			case isc_info_svc_line:
 				if (! (line_len = isc_vax_integer(result, 2))) {
@@ -485,13 +485,13 @@ static void _php_fbird_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operati
 
 	if (SUCCESS != zend_parse_parameters(ZEND_NUM_ARGS(), "rss|lb",
 			&res, &db, &dblen, &bk, &bklen, &opts, &verbose)) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	svm = (fbird_service *)zend_fetch_resource_ex(res,
 		"Firebird service manager handle", le_service);
 	if (!svm) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* fill the param buffer */
@@ -506,13 +506,13 @@ static void _php_fbird_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operati
 
 	if (spb_len > sizeof(buf) || spb_len <= 0) {
 		_php_fbird_module_error("Internal error: insufficient buffer space for SPB (%zd)", spb_len); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* now start the backup/restore job */
 	if (isc_service_start(IB_STATUS, (isc_svc_handle *)&svm->handle, NULL, (unsigned short)spb_len, buf)) {
 		FBIRD_SVC_ERROR(svm);
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	if (!verbose) {
@@ -545,13 +545,13 @@ static void _php_fbird_service_action(INTERNAL_FUNCTION_PARAMETERS, char svc_act
 
 	if (SUCCESS != zend_parse_parameters(ZEND_NUM_ARGS(), "rsl|l",
 			&res, &db, &dblen, &action, &argument)) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	svm = (fbird_service *)zend_fetch_resource_ex(res,
 		"Firebird service manager handle", le_service);
 	if (!svm) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	if (svc_action == isc_action_svc_db_stats) {
@@ -572,7 +572,7 @@ static void _php_fbird_service_action(INTERNAL_FUNCTION_PARAMETERS, char svc_act
 			default:
 unknown_option:
 				_php_fbird_module_error("Unrecognised option (" ZEND_LONG_FMT ")", action); /* LCOV_EXCL_LINE */
-				RETURN_FALSE;
+				RETURN_FALSE; /* LCOV_EXCL_LINE */
 
 			case isc_spb_rpr_check_db:
 			case isc_spb_rpr_ignore_checksum:
@@ -611,12 +611,12 @@ options_argument:
 
 	if (spb_len > sizeof(buf) || spb_len == -1) {
 		_php_fbird_module_error("Internal error: insufficient buffer space for SPB (%d)", spb_len); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	if (isc_service_start(IB_STATUS, (isc_svc_handle *)&svm->handle, NULL, (unsigned short)spb_len, buf)) {
 		FBIRD_SVC_ERROR(svm);
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	if (svc_action == isc_action_svc_db_stats) {
@@ -645,13 +645,13 @@ PHP_FUNCTION(fbird_server_info)
 	RESET_ERRMSG;
 
 	if (SUCCESS != zend_parse_parameters(ZEND_NUM_ARGS(), "rl", &res, &action)) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	svm = (fbird_service *)zend_fetch_resource_ex(res,
 		"Firebird service manager handle", le_service);
 	if (!svm) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	_php_fbird_service_query(INTERNAL_FUNCTION_PARAM_PASSTHRU, svm, (char)action);

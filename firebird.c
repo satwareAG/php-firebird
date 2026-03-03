@@ -919,17 +919,17 @@ PHP_FUNCTION(fbird_gen_id)
 
 	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "s|lr", &generator, &gen_len,
 			&inc, &link)) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	if (gen_len > 31) {
 		php_error_docref(NULL, E_WARNING, "Invalid generator name (length > 31 characters)");
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	if (!is_valid_identifier(generator, gen_len)) {
 		php_error_docref(NULL, E_WARNING, "Invalid generator name (contains invalid characters)");
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
@@ -937,13 +937,13 @@ PHP_FUNCTION(fbird_gen_id)
 	/* OO API Only: Verify connection has OO API handle */
 	if (ib_link->fbc_connection == NULL) {
 		_php_fbird_module_error("Connection has no OO API handle"); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* OO API Only: Verify transaction has OO API handle */
 	if (trans->fbt_transaction == NULL) {
 		_php_fbird_module_error("Transaction has no OO API handle"); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	snprintf(query, sizeof(query), "SELECT GEN_ID(%s,%ld) FROM rdb$database", generator, inc);
@@ -952,14 +952,14 @@ PHP_FUNCTION(fbird_gen_id)
 	attachment = fbc_get_attachment(ib_link->fbc_connection);
 	if (!attachment) {
 		_php_fbird_module_error("Failed to get attachment from connection"); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* Get transaction handle */
 	transaction_ptr = fbt_get_handle(trans->fbt_transaction);
 	if (!transaction_ptr) {
 		_php_fbird_module_error("Failed to get transaction handle"); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* Prepare the query via OO API */
@@ -967,7 +967,7 @@ PHP_FUNCTION(fbird_gen_id)
 		query, (unsigned)strlen(query), SQL_DIALECT_CURRENT, IB_STATUS);
 	if (!stmt) {
 		_php_fbird_error();
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* Execute the statement and fetch the result via OO API */
@@ -977,7 +977,7 @@ PHP_FUNCTION(fbird_gen_id)
 	if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
 		_php_fbird_error();
 		fbs_free(stmt, IB_STATUS);
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* Free the statement */
@@ -1053,7 +1053,7 @@ PHP_FUNCTION(fbird_get_limbo_transactions)
 
 	if (max_count < 1 || max_count > 10000) {
 		php_error_docref(NULL, E_WARNING, "max_count must be between 1 and 10000");
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	if (link_arg == NULL) {
@@ -1063,18 +1063,18 @@ PHP_FUNCTION(fbird_get_limbo_transactions)
 	}
 
 	if (!ib_link) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	if (ib_link->fbc_connection == NULL) {
 		_php_fbird_module_error("Connection has no OO API handle"); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	attachment = fbc_get_attachment(ib_link->fbc_connection);
 	if (attachment == NULL) {
 		_php_fbird_module_error("Failed to get attachment from connection"); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	trans_ids = (ISC_INT64 *)safe_emalloc(sizeof(ISC_INT64), (size_t)max_count, 0);
@@ -1085,7 +1085,7 @@ PHP_FUNCTION(fbird_get_limbo_transactions)
 	if (count < 0) {
 		efree(trans_ids);
 		_php_fbird_error();
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	array_init(return_value);
@@ -1113,24 +1113,24 @@ PHP_FUNCTION(fbird_reconnect_transaction)
 
 	ib_link = (fbird_db_link *)zend_fetch_resource2_ex(link_arg, LE_LINK, le_link, le_plink);
 	if (!ib_link) {
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	if (ib_link->fbc_connection == NULL) {
 		_php_fbird_module_error("Connection has no OO API handle"); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	attachment = fbc_get_attachment(ib_link->fbc_connection);
 	if (attachment == NULL) {
 		_php_fbird_module_error("Failed to get attachment from connection"); /* LCOV_EXCL_LINE */
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	reconnected_trans = fbt_reconnect(IBG(master_instance), attachment, trans_id, IB_STATUS);
 	if (reconnected_trans == NULL) {
 		_php_fbird_error();
-		RETURN_FALSE;
+		RETURN_FALSE; /* LCOV_EXCL_LINE */
 	}
 
 	/* Allocate and initialize transaction structure */

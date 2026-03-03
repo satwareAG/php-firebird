@@ -440,6 +440,21 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_batch_get_blob_alignment, 0, 0, 1)
 	ZEND_ARG_INFO(0, batch)
 ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_batch_append_blob_data, 0, 0, 2)
+	ZEND_ARG_INFO(0, batch)
+	ZEND_ARG_TYPE_INFO(0, data, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_batch_add_blob_stream, 0, 0, 2)
+	ZEND_ARG_INFO(0, batch)
+	ZEND_ARG_TYPE_INFO(0, data, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_batch_set_default_bpb, 0, 0, 2)
+	ZEND_ARG_INFO(0, batch)
+	ZEND_ARG_TYPE_INFO(0, bpb, IS_STRING, 0)
+ZEND_END_ARG_INFO()
 #endif /* FB_API_VER >= 40 */
 
 static const zend_function_entry fbird_functions[] = {
@@ -541,6 +556,9 @@ static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_batch_add_blob, arginfo_fbird_batch_add_blob)
 	PHP_FE(fbird_batch_register_blob, arginfo_fbird_batch_register_blob)
 	PHP_FE(fbird_batch_get_blob_alignment, arginfo_fbird_batch_get_blob_alignment)
+	PHP_FE(fbird_batch_append_blob_data, arginfo_fbird_batch_append_blob_data)
+	PHP_FE(fbird_batch_add_blob_stream, arginfo_fbird_batch_add_blob_stream)
+	PHP_FE(fbird_batch_set_default_bpb, arginfo_fbird_batch_set_default_bpb)
 #endif /* FB_API_VER >= 40 */
 
 	PHP_FE_END

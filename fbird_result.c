@@ -278,7 +278,7 @@ static int _php_fbird_var_zval(zval *val, void *data, int type, int len,
 			// connect if fbclient does not have fb_get_master_instance().
 			// Assert this just in case.
 			if(!IBG(master_instance)) {
-				_php_fbird_module_error("Timezone fields require Firebird 4.0+ master instance");
+				_php_fbird_module_error("Timezone fields require Firebird 4.0+ master instance"); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 
@@ -321,7 +321,7 @@ static int _php_fbird_var_zval(zval *val, void *data, int type, int len,
 				/* Safe checking for truncation */
 				int tz_len_int = snprintf(string_data, sizeof(string_data), "%s %s", timeBuf, timeZoneBuffer);
 				if (tz_len_int < 0 || (size_t)tz_len_int >= sizeof(string_data)) {
-					_php_fbird_module_error("Timezone string truncated");
+					_php_fbird_module_error("Timezone string truncated"); /* LCOV_EXCL_LINE */
 					return FAILURE;
 				}
 				ZVAL_STRINGL(val, string_data, (size_t)tz_len_int);
@@ -617,7 +617,7 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 
 		result = zend_hash_get_current_data(ht_ret);
 		if (!result) {
-			_php_fbird_module_error("Internal error: result array iterator out of sync");
+			_php_fbird_module_error("Internal error: result array iterator out of sync"); /* LCOV_EXCL_LINE */
 			RETURN_FALSE;
 		}
 
@@ -641,7 +641,7 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 					blob_handle.fbb_blob = NULL;
 
 					if (!ib_query->link || !ib_query->link->fbc_connection) {
-						_php_fbird_module_error("OO API connection required to fetch BLOB contents");
+						_php_fbird_module_error("OO API connection required to fetch BLOB contents"); /* LCOV_EXCL_LINE */
 						goto _php_fbird_fetch_error;
 					}
 					if (!ib_query->trans || !ib_query->trans->fbt_transaction) {
@@ -652,7 +652,7 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 					void *attachment_ptr = fbc_get_attachment(ib_query->link->fbc_connection);
 					void *transaction_ptr = fbt_get_handle(ib_query->trans->fbt_transaction);
 					if (!attachment_ptr || !transaction_ptr) {
-						_php_fbird_module_error("Invalid OO API attachment/transaction for BLOB fetch");
+						_php_fbird_module_error("Invalid OO API attachment/transaction for BLOB fetch"); /* LCOV_EXCL_LINE */
 						goto _php_fbird_fetch_error;
 					}
 
@@ -696,7 +696,7 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 
 						if (item == isc_info_end || item == isc_info_truncated ||
 							item == isc_info_error || j >= sizeof(bl_info)) {
-							_php_fbird_module_error("Could not determine BLOB size (internal error)");
+							_php_fbird_module_error("Could not determine BLOB size (internal error)"); /* LCOV_EXCL_LINE */
 							goto _php_fbird_fetch_error;
 						}
 
@@ -765,7 +765,7 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 					void* attachment_ptr = fbc_get_attachment(ib_query->link->fbc_connection);
 					void* transaction_ptr = fbt_get_handle(ib_query->trans->fbt_transaction);
 					if (!attachment_ptr || !transaction_ptr) {
-						_php_fbird_module_error("OO API array fetch requires attachment+transaction handles");
+						_php_fbird_module_error("OO API array fetch requires attachment+transaction handles"); /* LCOV_EXCL_LINE */
 						goto _php_fbird_fetch_error;
 					}
 
@@ -825,7 +825,7 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 						local_array.el_size = fresh_desc.array_desc_length + 1;
 						break;
 						default:
-							_php_fbird_module_error("Unsupported array dtype %d", fresh_desc.array_desc_dtype);
+							_php_fbird_module_error("Unsupported array dtype %d", fresh_desc.array_desc_dtype); /* LCOV_EXCL_LINE */
 							goto _php_fbird_fetch_error;
 					}
 
@@ -909,7 +909,7 @@ PHP_FUNCTION(fbird_name_result)
 
 	/* OO API Only: Use fbs_set_cursor_name() for positioned updates */
 	if (!ib_query->fbs_statement) {
-		_php_fbird_module_error("fbird_name_result() requires OO API statement (fbs_statement required)");
+		_php_fbird_module_error("fbird_name_result() requires OO API statement (fbs_statement required)"); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 

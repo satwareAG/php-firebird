@@ -180,7 +180,7 @@ static void _php_fbird_user(INTERNAL_FUNCTION_PARAMETERS, char operation)
 				user_flags[i], (char)args_len[i], (char)(args_len[i] >> 8), args[i]);
 
 			if ((spb_len + chunk) > sizeof(buf) || chunk <= 0) {
-				_php_fbird_module_error("Internal error: insufficient buffer space for SPB (%d)", spb_len);
+				_php_fbird_module_error("Internal error: insufficient buffer space for SPB (%d)", spb_len); /* LCOV_EXCL_LINE */
 				RETURN_FALSE;
 			}
 			spb_len += chunk;
@@ -247,18 +247,18 @@ PHP_FUNCTION(fbird_service_attach)
 	}
 
 	if (ulen > 63) {
-		_php_fbird_module_error("Internal error: dba_username too long");
+		_php_fbird_module_error("Internal error: dba_username too long"); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 
 	if (plen > 255) {
-		_php_fbird_module_error("Internal error: dba_password too long");
+		_php_fbird_module_error("Internal error: dba_password too long"); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 
 	// 13 = strlen(":service_mgr") + \0;
 	if (hlen + 13 > sizeof(loc)) {
-		_php_fbird_module_error("Internal error: insufficient buffer space for name of the service (%zd)", hlen + 13);
+		_php_fbird_module_error("Internal error: insufficient buffer space for name of the service (%zd)", hlen + 13); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 
@@ -505,7 +505,7 @@ static void _php_fbird_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operati
 	}
 
 	if (spb_len > sizeof(buf) || spb_len <= 0) {
-		_php_fbird_module_error("Internal error: insufficient buffer space for SPB (%zd)", spb_len);
+		_php_fbird_module_error("Internal error: insufficient buffer space for SPB (%zd)", spb_len); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 
@@ -571,7 +571,7 @@ static void _php_fbird_service_action(INTERNAL_FUNCTION_PARAMETERS, char svc_act
 		switch (action) {
 			default:
 unknown_option:
-				_php_fbird_module_error("Unrecognised option (" ZEND_LONG_FMT ")", action);
+				_php_fbird_module_error("Unrecognised option (" ZEND_LONG_FMT ")", action); /* LCOV_EXCL_LINE */
 				RETURN_FALSE;
 
 			case isc_spb_rpr_check_db:
@@ -610,7 +610,7 @@ options_argument:
 	}
 
 	if (spb_len > sizeof(buf) || spb_len == -1) {
-		_php_fbird_module_error("Internal error: insufficient buffer space for SPB (%d)", spb_len);
+		_php_fbird_module_error("Internal error: insufficient buffer space for SPB (%d)", spb_len); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 

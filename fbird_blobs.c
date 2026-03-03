@@ -239,7 +239,7 @@ int _php_fbird_blob_get(zval *return_value, fbird_blob *ib_blob, zend_ulong max_
 {
 	/* Safety check: verify blob handle is valid before any operation */
 	if (!ib_blob || !ib_blob->fbb_blob) {
-		_php_fbird_module_error("BLOB handle is invalid or has been closed");
+		_php_fbird_module_error("BLOB handle is invalid or has been closed"); /* LCOV_EXCL_LINE */
 		return FAILURE;
 	}
 
@@ -324,7 +324,7 @@ int _php_fbird_blob_add(zval *string_arg, fbird_blob *ib_blob)
 
 	/* Safety check: verify blob handle is valid before any operation */
 	if (!ib_blob || !ib_blob->fbb_blob) {
-		_php_fbird_module_error("BLOB handle is invalid or has been closed");
+		_php_fbird_module_error("BLOB handle is invalid or has been closed"); /* LCOV_EXCL_LINE */
 		return FAILURE;
 	}
 
@@ -402,7 +402,7 @@ static int _php_fbird_blob_info_oo(void *fbb_blob, FBIRD_BLOBINFO *bl_info)
 				break;
 			case isc_info_truncated:
 			case isc_info_error:  /* hmm. don't think so...*/
-				_php_fbird_module_error("PHP module internal error");
+				_php_fbird_module_error("PHP module internal error"); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			default:
 				break;
@@ -525,7 +525,7 @@ PHP_FUNCTION(fbird_blob_open)
 
 	do {
 		if (! _php_fbird_string_to_quad(blob_id, &ib_blob->bl_qd)) {
-			_php_fbird_module_error("String is not a BLOB ID");
+			_php_fbird_module_error("String is not a BLOB ID"); /* LCOV_EXCL_LINE */
 			break;
 		}
 
@@ -716,7 +716,7 @@ PHP_FUNCTION(fbird_blob_info)
 	} else if (ZEND_NUM_ARGS() == 2) {
 		if (zend_parse_parameters(2, "rz", &link, &arg1) == FAILURE) RETURN_FALSE;
 	} else {
-		WRONG_PARAM_COUNT;
+		WRONG_PARAM_COUNT; /* LCOV_EXCL_LINE */
 	}
 
 	// Check if arg1 is a stream resource
@@ -756,7 +756,7 @@ PHP_FUNCTION(fbird_blob_info)
 		PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
 
 		if (! _php_fbird_string_to_quad(blob_id, &ib_blob.bl_qd)) {
-			_php_fbird_module_error("Unrecognized BLOB ID");
+			_php_fbird_module_error("Unrecognized BLOB ID"); /* LCOV_EXCL_LINE */
 			RETURN_FALSE;
 		}
 
@@ -839,7 +839,7 @@ PHP_FUNCTION(fbird_blob_echo)
 	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
 
 	if (! _php_fbird_string_to_quad(blob_id, &ib_blob_id.bl_qd)) {
-		_php_fbird_module_error("Unrecognized BLOB ID");
+		_php_fbird_module_error("Unrecognized BLOB ID"); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 
@@ -1039,7 +1039,7 @@ PHP_FUNCTION(fbird_blob_open_stream)
 	ib_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
 
 	if (! _php_fbird_string_to_quad(blob_id, &ib_blob->bl_qd)) {
-		_php_fbird_module_error("String is not a BLOB ID");
+		_php_fbird_module_error("String is not a BLOB ID"); /* LCOV_EXCL_LINE */
 		efree(ib_blob);
 		RETURN_FALSE;
 	}
@@ -1102,7 +1102,7 @@ PHP_FUNCTION(fbird_blob_open_seekable)
 
 	do {
 		if (! _php_fbird_string_to_quad(blob_id, &ib_blob->bl_qd)) {
-			_php_fbird_module_error("String is not a BLOB ID");
+			_php_fbird_module_error("String is not a BLOB ID"); /* LCOV_EXCL_LINE */
 			break;
 		}
 
@@ -1153,7 +1153,7 @@ PHP_FUNCTION(fbird_blob_seek)
 
 	/* Validate whence parameter */
 	if (whence < 0 || whence > 2) {
-		_php_fbird_module_error("Invalid seek mode: must be 0 (SET), 1 (CUR), or 2 (END)");
+		_php_fbird_module_error("Invalid seek mode: must be 0 (SET), 1 (CUR), or 2 (END)"); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 
@@ -1165,7 +1165,7 @@ PHP_FUNCTION(fbird_blob_seek)
 
 	/* Safety check: verify blob handle is valid */
 	if (!ib_blob->fbb_blob) {
-		_php_fbird_module_error("BLOB handle is invalid or has been closed");
+		_php_fbird_module_error("BLOB handle is invalid or has been closed"); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 

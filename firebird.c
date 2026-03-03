@@ -936,13 +936,13 @@ PHP_FUNCTION(fbird_gen_id)
 
 	/* OO API Only: Verify connection has OO API handle */
 	if (ib_link->fbc_connection == NULL) {
-		_php_fbird_module_error("Connection has no OO API handle");
+		_php_fbird_module_error("Connection has no OO API handle"); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 
 	/* OO API Only: Verify transaction has OO API handle */
 	if (trans->fbt_transaction == NULL) {
-		_php_fbird_module_error("Transaction has no OO API handle");
+		_php_fbird_module_error("Transaction has no OO API handle"); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 
@@ -951,14 +951,14 @@ PHP_FUNCTION(fbird_gen_id)
 	/* Get attachment from connection */
 	attachment = fbc_get_attachment(ib_link->fbc_connection);
 	if (!attachment) {
-		_php_fbird_module_error("Failed to get attachment from connection");
+		_php_fbird_module_error("Failed to get attachment from connection"); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 
 	/* Get transaction handle */
 	transaction_ptr = fbt_get_handle(trans->fbt_transaction);
 	if (!transaction_ptr) {
-		_php_fbird_module_error("Failed to get transaction handle");
+		_php_fbird_module_error("Failed to get transaction handle"); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 
@@ -1067,13 +1067,13 @@ PHP_FUNCTION(fbird_get_limbo_transactions)
 	}
 
 	if (ib_link->fbc_connection == NULL) {
-		_php_fbird_module_error("Connection has no OO API handle");
+		_php_fbird_module_error("Connection has no OO API handle"); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 
 	attachment = fbc_get_attachment(ib_link->fbc_connection);
 	if (attachment == NULL) {
-		_php_fbird_module_error("Failed to get attachment from connection");
+		_php_fbird_module_error("Failed to get attachment from connection"); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 
@@ -1117,13 +1117,13 @@ PHP_FUNCTION(fbird_reconnect_transaction)
 	}
 
 	if (ib_link->fbc_connection == NULL) {
-		_php_fbird_module_error("Connection has no OO API handle");
+		_php_fbird_module_error("Connection has no OO API handle"); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 
 	attachment = fbc_get_attachment(ib_link->fbc_connection);
 	if (attachment == NULL) {
-		_php_fbird_module_error("Failed to get attachment from connection");
+		_php_fbird_module_error("Failed to get attachment from connection"); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 

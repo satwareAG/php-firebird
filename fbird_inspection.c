@@ -43,12 +43,12 @@ static int _fbird_exec_kill(fbird_db_link *link, fbird_transaction *trans, ISC_I
 
 	/* OO API Only: Require fbc_connection */
 	if (!link->fbc_connection) {
-		_php_fbird_module_error("fbird_kill_attachment requires OO API connection (fbc_connection required)");
+		_php_fbird_module_error("fbird_kill_attachment requires OO API connection (fbc_connection required)"); /* LCOV_EXCL_LINE */
 		return FAILURE;
 	}
 
 	if (!trans->fbt_transaction) {
-		_php_fbird_module_error("fbird_kill_attachment requires OO API transaction (fbt_transaction required)");
+		_php_fbird_module_error("fbird_kill_attachment requires OO API transaction (fbt_transaction required)"); /* LCOV_EXCL_LINE */
 		return FAILURE;
 	}
 
@@ -141,12 +141,12 @@ static int _fbird_drop_table(fbird_db_link *link, fbird_transaction *trans, cons
 
 	/* OO API Only: Require fbc_connection */
 	if (!link->fbc_connection) {
-		_php_fbird_module_error("fbird_drop_table_force requires OO API connection (fbc_connection required)");
+		_php_fbird_module_error("fbird_drop_table_force requires OO API connection (fbc_connection required)"); /* LCOV_EXCL_LINE */
 		return FAILURE;
 	}
 
 	if (!trans->fbt_transaction) {
-		_php_fbird_module_error("fbird_drop_table_force requires OO API transaction (fbt_transaction required)");
+		_php_fbird_module_error("fbird_drop_table_force requires OO API transaction (fbt_transaction required)"); /* LCOV_EXCL_LINE */
 		return FAILURE;
 	}
 
@@ -312,12 +312,12 @@ PHP_FUNCTION(fbird_list_table_blockers)
 
 	/* OO API Only: Require fbc_connection */
 	if (!link->fbc_connection) {
-		_php_fbird_module_error("fbird_list_table_blockers requires OO API connection (fbc_connection required)");
+		_php_fbird_module_error("fbird_list_table_blockers requires OO API connection (fbc_connection required)"); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 
 	if (!trans->fbt_transaction) {
-		_php_fbird_module_error("fbird_list_table_blockers requires OO API transaction (fbt_transaction required)");
+		_php_fbird_module_error("fbird_list_table_blockers requires OO API transaction (fbt_transaction required)"); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 

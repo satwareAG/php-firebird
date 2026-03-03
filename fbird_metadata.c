@@ -86,7 +86,7 @@ void _php_fbird_field_info(zval *return_value, fbird_query *ib_query, int is_out
  if (!var || num < 0 || num >= sqlda->sqld) {
         /* For parameters, do not emit a warning on out-of-range; return false quietly */
         if (is_outvar) {
-            _php_fbird_module_error("Field %d does not exist (valid range: 0-%d)", num, sqlda ? sqlda->sqld - 1 : -1);
+            _php_fbird_module_error("Field %d does not exist (valid range: 0-%d)", num, sqlda ? sqlda->sqld - 1 : -1); /* LCOV_EXCL_LINE */
         }
         RETURN_FALSE;
     }

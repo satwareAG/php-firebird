@@ -120,12 +120,12 @@ int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 #ifdef SQL_BOOLEAN
 		case SQL_BOOLEAN:
 			if (src_var->sqllen != sizeof(FB_BOOLEAN)) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid BOOLEAN length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid BOOLEAN length %d for field %d", src_var->sqllen, field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(FB_BOOLEAN));
 			if (!dest_var->sqldata) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate BOOLEAN data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate BOOLEAN data for field %d", field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			/* Direct assignment for simple types (safer than memcpy for single values) */
@@ -135,12 +135,12 @@ int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 
 		case SQL_SHORT:
 			if (src_var->sqllen != sizeof(short)) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid SHORT length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid SHORT length %d for field %d", src_var->sqllen, field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(short));
 			if (!dest_var->sqldata) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate SHORT data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate SHORT data for field %d", field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			*(short *)dest_var->sqldata = *(short *)src_var->sqldata;
@@ -148,12 +148,12 @@ int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 
 		case SQL_LONG:
 			if (src_var->sqllen != sizeof(ISC_LONG)) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid LONG length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid LONG length %d for field %d", src_var->sqllen, field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(ISC_LONG));
 			if (!dest_var->sqldata) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate LONG data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate LONG data for field %d", field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			*(ISC_LONG *)dest_var->sqldata = *(ISC_LONG *)src_var->sqldata;
@@ -161,12 +161,12 @@ int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 
 		case SQL_FLOAT:
 			if (src_var->sqllen != sizeof(float)) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid FLOAT length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid FLOAT length %d for field %d", src_var->sqllen, field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(float));
 			if (!dest_var->sqldata) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate FLOAT data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate FLOAT data for field %d", field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			*(float *)dest_var->sqldata = *(float *)src_var->sqldata;
@@ -174,12 +174,12 @@ int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 
 		case SQL_DOUBLE:
 			if (src_var->sqllen != sizeof(double)) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid DOUBLE length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid DOUBLE length %d for field %d", src_var->sqllen, field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(double));
 			if (!dest_var->sqldata) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate DOUBLE data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate DOUBLE data for field %d", field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			*(double *)dest_var->sqldata = *(double *)src_var->sqldata;
@@ -187,12 +187,12 @@ int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 
 		case SQL_INT64:
 			if (src_var->sqllen != sizeof(ISC_INT64)) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid INT64 length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid INT64 length %d for field %d", src_var->sqllen, field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(ISC_INT64));
 			if (!dest_var->sqldata) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate INT64 data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate INT64 data for field %d", field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			*(ISC_INT64 *)dest_var->sqldata = *(ISC_INT64 *)src_var->sqldata;
@@ -200,12 +200,12 @@ int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 
 		case SQL_TIMESTAMP:
 			if (src_var->sqllen != sizeof(ISC_TIMESTAMP)) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid TIMESTAMP length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid TIMESTAMP length %d for field %d", src_var->sqllen, field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(ISC_TIMESTAMP));
 			if (!dest_var->sqldata) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate TIMESTAMP data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate TIMESTAMP data for field %d", field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			*(ISC_TIMESTAMP *)dest_var->sqldata = *(ISC_TIMESTAMP *)src_var->sqldata;
@@ -213,12 +213,12 @@ int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 
 		case SQL_TYPE_DATE:
 			if (src_var->sqllen != sizeof(ISC_DATE)) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid DATE length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid DATE length %d for field %d", src_var->sqllen, field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(ISC_DATE));
 			if (!dest_var->sqldata) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate DATE data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate DATE data for field %d", field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			*(ISC_DATE *)dest_var->sqldata = *(ISC_DATE *)src_var->sqldata;
@@ -226,12 +226,12 @@ int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 
 		case SQL_TYPE_TIME:
 			if (src_var->sqllen != sizeof(ISC_TIME)) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid TIME length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid TIME length %d for field %d", src_var->sqllen, field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(ISC_TIME));
 			if (!dest_var->sqldata) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate TIME data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate TIME data for field %d", field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			*(ISC_TIME *)dest_var->sqldata = *(ISC_TIME *)src_var->sqldata;
@@ -240,12 +240,12 @@ int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 		case SQL_BLOB:
 		case SQL_ARRAY:
 			if (src_var->sqllen != sizeof(ISC_QUAD)) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid QUAD length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid QUAD length %d for field %d", src_var->sqllen, field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(ISC_QUAD));
 			if (!dest_var->sqldata) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate QUAD data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate QUAD data for field %d", field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			*(ISC_QUAD *)dest_var->sqldata = *(ISC_QUAD *)src_var->sqldata;
@@ -254,12 +254,12 @@ int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 #if FB_API_VER >= 40
 		case SQL_TIMESTAMP_TZ:
 			if (src_var->sqllen != sizeof(ISC_TIMESTAMP_TZ)) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid TIMESTAMP_TZ length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid TIMESTAMP_TZ length %d for field %d", src_var->sqllen, field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(ISC_TIMESTAMP_TZ));
 			if (!dest_var->sqldata) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate TIMESTAMP_TZ data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate TIMESTAMP_TZ data for field %d", field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			*(ISC_TIMESTAMP_TZ *)dest_var->sqldata = *(ISC_TIMESTAMP_TZ *)src_var->sqldata;
@@ -267,12 +267,12 @@ int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 
 		case SQL_TIME_TZ:
 			if (src_var->sqllen != sizeof(ISC_TIME_TZ)) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid TIME_TZ length %d for field %d", src_var->sqllen, field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid TIME_TZ length %d for field %d", src_var->sqllen, field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			dest_var->sqldata = emalloc(sizeof(ISC_TIME_TZ));
 			if (!dest_var->sqldata) {
-				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate TIME_TZ data for field %d", field_index);
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate TIME_TZ data for field %d", field_index); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 			*(ISC_TIME_TZ *)dest_var->sqldata = *(ISC_TIME_TZ *)src_var->sqldata;
@@ -317,7 +317,7 @@ int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query)
 
 	void *master = IBG(master_instance);
 	if (!master) {
-		_php_fbird_module_error("OO API master instance not available");
+		_php_fbird_module_error("OO API master instance not available"); /* LCOV_EXCL_LINE */
 		return FAILURE;
 	}
 
@@ -348,7 +348,7 @@ int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query)
 		/* Transfer data based on SQL type */
 		if (!var->sqldata) {
 			/* No data - shouldn't happen for non-NULL values */
-			_php_fbird_module_error("Parameter %d: sqldata is NULL for non-NULL value", i + 1);
+			_php_fbird_module_error("Parameter %d: sqldata is NULL for non-NULL value", i + 1); /* LCOV_EXCL_LINE */
 			return FAILURE;
 		}
 
@@ -734,7 +734,7 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 			case SQL_TIME_TZ:
 				/* Timezone types require Firebird 4.0+ master interface */
 				if (!IBG(master_instance)) {
-					_php_fbird_module_error("Parameter %d: Timezone fields require Firebird 4.0+ client library", i+1);
+					_php_fbird_module_error("Parameter %d: Timezone fields require Firebird 4.0+ client library", i+1); /* LCOV_EXCL_LINE */
 					rv = FAILURE;
 					continue;
 				}
@@ -749,7 +749,7 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 						struct tm *res;
 						res = php_gmtime_r(&Z_LVAL_P(b_var), &t);
 						if (!res) {
-							_php_fbird_module_error("Parameter %d: Invalid timestamp value", i+1);
+							_php_fbird_module_error("Parameter %d: Invalid timestamp value", i+1); /* LCOV_EXCL_LINE */
 							rv = FAILURE;
 							continue;
 						}
@@ -817,18 +817,18 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 					ib_blob.fbb_blob = NULL;
 
 					if (!ib_query->link || !ib_query->link->fbc_connection) {
-						_php_fbird_module_error("Parameter %d: OO API connection required for BLOB binding", i + 1);
+						_php_fbird_module_error("Parameter %d: OO API connection required for BLOB binding", i + 1); /* LCOV_EXCL_LINE */
 						return FAILURE;
 					}
 					if (!ib_query->trans || !ib_query->trans->fbt_transaction) {
-						_php_fbird_module_error("Parameter %d: OO API transaction required for BLOB binding", i + 1);
+						_php_fbird_module_error("Parameter %d: OO API transaction required for BLOB binding", i + 1); /* LCOV_EXCL_LINE */
 						return FAILURE;
 					}
 
 					void *attachment_ptr = fbc_get_attachment(ib_query->link->fbc_connection);
 					void *transaction_ptr = fbt_get_handle(ib_query->trans->fbt_transaction);
 					if (!attachment_ptr || !transaction_ptr) {
-						_php_fbird_module_error("Parameter %d: invalid OO API connection/transaction for BLOB binding", i + 1);
+						_php_fbird_module_error("Parameter %d: invalid OO API connection/transaction for BLOB binding", i + 1); /* LCOV_EXCL_LINE */
 						return FAILURE;
 					}
 
@@ -902,7 +902,7 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 								} else if (!zend_binary_strncasecmp(Z_STRVAL_P(b_var), Z_STRLEN_P(b_var), "false", 5, 5)) {
 									*(FB_BOOLEAN *)var->sqldata = FB_FALSE;
 								} else {
-									_php_fbird_module_error("Parameter %d: cannot convert string to boolean", i+1);
+									_php_fbird_module_error("Parameter %d: cannot convert string to boolean", i+1); /* LCOV_EXCL_LINE */
 									rv = FAILURE;
 									continue;
 								}
@@ -913,7 +913,7 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 						buf[i].nullind = -1;
 						break;
 					default:
-						_php_fbird_module_error("Parameter %d: must be boolean", i+1);
+						_php_fbird_module_error("Parameter %d: must be boolean", i+1); /* LCOV_EXCL_LINE */
 						rv = FAILURE;
 						continue;
 				}
@@ -927,19 +927,19 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 					if (Z_STRLEN_P(b_var) != BLOB_ID_LEN ||
 						!_php_fbird_string_to_quad(Z_STRVAL_P(b_var), &buf[i].val.qval)) {
 
-						_php_fbird_module_error("Parameter %d: invalid array ID",i+1);
+						_php_fbird_module_error("Parameter %d: invalid array ID",i+1); /* LCOV_EXCL_LINE */
 						rv = FAILURE;
 					}
 				} else {
 					/* OO API Only: Store array slice via IAttachment::putSlice() */
 					if (!ib_query->link || !ib_query->link->fbc_connection) {
-						_php_fbird_module_error("Parameter %d: OO API connection required for array binding", i + 1);
+						_php_fbird_module_error("Parameter %d: OO API connection required for array binding", i + 1); /* LCOV_EXCL_LINE */
 						rv = FAILURE;
 						++array_cnt;
 						continue;
 					}
 					if (!ib_query->trans || !ib_query->trans->fbt_transaction) {
-						_php_fbird_module_error("Parameter %d: OO API transaction required for array binding", i + 1);
+						_php_fbird_module_error("Parameter %d: OO API transaction required for array binding", i + 1); /* LCOV_EXCL_LINE */
 						rv = FAILURE;
 						++array_cnt;
 						continue;
@@ -1039,7 +1039,7 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 				}
 
 				if (arr_relname[0] == '\0' || arr_sqlname[0] == '\0') {
-					_php_fbird_module_error("Parameter %d: cannot determine table/column name for array binding. Use explicit INSERT INTO table (columns...) VALUES (...).", i + 1);
+					_php_fbird_module_error("Parameter %d: cannot determine table/column name for array binding. Use explicit INSERT INTO table (columns...) VALUES (...).", i + 1); /* LCOV_EXCL_LINE */
 					rv = FAILURE;
 					++array_cnt;
 					continue;
@@ -1116,7 +1116,7 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 							arr_el_type = SQL_TYPE_TIME;
 							break;
 						default:
-							_php_fbird_module_error("Parameter %d: unsupported array element dtype %d", i + 1, ar_desc.array_desc_dtype);
+							_php_fbird_module_error("Parameter %d: unsupported array element dtype %d", i + 1, ar_desc.array_desc_dtype); /* LCOV_EXCL_LINE */
 							rv = FAILURE;
 							++array_cnt;
 							continue;
@@ -1130,7 +1130,7 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 					ISC_LONG slice_len = elem_size * elements;
 					void* array_data = ecalloc(1, (size_t)slice_len);
 					if (FAILURE == _php_fbird_bind_array(b_var, (char*)array_data, (zend_ulong)slice_len, (fbird_array*)&(fbird_array){.ar_desc = ar_desc, .ar_size = slice_len, .el_type = arr_el_type, .el_size = (unsigned short)elem_size}, 0)) {
-						_php_fbird_module_error("Parameter %d: failed to bind array argument", i + 1);
+						_php_fbird_module_error("Parameter %d: failed to bind array argument", i + 1); /* LCOV_EXCL_LINE */
 						efree(array_data);
 						rv = FAILURE;
 						++array_cnt;

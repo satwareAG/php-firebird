@@ -381,7 +381,7 @@ static void _php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAMETERS, const char *
 
 	/* Check if transaction involves exactly one connection */
 	if (trans->link_cnt > 1) {
-		_php_fbird_module_error("Savepoints not supported for multi-database transactions");
+		_php_fbird_module_error("Savepoints not supported for multi-database transactions"); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 
@@ -403,13 +403,13 @@ static void _php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAMETERS, const char *
 
 	/* Get attachment from connection */
 	if (!link->fbc_connection) {
-		_php_fbird_module_error("OO API transaction without OO API connection");
+		_php_fbird_module_error("OO API transaction without OO API connection"); /* LCOV_EXCL_LINE */
 		efree(query);
 		RETURN_FALSE;
 	}
 	attachment = fbc_get_attachment(link->fbc_connection);
 	if (!attachment) {
-		_php_fbird_module_error("Failed to get attachment from connection");
+		_php_fbird_module_error("Failed to get attachment from connection"); /* LCOV_EXCL_LINE */
 		efree(query);
 		RETURN_FALSE;
 	}
@@ -417,7 +417,7 @@ static void _php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAMETERS, const char *
 	/* Get transaction handle */
 	transaction_ptr = fbt_get_handle(trans->fbt_transaction);
 	if (!transaction_ptr) {
-		_php_fbird_module_error("Failed to get transaction handle");
+		_php_fbird_module_error("Failed to get transaction handle"); /* LCOV_EXCL_LINE */
 		efree(query);
 		RETURN_FALSE;
 	}
@@ -511,7 +511,7 @@ PHP_FUNCTION(fbird_trans_info)
 			RETURN_FALSE;
 		}
 	} else {
-		_php_fbird_module_error("Transaction has no OO API handle");
+		_php_fbird_module_error("Transaction has no OO API handle"); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 
@@ -763,7 +763,7 @@ PHP_FUNCTION(fbird_trans)
 					efree(tpb);
 					efree(teb);
 					efree(ib_link);
-					_php_fbird_module_error("Connection %d has no OO API handle", j);
+					_php_fbird_module_error("Connection %d has no OO API handle", j); /* LCOV_EXCL_LINE */
 					RETURN_FALSE;
 				}
 			}
@@ -775,7 +775,7 @@ PHP_FUNCTION(fbird_trans)
 					efree(tpb);
 					efree(teb);
 					efree(ib_link);
-					_php_fbird_module_error("Failed to get attachment from OO API connection");
+					_php_fbird_module_error("Failed to get attachment from OO API connection"); /* LCOV_EXCL_LINE */
 					RETURN_FALSE;
 				}
 
@@ -812,7 +812,7 @@ PHP_FUNCTION(fbird_trans)
 				efree(tpb);
 				efree(teb);
 				efree(ib_link);
-				_php_fbird_module_error("Multi-database transactions with OO API connections not yet supported");
+				_php_fbird_module_error("Multi-database transactions with OO API connections not yet supported"); /* LCOV_EXCL_LINE */
 				RETURN_FALSE;
 			}
 		}

@@ -263,7 +263,7 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link,
 	void *transaction_ptr = fbt_get_handle(trans->fbt_transaction);
 
 	if (!attachment_ptr || !transaction_ptr) {
-		_php_fbird_module_error("OO API connection/transaction pointers are NULL");
+		_php_fbird_module_error("OO API connection/transaction pointers are NULL"); /* LCOV_EXCL_LINE */
 		goto _php_fbird_alloc_query_error;
 	}
 

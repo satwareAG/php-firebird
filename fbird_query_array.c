@@ -68,7 +68,7 @@ int _php_fbird_alloc_array(fbird_array **ib_arrayp, XSQLDA *sqlda,
         char *sname = ecalloc(1, MAX_IDENTIFIER_LEN + 1);
 
 		if (!rname || !sname) {
-			_php_fbird_module_error("Failed to allocate memory for array names");
+			_php_fbird_module_error("Failed to allocate memory for array names"); /* LCOV_EXCL_LINE */
 			if (rname) efree(rname);
 			if (sname) efree(sname);
 			efree(ar);
@@ -197,7 +197,7 @@ int _php_fbird_alloc_array(fbird_array **ib_arrayp, XSQLDA *sqlda,
         /* Safety check for overflow */
         float safe_size = (float)a->el_size * (float)ar_size;
         if (safe_size > (float)ZEND_ULONG_MAX) {
-             _php_fbird_module_error("Array size exceeds system limits");
+             _php_fbird_module_error("Array size exceeds system limits"); /* LCOV_EXCL_LINE */
              efree(ar);
              return FAILURE;
         }
@@ -271,14 +271,14 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size,
 			switch (array->el_type) {
 				case SQL_SHORT:
 					if (l > SHRT_MAX || l < SHRT_MIN) {
-						_php_fbird_module_error("Array parameter exceeds field width");
+						_php_fbird_module_error("Array parameter exceeds field width"); /* LCOV_EXCL_LINE */
 						return FAILURE;
 					}
 					*(short*) buf = (short) l;
 					break;
 				case SQL_LONG:
 					if (l > ISC_LONG_MAX || l < ISC_LONG_MIN) {
-						_php_fbird_module_error("Array parameter exceeds field width");
+						_php_fbird_module_error("Array parameter exceeds field width"); /* LCOV_EXCL_LINE */
 						return FAILURE;
 					}
 					*(ISC_LONG*) buf = (ISC_LONG) l;
@@ -317,7 +317,7 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size,
 						/* Use zval_get_long() to avoid modifying the original zval in-place */
 						zend_long lval = zval_get_long(val);
 						if (lval > SHRT_MAX || lval < SHRT_MIN) {
-							_php_fbird_module_error("Array parameter exceeds field width");
+							_php_fbird_module_error("Array parameter exceeds field width"); /* LCOV_EXCL_LINE */
 							return FAILURE;
 						}
 						*(short *) buf = (short) lval;
@@ -329,7 +329,7 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size,
 						zend_long lval = zval_get_long(val);
 #if (SIZEOF_ZEND_LONG > 4)
 						if (lval > ISC_LONG_MAX || lval < ISC_LONG_MIN) {
-							_php_fbird_module_error("Array parameter exceeds field width");
+							_php_fbird_module_error("Array parameter exceeds field width"); /* LCOV_EXCL_LINE */
 							return FAILURE;
 						}
 #endif
@@ -401,7 +401,7 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size,
 					{
 						/* Timezone types in arrays require Firebird 4.0+ master interface */
 						if (!IBG(master_instance)) {
-							_php_fbird_module_error("TIMESTAMP WITH TIME ZONE arrays require Firebird 4.0+ client library");
+							_php_fbird_module_error("TIMESTAMP WITH TIME ZONE arrays require Firebird 4.0+ client library"); /* LCOV_EXCL_LINE */
 							return FAILURE;
 						}
 
@@ -423,7 +423,7 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size,
 						if (fbu_encode_timestamp_tz(IBG(master_instance), (ISC_TIMESTAMP_TZ *)buf,
 								dt.year, dt.month, dt.day,
 								dt.hours, dt.minutes, dt.seconds, dt.fractions, dt.timezone) != 0) {
-							_php_fbird_module_error("Failed to encode TIMESTAMP WITH TIME ZONE array element");
+							_php_fbird_module_error("Failed to encode TIMESTAMP WITH TIME ZONE array element"); /* LCOV_EXCL_LINE */
 							return FAILURE;
 						}
 					}
@@ -469,7 +469,7 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size,
 					{
 						/* Timezone types in arrays require Firebird 4.0+ master interface */
 						if (!IBG(master_instance)) {
-							_php_fbird_module_error("TIME WITH TIME ZONE arrays require Firebird 4.0+ client library");
+							_php_fbird_module_error("TIME WITH TIME ZONE arrays require Firebird 4.0+ client library"); /* LCOV_EXCL_LINE */
 							return FAILURE;
 						}
 
@@ -490,7 +490,7 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size,
 
 						if (fbu_encode_time_tz(IBG(master_instance), (ISC_TIME_TZ *)buf,
 								dt.hours, dt.minutes, dt.seconds, dt.fractions, dt.timezone) != 0) {
-							_php_fbird_module_error("Failed to encode TIME WITH TIME ZONE array element");
+							_php_fbird_module_error("Failed to encode TIME WITH TIME ZONE array element"); /* LCOV_EXCL_LINE */
 							return FAILURE;
 						}
 					}

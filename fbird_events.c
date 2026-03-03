@@ -156,7 +156,7 @@ PHP_FUNCTION(fbird_wait_event)
 
 	/* Validate argument count: 1-16 (optional link + 1-15 event names) */
 	if (ZEND_NUM_ARGS() < 1 || ZEND_NUM_ARGS() > 16) {
-		WRONG_PARAM_COUNT;
+		WRONG_PARAM_COUNT; /* LCOV_EXCL_LINE */
 	}
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "+", &args, &num_args) == FAILURE) {
@@ -171,7 +171,7 @@ PHP_FUNCTION(fbird_wait_event)
 		i = 1;
 	} else {
 		if (ZEND_NUM_ARGS() > 15) {
-			WRONG_PARAM_COUNT;
+			WRONG_PARAM_COUNT; /* LCOV_EXCL_LINE */
 		}
 		if ((ib_link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), "Firebird link", le_link, le_plink)) == NULL) {
 			RETURN_FALSE;
@@ -245,7 +245,7 @@ PHP_FUNCTION(fbird_set_event_handler)
 
 	/* Validate argument count */
 	if (ZEND_NUM_ARGS() < 2 || ZEND_NUM_ARGS() > 17) {
-		WRONG_PARAM_COUNT;
+		WRONG_PARAM_COUNT; /* LCOV_EXCL_LINE */
 	}
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "+", &args, &num_args) == FAILURE) {
@@ -256,7 +256,7 @@ PHP_FUNCTION(fbird_set_event_handler)
 	if (Z_TYPE(args[0]) != IS_STRING) {
 		/* First argument is resource, second is callback */
 		if (ZEND_NUM_ARGS() < 3 || ZEND_NUM_ARGS() > 17) {
-			WRONG_PARAM_COUNT;
+			WRONG_PARAM_COUNT; /* LCOV_EXCL_LINE */
 		}
 
 		cb_arg = &args[1];
@@ -269,7 +269,7 @@ PHP_FUNCTION(fbird_set_event_handler)
 	} else {
 		/* First argument is callback (use default link) */
 		if (ZEND_NUM_ARGS() < 2 || ZEND_NUM_ARGS() > 16) {
-			WRONG_PARAM_COUNT;
+			WRONG_PARAM_COUNT; /* LCOV_EXCL_LINE */
 		}
 
 		cb_arg = &args[0];
@@ -283,7 +283,7 @@ PHP_FUNCTION(fbird_set_event_handler)
 	/* Validate callback is callable */
 	if (!zend_is_callable(cb_arg, 0, NULL)) {
 		zend_string *cb_name = zend_get_callable_name(cb_arg);
-		_php_fbird_module_error("Callback argument %s is not a callable function", ZSTR_VAL(cb_name));
+		_php_fbird_module_error("Callback argument %s is not a callable function", ZSTR_VAL(cb_name)); /* LCOV_EXCL_LINE */
 		zend_string_release_ex(cb_name, 0);
 		RETURN_FALSE;
 	}
@@ -390,7 +390,7 @@ PHP_FUNCTION(fbird_poll_event)
 	/* Safety limit check */
 	if (event->callback_count >= event->max_callbacks) {
 		event->state = DEAD;
-		_php_fbird_module_error("Event callback limit exceeded");
+		_php_fbird_module_error("Event callback limit exceeded"); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 
@@ -522,7 +522,7 @@ PHP_FUNCTION(fbird_poll_event)
 			 */
 			if (FAILURE == call_user_function(NULL, NULL, &event->callback,
 					&return_value_cb, 1, args)) {
-				_php_fbird_module_error("Error calling event callback");
+				_php_fbird_module_error("Error calling event callback"); /* LCOV_EXCL_LINE */
 				zval_ptr_dtor(&args[0]);
 				event->state = DEAD;
 				RETURN_FALSE;

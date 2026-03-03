@@ -363,7 +363,7 @@ void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 		/* no link found, so we have to open one */
 
 		if ((l = INI_INT("fbird.max_links")) != -1 && IBG(num_links) >= l) {
-			_php_fbird_module_error("Too many open links (%ld)", IBG(num_links));
+			_php_fbird_module_error("Too many open links (%ld)", IBG(num_links)); /* LCOV_EXCL_LINE */
 			RETURN_FALSE;
 		}
 

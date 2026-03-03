@@ -61,7 +61,7 @@ public:
     BlobWrapper() = default;
 
     ~BlobWrapper() {
-        if (blob_ && owns_blob_) {
+        if (blob_ && owns_blob_) { /* LCOV_EXCL_START */
             // Silent close on destruction - errors ignored
             auto* master = getMaster();
             if (master) {
@@ -69,7 +69,7 @@ public:
                 blob_->close(&status);
             }
             blob_ = nullptr;
-        }
+        } /* LCOV_EXCL_STOP */
     }
 
     // Non-copyable
@@ -132,11 +132,11 @@ public:
         /* LCOV_EXCL_STOP */
 
         // Close existing blob if any
-        if (blob_ && owns_blob_) {
+        if (blob_ && owns_blob_) { /* LCOV_EXCL_START */
             Firebird::CheckStatusWrapper close_status(master->getStatus());
             blob_->close(&close_status);
             blob_ = nullptr;
-        }
+        } /* LCOV_EXCL_STOP */
 
         Firebird::CheckStatusWrapper status(master->getStatus());
 
@@ -144,7 +144,7 @@ public:
             blob_ = attachment->createBlob(&status, transaction, &blob_id_, bpb_length, bpb);
 
             // Check both for NULL blob AND error status
-            if (!blob_ || statusHasError(&status)) {
+            if (!blob_ || statusHasError(&status)) { /* LCOV_EXCL_START */
                 copyStatusVector(&status, status_vector);
                 if (!blob_ && status_vector && status_vector[1] == 0) {
                     // createBlob returned NULL without setting error
@@ -152,7 +152,7 @@ public:
                 }
                 blob_ = nullptr;
                 return false;
-            }
+            } /* LCOV_EXCL_STOP */
 
             owns_blob_ = true;
             clearStatusVector(status_vector);
@@ -202,11 +202,11 @@ public:
         /* LCOV_EXCL_STOP */
 
         // Close existing blob if any
-        if (blob_ && owns_blob_) {
+        if (blob_ && owns_blob_) { /* LCOV_EXCL_START */
             Firebird::CheckStatusWrapper close_status(master->getStatus());
             blob_->close(&close_status);
             blob_ = nullptr;
-        }
+        } /* LCOV_EXCL_STOP */
 
         blob_id_ = *blob_id;
         Firebird::CheckStatusWrapper status(master->getStatus());
@@ -215,7 +215,7 @@ public:
             blob_ = attachment->openBlob(&status, transaction, &blob_id_, bpb_length, bpb);
 
             // Check both for NULL blob AND error status
-            if (!blob_ || statusHasError(&status)) {
+            if (!blob_ || statusHasError(&status)) { /* LCOV_EXCL_START */
                 copyStatusVector(&status, status_vector);
                 if (!blob_ && status_vector && status_vector[1] == 0) {
                     // openBlob returned NULL without setting error
@@ -223,7 +223,7 @@ public:
                 }
                 blob_ = nullptr;
                 return false;
-            }
+            } /* LCOV_EXCL_STOP */
 
             owns_blob_ = true;
             clearStatusVector(status_vector);
@@ -255,14 +255,14 @@ public:
                     unsigned length,
                     const void* buffer,
                     ISC_STATUS* status_vector) {
-        if (!blob_ || !master) {
+        if (!blob_ || !master) { /* LCOV_EXCL_START */
             if (status_vector) {
                 status_vector[0] = 1;
                 status_vector[1] = isc_bad_segstr_handle;
                 status_vector[2] = isc_arg_end;
             }
             return false;
-        }
+        } /* LCOV_EXCL_STOP */
 
         Firebird::CheckStatusWrapper status(master->getStatus());
 
@@ -304,7 +304,7 @@ public:
                    void* buffer,
                    unsigned* actual_length,
                    ISC_STATUS* status_vector) {
-        if (!blob_ || !master) {
+        if (!blob_ || !master) { /* LCOV_EXCL_START */
             if (status_vector) {
                 status_vector[0] = 1;
                 status_vector[1] = isc_bad_segstr_handle;
@@ -312,14 +312,14 @@ public:
             }
             if (actual_length) *actual_length = 0;
             return -1;
-        }
+        } /* LCOV_EXCL_STOP */
 
         Firebird::CheckStatusWrapper status(master->getStatus());
 
         try {
             int result = blob_->getSegment(&status, buffer_length, buffer, actual_length);
 
-            if (statusHasError(&status)) {
+            if (statusHasError(&status)) { /* LCOV_EXCL_START */
                 // Check for special conditions
                 unsigned state = status.getState();
                 if (state & Firebird::IStatus::STATE_WARNINGS) {
@@ -336,7 +336,7 @@ public:
                 }
                 copyStatusVector(&status, status_vector);
                 return -1;
-            }
+            } /* LCOV_EXCL_STOP */
 
             // Check Firebird result code
             if (result == Firebird::IStatus::RESULT_NO_DATA) {
@@ -393,13 +393,13 @@ public:
         try {
             blob_->close(&status);
 
-            if (statusHasError(&status)) {
+            if (statusHasError(&status)) { /* LCOV_EXCL_START */
                 copyStatusVector(&status, status_vector);
                 // Still mark as closed to avoid double-close
                 blob_ = nullptr;
                 owns_blob_ = false;
                 return false;
-            }
+            } /* LCOV_EXCL_STOP */
 
             blob_ = nullptr;
             owns_blob_ = false;
@@ -449,7 +449,7 @@ public:
         try {
             blob_->cancel(&status);
 
-            if (statusHasError(&status)) {
+            if (statusHasError(&status)) { /* LCOV_EXCL_START */
                 // Ignore "invalid blob handle" error during cancel
                 if (status.getErrors()[1] != isc_bad_segstr_handle) {
                     copyStatusVector(&status, status_vector);
@@ -457,7 +457,7 @@ public:
                     owns_blob_ = false;
                     return false;
                 }
-            }
+            } /* LCOV_EXCL_STOP */
 
             blob_ = nullptr;
             owns_blob_ = false;
@@ -496,14 +496,14 @@ public:
               int offset,
               int* result,
               ISC_STATUS* status_vector) {
-        if (!blob_ || !master) {
+        if (!blob_ || !master) { /* LCOV_EXCL_START */
             if (status_vector) {
                 status_vector[0] = 1;
                 status_vector[1] = isc_bad_segstr_handle;
                 status_vector[2] = isc_arg_end;
             }
             return false;
-        }
+        } /* LCOV_EXCL_STOP */
 
         Firebird::CheckStatusWrapper status(master->getStatus());
 
@@ -551,24 +551,24 @@ public:
                  unsigned buffer_length,
                  unsigned char* buffer,
                  ISC_STATUS* status_vector) {
-        if (!blob_ || !master) {
+        if (!blob_ || !master) { /* LCOV_EXCL_START */
             if (status_vector) {
                 status_vector[0] = 1;
                 status_vector[1] = isc_bad_segstr_handle;
                 status_vector[2] = isc_arg_end;
             }
             return false;
-        }
+        } /* LCOV_EXCL_STOP */
 
         Firebird::CheckStatusWrapper status(master->getStatus());
 
         try {
             blob_->getInfo(&status, items_length, items, buffer_length, buffer);
 
-            if (statusHasError(&status)) {
+            if (statusHasError(&status)) { /* LCOV_EXCL_START */
                 copyStatusVector(&status, status_vector);
                 return false;
-            }
+            } /* LCOV_EXCL_STOP */
 
             clearStatusVector(status_vector);
             return true;

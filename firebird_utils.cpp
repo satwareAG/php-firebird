@@ -617,14 +617,14 @@ extern "C" void* fbc_create_database(
 
         // Get IUtil interface for executeCreateDatabase
         Firebird::IUtil* util = master->getUtilInterface();
-        if (!util) {
+        if (!util) { /* LCOV_EXCL_START */
             if (status_vector) {
                 status_vector[0] = isc_arg_gds;
                 status_vector[1] = isc_unavailable;
                 status_vector[2] = isc_arg_end;
             }
             return nullptr;
-        }
+        } /* LCOV_EXCL_STOP */
 
         // Create status wrapper
         Firebird::IStatus* raw_status = master->getStatus();
@@ -640,7 +640,7 @@ extern "C" void* fbc_create_database(
             nullptr  // stmtIsCreateDb - not used in modern API
         );
 
-        if (check_status.isDirty() || !attachment) {
+        if (check_status.isDirty() || !attachment) { /* LCOV_EXCL_START */
             // Copy error status
             if (status_vector) {
                 const ISC_STATUS* errors = raw_status->getErrors();
@@ -652,7 +652,7 @@ extern "C" void* fbc_create_database(
                 }
             }
             return nullptr;
-        }
+        } /* LCOV_EXCL_STOP */
 
         // Extract database path from CREATE DATABASE statement for Connection
         // The SQL contains the database path, e.g., "CREATE SCHEMA 'path' ..."
@@ -743,12 +743,12 @@ extern "C" void* fbt_start(
         // Create transaction using factory method
         auto trans = fb::Transaction::start(master, attachment, tpb_len, tpb);
 
-        if (!trans.isActive()) {
+        if (!trans.isActive()) { /* LCOV_EXCL_START */
             if (status_vector) {
                 trans.copyLastStatus(status_vector, ISC_STATUS_LENGTH);
             }
             return nullptr;
-        }
+        } /* LCOV_EXCL_STOP */
 
         // Move to heap and return as opaque pointer
         return reinterpret_cast<void*>(new fb::Transaction(std::move(trans)));

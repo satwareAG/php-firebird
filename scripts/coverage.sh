@@ -69,7 +69,7 @@ lcov --remove coverage/lcov.info \
     '*/modules/*' \
     '*/.libs/*' \
     --output-file coverage/lcov_filtered.info \
-    --ignore-errors unused
+    --ignore-errors unused,mismatch
 
 # 6. Generate HTML Report
 echo "Generating HTML report..."

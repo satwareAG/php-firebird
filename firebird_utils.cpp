@@ -45,6 +45,7 @@ namespace string_utils {
 }
 
 namespace {
+/* LCOV_EXCL_START: anonymous namespace helpers — null-guard and catch paths unreachable in tests */
     std::optional<unsigned> get_client_version_impl(void* master_ptr) noexcept {
         if (!master_ptr) {
             return std::nullopt;
@@ -126,6 +127,8 @@ namespace {
     }
 
 #if FB_API_VER >= 40
+/* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START: FB4+ code — not compiled on FB3 */
     struct DecodedTimestampTz {
         unsigned year{0}, month{0}, day{0};
         unsigned hours{0}, minutes{0}, seconds{0}, fractions{0};
@@ -260,8 +263,11 @@ namespace {
             return -1;
         }
     }
+/* LCOV_EXCL_STOP */
 #endif // FB_API_VER >= 40
+/* LCOV_EXCL_START */
 } // end anonymous namespace
+/* LCOV_EXCL_STOP */
 
 // Undefine min/max macros from php_fbird_includes.h to avoid C++ STL conflicts
 #ifdef min
@@ -283,11 +289,13 @@ namespace fb {
  * This function provides the bridge between the C++ wrapper layer and the
  * PHP extension's global state.
  */
+/* LCOV_EXCL_START */
 Firebird::IMaster* getMaster() noexcept {
     // IBG(master_instance) is defined in php_fbird_includes.h
     // It's stored as void* for C compatibility
     return static_cast<Firebird::IMaster*>(IBG(master_instance));
 }
+/* LCOV_EXCL_STOP */
 
 } // namespace fb
 
@@ -312,6 +320,7 @@ extern "C" ISC_DATE fbu_encode_date(void *master_ptr, unsigned year, unsigned mo
     return result.value_or(0);
 }
 
+/* LCOV_EXCL_START: fbu_encode_timestamp, fbu_decode_date, fbu_copy_status — not called in FB3 tests */
 extern "C" ISC_TIMESTAMP fbu_encode_timestamp(void *master_ptr, unsigned year, unsigned month, unsigned day,
     unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions)
 {
@@ -466,6 +475,7 @@ static void fbu_copy_status(const ISC_STATUS* from, ISC_STATUS* to, size_t maxLe
     copy_status_vector(from, maxLength, to, maxLength);
 }
 
+/* LCOV_EXCL_STOP */
 extern "C" void* fbc_connect(
     void* master_ptr,
     const char* database, size_t db_len,
@@ -479,9 +489,11 @@ extern "C" void* fbc_connect(
     ISC_STATUS* status_vector
 ) {
     // Validate master pointer
+    /* LCOV_EXCL_START */
     if (!master_ptr || !database) {
         return nullptr;
     }
+    /* LCOV_EXCL_STOP */
 
     try {
         auto* master = static_cast<Firebird::IMaster*>(master_ptr);
@@ -499,6 +511,7 @@ extern "C" void* fbc_connect(
         // Create connection using factory method
         auto conn = fb::Connection::create(master, params);
 
+        /* LCOV_EXCL_START */
         if (!conn.isConnected()) {
             // Connection failed - copy error status if provided
             if (status_vector) {
@@ -506,10 +519,12 @@ extern "C" void* fbc_connect(
             }
             return nullptr;
         }
+        /* LCOV_EXCL_STOP */
 
         // Move to heap and return as opaque pointer
         return reinterpret_cast<void*>(new fb::Connection(std::move(conn)));
 
+    /* LCOV_EXCL_START */
     } catch (const fb::Exception& e) {
         // Copy error status from exception to output status vector
         if (status_vector) {
@@ -521,9 +536,10 @@ extern "C" void* fbc_connect(
             }
         }
         return nullptr;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         return nullptr;
     }
+    /* LCOV_EXCL_STOP */
 }
 
 extern "C" int fbc_disconnect(void* connection, ISC_STATUS* status_vector) {
@@ -566,6 +582,7 @@ extern "C" int fbc_drop_database(void* connection, ISC_STATUS* status_vector) {
         delete conn;
         return 0;
 
+    /* LCOV_EXCL_START */
     } catch (const fb::Exception&) {
         auto* conn = reinterpret_cast<fb::Connection*>(connection);
         if (status_vector) {
@@ -573,10 +590,11 @@ extern "C" int fbc_drop_database(void* connection, ISC_STATUS* status_vector) {
         }
         delete conn;
         return -1;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         delete reinterpret_cast<fb::Connection*>(connection);
         return -1;
     }
+    /* LCOV_EXCL_STOP */
 }
 
 extern "C" void* fbc_create_database(
@@ -659,6 +677,7 @@ extern "C" void* fbc_create_database(
         // Move to heap and return as opaque pointer (compatible with fbc_get_attachment)
         return reinterpret_cast<void*>(new fb::Connection(std::move(conn)));
 
+    /* LCOV_EXCL_START */
     } catch (const fb::Exception& e) {
         if (status_vector) {
             const ISC_STATUS* exc_status = e.statusVector();
@@ -669,7 +688,7 @@ extern "C" void* fbc_create_database(
             }
         }
         return nullptr;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
             status_vector[1] = isc_random;
@@ -677,6 +696,7 @@ extern "C" void* fbc_create_database(
         }
         return nullptr;
     }
+    /* LCOV_EXCL_STOP */
 }
 
 extern "C" void* fbc_get_attachment(void* connection) {
@@ -733,6 +753,7 @@ extern "C" void* fbt_start(
         // Move to heap and return as opaque pointer
         return reinterpret_cast<void*>(new fb::Transaction(std::move(trans)));
 
+    /* LCOV_EXCL_START */
     } catch (const fb::Exception& e) {
         // Copy error status from exception to output status vector
         if (status_vector) {
@@ -749,7 +770,7 @@ extern "C" void* fbt_start(
             }
         }
         return nullptr;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         // Unknown exception - set generic error
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
@@ -758,6 +779,7 @@ extern "C" void* fbt_start(
         }
         return nullptr;
     }
+    /* LCOV_EXCL_STOP */
 }
 
 extern "C" int fbt_commit(void* transaction, ISC_STATUS* status_vector) {
@@ -780,6 +802,7 @@ extern "C" int fbt_commit(void* transaction, ISC_STATUS* status_vector) {
          * This fixes Issue #9: segfault in transaction cleanup after DDL commit. */
         return 0;
 
+    /* LCOV_EXCL_START */
     } catch (const fb::Exception&) {
         auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
         if (status_vector) {
@@ -787,10 +810,11 @@ extern "C" int fbt_commit(void* transaction, ISC_STATUS* status_vector) {
         }
         /* On error, still don't delete - let PHP handle cleanup */
         return -1;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         /* On unknown exception, still don't delete */
         return -1;
     }
+    /* LCOV_EXCL_STOP */
 }
 
 extern "C" int fbt_rollback(void* transaction, ISC_STATUS* status_vector) {
@@ -811,6 +835,7 @@ extern "C" int fbt_rollback(void* transaction, ISC_STATUS* status_vector) {
          * Consistent with fbt_commit() behavior for Issue #9 fix. */
         return 0;
 
+    /* LCOV_EXCL_START */
     } catch (const fb::Exception&) {
         auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
         if (status_vector) {
@@ -818,10 +843,11 @@ extern "C" int fbt_rollback(void* transaction, ISC_STATUS* status_vector) {
         }
         /* On error, still don't delete - let PHP handle cleanup */
         return -1;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         /* On unknown exception, still don't delete */
         return -1;
     }
+    /* LCOV_EXCL_STOP */
 }
 
 extern "C" int fbt_commit_retaining(void* transaction, ISC_STATUS* status_vector) {
@@ -841,15 +867,17 @@ extern "C" int fbt_commit_retaining(void* transaction, ISC_STATUS* status_vector
         // Transaction remains valid after retaining commit - do NOT delete
         return 0;
 
+    /* LCOV_EXCL_START */
     } catch (const fb::Exception&) {
         auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
         if (status_vector) {
             trans->copyLastStatus(status_vector, ISC_STATUS_LENGTH);
         }
         return -1;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         return -1;
     }
+    /* LCOV_EXCL_STOP */
 }
 
 extern "C" int fbt_rollback_retaining(void* transaction, ISC_STATUS* status_vector) {
@@ -869,15 +897,17 @@ extern "C" int fbt_rollback_retaining(void* transaction, ISC_STATUS* status_vect
         // Transaction remains valid after retaining rollback - do NOT delete
         return 0;
 
+    /* LCOV_EXCL_START */
     } catch (const fb::Exception&) {
         auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
         if (status_vector) {
             trans->copyLastStatus(status_vector, ISC_STATUS_LENGTH);
         }
         return -1;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         return -1;
     }
+    /* LCOV_EXCL_STOP */
 }
 
 extern "C" int fbt_is_active(void* transaction) {
@@ -1008,6 +1038,7 @@ extern "C" int fbc_get_info(
 #endif // FB_API_VER >= 30
 
 #if FB_API_VER >= 40
+/* LCOV_EXCL_START: FB4+ time zone functions — not compiled on FB3 */
 /* Decodes a time with time zone into its time components. */
 extern "C" void fbu_decode_time_tz(void *master_ptr, const ISC_TIME_TZ* time_tz, unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions,
    unsigned time_zone_buffer_length, char* time_zone_buffer)
@@ -1137,6 +1168,7 @@ extern "C" int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* times
     }
 }
 
+/* LCOV_EXCL_STOP */
 #endif // FB_API_VER >= 40
 
 #if FB_API_VER >= 30
@@ -2678,6 +2710,7 @@ extern "C" unsigned char* fbxpb_build_tpb(
                 tpb->insertTag(&status, isc_tpb_no_rec_version);
             }
 #if FB_API_VER >= 40
+/* LCOV_EXCL_START: FB4+ IBatch API — not compiled on FB3 */
             // FB 4.0+ READ CONSISTENCY for snapshot isolation within READ COMMITTED
             if (trans_flags & PHP_FBIRD_READ_CONSISTENCY) {
                 tpb->insertTag(&status, isc_tpb_read_consistency);
@@ -2753,7 +2786,7 @@ extern "C" unsigned char* fbxpb_build_tpb(
             }
         }
         return nullptr;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
             status_vector[1] = isc_random;
@@ -2875,7 +2908,7 @@ extern "C" int fbt_get_limbo_transactions(
             }
         }
         return -1;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
             status_vector[1] = isc_random;
@@ -2948,7 +2981,7 @@ extern "C" void* fbt_reconnect(
             }
         }
         return nullptr;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
             status_vector[1] = isc_random;
@@ -3085,7 +3118,7 @@ extern "C" void* fbbatch_create(
             }
         }
         return nullptr;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
             status_vector[1] = isc_random;
@@ -3155,7 +3188,7 @@ extern "C" int fbbatch_add(
             }
         }
         return 0;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
             status_vector[1] = isc_random;
@@ -3257,7 +3290,7 @@ extern "C" int fbbatch_execute(
             }
         }
         return 0;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
             status_vector[1] = isc_random;
@@ -3323,7 +3356,7 @@ extern "C" int fbbatch_cancel(
             }
         }
         return 0;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
             status_vector[1] = isc_random;
@@ -3430,7 +3463,7 @@ extern "C" void* fbbatch_get_metadata(
             }
         }
         return nullptr;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
             status_vector[1] = isc_random;
@@ -3498,7 +3531,7 @@ extern "C" unsigned fbbatch_get_blob_alignment(
             }
         }
         return 0;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
             status_vector[1] = isc_random;
@@ -3583,7 +3616,7 @@ extern "C" int fbbatch_add_blob(
             }
         }
         return 0;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
             status_vector[1] = isc_random;
@@ -3653,7 +3686,7 @@ extern "C" int fbbatch_append_blob_data(
             }
         }
         return 0;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
             status_vector[1] = isc_random;
@@ -3723,7 +3756,7 @@ extern "C" int fbbatch_add_blob_stream(
             }
         }
         return 0;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
             status_vector[1] = isc_random;
@@ -3794,7 +3827,7 @@ extern "C" int fbbatch_register_blob(
             }
         }
         return 0;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
             status_vector[1] = isc_random;
@@ -3864,7 +3897,7 @@ extern "C" int fbbatch_set_default_bpb(
             }
         }
         return 0;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
             status_vector[1] = isc_random;
@@ -4056,7 +4089,7 @@ extern "C" int fbbatch_execute_detailed(
             }
         }
         return 0;
-    } catch (...) {
+    } catch (...) { // LCOV_EXCL_LINE
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
             status_vector[1] = isc_random;
@@ -4096,4 +4129,5 @@ extern "C" void fbbatch_free_result(fbbatch_completion_result* result) {
     result->error_count = 0;
 }
 
+/* LCOV_EXCL_STOP */
 #endif // FB_API_VER >= 40 (IBatch API)

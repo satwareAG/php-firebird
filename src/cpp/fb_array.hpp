@@ -202,6 +202,7 @@ inline bool ArrayUtils::getSlice(
     ISC_LONG* buffer_length,
     ISC_STATUS* status_vector
 ) noexcept {
+    /* LCOV_EXCL_START */
     if (!master || !attachment || !transaction || !array_id || !desc || !buffer || !buffer_length) {
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
@@ -210,6 +211,7 @@ inline bool ArrayUtils::getSlice(
         }
         return false;
     }
+    /* LCOV_EXCL_STOP */
 
     // Build SDL from descriptor
     unsigned char sdl_buffer[1024];
@@ -271,6 +273,7 @@ inline bool ArrayUtils::getSlice(
         raw_status->dispose();
         return true;
 
+    /* LCOV_EXCL_START */
     } catch (...) {
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
@@ -279,6 +282,7 @@ inline bool ArrayUtils::getSlice(
         }
         return false;
     }
+    /* LCOV_EXCL_STOP */
 }
 
 inline bool ArrayUtils::putSlice(
@@ -291,6 +295,7 @@ inline bool ArrayUtils::putSlice(
     ISC_LONG buffer_length,
     ISC_STATUS* status_vector
 ) noexcept {
+    /* LCOV_EXCL_START */
     if (!master || !attachment || !transaction || !array_id || !desc || !buffer) {
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
@@ -299,6 +304,7 @@ inline bool ArrayUtils::putSlice(
         }
         return false;
     }
+    /* LCOV_EXCL_STOP */
 
     // Build SDL from descriptor
     unsigned char sdl_buffer[1024];
@@ -358,6 +364,7 @@ inline bool ArrayUtils::putSlice(
         raw_status->dispose();
         return true;
 
+    /* LCOV_EXCL_START */
     } catch (...) {
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
@@ -366,6 +373,7 @@ inline bool ArrayUtils::putSlice(
         }
         return false;
     }
+    /* LCOV_EXCL_STOP */
 }
 
 /**

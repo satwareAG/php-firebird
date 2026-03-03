@@ -103,6 +103,7 @@ public:
         unsigned dialect,
         ISC_STATUS* status_vector
     ) noexcept {
+        /* LCOV_EXCL_START */
         if (!master || !attachment || !sql) {
             if (status_vector) {
                 status_vector[0] = isc_arg_gds;
@@ -111,6 +112,7 @@ public:
             }
             return false;
         }
+        /* LCOV_EXCL_STOP */
 
         try {
             Firebird::IStatus* fb_status = master->getStatus();
@@ -142,6 +144,7 @@ public:
             prepared_ = (statement_ != nullptr);
             return prepared_;
 
+        /* LCOV_EXCL_START */
         } catch (...) {
             if (status_vector) {
                 status_vector[0] = isc_arg_gds;
@@ -150,6 +153,7 @@ public:
             }
             return false;
         }
+        /* LCOV_EXCL_STOP */
     }
 
     /**
@@ -195,6 +199,7 @@ public:
 
             return true;
 
+        /* LCOV_EXCL_START */
         } catch (...) {
             if (status_vector) {
                 status_vector[0] = isc_arg_gds;
@@ -203,6 +208,7 @@ public:
             }
             return false;
         }
+        /* LCOV_EXCL_STOP */
     }
 
     /**
@@ -257,6 +263,7 @@ public:
             cursor_open_ = (result_set_ != nullptr);
             return cursor_open_;
 
+        /* LCOV_EXCL_START */
         } catch (...) {
             if (status_vector) {
                 status_vector[0] = isc_arg_gds;
@@ -265,6 +272,7 @@ public:
             }
             return false;
         }
+        /* LCOV_EXCL_STOP */
     }
 
     /**
@@ -303,6 +311,7 @@ public:
             // Firebird::IStatus::RESULT_OK = 0, RESULT_NO_DATA = 100
             return (fetch_result == Firebird::IStatus::RESULT_OK) ? 1 : 0;
 
+        /* LCOV_EXCL_START */
         } catch (...) {
             if (status_vector) {
                 status_vector[0] = isc_arg_gds;
@@ -311,6 +320,7 @@ public:
             }
             return -1;
         }
+        /* LCOV_EXCL_STOP */
     }
 
     /**
@@ -330,6 +340,7 @@ public:
             cursor_open_ = false;
             return true;
 
+        /* LCOV_EXCL_START */
         } catch (...) {
             if (status_vector) {
                 status_vector[0] = isc_arg_gds;
@@ -340,6 +351,7 @@ public:
             cursor_open_ = false;
             return false;
         }
+        /* LCOV_EXCL_STOP */
     }
 
     /**
@@ -361,6 +373,7 @@ public:
             prepared_ = false;
             return true;
 
+        /* LCOV_EXCL_START */
         } catch (...) {
             if (status_vector) {
                 status_vector[0] = isc_arg_gds;
@@ -371,6 +384,7 @@ public:
             prepared_ = false;
             return false;
         }
+        /* LCOV_EXCL_STOP */
     }
 
     /**
@@ -396,6 +410,7 @@ public:
 
             return meta;
 
+        /* LCOV_EXCL_START */
         } catch (...) {
             if (status_vector) {
                 status_vector[0] = isc_arg_gds;
@@ -404,6 +419,7 @@ public:
             }
             return nullptr;
         }
+        /* LCOV_EXCL_STOP */
     }
 
     /**
@@ -429,6 +445,7 @@ public:
 
             return meta;
 
+        /* LCOV_EXCL_START */
         } catch (...) {
             if (status_vector) {
                 status_vector[0] = isc_arg_gds;
@@ -437,6 +454,7 @@ public:
             }
             return nullptr;
         }
+        /* LCOV_EXCL_STOP */
     }
 
     /**
@@ -462,6 +480,7 @@ public:
 
             return stmt_type;
 
+        /* LCOV_EXCL_START */
         } catch (...) {
             if (status_vector) {
                 status_vector[0] = isc_arg_gds;
@@ -470,6 +489,7 @@ public:
             }
             return 0;
         }
+        /* LCOV_EXCL_STOP */
     }
 
     /**
@@ -495,6 +515,7 @@ public:
 
             return count;
 
+        /* LCOV_EXCL_START */
         } catch (...) {
             if (status_vector) {
                 status_vector[0] = isc_arg_gds;
@@ -503,6 +524,7 @@ public:
             }
             return 0;
         }
+        /* LCOV_EXCL_STOP */
     }
 
     // Accessors

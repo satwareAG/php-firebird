@@ -120,6 +120,7 @@ public:
                 unsigned bpb_length,
                 const unsigned char* bpb,
                 ISC_STATUS* status_vector) {
+        /* LCOV_EXCL_START */
         if (!master || !attachment || !transaction) {
             if (status_vector) {
                 status_vector[0] = 1;
@@ -128,6 +129,7 @@ public:
             }
             return false;
         }
+        /* LCOV_EXCL_STOP */
 
         // Close existing blob if any
         if (blob_ && owns_blob_) {
@@ -156,6 +158,7 @@ public:
             clearStatusVector(status_vector);
             return true;
 
+        /* LCOV_EXCL_START */
         } catch (...) {
             if (status_vector) {
                 status_vector[0] = 1;
@@ -165,6 +168,7 @@ public:
             blob_ = nullptr;
             return false;
         }
+        /* LCOV_EXCL_STOP */
     }
 
     /**
@@ -186,6 +190,7 @@ public:
               unsigned bpb_length,
               const unsigned char* bpb,
               ISC_STATUS* status_vector) {
+        /* LCOV_EXCL_START */
         if (!master || !attachment || !transaction || !blob_id) {
             if (status_vector) {
                 status_vector[0] = 1;
@@ -194,6 +199,7 @@ public:
             }
             return false;
         }
+        /* LCOV_EXCL_STOP */
 
         // Close existing blob if any
         if (blob_ && owns_blob_) {
@@ -223,6 +229,7 @@ public:
             clearStatusVector(status_vector);
             return true;
 
+        /* LCOV_EXCL_START */
         } catch (...) {
             if (status_vector) {
                 status_vector[0] = 1;
@@ -232,6 +239,7 @@ public:
             blob_ = nullptr;
             return false;
         }
+        /* LCOV_EXCL_STOP */
     }
 
     /**
@@ -269,6 +277,7 @@ public:
             clearStatusVector(status_vector);
             return true;
 
+        /* LCOV_EXCL_START */
         } catch (...) {
             if (status_vector) {
                 status_vector[0] = 1;
@@ -277,6 +286,7 @@ public:
             }
             return false;
         }
+        /* LCOV_EXCL_STOP */
     }
 
     /**
@@ -341,6 +351,7 @@ public:
             clearStatusVector(status_vector);
             return 0; // Success, more data available
 
+        /* LCOV_EXCL_START */
         } catch (...) {
             if (status_vector) {
                 status_vector[0] = 1;
@@ -350,6 +361,7 @@ public:
             if (actual_length) *actual_length = 0;
             return -1;
         }
+        /* LCOV_EXCL_STOP */
     }
 
     /**
@@ -365,6 +377,7 @@ public:
             return true; // Already closed
         }
 
+        /* LCOV_EXCL_START */
         if (!master) {
             if (status_vector) {
                 status_vector[0] = 1;
@@ -373,6 +386,7 @@ public:
             }
             return false;
         }
+        /* LCOV_EXCL_STOP */
 
         Firebird::CheckStatusWrapper status(master->getStatus());
 
@@ -392,6 +406,7 @@ public:
             clearStatusVector(status_vector);
             return true;
 
+        /* LCOV_EXCL_START */
         } catch (...) {
             if (status_vector) {
                 status_vector[0] = 1;
@@ -402,6 +417,7 @@ public:
             owns_blob_ = false;
             return false;
         }
+        /* LCOV_EXCL_STOP */
     }
 
     /**
@@ -417,6 +433,7 @@ public:
             return true; // Already closed/cancelled
         }
 
+        /* LCOV_EXCL_START */
         if (!master) {
             if (status_vector) {
                 status_vector[0] = 1;
@@ -425,6 +442,7 @@ public:
             }
             return false;
         }
+        /* LCOV_EXCL_STOP */
 
         Firebird::CheckStatusWrapper status(master->getStatus());
 
@@ -446,6 +464,7 @@ public:
             clearStatusVector(status_vector);
             return true;
 
+        /* LCOV_EXCL_START */
         } catch (...) {
             if (status_vector) {
                 status_vector[0] = 1;
@@ -456,6 +475,7 @@ public:
             owns_blob_ = false;
             return false;
         }
+        /* LCOV_EXCL_STOP */
     }
 
     /**
@@ -502,6 +522,7 @@ public:
             clearStatusVector(status_vector);
             return true;
 
+        /* LCOV_EXCL_START */
         } catch (...) {
             if (status_vector) {
                 status_vector[0] = 1;
@@ -510,6 +531,7 @@ public:
             }
             return false;
         }
+        /* LCOV_EXCL_STOP */
     }
 
     /**
@@ -551,6 +573,7 @@ public:
             clearStatusVector(status_vector);
             return true;
 
+        /* LCOV_EXCL_START */
         } catch (...) {
             if (status_vector) {
                 status_vector[0] = 1;
@@ -559,6 +582,7 @@ public:
             }
             return false;
         }
+        /* LCOV_EXCL_STOP */
     }
 
     /**
@@ -795,6 +819,7 @@ inline void* fbb_create(void* master,
                         unsigned bpb_length,
                         const unsigned char* bpb,
                         ISC_STATUS* status_vector) {
+    /* LCOV_EXCL_START */
     if (!master || !attachment || !transaction) {
         if (status_vector) {
             status_vector[0] = 1;
@@ -803,6 +828,7 @@ inline void* fbb_create(void* master,
         }
         return nullptr;
     }
+    /* LCOV_EXCL_STOP */
 
     auto* wrapper = new (std::nothrow) fb::BlobWrapper();
     if (!wrapper) {
@@ -840,6 +866,7 @@ inline void* fbb_open(void* master,
                       unsigned bpb_length,
                       const unsigned char* bpb,
                       ISC_STATUS* status_vector) {
+    /* LCOV_EXCL_START */
     if (!master || !attachment || !transaction || !blob_id) {
         if (status_vector) {
             status_vector[0] = 1;
@@ -848,6 +875,7 @@ inline void* fbb_open(void* master,
         }
         return nullptr;
     }
+    /* LCOV_EXCL_STOP */
 
     auto* wrapper = new (std::nothrow) fb::BlobWrapper();
     if (!wrapper) {

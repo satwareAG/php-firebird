@@ -5,6 +5,29 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Coverage Phase 1 test suite** (`tests/coverage/`, 9 new `.phpt` files): Targeted tests to
+  raise line coverage on Firebird 3 (FB3 OO-API baseline = `php84-fb3-dev` container)
+  - `execute_procedure_returning.phpt` — DML RETURNING path (INSERT/UPDATE with RETURNING clause)
+  - `exec_set_transaction.phpt` — `SET TRANSACTION` / `COMMIT` / `ROLLBACK` via `fbird_query()`,
+    covering `isc_info_sql_stmt_start_trans` OO API path in `fbird_query_exec.c` lines 120-154
+  - `phpinfo_ini_display.phpt` — `phpinfo(INFO_MODULES)` triggering `php_fbird_password_displayer_cb`
+    and `php_fbird_trans_displayer` callbacks in `firebird.c`
+  - Plus 6 additional coverage tests for datetime, bind, and exec code paths
+- **Coverage baseline** raised from **61.8% → 65.2%** (5,089 / 7,802 lines on FB3 build)
+
+### Technical Notes
+
+- `_php_fbird_safe_copy_sqlvar_data()` in `fbird_query_bind.c` (lines 36–220) is dead code on
+  Firebird 3+ builds. It is only reachable via the legacy `isc_dsql` API (Firebird 2.5). This
+  accounts for ~87 lines of structurally-unreachable coverage gap.
+- `firebird_utils.cpp` batch API paths (281-line gap) require `#if FB_API_VER >= 40` guards;
+  running coverage on `php85-fb5-dev` expands measured total from 7,802 → 9,155 and lowers % —
+  the FB3 container remains the authoritative coverage target.
+
 ## [7.0.0-rc.35] - 2026-01-02
 
 ### Fixed

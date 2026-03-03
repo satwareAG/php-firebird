@@ -2,7 +2,7 @@
 set -e
 
 # This script is meant to be run INSIDE the docker container.
-# Example usage from host: docker compose run --rm php83-dev /ext/docker/scripts/coverage.sh
+# Example usage from host: docker compose run --rm php84-fb3-dev /ext/scripts/coverage.sh
 
 echo "Starting Code Coverage generation..."
 

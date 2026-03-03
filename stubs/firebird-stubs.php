@@ -418,6 +418,22 @@ function fbird_execute(mixed $query, mixed ...$bind_args): mixed {}
 function fbird_execute_auto(mixed $link_identifier, string $sql, array $params = []): int|false {}
 
 /**
+ * Execute a parameterized query within a specific transaction.
+ *
+ * PHP userland wrapper around fbird_query() that accepts a link identifier,
+ * transaction resource, SQL string, and optional parameter array.
+ * Defined in src/Firebird/functions.php (global namespace).
+ *
+ * @param resource          $link        Database connection resource
+ * @param resource          $transaction Transaction resource
+ * @param string            $sql         SQL statement
+ * @param array<int, mixed> $params      Optional bind parameters
+ * @return resource|int|bool Result resource, affected row count, or false on failure
+ * @since 7.0.0
+ */
+function fbird_query_params_tx(mixed $link, mixed $transaction, string $sql, array $params = []): mixed {}
+
+/**
  * Free a prepared statement.
  *
  * @param resource $query Prepared statement resource

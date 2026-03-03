@@ -7,26 +7,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [7.0.0] - 2026-03-03
+
 ### Added
+
+- **`fbird_query_params_tx($link, $trans, $sql, ?$params)`** — New function for explicit
+  link+transaction+parameterized query execution. Designed for Doctrine DBAL integration where
+  the ORM manages connection and transaction handles separately. Fixes the Doctrine DBAL blocker
+  where no single function accepted all three: link, transaction, and array parameters.
+  (Issue #84, `fbird_query_exec.c` line 1691)
+
+- **Missing stubs added** to both `stubs/firebird-stubs.php` and `phpstan/fbird.stub.php`:
+  - `fbird_execute_statement` — Execute a prepared statement resource
+  - `fbird_execute_query` — Execute SQL string with optional parameters
+  - `fbird_execute_auto` — Auto-commit execution helper
+  - `fbird_query_params_tx` — New Doctrine integration function
+
+- **Batch API** (`fbird_batch_create`, `fbird_batch_add`, `fbird_batch_execute`,
+  `fbird_batch_cancel`) — High-throughput multi-row DML using Firebird 4.0+ native batch
+  interface. Implemented in `firebird_utils.cpp` with C++ RAII wrappers. Requires
+  `FB_API_VER >= 40`. (See `docs/OO_WRAPPER_IMPLEMENTATION.md`)
+
+- **Limbo transaction recovery**: `fbird_get_limbo_transactions`, `fbird_reconnect_transaction` —
+  Enumerate and resolve two-phase commit limbo transactions.
+
+- **Seekable BLOB API**: `fbird_blob_create_seekable`, `fbird_blob_open_seekable`,
+  `fbird_blob_seek` — Random-access BLOB operations using Firebird's seekable blob streams.
+
+- **Exception mode API**: `fbird_set_exception_mode`, `fbird_get_exception_mode` — PDO-style
+  runtime-switchable error handling (SILENT / THROW modes). Allows per-connection exception
+  behavior without changing global INI settings.
+
+- **Savepoint API**: `fbird_trans_start`, `fbird_savepoint`, `fbird_rollback_savepoint`,
+  `fbird_release_savepoint` — Full savepoint lifecycle management within Firebird transactions.
+
+- **Connection introspection**: `fbird_connection_info`, `fbird_trans_info` — Query live
+  connection and transaction metadata from Firebird's monitoring tables.
+
+- **Maintenance helpers**: `fbird_list_table_blockers`, `fbird_kill_attachment`,
+  `fbird_drop_table_force` — Administrative functions for lock diagnostics and forced cleanup.
 
 - **Coverage Phase 1 test suite** (`tests/coverage/`, 9 new `.phpt` files): Targeted tests to
   raise line coverage on Firebird 3 (FB3 OO-API baseline = `php84-fb3-dev` container)
   - `execute_procedure_returning.phpt` — DML RETURNING path (INSERT/UPDATE with RETURNING clause)
-  - `exec_set_transaction.phpt` — `SET TRANSACTION` / `COMMIT` / `ROLLBACK` via `fbird_query()`,
-    covering `isc_info_sql_stmt_start_trans` OO API path in `fbird_query_exec.c` lines 120-154
-  - `phpinfo_ini_display.phpt` — `phpinfo(INFO_MODULES)` triggering `php_fbird_password_displayer_cb`
-    and `php_fbird_trans_displayer` callbacks in `firebird.c`
+  - `exec_set_transaction.phpt` — `SET TRANSACTION` / `COMMIT` / `ROLLBACK` via `fbird_query()`
+  - `phpinfo_ini_display.phpt` — `phpinfo(INFO_MODULES)` coverage for INI display callbacks
   - Plus 6 additional coverage tests for datetime, bind, and exec code paths
 - **Coverage baseline** raised from **61.8% → 65.2%** (5,089 / 7,802 lines on FB3 build)
+
+### Changed
+
+- **OO API upgrade**: All core operations now use Firebird 3.0+ Object-Oriented C++ API
+  (`IStatement`, `IAttachment`, `ITransaction`) via RAII wrappers in `src/cpp/`. Legacy
+  `isc_dsql_*` C-API calls replaced throughout.
+
+- **`fbird_*` prefix unification**: All new functions use `fbird_*` prefix exclusively.
+  Legacy `ibase_*` aliases preserved as thin wrappers for backward compatibility — deprecated,
+  no new `ibase_*` symbols added.
+
+- **PHP 8.3/8.4 compatibility**: Extension verified against PHP 8.3 and 8.4 with full test pass.
+  Docker test matrix updated (`php83-fb3-dev`, `php84-fb3-dev`, `php84-fb5-dev`).
+
+- **Code cleanup**: Removed ~386 lines of legacy comment bloat (rc.35): `/* {{{ proto ... */`
+  and `/* }}} */` markers removed from all source files.
+
+### Fixed
+
+- **Issue #55 (SIGSEGV in PHPStan parallel workers)**: Fixed segfault when parallel analysis
+  tools exit — `_php_fbird_close_link()` now has `!IBG(in_mshutdown)` guard matching
+  `_php_fbird_close_plink()`. Enables PHPStan, Psalm, and PHPUnit parallel mode without crashes.
 
 ### Technical Notes
 
 - `_php_fbird_safe_copy_sqlvar_data()` in `fbird_query_bind.c` (lines 36–220) is dead code on
-  Firebird 3+ builds. It is only reachable via the legacy `isc_dsql` API (Firebird 2.5). This
-  accounts for ~87 lines of structurally-unreachable coverage gap.
-- `firebird_utils.cpp` batch API paths (281-line gap) require `#if FB_API_VER >= 40` guards;
-  running coverage on `php85-fb5-dev` expands measured total from 7,802 → 9,155 and lowers % —
-  the FB3 container remains the authoritative coverage target.
+  Firebird 3+ builds — only reachable via legacy `isc_dsql` API (Firebird 2.5). Accounts for
+  ~87 lines of structurally-unreachable coverage gap on FB3 containers.
+- `firebird_utils.cpp` batch API paths require `#if FB_API_VER >= 40` guards; coverage measured
+  on the `php84-fb3-dev` container (7,802 total lines) remains the authoritative target.
 
 ## [7.0.0-rc.35] - 2026-01-02
 
@@ -592,7 +649,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.37...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0...HEAD
+[7.0.0]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.37...v7.0.0
 [7.0.0-rc.37]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.36...v7.0.0-rc.37
 [7.0.0-rc.36]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.35...v7.0.0-rc.36
 [7.0.0-rc.35]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.25...v7.0.0-rc.35

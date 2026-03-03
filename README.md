@@ -3,6 +3,7 @@
 [![CI](https://github.com/satwareAG/php-firebird/actions/workflows/ci.yml/badge.svg)](https://github.com/satwareAG/php-firebird/actions/workflows/ci.yml)
 [![License: PHP-3.01](https://img.shields.io/badge/License-PHP--3.01-blue.svg)](LICENSE)
 [![PHP 8.1+](https://img.shields.io/badge/PHP-8.1%2B-8892BF.svg)](https://www.php.net/)
+[![Version](https://img.shields.io/badge/version-7.0.0-brightgreen.svg)](CHANGELOG.md)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/satwareAG/php-firebird)
 
 A high-performance PHP extension providing native connectivity to Firebird databases. This modernized version targets PHP 8.1+ with C++17 standards and comprehensive development tooling.
@@ -764,9 +765,13 @@ Add to your `psalm.xml`:
 - `fbird_close()` - Close a database connection
 
 ### Query Functions
-- `fbird_query()` - Execute a query
+- `fbird_query()` - Execute a query (link or transaction as first arg)
+- `fbird_query_params_tx($link, $trans, $sql, ?$params)` - Execute with explicit link + transaction + params (Doctrine DBAL integration)
 - `fbird_prepare()` - Prepare a query for later execution
 - `fbird_execute()` - Execute a prepared query
+- `fbird_execute_statement()` - Execute a prepared statement resource
+- `fbird_execute_query()` - Execute SQL string with optional parameters
+- `fbird_execute_auto()` - Auto-commit execution helper
 - `fbird_free_query()` - Free memory allocated by a prepared query
 - `fbird_free_result()` - Free a result set
 
@@ -893,7 +898,7 @@ See [EVENT_TIMEOUT_RFC.md](docs/development/EVENT_TIMEOUT_RFC.md) for implementa
 
 ## Version Compatibility
 
-### Current Version: 7.0.0-rc (Release Candidate)
+### Current Version: 7.0.0 (Stable)
 
 **Supported PHP Versions:**
 - PHP 8.1 (**DEPRECATED** - will be removed in v7.1.0; PHP 8.1 EOL: Nov 2025)

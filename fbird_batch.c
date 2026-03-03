@@ -680,6 +680,37 @@ PHP_FUNCTION(fbird_batch_register_blob)
 	/* Convert batch BLOB ID to hex string for PHP */
 	RETURN_NEW_STR(_php_fbird_quad_to_string(batch_blob_id));
 }
+
+/* {{{ proto int|false fbird_batch_get_blob_alignment(resource batch)
+   Returns the BLOB alignment requirement for this batch in bytes, or false on error.
+   The alignment value is needed when embedding inline BLOBs via fbird_batch_add_blob(). */
+PHP_FUNCTION(fbird_batch_get_blob_alignment)
+{
+	zval *batch_arg;
+	fbird_batch *ib_batch;
+	unsigned alignment;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r", &batch_arg) == FAILURE) {
+		return;
+	}
+
+	ib_batch = (fbird_batch *)zend_fetch_resource_ex(batch_arg, LE_BATCH, le_batch);
+	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
+		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
+		RETURN_FALSE;
+	}
+
+	alignment = fbbatch_get_blob_alignment(IBG(master_instance), ib_batch->fbbatch_wrapper, IB_STATUS);
+	if (alignment == 0) {
+		_php_fbird_error();
+		RETURN_FALSE;
+	}
+
+	RETURN_LONG((zend_long)alignment);
+}
+/* }}} */
 #endif /* FB_API_VER >= 40 */
 
 #endif /* HAVE_FIREBIRD */

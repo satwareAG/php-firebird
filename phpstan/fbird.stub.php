@@ -952,6 +952,15 @@ function fbird_batch_execute(mixed $batch): array|false {}
  */
 function fbird_batch_cancel(mixed $batch): bool {}
 
+/**
+ * Returns the BLOB alignment requirement for this batch, in bytes.
+ *
+ * @param resource $batch Batch resource from fbird_batch_create()
+ * @return int|false Alignment in bytes (power of 2), or false on error
+ * @since 7.0.0
+ */
+function fbird_batch_get_blob_alignment(mixed $batch): int|false {}
+
 // ============================================================================
 // INSPECTION FUNCTIONS (Database/Attachment Management)
 // ============================================================================

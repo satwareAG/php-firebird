@@ -1175,6 +1175,21 @@ function fbird_batch_execute(mixed $batch): array|false {}
  */
 function fbird_batch_cancel(mixed $batch): bool {}
 
+/**
+ * Returns the BLOB alignment requirement for this batch, in bytes.
+ *
+ * The alignment value must be used when embedding inline BLOBs via
+ * fbird_batch_add_blob(). Inline BLOB data must start at an offset that
+ * is a multiple of this alignment. Typically 4 or 8 bytes.
+ *
+ * Only available with Firebird 4.0+.
+ *
+ * @param resource $batch Batch resource from fbird_batch_create()
+ * @return int|false Alignment in bytes, or false on error
+ * @since 7.0.0
+ */
+function fbird_batch_get_blob_alignment(mixed $batch): int|false {}
+
 // ============================================================================
 // INSPECTION FUNCTIONS
 // ============================================================================

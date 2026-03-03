@@ -961,6 +961,27 @@ function fbird_batch_cancel(mixed $batch): bool {}
  */
 function fbird_batch_get_blob_alignment(mixed $batch): int|false {}
 
+/**
+ * @param resource $batch
+ * @param string $data
+ * @return bool
+ */
+function fbird_batch_append_blob_data(mixed $batch, string $data): bool {}
+
+/**
+ * @param resource $batch
+ * @param string $data
+ * @return bool
+ */
+function fbird_batch_add_blob_stream(mixed $batch, string $data): bool {}
+
+/**
+ * @param resource $batch
+ * @param string $bpb
+ * @return bool
+ */
+function fbird_batch_set_default_bpb(mixed $batch, string $bpb): bool {}
+
 // ============================================================================
 // INSPECTION FUNCTIONS (Database/Attachment Management)
 // ============================================================================

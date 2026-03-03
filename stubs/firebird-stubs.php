@@ -1190,6 +1190,40 @@ function fbird_batch_cancel(mixed $batch): bool {}
  */
 function fbird_batch_get_blob_alignment(mixed $batch): int|false {}
 
+/**
+ * Append a chunk of data to the BLOB currently being constructed in the batch.
+ * Must be called after fbird_batch_add_blob() has opened the current BLOB segment.
+ *
+ * @param resource $batch Batch resource from fbird_batch_create()
+ * @param string $data Binary chunk to append to current BLOB
+ * @return bool TRUE on success, FALSE on failure
+ * @since 7.0.0
+ */
+function fbird_batch_append_blob_data(mixed $batch, string $data): bool {}
+
+/**
+ * Add BLOB data to the batch using the IBatch addBlobStream protocol.
+ * Alternative streaming approach for large BLOB payloads.
+ *
+ * @param resource $batch Batch resource from fbird_batch_create()
+ * @param string $data Binary BLOB stream data
+ * @return bool TRUE on success, FALSE on failure
+ * @since 7.0.0
+ */
+function fbird_batch_add_blob_stream(mixed $batch, string $data): bool {}
+
+/**
+ * Set the default BLOB Property Block (BPB) for all BLOBs in this batch.
+ * The BPB is a raw binary property block controlling BLOB encoding and charset.
+ * Must be called before adding any BLOBs to the batch.
+ *
+ * @param resource $batch Batch resource from fbird_batch_create()
+ * @param string $bpb Raw binary BPB data (use isc_bpb_* constants to build)
+ * @return bool TRUE on success, FALSE on failure
+ * @since 7.0.0
+ */
+function fbird_batch_set_default_bpb(mixed $batch, string $bpb): bool {}
+
 // ============================================================================
 // INSPECTION FUNCTIONS
 // ============================================================================

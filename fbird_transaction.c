@@ -43,21 +43,32 @@ void _php_fbird_free_trans(zend_resource *rsrc)
 		fbt_free(trans->fbt_transaction);
 		trans->fbt_transaction = NULL;
 		trans->handle.ptr = 0;
-		if (res) {
+		/* Fix #78: _php_fbird_error() calls php_error_docref()/zend_throw_exception()
+		 * which access EG() globals that may already be destroyed during MSHUTDOWN.
+		 * Guard with in_mshutdown to prevent SIGABRT. */
+		if (res && !IBG(in_mshutdown)) {
 			_php_fbird_error();
 		}
 	}
 
-	/* now remove this transaction from all the connection-transaction lists */
-	for (i = 0; i < trans->link_cnt; ++i) {
-		if (trans->db_link[i] != NULL) {
-			fbird_tr_list **l;
-			for (l = &trans->db_link[i]->tr_list; *l != NULL; l = &(*l)->next) {
-				if ( (*l)->trans == trans) {
-					fbird_tr_list *p = *l;
-					*l = p->next;
-					efree(p);
-					break;
+	/* Fix #79: During MSHUTDOWN, db_link[] pointers may be dangling — the
+	 * connection resource (le_plink) destructor can run before the transaction
+	 * resource destructor, freeing the fbird_db_link struct that db_link[i]
+	 * points to. Traversing tr_list through a freed pointer is a Use-After-Free.
+	 * Skip the tr_list cleanup entirely during shutdown; the connection struct
+	 * is already gone (or about to be freed), so the list nodes will be
+	 * reclaimed with the request pool anyway. */
+	if (!IBG(in_mshutdown)) {
+		for (i = 0; i < trans->link_cnt; ++i) {
+			if (trans->db_link[i] != NULL) {
+				fbird_tr_list **l;
+				for (l = &trans->db_link[i]->tr_list; *l != NULL; l = &(*l)->next) {
+					if ( (*l)->trans == trans) {
+						fbird_tr_list *p = *l;
+						*l = p->next;
+						efree(p);
+						break;
+					}
 				}
 			}
 		}

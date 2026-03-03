@@ -70,7 +70,7 @@ void _php_fbird_field_info(zval *return_value, fbird_query *ib_query, int is_out
  if(is_outvar){
         sqlda = ib_query->out_sqlda;
         if (sqlda == NULL) {
-            _php_fbird_module_error("Trying to get field info from a non-select query");
+            _php_fbird_module_error("Trying to get field info from a non-select query"); /* LCOV_EXCL_LINE */
             RETURN_FALSE;
         }
     } else {

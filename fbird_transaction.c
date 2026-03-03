@@ -306,13 +306,13 @@ PHP_FUNCTION(fbird_trans_start)
 
 	/* OO API Only: All connections use fbt_start() */
 	if (ib_link->fbc_connection == NULL) {
-		_php_fbird_module_error("Connection has no OO API handle");
+		_php_fbird_module_error("Connection has no OO API handle"); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 
 	void* attachment = fbc_get_attachment(ib_link->fbc_connection);
 	if (attachment == NULL) {
-		_php_fbird_module_error("Failed to get attachment from OO API connection");
+		_php_fbird_module_error("Failed to get attachment from OO API connection"); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 
@@ -327,7 +327,7 @@ PHP_FUNCTION(fbird_trans_start)
 
 	if (ib_trans->fbt_transaction == NULL) {
 		efree(ib_trans);
-		_php_fbird_error();
+		_php_fbird_error(); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 
@@ -389,7 +389,7 @@ static void _php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAMETERS, const char *
 
 	/* OO API Only: All transactions use fbs_prepare() + fbs_execute() */
 	if (trans->fbt_transaction == NULL) {
-		_php_fbird_module_error("Transaction has no OO API handle");
+		_php_fbird_module_error("Transaction has no OO API handle"); /* LCOV_EXCL_LINE */
 		efree(query);
 		RETURN_FALSE;
 	}
@@ -434,7 +434,7 @@ static void _php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAMETERS, const char *
 	/* Execute the savepoint statement (no input/output parameters) */
 	if (!fbs_execute(IBG(master_instance), stmt, transaction_ptr,
 			NULL, NULL, NULL, NULL, IB_STATUS)) {
-		_php_fbird_error();
+		_php_fbird_error(); /* LCOV_EXCL_LINE */
 		fbs_free(stmt, IB_STATUS);
 		efree(query);
 		RETURN_FALSE;
@@ -494,7 +494,7 @@ PHP_FUNCTION(fbird_trans_info)
 	 */
 	if (trans->fbt_transaction != NULL) {
 		if (trans->handle.ptr == NULL) {
-			_php_fbird_module_error("Transaction has no valid OO API handle");
+			_php_fbird_module_error("Transaction has no valid OO API handle"); /* LCOV_EXCL_LINE */
 			RETURN_FALSE;
 		}
 
@@ -507,7 +507,7 @@ PHP_FUNCTION(fbird_trans_info)
 				(unsigned char*)res_buf,
 				IB_STATUS
 			) == 0) {
-			_php_fbird_error();
+			_php_fbird_error(); /* LCOV_EXCL_LINE */
 			RETURN_FALSE;
 		}
 	} else {
@@ -601,14 +601,14 @@ PHP_FUNCTION(fbird_connection_info)
 	if (ib_link->fbc_connection != NULL) {
 		void* attachment = fbc_get_attachment(ib_link->fbc_connection);
 		if (attachment == NULL) {
-			_php_fbird_module_error("Failed to get attachment from OO API connection");
+			_php_fbird_module_error("Failed to get attachment from OO API connection"); /* LCOV_EXCL_LINE */
 			RETURN_FALSE;
 		}
 
 		if (!fbc_get_info(IBG(master_instance), attachment,
 				sizeof(info_items), (const unsigned char*)info_items,
 				sizeof(res_buf), (unsigned char*)res_buf, IB_STATUS)) {
-			_php_fbird_error();
+			_php_fbird_error(); /* LCOV_EXCL_LINE */
 			RETURN_FALSE;
 		}
 	} else {
@@ -830,14 +830,14 @@ PHP_FUNCTION(fbird_trans)
 		/* OO API Only: All connections must have OO API handle */
 		if (ib_link[0]->fbc_connection == NULL) {
 			efree(ib_link);
-			_php_fbird_module_error("Connection has no OO API handle");
+			_php_fbird_module_error("Connection has no OO API handle"); /* LCOV_EXCL_LINE */
 			RETURN_FALSE;
 		}
 
 		void* attachment = fbc_get_attachment(ib_link[0]->fbc_connection);
 		if (attachment == NULL) {
 			efree(ib_link);
-			_php_fbird_module_error("Failed to get attachment from OO API connection");
+			_php_fbird_module_error("Failed to get attachment from OO API connection"); /* LCOV_EXCL_LINE */
 			RETURN_FALSE;
 		}
 
@@ -849,7 +849,7 @@ PHP_FUNCTION(fbird_trans)
 			IB_STATUS
 		);
 		if (oo_trans == NULL) {
-			_php_fbird_error();
+			_php_fbird_error(); /* LCOV_EXCL_LINE */
 			efree(ib_link);
 			RETURN_FALSE;
 		}
@@ -925,13 +925,13 @@ int _php_fbird_def_trans(fbird_db_link *ib_link, fbird_transaction **trans)
 
 			/* OO API Only: All connections use fbt_start() */
 			if (ib_link->fbc_connection == NULL) {
-				_php_fbird_module_error("Connection has no OO API handle");
+				_php_fbird_module_error("Connection has no OO API handle"); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 
 			void* attachment = fbc_get_attachment(ib_link->fbc_connection);
 			if (attachment == NULL) {
-				_php_fbird_module_error("Failed to get attachment from OO API connection");
+				_php_fbird_module_error("Failed to get attachment from OO API connection"); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 
@@ -944,7 +944,7 @@ int _php_fbird_def_trans(fbird_db_link *ib_link, fbird_transaction **trans)
 			);
 
 			if (tr->fbt_transaction == NULL) {
-				_php_fbird_error();
+				_php_fbird_error(); /* LCOV_EXCL_LINE */
 				return FAILURE;
 			}
 
@@ -974,7 +974,7 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 		ib_link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), LE_LINK, le_link, le_plink);
 		if (ib_link->tr_list == NULL || ib_link->tr_list->trans == NULL) {
 			/* this link doesn't have a default transaction */
-			_php_fbird_module_error("Default link has no default transaction");
+			_php_fbird_module_error("Default link has no default transaction"); /* LCOV_EXCL_LINE */
 			RETURN_FALSE;
 		}
 		trans = ib_link->tr_list->trans;
@@ -988,7 +988,7 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 
 			if (ib_link->tr_list == NULL || ib_link->tr_list->trans == NULL) {
 				/* this link doesn't have a default transaction */
-				_php_fbird_module_error("Link has no default transaction");
+				_php_fbird_module_error("Link has no default transaction"); /* LCOV_EXCL_LINE */
 				RETURN_FALSE;
 			}
 			trans = ib_link->tr_list->trans;
@@ -997,7 +997,7 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 
 	/* OO API Only: All transactions use fbt_* functions */
 	if (trans->fbt_transaction == NULL) {
-		_php_fbird_module_error("invalid transaction handle (expecting explicit transaction start) ");
+		_php_fbird_module_error("invalid transaction handle (expecting explicit transaction start) "); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 

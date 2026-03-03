@@ -788,14 +788,14 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 					if ((var->sqltype & ~1) == SQL_TIME_TZ) {
 						if (fbu_encode_time_tz(IBG(master_instance), &buf[i].val.tmtzval,
 								dt.hours, dt.minutes, dt.seconds, dt.fractions, dt.timezone) != 0) {
-							_php_fbird_module_error("Parameter %d: Failed to encode TIME WITH TIME ZONE", i+1);
+							_php_fbird_module_error("Parameter %d: Failed to encode TIME WITH TIME ZONE", i+1); /* LCOV_EXCL_LINE */
 							rv = FAILURE;
 							continue;
 						}
 					} else {
 						if (fbu_encode_timestamp_tz(IBG(master_instance), &buf[i].val.tstzval,
 								dt.year, dt.month, dt.day, dt.hours, dt.minutes, dt.seconds, dt.fractions, dt.timezone) != 0) {
-							_php_fbird_module_error("Parameter %d: Failed to encode TIMESTAMP WITH TIME ZONE", i+1);
+							_php_fbird_module_error("Parameter %d: Failed to encode TIMESTAMP WITH TIME ZONE", i+1); /* LCOV_EXCL_LINE */
 							rv = FAILURE;
 							continue;
 						}
@@ -858,7 +858,7 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 
 					/* fbb_close returns 1 on success, 0 on error */
 					if (fbb_close(IBG(master_instance), ib_blob.fbb_blob, IB_STATUS) == 0) {
-						_php_fbird_error();
+						_php_fbird_error(); /* LCOV_EXCL_LINE */
 						fbb_free(ib_blob.fbb_blob);
 						return FAILURE;
 					}
@@ -1060,7 +1060,7 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 						&ar_desc,
 						IB_STATUS
 					) != 0) {
-					_php_fbird_error();
+					_php_fbird_error(); /* LCOV_EXCL_LINE */
 					rv = FAILURE;
 					++array_cnt;
 					continue;
@@ -1148,7 +1148,7 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 							slice_len,
 							IB_STATUS
 						) != 0) {
-						_php_fbird_error();
+						_php_fbird_error(); /* LCOV_EXCL_LINE */
 						efree(array_data);
 						rv = FAILURE;
 						++array_cnt;

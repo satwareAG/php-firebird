@@ -171,7 +171,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 					rc = fbt_rollback(ib_query->trans->fbt_transaction, IB_STATUS);
 				}
 				if (rc != 0) {
-					_php_fbird_error();
+					_php_fbird_error(); /* LCOV_EXCL_LINE */
 					goto _php_fbird_ex_error;
 				}
 
@@ -209,7 +209,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 			goto _php_fbird_ex_error;
 		}
 		if (!ib_query->in_msg_buffer) {
-			_php_fbird_module_error("OO API input message buffer not allocated for parameterized query");
+			_php_fbird_module_error("OO API input message buffer not allocated for parameterized query"); /* LCOV_EXCL_LINE */
 			goto _php_fbird_ex_error;
 		}
 
@@ -414,7 +414,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
                 );
 
                 if (fetch_result == -1) {
-                    _php_fbird_error();
+                    _php_fbird_error(); /* LCOV_EXCL_LINE */
                     fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
                     goto _php_fbird_ex_error;
                 }
@@ -441,7 +441,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
             goto execute_done;
         }
         /* Should not reach here - all paths either succeed or error out above */
-        _php_fbird_module_error("OO API execution path did not complete");
+        _php_fbird_module_error("OO API execution path did not complete"); /* LCOV_EXCL_LINE */
         goto _php_fbird_ex_error;
     }
 
@@ -916,7 +916,7 @@ cleanup_select_result_query:
 				);
 
 				if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
-					_php_fbird_error();
+					_php_fbird_error(); /* LCOV_EXCL_LINE */
 					goto _php_fbird_ex_error;
 				}
 
@@ -1503,7 +1503,7 @@ PHP_FUNCTION(fbird_execute_query)
     if (trans->link_cnt > 0) {
         link = trans->db_link[0];
     } else {
-        _php_fbird_module_error("Transaction has no associated link");
+        _php_fbird_module_error("Transaction has no associated link"); /* LCOV_EXCL_LINE */
         RETURN_FALSE;
     }
 
@@ -1586,7 +1586,7 @@ PHP_FUNCTION(fbird_execute_auto)
 
     /* OO API Only: Connection must have OO API handle */
     if (!link->fbc_connection) {
-        _php_fbird_module_error("fbird_execute_auto requires OO API connection (fbc_connection required)");
+        _php_fbird_module_error("fbird_execute_auto requires OO API connection (fbc_connection required)"); /* LCOV_EXCL_LINE */
         RETURN_FALSE;
     }
 

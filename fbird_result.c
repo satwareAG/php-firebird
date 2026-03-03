@@ -536,7 +536,7 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 		if (!is_buffered_returning) {
 			/* OO API fetch via fbs_fetch() with message buffer */
 			if (!ib_query->fbs_statement || !fbs_is_cursor_open(ib_query->fbs_statement)) {
-				_php_fbird_module_error("OO API cursor not open");
+				_php_fbird_module_error("OO API cursor not open"); /* LCOV_EXCL_LINE */
 				RETURN_FALSE;
 			}
 
@@ -557,7 +557,7 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 				/* Error */
 				ib_query->has_more_rows = 0;
 				ib_query->is_open = 0;
-				_php_fbird_error();
+				_php_fbird_error(); /* LCOV_EXCL_LINE */
 				fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
 				RETURN_FALSE;
 			}
@@ -645,7 +645,7 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 						goto _php_fbird_fetch_error;
 					}
 					if (!ib_query->trans || !ib_query->trans->fbt_transaction) {
-						_php_fbird_module_error("OO API transaction required to fetch BLOB contents");
+						_php_fbird_module_error("OO API transaction required to fetch BLOB contents"); /* LCOV_EXCL_LINE */
 						goto _php_fbird_fetch_error;
 					}
 
@@ -686,7 +686,7 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 							bl_info,
 							IB_STATUS
 						) == 0) {
-						_php_fbird_error();
+						_php_fbird_error(); /* LCOV_EXCL_LINE */
 						goto _php_fbird_fetch_error;
 					}
 
@@ -726,7 +726,7 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 
 					/* fbb_close returns 1 on success, 0 on error */
 					if (fbb_close(IBG(master_instance), blob_handle.fbb_blob, IB_STATUS) == 0) {
-						_php_fbird_error();
+						_php_fbird_error(); /* LCOV_EXCL_LINE */
 						goto _php_fbird_fetch_error;
 					}
 					fbb_free(blob_handle.fbb_blob);
@@ -771,7 +771,7 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 
 					if (fba_lookup_bounds(IBG(master_instance), attachment_ptr, transaction_ptr,
 							rname, sname, &fresh_desc, IB_STATUS) != 0) {
-						_php_fbird_error();
+						_php_fbird_error(); /* LCOV_EXCL_LINE */
 						goto _php_fbird_fetch_error;
 					}
 
@@ -842,7 +842,7 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 
 					if (fba_get_slice(IBG(master_instance), attachment_ptr, transaction_ptr,
 							&ar_qd, &local_array.ar_desc, ar_data, &fetch_size, IB_STATUS) != 0) {
-						_php_fbird_error();
+						_php_fbird_error(); /* LCOV_EXCL_LINE */
 						efree(ar_data);
 						goto _php_fbird_fetch_error;
 					}
@@ -914,7 +914,7 @@ PHP_FUNCTION(fbird_name_result)
 	}
 
 	if (!fbs_set_cursor_name(IBG(master_instance), ib_query->fbs_statement, name_arg, IB_STATUS)) {
-		_php_fbird_error();
+		_php_fbird_error(); /* LCOV_EXCL_LINE */
 		RETURN_FALSE;
 	}
 

@@ -401,6 +401,23 @@ function fbird_prepare(
 function fbird_execute(mixed $query, mixed ...$bind_args): mixed {}
 
 /**
+ * Execute a SQL statement in an autonomous transaction (auto-commit).
+ *
+ * Executes a SQL statement in a separate autonomous transaction that is
+ * automatically committed on success or rolled back on failure.
+ * Cannot be used with SELECT statements (cursor would be closed on commit).
+ * Requires an OO API connection (fbird_connect(), not fbird_pconnect()).
+ *
+ * @param resource     $link_identifier Database connection resource
+ * @param string       $sql             SQL statement to execute (non-SELECT only)
+ * @param array<mixed> $params          Optional bind parameters
+ * @return int|false Number of affected rows, or false on failure
+ * @throws \Error If used with a SELECT statement
+ * @since 7.0.0
+ */
+function fbird_execute_auto(mixed $link_identifier, string $sql, array $params = []): int|false {}
+
+/**
  * Free a prepared statement.
  *
  * @param resource $query Prepared statement resource

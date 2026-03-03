@@ -4,7 +4,7 @@
 # Usage: ./scripts/qa.sh [options]
 #
 # Options:
-#   --container NAME   Container to use (default: php83-dev)
+#   --container NAME   Container to use (default: php84-fb3-dev — amicron-platform baseline)
 #   --mode MODE        fast|standard|full|security|fuzz|matrix (default: standard)
 #   --valgrind         Run Valgrind memory analysis (can combine with --container)
 #   --asan             Run AddressSanitizer tests (uses php83-asan container)
@@ -35,8 +35,8 @@
 
 set -e
 
-# Defaults
-CONTAINER="php83-dev"
+# Defaults — php84-fb3-dev is the amicron-platform baseline (PHP 8.4 + Firebird 3)
+CONTAINER="php84-fb3-dev"
 MODE="standard"
 SKIP_BUILD=false
 PHP_ONLY=false

@@ -24,10 +24,14 @@ $password = getenv('ISC_PASSWORD')  ?: 'masterkey';
 
 // Firebird service API: each backup/restore operation needs a fresh service handle.
 // Re-using the same handle across sequential operations triggers "Service is currently busy".
-function attach_svc($host, $user, $password) {
-    $s = @fbird_service_attach($host, $user, $password);
-    if (!$s) die("ERROR: could not attach to service\n");
-    return $s;
+// Retry up to 3 times with 500ms delay to handle transient "service busy" races in CI.
+function attach_svc($host, $user, $password, int $maxAttempts = 3) {
+    for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+        $s = @fbird_service_attach($host, $user, $password);
+        if ($s) return $s;
+        if ($attempt < $maxAttempts) usleep(500000); // 500ms between retries
+    }
+    die("ERROR: could not attach to service after {$maxAttempts} attempts\n");
 }
 
 // Firebird service API requires the local server-side database path (no host prefix).

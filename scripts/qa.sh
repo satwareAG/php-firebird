@@ -124,6 +124,7 @@ if [ "$MODE" == "matrix" ]; then
     # Matrix configurations: container:firebird_server:description
     MATRIX_CONFIGS=(
         "php81-fb3-dev:firebird30:PHP 8.1 + Firebird 3.0 (oldest)"
+        "php84-fb3-dev:firebird30:PHP 8.4 + Firebird 3.0 (amicron-platform)"
         "php85-fb5-dev:firebird50:PHP 8.5 + Firebird 5.0 (newest)"
     )
     
@@ -184,6 +185,15 @@ EOF
             fi
         ' 2>/dev/null || true
         
+        # Clean up stale test-coverage FDB files left by previous runs.
+        # The Firebird service API creates temp databases during restore tests;
+        # if a PHP process was killed before cleanup, those files remain open
+        # on the Firebird server.  PID recycling then causes "DATABASE IS IN USE"
+        # failures on the next matrix run.
+        docker compose exec -T "$server" bash -c \
+            'rm -f /tmp/test_coverage_*.fdb /tmp/test_*.fdb 2>/dev/null; true' \
+            2>/dev/null || true
+
         # Pre-flight cleanup
         echo -e "${BLUE}>> Pre-flight cleanup...${NC}"
         docker compose exec -T -u root "$container" bash -c "

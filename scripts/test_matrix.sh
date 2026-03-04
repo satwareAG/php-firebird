@@ -3,14 +3,14 @@ set -e
 
 # Modern implementation of test runner across PHP versions
 # Usage: ./test_matrix.sh [container_name] [firebird_server] [test_files...]
-# Example: ./test_matrix.sh php81-dev
+# Example: ./test_matrix.sh php83-dev
 # Example: ./test_matrix.sh php85-fb5-dev firebird50
-# Example: ./test_matrix.sh php81-dev "" tests/fbird_blob_001.phpt
+# Example: ./test_matrix.sh php84-fb3-dev "" tests/fbird_blob_001.phpt
 # Example (all versions, specific test): ./test_matrix.sh "" "" tests/fbird_blob_001.phpt
 #
 # Arguments:
-#   container_name   - PHP container to test (e.g., php81-dev, php85-fb5-dev)
-#   firebird_server  - Target Firebird server (firebird25, firebird30, firebird40, firebird50)
+#   container_name   - PHP container to test (e.g., php82-dev, php83-dev, php84-dev, php84-fb3-dev, php85-dev, php85-fb5-dev)
+#   firebird_server  - Target Firebird server (firebird30, firebird40, firebird50)
 #   test_files       - Optional specific test files to run
 
 # Colors
@@ -55,7 +55,8 @@ else
     # - Standard containers (php8x-dev): Use apt firebird-dev (Firebird 4.x client)
     # - php84-fb3-dev: Firebird 3.0.12 client for FB 2.5/3.0 server compatibility
     # - php85-fb5-dev: Firebird 5.x client for latest features
-    TARGETS=("php81-dev" "php82-dev" "php83-dev" "php84-dev" "php84-fb3-dev" "php85-dev" "php85-fb5-dev")
+    # Note: php81-dev removed in v7.2.0 (PHP 8.1 EOL Nov 2025)
+    TARGETS=("php82-dev" "php83-dev" "php84-dev" "php84-fb3-dev" "php85-dev" "php85-fb5-dev")
 fi
 
 # 4. Parse Firebird Server Target (optional second argument)

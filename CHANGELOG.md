@@ -5,7 +5,7 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [7.0.0] - 2026-03-04
 
 ### Added
 
@@ -18,6 +18,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     and `php_fbird_trans_displayer` callbacks in `firebird.c`
   - Plus 6 additional coverage tests for datetime, bind, and exec code paths
 - **Coverage baseline** raised from **61.8% → 65.2%** (5,089 / 7,802 lines on FB3 build)
+- **Three new Batch API functions** completing the Firebird 4.0+ IBatch PHP surface:
+  - `fbird_batch_append_blob_data(resource $batch, string $data): bool` — append a data chunk
+    to the BLOB currently being constructed in the batch (multi-part BLOB assembly)
+  - `fbird_batch_add_blob_stream(resource $batch, string $data): bool` — add BLOB data via
+    the IBatch `addBlobStream` streaming protocol
+  - `fbird_batch_set_default_bpb(resource $batch, string $bpb): bool` — set the default BLOB
+    Property Block (BPB) for all BLOBs in this batch (encoding, charset control)
+  - All three functions had complete C++ wrappers in `firebird_utils.cpp` but lacked PHP_FUNCTION
+    glue, arginfo, PHP_FE registration, stubs, and tests — now fully wired
+  - Stubs count: **82 → 85** functions; both `stubs/firebird-stubs.php` and
+    `phpstan/fbird.stub.php` updated; `scripts/check-stubs-sync.sh` exits 0
 
 ### Technical Notes
 
@@ -592,7 +603,9 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.37...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.0.0...HEAD
+[7.0.0]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.51...v7.0.0
+[7.0.0-rc.51]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.37...v7.0.0-rc.51
 [7.0.0-rc.37]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.36...v7.0.0-rc.37
 [7.0.0-rc.36]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.35...v7.0.0-rc.36
 [7.0.0-rc.35]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.25...v7.0.0-rc.35

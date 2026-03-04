@@ -3691,6 +3691,19 @@ extern "C" int fbbatch_add_blob_stream(
         return 0;
     }
 
+    // Guard: addBlobStream stream must contain at least one valid entry header:
+    // ISC_QUAD (8 bytes blob_id) + uint32 (4 bytes length) = 12 bytes minimum.
+    // Passing garbage data causes memory access violation inside libfbclient.so
+    // (stream parser walks the buffer using the embedded length fields).
+    if (length < 12 || data == nullptr) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_segstr_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
     try {
         Firebird::IStatus* raw_status = master->getStatus();
         Firebird::CheckStatusWrapper status(raw_status);
@@ -3827,6 +3840,16 @@ extern "C" int fbbatch_set_default_bpb(
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
             status_vector[1] = isc_bad_req_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
+    }
+
+    // Guard: Firebird 5 dereferences bpb even for length=0 — passing null/empty causes segfault
+    if (bpb_length == 0 || bpb == nullptr) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_dpb_content;  /* closest available: invalid param content */
             status_vector[2] = isc_arg_end;
         }
         return 0;

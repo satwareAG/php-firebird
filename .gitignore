@@ -141,3 +141,7 @@ scripts/container/analysis/lsan.supp
 
 # Distribution bundles (release artifacts)
 dist/
+
+# Generated artifacts
+fuzz_report.sarif
+test_array

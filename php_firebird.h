@@ -137,6 +137,10 @@ PHP_FUNCTION(fbird_batch_execute);
 PHP_FUNCTION(fbird_batch_cancel);
 PHP_FUNCTION(fbird_batch_add_blob);
 PHP_FUNCTION(fbird_batch_register_blob);
+PHP_FUNCTION(fbird_batch_get_blob_alignment);
+PHP_FUNCTION(fbird_batch_append_blob_data);
+PHP_FUNCTION(fbird_batch_add_blob_stream);
+PHP_FUNCTION(fbird_batch_set_default_bpb);
 #endif /* FB_API_VER >= 40 */
 
 #else

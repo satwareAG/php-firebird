@@ -401,6 +401,48 @@ function fbird_prepare(
 function fbird_execute(mixed $query, mixed ...$bind_args): mixed {}
 
 /**
+ * Execute a DML/DDL statement with parameters within an explicit transaction.
+ *
+ * Prepares and executes a non-SELECT SQL statement atomically. Throws an error
+ * if a SELECT statement is given; use fbird_execute_query() for those.
+ *
+ * @param resource               $trans_handle Transaction resource
+ * @param string                 $query        SQL DML/DDL statement
+ * @param array<int, mixed>|null $params       Bind parameters (optional)
+ * @return int|false Affected-row count (0 for DDL) or false on error
+ * @since 7.0.0
+ */
+function fbird_execute_statement(mixed $trans_handle, string $query, ?array $params = null): int|false {}
+
+/**
+ * Execute a SELECT/RETURNING statement with parameters within an explicit transaction.
+ *
+ * Prepares and executes a SELECT query atomically and returns a result resource.
+ * Throws an error if a DML statement is given; use fbird_execute_statement() for those.
+ *
+ * @param resource               $trans_handle Transaction resource
+ * @param string                 $query        SQL SELECT or RETURNING statement
+ * @param array<int, mixed>|null $params       Bind parameters (optional)
+ * @return resource|false Result resource or false on error
+ * @since 7.0.0
+ */
+function fbird_execute_query(mixed $trans_handle, string $query, ?array $params = null): mixed {}
+
+/**
+ * Execute any SQL statement via an auto-managed transaction on an OO API connection.
+ *
+ * Requires a Firebird 4+ OO API connection (fbc_connection required). Auto-detects
+ * SELECT vs DML/DDL and returns the appropriate result.
+ *
+ * @param resource               $link_identifier Database connection resource (OO API)
+ * @param string                 $query           SQL statement
+ * @param array<int, mixed>|null $params          Bind parameters (optional)
+ * @return resource|int|false Result resource (SELECT), int (DML affected rows), or false
+ * @since 7.0.0
+ */
+function fbird_execute_auto(mixed $link_identifier, string $query, ?array $params = null): mixed {}
+
+/**
  * Free a prepared statement.
  *
  * @param resource $query Prepared statement resource
@@ -1047,20 +1089,6 @@ function fbird_get_client_minor_version(): int {}
 function fbird_connection_info(mixed $link_identifier = null): array|false {}
 
 // ============================================================================
-// TIME FORMAT FUNCTION
-// ============================================================================
-
-/**
- * Set the date/time format for string conversion.
- *
- * @param string $format Format string
- * @param int    $type   Type constant
- * @return bool True on success
- * @since 7.0.0
- */
-function fbird_timefmt(string $format, int $type = 0): bool {}
-
-// ============================================================================
 // LIMBO TRANSACTION FUNCTIONS
 // ============================================================================
 
@@ -1148,13 +1176,53 @@ function fbird_batch_execute(mixed $batch): array|false {}
 function fbird_batch_cancel(mixed $batch): bool {}
 
 /**
- * Get BLOB alignment requirement for batch.
+ * Returns the BLOB alignment requirement for this batch, in bytes.
  *
- * @param resource $batch Batch handle
- * @return int|false Alignment in bytes or false
+ * The alignment value must be used when embedding inline BLOBs via
+ * fbird_batch_add_blob(). Inline BLOB data must start at an offset that
+ * is a multiple of this alignment. Typically 4 or 8 bytes.
+ *
+ * Only available with Firebird 4.0+.
+ *
+ * @param resource $batch Batch resource from fbird_batch_create()
+ * @return int|false Alignment in bytes, or false on error
  * @since 7.0.0
  */
 function fbird_batch_get_blob_alignment(mixed $batch): int|false {}
+
+/**
+ * Append a chunk of data to the BLOB currently being constructed in the batch.
+ * Must be called after fbird_batch_add_blob() has opened the current BLOB segment.
+ *
+ * @param resource $batch Batch resource from fbird_batch_create()
+ * @param string $data Binary chunk to append to current BLOB
+ * @return bool TRUE on success, FALSE on failure
+ * @since 7.0.0
+ */
+function fbird_batch_append_blob_data(mixed $batch, string $data): bool {}
+
+/**
+ * Add BLOB data to the batch using the IBatch addBlobStream protocol.
+ * Alternative streaming approach for large BLOB payloads.
+ *
+ * @param resource $batch Batch resource from fbird_batch_create()
+ * @param string $data Binary BLOB stream data
+ * @return bool TRUE on success, FALSE on failure
+ * @since 7.0.0
+ */
+function fbird_batch_add_blob_stream(mixed $batch, string $data): bool {}
+
+/**
+ * Set the default BLOB Property Block (BPB) for all BLOBs in this batch.
+ * The BPB is a raw binary property block controlling BLOB encoding and charset.
+ * Must be called before adding any BLOBs to the batch.
+ *
+ * @param resource $batch Batch resource from fbird_batch_create()
+ * @param string $bpb Raw binary BPB data (use isc_bpb_* constants to build)
+ * @return bool TRUE on success, FALSE on failure
+ * @since 7.0.0
+ */
+function fbird_batch_set_default_bpb(mixed $batch, string $bpb): bool {}
 
 // ============================================================================
 // INSPECTION FUNCTIONS

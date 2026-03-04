@@ -1,6 +1,6 @@
 # Next Session Tasks — php-firebird
 
-**Last updated:** 2026-03-04 (PR #94 open — issue #91 awaiting CI)
+**Last updated:** 2026-03-04 (PR #95 open — issue #90 awaiting CI)
 **Current version:** 7.1.0 (released)
 **Branch:** `satware-main`
 
@@ -10,18 +10,13 @@
 
 - [x] **`fix/transaction-mshutdown-uaf-78-79`** — fix confirmed merged into `satware-main`
   - Squash-merged as commit `5bcbc9f` / PR #81 (2026-03-03)
-  - Author: Michael Wegener, Co-authored-by: Jane Alesi
-  - Patch in `b68d85f` (local branch) was byte-for-byte identical to `5bcbc9f` on `satware-main`
-  - Local branch deleted (remote was already gone); fix shipped in v7.1.0
   - Issues #78 and #79 are closed
 
 ---
 
 ## Priority 1 — ✅ RESOLVED
 
-- [x] Release (Linux) re-run `22668523927` completed successfully (2026-03-04)
-  - All 10 build jobs + release job: ✓
-  - Root cause was transient HTTP 504 on Firebird SDK download (GitHub CDN)
+- [x] Release (Linux) re-run completed successfully (2026-03-04)
   - v7.1.0 release artifacts: 29/29 complete
 
 ---
@@ -40,44 +35,32 @@
 
 ---
 
-## Priority 3 — v7.2.0 implementation in progress
+## Priority 3 — ✅ v7.2.0 breaking changes complete
 
-- [x] Milestone `v7.2.0` created on GitHub (milestone #2)
-- [x] Closed stale `v7.0.0` milestone (0 open issues)
-- [x] Created label `breaking change` (#B60205)
-- [x] Issue [#90](https://github.com/satwareAG/php-firebird/issues/90) — `breaking: drop PHP 8.1 support`
-- [x] Issue [#91](https://github.com/satwareAG/php-firebird/issues/91) — `breaking: drop Firebird 2.5 server support`
-- [x] Issue [#92](https://github.com/satwareAG/php-firebird/issues/92) — `breaking: remove ibase_* function aliases`
+All three breaking change issues implemented and PRs open:
 
-### v7.2.0 Implementation Order
-
-1. **#92 — remove `ibase_*` aliases** ✅ PR [#93](https://github.com/satwareAG/php-firebird/pull/93) merged (2026-03-04, commit `1301bf5`)
-2. **#91 — drop Firebird 2.5** ✅ PR [#94](https://github.com/satwareAG/php-firebird/pull/94) open — awaiting CI
-   - Branch: `feat/drop-firebird-25-91` (commit `1ab7585`)
-   - Changes: docker-compose.yml, ci.yml, README.md, CHANGELOG.md
-   - No C source changes (all `FB_API_VER < 30` are already `#error` guards)
-3. **#90 — drop PHP 8.1** (next after PR #94 merges)
+1. **#92 — remove `ibase_*` aliases** ✅ PR [#93](https://github.com/satwareAG/php-firebird/pull/93) merged (commit `1301bf5`)
+2. **#91 — drop Firebird 2.5** ✅ PR [#94](https://github.com/satwareAG/php-firebird/pull/94) merged (commit `df10835`)
+3. **#90 — drop PHP 8.1** ✅ PR [#95](https://github.com/satwareAG/php-firebird/pull/95) open — awaiting CI
+   - Branch: `feat/drop-php81-90` (commit `78bb89e`)
+   - Changes: docker-compose.yml, Dockerfile-8.1 deleted, ci.yml, composer.json, stubs/composer.json, constitution.md, README.md, CHANGELOG.md
 
 ---
 
 ## Next immediate action (next session start)
 
-1. Check CI on PR #94: `gh pr checks 94 --repo satwareAG/php-firebird`
-2. If CI green: `gh pr merge 94 --repo satwareAG/php-firebird --squash --delete-branch`
+1. Check CI on PR #95: `gh pr checks 95 --repo satwareAG/php-firebird`
+2. If CI green: `gh pr merge 95 --repo satwareAG/php-firebird --squash --delete-branch`
 3. Sync local: `git checkout satware-main && git pull origin satware-main`
-4. Begin issue #90 (drop PHP 8.1):
-   - `git checkout -b feat/drop-php81-90 satware-main`
-
-### Issue #90 checklist (drop PHP 8.1)
-
-- [ ] Remove PHP 8.1 from Docker build matrix (`docker/php/Dockerfile-8.1`, `docker/docker-compose.yml`)
-- [ ] Remove PHP 8.1 from CI test matrix (`.github/workflows/ci.yml`, `coverage.yml`, `sanitizers.yml`)
-- [ ] Update `composer.json` PHP constraint to `>=8.2`
-- [ ] Update `stubs/composer.json` PHP constraint to `>=8.2`
-- [ ] Update `README.md` supported PHP versions (remove 8.1 deprecation notice, update minimum)
-- [ ] Update `constitution.md` Article V (PHP 8.1 listed as supported)
-- [ ] Add entry to `CHANGELOG.md` under `[Unreleased]`
-- [ ] Run `bash scripts/check-stubs-sync.sh` — must exit 0
+4. **Release v7.2.0**: All three breaking changes merged → tag and release
+   ```bash
+   # Update VERSION file
+   echo "7.2.0" > VERSION
+   git add VERSION && git commit -m "chore(release): bump version to 7.2.0"
+   # Update CHANGELOG.md [Unreleased] → [7.2.0] - YYYY-MM-DD
+   # Tag and push
+   git tag v7.2.0 && git push origin satware-main --tags
+   ```
 
 ---
 

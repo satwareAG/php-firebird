@@ -264,50 +264,43 @@ final class TBuilder
     // =========================================================================
 
     /**
-     * Enable IGNORE LIMBO transactions.
+     * Enable IGNORE LIMBO transactions (isc_tpb_ignore_limbo).
+     *
+     * Not yet exposed as a PHP constant — no-op until FBIRD_IGNORE_LIMBO is added.
      *
      * @param bool $enable Enable ignore limbo (default: true)
      * @return $this
      */
     public function ignoreLimbo(bool $enable = true): self
     {
-        // Note: IGNORE_LIMBO is not exposed as a PHP constant in current implementation.
-        // This is a placeholder for future implementation.
-        // The TPB byte would be isc_tpb_ignore_limbo (value 8 in ibase.h)
         return $this;
     }
 
     /**
-     * Enable AUTO COMMIT mode.
+     * Enable AUTO COMMIT mode (isc_tpb_autocommit).
      *
-     * Each statement is automatically committed after execution.
-     * Not commonly used - explicit commit/rollback is preferred.
+     * Not yet exposed as a PHP constant — no-op until FBIRD_AUTOCOMMIT is added.
+     * Prefer explicit commit/rollback over auto-commit.
      *
      * @param bool $enable Enable auto commit (default: true)
      * @return $this
      */
     public function autoCommit(bool $enable = true): self
     {
-        // Note: AUTO_COMMIT is not exposed as a PHP constant in current implementation.
-        // This is a placeholder for future implementation.
-        // The TPB byte would be isc_tpb_autocommit (value 16 in ibase.h)
         return $this;
     }
 
     /**
-     * Enable NO AUTO UNDO mode.
+     * Enable NO AUTO UNDO mode (isc_tpb_no_auto_undo).
      *
-     * Disables automatic undo log maintenance. Use for large batch operations
-     * where you know you won't need to rollback.
+     * Not yet exposed as a PHP constant — no-op until FBIRD_NO_AUTO_UNDO is added.
+     * Useful for large batch operations where rollback is not needed.
      *
      * @param bool $enable Enable no auto undo (default: true)
      * @return $this
      */
     public function noAutoUndo(bool $enable = true): self
     {
-        // Note: NO_AUTO_UNDO is not exposed as a PHP constant in current implementation.
-        // This is a placeholder for future implementation.
-        // The TPB byte would be isc_tpb_no_auto_undo (value 24 in ibase.h)
         return $this;
     }
 

@@ -7,7 +7,7 @@ include("skipif.inc");
 --FILE--
 <?php
 /**
- * Upstream Issue #99: ibase_field_info() returns "VARCHAR" instead of "CHAR" for CHAR fields
+ * Upstream Issue #99: fbird_field_info() returns "VARCHAR" instead of "CHAR" for CHAR fields
  * https://github.com/FirebirdSQL/php-firebird/issues/99
  *
  * This test verifies that CHAR fields are correctly identified as "CHAR" type

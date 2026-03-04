@@ -104,6 +104,15 @@ echo "Test 13: fbird_db_info FBIRD_STS_IDX_PAGES\n";
 $r = fbird_db_info($svc, $db_path, FBIRD_STS_IDX_PAGES);
 var_dump($r !== false);
 
+// Teardown: RPR_VALIDATE_DB can leave a stale "damaged" marker in the DB header.
+// Clear it with RPR_MEND_DB so subsequent tests (e.g. service_backup_restore)
+// are not rejected with "Incompatible mode of attachment to damaged database".
+$svc2 = fbird_service_attach($host, $user, $password);
+if ($svc2) {
+    @fbird_maintain_db($svc2, $db_path, FBIRD_RPR_MEND_DB, 0);
+    fbird_service_detach($svc2);
+}
+
 fbird_service_detach($svc);
 echo "Done\n";
 ?>

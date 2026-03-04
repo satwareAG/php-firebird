@@ -22,6 +22,6 @@ git clone --depth 1 --branch %pfb_php_tag% https://github.com/php/php-src.git
 cd php-src
 
 @REM Note: PHP 8.0 removed ext/interbase from php-src. This extension requires PHP 8.1+.
-@REM The ext\interbase removal below is historical for legacy PHP 7.x builds which are no longer supported.
+@REM PHP 7.x builds are no longer supported.
 
 call phpsdk_deps --update

@@ -24,6 +24,8 @@ This document summarizes the major development phases and milestones of the php-
 | **Issue #98 Fix** | Dec 2025 | Cross-platform date/time parsing (replaced strptime with portable sscanf) |
 | **Fork Issue #11** | Dec 2025 | FBIRD_CONNECT_FORCE_NEW flag to bypass connection hash lookup |
 | **Issue #71 Fix** | Dec 2025 | Service attach INI defaults fallback for user/password |
+| **v7.0.0** | Mar 2026 | Stable release: Batch API, Doctrine DBAL integration, 80%+ coverage, OO API complete |
+| **v7.1.0** | Mar 2026 | `fbird_query_params_tx`, test suite stabilization, ibase_* alias cleanup, 173/173 pass |
 
 ## Major Milestones
 

@@ -56,20 +56,8 @@ if (defined('FBIRD_EVENT_TIMEOUT')) {
 }
 echo "\n";
 
-// Test 2: Verify IBASE_EVENT_TIMEOUT alias (optional - may not be defined)
-echo "2. IBASE_EVENT_TIMEOUT alias:\n";
-if (defined('IBASE_EVENT_TIMEOUT')) {
-    echo "   Defined: Yes\n";
-    echo "   Value: " . IBASE_EVENT_TIMEOUT . "\n";
-    echo "   Matches FBIRD: " . (IBASE_EVENT_TIMEOUT === FBIRD_EVENT_TIMEOUT ? "Yes" : "No") . "\n";
-} else {
-    echo "   Defined: No (optional alias)\n";
-}
-echo "   PASS\n";
-echo "\n";
-
-// Test 3: EventPollerInterface exists
-echo "3. EventPollerInterface:\n";
+// Test 2: EventPollerInterface exists
+echo "2. EventPollerInterface:\n";
 if (interface_exists(EventPollerInterface::class)) {
     echo "   Interface exists: Yes\n";
 
@@ -89,8 +77,8 @@ if (interface_exists(EventPollerInterface::class)) {
 }
 echo "\n";
 
-// Test 4: EventPoller factory exists
-echo "4. EventPoller factory:\n";
+// Test 3: EventPoller factory exists
+echo "3. EventPoller factory:\n";
 if (class_exists(EventPoller::class)) {
     echo "   Class exists: Yes\n";
 
@@ -106,8 +94,8 @@ if (class_exists(EventPoller::class)) {
 }
 echo "\n";
 
-// Test 5: ProcessEventPoller availability
-echo "5. ProcessEventPoller:\n";
+// Test 4: ProcessEventPoller availability
+echo "4. ProcessEventPoller:\n";
 if (class_exists(ProcessEventPoller::class)) {
     echo "   Class exists: Yes\n";
     echo "   isAvailable(): " . (ProcessEventPoller::isAvailable() ? "Yes" : "No") . "\n";
@@ -125,8 +113,8 @@ if (class_exists(ProcessEventPoller::class)) {
 }
 echo "\n";
 
-// Test 6: PcntlEventPoller availability
-echo "6. PcntlEventPoller:\n";
+// Test 5: PcntlEventPoller availability
+echo "5. PcntlEventPoller:\n";
 if (class_exists(PcntlEventPoller::class)) {
     echo "   Class exists: Yes\n";
     echo "   isAvailable(): " . (PcntlEventPoller::isAvailable() ? "Yes" : "No") . "\n";
@@ -143,8 +131,8 @@ if (class_exists(PcntlEventPoller::class)) {
 }
 echo "\n";
 
-// Test 7: FiberEventPoller (may not be available)
-echo "7. FiberEventPoller:\n";
+// Test 6: FiberEventPoller (may not be available)
+echo "6. FiberEventPoller:\n";
 if (class_exists(FiberEventPoller::class)) {
     echo "   Class exists: Yes\n";
     echo "   isAvailable(): " . (FiberEventPoller::isAvailable() ? "Yes" : "No (requires amphp)") . "\n";
@@ -161,8 +149,8 @@ if (class_exists(FiberEventPoller::class)) {
 }
 echo "\n";
 
-// Test 8: Factory strategy detection
-echo "8. Factory strategy detection:\n";
+// Test 7: Factory strategy detection
+echo "7. Factory strategy detection:\n";
 $available = EventPoller::getAvailableStrategies();
 echo "   Available strategies:\n";
 foreach ($available as $name => $info) {
@@ -176,8 +164,8 @@ echo "   Has any available: " . ($hasAny ? "Yes" : "No") . "\n";
 echo "   PASS\n";
 echo "\n";
 
-// Test 9: Factory error handling
-echo "9. Factory error handling:\n";
+// Test 8: Factory error handling
+echo "8. Factory error handling:\n";
 try {
     EventPoller::create(null, 'invalid_strategy');
     echo "   FAIL - Should have thrown InvalidArgumentException\n";
@@ -200,11 +188,7 @@ echo "=== All Tests Complete ===\n";
    Value: -2
    PASS
 
-2. IBASE_EVENT_TIMEOUT alias:
-   Defined: %s
-   PASS
-
-3. EventPollerInterface:
+2. EventPollerInterface:
    Interface exists: Yes
    Required methods:
      - poll(): Yes
@@ -214,7 +198,7 @@ echo "=== All Tests Complete ===\n";
      - free(): Yes
    PASS
 
-4. EventPoller factory:
+3. EventPoller factory:
    Class exists: Yes
    Defined strategies:
      - process: Firebird\ProcessEventPoller
@@ -222,7 +206,7 @@ echo "=== All Tests Complete ===\n";
      - fiber: Firebird\FiberEventPoller
    PASS
 
-5. ProcessEventPoller:
+4. ProcessEventPoller:
    Class exists: Yes
    isAvailable(): Yes
    getMinTimeoutMs(): 10ms
@@ -230,7 +214,7 @@ echo "=== All Tests Complete ===\n";
    Implements EventPollerInterface: Yes
    PASS
 
-6. PcntlEventPoller:
+5. PcntlEventPoller:
    Class exists: Yes
    isAvailable(): %s
    getMinTimeoutMs(): 1000ms
@@ -238,7 +222,7 @@ echo "=== All Tests Complete ===\n";
    Implements EventPollerInterface: Yes
    PASS
 
-7. FiberEventPoller:
+6. FiberEventPoller:
    Class exists: Yes
    isAvailable(): %s
    getMinTimeoutMs(): 1ms
@@ -246,7 +230,7 @@ echo "=== All Tests Complete ===\n";
    Implements EventPollerInterface: Yes
    PASS
 
-8. Factory strategy detection:
+7. Factory strategy detection:
    Available strategies:
      - process: %s
      - pcntl: %s
@@ -254,7 +238,7 @@ echo "=== All Tests Complete ===\n";
    Has any available: Yes
    PASS
 
-9. Factory error handling:
+8. Factory error handling:
    Invalid strategy correctly throws: InvalidArgumentException
    Message: Unknown event poller strategy: "invalid_strategy%s
    PASS

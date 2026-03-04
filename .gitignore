@@ -71,26 +71,19 @@ php_test_results_*.txt
 .php-version
 .rbenv-version
 
-# Test artifacts
+# Test artifacts (top-level and subdirectories)
 tests/*.diff
 tests/*.exp
 tests/*.log
 tests/*.out
 tests/*.php
 tests/*.sh
-*.dep
-
-# Fuzzer artifacts
-fuzz/crashes/*
-!fuzz/crashes/.gitkeep
-fuzz/reports/*
-# Test artifacts
-tests/*.diff
-tests/*.exp
-tests/*.log
-tests/*.out
-tests/*.php
-tests/*.sh
+tests/**/*.diff
+tests/**/*.exp
+tests/**/*.log
+tests/**/*.out
+tests/**/*.php
+tests/**/*.sh
 *.dep
 
 # Fuzzer artifacts

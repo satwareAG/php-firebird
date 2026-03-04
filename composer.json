@@ -1,6 +1,6 @@
 {
     "name": "satwareag/php-firebird",
-    "description": "PHP Firebird/InterBase database extension",
+    "description": "PHP Firebird database extension — native fbird_* API for PHP 8.1+",
     "type": "php-ext",
     "license": "PHP-3.01",
     "authors": [

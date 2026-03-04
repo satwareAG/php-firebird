@@ -24,12 +24,14 @@ All v7.2.0 breaking changes shipped and release published:
 
 | Repo | PR/MR | Status | Notes |
 |------|-------|--------|-------|
-| `satwareAG/doctrine-firebird-driver` | PR #81 | 🔄 CI re-running | Was failing: stubs v7.2.0 tag missing (now fixed) |
+| `satwareAG/doctrine-firebird-driver` | PR #81 | ⚠️ Pre-existing failures | Test failures exist on `3.0.x` base too — not regressions from v7.2.0 compat |
 | `satware/satag-amicron-entity-bundle` | MR !25 | ✅ Pipeline green | Ready to merge |
-| `satware/amicron-platform` | MR !116 | 🔄 Pipeline retried | Was failing: same stubs issue (now fixed) |
+| `satware/amicron-platform` | MR !116 | 🔄 Pipeline running | Fixed: `^3.10` → `^3.0` (v3.10.0 not yet stable-released on Packagist) |
 
-**Root cause fixed:** `satwareag/php-firebird-stubs` was missing the `v7.2.0` tag.
-Tagged manually → Packagist propagated → CI re-runs triggered.
+**Root causes fixed:**
+1. `satwareag/php-firebird-stubs` was missing the `v7.2.0` tag → tagged manually → Packagist propagated ✅
+2. `amicron-platform` used `satag/doctrine-firebird-driver: ^3.10` but only `3.0.2` is stable on Packagist → changed to `^3.0` ✅
+3. `doctrine-firebird-driver` PR #81 test failures are pre-existing on `3.0.x` base branch (not regressions)
 
 ---
 

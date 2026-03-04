@@ -526,6 +526,59 @@ fbird_close($db);
 
 ### Doctrine DBAL Integration
 
+#### `fbird_query_params_tx` — Explicit Link + Transaction + Params (v7.0.0)
+
+Doctrine DBAL manages connection and transaction handles *separately*. The new
+`fbird_query_params_tx` function accepts all three at once, eliminating the previous
+limitation where no single function took a link resource, transaction resource, **and**
+a parameter array simultaneously:
+
+```php
+<?php
+// Doctrine-style: explicit link + transaction + parameterized query
+$link  = fbird_connect('/path/to/database.fdb', 'SYSDBA', 'masterkey');
+$trans = fbird_trans(FBIRD_WRITE | FBIRD_COMMITTED, $link);
+
+// Single call — link, transaction, SQL, and params all explicit
+$result = fbird_query_params_tx(
+    $link,
+    $trans,
+    'SELECT id, name FROM users WHERE active = ? AND role = ?',
+    [1, 'admin']
+);
+
+while ($row = fbird_fetch_assoc($result)) {
+    echo $row['NAME'] . "\n";
+}
+fbird_free_result($result);
+
+// DML with params — INSERT/UPDATE/DELETE
+fbird_query_params_tx(
+    $link,
+    $trans,
+    'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?',
+    [42]
+);
+
+fbird_commit($trans);
+fbird_close($link);
+?>
+```
+
+**Signature:** `fbird_query_params_tx(resource $link, resource $trans, string $sql, ?array $params): resource|false`
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `$link` | resource | Connection from `fbird_connect()` |
+| `$trans` | resource | Transaction from `fbird_trans()` |
+| `$sql` | string | SQL with `?` placeholders |
+| `$params` | array\|null | Positional parameter values (null = no params) |
+
+**When to use:** Any scenario where you hold both a link and a transaction resource and
+need parameterized queries — most commonly in Doctrine DBAL driver implementations.
+
+#### Exception Mode (Required for Doctrine DBAL 4.x)
+
 Doctrine DBAL 4.x requires exception mode for proper error handling:
 
 ```php

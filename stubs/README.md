@@ -52,6 +52,35 @@ Add to your `psalm.xml`:
 
 Most IDEs will automatically pick up the stubs via Composer autoloading. No additional configuration is typically required.
 
+## Included Functions (v7.0.0)
+
+All `fbird_*` functions are stubbed, including v7.0.0 additions:
+
+| Function | Description |
+|----------|-------------|
+| `fbird_query_params_tx($link, $trans, $sql, ?$params)` | Explicit link + transaction + params (Doctrine DBAL) |
+| `fbird_execute_statement($stmt)` | Execute a prepared statement resource |
+| `fbird_execute_query($link, $sql, ...$params)` | Execute SQL with optional params |
+| `fbird_execute_auto($link, $sql, ...$params)` | Auto-commit execution helper |
+| `fbird_set_exception_mode(int $mode)` | Set SILENT/THROW error mode |
+| `fbird_get_exception_mode()` | Get current error mode |
+| `fbird_trans_start($link, array $options)` | Full TPB transaction builder |
+| `fbird_savepoint($trans, string $name)` | Create named savepoint |
+| `fbird_rollback_savepoint($trans, string $name)` | Rollback to savepoint |
+| `fbird_release_savepoint($trans, string $name)` | Release savepoint |
+| `fbird_connection_info($link)` | Connection metadata |
+| `fbird_trans_info($trans)` | Transaction state info |
+| `fbird_blob_seek($blob, int $offset, int $whence)` | Seekable BLOB access |
+| `fbird_batch_create($stmt, $trans)` | Create batch (FB 4.0+) |
+| `fbird_batch_add($batch, ...$params)` | Add row to batch |
+| `fbird_batch_execute($batch)` | Execute batch |
+| `fbird_batch_cancel($batch)` | Cancel batch |
+| `fbird_escape_string(string $str)` | Escape string for SQL |
+
+All classic `fbird_connect`, `fbird_query`, `fbird_prepare`, `fbird_execute`,
+`fbird_fetch_*`, `fbird_trans`, `fbird_commit`, `fbird_rollback`, `fbird_blob_*`,
+`fbird_service_*`, and event functions are also stubbed.
+
 ## Version Compatibility
 
 | Stubs Version | Extension Version | PHP Version |

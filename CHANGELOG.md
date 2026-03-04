@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [7.2.0] - 2026-03-04
+
 ### Removed
 
 - `ibase_*` function aliases fully removed — deprecated in v7.1.0, `PHP_FALIAS` entries were
@@ -717,7 +721,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.1.0...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.2.0...HEAD
+[7.2.0]: https://github.com/satwareAG/php-firebird/compare/v7.1.0...v7.2.0
 [7.1.0]: https://github.com/satwareAG/php-firebird/compare/v7.0.0...v7.1.0
 [7.0.0]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.51...v7.0.0
 [7.0.0-rc.51]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.37...v7.0.0-rc.51

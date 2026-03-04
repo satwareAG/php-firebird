@@ -1,18 +1,19 @@
 # Next Session Tasks — php-firebird
 
-**Last updated:** 2026-03-04  
+**Last updated:** 2026-03-04 (updated 2026-03-04 — Priority 0 resolved)  
 **Current version:** 7.1.0 (released)  
 **Branch:** `satware-main`
 
 ---
 
-## Priority 0 — Unmerged fix (CRITICAL — do not delete branch)
+## Priority 0 — ✅ RESOLVED
 
-- [ ] **`fix/transaction-mshutdown-uaf-78-79`** — local branch with unmerged fix
-  - Commit: `b68d85f fix(transaction): guard _php_fbird_free_trans() against MSHUTDOWN UAF/SIGABRT (#78, #79)`
-  - Remote was deleted but fix was NOT squash-merged into `satware-main`
-  - Action: open PR, get CI green, merge → `satware-main`
-  - Issues: #78, #79
+- [x] **`fix/transaction-mshutdown-uaf-78-79`** — fix confirmed merged into `satware-main`
+  - Squash-merged as commit `5bcbc9f` / PR #81 (2026-03-03)
+  - Author: Michael Wegener, Co-authored-by: Jane Alesi
+  - Patch in `b68d85f` (local branch) was byte-for-byte identical to `5bcbc9f` on `satware-main`
+  - Local branch deleted (remote was already gone); fix shipped in v7.1.0
+  - Issues #78 and #79 are closed
 
 ---
 

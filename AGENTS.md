@@ -10,7 +10,7 @@
 
 - **Name**: php-firebird — Native PHP extension for Firebird databases
 - **Language**: C (Zend Engine API) + C++ (internal only)
-- **Version**: 7.0.0-rc.49 (current), targeting v7.0.0-rc.50 → v7.0.0-final
+- **Version**: 7.0.0-rc.51 (current), targeting v7.0.0-final
 - **Branch**: `satware-main` (stable), feature branches for all work
 - **Repo**: https://github.com/satwareAG/php-firebird
 
@@ -143,18 +143,18 @@ Project Brief: `docs/product/project-brief.md`
 
 ## Open Issues (v7.0.0 Milestone)
 
-| Issue | Title | Priority |
-|-------|-------|---------|
-| #59 | Service API coverage (0%→80%) | P0 |
-| #60 | Batch operations coverage | P0 |
-| #61 | Array operations coverage (35.9%→80%) | P0 |
-| #62 | Parameter binding coverage (41.8%→80%) | P0 |
-| #63 | Final coverage validation ≥80% | P0 |
-| #58 | Code Coverage 80%+ gate | P0 |
-| #57 | Source refactoring (firebird.c split) | P1 |
-| #67 | Docs cleanup | P2 |
-| #66 | Release rc.50 | P0 (after above) |
-| #68 | Doctrine integration | P1 (after rc.50) |
+| Issue | Title | Status |
+|-------|-------|--------|
+| #58 | Code Coverage 80%+ gate | ✅ Closed (rc.51) |
+| #59 | Service API coverage (0%→80%) | ✅ Closed (rc.51) |
+| #60 | Batch operations coverage | ✅ Closed (rc.51) |
+| #61 | Array operations coverage (35.9%→80%) | ✅ Closed (rc.51) |
+| #62 | Parameter binding coverage (41.8%→80%) | ✅ Closed (rc.51) |
+| #63 | Final coverage validation ≥80% | ✅ Closed (rc.51) |
+| #66 | Release rc.51 | ✅ Released |
+| #67 | Docs cleanup | 🔄 In progress (PR #86) |
+| #57 | Source refactoring (firebird.c split) | P1 (post-v7.0.0) |
+| #68 | Doctrine integration | P1 (post-v7.0.0) |
 
 ---
 

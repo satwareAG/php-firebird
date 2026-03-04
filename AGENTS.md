@@ -10,7 +10,7 @@
 
 - **Name**: php-firebird — Native PHP extension for Firebird databases
 - **Language**: C (Zend Engine API) + C++ (internal only)
-- **Version**: 7.0.0-rc.51 (current), targeting v7.0.0-final
+- **Version**: 7.1.0-rc.1 (current), targeting v7.1.0-final
 - **Branch**: `satware-main` (stable), feature branches for all work
 - **Repo**: https://github.com/satwareAG/php-firebird
 
@@ -152,9 +152,13 @@ Project Brief: `docs/product/project-brief.md`
 | #62 | Parameter binding coverage (41.8%→80%) | ✅ Closed (rc.51) |
 | #63 | Final coverage validation ≥80% | ✅ Closed (rc.51) |
 | #66 | Release rc.51 | ✅ Released |
-| #67 | Docs cleanup | 🔄 In progress (PR #86) |
-| #57 | Source refactoring (firebird.c split) | P1 (post-v7.0.0) |
-| #68 | Doctrine integration | P1 (post-v7.0.0) |
+| #67 | Docs cleanup | ✅ Closed (merged PR #87) |
+| #57 | Source refactoring (firebird.c split) | ✅ Closed |
+| #68 | Doctrine integration | ✅ Closed |
+| #83 | stubs: Add missing functions | ✅ Closed (merged PR #88) |
+| #84 | feat(api): fbird_query_params_tx + stubs | ✅ Closed (merged PR #88) |
+| #85 | docs: v7.0.0-final docs update | ✅ Closed (merged PR #87) |
+| —   | v7.1.0-rc.1 release candidate | 🟡 Tagged — CI building binaries |
 
 ---
 

@@ -30,7 +30,7 @@ $batch = fbird_batch_create($stmt, $trans);
 // Append data to batch BLOB — the function should succeed (return true or false,
 // depending on whether a BLOB segment is currently open on this batch).
 // The C++ implementation calls IBatch::appendBlobData which requires an active BLOB stream.
-$result = fbird_batch_append_blob_data($batch, 'chunk_data');
+$result = @fbird_batch_append_blob_data($batch, 'chunk_data');
 var_dump(is_bool($result));
 
 fbird_batch_cancel($batch);

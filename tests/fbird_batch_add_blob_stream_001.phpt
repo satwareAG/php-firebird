@@ -29,7 +29,7 @@ $batch = fbird_batch_create($stmt, $trans);
 
 // fbird_batch_add_blob_stream calls IBatch::addBlobStream — the returned value
 // is always bool (true on success, false on protocol error).
-$result = fbird_batch_add_blob_stream($batch, 'stream_data');
+$result = @fbird_batch_add_blob_stream($batch, 'stream_data');
 var_dump(is_bool($result));
 
 fbird_batch_cancel($batch);

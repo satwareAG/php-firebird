@@ -29,7 +29,7 @@ $batch = fbird_batch_create($stmt, $trans);
 
 // Call fbird_batch_set_default_bpb with an empty BPB string.
 // Return value is always bool — true on success, false on failure.
-$result = fbird_batch_set_default_bpb($batch, '');
+$result = @fbird_batch_set_default_bpb($batch, '');
 var_dump(is_bool($result));
 
 fbird_batch_cancel($batch);

@@ -222,25 +222,7 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 		}
 	}
 
-    /* Execute the statement. For SELECT, this opens the cursor on ib_query->stmt. */
-
-    /*
-     * Phase 5 Part 3: OO API execution path for prepared statements.
-     *
-     * When fbs_statement is set (OO API statement prepared via fbs_prepare),
-     * we attempt execution through the modern OO API before falling back to
-     * the legacy isc_dsql_execute()/isc_dsql_execute2() path.
-     *
-     * Current limitations:
-     * - Input/output message buffers passed as NULL (XSQLDA not converted yet)
-     * - Works for simple non-parameterized statements
-     * - Parameterized queries continue to use legacy XSQLDA binding
-     *
-     * The OO API execution is preferred for SELECT statements (cursor operations)
-     * and simple DML without parameters. Complex parameterized queries fall back
-     * to the legacy path until full message buffer integration is implemented.
-     */
-    isc_result = 0; /* Initialize for OO API path which may skip legacy execution */
+    isc_result = 0;
 
     if (ib_query->fbs_statement && ib_query->trans && ib_query->trans->fbt_transaction) {
         void *transaction_ptr = fbt_get_handle(ib_query->trans->fbt_transaction);
@@ -1468,12 +1450,7 @@ PHP_FUNCTION(fbird_execute_statement)
         RETURN_THROWS();
     }
 
-    /* Cleanup prepared query resource as fbird_execute_statement is one-shot for the user?
-       Wait, fbird_execute_statement takes SQL + Params. It prepares, executes, then destroys query handle?
-       Yes, similar to fbird_query execution path.
-       If the user wants prepared statement reuse, they should use fbird_prepare + fbird_execute.
-       fbird_execute_statement is atomic execution.
-    */
+    /* One-shot: prepare + execute + destroy. Use fbird_prepare/fbird_execute for reuse. */
     zend_list_delete(ib_query->res);
 
     if (Z_TYPE_P(return_value) == IS_TRUE) {
@@ -1538,29 +1515,7 @@ PHP_FUNCTION(fbird_execute_query)
         RETURN_THROWS();
     }
 
-    /* Keep ib_query alive as it holds the statement handle */
-    /* But wait, _php_fbird_exec creates a RESULT resource that references ib_query.
-       If ib_query is just for execution, we should probably keep it alive managed by the result.
-       Actually _php_fbird_exec implementation for SELECT reuses ib_query->stmt.
-       And it sets result_query->parent = ib_query.
-       So we MUST return the result resource (which is in return_value)
-       AND let ib_query be managed.
-       Actually, fbird_query implementation returns the result resource but keeps ib_query resource alive?
-       Wait, fbird_query deletes ib_query->res ONLY on error.
-       So on success, ib_query->res is alive.
-       Is it returned? No, return_value is the result_query->res.
-       So ib_query (the prepared statement) leaks?
-       No, fbird_query is one-shot.
-       Let's check fbird_query implementation again.
-       It does zend_list_delete(ib_query->res) ONLY on error label.
-       If success, it returns.
-       So ib_query resource leaks?
-       Ah, for SELECT, _php_fbird_exec returns result_query->res.
-       result_query->parent = ib_query.
-       So ib_query resource must persist for the lifetime of result?
-       Yes.
-       So we DO NOT delete ib_query->res on success.
-    */
+    /* ib_query stays alive: result_query->parent = ib_query (freed when result is freed) */
 }
 
 PHP_FUNCTION(fbird_execute_auto)

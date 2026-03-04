@@ -107,7 +107,7 @@ $backup_ready = ($final_backup === true);
 
 if ($backup_ready) {
     // fbird_restore signature: (svc, $dest_db, $backup_file, $flags, $verbose)
-    // Note: dest_db is arg2, backup_file is arg3 (inverted from ibase_restore docs).
+    // Note: dest_db is arg2, backup_file is arg3 (inverted from legacy restore docs).
 
     // 8. Restore: FBIRD_RES_CREATE (new DB)
     echo "Test 8: Restore CREATE\n";

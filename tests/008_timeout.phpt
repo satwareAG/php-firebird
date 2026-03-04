@@ -62,13 +62,6 @@ if (function_exists('fbird_poll_event')) {
     echo "FAIL: fbird_poll_event function not found\n";
 }
 
-echo "\nTest 3: Verify ibase_poll_event alias exists\n";
-if (function_exists('ibase_poll_event')) {
-    echo "OK: ibase_poll_event alias exists\n";
-} else {
-    echo "Note: ibase_poll_event alias not defined (fbird prefix only)\n";
-}
-
 echo "\nend of test\n";
 ?>
 --EXPECT--
@@ -81,8 +74,5 @@ Parameters: 2
 Param 1: event (required: yes)
 Param 2: timeout_ms (optional: yes)
 OK: Timeout parameter exists
-
-Test 3: Verify ibase_poll_event alias exists
-Note: ibase_poll_event alias not defined (fbird prefix only)
 
 end of test

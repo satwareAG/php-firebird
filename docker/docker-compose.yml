@@ -20,9 +20,9 @@ services:
       - PHP_DISMOD=ioncube
       - TZ=Europe/Berlin
       # Full connect string for tests that want to talk directly to the
-      # Firebird 4 engine without going through interbase.inc's $test_base.
+      # Firebird 4 engine without going through common.inc's $test_base.
       # This matches the "localhost/3052:/firebird/data/test.fdb" pattern
-      # suggested in ibase_connect_dpb_001.phpt, but targets the firebird40
+      # suggested in fbird_connect_dpb_001.phpt, but targets the firebird40
       # service and its shared data volume.
       - FB_HOST=firebird30:/firebird/data/test.fdb
     extra_hosts:
@@ -96,9 +96,9 @@ services:
       - FIREBIRD_DB_DIR=/firebird
       - TZ=Europe/Berlin
       # Full connect string for tests that want to talk directly to the
-      # Firebird 4 engine without going through interbase.inc's $test_base.
+      # Firebird 4 engine without going through common.inc's $test_base.
       # This matches the "localhost/3052:/firebird/data/test.fdb" pattern
-      # suggested in ibase_connect_dpb_001.phpt, but targets the firebird40
+      # suggested in fbird_connect_dpb_001.phpt, but targets the firebird40
       # service and its shared data volume.
       - FB_HOST=firebird40:/firebird/data/test.fdb
     extra_hosts:

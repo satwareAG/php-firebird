@@ -36,7 +36,6 @@ function test_fbird_trans_014_015() {
 }
 
 function test_time_unixtime(): void {
-	ini_set("ibase.timeformat", "%H:%M:%S");
 	fbird_query("CREATE TABLE TTEST (
 		ID INTEGER,
 		T1 TIME DEFAULT '15:45:59',

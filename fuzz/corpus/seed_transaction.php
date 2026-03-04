@@ -1,7 +1,7 @@
 <?php
 // Seed: Transaction patterns
 // Exercises transaction isolation levels and commit/rollback
-// NOTE: Uses FBIRD_* constants (not legacy IBASE_*)
+// NOTE: Uses FBIRD_* constants
 
 $harness->registerOperation('seed_transaction', function() use ($harness) {
     $conn = $harness->getRandomConnection();

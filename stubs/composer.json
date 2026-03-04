@@ -22,7 +22,7 @@
         }
     ],
     "require": {
-        "php": ">=8.1"
+        "php": ">=8.2"
     },
     "suggest": {
         "satwareag/php-firebird": "The actual php-firebird extension for runtime use"

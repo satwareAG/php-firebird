@@ -20,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   from `.github/workflows/ci.yml` (matrix was already clean). Updated `README.md` to reflect
   supported server versions: 3.0, 4.0, 5.0+.
   Closes [#91](https://github.com/satwareAG/php-firebird/issues/91).
+- **PHP 8.1 support removed** — deprecated in v7.1.0, EOL November 25, 2025.
+  Removed `php81-dev` and `php81-fb3-dev` services from `docker/docker-compose.yml`.
+  Deleted `docker/php/Dockerfile-8.1` and `docker/php/Dockerfile-8.1-fb3`.
+  Updated CI matrix from PHP 8.1/8.4 to PHP 8.2/8.4. Updated `composer.json` and
+  `stubs/composer.json` PHP constraint to `>=8.2`. Updated `constitution.md` Article V.
+  Updated `README.md` badge and supported versions.
+  Closes [#90](https://github.com/satwareAG/php-firebird/issues/90).
 
 ---
 

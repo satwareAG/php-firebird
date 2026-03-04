@@ -30,7 +30,7 @@
 
 - Public PHP API: `fbird_*` prefix (e.g., `fbird_connect`, `fbird_backup`)
 - Internal C helpers: `_php_fbird_*` prefix
-- ibase_* aliases exist for BC — do NOT add new ibase_* functions
+- ibase_* aliases **removed in v7.2.0** (deprecated in v7.1.0) — do NOT add new ibase_* functions
 
 ### Key Source Files
 

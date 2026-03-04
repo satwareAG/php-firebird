@@ -55,10 +55,11 @@ This is NON-NEGOTIABLE.
 ## Article IV: API Stability
 
 - **MUST**: All public functions use the `fbird_*` prefix
-- **MUST**: `ibase_*` aliases maintained as backwards-compatible wrappers (BC policy)
+- **MUST**: `ibase_*` aliases are **removed** as of v7.2.0 — deprecated in v7.1.0, no longer present in the extension
 - **MUST**: No parameter signature changes to existing `fbird_*` functions without deprecation notice
 - **SHALL**: New functions follow the naming pattern `fbird_{noun}_{verb}` (e.g., `fbird_service_backup`)
 - **SHALL NOT**: Remove or rename existing `fbird_*` functions in a minor release
+- **SHALL NOT**: Add new `ibase_*` symbols — `fbird_*` prefix only
 
 *Rationale*: Downstream projects (doctrine-firebird-driver, legacy apps) depend on API stability.
 

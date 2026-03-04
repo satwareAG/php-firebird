@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- `ibase_*` function aliases fully removed — deprecated in v7.1.0, `PHP_FALIAS` entries were
+  already absent from the C source. Removed `tests/fbird_alias_check_001.phpt` and
+  `tests/fbird_alias_check_002.phpt` (misnamed files that tested `fbird_*` functions, not
+  `ibase_*` aliases). Updated `constitution.md` Article IV and `AGENTS.md` to reflect removal.
+  Closes [#92](https://github.com/satwareAG/php-firebird/issues/92).
+
 ---
 
 ## [7.1.0] - 2026-03-04

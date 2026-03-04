@@ -1,6 +1,6 @@
 # Next Session Tasks — php-firebird
 
-**Last updated:** 2026-03-04 (updated 2026-03-04 — Priority 0 + 1 resolved)  
+**Last updated:** 2026-03-04 (updated 2026-03-04 — v7.2.0 milestone + issues created)  
 **Current version:** 7.1.0 (released)  
 **Branch:** `satware-main`
 
@@ -40,12 +40,22 @@
 
 ---
 
-## Priority 3 — v7.2.0 planning
+## Priority 3 — ✅ v7.2.0 planning complete
 
-- [ ] Remove PHP 8.1 support (EOL Nov 2025, deprecated in v7.1.0)
-- [ ] Remove Firebird 2.5 server connectivity (deprecated in v7.1.0)
-- [ ] Remove `ibase_*` function aliases (deprecated in v7.1.0, no longer tested)
-- [ ] Open milestone `v7.2.0` on GitHub with breaking change issues
+- [x] Milestone `v7.2.0` created on GitHub (milestone #2)
+- [x] Closed stale `v7.0.0` milestone (0 open issues)
+- [x] Created label `breaking change` (#B60205)
+- [x] Issue [#90](https://github.com/satwareAG/php-firebird/issues/90) — `breaking: drop PHP 8.1 support`
+- [x] Issue [#91](https://github.com/satwareAG/php-firebird/issues/91) — `breaking: drop Firebird 2.5 server support`
+- [x] Issue [#92](https://github.com/satwareAG/php-firebird/issues/92) — `breaking: remove ibase_* function aliases`
+
+### v7.2.0 Implementation Order (recommended)
+
+1. **#92 — remove `ibase_*` aliases** ✅ PR [#93](https://github.com/satwareAG/php-firebird/pull/93) open — awaiting CI
+2. **#91 — drop Firebird 2.5** (remove compat shims + CI matrix reduction)
+3. **#90 — drop PHP 8.1** (CI matrix reduction, update constraints)
+
+Each issue should be a separate feature branch + PR targeting `satware-main`.
 
 ---
 
@@ -55,3 +65,4 @@
 - **CHANGELOG:** https://github.com/satwareAG/php-firebird/blob/satware-main/CHANGELOG.md
 - **Test suite:** 173/173 pass (0 fail, 4 skipped)
 - **Stubs:** 86/86 in sync
+- **v7.2.0 milestone:** https://github.com/satwareAG/php-firebird/milestone/2

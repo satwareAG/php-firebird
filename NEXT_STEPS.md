@@ -1,7 +1,7 @@
 # Next Session Tasks — php-firebird
 
-**Last updated:** 2026-03-04 (updated 2026-03-04 — v7.2.0 milestone + issues created)  
-**Current version:** 7.1.0 (released)  
+**Last updated:** 2026-03-04 (PR #94 open — issue #91 awaiting CI)
+**Current version:** 7.1.0 (released)
 **Branch:** `satware-main`
 
 ---
@@ -40,7 +40,7 @@
 
 ---
 
-## Priority 3 — ✅ v7.2.0 planning complete
+## Priority 3 — v7.2.0 implementation in progress
 
 - [x] Milestone `v7.2.0` created on GitHub (milestone #2)
 - [x] Closed stale `v7.0.0` milestone (0 open issues)
@@ -49,13 +49,35 @@
 - [x] Issue [#91](https://github.com/satwareAG/php-firebird/issues/91) — `breaking: drop Firebird 2.5 server support`
 - [x] Issue [#92](https://github.com/satwareAG/php-firebird/issues/92) — `breaking: remove ibase_* function aliases`
 
-### v7.2.0 Implementation Order (recommended)
+### v7.2.0 Implementation Order
 
-1. **#92 — remove `ibase_*` aliases** ✅ PR [#93](https://github.com/satwareAG/php-firebird/pull/93) open — awaiting CI
-2. **#91 — drop Firebird 2.5** (remove compat shims + CI matrix reduction)
-3. **#90 — drop PHP 8.1** (CI matrix reduction, update constraints)
+1. **#92 — remove `ibase_*` aliases** ✅ PR [#93](https://github.com/satwareAG/php-firebird/pull/93) merged (2026-03-04, commit `1301bf5`)
+2. **#91 — drop Firebird 2.5** ✅ PR [#94](https://github.com/satwareAG/php-firebird/pull/94) open — awaiting CI
+   - Branch: `feat/drop-firebird-25-91` (commit `1ab7585`)
+   - Changes: docker-compose.yml, ci.yml, README.md, CHANGELOG.md
+   - No C source changes (all `FB_API_VER < 30` are already `#error` guards)
+3. **#90 — drop PHP 8.1** (next after PR #94 merges)
 
-Each issue should be a separate feature branch + PR targeting `satware-main`.
+---
+
+## Next immediate action (next session start)
+
+1. Check CI on PR #94: `gh pr checks 94 --repo satwareAG/php-firebird`
+2. If CI green: `gh pr merge 94 --repo satwareAG/php-firebird --squash --delete-branch`
+3. Sync local: `git checkout satware-main && git pull origin satware-main`
+4. Begin issue #90 (drop PHP 8.1):
+   - `git checkout -b feat/drop-php81-90 satware-main`
+
+### Issue #90 checklist (drop PHP 8.1)
+
+- [ ] Remove PHP 8.1 from Docker build matrix (`docker/php/Dockerfile-8.1`, `docker/docker-compose.yml`)
+- [ ] Remove PHP 8.1 from CI test matrix (`.github/workflows/ci.yml`, `coverage.yml`, `sanitizers.yml`)
+- [ ] Update `composer.json` PHP constraint to `>=8.2`
+- [ ] Update `stubs/composer.json` PHP constraint to `>=8.2`
+- [ ] Update `README.md` supported PHP versions (remove 8.1 deprecation notice, update minimum)
+- [ ] Update `constitution.md` Article V (PHP 8.1 listed as supported)
+- [ ] Add entry to `CHANGELOG.md` under `[Unreleased]`
+- [ ] Run `bash scripts/check-stubs-sync.sh` — must exit 0
 
 ---
 
@@ -63,6 +85,6 @@ Each issue should be a separate feature branch + PR targeting `satware-main`.
 
 - **Release:** https://github.com/satwareAG/php-firebird/releases/tag/v7.1.0
 - **CHANGELOG:** https://github.com/satwareAG/php-firebird/blob/satware-main/CHANGELOG.md
-- **Test suite:** 173/173 pass (0 fail, 4 skipped)
+- **Test suite:** 173/173 pass (0 fail, 4 skipped) — as of v7.1.0
 - **Stubs:** 86/86 in sync
 - **v7.2.0 milestone:** https://github.com/satwareAG/php-firebird/milestone/2

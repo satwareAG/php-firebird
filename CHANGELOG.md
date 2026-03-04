@@ -5,6 +5,23 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.1.0-rc.1] - 2026-03-04
+
+### Added
+
+- **`fbird_query_params_tx($link, $trans, $sql, ?$params)`** — Execute parameterized query
+  with explicit link AND transaction handles. Required by doctrine-firebird-driver for DBAL 4.x
+  compatibility, where both connection and transaction are managed separately.
+  Returns result resource for SELECT, affected-row count for DML, `false` on error.
+  ([PR #84](https://github.com/satwareAG/php-firebird/pull/84))
+
+### Changed
+
+- PHP 8.1 support **deprecated** — will be removed in v7.2.0 (PHP 8.1 EOL: Nov 2025)
+- Firebird 2.5 server connectivity **deprecated** — will be removed in v7.2.0
+
+---
+
 ## [7.0.0] - 2026-03-04
 
 ### Added

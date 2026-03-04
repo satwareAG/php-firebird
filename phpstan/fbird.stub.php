@@ -348,6 +348,17 @@ function fbird_execute_query(mixed $trans_handle, string $query, ?array $params 
 function fbird_execute_auto(mixed $link_identifier, string $query, ?array $params = null): mixed {}
 
 /**
+ * Execute a parameterized query with explicit link and transaction.
+ * @param resource $link_identifier Connection resource
+ * @param resource $trans_handle Transaction resource
+ * @param string $query SQL statement
+ * @param array<mixed>|null $params Bind parameters
+ * @return resource|int|false
+ * @since 7.1.0
+ */
+function fbird_query_params_tx(mixed $link_identifier, mixed $trans_handle, string $query, ?array $params = null): mixed {}
+
+/**
  * @param resource $query
  * @return bool
  */

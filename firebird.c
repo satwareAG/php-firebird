@@ -270,6 +270,13 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_execute_auto, 0, 0, 2)
     ZEND_ARG_TYPE_INFO(0, params, IS_ARRAY, 0)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_query_params_tx, 0, 0, 3)
+    ZEND_ARG_INFO(0, link_identifier)
+    ZEND_ARG_INFO(0, trans_handle)
+    ZEND_ARG_INFO(0, query)
+    ZEND_ARG_TYPE_INFO(0, params, IS_ARRAY, 0)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_num_fields, 0, 0, 1)
 	ZEND_ARG_INFO(0, query_result)
 ZEND_END_ARG_INFO()
@@ -479,6 +486,7 @@ static const zend_function_entry fbird_functions[] = {
     PHP_FE(fbird_execute_statement, arginfo_fbird_execute_statement)
     PHP_FE(fbird_execute_query, arginfo_fbird_execute_query)
     PHP_FE(fbird_execute_auto, arginfo_fbird_execute_auto)
+    PHP_FE(fbird_query_params_tx, arginfo_fbird_query_params_tx)
 
 	PHP_FE(fbird_gen_id, 		arginfo_fbird_gen_id)
 	PHP_FE(fbird_num_fields, 	arginfo_fbird_num_fields)

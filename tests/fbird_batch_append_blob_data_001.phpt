@@ -1,25 +1,26 @@
 --TEST--
 fbird_batch_append_blob_data: append data chunk to in-progress batch BLOB
+--EXTENSIONS--
+firebird
 --SKIPIF--
 <?php
-require __DIR__ . '/skipif.inc';
-if (!extension_loaded('firebird')) {
-    die('skip firebird extension not loaded');
-}
+require_once 'skipif.inc';
 if (!function_exists('fbird_batch_append_blob_data')) {
     die('skip fbird_batch_append_blob_data not available (requires FB4+ build)');
 }
 if (!function_exists('fbird_batch_add_blob_stream')) {
     die('skip fbird_batch_add_blob_stream not available (requires FB4+ build)');
 }
+require_once 'firebird.inc';
 if (get_fb_version() < 4.0) {
     die('skip requires Firebird 4.0+ (IBatch API)');
 }
 ?>
 --FILE--
 <?php
-require_once __DIR__ . '/config.inc';
-$conn = fbird_connect(FBIRD_TEST_DB, FBIRD_TEST_USER, FBIRD_TEST_PASS);
+require __DIR__ . '/firebird.inc';
+
+$conn = fbird_connect($test_base, $user, $password);
 $trans = fbird_trans($conn);
 
 @fbird_query($trans, "DROP TABLE batch_append_blob_test");
@@ -30,7 +31,7 @@ fbird_commit_ret($trans);
 $stmt = fbird_prepare($trans, "INSERT INTO batch_append_blob_test (id, data) VALUES (?, ?)");
 $batch = fbird_batch_create($stmt, $trans);
 
-// IBatch::appendBlobData requires an active blob stream started via addBlobStream first.
+// IBatch::appendBlobData requires an active blob stream started via addBlobStream.
 // Without calling addBlobStream first, Firebird 5 may access an uninitialised blob
 // buffer, causing a segfault.
 //
@@ -39,7 +40,7 @@ $batch = fbird_batch_create($stmt, $trans);
 //   [alignment padding to 16 bytes]
 $blob_id  = pack('VV', 1, 0);      // ISC_QUAD: gds_quad_high=1, gds_quad_low=0
 $data_len = pack('V', 0);          // 0 bytes initial blob data
-$padding  = str_repeat("\x00", 4); // pad 12→16 bytes (8-byte alignment)
+$padding  = str_repeat("\x00", 4); // pad 12-byte header to 16 bytes (8-byte align)
 $stream   = $blob_id . $data_len . $padding; // 16 bytes
 
 @fbird_batch_add_blob_stream($batch, $stream);
@@ -53,7 +54,7 @@ var_dump(is_bool($result));
 fbird_batch_cancel($batch);
 
 @fbird_query($trans, "DROP TABLE batch_append_blob_test");
-fbird_commit($trans);
+@fbird_commit($trans);
 fbird_close($conn);
 ?>
 --EXPECT--

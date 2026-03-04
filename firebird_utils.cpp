@@ -3849,7 +3849,7 @@ extern "C" int fbbatch_set_default_bpb(
     if (bpb_length == 0 || bpb == nullptr) {
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_bpb_item;
+            status_vector[1] = isc_bad_dpb_content;  /* closest available: invalid param content */
             status_vector[2] = isc_arg_end;
         }
         return 0;

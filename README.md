@@ -13,7 +13,7 @@ A high-performance PHP extension providing native connectivity to Firebird datab
 ## Features
 
 - **Native Performance**: Direct fbclient library integration
-- **Full Firebird Support**: Connects to Firebird 2.5, 3.0, 4.0, 5.0+ servers (requires 3.0+ client library)
+- **Full Firebird Support**: Connects to Firebird 3.0, 4.0, 5.0+ servers (requires 3.0+ client library)
 - **Modern C++ OO API**: Uses Firebird 3.0+ Object-Oriented API with RAII wrappers
 - **Modern PHP**: Optimized for PHP 8.1+ with typed properties and attributes
 - **Exception Mode API**: PDO-style exception handling with runtime switchable error modes (SILENT/THROW)
@@ -59,7 +59,7 @@ Choosing between PDO\_Firebird and php-firebird depends on your project requirem
 - **Firebird**: 3.0+ client libraries (fbclient) and headers
 - **Build Tools**: autotools, make, pkg-config
 
-> **⚠️ Firebird 3.0+ Client Library Required**: This extension requires the Firebird 3.0+ client library (fbclient) for building, as it uses the modern OO API (FB_API_VER >= 30). However, newer client libraries can connect to older servers: FB 3.0 client → FB 2.5-3.0 servers, FB 4.0 client → FB 2.5-4.0 servers, FB 5.0 client → FB 2.5-5.0 servers.
+> **⚠️ Firebird 3.0+ Client Library Required**: This extension requires the Firebird 3.0+ client library (fbclient) for building, as it uses the modern OO API (FB_API_VER >= 30). Supported server versions: 3.0, 4.0, 5.0+.
 
 ### Supported Platforms
 - Linux (Ubuntu 20.04+, Debian 11+, Rocky/AlmaLinux 8+, openSUSE 15.3+)
@@ -920,11 +920,11 @@ See [EVENT_TIMEOUT_RFC.md](docs/development/EVENT_TIMEOUT_RFC.md) for implementa
 **Firebird Server Connectivity:**
 | Client Library | Server Versions Supported | Notes |
 |----------------|---------------------------|-------|
-| FB 3.0 client | FB 2.5, 3.0 | Legacy |
-| FB 4.0 client | FB 2.5, 3.0, 4.0 | Stable |
-| FB 5.0 client | FB 2.5, 3.0, 4.0, 5.0+ | **Recommended** |
+| FB 3.0 client | FB 3.0 | Legacy |
+| FB 4.0 client | FB 3.0, 4.0 | Stable |
+| FB 5.0 client | FB 3.0, 4.0, 5.0+ | **Recommended** |
 
-> **⚠️ Firebird 2.5 Server Deprecation**: Firebird 2.5 server support is **DEPRECATED** and will be removed in v7.1.0. Firebird 2.5 reached EOL in September 2020. The FB 5.x client includes backward compatibility, but this configuration is no longer tested. Please migrate to Firebird 4.0+ for security updates.
+> **ℹ️ Firebird 2.5 Server**: Firebird 2.5 reached EOL in September 2020 and is no longer supported as of v7.2.0. Please migrate to Firebird 3.0+.
 
 ### Precompiled Binaries (v7.0.0+)
 
@@ -948,7 +948,7 @@ php -m | grep firebird
 - **glibc 2.28+** required (Ubuntu 18.10+, Debian 11+, RHEL 8+)
 - **PHP 8.1+** required - use third-party repos if your distribution has an older default
 - **No system Firebird installation needed** - client libraries bundled via `$ORIGIN` rpath
-- **Connects to any Firebird server** (2.5-5.0) using bundled FB 5.x client
+- **Connects to any Firebird server** (3.0-5.0) using bundled FB 5.x client
 
 **Installing PHP 8.1+ on Older Distributions:**
 

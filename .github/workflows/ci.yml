@@ -21,7 +21,6 @@ jobs:
           # PHP 8.4: Current recommended
           # FB 3.0: Stable with modern auth (Srp)
           # FB 5.0: Latest features
-          # Note: FB 2.5 removed - EOL and Docker image broken
           # Note: Can expand to PHP 8.2/8.3 and FB 4.0 once CI is green
 
           # PHP 8.1 combinations
@@ -49,9 +48,6 @@ jobs:
             db-path: '/var/lib/firebird/data/test.fdb'
 
     # Run Firebird as a service container
-    # Note: Environment variables differ between jacobalberty/firebird (2.5) and firebirdsql/firebird (3+)
-    # - jacobalberty/firebird:2.5-ss uses ISC_PASSWORD only (SYSDBA already exists)
-    # - firebirdsql/firebird:3+ uses FIREBIRD_DATABASE, ISC_PASSWORD
     services:
       firebird:
         image: ${{ matrix.firebird-image }}
@@ -286,7 +282,7 @@ jobs:
           # AuthClient: Order of authentication plugins to try
           # - Srp256: Secure Remote Password (SHA-256) - Firebird 3.0+
           # - Srp: Secure Remote Password (SHA-1) - Firebird 3.0+
-          # - Legacy_Auth: Legacy authentication - Firebird 2.5 compatibility
+          # - Legacy_Auth: Legacy authentication (retained for compatibility)
           AuthClient = Srp256, Srp, Legacy_Auth
 
           # WireCrypt: Wire encryption setting

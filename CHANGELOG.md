@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `tests/fbird_alias_check_002.phpt` (misnamed files that tested `fbird_*` functions, not
   `ibase_*` aliases). Updated `constitution.md` Article IV and `AGENTS.md` to reflect removal.
   Closes [#92](https://github.com/satwareAG/php-firebird/issues/92).
+- **Firebird 2.5 server support removed** — deprecated in v7.1.0, EOL since September 2020.
+  Removed `firebird25` service and `fb25-data` volume from `docker/docker-compose.yml`.
+  Removed `depends_on: firebird25` from all PHP dev containers. Removed stale FB 2.5 comments
+  from `.github/workflows/ci.yml` (matrix was already clean). Updated `README.md` to reflect
+  supported server versions: 3.0, 4.0, 5.0+.
+  Closes [#91](https://github.com/satwareAG/php-firebird/issues/91).
 
 ---
 

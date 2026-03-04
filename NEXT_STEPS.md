@@ -1,6 +1,6 @@
 # Next Session Tasks — php-firebird
 
-**Last updated:** 2026-03-04 (updated 2026-03-04 — Priority 0 resolved)  
+**Last updated:** 2026-03-04 (updated 2026-03-04 — Priority 0 + 1 resolved)  
 **Current version:** 7.1.0 (released)  
 **Branch:** `satware-main`
 
@@ -17,12 +17,12 @@
 
 ---
 
-## Priority 1 — Monitor (no action needed unless failure)
+## Priority 1 — ✅ RESOLVED
 
-- [ ] Verify re-run of Release (Linux) `22668523927` completes successfully
-  - Root cause: transient HTTP 504 on Firebird SDK download from GitHub releases
-  - All 29 release artifacts already uploaded by prior successful runs
-  - Re-run triggered: `gh run rerun 22668523927 --repo satwareAG/php-firebird --failed`
+- [x] Release (Linux) re-run `22668523927` completed successfully (2026-03-04)
+  - All 10 build jobs + release job: ✓
+  - Root cause was transient HTTP 504 on Firebird SDK download (GitHub CDN)
+  - v7.1.0 release artifacts: 29/29 complete
 
 ---
 

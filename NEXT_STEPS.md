@@ -6,6 +6,16 @@
 
 ---
 
+## Priority 0 — Unmerged fix (CRITICAL — do not delete branch)
+
+- [ ] **`fix/transaction-mshutdown-uaf-78-79`** — local branch with unmerged fix
+  - Commit: `b68d85f fix(transaction): guard _php_fbird_free_trans() against MSHUTDOWN UAF/SIGABRT (#78, #79)`
+  - Remote was deleted but fix was NOT squash-merged into `satware-main`
+  - Action: open PR, get CI green, merge → `satware-main`
+  - Issues: #78, #79
+
+---
+
 ## Priority 1 — Monitor (no action needed unless failure)
 
 - [ ] Verify re-run of Release (Linux) `22668523927` completes successfully

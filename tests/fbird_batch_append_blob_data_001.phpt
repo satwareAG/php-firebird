@@ -2,11 +2,16 @@
 fbird_batch_append_blob_data: append data chunk to in-progress batch BLOB
 --SKIPIF--
 <?php
-require_once __DIR__ . '/config.inc';
-if (!extension_loaded('firebird')) die('skip firebird extension not loaded');
-$conn = @fbird_connect(FBIRD_TEST_DB, FBIRD_TEST_USER, FBIRD_TEST_PASS);
-if (!$conn) die('skip cannot connect to Firebird');
-if (fbird_get_client_major_version() < 4) die('skip requires Firebird 4.0+ (batch API)');
+require __DIR__ . '/skipif.inc';
+if (!extension_loaded('firebird')) {
+    die('skip firebird extension not loaded');
+}
+if (!function_exists('fbird_batch_append_blob_data')) {
+    die('skip fbird_batch_append_blob_data not available (requires FB4+ build)');
+}
+if (get_fb_version() < 4.0) {
+    die('skip requires Firebird 4.0+ (IBatch API)');
+}
 ?>
 --FILE--
 <?php

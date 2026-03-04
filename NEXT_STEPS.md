@@ -1,73 +1,85 @@
 # Next Session Tasks — php-firebird
 
-**Last updated:** 2026-03-04 (PR #95 open — issue #90 awaiting CI)
-**Current version:** 7.1.0 (released)
+**Last updated:** 2026-03-04 (v7.2.0 released)
+**Current version:** 7.2.0 (released 2026-03-04)
 **Branch:** `satware-main`
 
 ---
 
-## Priority 0 — ✅ RESOLVED
+## Status: v7.2.0 Released ✅
 
-- [x] **`fix/transaction-mshutdown-uaf-78-79`** — fix confirmed merged into `satware-main`
-  - Squash-merged as commit `5bcbc9f` / PR #81 (2026-03-03)
-  - Issues #78 and #79 are closed
+All v7.2.0 breaking changes shipped and release published:
 
----
-
-## Priority 1 — ✅ RESOLVED
-
-- [x] Release (Linux) re-run completed successfully (2026-03-04)
-  - v7.1.0 release artifacts: 29/29 complete
-
----
-
-## Priority 2 — Downstream upgrades (track progress)
-
-- [ ] `satwareAG/doctrine-firebird-driver` — issue [#80](https://github.com/satwareAG/doctrine-firebird-driver/issues/80)
-  - Bump `ext-firebird` to `^7.1.0`
-  - Integrate `fbird_query_params_tx` for DBAL 4.x
-  - Remove PHP 8.1 from CI matrix (deprecated)
-- [ ] `satware/satag-amicron-entity-bundle` — issue [#49](https://gitlab.satware.com/satware/satag-amicron-entity-bundle/-/issues/49)
-  - Verify `ext-firebird ^7.1.0` on deployment servers
-  - Migrate any `ibase_*` calls to `fbird_*`
-- [ ] `satware/amicron-platform` — issue [#67](https://gitlab.satware.com/satware/amicron-platform/-/issues/67)
-  - Same as entity-bundle + coordinate upgrade
+| Change | Issue | PR | Status |
+|--------|-------|----|--------|
+| Remove `ibase_*` aliases | #92 | #93 | ✅ Merged |
+| Drop Firebird 2.5 support | #91 | #94 | ✅ Merged |
+| Drop PHP 8.1 support | #90 | #95 | ✅ Merged |
+| Release tag + GitHub Release | — | — | ✅ Published |
+| Stubs v7.2.0 tag (Packagist) | — | — | ✅ Tagged |
 
 ---
 
-## Priority 3 — ✅ v7.2.0 breaking changes complete
+## Downstream Compatibility PRs/MRs
 
-All three breaking change issues implemented and PRs open:
+| Repo | PR/MR | Status | Notes |
+|------|-------|--------|-------|
+| `satwareAG/doctrine-firebird-driver` | PR #81 | 🔄 CI re-running | Was failing: stubs v7.2.0 tag missing (now fixed) |
+| `satware/satag-amicron-entity-bundle` | MR !25 | ✅ Pipeline green | Ready to merge |
+| `satware/amicron-platform` | MR !116 | 🔄 Pipeline retried | Was failing: same stubs issue (now fixed) |
 
-1. **#92 — remove `ibase_*` aliases** ✅ PR [#93](https://github.com/satwareAG/php-firebird/pull/93) merged (commit `1301bf5`)
-2. **#91 — drop Firebird 2.5** ✅ PR [#94](https://github.com/satwareAG/php-firebird/pull/94) merged (commit `df10835`)
-3. **#90 — drop PHP 8.1** ✅ PR [#95](https://github.com/satwareAG/php-firebird/pull/95) open — awaiting CI
-   - Branch: `feat/drop-php81-90` (commit `78bb89e`)
-   - Changes: docker-compose.yml, Dockerfile-8.1 deleted, ci.yml, composer.json, stubs/composer.json, constitution.md, README.md, CHANGELOG.md
+**Root cause fixed:** `satwareag/php-firebird-stubs` was missing the `v7.2.0` tag.
+Tagged manually → Packagist propagated → CI re-runs triggered.
 
 ---
 
-## Next immediate action (next session start)
+## Priority 1 — Merge downstream PRs/MRs (once CI green)
 
-1. Check CI on PR #95: `gh pr checks 95 --repo satwareAG/php-firebird`
-2. If CI green: `gh pr merge 95 --repo satwareAG/php-firebird --squash --delete-branch`
-3. Sync local: `git checkout satware-main && git pull origin satware-main`
-4. **Release v7.2.0**: All three breaking changes merged → tag and release
-   ```bash
-   # Update VERSION file
-   echo "7.2.0" > VERSION
-   git add VERSION && git commit -m "chore(release): bump version to 7.2.0"
-   # Update CHANGELOG.md [Unreleased] → [7.2.0] - YYYY-MM-DD
-   # Tag and push
-   git tag v7.2.0 && git push origin satware-main --tags
-   ```
+- [ ] Merge `satwareAG/doctrine-firebird-driver` PR #81
+  ```bash
+  gh pr merge 81 --repo satwareAG/doctrine-firebird-driver --squash --delete-branch
+  ```
+- [ ] Merge `satware/satag-amicron-entity-bundle` MR !25 (pipeline already green)
+- [ ] Merge `satware/amicron-platform` MR !116 (after pipeline passes)
+
+---
+
+## Priority 2 — Close completed milestones
+
+- [ ] Close `php-firebird` v7.2.0 milestone (6/6 issues closed, 0 open)
+  ```bash
+  gh api --method PATCH repos/satwareAG/php-firebird/milestones/2 -f state=closed
+  ```
+- [ ] Close `doctrine-firebird-driver` v3.10.0 milestone (1/1 closed, 0 open)
+
+---
+
+## Priority 3 — doctrine-firebird-driver open issues (post-v7.2.0)
+
+| Issue | Title | Priority |
+|-------|-------|----------|
+| #78 | Sprint 5 [TRACKING] DBAL 4.x forward-compatibility | High — tracking issue |
+| #47 | Simplify test suite now php-firebird v7 is minimum | Medium — now actionable |
+| #44 | Is BLOB streaming workaround still needed in v7? | Medium — investigate |
+| #20 | Release v3.11.0 - Configurable LIKE CAST Length | Medium |
+| #43 | Add INT128 and DECFLOAT type mappings (FB 4.0+) | Low |
+| #42 | Use fbird_escape_string() for SQL string escaping | Low |
+| #46 | Add functional tests for IBatch API (FB 4.0+) | Low |
+| #50 | Schema test transaction deadlocks | Bug |
+| #51 | PHPUnit test timeouts for schema operations | Enhancement |
+| #53 | Verify phpunit.sh TTY exit code fix | Testing |
+| #48 | Document SQLSTATE error handling improvements | Docs |
+| #38 | Windows CI Testing: Blocked by php-firebird Windows DLLs | Enhancement |
+
+**Note:** Issue #47 ("Simplify test suite when php-firebird v7 becomes minimum") is now
+actionable — php-firebird v7.2.0 is the minimum, PHP 8.1 is dropped.
 
 ---
 
 ## Context
 
-- **Release:** https://github.com/satwareAG/php-firebird/releases/tag/v7.1.0
+- **Release:** https://github.com/satwareAG/php-firebird/releases/tag/v7.2.0
+- **Stubs release:** https://github.com/satwareAG/php-firebird-stubs/releases/tag/v7.2.0
 - **CHANGELOG:** https://github.com/satwareAG/php-firebird/blob/satware-main/CHANGELOG.md
-- **Test suite:** 173/173 pass (0 fail, 4 skipped) — as of v7.1.0
-- **Stubs:** 86/86 in sync
 - **v7.2.0 milestone:** https://github.com/satwareAG/php-firebird/milestone/2
+- **Breaking changes:** PHP ≥8.2, Firebird ≥3.0, `fbird_*` only (no `ibase_*`)

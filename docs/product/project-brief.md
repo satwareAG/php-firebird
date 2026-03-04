@@ -1,17 +1,16 @@
 # php-firebird — Project Brief
 
-**Version**: 7.0.0
-**Last Updated**: 2026-03-02
-**Status**: Active Development — v7.0.0 Release Candidate
+**Version**: 7.2.0
+**Last Updated**: 2026-03-04
+**Status**: Stable — v7.2.0 Released
 
 ---
 
 ## What We're Building
 
 **php-firebird** is a native PHP C extension providing high-performance, memory-safe access to
-Firebird databases from PHP 8.1–8.5. It is a modernized fork of the legacy PHP `ibase_*`
-extension, renamed to `fbird_*` prefix, and maintained as a drop-in replacement with full
-backwards compatibility.
+Firebird databases from PHP 8.2+. It is a modernized fork of the legacy PHP `ibase_*`
+extension, renamed to `fbird_*` prefix. The `ibase_*` aliases were fully removed in v7.2.0.
 
 ### Core Value Proposition
 
@@ -31,7 +30,7 @@ backwards compatibility.
 | **Language** | C (Zend Engine API), C++ (internal wrappers only) |
 | **Build System** | `config.m4` (autoconf/phpize), `config.w32` (Windows) |
 | **Database** | Firebird 3.0, 4.0, 5.0 (via `ibase.h` / FB API) |
-| **PHP Versions** | 8.1, 8.2, 8.3, 8.4 (8.5 day-1 support) |
+| **PHP Versions** | 8.2, 8.3, 8.4 (8.5 day-1 support planned) |
 | **Testing** | `.phpt` files via `make test` / `run-tests.php` |
 | **Coverage** | gcov + lcov (inside Docker) |
 | **Sanitizers** | AddressSanitizer, UndefinedBehaviorSanitizer, Valgrind |
@@ -40,36 +39,23 @@ backwards compatibility.
 
 ---
 
-## v7.0.0 Release Scope
+## Release History
 
-### Must-Have (Release Blockers)
+| Version | Date | Highlights |
+|---------|------|-----------|
+| **7.2.0** | 2026-03-04 | Drop PHP 8.1, Firebird 2.5, `ibase_*` aliases removed |
+| 7.1.0 | 2026-03-04 | `fbird_query_params_tx()`, deprecation warnings for v7.2.0 changes |
+| 7.0.0 | 2026-02-xx | Major refactor: source split, coverage ≥80%, sanitizer-clean |
 
-| Issue | Title | Status |
-|-------|-------|--------|
-| #69 | Extension version missing | ✅ Fixed (PR #70 merged) |
-| #64 | SIGSEGV in backup/restore error paths | ✅ Fixed (PR #70 merged) |
-| #58 | Code Coverage ≥80% overall | 🔄 In Progress |
-| #59 | Service API coverage (fb_service.hpp 0%→80%) | 🔄 Planned |
-| #60 | Batch Operations coverage (firebird_utils.cpp) | 🔄 Planned |
-| #61 | Array Operations coverage (35.9%→80%) | 🔄 Planned |
-| #62 | Parameter Binding coverage (41.8%→80%) | 🔄 Planned |
-| #63 | Final coverage validation (≥80% overall) | 🔄 Planned |
-| #57 | Source Refactoring (firebird.c split) | 🔄 Planned |
-| #66 | Release v7.0.0-rc.50 tag | 🔄 Planned |
+---
 
-### Should-Have
+## v7.2.0 Breaking Changes
 
-| Issue | Title | Status |
-|-------|-------|--------|
-| #67 | Docs cleanup (docs/plans/) | 🔄 Planned |
-| #68 | Doctrine integration testing | 🔄 Planned (after rc.50) |
-
-### Not In Scope (v7.0.0)
-
-- PECL registration (v7.0.x)
-- GPG signatures (v7.0.x)
-- Linux ARM64 builds (v7.0.x)
-- OO API wrapper (`src/Firebird/*.php`) public promotion (v7.1.0)
+| Change | Details |
+|--------|---------|
+| **PHP ≥8.2 required** | PHP 8.1 EOL Nov 2025 — removed from CI and composer.json |
+| **Firebird ≥3.0 required** | Firebird 2.5 EOL Sep 2020 — removed from Docker/CI |
+| **`ibase_*` removed** | All `PHP_FALIAS` entries gone — use `fbird_*` exclusively |
 
 ---
 
@@ -136,12 +122,23 @@ Firebird server (3.0 / 4.0 / 5.0)
 
 ---
 
-## v7.0.0 Success Criteria
+## v7.2.0 Success Criteria (All Met ✅)
 
-- [ ] All existing 135+ tests pass on PHP 8.1–8.4 × Firebird 3.0–5.0
-- [ ] Overall code coverage ≥ 80% (lcov)
-- [ ] Zero ASan/UBSan/Valgrind errors on new code
-- [ ] `firebird.c` split into logical modules (<1500 lines each)
-- [ ] Doctrine-firebird-driver test suite passes against rc.50
-- [ ] `v7.0.0-rc.50` tagged and GitHub release published
-- [ ] Windows DLLs built for PHP 8.2–8.5 NTS/TS
+- [x] All tests pass on PHP 8.2–8.4 × Firebird 3.0–5.0
+- [x] Overall code coverage ≥ 80% (lcov)
+- [x] Zero ASan/UBSan/Valgrind errors
+- [x] `ibase_*` aliases fully removed
+- [x] PHP 8.1 support removed from CI and composer.json
+- [x] Firebird 2.5 removed from Docker/CI
+- [x] `v7.2.0` tagged and GitHub Release published
+- [x] Windows DLLs built for PHP 8.2–8.5 NTS/TS
+- [x] Stubs `v7.2.0` tagged on Packagist
+
+---
+
+## Next Development Focus (v7.3.0 / doctrine-firebird-driver)
+
+- doctrine-firebird-driver DBAL 4.x forward-compatibility (issue #78)
+- Simplify test suite now PHP 8.1 is dropped (issue #47 in doctrine repo)
+- v3.11.0 release: Configurable LIKE CAST Length (issue #20 in doctrine repo)
+- See `NEXT_STEPS.md` for full backlog

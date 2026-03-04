@@ -3,35 +3,6 @@ name: php-firebird-dev
 
 services:
   # PHP Development Containers
-  php81-dev:
-    build:
-      context: php
-      dockerfile: Dockerfile-8.1
-    volumes:
-      - ..:/ext
-    user: "${CURRENT_UID:-1000}:${CURRENT_GID:-1000}"
-    working_dir: /ext
-    command: tail -f /dev/null
-    environment:
-      - PHP_IDE_CONFIG=serverName=php-firebird-dev
-      - XDEBUG_CONFIG=client_host=host.docker.internal
-      - FIREBIRD_HOST=firebird40
-      - FIREBIRD_DB_DIR=/firebird
-      - PHP_DISMOD=ioncube
-      - TZ=Europe/Berlin
-      # Full connect string for tests that want to talk directly to the
-      # Firebird 4 engine without going through common.inc's $test_base.
-      # This matches the "localhost/3052:/firebird/data/test.fdb" pattern
-      # suggested in fbird_connect_dpb_001.phpt, but targets the firebird40
-      # service and its shared data volume.
-      - FB_HOST=firebird30:/firebird/data/test.fdb
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    depends_on:
-      - firebird30
-      - firebird40
-      - firebird50
-
   php82-dev:
     build:
       context: php
@@ -126,31 +97,6 @@ services:
       - firebird30
       - firebird40
       - firebird50
-
-  # PHP 8.1 with Firebird 3.0 Client Library
-  # For testing extension against oldest supported combination (PHP 8.1 + FB 3.0)
-  php81-fb3-dev:
-    build:
-      context: php
-      dockerfile: Dockerfile-8.1-fb3
-    volumes:
-      - ..:/ext
-      - fb30-data:/firebird
-    user: "${CURRENT_UID:-1000}:${CURRENT_GID:-1000}"
-    working_dir: /ext
-    command: tail -f /dev/null
-    environment:
-      - PHP_IDE_CONFIG=serverName=php-firebird-dev
-      - XDEBUG_CONFIG=client_host=host.docker.internal
-      - FIREBIRD_HOST=firebird30
-      - FIREBIRD_DB_DIR=/firebird
-      - FIREBIRD_HOME=/opt/firebird
-      - LD_LIBRARY_PATH=/opt/firebird/lib
-      - TZ=Europe/Berlin
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    depends_on:
-      - firebird30
 
   # PHP 8.4 with Firebird 3.0 Client Library
   # For testing extension compilation against Firebird 3.0 client

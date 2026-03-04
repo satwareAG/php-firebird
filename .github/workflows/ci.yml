@@ -16,20 +16,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Matrix: PHP 8.1/8.4 × FB 3.0/5.0 = 4 combinations
-          # PHP 8.1: LTS baseline
+          # Matrix: PHP 8.2/8.4 × FB 3.0/5.0 = 4 combinations
+          # PHP 8.2: Minimum supported (PHP 8.1 dropped in v7.2.0)
           # PHP 8.4: Current recommended
           # FB 3.0: Stable with modern auth (Srp)
           # FB 5.0: Latest features
-          # Note: Can expand to PHP 8.2/8.3 and FB 4.0 once CI is green
 
-          # PHP 8.1 combinations
-          - php-version: '8.1'
+          # PHP 8.2 combinations
+          - php-version: '8.2'
             firebird-version: '3.0'
             firebird-image: 'firebirdsql/firebird:3'
             fb-client-version: '3.0'
             db-path: '/var/lib/firebird/data/test.fdb'
-          - php-version: '8.1'
+          - php-version: '8.2'
             firebird-version: '5.0'
             firebird-image: 'firebirdsql/firebird:5'
             fb-client-version: '5.0'

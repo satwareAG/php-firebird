@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/satwareAG/php-firebird/actions/workflows/ci.yml/badge.svg)](https://github.com/satwareAG/php-firebird/actions/workflows/ci.yml)
 [![License: PHP-3.01](https://img.shields.io/badge/License-PHP--3.01-blue.svg)](LICENSE)
-[![PHP 8.1+](https://img.shields.io/badge/PHP-8.1%2B-8892BF.svg)](https://www.php.net/)
+[![PHP 8.2+](https://img.shields.io/badge/PHP-8.2%2B-8892BF.svg)](https://www.php.net/)
 [![Version](https://img.shields.io/badge/version-7.1.0-blue.svg)](CHANGELOG.md)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/satwareAG/php-firebird)
 
@@ -54,7 +54,7 @@ Choosing between PDO\_Firebird and php-firebird depends on your project requirem
 ## Requirements
 
 ### System Requirements
-- **PHP**: 8.1+ with development headers
+- **PHP**: 8.2+ with development headers
 - **C++ Compiler**: GCC 7+ or Clang 5+ (C++17 support)
 - **Firebird**: 3.0+ client libraries (fbclient) and headers
 - **Build Tools**: autotools, make, pkg-config
@@ -905,13 +905,12 @@ See [EVENT_TIMEOUT_RFC.md](docs/development/EVENT_TIMEOUT_RFC.md) for implementa
 ### Current Version: 7.0.0 (Stable Release)
 
 **Supported PHP Versions:**
-- PHP 8.1 (**DEPRECATED** - will be removed in v7.1.0; PHP 8.1 EOL: Nov 2025)
-- PHP 8.2 (fully supported)
+- PHP 8.2 (fully supported, minimum)
 - PHP 8.3 (fully supported)
 - PHP 8.4 (fully supported)
 - PHP 8.5 (development)
 
-> **⚠️ PHP 8.1 Deprecation Notice**: PHP 8.1 reaches end-of-life on November 25, 2025. Support will be removed in php-firebird v7.1.0. Please upgrade to PHP 8.2 or newer.
+> **ℹ️ PHP 8.1**: PHP 8.1 reached end-of-life on November 25, 2025 and is no longer supported as of v7.2.0. Please upgrade to PHP 8.2 or newer.
 
 **Firebird Client Library (for building):**
 - Firebird 3.0+ client library required (uses OO API)
@@ -974,6 +973,7 @@ After installing PHP 8.1+, install the precompiled extension bundle matching you
 **Dropped Support:**
 - ❌ PHP 7.x (legacy, security issues)
 - ❌ PHP 8.0 (legacy, no longer maintained)
+- ❌ PHP 8.1 (EOL Nov 2025, dropped in v7.2.0)
 - ❌ Firebird 2.5 client library (requires OO API from FB 3.0+ client)
 - ❌ `ibase_*` function aliases (use `fbird_*` instead)
 - ❌ `interbase.so` extension name (use `firebird.so`)

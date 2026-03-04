@@ -27,9 +27,11 @@ fbird_commit_ret($trans);
 $stmt = fbird_prepare($trans, "INSERT INTO batch_bpb_test (id, data) VALUES (?, ?)");
 $batch = fbird_batch_create($stmt, $trans);
 
-// Call fbird_batch_set_default_bpb with an empty BPB string.
+// Call fbird_batch_set_default_bpb with a minimal valid BPB (isc_bpb_version1 = 0x01).
+// An empty BPB is rejected by the C++ guard (returns false immediately to avoid
+// a segfault inside libfbclient.so on Firebird 5.0 which dereferences null/empty BPB).
 // Return value is always bool — true on success, false on failure.
-$result = @fbird_batch_set_default_bpb($batch, '');
+$result = @fbird_batch_set_default_bpb($batch, chr(1));
 var_dump(is_bool($result));
 
 fbird_batch_cancel($batch);

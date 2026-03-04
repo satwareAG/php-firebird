@@ -29,7 +29,21 @@ $batch = fbird_batch_create($stmt, $trans);
 
 // fbird_batch_add_blob_stream calls IBatch::addBlobStream — the returned value
 // is always bool (true on success, false on protocol error).
-$result = @fbird_batch_add_blob_stream($batch, 'stream_data');
+//
+// The stream binary format for BLOB_ID_ENGINE policy is:
+//   [ISC_QUAD batch_blob_id: 8 bytes] [uint32 data_len: 4 bytes] [data: data_len bytes]
+//   [alignment padding to getBlobAlignment() boundary]
+//
+// Build a minimal 16-byte valid blob stream entry:
+//   blob_id  = pack('VV', 1, 0)  — ISC_QUAD {high=1, low=0}, 8 bytes (LE)
+//   data_len = pack('V', 0)      — 0 bytes of BLOB data
+//   padding  = str_repeat("\0", 4) — pad entry to 16 bytes (alignment=8, 12%8=4, need 4 pad)
+$blob_id  = pack('VV', 1, 0);   // ISC_QUAD: gds_quad_high=1, gds_quad_low=0
+$data_len = pack('V', 0);       // 0 bytes of blob data
+$padding  = str_repeat("\x00", 4); // pad 12→16 bytes (ensure 8-byte alignment)
+$stream   = $blob_id . $data_len . $padding; // 16 bytes total
+
+$result = @fbird_batch_add_blob_stream($batch, $stream);
 var_dump(is_bool($result));
 
 fbird_batch_cancel($batch);

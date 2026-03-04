@@ -1678,4 +1678,72 @@ int _php_fbird_fetch_query_res(zval *from, fbird_query **ib_query)
 	return (*ib_query) ? 1 : 0;
 }
 
+/**
+ * fbird_query_params_tx(resource $link, resource $trans, string $query[, array $params]): resource|int|bool
+ *
+ * Execute a parameterized query with explicit link AND transaction handles.
+ * Required by doctrine-firebird-driver which passes both handles explicitly
+ * (unlike fbird_execute_query which infers the link from the transaction).
+ *
+ * Combines fbird_prepare() + fbird_execute() in one call for performance.
+ * Returns result resource for SELECT, affected-row count for DML, or false on error.
+ */
+PHP_FUNCTION(fbird_query_params_tx)
+{
+    zval *link_arg, *trans_arg, *params_arg = NULL;
+    char *sql;
+    size_t sql_len;
+    fbird_db_link *link;
+    fbird_transaction *trans;
+    fbird_query *ib_query;
+    zval *bind_args = NULL;
+    int bind_n = 0;
+
+    RESET_ERRMSG;
+
+    /* Accept: link, trans, sql [, params_array] */
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "rrs|a",
+            &link_arg, &trans_arg, &sql, &sql_len, &params_arg) == FAILURE) {
+        return;
+    }
+
+    link = (fbird_db_link *)zend_fetch_resource2_ex(link_arg, LE_LINK, le_link, le_plink);
+    if (!link) {
+        RETURN_FALSE;
+    }
+
+    trans = (fbird_transaction *)zend_fetch_resource_ex(trans_arg, LE_TRANS, le_trans);
+    if (!trans) {
+        RETURN_FALSE;
+    }
+
+    if (FAILURE == _php_fbird_prepare(&ib_query, link, trans, Z_RES_P(trans_arg), sql)) {
+        RETURN_FALSE;
+    }
+
+    if (params_arg) {
+        bind_args = _php_fbird_hash_to_zval_array(Z_ARRVAL_P(params_arg), &bind_n);
+    }
+
+    if (FAILURE == _php_fbird_exec(INTERNAL_FUNCTION_PARAM_PASSTHRU, ib_query, bind_args, bind_n)) {
+        if (bind_args) {
+            for (int i = 0; i < bind_n; i++) zval_ptr_dtor(&bind_args[i]);
+            efree(bind_args);
+        }
+        zend_list_delete(ib_query->res);
+        RETURN_FALSE;
+    }
+
+    if (bind_args) {
+        for (int i = 0; i < bind_n; i++) zval_ptr_dtor(&bind_args[i]);
+        efree(bind_args);
+    }
+
+    /* For non-SELECT results, the prepared statement resource is no longer needed */
+    if (Z_TYPE_P(return_value) != IS_RESOURCE) {
+        zend_list_delete(ib_query->res);
+    }
+    /* For SELECT: ib_query stays alive (result_query->parent = ib_query) */
+}
+
 #endif /* HAVE_FIREBIRD */

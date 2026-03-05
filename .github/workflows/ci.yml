@@ -16,11 +16,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Matrix: PHP 8.2/8.4 × FB 3.0/5.0 = 4 combinations
+          # Matrix: PHP 8.2/8.3/8.4 × FB 3.0/4.0/5.0 = 7 combinations
           # PHP 8.2: Minimum supported (PHP 8.1 dropped in v7.2.0)
+          # PHP 8.3: Intermediate — tested against FB 4.0 (constitution Article V)
           # PHP 8.4: Current recommended
-          # FB 3.0: Stable with modern auth (Srp)
-          # FB 5.0: Latest features
+          # FB 3.0: Stable with modern auth (Srp) — actively supported
+          # FB 4.0: Batch ops, time zones, DECFLOAT, INT128 (FB_API_VER=40) — actively supported
+          # FB 5.0: Latest features, scrollable cursors — actively supported
 
           # PHP 8.2 combinations
           - php-version: '8.2'
@@ -29,9 +31,21 @@ jobs:
             fb-client-version: '3.0'
             db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.2'
+            firebird-version: '4.0'
+            firebird-image: 'firebirdsql/firebird:4'
+            fb-client-version: '4.0'
+            db-path: '/var/lib/firebird/data/test.fdb'
+          - php-version: '8.2'
             firebird-version: '5.0'
             firebird-image: 'firebirdsql/firebird:5'
             fb-client-version: '5.0'
+            db-path: '/var/lib/firebird/data/test.fdb'
+
+          # PHP 8.3 combinations (intermediate — FB 4.0 only)
+          - php-version: '8.3'
+            firebird-version: '4.0'
+            firebird-image: 'firebirdsql/firebird:4'
+            fb-client-version: '4.0'
             db-path: '/var/lib/firebird/data/test.fdb'
 
           # PHP 8.4 combinations
@@ -39,6 +53,11 @@ jobs:
             firebird-version: '3.0'
             firebird-image: 'firebirdsql/firebird:3'
             fb-client-version: '3.0'
+            db-path: '/var/lib/firebird/data/test.fdb'
+          - php-version: '8.4'
+            firebird-version: '4.0'
+            firebird-image: 'firebirdsql/firebird:4'
+            fb-client-version: '4.0'
             db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.4'
             firebird-version: '5.0'

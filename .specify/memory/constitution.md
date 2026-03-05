@@ -68,12 +68,14 @@ This is NON-NEGOTIABLE.
 ## Article V: Multi-Version Compatibility
 
 - **MUST**: Extension compiles and tests pass on PHP 8.2, 8.3, 8.4
-- **MUST**: Extension compiles and tests pass on Firebird 3.0 and 5.0 at minimum
+- **MUST**: Extension compiles and tests pass on Firebird 3.0, 4.0, and 5.0 (all actively supported)
 - **MUST**: Firebird 4.0+ features guarded with `#if FB_API_VER >= 40`
 - **MUST**: Tests for FB4+ features include `--SKIPIF--` with server version check
 - **SHALL NOT**: Use PHP version-specific APIs without a compatibility shim
 
-*Rationale*: The CI matrix covers PHP 8.2–8.5 × Firebird 3.0–5.0. All combinations must work.
+*Rationale*: The CI matrix covers PHP 8.2/8.3/8.4 × Firebird 3.0/4.0/5.0 (7 combinations).
+All three Firebird versions are actively supported as of 2026. Each client version must be
+tested independently because `FB_API_VER` determines which code paths compile.
 
 ---
 

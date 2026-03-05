@@ -30,7 +30,7 @@ extension, renamed to `fbird_*` prefix. The `ibase_*` aliases were fully removed
 | **Language** | C (Zend Engine API), C++ (internal wrappers only) |
 | **Build System** | `config.m4` (autoconf/phpize), `config.w32` (Windows) |
 | **Database** | Firebird 3.0, 4.0, 5.0 (via `ibase.h` / FB API) |
-| **PHP Versions** | 8.2, 8.3, 8.4 (8.5 day-1 support planned) |
+| **PHP Versions** | 8.2, 8.3, 8.4 (8.5 day-1 support planned) — CI: 8.2/8.3/8.4 |
 | **Testing** | `.phpt` files via `make test` / `run-tests.php` |
 | **Coverage** | gcov + lcov (inside Docker) |
 | **Sanitizers** | AddressSanitizer, UndefinedBehaviorSanitizer, Valgrind |
@@ -133,6 +133,22 @@ Firebird server (3.0 / 4.0 / 5.0)
 - [x] `v7.2.0` tagged and GitHub Release published
 - [x] Windows DLLs built for PHP 8.2–8.5 NTS/TS
 - [x] Stubs `v7.2.0` tagged on Packagist
+
+---
+
+## CI Matrix
+
+PHP 8.2/8.3/8.4 × Firebird 3.0/4.0/5.0 = **7 combinations**
+
+| PHP | FB 3.0 | FB 4.0 | FB 5.0 |
+|-----|--------|--------|--------|
+| 8.2 (min) | ✅ | ✅ | ✅ |
+| 8.3 | - | ✅ | - |
+| 8.4 (current) | ✅ | ✅ | ✅ |
+
+All three Firebird versions (3.0, 4.0, 5.0) are actively supported as of 2026.
+Each client version is tested independently because `FB_API_VER` determines which
+`#if FB_API_VER >= 40` code paths compile (batch ops, time zones, DECFLOAT, INT128).
 
 ---
 

@@ -6,24 +6,25 @@
 
 ---
 
-## Status: v7.2.0 Released ✅ | PR #96 in flight
+## Status: v7.2.0 Released ✅ | PR #96 Merged ✅ | Issue #97 in progress
 
 | Item | Status |
 |------|--------|
 | v7.2.0 release | ✅ Published |
 | Stubs v7.2.0 (Packagist) | ✅ Tagged |
-| PR #96: CI matrix 4→7 combinations (FB4 + PHP 8.3) | 🔄 CI passing, ready to merge |
+| PR #96: CI matrix 4→7 combinations (FB4 + PHP 8.3) | ✅ Merged (commit 6458694) |
+| Issue #97: PHP 8.3 full CI row (FB 3.0 + FB 5.0) | 🔄 In progress (feat/097-php83-full-ci-row) |
 
 ---
 
-## Priority 1 — Merge PR #96
+## Priority 1 — Issue #97: PHP 8.3 Full CI Row
 
 ```bash
-# Verify all 7 CI jobs pass first
-gh pr checks 96 --repo satwareAG/php-firebird | grep -E "^PHP"
+# PR open — verify all 9 CI jobs pass
+gh pr checks --repo satwareAG/php-firebird
 
-# Merge
-gh pr merge 96 --repo satwareAG/php-firebird --squash --delete-branch
+# On transient CDN 504 failures:
+# gh run rerun <id> --repo satwareAG/php-firebird --failed
 ```
 
 ---

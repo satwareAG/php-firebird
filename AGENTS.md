@@ -160,7 +160,7 @@ PHP 8.2/8.3/8.4/8.5 × Firebird 3.0/4.0/5.0 = **12 combinations**
 | 8.2 (min) | ✅ | ✅ | ✅ |
 | 8.3 | ✅ | ✅ | ✅ |
 | 8.4 (current) | ✅ | ✅ | ✅ |
-| 8.5 (day-1) | ✅ | ✅ | ✅ |
+| 8.5 (latest stable) | ✅ | ✅ | ✅ |
 
 All three Firebird versions (3.0, 4.0, 5.0) are actively supported as of 2026.
 FB 4.0 entries compile with `FB_API_VER=40`, enabling batch ops, time zones, DECFLOAT, INT128.

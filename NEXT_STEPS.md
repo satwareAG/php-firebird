@@ -29,7 +29,8 @@ gh pr checks --repo satwareAG/php-firebird
 ```
 
 **Notes:**
-- `php:8.5-cli-bookworm` confirmed available on Docker Hub (PHP 8.5.3 stable)
+- `php:8.5-cli-bookworm` confirmed available on Docker Hub (PHP 8.5.3 stable, released 2025-11-20)
+- PHP 8.5 is the current latest stable release — active support until 2027-12-31
 - No custom image needed — CI uses `php:${{ matrix.php-version }}-cli-bookworm` directly
 - 3 new matrix entries added: PHP 8.5 × FB 3.0, FB 4.0, FB 5.0
 - Matrix now 12 combinations (was 9)

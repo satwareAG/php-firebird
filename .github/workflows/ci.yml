@@ -16,10 +16,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Matrix: PHP 8.2/8.3/8.4 × FB 3.0/4.0/5.0 = 9 combinations
+          # Matrix: PHP 8.2/8.3/8.4/8.5 × FB 3.0/4.0/5.0 = 12 combinations
           # PHP 8.2: Minimum supported (PHP 8.1 dropped in v7.2.0)
           # PHP 8.3: Intermediate — full row (FB 3.0, 4.0, 5.0) as of issue #97
           # PHP 8.4: Current recommended
+          # PHP 8.5: Day-1 support (RC phase, php:8.5-cli-bookworm available) — issue #98
           # FB 3.0: Stable with modern auth (Srp) — actively supported
           # FB 4.0: Batch ops, time zones, DECFLOAT, INT128 (FB_API_VER=40) — actively supported
           # FB 5.0: Latest features, scrollable cursors — actively supported
@@ -70,6 +71,23 @@ jobs:
             fb-client-version: '4.0'
             db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.4'
+            firebird-version: '5.0'
+            firebird-image: 'firebirdsql/firebird:5'
+            fb-client-version: '5.0'
+            db-path: '/var/lib/firebird/data/test.fdb'
+
+          # PHP 8.5 combinations (day-1 support — issue #98)
+          - php-version: '8.5'
+            firebird-version: '3.0'
+            firebird-image: 'firebirdsql/firebird:3'
+            fb-client-version: '3.0'
+            db-path: '/var/lib/firebird/data/test.fdb'
+          - php-version: '8.5'
+            firebird-version: '4.0'
+            firebird-image: 'firebirdsql/firebird:4'
+            fb-client-version: '4.0'
+            db-path: '/var/lib/firebird/data/test.fdb'
+          - php-version: '8.5'
             firebird-version: '5.0'
             firebird-image: 'firebirdsql/firebird:5'
             fb-client-version: '5.0'

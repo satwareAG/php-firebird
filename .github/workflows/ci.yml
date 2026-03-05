@@ -181,8 +181,8 @@ jobs:
           # Select client tarball based on version
           case "${FB_CLIENT_VERSION}" in
             '3.0')
-              FB_VERSION="3.0.12"
-              FB_BUILD="33787-0"
+              FB_VERSION="3.0.13"
+              FB_BUILD="33818-0"
               FB_TARBALL="Firebird-${FB_VERSION}.${FB_BUILD}.amd64.tar.gz"
               FB_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_VERSION}/${FB_TARBALL}"
               FB_EXTRACT_DIR="Firebird-${FB_VERSION}.${FB_BUILD}.amd64"
@@ -195,8 +195,8 @@ jobs:
               FB_EXTRACT_DIR="Firebird-${FB_VERSION}.${FB_BUILD}.amd64"
               ;;
             '5.0')
-              FB_VERSION="5.0.2"
-              FB_BUILD="1613-0"
+              FB_VERSION="5.0.3"
+              FB_BUILD="1683-0"
               FB_TARBALL="Firebird-${FB_VERSION}.${FB_BUILD}-linux-x64.tar.gz"
               FB_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_VERSION}/${FB_TARBALL}"
               FB_EXTRACT_DIR="Firebird-${FB_VERSION}.${FB_BUILD}-linux-x64"

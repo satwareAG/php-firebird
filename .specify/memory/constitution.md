@@ -73,7 +73,7 @@ This is NON-NEGOTIABLE.
 - **MUST**: Tests for FB4+ features include `--SKIPIF--` with server version check
 - **SHALL NOT**: Use PHP version-specific APIs without a compatibility shim
 
-*Rationale*: The CI matrix covers PHP 8.2/8.3/8.4 × Firebird 3.0/4.0/5.0 (7 combinations).
+*Rationale*: The CI matrix covers PHP 8.2/8.3/8.4 × Firebird 3.0/4.0/5.0 (9 combinations).
 All three Firebird versions are actively supported as of 2026. Each client version must be
 tested independently because `FB_API_VER` determines which code paths compile.
 

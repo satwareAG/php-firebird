@@ -10,7 +10,7 @@
 
 - **Name**: php-firebird — Native PHP extension for Firebird databases
 - **Language**: C (Zend Engine API) + C++ (internal only)
-- **Version**: 7.1.0 (current stable)
+- **Version**: 7.2.0 (current stable)
 - **Branch**: `satware-main` (stable), feature branches for all work
 - **Repo**: https://github.com/satwareAG/php-firebird
 
@@ -141,24 +141,28 @@ Project Brief: `docs/product/project-brief.md`
 
 ---
 
-## Open Issues (v7.0.0 Milestone)
+## Release Status
 
-| Issue | Title | Status |
-|-------|-------|--------|
-| #58 | Code Coverage 80%+ gate | ✅ Closed (rc.51) |
-| #59 | Service API coverage (0%→80%) | ✅ Closed (rc.51) |
-| #60 | Batch operations coverage | ✅ Closed (rc.51) |
-| #61 | Array operations coverage (35.9%→80%) | ✅ Closed (rc.51) |
-| #62 | Parameter binding coverage (41.8%→80%) | ✅ Closed (rc.51) |
-| #63 | Final coverage validation ≥80% | ✅ Closed (rc.51) |
-| #66 | Release rc.51 | ✅ Released |
-| #67 | Docs cleanup | ✅ Closed (merged PR #87) |
-| #57 | Source refactoring (firebird.c split) | ✅ Closed |
-| #68 | Doctrine integration | ✅ Closed |
-| #83 | stubs: Add missing functions | ✅ Closed (merged PR #88) |
-| #84 | feat(api): fbird_query_params_tx + stubs | ✅ Closed (merged PR #88) |
-| #85 | docs: v7.0.0-final docs update | ✅ Closed (merged PR #87) |
-| —   | v7.1.0 final release | ✅ Released |
+**v7.2.0** released 2026-03-04 — all milestones closed, 0 open issues.
+
+| Version | Status | Key changes |
+|---------|--------|-------------|
+| v7.2.0 | ✅ Released | Drop PHP 8.1, FB 2.5, `ibase_*` aliases removed |
+| v7.1.0 | ✅ Released | `fbird_query_params_tx()`, deprecation warnings |
+| v7.0.0 | ✅ Released | Source split, coverage ≥80%, sanitizer-clean |
+
+## CI Matrix
+
+PHP 8.2/8.3/8.4 × Firebird 3.0/4.0/5.0 = **7 combinations**
+
+| PHP | FB 3.0 | FB 4.0 | FB 5.0 |
+|-----|--------|--------|--------|
+| 8.2 (min) | ✅ | ✅ | ✅ |
+| 8.3 | - | ✅ | - |
+| 8.4 (current) | ✅ | ✅ | ✅ |
+
+All three Firebird versions (3.0, 4.0, 5.0) are actively supported as of 2026.
+FB 4.0 entries compile with `FB_API_VER=40`, enabling batch ops, time zones, DECFLOAT, INT128.
 
 ---
 

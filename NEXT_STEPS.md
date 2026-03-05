@@ -1,87 +1,105 @@
 # Next Session Tasks — php-firebird
 
-**Last updated:** 2026-03-04 (v7.2.0 released)
+**Last updated:** 2026-03-05
 **Current version:** 7.2.0 (released 2026-03-04)
 **Branch:** `satware-main`
 
 ---
 
-## Status: v7.2.0 Released ✅
+## Status: v7.2.0 Released ✅ | PR #96 in flight
 
-All v7.2.0 breaking changes shipped and release published:
-
-| Change | Issue | PR | Status |
-|--------|-------|----|--------|
-| Remove `ibase_*` aliases | #92 | #93 | ✅ Merged |
-| Drop Firebird 2.5 support | #91 | #94 | ✅ Merged |
-| Drop PHP 8.1 support | #90 | #95 | ✅ Merged |
-| Release tag + GitHub Release | — | — | ✅ Published |
-| Stubs v7.2.0 tag (Packagist) | — | — | ✅ Tagged |
+| Item | Status |
+|------|--------|
+| v7.2.0 release | ✅ Published |
+| Stubs v7.2.0 (Packagist) | ✅ Tagged |
+| PR #96: CI matrix 4→7 combinations (FB4 + PHP 8.3) | 🔄 CI passing, ready to merge |
 
 ---
 
-## Downstream Compatibility PRs/MRs
+## Priority 1 — Merge PR #96
 
-| Repo | PR/MR | Status | Notes |
-|------|-------|--------|-------|
-| `satwareAG/doctrine-firebird-driver` | PR #81 | ⚠️ Pre-existing failures | Test failures exist on `3.0.x` base too — not regressions from v7.2.0 compat |
-| `satware/satag-amicron-entity-bundle` | MR !25 | ✅ Pipeline green | Ready to merge |
-| `satware/amicron-platform` | MR !116 | 🔄 Pipeline running | Fixed: `^3.10` → `^3.0` (v3.10.0 not yet stable-released on Packagist) |
+```bash
+# Verify all 7 CI jobs pass first
+gh pr checks 96 --repo satwareAG/php-firebird | grep -E "^PHP"
 
-**Root causes fixed:**
-1. `satwareag/php-firebird-stubs` was missing the `v7.2.0` tag → tagged manually → Packagist propagated ✅
-2. `amicron-platform` used `satag/doctrine-firebird-driver: ^3.10` but only `3.0.2` is stable on Packagist → changed to `^3.0` ✅
-3. `doctrine-firebird-driver` PR #81 test failures are pre-existing on `3.0.x` base branch (not regressions)
+# Merge
+gh pr merge 96 --repo satwareAG/php-firebird --squash --delete-branch
+```
 
 ---
 
-## Priority 1 — Merge downstream PRs/MRs (once CI green)
+## Priority 2 — php-firebird v7.3.0 Milestone
 
-- [ ] Merge `satwareAG/doctrine-firebird-driver` PR #81
-  ```bash
-  gh pr merge 81 --repo satwareAG/doctrine-firebird-driver --squash --delete-branch
-  ```
-- [ ] Merge `satware/satag-amicron-entity-bundle` MR !25 (pipeline already green)
-- [ ] Merge `satware/amicron-platform` MR !116 (after pipeline passes)
-
----
-
-## Priority 2 — Close completed milestones
-
-- [ ] Close `php-firebird` v7.2.0 milestone (6/6 issues closed, 0 open)
-  ```bash
-  gh api --method PATCH repos/satwareAG/php-firebird/milestones/2 -f state=closed
-  ```
-- [ ] Close `doctrine-firebird-driver` v3.10.0 milestone (1/1 closed, 0 open)
-
----
-
-## Priority 3 — doctrine-firebird-driver open issues (post-v7.2.0)
+**Milestone**: https://github.com/satwareAG/php-firebird/milestone/3
 
 | Issue | Title | Priority |
 |-------|-------|----------|
-| #78 | Sprint 5 [TRACKING] DBAL 4.x forward-compatibility | High — tracking issue |
-| #47 | Simplify test suite now php-firebird v7 is minimum | Medium — now actionable |
+| #97 | feat(ci): PHP 8.3 full CI row (FB 3.0 + FB 5.0) | High — complete the matrix |
+| #98 | feat(ci): PHP 8.5 day-1 support | Medium — Dockerfile-8.5 exists |
+| #99 | chore(ci): update pinned FB client versions to latest patch | Low — maintenance |
+
+**Start with #97** — extends PR #96 work, adds PHP 8.3 × FB 3.0 and PHP 8.3 × FB 5.0 entries.
+
+---
+
+## Priority 3 — doctrine-firebird-driver v3.11.0
+
+**Milestone**: https://github.com/satwareAG/doctrine-firebird-driver/milestone/7
+
+| Issue | Title | Priority |
+|-------|-------|----------|
+| #20 | Release v3.11.0 - Configurable LIKE CAST Length | High — release blocker |
+| #47 | Simplify test suite (php-firebird v7 minimum) | High — now actionable |
 | #44 | Is BLOB streaming workaround still needed in v7? | Medium — investigate |
-| #20 | Release v3.11.0 - Configurable LIKE CAST Length | Medium |
-| #43 | Add INT128 and DECFLOAT type mappings (FB 4.0+) | Low |
-| #42 | Use fbird_escape_string() for SQL string escaping | Low |
-| #46 | Add functional tests for IBatch API (FB 4.0+) | Low |
-| #50 | Schema test transaction deadlocks | Bug |
+| #50 | Schema test transaction deadlocks | Bug — fix first |
 | #51 | PHPUnit test timeouts for schema operations | Enhancement |
 | #53 | Verify phpunit.sh TTY exit code fix | Testing |
+| #42 | Use fbird_escape_string() for SQL string escaping | Low |
+| #43 | Add INT128 and DECFLOAT type mappings (FB 4.0+) | Low |
+| #46 | Add functional tests for IBatch API (FB 4.0+) | Low |
 | #48 | Document SQLSTATE error handling improvements | Docs |
-| #38 | Windows CI Testing: Blocked by php-firebird Windows DLLs | Enhancement |
 
-**Note:** Issue #47 ("Simplify test suite when php-firebird v7 becomes minimum") is now
-actionable — php-firebird v7.2.0 is the minimum, PHP 8.1 is dropped.
+**Start with #47** — simplifying the test suite (dropping PHP 8.1 compat code) unblocks many other issues.
+
+---
+
+## Priority 4 — doctrine-firebird-driver v4.0.0-planning
+
+**Milestone**: https://github.com/satwareAG/doctrine-firebird-driver/milestone/8
+
+| Issue | Title | Notes |
+|-------|-------|-------|
+| #78 | Sprint 5 [TRACKING] DBAL 4.x forward-compatibility | Tracking issue — convert to milestone when DBAL 4.x stable |
+| #38 | Windows CI Testing | Blocked by php-firebird Windows DLLs |
+
+---
+
+## Milestone State (post-2026-03-05 hygiene)
+
+### php-firebird
+
+| Milestone | State | Issues |
+|-----------|-------|--------|
+| v7.0.0 | ✅ Closed | 26 closed |
+| v7.2.0 | ✅ Closed | 6 closed |
+| v7.3.0 | 🔄 Open | 3 open (#97, #98, #99) |
+
+### doctrine-firebird-driver
+
+| Milestone | State | Issues |
+|-----------|-------|--------|
+| Sprint 1-5 | ✅ All Closed | All issues resolved |
+| v3.10.0 | ✅ Closed | 1 closed |
+| v3.11.0 | 🔄 Open | 10 open |
+| v4.0.0-planning | 🔄 Open | 2 open (#78, #38) |
 
 ---
 
 ## Context
 
-- **Release:** https://github.com/satwareAG/php-firebird/releases/tag/v7.2.0
+- **php-firebird release:** https://github.com/satwareAG/php-firebird/releases/tag/v7.2.0
 - **Stubs release:** https://github.com/satwareAG/php-firebird-stubs/releases/tag/v7.2.0
-- **CHANGELOG:** https://github.com/satwareAG/php-firebird/blob/satware-main/CHANGELOG.md
-- **v7.2.0 milestone:** https://github.com/satwareAG/php-firebird/milestone/2
-- **Breaking changes:** PHP ≥8.2, Firebird ≥3.0, `fbird_*` only (no `ibase_*`)
+- **PR #96:** https://github.com/satwareAG/php-firebird/pull/96
+- **v7.3.0 milestone:** https://github.com/satwareAG/php-firebird/milestone/3
+- **doctrine v3.11.0 milestone:** https://github.com/satwareAG/doctrine-firebird-driver/milestone/7
+- **doctrine v4.0.0-planning:** https://github.com/satwareAG/doctrine-firebird-driver/milestone/8

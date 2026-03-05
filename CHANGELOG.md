@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **CI: Updated pinned Firebird client versions to latest patch releases** — FB 3.0.12 (build
+  33787-0) updated to FB 3.0.13 (build 33818-0); FB 5.0.2 (build 1613-0) updated to FB 5.0.3
+  (build 1683-0). FB 4.0.6 (build 3221-0) unchanged (already latest).
+  Closes [#99](https://github.com/satwareAG/php-firebird/issues/99).
+
 ---
 
 ## [7.2.0] - 2026-03-04

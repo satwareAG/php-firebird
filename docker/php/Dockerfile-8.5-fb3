@@ -1,5 +1,5 @@
-# PHP 8.4 with Firebird 3.0 Client Library
-FROM php:8.4-cli AS base
+# PHP 8.5 with Firebird 3.0 Client Library
+FROM php:8.5-cli AS base
 
 RUN apt-get update && apt-get install -y \
     autoconf build-essential gcc g++ make libtool bison re2c libicu-dev libxml2-dev \

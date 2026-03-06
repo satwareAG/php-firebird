@@ -100,30 +100,20 @@ RUN set -eux && \
 # Download and Extract Firebird SDK
 # =============================================================================
 
-# Firebird release tarball structure:
-#   Firebird-5.0.3.1683-0-linux-x64.tar.gz
-#   └── Firebird-5.0.3.1683-0-linux-x64/
-#       ├── buildroot.tar.gz  <-- Contains actual files
-#       │   └── opt/firebird/
-#       │       ├── lib/
-#       │       │   ├── libfbclient.so.2.5.8
-#       │       │   ├── libfbclient.so.2 -> libfbclient.so.2.5.8
-#       │       │   └── libfbclient.so -> libfbclient.so.2
-#       │       └── include/
-#       │           ├── ibase.h
-#       │           └── firebird/
-#       ├── install.sh
-#       └── manifest.txt
-
 RUN set -eux && \
     mkdir -p ${FB_ROOT} && \
     cd /tmp && \
-    echo "Downloading Firebird ${FB_VERSION}.${FB_BUILD}..." && \
-    curl -fL -o firebird.tar.gz \
-        "https://github.com/FirebirdSQL/firebird/releases/download/v${FB_VERSION}/Firebird-${FB_VERSION}.${FB_BUILD}-linux-x64.tar.gz" && \
+    echo "Resolving latest Firebird 5.x release..." && \
+    TAG=$(curl -s https://api.github.com/repos/FirebirdSQL/firebird/releases | jq -r '.[] | select(.tag_name | test("^v5\\.")) | .tag_name' | head -n 1) && \
+    ASSET_URL=$(curl -s https://api.github.com/repos/FirebirdSQL/firebird/releases/tags/${TAG} | jq -r '.assets[] | select(.name | test("linux-x64\\.tar\\.gz$") and (test("debug") | not)) | .browser_download_url' | head -n 1) && \
+    ASSET_NAME=$(basename "${ASSET_URL}") && \
+    FB_VERSION=${TAG#v} && \
+    EXTRACT_DIR="${ASSET_NAME%.tar.gz}" && \
+    echo "Downloading Firebird ${FB_VERSION} from ${ASSET_URL}..." && \
+    curl -fL -o firebird.tar.gz "${ASSET_URL}" && \
     echo "Extracting outer tarball..." && \
     tar xzf firebird.tar.gz && \
-    cd Firebird-${FB_VERSION}.${FB_BUILD}-linux-x64 && \
+    cd "${EXTRACT_DIR}" && \
     echo "Extracting buildroot.tar.gz..." && \
     tar xzf buildroot.tar.gz && \
     echo "Installing Firebird SDK to ${FB_ROOT}..." && \

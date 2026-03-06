@@ -1,19 +1,15 @@
-# PHP 8.4 with Firebird 3.0 Client Library
-FROM php:8.4-cli AS base
+# PHP 8.2 with Firebird 5.x Client Library
+FROM php:8.2-cli AS base
 
 RUN apt-get update && apt-get install -y \
     autoconf build-essential gcc g++ make libtool bison re2c libicu-dev libxml2-dev \
     git unzip wget tzdata vim gdb valgrind lcov libncurses6 libtommath1 jq curl \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /lib/x86_64-linux-gnu/libncurses.so.5 2>/dev/null || true \
-    && ln -sf /usr/lib/x86_64-linux-gnu/libtommath.so.1 /usr/lib/x86_64-linux-gnu/libtommath.so.0 2>/dev/null || true \
-    && ldconfig
-
 RUN set -eux && \
     mkdir -p /opt/firebird && cd /tmp && \
-    TAG=$(curl -s https://api.github.com/repos/FirebirdSQL/firebird/releases | jq -r '.[] | select(.tag_name | test("^v3\\.")) | .tag_name' | head -n 1) && \
-    ASSET_URL=$(curl -s https://api.github.com/repos/FirebirdSQL/firebird/releases/tags/${TAG} | jq -r '.assets[] | select(.name | test("amd64\\.tar\\.gz$") and (test("debug") | not)) | .browser_download_url' | head -n 1) && \
+    TAG=$(curl -s https://api.github.com/repos/FirebirdSQL/firebird/releases | jq -r '.[] | select(.tag_name | test("^v5\\.")) | .tag_name' | head -n 1) && \
+    ASSET_URL=$(curl -s https://api.github.com/repos/FirebirdSQL/firebird/releases/tags/${TAG} | jq -r '.assets[] | select(.name | test("linux-x64\\.tar\\.gz$") and (test("debug") | not)) | .browser_download_url' | head -n 1) && \
     ASSET_NAME=$(basename "${ASSET_URL}") && \
     wget -q -O firebird.tar.gz "${ASSET_URL}" && \
     tar xf firebird.tar.gz && \

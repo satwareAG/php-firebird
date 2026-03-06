@@ -312,8 +312,9 @@ PHP_FUNCTION(fbird_set_event_handler)
 	/* Collect event names */
 	for (; i < 15; ++i) {
 		if (i < ZEND_NUM_ARGS()) {
-			convert_to_string_ex(&args[i]);
-			event->events[event->event_count++] = estrdup(Z_STRVAL(args[i]));
+			zend_string *str = zval_get_string(&args[i]);
+			event->events[event->event_count++] = estrdup(ZSTR_VAL(str));
+			zend_string_release(str);
 		} else {
 			event->events[i] = NULL;
 		}

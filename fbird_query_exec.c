@@ -1351,12 +1351,12 @@ PHP_FUNCTION(fbird_affected_rows)
 	fbird_db_link *link = NULL;
 	fbird_transaction *trans = NULL;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|r", &link_arg) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|z!", &link_arg) == FAILURE) {
 		return;
 	}
 
 	if (link_arg) {
-		link = (fbird_db_link *)zend_fetch_resource2_ex(link_arg, LE_LINK, le_link, le_plink);
+		FBIRD_VALIDATE_LINK_EX(link_arg, 1, link);
 	} else {
 		if (IBG(default_link)) {
 			link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), "Firebird link", le_link, le_plink);
@@ -1405,14 +1405,11 @@ PHP_FUNCTION(fbird_execute_statement)
 
     RESET_ERRMSG;
 
-    if (zend_parse_parameters(ZEND_NUM_ARGS(), "rs|a", &trans_arg, &sql, &sql_len, &params_arg) == FAILURE) {
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "zs|a!", &trans_arg, &sql, &sql_len, &params_arg) == FAILURE) {
         return;
     }
 
-    trans = (fbird_transaction *)zend_fetch_resource_ex(trans_arg, LE_TRANS, le_trans);
-    if (!trans) {
-        RETURN_FALSE;
-    }
+    FBIRD_VALIDATE_TRANS_EX(trans_arg, 1, trans);
     if (trans->link_cnt > 0) {
         link = trans->db_link[0];
     } else {
@@ -1471,12 +1468,11 @@ PHP_FUNCTION(fbird_execute_query)
 
     RESET_ERRMSG;
 
-    if (zend_parse_parameters(ZEND_NUM_ARGS(), "rs|a", &trans_arg, &sql, &sql_len, &params_arg) == FAILURE) {
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "zs|a!", &trans_arg, &sql, &sql_len, &params_arg) == FAILURE) {
         return;
     }
 
-    trans = (fbird_transaction *)zend_fetch_resource_ex(trans_arg, LE_TRANS, le_trans);
-    if (!trans) RETURN_FALSE;
+    FBIRD_VALIDATE_TRANS_EX(trans_arg, 1, trans);
     if (trans->link_cnt > 0) {
         link = trans->db_link[0];
     } else {
@@ -1532,12 +1528,11 @@ PHP_FUNCTION(fbird_execute_auto)
 
     RESET_ERRMSG;
 
-    if (zend_parse_parameters(ZEND_NUM_ARGS(), "rs|a", &link_arg, &sql, &sql_len, &params_arg) == FAILURE) {
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "zs|a!", &link_arg, &sql, &sql_len, &params_arg) == FAILURE) {
         return;
     }
 
-    link = (fbird_db_link *)zend_fetch_resource2_ex(link_arg, LE_LINK, le_link, le_plink);
-    if (!link) RETURN_FALSE;
+    FBIRD_VALIDATE_LINK_EX(link_arg, 1, link);
 
     /* OO API Only: Connection must have OO API handle */
     if (!link->fbc_connection) {
@@ -1657,20 +1652,13 @@ PHP_FUNCTION(fbird_query_params_tx)
     RESET_ERRMSG;
 
     /* Accept: link, trans, sql [, params_array] */
-    if (zend_parse_parameters(ZEND_NUM_ARGS(), "rrs|a",
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "zzs|a!",
             &link_arg, &trans_arg, &sql, &sql_len, &params_arg) == FAILURE) {
         return;
     }
 
-    link = (fbird_db_link *)zend_fetch_resource2_ex(link_arg, LE_LINK, le_link, le_plink);
-    if (!link) {
-        RETURN_FALSE;
-    }
-
-    trans = (fbird_transaction *)zend_fetch_resource_ex(trans_arg, LE_TRANS, le_trans);
-    if (!trans) {
-        RETURN_FALSE;
-    }
+    FBIRD_VALIDATE_LINK_EX(link_arg, 1, link);
+    FBIRD_VALIDATE_TRANS_EX(trans_arg, 2, trans);
 
     if (FAILURE == _php_fbird_prepare(&ib_query, link, trans, Z_RES_P(trans_arg), sql)) {
         RETURN_FALSE;

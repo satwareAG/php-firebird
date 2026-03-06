@@ -145,6 +145,7 @@ jobs:
             wget \
             curl \
             unzip \
+            jq \
             libtommath1 \
             libncurses6
 

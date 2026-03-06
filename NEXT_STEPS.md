@@ -1,19 +1,19 @@
 # Next Session Tasks — php-firebird
 
-**Last updated:** 2026-03-05
-**Current version:** 7.2.0 (released 2026-03-04)
+**Last updated:** 2026-03-06
+**Current version:** 7.3.0 (released 2026-03-06)
 **Branch:** `satware-main`
 
 ---
 
-## Status: v7.3.0 Milestone Complete ✅
+## Status: v7.3.0 Released 🚀
 
 | Item | Status |
 |------|--------|
-| v7.2.0 release | ✅ Published |
-| Stubs v7.2.0 (Packagist) | ✅ Tagged |
-| Issue #97: PHP 8.3 full CI row (FB 3.0 + FB 5.0) | ✅ Merged (PR #100, commit ae42a5c) |
-| Issue #98: PHP 8.5 day-1 support — 12 combinations | ✅ Merged (PR #101, commit 0a75d56) |
+| v7.3.0 release | ✅ Published |
+| Stubs v7.3.0 (Packagist) | ✅ Tagged |
+| PHP 8.4 Hardening | ✅ Merged (PR #104) |
+| CI Matrix Expansion (12 rows) | ✅ Merged (PR #104) |
 | Issue #99: Update pinned FB client versions | ✅ Merged (PR #102, commit 9a5c4d4) |
 | v7.3.0 milestone | ✅ Closed |
 
@@ -66,7 +66,7 @@ Start order:
 
 ---
 
-## Milestone State (post-2026-03-05)
+## Milestone State (post-2026-03-06)
 
 ### php-firebird
 
@@ -74,7 +74,7 @@ Start order:
 |-----------|-------|--------|
 | v7.0.0 | ✅ Closed | 26 closed |
 | v7.2.0 | ✅ Closed | 6 closed |
-| v7.3.0 | ✅ Closed | 3 closed (#97, #98, #99) |
+| v7.3.0 | ✅ Closed | 4 closed (#97, #98, #99, #104) |
 
 ### doctrine-firebird-driver
 
@@ -90,8 +90,8 @@ Start order:
 ## Context
 
 - **php-firebird repo:** https://github.com/satwareAG/php-firebird
-- **php-firebird release:** https://github.com/satwareAG/php-firebird/releases/tag/v7.2.0
-- **Stubs release:** https://github.com/satwareAG/php-firebird-stubs/releases/tag/v7.2.0
+- **php-firebird release:** https://github.com/satwareAG/php-firebird/releases/tag/v7.3.0
+- **Stubs release:** https://github.com/satwareAG/php-firebird-stubs/releases/tag/v7.3.0
 - **v7.3.0 milestone:** https://github.com/satwareAG/php-firebird/milestone/3 (closed)
 - **doctrine v3.11.0 milestone:** https://github.com/satwareAG/doctrine-firebird-driver/milestone/7
 - **doctrine v4.0.0-planning:** https://github.com/satwareAG/doctrine-firebird-driver/milestone/8

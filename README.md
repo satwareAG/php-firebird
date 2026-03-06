@@ -3,7 +3,7 @@
 [![CI](https://github.com/satwareAG/php-firebird/actions/workflows/ci.yml/badge.svg)](https://github.com/satwareAG/php-firebird/actions/workflows/ci.yml)
 [![License: PHP-3.01](https://img.shields.io/badge/License-PHP--3.01-blue.svg)](LICENSE)
 [![PHP 8.2+](https://img.shields.io/badge/PHP-8.2%2B-8892BF.svg)](https://www.php.net/)
-[![Version](https://img.shields.io/badge/version-7.1.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-7.3.0-blue.svg)](CHANGELOG.md)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/satwareAG/php-firebird)
 
 A high-performance PHP extension providing native connectivity to Firebird databases. This modernized version targets PHP 8.1+ with C++17 standards and comprehensive development tooling.
@@ -13,7 +13,7 @@ A high-performance PHP extension providing native connectivity to Firebird datab
 ## Features
 
 - **Native Performance**: Direct fbclient library integration
-- **Full Firebird Support**: Connects to Firebird 3.0, 4.0, 5.0+ servers (requires 3.0+ client library)
+- **Full Firebird Support**: Connects to Firebird 3.0, 4.0, 5.0+ servers (tested against full 12-row PHP/Firebird matrix)
 - **Modern C++ OO API**: Uses Firebird 3.0+ Object-Oriented API with RAII wrappers
 - **Modern PHP**: Optimized for PHP 8.1+ with typed properties and attributes
 - **Exception Mode API**: PDO-style exception handling with runtime switchable error modes (SILENT/THROW)
@@ -126,7 +126,7 @@ echo "extension=firebird.so" | sudo tee /etc/php8/conf.d/firebird.ini
 ```
 
 #### Windows (Pre-compiled DLLs)
-We provide pre-compiled Windows DLLs for PHP 8.1-8.4 across multiple Firebird versions (3.0, 4.0, 5.0).
+We provide pre-compiled Windows DLLs for PHP 8.2-8.5 across multiple Firebird versions (3.0, 4.0, 5.0).
 
 1. Go to the [Releases Page](https://github.com/satwareAG/php-firebird/releases).
 2. Download the DLL matching your PHP version, architecture (x64), thread safety (TS/NTS), and Firebird version.
@@ -902,7 +902,7 @@ See [EVENT_TIMEOUT_RFC.md](docs/development/EVENT_TIMEOUT_RFC.md) for implementa
 
 ## Version Compatibility
 
-### Current Version: 7.0.0 (Stable Release)
+### Current Version: 7.3.0 (Stable Release)
 
 **Supported PHP Versions:**
 - PHP 8.2 (fully supported, minimum)

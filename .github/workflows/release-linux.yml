@@ -86,7 +86,7 @@ jobs:
             PHP_VERSIONS="${{ inputs.php_versions }}"
           else
             # Default: all supported versions
-            PHP_VERSIONS="8.1,8.2,8.3,8.4,8.5"
+            PHP_VERSIONS="8.2,8.3,8.4,8.5"
           fi
           
           # Build matrix JSON
@@ -207,7 +207,6 @@ jobs:
         run: |
           # Map minor version to full version
           case "${{ matrix.php }}" in
-            8.1) FULL_VERSION="8.1.32" ;;
             8.2) FULL_VERSION="8.2.28" ;;
             8.3) FULL_VERSION="8.3.16" ;;
             8.4) FULL_VERSION="8.4.4" ;;
@@ -467,10 +466,9 @@ jobs:
   # Test Bundles on Multiple Distributions
   # ===========================================================================
   # Each distro tests with the correct PHP version bundle matching its system PHP.
-  # Extension requires PHP 8.1+ (PHP 7.x not supported).
+  # Extension requires PHP 8.2+ (PHP 7.x/8.1 not supported).
   #
   # Current matrix:
-  # - Ubuntu 22.04: PHP 8.1 -> tests php81-nts bundle
   # - Ubuntu 24.04: PHP 8.3 -> tests php83-nts bundle
   # - Ubuntu 25.04: PHP 8.4 -> tests php84-nts bundle
   # - Debian 12:    PHP 8.2 -> tests php82-nts bundle
@@ -488,8 +486,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - distro: ubuntu:22.04
-            php: "81"
           - distro: ubuntu:24.04
             php: "83"
           - distro: ubuntu:25.04

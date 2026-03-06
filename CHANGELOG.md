@@ -7,8 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [7.3.0] - 2026-03-06
+
+### Added
+
+- **CI/CD: Full Firebird Matrix Expansion** — Expanded test matrix to cover all 12 combinations
+  of PHP (8.2, 8.3, 8.4, 8.5) and Firebird (3.0, 4.0, 5.0). Added dynamic client library resolution
+  via `scripts/get-latest-firebird.sh`.
+
 ### Changed
 
+- **PHP 8.4 Hardening**: Modernized Zend Engine API usage across the extension.
+  - Migrated `fbird_query_params_tx`, `fbird_execute_statement`, `fbird_execute_query`,
+    `fbird_execute_auto`, and `fbird_affected_rows` to use strict validation macros
+    (`FBIRD_VALIDATE_*_EX`).
+  - Improved nullability handling for optional parameter arrays (`|a!`).
+  - Replaced deprecated `convert_to_string_ex` with modern `zval_get_string` in
+    `fbird_blobs.c` and `fbird_events.c`, ensuring thread-safety and compatibility with
+    modern PHP 8.x memory patterns.
 - **CI: Updated pinned Firebird client versions to latest patch releases** — FB 3.0.12 (build
   33787-0) updated to FB 3.0.13 (build 33818-0); FB 5.0.2 (build 1613-0) updated to FB 5.0.3
   (build 1683-0). FB 4.0.6 (build 3221-0) unchanged (already latest).

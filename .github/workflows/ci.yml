@@ -145,6 +145,7 @@ jobs:
             wget \
             curl \
             unzip \
+            jq \
             libtommath1 \
             libncurses6
 
@@ -172,42 +173,23 @@ jobs:
       - name: Install Firebird client library
         env:
           FB_CLIENT_VERSION: ${{ matrix.fb-client-version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
 
           FB_CLIENT_DIR="/opt/firebird-client"
           mkdir -p "${FB_CLIENT_DIR}"
 
-          # Select client tarball based on version
-          case "${FB_CLIENT_VERSION}" in
-            '3.0')
-              FB_VERSION="3.0.13"
-              FB_BUILD="33818-0"
-              FB_TARBALL="Firebird-${FB_VERSION}.${FB_BUILD}.amd64.tar.gz"
-              FB_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_VERSION}/${FB_TARBALL}"
-              FB_EXTRACT_DIR="Firebird-${FB_VERSION}.${FB_BUILD}.amd64"
-              ;;
-            '4.0')
-              FB_VERSION="4.0.6"
-              FB_BUILD="3221-0"
-              FB_TARBALL="Firebird-${FB_VERSION}.${FB_BUILD}.amd64.tar.gz"
-              FB_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_VERSION}/${FB_TARBALL}"
-              FB_EXTRACT_DIR="Firebird-${FB_VERSION}.${FB_BUILD}.amd64"
-              ;;
-            '5.0')
-              FB_VERSION="5.0.3"
-              FB_BUILD="1683-0"
-              FB_TARBALL="Firebird-${FB_VERSION}.${FB_BUILD}-linux-x64.tar.gz"
-              FB_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_VERSION}/${FB_TARBALL}"
-              FB_EXTRACT_DIR="Firebird-${FB_VERSION}.${FB_BUILD}-linux-x64"
-              ;;
-            *)
-              echo "Unsupported client version: ${FB_CLIENT_VERSION}" >&2
-              exit 1
-              ;;
-          esac
+          # Resolve latest version dynamically
+          MAJOR_VERSION=$(echo "${FB_CLIENT_VERSION}" | cut -d. -f1)
+          echo "Resolving latest Firebird ${MAJOR_VERSION}.x client..."
+          
+          # Use the helper script to get latest version info
+          chmod +x scripts/get-latest-firebird.sh
+          eval "$(./scripts/get-latest-firebird.sh "${MAJOR_VERSION}")"
 
           echo "Installing Firebird ${FB_VERSION} client library..."
+          echo "URL: ${FB_URL}"
 
           # Download with retries
           for attempt in 1 2 3 4 5; do

@@ -1,63 +1,30 @@
 # PHP 8.5 with Firebird 5.x Client Library
-# For testing extension against the latest Firebird client
 FROM php:8.5-cli AS base
 
-# Install development dependencies (without firebird-dev from apt)
 RUN apt-get update && apt-get install -y \
-    autoconf \
-    build-essential \
-    gcc \
-    g++ \
-    make \
-    libtool \
-    bison \
-    re2c \
-    libicu-dev \
-    libxml2-dev \
-    git \
-    unzip \
-    wget \
-    tzdata \
-    vim \
-    gdb \
-    valgrind \
-    lcov \
-    libtommath1 \
-    cppcheck \
-    clang-tidy \
-    bear \
-    python3-pip \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    autoconf build-essential gcc g++ make libtool bison re2c libicu-dev libxml2-dev \
+    git unzip wget tzdata vim gdb valgrind lcov libncurses6 libtommath1 jq curl \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Download and install Firebird 5.0.3 client library
-ARG FIREBIRD_VERSION=5.0.3.1683-0
-ARG FIREBIRD_TARBALL=Firebird-${FIREBIRD_VERSION}-linux-x64
-RUN cd /tmp \
-    && wget -q https://github.com/FirebirdSQL/firebird/releases/download/v5.0.3/${FIREBIRD_TARBALL}.tar.gz \
-    && tar xf ${FIREBIRD_TARBALL}.tar.gz \
-    && mkdir -p /opt/firebird \
-    && tar xf ${FIREBIRD_TARBALL}/buildroot.tar.gz -C /opt/firebird --strip-components=3 \
-    && rm -rf /tmp/${FIREBIRD_TARBALL}* \
-    && ldconfig
+RUN set -eux && \
+    mkdir -p /opt/firebird && cd /tmp && \
+    TAG=$(curl -s https://api.github.com/repos/FirebirdSQL/firebird/releases | jq -r '.[] | select(.tag_name | test("^v5\\.")) | .tag_name' | head -n 1) && \
+    ASSET_URL=$(curl -s https://api.github.com/repos/FirebirdSQL/firebird/releases/tags/${TAG} | jq -r '.assets[] | select(.name | test("linux-x64\\.tar\\.gz$") and (test("debug") | not)) | .browser_download_url' | head -n 1) && \
+    ASSET_NAME=$(basename "${ASSET_URL}") && \
+    wget -q -O firebird.tar.gz "${ASSET_URL}" && \
+    tar xf firebird.tar.gz && \
+    EXTRACT_DIR="${ASSET_NAME%.tar.gz}" && \
+    tar xf "${EXTRACT_DIR}/buildroot.tar.gz" -C /opt/firebird --strip-components=3 && \
+    rm -rf /tmp/Firebird-* /tmp/firebird.tar.gz && ldconfig
 
-# Create symlinks for the extension build system
 RUN ln -sf /opt/firebird/lib/libfbclient.so /usr/lib/libfbclient.so \
     && ln -sf /opt/firebird/lib/libfbclient.so.2 /usr/lib/libfbclient.so.2 \
     && ln -sf /opt/firebird/include /usr/include/firebird \
     && echo "/opt/firebird/lib" > /etc/ld.so.conf.d/firebird.conf \
-    && ldconfig
+    && ldconfig && docker-php-ext-install pcntl
 
-# Install pcntl extension for event handling tests
-RUN docker-php-ext-install pcntl
-
-# Set up entrypoint
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
-
-# Environment variables for build
-ENV FIREBIRD_HOME=/opt/firebird
-ENV LD_LIBRARY_PATH=/opt/firebird/lib:$LD_LIBRARY_PATH
-
+ENV FIREBIRD=/opt/firebird FIREBIRD_HOME=/opt/firebird LD_LIBRARY_PATH=/opt/firebird/lib:$LD_LIBRARY_PATH
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["php", "-a"]

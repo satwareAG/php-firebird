@@ -62,6 +62,7 @@ jobs:
             wget \
             curl \
             unzip \
+            jq \
             libtommath1 \
             libncurses6 \
             lcov
@@ -85,19 +86,20 @@ jobs:
           rm -rf /var/lib/apt/lists/*
 
       - name: Install Firebird 5.0 client library
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
 
           FB_CLIENT_DIR="/opt/firebird-client"
           mkdir -p "${FB_CLIENT_DIR}"
 
-          FB_VERSION="5.0.2"
-          FB_BUILD="1613-0"
-          FB_TARBALL="Firebird-${FB_VERSION}.${FB_BUILD}-linux-x64.tar.gz"
-          FB_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_VERSION}/${FB_TARBALL}"
-          FB_EXTRACT_DIR="Firebird-${FB_VERSION}.${FB_BUILD}-linux-x64"
+          # Resolve latest Firebird 5.x client dynamically
+          chmod +x scripts/get-latest-firebird.sh
+          eval "$(./scripts/get-latest-firebird.sh 5)"
 
           echo "Installing Firebird ${FB_VERSION} client library..."
+          echo "URL: ${FB_URL}"
 
           # Download with retries
           for attempt in 1 2 3 4 5; do

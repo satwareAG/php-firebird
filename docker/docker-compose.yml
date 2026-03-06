@@ -148,6 +148,85 @@ services:
     depends_on:
       - firebird50
 
+  # Additional matrix combinations for PHP 8.2/8.3/8.4/8.5 x FB 3/5
+  php82-fb3-dev:
+    build: { context: php, dockerfile: Dockerfile-8.2-fb3 }
+    volumes: [ "..:/ext", "fb30-data:/firebird" ]
+    user: "${CURRENT_UID:-1000}:${CURRENT_GID:-1000}"
+    working_dir: /ext
+    command: tail -f /dev/null
+    environment:
+      - FIREBIRD_HOST=firebird30
+      - FIREBIRD_DB_DIR=/firebird
+      - FIREBIRD_HOME=/opt/firebird
+      - LD_LIBRARY_PATH=/opt/firebird/lib
+    depends_on: [ firebird30 ]
+
+  php82-fb5-dev:
+    build: { context: php, dockerfile: Dockerfile-8.2-fb5 }
+    volumes: [ "..:/ext", "fb50-data:/firebird" ]
+    user: "${CURRENT_UID:-1000}:${CURRENT_GID:-1000}"
+    working_dir: /ext
+    command: tail -f /dev/null
+    environment:
+      - FIREBIRD_HOST=firebird50
+      - FIREBIRD_DB_DIR=/firebird
+      - FIREBIRD_HOME=/opt/firebird
+      - LD_LIBRARY_PATH=/opt/firebird/lib
+    depends_on: [ firebird50 ]
+
+  php83-fb3-dev:
+    build: { context: php, dockerfile: Dockerfile-8.3-fb3 }
+    volumes: [ "..:/ext", "fb30-data:/firebird" ]
+    user: "${CURRENT_UID:-1000}:${CURRENT_GID:-1000}"
+    working_dir: /ext
+    command: tail -f /dev/null
+    environment:
+      - FIREBIRD_HOST=firebird30
+      - FIREBIRD_DB_DIR=/firebird
+      - FIREBIRD_HOME=/opt/firebird
+      - LD_LIBRARY_PATH=/opt/firebird/lib
+    depends_on: [ firebird30 ]
+
+  php83-fb5-dev:
+    build: { context: php, dockerfile: Dockerfile-8.3-fb5 }
+    volumes: [ "..:/ext", "fb50-data:/firebird" ]
+    user: "${CURRENT_UID:-1000}:${CURRENT_GID:-1000}"
+    working_dir: /ext
+    command: tail -f /dev/null
+    environment:
+      - FIREBIRD_HOST=firebird50
+      - FIREBIRD_DB_DIR=/firebird
+      - FIREBIRD_HOME=/opt/firebird
+      - LD_LIBRARY_PATH=/opt/firebird/lib
+    depends_on: [ firebird50 ]
+
+  php84-fb5-dev:
+    build: { context: php, dockerfile: Dockerfile-8.4-fb5 }
+    volumes: [ "..:/ext", "fb50-data:/firebird" ]
+    user: "${CURRENT_UID:-1000}:${CURRENT_GID:-1000}"
+    working_dir: /ext
+    command: tail -f /dev/null
+    environment:
+      - FIREBIRD_HOST=firebird50
+      - FIREBIRD_DB_DIR=/firebird
+      - FIREBIRD_HOME=/opt/firebird
+      - LD_LIBRARY_PATH=/opt/firebird/lib
+    depends_on: [ firebird50 ]
+
+  php85-fb3-dev:
+    build: { context: php, dockerfile: Dockerfile-8.5-fb3 }
+    volumes: [ "..:/ext", "fb30-data:/firebird" ]
+    user: "${CURRENT_UID:-1000}:${CURRENT_GID:-1000}"
+    working_dir: /ext
+    command: tail -f /dev/null
+    environment:
+      - FIREBIRD_HOST=firebird30
+      - FIREBIRD_DB_DIR=/firebird
+      - FIREBIRD_HOME=/opt/firebird
+      - LD_LIBRARY_PATH=/opt/firebird/lib
+    depends_on: [ firebird30 ]
+
   # PHP 8.3 with AddressSanitizer
   # ASAN_OPTIONS, USE_ZEND_ALLOC, ZEND_DONT_UNLOAD_MODULES are set in Dockerfile-asan
   # with PHP-src compatible values (exitcode=139, abort_on_error=0)

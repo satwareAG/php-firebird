@@ -76,6 +76,7 @@ jobs:
             wget \
             curl \
             unzip \
+            jq \
             libtommath1 \
             libncurses6
 
@@ -94,19 +95,20 @@ jobs:
           docker-php-ext-install pcntl
 
       - name: Install Firebird 5.0 client library
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
 
           FB_CLIENT_DIR="/opt/firebird-client"
           mkdir -p "${FB_CLIENT_DIR}"
 
-          FB_VERSION="5.0.2"
-          FB_BUILD="1613-0"
-          FB_TARBALL="Firebird-${FB_VERSION}.${FB_BUILD}-linux-x64.tar.gz"
-          FB_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_VERSION}/${FB_TARBALL}"
-          FB_EXTRACT_DIR="Firebird-${FB_VERSION}.${FB_BUILD}-linux-x64"
+          # Resolve latest Firebird 5.x client dynamically
+          chmod +x scripts/get-latest-firebird.sh
+          eval "$(./scripts/get-latest-firebird.sh 5)"
 
           echo "Installing Firebird ${FB_VERSION} client library..."
+          echo "URL: ${FB_URL}"
 
           for attempt in 1 2 3 4 5; do
             echo "Downloading FB client (attempt ${attempt}/5)..."
@@ -392,6 +394,7 @@ jobs:
             wget \
             curl \
             unzip \
+            jq \
             libtommath1 \
             libncurses6
 
@@ -410,17 +413,20 @@ jobs:
           docker-php-ext-install pcntl
 
       - name: Install Firebird 5.0 client library
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
 
           FB_CLIENT_DIR="/opt/firebird-client"
           mkdir -p "${FB_CLIENT_DIR}"
 
-          FB_VERSION="5.0.2"
-          FB_BUILD="1613-0"
-          FB_TARBALL="Firebird-${FB_VERSION}.${FB_BUILD}-linux-x64.tar.gz"
-          FB_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_VERSION}/${FB_TARBALL}"
-          FB_EXTRACT_DIR="Firebird-${FB_VERSION}.${FB_BUILD}-linux-x64"
+          # Resolve latest Firebird 5.x client dynamically
+          chmod +x scripts/get-latest-firebird.sh
+          eval "$(./scripts/get-latest-firebird.sh 5)"
+
+          echo "Installing Firebird ${FB_VERSION} client library..."
+          echo "URL: ${FB_URL}"
 
           for attempt in 1 2 3 4 5; do
             if curl -fsSL --retry 3 --retry-delay 5 "${FB_URL}" -o "/tmp/${FB_TARBALL}"; then

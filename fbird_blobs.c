@@ -321,6 +321,7 @@ int _php_fbird_blob_get(zval *return_value, fbird_blob *ib_blob, zend_ulong max_
 int _php_fbird_blob_add(zval *string_arg, fbird_blob *ib_blob)
 {
 	zend_ulong put_cnt = 0, rem_cnt;
+	zend_string *str;
 
 	/* Safety check: verify blob handle is valid before any operation */
 	if (!ib_blob || !ib_blob->fbb_blob) {
@@ -328,7 +329,7 @@ int _php_fbird_blob_add(zval *string_arg, fbird_blob *ib_blob)
 		return FAILURE;
 	}
 
-	convert_to_string_ex(string_arg);
+	str = zval_get_string(string_arg);
 
 	/*
 	 * Firebird 3.0+ OO API Blob Write
@@ -336,18 +337,20 @@ int _php_fbird_blob_add(zval *string_arg, fbird_blob *ib_blob)
 	 * Uses IBlob::putSegment() via fbb_put_segment() wrapper.
 	 * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
 	 */
-	for (rem_cnt = Z_STRLEN_P(string_arg); rem_cnt > 0; ) {
+	for (rem_cnt = ZSTR_LEN(str); rem_cnt > 0; ) {
 		unsigned chunk_size = rem_cnt > USHRT_MAX ? USHRT_MAX : (unsigned)rem_cnt;
 
 		/* fbb_put_segment returns 1 on success, 0 on error */
 		if (fbb_put_segment(IBG(master_instance), ib_blob->fbb_blob, chunk_size,
-				&Z_STRVAL_P(string_arg)[put_cnt], IB_STATUS) == 0) {
+				&ZSTR_VAL(str)[put_cnt], IB_STATUS) == 0) {
 			_php_fbird_error();
+			zend_string_release(str);
 			return FAILURE;
 		}
 		put_cnt += chunk_size;
 		rem_cnt -= chunk_size;
 	}
+	zend_string_release(str);
 	return SUCCESS;
 }
 

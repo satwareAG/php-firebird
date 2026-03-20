@@ -5,6 +5,14 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.3.4] - 2026-03-20
+
+### Changed
+
+- **Version Bump** — Final maintenance release of the v7.3.x stabilization cycle.
+
+---
+
 ## [7.3.3] - 2026-03-20
 
 ### Changed
@@ -795,7 +803,12 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.2.0...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.3.4...HEAD
+[7.3.4]: https://github.com/satwareAG/php-firebird/compare/v7.3.3...v7.3.4
+[7.3.3]: https://github.com/satwareAG/php-firebird/compare/v7.3.2...v7.3.3
+[7.3.2]: https://github.com/satwareAG/php-firebird/compare/v7.3.1...v7.3.2
+[7.3.1]: https://github.com/satwareAG/php-firebird/compare/v7.3.0...v7.3.1
+[7.3.0]: https://github.com/satwareAG/php-firebird/compare/v7.2.0...v7.3.0
 [7.2.0]: https://github.com/satwareAG/php-firebird/compare/v7.1.0...v7.2.0
 [7.1.0]: https://github.com/satwareAG/php-firebird/compare/v7.0.0...v7.1.0
 [7.0.0]: https://github.com/satwareAG/php-firebird/compare/v7.0.0-rc.51...v7.0.0

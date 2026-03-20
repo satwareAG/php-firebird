@@ -56,21 +56,17 @@ $res = fbird_query($dbh, "SELECT * FROM test_bind_edge ORDER BY id");
 while ($row = fbird_fetch_assoc($res)) {
     // Handle blob
     if (is_string($row['VAL_BLOB']) && strpos($row['VAL_BLOB'], '0x') !== 0) { // Assuming blob ID is string
-        // TODO: Opening the blob here causes a segmentation fault.
-        // This needs investigation. For now, we just verify the blob ID is present.
-        /*
         $blob_handle = fbird_blob_open($dbh, $row['VAL_BLOB']);
         if ($blob_handle) {
-            $blob_info = fbird_blob_info($dbh, $blob_handle);
+            $blob_info = fbird_blob_info($blob_handle);
             $content = "";
             if ($blob_info[0] > 0) {
-                 $content = fbird_blob_get($dbh, $blob_handle, $blob_info[0]);
+                 $content = fbird_blob_get($blob_handle, $blob_info[0]);
             }
             $row['VAL_BLOB'] = strlen($content) . " bytes";
             fbird_blob_close($blob_handle);
         }
-        */
-        $row['VAL_BLOB'] = "BLOB FOUND";
+        //$row['VAL_BLOB'] = "BLOB FOUND";
     }
     var_dump($row);
 }
@@ -131,7 +127,7 @@ array(4) {
   ["VAL_VARCHAR"]=>
   NULL
   ["VAL_BLOB"]=>
-  string(10) "BLOB FOUND"
+  string(11) "10000 bytes"
 }
 array(4) {
   ["ID"]=>

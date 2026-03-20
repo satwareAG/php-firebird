@@ -5,6 +5,14 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **SIGSEGV in `fbird_blob_info()`** — Fixed a segmentation fault when passing a BLOB handle (resource) instead of a BLOB ID (string) to `fbird_blob_info()`. Added support for `le_blob` resource type and NULL pointer safety checks.
+
+---
+
 ## [7.3.4] - 2026-03-20
 
 ### Changed

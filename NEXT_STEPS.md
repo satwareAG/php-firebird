@@ -1,33 +1,32 @@
 # Next Session Tasks — php-firebird
 
-**Last updated:** 2026-03-06
-**Current version:** 7.3.0 (released 2026-03-06)
+**Last updated:** 2026-03-20
+**Current version:** 7.3.5-dev (post-7.3.4 release)
 **Branch:** `satware-main`
 
 ---
 
-## Status: v7.3.0 Released 🚀
+## Status: v7.3.4 Released 🚀
 
 | Item | Status |
 |------|--------|
-| v7.3.0 release | ✅ Published |
-| Stubs v7.3.0 (Packagist) | ✅ Tagged |
-| PHP 8.4 Hardening | ✅ Merged (PR #104) |
-| CI Matrix Expansion (12 rows) | ✅ Merged (PR #104) |
-| Issue #99: Update pinned FB client versions | ✅ Merged (PR #102, commit 9a5c4d4) |
-| v7.3.0 milestone | ✅ Closed |
+| v7.3.2 release | ✅ Published (Deduplication, Service API fixes) |
+| v7.3.3 release | ✅ Published (Version stabilization) |
+| v7.3.4 release | ✅ Published (Final stabilization) |
+| fbird_blob_info() fix | ✅ Merged (Fixed SIGSEGV with resource handles) |
+| issue23 stability | ✅ Verified (10/10 passes on PHP 8.5 / FB 4.0) |
 
 **CI matrix is now 12 combinations:** PHP 8.2/8.3/8.4/8.5 × FB 3.0/4.0/5.0
 
 ---
 
-## Known Flaky Test
+## Known Flaky Test (Stabilized)
 
-`tests/issue23_alias_padding_001.phpt` (PHP 8.5 / FB 4.0) failed twice in PR #102 CI
-but passed on rerun. Root cause unknown — same PHP 8.5.3 + FB 4.0.6.3221 as PR #101
-where it passed. Likely a timing/ordering issue in the test harness.
+`tests/issue23_alias_padding_001.phpt` (PHP 8.5 / FB 4.0)
+Verified stability in current session (2026-03-20) with 10 consecutive passes in a fresh PHP 8.5 environment.
+The metadata deduplication fix in v7.3.2 (using `zend_symtable_str_update`) appears to have fully resolved the non-determinism.
 
-**Action:** Open a tracking issue to investigate and stabilize this test.
+**Action:** Continue monitoring in CI, but primary stabilization is complete.
 
 ---
 

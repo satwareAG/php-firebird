@@ -5,7 +5,28 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [7.3.3] - 2026-03-20
+
+### Changed
+
+- **Version Bump** — Incremental version bump to stabilize the release cycle after the major deduplication fix in v7.3.2.
+
+---
+
+## [7.3.2] - 2026-03-20
+
+### Fixed
+
+- **Column Alias Deduplication** — Fixed non-deterministic column alias behavior in `fbird_fetch_assoc` and `fbird_fetch_object` by using `zend_symtable_str_update` instead of `zend_hash_str_add_new` in `fbird_metadata.c`. This ensures that duplicate column names are correctly suffixed (e.g., `COL`, `COL_01`) across all PHP 8.x versions.
+  Closes [#23](https://github.com/satwareAG/php-firebird/issues/23).
+- **SIGSEGV in Service API** — Fixed critical crashes in `fbird_restore()` and `fbird_backup()` caused by invalid service handles or missing NULL guards after resource fetching.
+  Closes [#64](https://github.com/satwareAG/php-firebird/issues/64), [#70](https://github.com/satwareAG/php-firebird/pull/70).
+- **Extension Version Reporting** — Resolved `0.0.0-unknown` version string by introducing a `VERSION` file and updating `config.m4` to correctly detect version from git/tarball.
+  Closes [#69](https://github.com/satwareAG/php-firebird/issues/69).
+- **PHP 8.4 Heap Corruption** — Fixed memory safety issues in service error paths and `args_len[]` type mismatches.
+  Closes [#72](https://github.com/satwareAG/php-firebird/pull/72).
+- **Test Stability: Issue #23** — Re-enabled and stabilized `tests/issue23_alias_padding_001.phpt` for all PHP versions ≥ 8.2 after addressing the underlying metadata deduplication bug.
+  Closes [#103](https://github.com/satwareAG/php-firebird/issues/103).
 
 ### Added
 
@@ -20,23 +41,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Test Coverage: Transaction Management** — Validated transaction isolation levels, explicit handles, and MSHUTDOWN guards.
   Closes [#63](https://github.com/satwareAG/php-firebird/issues/63).
 
-### Fixed
-
-- **SIGSEGV in Service API** — Fixed critical crashes in `fbird_restore()` and `fbird_backup()` caused by invalid service handles or missing NULL guards after resource fetching.
-  Closes [#64](https://github.com/satwareAG/php-firebird/issues/64), [#70](https://github.com/satwareAG/php-firebird/pull/70).
-- **Extension Version Reporting** — Resolved `0.0.0-unknown` version string by introducing a `VERSION` file and updating `config.m4` to correctly detect version from git/tarball.
-  Closes [#69](https://github.com/satwareAG/php-firebird/issues/69).
-- **PHP 8.4 Heap Corruption** — Fixed memory safety issues in service error paths and `args_len[]` type mismatches.
-  Closes [#72](https://github.com/satwareAG/php-firebird/pull/72).
-- **Test Stability: Issue #23** — Adjusted skip condition for `tests/issue23_alias_padding_001.phpt` to skip on PHP 8.2, 8.4, and 8.5, limiting it to PHP 8.3 for deterministic CI runs across different PHP and Firebird versions.
-  Closes [#103](https://github.com/satwareAG/php-firebird/issues/103).
-
 ### Changed
 
 - **Refactor: Code Modularization** — Split monolithic `firebird.c` into focused compilation units (`fbird_error.c`, `fbird_connection.c`, `fbird_transaction.c`, `fbird_batch.c`) for better maintainability.
   Closes [#57](https://github.com/satwareAG/php-firebird/issues/57), [#76](https://github.com/satwareAG/php-firebird/pull/76).
 - **Infrastructure: Spec-Driven Development** — Initialized formal SDD workflow with templates and project-governing constitution.
   Closes [#71](https://github.com/satwareAG/php-firebird/issues/71), [PR #71](https://github.com/satwareAG/php-firebird/pull/71).
+
+---
+
+## [7.3.1] - 2026-03-20
+
+### Fixed
+
+- **CI Stability** — Restricted `tests/issue23_alias_padding_001.phpt` to PHP 8.3 as a temporary measure to achieve deterministic CI runs while investigating column deduplication issues. (Superseded by fix in v7.3.2).
 
 ---
 

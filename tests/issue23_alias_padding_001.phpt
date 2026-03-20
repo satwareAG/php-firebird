@@ -9,9 +9,7 @@ skip_if_fb_lt(4.0);
 skip_if_fb_gte(5.0);
 // PHP 8.1 has different hash table ordering that affects this test
 // PHP 8.2, 8.4, and 8.5 also has different internal behavior affecting this test
-if (PHP_VERSION_ID < 80300 || PHP_VERSION_ID >= 80400) {
-    die("skip PHP 8.3 required for deterministic alias ordering");
-}
+if (PHP_VERSION_ID < 80200) die('skip PHP < 8.2');
 ?>
 --FILE--
 <?php

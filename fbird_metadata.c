@@ -57,7 +57,7 @@ void _php_fbird_insert_alias(HashTable *ht, const char *alias)
 	}
 
 	ZVAL_NULL(&t2);
-	zend_hash_str_add_new(ht, alias, alias_len, &t2);
+	zend_symtable_str_update(ht, alias, alias_len, &t2);
 }
 
 void _php_fbird_field_info(zval *return_value, fbird_query *ib_query, int is_outvar, int num)

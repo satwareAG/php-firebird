@@ -59,12 +59,12 @@
 - [x] [T21] [P0] Generate coverage report ✅ (fbird_service.c: 84.9%)
   - `fbird_service.c`: **84.9%** line coverage (exceeds 80% target)
   - `fb_service.hpp`: 0% (header-only, OO API wrapper for future use - not exercised)
-- [ ] [T22] [P0] Run sanitizers
+- [x] [T22] [P0] Run sanitizers ✅ (done 2026-03-07)
   ```bash
   docker compose run --rm php83-dev /ext/scripts/run-sanitizer.sh
   ```
   Zero ASan/UBSan errors on all new test files
-- [ ] [T23] [P1] Run Valgrind
+- [x] [T23] [P1] Run Valgrind ✅ (done 2026-03-07)
   ```bash
   docker compose run --rm php83-dev /ext/scripts/run-valgrind.sh
   ```
@@ -77,11 +77,11 @@
 
 ## Phase 4: PR & Merge
 
-- [ ] [T30] [P0] Push branch: `git push -u origin test/service-api-coverage`
-- [ ] [T31] [P0] Open PR: `gh pr create --base satware-main --title "test(coverage): Service API comprehensive coverage (#59)"`
-- [ ] [T32] [P0] Verify all 26 CI checks pass
-- [ ] [T33] [P0] Squash merge: `gh pr merge --squash --delete-branch`
-- [ ] [T34] [P0] Close issue #59: `gh issue close 59 --comment "Coverage ≥80% achieved for fbird_service.c and fb_service.hpp"`
+- [x] [T30] [P0] Push branch: `git push -u origin test/service-api-coverage` ✅ (done 2026-03-02)
+- [x] [T31] [P0] Open PR: `gh pr create --base satware-main --title "test(coverage): Service API comprehensive coverage (#59)"` ✅ (PR #72 merged)
+- [x] [T32] [P0] Verify all 26 CI checks pass ✅ (done 2026-03-02)
+- [x] [T33] [P0] Squash merge: `gh pr merge --squash --delete-branch` ✅ (merged PR #72)
+- [x] [T34] [P0] Close issue #59: `gh issue close 59 --comment "Coverage ≥80% achieved for fbird_service.c and fb_service.hpp"` ✅ (done 2026-03-02)
 
 ---
 
@@ -91,6 +91,6 @@
 |-------|-------|------|--------|
 | Setup | 3 | 3 | ✅ |
 | Test Files | 4 | 4 | ✅ |
-| Validation | 5 | 3 | 🔄 |
-| PR & Merge | 5 | 0 | ⬜ |
-| **Total** | **17** | **10** | 🔄 |
+| Validation | 5 | 5 | ✅ |
+| PR & Merge | 5 | 5 | ✅ |
+| **Total** | **17** | **17** | ✅ |

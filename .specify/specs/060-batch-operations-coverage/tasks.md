@@ -12,9 +12,9 @@
 - [x] T2: Create `tests/coverage/batch_advanced_types.phpt`
 - [x] T3: Create `tests/coverage/batch_limits.phpt`
 - [x] T4: Create `plan.md` and `tasks.md`
-- [ ] T5: Commit + push + open PR against `satware-main`
-- [ ] T6: CI passes (Docker Firebird 4.0+)
-- [ ] T7: Coverage report shows `firebird_utils.cpp` ≥80% and batch paths in `firebird.c` ≥80%
+- [x] T5: Commit + push + open PR against `satware-main` ✅ (PR #73 merged)
+- [x] T6: CI passes (Docker Firebird 4.0+) ✅ (done 2026-03-02)
+- [x] T7: Coverage report shows `firebird_utils.cpp` ≥80% and batch paths in `firebird.c` ≥80% ✅ (done 2026-03-02)
 
 ---
 

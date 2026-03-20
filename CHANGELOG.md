@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Test Coverage: Service API** — Achieved 84.9% function coverage for `fbird_service.c` through comprehensive tests for backup, restore, user management, and maintenance operations.
+  Closes [#59](https://github.com/satwareAG/php-firebird/issues/59), [#72](https://github.com/satwareAG/php-firebird/pull/72).
+- **Test Coverage: Batch Operations** — Achieved ≥80% coverage for `firebird_utils.cpp` (IBatch OO wrapper) with advanced types, error paths, and limit testing.
+  Closes [#60](https://github.com/satwareAG/php-firebird/issues/60), [#73](https://github.com/satwareAG/php-firebird/pull/73).
+- **Test Coverage: Array Operations** — Achieved ≥80% coverage for `fbird_query_array.c` verifying 1D/2D array roundtrips and error handling.
+  Closes [#61](https://github.com/satwareAG/php-firebird/issues/61), [#74](https://github.com/satwareAG/php-firebird/pull/74).
+- **Test Coverage: Parameter Binding** — Achieved ≥80% coverage for `fbird_query_bind.c` across all SQL types including temporal, numeric, and boolean types.
+  Closes [#62](https://github.com/satwareAG/php-firebird/issues/62), [#75](https://github.com/satwareAG/php-firebird/pull/75).
+- **Test Coverage: Transaction Management** — Validated transaction isolation levels, explicit handles, and MSHUTDOWN guards.
+  Closes [#63](https://github.com/satwareAG/php-firebird/issues/63).
+
+### Fixed
+
+- **SIGSEGV in Service API** — Fixed critical crashes in `fbird_restore()` and `fbird_backup()` caused by invalid service handles or missing NULL guards after resource fetching.
+  Closes [#64](https://github.com/satwareAG/php-firebird/issues/64), [#70](https://github.com/satwareAG/php-firebird/pull/70).
+- **Extension Version Reporting** — Resolved `0.0.0-unknown` version string by introducing a `VERSION` file and updating `config.m4` to correctly detect version from git/tarball.
+  Closes [#69](https://github.com/satwareAG/php-firebird/issues/69).
+- **PHP 8.4 Heap Corruption** — Fixed memory safety issues in service error paths and `args_len[]` type mismatches.
+  Closes [#72](https://github.com/satwareAG/php-firebird/pull/72).
+
+### Changed
+
+- **Refactor: Code Modularization** — Split monolithic `firebird.c` into focused compilation units (`fbird_error.c`, `fbird_connection.c`, `fbird_transaction.c`, `fbird_batch.c`) for better maintainability.
+  Closes [#57](https://github.com/satwareAG/php-firebird/issues/57), [#76](https://github.com/satwareAG/php-firebird/pull/76).
+- **Infrastructure: Spec-Driven Development** — Initialized formal SDD workflow with templates and project-governing constitution.
+  Closes [#71](https://github.com/satwareAG/php-firebird/issues/71), [PR #71](https://github.com/satwareAG/php-firebird/pull/71).
+
 ---
 
 ## [7.3.0] - 2026-03-06

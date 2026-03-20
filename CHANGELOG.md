@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Closes [#69](https://github.com/satwareAG/php-firebird/issues/69).
 - **PHP 8.4 Heap Corruption** — Fixed memory safety issues in service error paths and `args_len[]` type mismatches.
   Closes [#72](https://github.com/satwareAG/php-firebird/pull/72).
-- **Test Stability: Issue #23** — Adjusted skip condition for `tests/issue23_alias_padding_001.phpt` to skip on PHP 8.2, ensuring deterministic CI runs across different PHP versions.
+- **Test Stability: Issue #23** — Adjusted skip condition for `tests/issue23_alias_padding_001.phpt` to skip on PHP 8.2, 8.4, and 8.5, limiting it to PHP 8.3 for deterministic CI runs across different PHP and Firebird versions.
   Closes [#103](https://github.com/satwareAG/php-firebird/issues/103).
 
 ### Changed

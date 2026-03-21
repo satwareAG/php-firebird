@@ -117,7 +117,18 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+
+      - name: Ensure VERSION file
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "${GITHUB_REF#refs/tags/v}" > VERSION
+            echo "Updated VERSION file from tag: $(cat VERSION)"
+          elif [ ! -f VERSION ]; then
+            VERSION=$(grep -E '#define PHP_FIREBIRD_VERSION_STRING' php_firebird.h | sed 's/.*"\([^"]*\)".*/\1/' | head -1)
+            echo "${VERSION:-7.0.0}" > VERSION
+            echo "Created VERSION file from header/default: $(cat VERSION)"
+          fi
 
       - name: Install system dependencies
         run: |

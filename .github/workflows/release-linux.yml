@@ -60,20 +60,28 @@ jobs:
     
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       
       - name: Get Extension Version
         id: get-version
         run: |
-          # Look for PHP_FIREBIRD_VERSION_STRING (set by configure) or fallback
-          VERSION=$(grep -E '#define PHP_FIREBIRD_VERSION_STRING' php_firebird.h | sed 's/.*"\([^"]*\)".*/\1/' | head -1)
-          # If empty or contains "unknown", use fallback from git tag or default
-          if [ -z "$VERSION" ] || [[ "$VERSION" == *"unknown"* ]]; then
-            if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-              VERSION="${GITHUB_REF#refs/tags/v}"
-            else
+          # Priority 1: Git tag (for immutable release builds)
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            # Update VERSION file if it exists or create it
+            echo "${VERSION}" > VERSION
+            echo "Updated VERSION file from tag: ${VERSION}"
+          # Priority 2: VERSION file (source of truth for development)
+          elif [ -f VERSION ]; then
+            VERSION=$(cat VERSION | tr -d '[:space:]')
+          # Fallback: php_firebird.h or static default
+          else
+            VERSION=$(grep -E '#define PHP_FIREBIRD_VERSION_STRING' php_firebird.h | sed 's/.*"\([^"]*\)".*/\1/' | head -1)
+            if [ -z "$VERSION" ] || [[ "$VERSION" == *"unknown"* ]]; then
               VERSION="7.0.0"
             fi
+            # Ensure VERSION file exists for subsequent steps
+            echo "${VERSION}" > VERSION
           fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Extension version: ${VERSION}"
@@ -126,7 +134,7 @@ jobs:
     
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       
       - name: Install Build Dependencies
         run: |
@@ -379,7 +387,7 @@ jobs:
           ls -la dist/
       
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ steps.bundle.outputs.bundle_name }}
           path: |
@@ -404,7 +412,7 @@ jobs:
     
     steps:
       - name: Download All Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: artifacts
       
@@ -497,7 +505,7 @@ jobs:
 
     steps:
       - name: Download PHP ${{ matrix.php }} NTS Bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: '*php${{ matrix.php }}-nts*'
           path: bundle

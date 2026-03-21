@@ -220,7 +220,6 @@ static int _fbird_drop_table(fbird_db_link *link, fbird_transaction *trans, cons
 	 * is already handled, preventing double-free attempts. */
 	fbt_free(trans->fbt_transaction);
 	trans->fbt_transaction = NULL;
-	trans->handle.ptr = 0;
 
 	/* Remove this transaction from all connection tr_lists to prevent
 	 * use-after-free during PHP shutdown. The destructor tries to traverse

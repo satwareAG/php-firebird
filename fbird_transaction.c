@@ -43,7 +43,6 @@ void _php_fbird_free_trans(zend_resource *rsrc)
 		int res = fbt_rollback(trans->fbt_transaction, IB_STATUS);
 		fbt_free(trans->fbt_transaction);
 		trans->fbt_transaction = NULL;
-		trans->handle.ptr = 0;
 		/* Fix #78: _php_fbird_error() calls php_error_docref()/zend_throw_exception()
 		 * which access EG() globals that may already be destroyed during MSHUTDOWN.
 		 * Guard with in_mshutdown to prevent SIGABRT. */
@@ -332,7 +331,6 @@ PHP_FUNCTION(fbird_trans_start)
 		RETURN_FALSE;
 	}
 
-	ib_trans->handle.ptr = NULL;
 	ib_trans->link_cnt = 1;
 	ib_trans->affected_rows = 0;
 	ib_trans->db_link[0] = ib_link;
@@ -787,7 +785,6 @@ PHP_FUNCTION(fbird_trans)
 
 				/* Allocate and register transaction with OO API wrapper */
 				ib_trans = (fbird_transaction *) safe_emalloc(link_cnt-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
-				ib_trans->handle.ptr = NULL;
 				ib_trans->link_cnt = link_cnt;
 				ib_trans->affected_rows = 0;
 				ib_trans->fbt_transaction = oo_trans;
@@ -845,7 +842,6 @@ PHP_FUNCTION(fbird_trans)
 
 		/* Allocate and register transaction with OO API wrapper */
 		ib_trans = (fbird_transaction *) safe_emalloc(link_cnt-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
-		ib_trans->handle.ptr = NULL;
 		ib_trans->link_cnt = link_cnt;
 		ib_trans->affected_rows = 0;
 		ib_trans->fbt_transaction = oo_trans;
@@ -893,7 +889,6 @@ int _php_fbird_def_trans(fbird_db_link *ib_link, fbird_transaction **trans)
 
 		if (tr == NULL) {
 			tr = (fbird_transaction *) emalloc(sizeof(fbird_transaction));
-			tr->handle.ptr = NULL;
 			tr->link_cnt = 1;
 			tr->affected_rows = 0;
 			tr->fbt_transaction = NULL;
@@ -936,7 +931,6 @@ int _php_fbird_def_trans(fbird_db_link *ib_link, fbird_transaction **trans)
 				return FAILURE;
 			}
 
-			tr->handle.ptr = NULL;
 		}
 		*trans = tr;
 	}
@@ -1011,7 +1005,6 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 	if ((commit & RETAIN) == 0) {
 		fbt_free(trans->fbt_transaction);
 		trans->fbt_transaction = NULL;
-		trans->handle.ptr = 0;
 	}
 
 	if (result) {

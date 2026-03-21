@@ -164,7 +164,6 @@ void _php_fbird_close_link(zend_resource *rsrc)
 		FBDEBUG("Closing normal link via OO API...");
 		fbc_disconnect(link->fbc_connection, IB_STATUS);
 		link->fbc_connection = NULL;
-		link->handle.ptr = 0;
 	}
 	IBG(num_links)--;
 	efree(link);
@@ -221,7 +220,6 @@ void _php_fbird_close_plink(zend_resource *rsrc)
 		FBDEBUG("Closing permanent link via OO API...");
 		fbc_disconnect(link->fbc_connection, IB_STATUS);
 		link->fbc_connection = NULL;
-		link->handle.ptr = 0;
 	}
 	IBG(num_persistent)--;
 	IBG(num_links)--;
@@ -381,7 +379,6 @@ void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 			RETVAL_RES(zend_register_resource(ib_link, le_plink));
 			++IBG(num_persistent);
 		}
-		ib_link->handle.ptr = NULL;
 		ib_link->dialect = largs[DLECT] ? (unsigned short)largs[DLECT] : SQL_DIALECT_CURRENT;
 		ib_link->tr_list = NULL;
 		ib_link->event_head = NULL;
@@ -570,13 +567,11 @@ PHP_FUNCTION(fbird_drop_db)
 		}
 		/* fbc_drop_database() already frees the connection wrapper */
 		ib_link->fbc_connection = NULL;
-		ib_link->handle.ptr = 0;
 	}
 
 	/* drop_database() doesn't invalidate the transaction handles */
 	for (l = ib_link->tr_list; l != NULL; l = l->next) {
 		if (l->trans != NULL) {
-			l->trans->handle.ptr = 0;
 			l->trans->fbt_transaction = NULL;
 		}
 	}

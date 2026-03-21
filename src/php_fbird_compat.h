@@ -273,13 +273,8 @@ static inline int fbird_link_is_valid(const fbird_db_link* link)
     if (link == NULL) {
         return 0;
     }
-    if (fbird_link_is_oo(link)) {
-        /* OO mode: fbc_connection must be set */
-        return link->fbc_connection != NULL;
-    } else {
-        /* Legacy mode: handle.db must be set */
-        return link->handle.db != 0;
-    }
+    /* OO mode only: fbc_connection must be set */
+    return link->fbc_connection != NULL;
 }
 
 /**
@@ -293,13 +288,8 @@ static inline int fbird_trans_is_valid(const fbird_transaction* trans)
     if (trans == NULL) {
         return 0;
     }
-    if (fbird_trans_is_oo(trans)) {
-        /* OO mode: fbt_transaction must be set */
-        return trans->fbt_transaction != NULL;
-    } else {
-        /* Legacy mode: handle.tr must be set */
-        return trans->handle.tr != 0;
-    }
+    /* OO mode only: fbt_transaction must be set */
+    return trans->fbt_transaction != NULL;
 }
 
 /**

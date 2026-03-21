@@ -102,7 +102,6 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 	 */
 
 	switch (ib_query->statement_type) {
-		fb_safe_handle tr;
 		fbird_tr_list **l;
 		fbird_transaction *trans;
 
@@ -125,7 +124,6 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 				}
 
 				trans = (fbird_transaction *) emalloc(sizeof(fbird_transaction));
-				trans->handle.ptr = NULL; /* No legacy handle for OO API transaction */
 				trans->link_cnt = 1;
 				trans->affected_rows = 0;
 				trans->fbt_transaction = new_trans;
@@ -180,7 +178,6 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 				 * Legacy behavior keeps the resource alive but invalid for further use.
 				 */
 				ib_query->trans->fbt_transaction = NULL;
-				ib_query->trans->handle.ptr = 0;
 
 				RETVAL_TRUE;
 				return SUCCESS;
@@ -1062,8 +1059,6 @@ PHP_FUNCTION(fbird_query)
 		link->dialect = dialect;
 		link->tr_list = NULL;
 		link->event_head = NULL;
-		link->handle.ptr = NULL; /* No legacy handle for OO API connection */
-
 		/* Store the OO API connection wrapper.
 		 * The create_result is a pointer that fbc_get_attachment() can use. */
 		link->fbc_connection = create_result;
@@ -1550,7 +1545,6 @@ PHP_FUNCTION(fbird_execute_auto)
 
     /* Create temp trans object with OO API transaction */
     trans = (fbird_transaction *) emalloc(sizeof(fbird_transaction));
-    trans->handle.ptr = NULL; /* No legacy handle for OO API transaction */
     trans->link_cnt = 1;
     trans->affected_rows = 0;
     trans->fbt_transaction = oo_trans;

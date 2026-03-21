@@ -119,7 +119,6 @@ typedef union {
 } fb_safe_handle;
 
 typedef struct {
-	fb_safe_handle handle;
 	struct tr_list *tr_list;
 	unsigned short dialect;
 	struct event *event_head;

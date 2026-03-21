@@ -9,7 +9,7 @@ if test "$PHP_FIREBIRD" != "no"; then
   dnl Detect php-firebird version from git or VERSION file
   AC_MSG_CHECKING([for php-firebird version])
   if test -f "$srcdir/VERSION"; then
-    PHP_FIREBIRD_VERSION=`cat "$srcdir/VERSION" | tr -d '[:space:]'`
+    PHP_FIREBIRD_VERSION=`cat "$srcdir/VERSION" | tr -d ' \n\r\t'`
   elif test -d "$srcdir/.git" -a -x "`which git 2>/dev/null`"; then
     PHP_FIREBIRD_VERSION=`cd "$srcdir" && git describe --tags --always --dirty 2>/dev/null | sed 's/^v//'`
     if test -z "$PHP_FIREBIRD_VERSION"; then
@@ -23,16 +23,17 @@ if test "$PHP_FIREBIRD" != "no"; then
 
   dnl Check for minimum PHP version (8.1+)
   AC_MSG_CHECKING([for minimum PHP version 8.1])
+  PHP_FIREBIRD_PHP_VERSION=`$PHP_CONFIG --version`
   old_IFS=$IFS
   IFS=.
-  set -- $PHP_VERSION
+  set -- $PHP_FIREBIRD_PHP_VERSION
   IFS=$old_IFS
   php_major=$1
   php_minor=$2
   if test "$php_major" -lt 8 -o \( "$php_major" -eq 8 -a "$php_minor" -lt 1 \); then
-    AC_MSG_ERROR([PHP Firebird extension requires PHP 8.1 or later. Current version: $PHP_VERSION])
+    AC_MSG_ERROR([PHP Firebird extension requires PHP 8.1 or later. Current version: $PHP_FIREBIRD_PHP_VERSION])
   fi
-  AC_MSG_RESULT([yes (PHP $PHP_VERSION)])
+  AC_MSG_RESULT([yes (PHP $PHP_FIREBIRD_PHP_VERSION)])
 
   AC_PATH_PROG(FB_CONFIG, fb_config, no)
 

@@ -8,13 +8,13 @@ if test "$PHP_FIREBIRD" != "no"; then
 
   dnl Detect php-firebird version from git or VERSION file
   AC_MSG_CHECKING([for php-firebird version])
-  if test -d "$srcdir/.git" -a -x "`which git 2>/dev/null`"; then
+  if test -f "$srcdir/VERSION"; then
+    PHP_FIREBIRD_VERSION=`cat "$srcdir/VERSION" | tr -d '[:space:]'`
+  elif test -d "$srcdir/.git" -a -x "`which git 2>/dev/null`"; then
     PHP_FIREBIRD_VERSION=`cd "$srcdir" && git describe --tags --always --dirty 2>/dev/null | sed 's/^v//'`
     if test -z "$PHP_FIREBIRD_VERSION"; then
       PHP_FIREBIRD_VERSION="0.0.0-unknown"
     fi
-  elif test -f "$srcdir/VERSION"; then
-    PHP_FIREBIRD_VERSION=`cat "$srcdir/VERSION"`
   else
     PHP_FIREBIRD_VERSION="0.0.0-unknown"
   fi

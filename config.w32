@@ -7,9 +7,11 @@ if (PHP_FIREBIRD != 'no') {
     // Detect php-firebird version from VERSION file
     var version = "0.0.0-unknown";
     try {
-        var f = FSO.OpenTextFile(configure_module_directory + "\\VERSION", 1);
-        if (f) {
-            version = f.ReadLine().trim();
+        var fso = new ActiveXObject("Scripting.FileSystemObject");
+        var versionFile = configure_module_directory + "\\VERSION";
+        if (fso.FileExists(versionFile)) {
+            var f = fso.OpenTextFile(versionFile, 1);
+            version = f.ReadLine().replace(/^\s+|\s+$/g, "");
             f.Close();
         }
     } catch (e) {

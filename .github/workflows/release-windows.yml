@@ -51,7 +51,7 @@ jobs:
       matrix: ${{ steps.extension-matrix.outputs.matrix }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Get the extension matrix
         id: extension-matrix
@@ -75,7 +75,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Ensure VERSION file
         shell: pwsh
@@ -100,7 +100,7 @@ jobs:
           }
 
       - name: Cache Firebird SDK
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: cache-fb-sdk
         with:
           path: C:\firebird-sdk

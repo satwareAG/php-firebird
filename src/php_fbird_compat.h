@@ -14,6 +14,7 @@
 #define PHP_FBIRD_COMPAT_H
 
 #include "php_fbird_includes.h"
+#include "firebird_utils.h"
 
 /*
  * API Mode Enumeration
@@ -129,6 +130,23 @@ static inline void* fbird_get_connection(const fbird_db_link* link)
         return NULL;
     }
     return link->fbc_connection;
+}
+
+/**
+ * Get the raw IAttachment* from a database link via the OO API.
+ *
+ * Calls fbc_get_attachment(link->fbc_connection) to extract the underlying
+ * IAttachment pointer. Returns NULL if link is NULL or uses legacy mode.
+ *
+ * @param link Database link
+ * @return Raw IAttachment* pointer, or NULL
+ */
+static inline void* fbird_get_attachment(const fbird_db_link* link)
+{
+    if (link == NULL || link->fbc_connection == NULL) {
+        return NULL;
+    }
+    return fbc_get_attachment(link->fbc_connection);
 }
 
 /**

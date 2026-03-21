@@ -234,12 +234,9 @@ static char const dpb_args[] = {
 	0, isc_dpb_user_name, isc_dpb_password, isc_dpb_lc_ctype, isc_dpb_sql_role_name, 0
 };
 
-int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db)
+void* _php_fbird_attach_db(char **args, size_t *len, zend_long *largs)
 {
-    void* connection = NULL;
-
-    /* Use OO API as the connection method */
-    connection = fbc_connect(
+    void* connection = fbc_connect(
         IBG(master_instance),
         args[DB], len[DB],                          /* database path */
         args[USER], len[USER],                      /* username */
@@ -254,16 +251,10 @@ int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **db)
 
     if (!connection) {
         _php_fbird_error();
-        return FAILURE;
+        return NULL;
     }
 
-    /* Store the OO API connection pointer in the status vector's last slot
-     * for retrieval by _php_fbird_connect() */
-    IBG(status[ISC_STATUS_LENGTH - 1]) = (ISC_STATUS)(uintptr_t)connection;
-
-    *db = NULL;
-
-    return SUCCESS;
+    return connection;
 }
 
 void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
@@ -275,7 +266,7 @@ void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 	zend_long flags = 0;
 	PHP_MD5_CTX hash_context;
 	zend_resource new_index_ptr, *le;
-	void *db_handle = 0;
+	void *fbc_conn = NULL;
 	fbird_db_link *ib_link;
 
 	RESET_ERRMSG;
@@ -343,17 +334,14 @@ void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 	/* ... or a persistent one */
 	do {
 		zend_long l;
-		static char info[] = { isc_info_base_level, isc_info_end };
-		char result[8];
-		ISC_STATUS status[20];
 
 		if ((le = zend_hash_str_find_ptr(&EG(persistent_list), hash, sizeof(hash)-1)) != NULL) {
 			if (le->type != le_plink) {
 				RETURN_FALSE;
 			}
-			/* check if connection has timed out */
+			/* check if connection is still alive via OO API */
 			ib_link = (fbird_db_link *) le->ptr;
-			if (!isc_database_info(status, &ib_link->handle.db, sizeof(info), info, sizeof(result), result)) {
+			if (ib_link->fbc_connection && fbc_is_connected(ib_link->fbc_connection)) {
 				RETVAL_RES(zend_register_resource(ib_link, le_plink));
 				break;
 			}
@@ -368,7 +356,8 @@ void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 		}
 
 		/* create the ib_link */
-		if (FAILURE == _php_fbird_attach_db(args, len, largs, &db_handle)) {
+		fbc_conn = _php_fbird_attach_db(args, len, largs);
+		if (!fbc_conn) {
 			RETURN_FALSE;
 		}
 
@@ -379,24 +368,25 @@ void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 		} else {
 			ib_link = (fbird_db_link *) malloc(sizeof(fbird_db_link));
 			if (!ib_link) {
+				fbc_disconnect(fbc_conn, IB_STATUS);
 				RETURN_FALSE;
 			}
 
 			/* hash it up */
 			if (zend_register_persistent_resource(hash, sizeof(hash)-1, ib_link, le_plink) == NULL) {
+				fbc_disconnect(fbc_conn, IB_STATUS);
 				free(ib_link);
 				RETURN_FALSE;
 			}
 			RETVAL_RES(zend_register_resource(ib_link, le_plink));
 			++IBG(num_persistent);
 		}
-		ib_link->handle.ptr = db_handle;
+		ib_link->handle.ptr = NULL;
 		ib_link->dialect = largs[DLECT] ? (unsigned short)largs[DLECT] : SQL_DIALECT_CURRENT;
 		ib_link->tr_list = NULL;
 		ib_link->event_head = NULL;
 
-		ib_link->fbc_connection = (void *)(uintptr_t)IBG(status[ISC_STATUS_LENGTH - 1]);
-		IBG(status[ISC_STATUS_LENGTH - 1]) = 0;  /* Clear the temporary storage */
+		ib_link->fbc_connection = fbc_conn;
 
 		/* Store hash key for cache invalidation on close (Issue #35) */
 		memcpy(ib_link->hash_key, hash, sizeof(hash));

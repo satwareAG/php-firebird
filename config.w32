@@ -6,16 +6,20 @@ ARG_WITH('firebird', 'Firebird database support', 'no');
 if (PHP_FIREBIRD != 'no') {
     // Detect php-firebird version from VERSION file
     var version = "0.0.0-unknown";
+    STDOUT.WriteLine("Checking for php-firebird version in " + configure_module_directory);
     try {
         var fso = new ActiveXObject("Scripting.FileSystemObject");
         var versionFile = configure_module_directory + "\\VERSION";
         if (fso.FileExists(versionFile)) {
             var f = fso.OpenTextFile(versionFile, 1);
-            version = f.ReadLine().replace(/^\s+|\s+$/g, "");
+            version = f.AtEndOfStream ? "0.0.0-empty" : f.ReadLine().replace(/^\s+|\s+$/g, "");
             f.Close();
+            STDOUT.WriteLine("Found version: " + version);
+        } else {
+            STDOUT.WriteLine("VERSION file not found at " + versionFile);
         }
     } catch (e) {
-        // Fallback to unknown version if reading file fails
+        STDOUT.WriteLine("Error reading VERSION file: " + e.message);
     }
     AC_DEFINE('PHP_FIREBIRD_VERSION_STRING', version, 'PHP Firebird extension version');
 

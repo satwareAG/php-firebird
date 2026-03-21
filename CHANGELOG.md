@@ -7,9 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
+---
 
+## [7.3.5] - 2026-03-21
+
+### Added
+- **Centralized Version Management** — Introduced a `VERSION` file as the single source of truth for the extension version. Updated `config.m4` (Linux) and `config.w32` (Windows) to read from this file, ensuring consistent version reporting in `phpinfo()`, `phpversion()`, and internal constants.
+  Closes [#107](https://github.com/satwareAG/php-firebird/issues/107).
+
+### Fixed
 - **SIGSEGV in `fbird_blob_info()`** — Fixed a segmentation fault when passing a BLOB handle (resource) instead of a BLOB ID (string) to `fbird_blob_info()`. Added support for `le_blob` resource type and NULL pointer safety checks.
+- **Extension Version Truncation** — Fixed a bug in `config.m4` where version strings ending in `-dev` were incorrectly truncated due to improper `tr` character class handling.
+- **Windows Build Configuration** — Fixed an "undefined variable" error in `config.w32` when building in certain CI environments by using robust path resolution for the `VERSION` file.
+
+### Changed
+- **GitHub Actions Modernization** — Updated all CI/CD workflows to use Node.js 24 compatible action versions (`actions/checkout@v5`, `actions/upload-artifact@v5`, etc.), resolving deprecation warnings for Node.js 20.
 
 ---
 
@@ -811,7 +823,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.3.4...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.3.5...HEAD
+[7.3.5]: https://github.com/satwareAG/php-firebird/compare/v7.3.4...v7.3.5
 [7.3.4]: https://github.com/satwareAG/php-firebird/compare/v7.3.3...v7.3.4
 [7.3.3]: https://github.com/satwareAG/php-firebird/compare/v7.3.2...v7.3.3
 [7.3.2]: https://github.com/satwareAG/php-firebird/compare/v7.3.1...v7.3.2

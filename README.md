@@ -3,10 +3,10 @@
 [![CI](https://github.com/satwareAG/php-firebird/actions/workflows/ci.yml/badge.svg)](https://github.com/satwareAG/php-firebird/actions/workflows/ci.yml)
 [![License: PHP-3.01](https://img.shields.io/badge/License-PHP--3.01-blue.svg)](LICENSE)
 [![PHP 8.2+](https://img.shields.io/badge/PHP-8.2%2B-8892BF.svg)](https://www.php.net/)
-[![Version](https://img.shields.io/badge/version-7.3.4-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-7.3.5-blue.svg)](CHANGELOG.md)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/satwareAG/php-firebird)
 
-A high-performance PHP extension providing native connectivity to Firebird databases. This modernized version targets PHP 8.1+ with C++17 standards and comprehensive development tooling.
+A high-performance PHP extension providing native connectivity to Firebird databases. This modernized version targets PHP 8.2+ with C++17 standards and comprehensive development tooling.
 
 > **⚠️ Breaking Changes in v7.0**: This version uses `fbird_*` function names (not `ibase_*`) and builds as `firebird.so` (not `interbase.so`). See the [Migration Guide](#migration-guide) for upgrade instructions.
 
@@ -902,7 +902,7 @@ See [EVENT_TIMEOUT_RFC.md](docs/development/EVENT_TIMEOUT_RFC.md) for implementa
 
 ## Version Compatibility
 
-### Current Version: 7.3.4 (Stable Release)
+### Current Version: 7.3.5 (Stable Release)
 
 **Supported PHP Versions:**
 - PHP 8.2 (fully supported, minimum)

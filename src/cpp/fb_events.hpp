@@ -308,4 +308,135 @@ int fbe_is_queued(void* events_wrapper) {
     return wrapper->isActive() ? 1 : 0;
 }
 
+
+/**
+ * Build an Event Parameter Block (EPB) — replaces isc_event_block().
+ *
+ * Constructs the binary EPB format manually:
+ *   1 byte version (1), then for each event: 1 byte name-len, name bytes, 4 bytes count (LE).
+ *
+ * @param event_buf   Output: allocated EPB buffer (caller must call fbe_event_free())
+ * @param result_buf  Output: allocated result buffer (same size, zeroed)
+ * @param count       Number of event names (1-15)
+ * @param names       Array of event name C-strings
+ * @return            Buffer length, or 0 on error
+ */
+unsigned short fbe_event_block(unsigned char** event_buf, unsigned char** result_buf,
+                               unsigned short count, const char** names)
+{
+    if (!event_buf || !result_buf || count == 0 || count > 15 || !names) {
+        return 0;
+    }
+
+    /* Calculate required buffer size: 1 (version) + sum(1 + namelen + 4) per event */
+    unsigned short total = 1;
+    for (unsigned short i = 0; i < count; ++i) {
+        if (!names[i]) return 0;
+        size_t nlen = strlen(names[i]);
+        if (nlen > 255) return 0;
+        total = (unsigned short)(total + 1 + nlen + 4);
+    }
+
+    unsigned char* ebuf = (unsigned char*)malloc(total);
+    unsigned char* rbuf = (unsigned char*)malloc(total);
+    if (!ebuf || !rbuf) {
+        free(ebuf);
+        free(rbuf);
+        return 0;
+    }
+    memset(rbuf, 0, total);
+
+    unsigned char* p = ebuf;
+    *p++ = 1; /* EPB version */
+    for (unsigned short i = 0; i < count; ++i) {
+        size_t nlen = strlen(names[i]);
+        *p++ = (unsigned char)nlen;
+        memcpy(p, names[i], nlen);
+        p += nlen;
+        /* Initial count = 0, little-endian 4 bytes */
+        *p++ = 0; *p++ = 0; *p++ = 0; *p++ = 0;
+    }
+
+    *event_buf  = ebuf;
+    *result_buf = rbuf;
+    return total;
+}
+
+/**
+ * Wait synchronously for events — wraps isc_wait_for_event() via legacy handle.
+ *
+ * @param db_handle_ptr  Pointer to isc_db_handle (from fbc_get_legacy_handle_ptr())
+ * @param buffer_size    EPB buffer size (from fbe_event_block())
+ * @param event_buf      Event buffer
+ * @param result_buf     Result buffer (updated on return)
+ * @param status_vector  Output status vector
+ * @return               0 on success, non-zero on error
+ */
+ISC_STATUS fbe_wait_for_event(void* db_handle_ptr, unsigned short buffer_size,
+                              unsigned char* event_buf, unsigned char* result_buf,
+                              ISC_STATUS* status_vector)
+{
+    if (!db_handle_ptr || !event_buf || !result_buf || !status_vector) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_db_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return isc_bad_db_handle;
+    }
+    isc_db_handle* handle = static_cast<isc_db_handle*>(db_handle_ptr);
+    return isc_wait_for_event(status_vector, handle, buffer_size, event_buf, result_buf);
+}
+
+/**
+ * Decode event counts from result buffer — replaces isc_event_counts().
+ *
+ * Compares event_buf (old counts) with result_buf (new counts) and writes
+ * the delta (new - old) into occurred[].
+ *
+ * @param occurred    Output: array of ISC_ULONG deltas (one per event)
+ * @param buffer_size EPB buffer size
+ * @param event_buf   Original event buffer (old counts)
+ * @param result_buf  Result buffer (new counts)
+ */
+void fbe_event_counts(ISC_ULONG* occurred, unsigned short buffer_size,
+                      unsigned char* event_buf, unsigned char* result_buf)
+{
+    if (!occurred || !event_buf || !result_buf || buffer_size < 1) return;
+
+    const unsigned char* ep = event_buf  + 1; /* skip version byte */
+    const unsigned char* rp = result_buf + 1;
+    const unsigned char* ep_end = event_buf + buffer_size;
+    unsigned idx = 0;
+
+    while (ep < ep_end) {
+        unsigned char nlen = *ep++;
+        rp++; /* skip name length in result */
+        ep += nlen; /* skip name in event */
+        rp += nlen; /* skip name in result */
+        if (ep + 4 > ep_end) break;
+
+        /* Read little-endian 4-byte counts */
+        ISC_ULONG old_cnt = (ISC_ULONG)ep[0] | ((ISC_ULONG)ep[1] << 8)
+                          | ((ISC_ULONG)ep[2] << 16) | ((ISC_ULONG)ep[3] << 24);
+        ISC_ULONG new_cnt = (ISC_ULONG)rp[0] | ((ISC_ULONG)rp[1] << 8)
+                          | ((ISC_ULONG)rp[2] << 16) | ((ISC_ULONG)rp[3] << 24);
+        occurred[idx++] = (new_cnt > old_cnt) ? (new_cnt - old_cnt) : 0;
+
+        /* Advance result pointer past count bytes */
+        rp += 4;
+        ep += 4;
+    }
+}
+
+/**
+ * Free an EPB buffer allocated by fbe_event_block() — replaces isc_free().
+ *
+ * @param buf  Buffer to free (may be NULL)
+ */
+void fbe_event_free(unsigned char* buf)
+{
+    free(buf);
+}
+
 } // extern "C"

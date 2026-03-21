@@ -775,6 +775,50 @@ int fbe_is_queued(void* events_wrapper);
  */
 void fbe_free(void* events_wrapper);
 
+/**
+ * Build an Event Parameter Block (EPB) — replaces isc_event_block().
+ *
+ * @param event_buf   Output: allocated EPB buffer (free with fbe_event_free())
+ * @param result_buf  Output: allocated result buffer (free with fbe_event_free())
+ * @param count       Number of event names (1-15)
+ * @param names       Array of event name C-strings
+ * @return            Buffer length, or 0 on error
+ */
+unsigned short fbe_event_block(unsigned char** event_buf, unsigned char** result_buf,
+                               unsigned short count, const char** names);
+
+/**
+ * Wait synchronously for events — wraps isc_wait_for_event() via legacy handle.
+ *
+ * @param db_handle_ptr  Pointer to isc_db_handle (from fbc_get_legacy_handle_ptr())
+ * @param buffer_size    EPB buffer size (from fbe_event_block())
+ * @param event_buf      Event buffer
+ * @param result_buf     Result buffer (updated on return)
+ * @param status_vector  Output status vector
+ * @return               0 on success, non-zero on error
+ */
+ISC_STATUS fbe_wait_for_event(void* db_handle_ptr, unsigned short buffer_size,
+                              unsigned char* event_buf, unsigned char* result_buf,
+                              ISC_STATUS* status_vector);
+
+/**
+ * Decode event counts from result buffer — replaces isc_event_counts().
+ *
+ * @param occurred    Output: array of ISC_ULONG deltas (one per event)
+ * @param buffer_size EPB buffer size
+ * @param event_buf   Original event buffer (old counts)
+ * @param result_buf  Result buffer (new counts)
+ */
+void fbe_event_counts(ISC_ULONG* occurred, unsigned short buffer_size,
+                      unsigned char* event_buf, unsigned char* result_buf);
+
+/**
+ * Free an EPB buffer allocated by fbe_event_block() — replaces isc_free().
+ *
+ * @param buf  Buffer to free (may be NULL)
+ */
+void fbe_event_free(unsigned char* buf);
+
 /* Firebird OO API Service Functions */
 
 /**

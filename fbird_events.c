@@ -48,10 +48,10 @@ static int le_event;
 static void _php_fbird_event_free(unsigned char *event_buf, unsigned char *result_buf)
 {
 	if (event_buf) {
-		isc_free((ISC_SCHAR *)event_buf);
+		fbe_event_free(event_buf);
 	}
 	if (result_buf) {
-		isc_free((ISC_SCHAR *)result_buf);
+		fbe_event_free(result_buf);
 	}
 }
 
@@ -126,19 +126,12 @@ void php_fbird_events_minit(INIT_FUNC_ARGS)
 
 /**
  * Build event buffers for event operations.
- * This creates the event_buffer and result_buffer needed for isc_wait_for_event.
+ * This creates the event_buffer and result_buffer needed for fbe_wait_for_event.
  */
 static void _php_fbird_event_block(unsigned short count, char **events,
 	unsigned short *l, unsigned char **event_buf, unsigned char **result_buf)
 {
-	/**
-	 * The Interbase API uses variadic arguments which we can't easily
-	 * construct at runtime, but the maximum is 15 events.
-	 */
-	*l = (unsigned short) isc_event_block(event_buf, result_buf, count,
-		events[0], events[1], events[2], events[3], events[4],
-		events[5], events[6], events[7], events[8], events[9],
-		events[10], events[11], events[12], events[13], events[14]);
+	*l = fbe_event_block(event_buf, result_buf, count, (const char **)events);
 }
 
 PHP_FUNCTION(fbird_wait_event)
@@ -206,20 +199,20 @@ PHP_FUNCTION(fbird_wait_event)
 	{
 		ISC_STATUS init_status[20];
 		ISC_ULONG init_counts[15];
-		isc_db_handle *db_handle_ptr = fbc_get_legacy_handle_ptr(ib_link->fbc_connection);
-		if (isc_wait_for_event(init_status, db_handle_ptr, buffer_size, event_buffer, result_buffer)) {
+		void *db_handle_ptr = fbc_get_legacy_handle_ptr(ib_link->fbc_connection);
+		if (fbe_wait_for_event(db_handle_ptr, buffer_size, event_buffer, result_buffer, init_status)) {
 			/* Initial wait failed - likely connection issue */
 			_php_fbird_error();
 			_php_fbird_event_free(event_buffer, result_buffer);
 			RETURN_FALSE;
 		}
-		isc_event_counts(init_counts, buffer_size, event_buffer, result_buffer);
+		fbe_event_counts(init_counts, buffer_size, event_buffer, result_buffer);
 	}
 
 	/* Now wait for actual events */
 	{
-		isc_db_handle *db_handle_ptr = fbc_get_legacy_handle_ptr(ib_link->fbc_connection);
-		if (isc_wait_for_event(IB_STATUS, db_handle_ptr, buffer_size, event_buffer, result_buffer)) {
+		void *db_handle_ptr = fbc_get_legacy_handle_ptr(ib_link->fbc_connection);
+		if (fbe_wait_for_event(db_handle_ptr, buffer_size, event_buffer, result_buffer, IB_STATUS)) {
 			_php_fbird_error();
 			_php_fbird_event_free(event_buffer, result_buffer);
 			RETURN_FALSE;
@@ -227,7 +220,7 @@ PHP_FUNCTION(fbird_wait_event)
 	}
 
 	/* Determine which event fired */
-	isc_event_counts(occurred_event, buffer_size, event_buffer, result_buffer);
+	fbe_event_counts(occurred_event, buffer_size, event_buffer, result_buffer);
 	for (i = 0; i < event_count; ++i) {
 		if (occurred_event[i]) {
 			zend_string *result = zend_string_init(events[i], strlen(events[i]), 0);
@@ -412,15 +405,15 @@ PHP_FUNCTION(fbird_poll_event)
 		ISC_STATUS init_status[20];
 		ISC_ULONG init_counts[15];
 
-		isc_db_handle *db_handle_init = fbc_get_legacy_handle_ptr(event->link->fbc_connection);
-		if (isc_wait_for_event(init_status, db_handle_init,
-				event->buffer_size, event->event_buffer, event->result_buffer)) {
+		void *db_handle_init = fbc_get_legacy_handle_ptr(event->link->fbc_connection);
+		if (fbe_wait_for_event(db_handle_init, event->buffer_size,
+				event->event_buffer, event->result_buffer, init_status)) {
 			/* Initial wait failed - likely connection issue */
 			_php_fbird_error();
 			event->state = DEAD;
 			RETURN_FALSE;
 		}
-		isc_event_counts(init_counts, event->buffer_size,
+		fbe_event_counts(init_counts, event->buffer_size,
 			event->event_buffer, event->result_buffer);
 		event->needs_reregistration = 0;
 	}
@@ -475,9 +468,9 @@ PHP_FUNCTION(fbird_poll_event)
 	 * This blocks until an event fires OR until interrupted by SIGALRM.
 	 */
 	{
-		isc_db_handle *db_handle_poll = fbc_get_legacy_handle_ptr(event->link->fbc_connection);
-		wait_result = isc_wait_for_event(IB_STATUS, db_handle_poll, event->buffer_size,
-				event->event_buffer, event->result_buffer);
+		void *db_handle_poll = fbc_get_legacy_handle_ptr(event->link->fbc_connection);
+		wait_result = fbe_wait_for_event(db_handle_poll, event->buffer_size,
+				event->event_buffer, event->result_buffer, IB_STATUS);
 	}
 
 #ifndef PHP_WIN32
@@ -515,7 +508,7 @@ PHP_FUNCTION(fbird_poll_event)
 	}
 
 	/* Get event counts to determine which event fired */
-	isc_event_counts(occurred_event, event->buffer_size,
+	fbe_event_counts(occurred_event, event->buffer_size,
 		event->event_buffer, event->result_buffer);
 
 	/* Find the event that occurred */

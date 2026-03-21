@@ -48,8 +48,10 @@ GENERATE_CHECKSUMS=true
 VERBOSE=false
 RUN_VERIFY=false
 
-# Auto-detect extension version from php_firebird.h
-if [ -f "php_firebird.h" ]; then
+# Auto-detect extension version
+if [ -f "VERSION" ]; then
+    DETECTED_VERSION=$(cat VERSION | tr -d '[:space:]')
+elif [ -f "php_firebird.h" ]; then
     # Look for PHP_FIREBIRD_VERSION_STRING (set by configure)
     # Use || true to prevent grep exit code 1 from failing under set -e
     DETECTED_VERSION=$(grep -E '#define PHP_FIREBIRD_VERSION_STRING' php_firebird.h 2>/dev/null | sed 's/.*"\([^"]*\)".*/\1/' | head -1 || true)
@@ -57,10 +59,10 @@ if [ -f "php_firebird.h" ]; then
     if [ -z "$DETECTED_VERSION" ] || [[ "$DETECTED_VERSION" == *"unknown"* ]]; then
         DETECTED_VERSION="7.0.0"
     fi
-    EXT_VERSION="${EXT_VERSION:-$DETECTED_VERSION}"
 else
-    EXT_VERSION="${EXT_VERSION:-7.0.0}"
+    DETECTED_VERSION="7.0.0"
 fi
+EXT_VERSION="${EXT_VERSION:-$DETECTED_VERSION}"
 
 FB_VERSION="5.0"
 FB_ROOT="${FB_ROOT:-/opt/firebird}"

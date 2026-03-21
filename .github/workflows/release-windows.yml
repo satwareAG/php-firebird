@@ -23,6 +23,7 @@ on:
       - '*.c'
       - '*.h'
       - 'config.w32'
+      - 'VERSION'
       - '.github/workflows/release-windows.yml'
   pull_request:
   release:
@@ -75,6 +76,28 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Ensure VERSION file
+        shell: pwsh
+        run: |
+          if ("${{ github.ref }}" -like "refs/tags/v*") {
+            $version = "${{ github.ref }}".Substring(11)
+            Set-Content -Path "VERSION" -Value $version
+            Write-Host "Updated VERSION file from tag: $version"
+          } elseif (-not (Test-Path "VERSION")) {
+            # Extract from php_firebird.h as fallback
+            $header = Get-Content "php_firebird.h"
+            $match = $header | Select-String -Pattern '#define PHP_FIREBIRD_VERSION_STRING "([^"]+)"'
+            if ($match) {
+              $version = $match.Matches[0].Groups[1].Value
+            } else {
+              $version = "7.0.0"
+            }
+            Set-Content -Path "VERSION" -Value $version
+            Write-Host "Created VERSION file from header/default: $version"
+          } else {
+            Write-Host "Using existing VERSION file: $(Get-Content VERSION)"
+          }
 
       - name: Cache Firebird SDK
         uses: actions/cache@v4

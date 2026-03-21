@@ -4,6 +4,19 @@
 ARG_WITH('firebird', 'Firebird database support', 'no');
 
 if (PHP_FIREBIRD != 'no') {
+    // Detect php-firebird version from VERSION file
+    var version = "0.0.0-unknown";
+    try {
+        var f = FSO.OpenTextFile(configure_module_directory + "\\VERSION", 1);
+        if (f) {
+            version = f.ReadLine().trim();
+            f.Close();
+        }
+    } catch (e) {
+        // Fallback to unknown version if reading file fails
+    }
+    AC_DEFINE('PHP_FIREBIRD_VERSION_STRING', version, 'PHP Firebird extension version');
+
     // Check for Firebird client library and header
     if (CHECK_LIB('fbclient_ms.lib', 'firebird', PHP_FIREBIRD + '\\lib') &&
         CHECK_HEADER_ADD_INCLUDE('ibase.h', 'CFLAGS_FIREBIRD', PHP_FIREBIRD + '\\include')) {

@@ -10,19 +10,6 @@
 /* Array handling functions */
 
 /**
- * Allocate array descriptors for an SQLDA.
- *
- * @param ib_arrayp Output pointer to array of fbird_array structures.
- * @param sqlda The SQLDA structure to scan for array fields.
- * @param link Database connection handle.
- * @param trans Transaction handle.
- * @param array_cnt Output: number of arrays allocated.
- * @return SUCCESS on success, FAILURE on error.
- */
-int _php_fbird_alloc_array(fbird_array **ib_arrayp, XSQLDA *sqlda,
-    fb_safe_handle link, fb_safe_handle trans, unsigned short *array_cnt);
-
-/**
  * Bind PHP array values to Firebird array format recursively.
  *
  * @param val PHP zval containing array data.

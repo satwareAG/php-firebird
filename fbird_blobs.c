@@ -722,7 +722,7 @@ PHP_FUNCTION(fbird_blob_info)
 		WRONG_PARAM_COUNT;
 	}
 
-	// Check if arg1 is a stream resource
+	// Check if arg1 is a stream or blob resource
 	if (arg1 && Z_TYPE_P(arg1) == IS_RESOURCE) {
 		stream = (php_stream *)zend_fetch_resource_ex(arg1, NULL, php_file_le_stream());
 		if (stream && stream->ops == &fbird_blob_stream_ops) {
@@ -730,6 +730,11 @@ PHP_FUNCTION(fbird_blob_info)
 			if (data && data->ib_blob) {
 				ext_blob = data->ib_blob;
 				ib_blob = *ext_blob; // Copy struct content including handle and quad
+			}
+		} else {
+			ext_blob = (fbird_blob *)zend_fetch_resource_ex(arg1, NULL, le_blob);
+			if (ext_blob) {
+				ib_blob = *ext_blob;
 			}
 		}
 	} else if (arg1 && Z_TYPE_P(arg1) == IS_STRING) {
@@ -758,7 +763,7 @@ PHP_FUNCTION(fbird_blob_info)
 		}
 		PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
 
-		if (! _php_fbird_string_to_quad(blob_id, &ib_blob.bl_qd)) {
+		if (!blob_id || ! _php_fbird_string_to_quad(blob_id, &ib_blob.bl_qd)) {
 			_php_fbird_module_error("Unrecognized BLOB ID");
 			RETURN_FALSE;
 		}

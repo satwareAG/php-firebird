@@ -838,7 +838,6 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 					}
 
 					/* Keep legacy handle pointer in sync for checks in blob helpers. */
-					ib_blob.bl_handle.ptr = fbb_get_handle(ib_blob.fbb_blob);
 
 					if (_php_fbird_blob_add(b_var, &ib_blob) != SUCCESS) {
 						/* Try to cancel and free to avoid leaking the server-side blob. */
@@ -855,7 +854,6 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 					}
 					fbb_free(ib_blob.fbb_blob);
 					ib_blob.fbb_blob = NULL;
-					ib_blob.bl_handle.ptr = 0;
 
 					buf[i].val.qval = ib_blob.bl_qd;
 				}

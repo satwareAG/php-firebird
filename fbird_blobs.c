@@ -28,7 +28,7 @@ static ssize_t fbird_blob_stream_write(php_stream *stream, const char *buf, size
 	size_t total_written = 0;
 	unsigned chunk_size;
 
-	if (!ib_blob || (!ib_blob->fbb_blob && !ib_blob->bl_handle.ptr)) {
+	if (!ib_blob || !ib_blob->fbb_blob) {
 		return 0;
 	}
 
@@ -62,7 +62,7 @@ static ssize_t fbird_blob_stream_read(php_stream *stream, char *buf, size_t coun
 	unsigned actual_len;
 	int result;
 
-	if (!ib_blob || (!ib_blob->fbb_blob && !ib_blob->bl_handle.ptr)) {
+	if (!ib_blob || !ib_blob->fbb_blob) {
 		return 0;
 	}
 
@@ -431,7 +431,6 @@ PHP_FUNCTION(fbird_blob_create)
 	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
 
 	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
-	ib_blob->bl_handle.ptr = 0;
 	ib_blob->type = BLOB_INPUT;
 	ib_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
 
@@ -455,8 +454,6 @@ PHP_FUNCTION(fbird_blob_create)
 		efree(ib_blob);
 		RETURN_FALSE;
 	}
-	/* Store OO handle pointer for legacy code paths that check bl_handle */
-	ib_blob->bl_handle.ptr = fbb_get_handle(ib_blob->fbb_blob);
 
 	RETVAL_RES(zend_register_resource(ib_blob, le_blob));
 }
@@ -477,7 +474,6 @@ PHP_FUNCTION(fbird_blob_create_seekable)
 	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
 
 	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
-	ib_blob->bl_handle.ptr = 0;
 	ib_blob->type = BLOB_INPUT;
 	ib_blob->fbb_blob = NULL;
 
@@ -501,8 +497,6 @@ PHP_FUNCTION(fbird_blob_create_seekable)
 		efree(ib_blob);
 		RETURN_FALSE;
 	}
-	/* Store OO handle pointer for legacy code paths that check bl_handle */
-	ib_blob->bl_handle.ptr = fbb_get_handle(ib_blob->fbb_blob);
 
 	RETVAL_RES(zend_register_resource(ib_blob, le_blob));
 }
@@ -522,7 +516,6 @@ PHP_FUNCTION(fbird_blob_open)
 	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
 
 	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
-	ib_blob->bl_handle.ptr = 0;
 	ib_blob->type = BLOB_OUTPUT;
 	ib_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
 
@@ -551,8 +544,6 @@ PHP_FUNCTION(fbird_blob_open)
 			_php_fbird_error();
 			break;
 		}
-		/* Store OO handle pointer for legacy code paths that check bl_handle */
-		ib_blob->bl_handle.ptr = fbb_get_handle(ib_blob->fbb_blob);
 
 		RETVAL_RES(zend_register_resource(ib_blob, le_blob));
 		return;
@@ -653,7 +644,6 @@ static void _php_fbird_blob_end(INTERNAL_FUNCTION_PARAMETERS, int bl_end)
 		}
 		fbb_free(ib_blob->fbb_blob);
 		ib_blob->fbb_blob = NULL;
-		ib_blob->bl_handle.ptr = 0;
 
 		RETVAL_NEW_STR(_php_fbird_quad_to_string(ib_blob->bl_qd));
 	} else { /* discard created blob */
@@ -670,7 +660,6 @@ static void _php_fbird_blob_end(INTERNAL_FUNCTION_PARAMETERS, int bl_end)
 		}
 		fbb_free(ib_blob->fbb_blob);
 		ib_blob->fbb_blob = NULL;
-		ib_blob->bl_handle.ptr = 0;
 
 		RETVAL_TRUE;
 	}
@@ -984,7 +973,6 @@ PHP_FUNCTION(fbird_blob_create_stream)
 	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
 
 	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
-	ib_blob->bl_handle.ptr = 0;
 	ib_blob->type = BLOB_INPUT;
 	ib_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
 
@@ -1007,8 +995,6 @@ PHP_FUNCTION(fbird_blob_create_stream)
 		efree(ib_blob);
 		RETURN_FALSE;
 	}
-	/* Store OO handle pointer for legacy code paths that check bl_handle */
-	ib_blob->bl_handle.ptr = fbb_get_handle(ib_blob->fbb_blob);
 
 	data = emalloc(sizeof(fbird_blob_stream_data));
 	data->ib_blob = ib_blob;
@@ -1042,7 +1028,6 @@ PHP_FUNCTION(fbird_blob_open_stream)
 	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
 
 	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
-	ib_blob->bl_handle.ptr = 0;
 	ib_blob->type = BLOB_OUTPUT;
 	ib_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
 
@@ -1071,8 +1056,6 @@ PHP_FUNCTION(fbird_blob_open_stream)
 		efree(ib_blob);
 		RETURN_FALSE;
 	}
-	/* Store OO handle pointer for legacy code paths that check bl_handle */
-	ib_blob->bl_handle.ptr = fbb_get_handle(ib_blob->fbb_blob);
 
 	data = emalloc(sizeof(fbird_blob_stream_data));
 	data->ib_blob = ib_blob;
@@ -1104,7 +1087,6 @@ PHP_FUNCTION(fbird_blob_open_seekable)
 	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
 
 	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
-	ib_blob->bl_handle.ptr = 0;
 	ib_blob->type = BLOB_OUTPUT;
 	ib_blob->fbb_blob = NULL;
 
@@ -1133,8 +1115,6 @@ PHP_FUNCTION(fbird_blob_open_seekable)
 			_php_fbird_error();
 			break;
 		}
-		/* Store OO handle pointer for legacy code paths that check bl_handle */
-		ib_blob->bl_handle.ptr = fbb_get_handle(ib_blob->fbb_blob);
 
 		RETVAL_RES(zend_register_resource(ib_blob, le_blob));
 		return;

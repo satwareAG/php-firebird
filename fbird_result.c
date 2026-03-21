@@ -671,7 +671,6 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 					}
 
 					/* Keep legacy handle pointer in sync for blob helpers. */
-					blob_handle.bl_handle.ptr = fbb_get_handle(blob_handle.fbb_blob);
 
 					/* Determine total length via getInfo so we can allocate exact buffer. */
 					static unsigned char bl_items[] = { isc_info_blob_total_length };
@@ -731,7 +730,6 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 					}
 					fbb_free(blob_handle.fbb_blob);
 					blob_handle.fbb_blob = NULL;
-					blob_handle.bl_handle.ptr = 0;
 
 				} else { /* blob id only */
 					ISC_QUAD bl_qd = *(ISC_QUAD *) field_data;

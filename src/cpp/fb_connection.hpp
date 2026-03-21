@@ -175,11 +175,18 @@ public:
 
     /**
      * Get the legacy isc_db_handle for compatibility with existing code.
-     * @note This returns 0 for OO API connections; use get() instead.
-     * @deprecated Use get() for OO API access.
+     * Populated via fb_get_database_handle() after connect.
      */
     [[nodiscard]] isc_db_handle getLegacyHandle() const noexcept {
         return legacy_handle_;
+    }
+
+    /**
+     * Get a pointer to the legacy isc_db_handle (for APIs like isc_wait_for_event
+     * that require a persistent pointer to the handle).
+     */
+    [[nodiscard]] isc_db_handle* getLegacyHandlePtr() noexcept {
+        return &legacy_handle_;
     }
 
     /**

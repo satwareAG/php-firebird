@@ -15,6 +15,7 @@
 #include "php_fbird_transaction.h"
 #include "php_fbird_connection.h"
 #include "firebird_utils.h"
+#include "src/php_fbird_compat.h"
 
 #define ROLLBACK    0
 #define COMMIT      1
@@ -331,7 +332,7 @@ PHP_FUNCTION(fbird_trans_start)
 		RETURN_FALSE;
 	}
 
-	ib_trans->handle.ptr = fbt_get_handle(ib_trans->fbt_transaction);
+	ib_trans->handle.ptr = NULL;
 	ib_trans->link_cnt = 1;
 	ib_trans->affected_rows = 0;
 	ib_trans->db_link[0] = ib_link;
@@ -485,22 +486,17 @@ PHP_FUNCTION(fbird_trans_info)
 		RETURN_FALSE;
 	}
 
-	/*
-	 * Firebird 3.0+ OO API
-	 *
-	 * OO API transactions do not have a valid legacy isc_tr_handle.
-	 * For OO API transactions, trans->handle.ptr stores the raw ITransaction*
-	 * (from fbt_get_handle()).
-	 */
+	/* OO API: All transactions use fbt_transaction */
 	if (trans->fbt_transaction != NULL) {
-		if (trans->handle.ptr == NULL) {
+		void* tr_ptr = fbt_get_handle(trans->fbt_transaction);
+		if (tr_ptr == NULL) {
 			_php_fbird_module_error("Transaction has no valid OO API handle");
 			RETURN_FALSE;
 		}
 
 		if (fbt_get_info(
 				IBG(master_instance),
-				trans->handle.ptr,
+				tr_ptr,
 				sizeof(tpb),
 				(const unsigned char*)tpb,
 				sizeof(res_buf),
@@ -597,9 +593,9 @@ PHP_FUNCTION(fbird_connection_info)
 		RETURN_FALSE;
 	}
 
-	/* Use OO API for connections that have fbc_connection */
-	if (ib_link->fbc_connection != NULL) {
-		void* attachment = fbc_get_attachment(ib_link->fbc_connection);
+	/* OO API: All connections use fbc_connection */
+	{
+		void* attachment = fbird_get_attachment(ib_link);
 		if (attachment == NULL) {
 			_php_fbird_module_error("Failed to get attachment from OO API connection");
 			RETURN_FALSE;
@@ -608,14 +604,6 @@ PHP_FUNCTION(fbird_connection_info)
 		if (!fbc_get_info(IBG(master_instance), attachment,
 				sizeof(info_items), (const unsigned char*)info_items,
 				sizeof(res_buf), (unsigned char*)res_buf, IB_STATUS)) {
-			_php_fbird_error();
-			RETURN_FALSE;
-		}
-	} else {
-		/* Fallback to legacy API for connections without OO API handle */
-		if (isc_database_info(status, &ib_link->handle.db, sizeof(info_items), info_items,
-				sizeof(res_buf), res_buf)) {
-			memcpy(IB_STATUS, status, sizeof(status));
 			_php_fbird_error();
 			RETURN_FALSE;
 		}
@@ -726,7 +714,7 @@ PHP_FUNCTION(fbird_trans)
 				memcpy(&tpb[TPB_MAX_SIZE * link_cnt], last_tpb, TPB_MAX_SIZE);
 
 				/* add a database handle to the TEB with the most recently specified set of modifiers */
-				teb[link_cnt].db_ptr = &ib_link[link_cnt]->handle.db;
+				teb[link_cnt].db_ptr = NULL; /* unused: OO API path handles transactions */
 				teb[link_cnt].tpb_len = tpb_len;
 				teb[link_cnt].tpb_ptr = &tpb[TPB_MAX_SIZE * link_cnt];
 
@@ -799,7 +787,7 @@ PHP_FUNCTION(fbird_trans)
 
 				/* Allocate and register transaction with OO API wrapper */
 				ib_trans = (fbird_transaction *) safe_emalloc(link_cnt-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
-				ib_trans->handle.ptr = tr_handle;
+				ib_trans->handle.ptr = NULL;
 				ib_trans->link_cnt = link_cnt;
 				ib_trans->affected_rows = 0;
 				ib_trans->fbt_transaction = oo_trans;
@@ -857,7 +845,7 @@ PHP_FUNCTION(fbird_trans)
 
 		/* Allocate and register transaction with OO API wrapper */
 		ib_trans = (fbird_transaction *) safe_emalloc(link_cnt-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
-		ib_trans->handle.ptr = tr_handle;
+		ib_trans->handle.ptr = NULL;
 		ib_trans->link_cnt = link_cnt;
 		ib_trans->affected_rows = 0;
 		ib_trans->fbt_transaction = oo_trans;
@@ -905,14 +893,14 @@ int _php_fbird_def_trans(fbird_db_link *ib_link, fbird_transaction **trans)
 
 		if (tr == NULL) {
 			tr = (fbird_transaction *) emalloc(sizeof(fbird_transaction));
-			tr->handle.ptr = 0;
+			tr->handle.ptr = NULL;
 			tr->link_cnt = 1;
 			tr->affected_rows = 0;
 			tr->fbt_transaction = NULL;
 			tr->db_link[0] = ib_link;
 			ib_link->tr_list->trans = tr;
 		}
-		if (tr->handle.ptr == 0) {
+		if (tr->fbt_transaction == NULL) {
 			zend_long trans_argl = IBG(default_trans_params);
 			char last_tpb[TPB_MAX_SIZE];
 			unsigned short tpb_len = 0;
@@ -948,8 +936,7 @@ int _php_fbird_def_trans(fbird_db_link *ib_link, fbird_transaction **trans)
 				return FAILURE;
 			}
 
-			/* Store a compatible handle for legacy code paths that may inspect it */
-			tr->handle.ptr = fbt_get_handle(tr->fbt_transaction);
+			tr->handle.ptr = NULL;
 		}
 		*trans = tr;
 	}

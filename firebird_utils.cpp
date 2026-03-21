@@ -507,8 +507,15 @@ extern "C" void* fbc_connect(
             return nullptr;
         }
 
-        // Move to heap and return as opaque pointer
-        return reinterpret_cast<void*>(new fb::Connection(std::move(conn)));
+        // Move to heap; populate legacy handle for isc_* API interop
+        auto* heap_conn = new fb::Connection(std::move(conn));
+        {
+            ISC_STATUS tmp_status[ISC_STATUS_LENGTH] = {};
+            isc_db_handle* hptr = heap_conn->getLegacyHandlePtr();
+            fb_get_database_handle(tmp_status, hptr, heap_conn->get());
+            // Ignore errors — legacy_handle_ stays 0 if not supported
+        }
+        return reinterpret_cast<void*>(heap_conn);
 
     } catch (const fb::Exception& e) {
         // Copy error status from exception to output status vector
@@ -693,6 +700,22 @@ extern "C" int fbc_is_connected(void* connection) {
     }
     auto* conn = reinterpret_cast<fb::Connection*>(connection);
     return conn->isConnected() ? 1 : 0;
+}
+
+extern "C" isc_db_handle fbc_get_legacy_handle(void* connection) {
+    if (!connection) {
+        return 0;
+    }
+    auto* conn = reinterpret_cast<fb::Connection*>(connection);
+    return conn->getLegacyHandle();
+}
+
+extern "C" isc_db_handle* fbc_get_legacy_handle_ptr(void* connection) {
+    if (!connection) {
+        return nullptr;
+    }
+    auto* conn = reinterpret_cast<fb::Connection*>(connection);
+    return conn->getLegacyHandlePtr();
 }
 
 extern "C" unsigned fbc_get_server_version(void* connection) {

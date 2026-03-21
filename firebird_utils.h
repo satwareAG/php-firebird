@@ -175,6 +175,23 @@ int fbc_is_connected(void* connection);
 void* fbc_get_attachment(void* connection);
 
 /**
+ * Get the legacy isc_db_handle from a connection (for APIs requiring a handle pointer).
+ *
+ * @param connection Pointer returned by fbc_connect()
+ * @return Legacy isc_db_handle value, or 0 if invalid
+ */
+isc_db_handle fbc_get_legacy_handle(void* connection);
+
+/**
+ * Get a pointer to the persistent legacy isc_db_handle inside the connection.
+ * Required for APIs like isc_wait_for_event() that need a stable pointer.
+ *
+ * @param connection Pointer returned by fbc_connect()
+ * @return Pointer to isc_db_handle, or NULL if invalid
+ */
+isc_db_handle* fbc_get_legacy_handle_ptr(void* connection);
+
+/**
  * Get the server version from a connection.
  *
  * @param connection Pointer returned by fbc_connect()

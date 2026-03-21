@@ -169,13 +169,18 @@ PHP_FUNCTION(fbird_wait_event)
 			RETURN_FALSE;
 		}
 		i = 1;
-	} else {
+	} else if (Z_TYPE(args[0]) == IS_STRING) {
+		/* First arg is an event name — use default link */
 		if (ZEND_NUM_ARGS() > 15) {
 			WRONG_PARAM_COUNT;
 		}
 		if ((ib_link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), "Firebird link", le_link, le_plink)) == NULL) {
 			RETURN_FALSE;
 		}
+	} else {
+		/* Invalid first argument type */
+		zend_type_error("fbird_wait_event(): Argument #1 must be a Firebird link resource or event name string");
+		RETURN_FALSE;
 	}
 
 	/* Initialize the events array to NULL */
@@ -201,7 +206,8 @@ PHP_FUNCTION(fbird_wait_event)
 	{
 		ISC_STATUS init_status[20];
 		ISC_ULONG init_counts[15];
-		if (isc_wait_for_event(init_status, &ib_link->handle.db, buffer_size, event_buffer, result_buffer)) {
+		isc_db_handle *db_handle_ptr = fbc_get_legacy_handle_ptr(ib_link->fbc_connection);
+		if (isc_wait_for_event(init_status, db_handle_ptr, buffer_size, event_buffer, result_buffer)) {
 			/* Initial wait failed - likely connection issue */
 			_php_fbird_error();
 			_php_fbird_event_free(event_buffer, result_buffer);
@@ -211,10 +217,13 @@ PHP_FUNCTION(fbird_wait_event)
 	}
 
 	/* Now wait for actual events */
-	if (isc_wait_for_event(IB_STATUS, &ib_link->handle.db, buffer_size, event_buffer, result_buffer)) {
-		_php_fbird_error();
-		_php_fbird_event_free(event_buffer, result_buffer);
-		RETURN_FALSE;
+	{
+		isc_db_handle *db_handle_ptr = fbc_get_legacy_handle_ptr(ib_link->fbc_connection);
+		if (isc_wait_for_event(IB_STATUS, db_handle_ptr, buffer_size, event_buffer, result_buffer)) {
+			_php_fbird_error();
+			_php_fbird_event_free(event_buffer, result_buffer);
+			RETURN_FALSE;
+		}
 	}
 
 	/* Determine which event fired */
@@ -381,7 +390,7 @@ PHP_FUNCTION(fbird_poll_event)
 		RETURN_NULL(); /* Handler was cancelled */
 	}
 
-	if (!event->link || event->link->handle.ptr == 0) {
+	if (!event->link || !fbc_is_connected(event->link->fbc_connection)) {
 		event->state = DEAD;
 		RETURN_FALSE; /* Connection lost */
 	}
@@ -403,7 +412,8 @@ PHP_FUNCTION(fbird_poll_event)
 		ISC_STATUS init_status[20];
 		ISC_ULONG init_counts[15];
 
-		if (isc_wait_for_event(init_status, &event->link->handle.db,
+		isc_db_handle *db_handle_init = fbc_get_legacy_handle_ptr(event->link->fbc_connection);
+		if (isc_wait_for_event(init_status, db_handle_init,
 				event->buffer_size, event->event_buffer, event->result_buffer)) {
 			/* Initial wait failed - likely connection issue */
 			_php_fbird_error();
@@ -464,8 +474,11 @@ PHP_FUNCTION(fbird_poll_event)
 	 * Use isc_wait_for_event() synchronously.
 	 * This blocks until an event fires OR until interrupted by SIGALRM.
 	 */
-	wait_result = isc_wait_for_event(IB_STATUS, &event->link->handle.db, event->buffer_size,
-			event->event_buffer, event->result_buffer);
+	{
+		isc_db_handle *db_handle_poll = fbc_get_legacy_handle_ptr(event->link->fbc_connection);
+		wait_result = isc_wait_for_event(IB_STATUS, db_handle_poll, event->buffer_size,
+				event->event_buffer, event->result_buffer);
+	}
 
 #ifndef PHP_WIN32
 	/* Clean up timeout handling */

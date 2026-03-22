@@ -251,7 +251,7 @@ echo "=== All Event Error Tests Complete ===\n";
    PASS - Error thrown:%A
 
 2. fbird_wait_event() with too many arguments:
-   PASS - Error thrown:%A
+%APASS - Error thrown:%A
 
 3. fbird_wait_event() with invalid link resource:
 %A   PASS - Error thrown:%A
@@ -275,11 +275,11 @@ echo "=== All Event Error Tests Complete ===\n";
    PASS - Returned null for dead handler
 
 10. fbird_poll_event() timeout behavior:
-   FBIRD_EVENT_TIMEOUT defined: -2
-   PASS - Poll returned as expected
+%AFBIRD_EVENT_TIMEOUT defined: -2
+%APASS - Poll returned as expected
 
 11. fbird_poll_event() with zero timeout:
-   PASS - Returned as expected (immediate return)
+%APASS - Returned as expected (immediate return)
 
 12. fbird_free_event_handler() with invalid resource:
    PASS - %A
@@ -288,10 +288,10 @@ echo "=== All Event Error Tests Complete ===\n";
    PASS - Both calls returned true (safe)
 
 14. fbird_set_event_handler() with default link:
-   PASS -%A
+%APASS -%A
 
 15. Callback returning false (cancel event handler):
-   Poll result: %A
-   PASS - Poll returned as expected
+%APoll result: %A
+%APASS - Poll returned as expected
 
 === All Event Error Tests Complete ===

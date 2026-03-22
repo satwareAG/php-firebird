@@ -311,6 +311,20 @@ extern "C" ISC_DATE fbu_encode_date(void *master_ptr, unsigned year, unsigned mo
     return result.value_or(0);
 }
 
+extern "C" long fbu_sqlcode(const ISC_STATUS *status_vector)
+{
+    return (long)isc_sqlcode(status_vector);
+}
+
+extern "C" ISC_STATUS fba_array_lookup_bounds(ISC_STATUS *status_vector,
+    isc_db_handle *db_handle, isc_tr_handle *tr_handle,
+    const char *relation_name, const char *field_name,
+    ISC_ARRAY_DESC *desc)
+{
+    return isc_array_lookup_bounds(status_vector, db_handle, tr_handle,
+        relation_name, field_name, desc);
+}
+
 extern "C" ISC_TIMESTAMP fbu_encode_timestamp(void *master_ptr, unsigned year, unsigned month, unsigned day,
     unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions)
 {

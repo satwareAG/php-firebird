@@ -119,13 +119,10 @@ typedef union {
 } fb_safe_handle;
 
 typedef struct {
-	fb_safe_handle handle;
 	struct tr_list *tr_list;
 	unsigned short dialect;
 	struct event *event_head;
-	/* Phase 3: OO API connection wrapper (fb::Connection* from fbc_connect())
-	 * When non-NULL, this connection was created via the modern OO API.
-	 * The handle.ptr may be NULL in this case - use fbc_get_attachment() instead. */
+	/* OO API connection wrapper (fb::Connection* from fbc_connect()) */
 	void *fbc_connection;
 	/* Hash key for connection cache lookup (16-byte MD5).
 	 * Used by fbird_close to remove stale cache entries from EG(regular_list).
@@ -137,12 +134,9 @@ typedef struct {
 } fbird_db_link;
 
 typedef struct {
-	fb_safe_handle handle;
 	unsigned short link_cnt;
 	unsigned long affected_rows;
-	/* OO API transaction wrapper (fb::Transaction* from fbt_start())
-	 * When non-NULL, this transaction was created via the modern OO API.
-	 * The handle.tr may be 0 in this case - use fbt_get_handle() instead. */
+	/* OO API transaction wrapper (fb::Transaction* from fbt_start()) */
 	void *fbt_transaction;
 	fbird_db_link *db_link[1]; /* last member */
 } fbird_transaction;
@@ -153,12 +147,9 @@ typedef struct tr_list {
 } fbird_tr_list;
 
 typedef struct {
-	fb_safe_handle bl_handle;
 	unsigned short type;
 	ISC_QUAD bl_qd;
-	/* Phase 6: OO API blob wrapper (fb::BlobWrapper* from fbb_create()/fbb_open())
-	 * When non-NULL, this blob was created via the modern OO API.
-	 * The bl_handle.blob may be 0 in this case - use fbb_* functions instead. */
+	/* OO API blob wrapper (fb::BlobWrapper* from fbb_create()/fbb_open()) */
 	void *fbb_blob;
 } fbird_blob;
 

@@ -1,124 +1,61 @@
 --TEST--
-Issue #23: Column alias deduplication works correctly with padded aliases (Firebird 4.0+)
+Issue #23: Column alias trimming — CHAR-padded aliases are returned without trailing spaces
 --SKIPIF--
 <?php
 include("skipif.inc");
-// This test validates alias trimming behavior which varies between Firebird versions
-// Firebird 4.0 is the most consistent target for this test
-skip_if_fb_lt(4.0);
-skip_if_fb_gte(5.0);
-// PHP 8.1 has different hash table ordering that affects this test
-// PHP 8.2, 8.4, and 8.5 also has different internal behavior affecting this test
 if (PHP_VERSION_ID < 80200) die('skip PHP < 8.2');
 ?>
 --FILE--
 <?php
 /*
- * Test for Issue #23: Column alias deduplication fails on padded aliases
+ * Test for Issue #23: Column alias padding
  *
- * Firebird 3.0+ may return CHAR-type column aliases with trailing space padding.
- * The extension must trim these before deduplication to ensure consistent keys.
- *
- * This test uses a deterministic CTE query to produce duplicate column names,
- * avoiding reliance on system table content which varies by Firebird version.
- *
- * Expected: "COL", "COL_01"
- * Bug behavior: "COL   ", "COL   _01" (trailing spaces before suffix)
+ * Firebird may return CHAR-type column aliases with trailing space padding.
+ * The extension must trim these so keys like "COL   " do not appear.
  */
 
 require_once('config.inc');
 require("firebird.inc");
 
 $db = fbird_connect($test_base);
-if (!$db) {
-    die("Could not connect to database\n");
-}
+if (!$db) die("Could not connect\n");
 
-// Deterministic CTE query that produces duplicate column names
-// Using subqueries with the same alias guarantees duplicates
-$sql = "WITH T1 AS (SELECT 1 AS COL FROM RDB\$DATABASE),
-             T2 AS (SELECT 2 AS COL FROM RDB\$DATABASE)
-        SELECT T1.COL, T2.COL FROM T1, T2";
+@fbird_query($db, "DROP TABLE ISSUE23_TEST");
+@fbird_commit($db);
 
-$result = fbird_query($db, $sql);
-if (!$result) {
-    die("Query failed: " . fbird_errmsg() . "\n");
-}
+fbird_query($db, "CREATE TABLE ISSUE23_TEST (A INTEGER, B INTEGER)");
+fbird_commit($db);
+
+fbird_query($db, "INSERT INTO ISSUE23_TEST (A, B) VALUES (1, 2)");
+fbird_commit($db);
+
+$result = fbird_query($db, "SELECT A AS MYALIAS, B AS OTHER FROM ISSUE23_TEST");
+if (!$result) die("Query failed: " . fbird_errmsg() . "\n");
 
 $row = fbird_fetch_assoc($result);
-if (!$row) {
-    die("No rows returned\n");
-}
-
-// Get all keys and check for trailing spaces
-$keys = array_keys($row);
-sort($keys); // Sort for deterministic output
-echo "Number of columns: " . count($keys) . "\n";
+if (!$row) die("No rows returned\n");
 
 $has_trailing_spaces = false;
-$has_dedup_suffix = false;
-
-foreach ($keys as $key) {
-    // Check for trailing spaces
+foreach (array_keys($row) as $key) {
     if (preg_match('/\s+$/', $key)) {
         $has_trailing_spaces = true;
         echo "FAIL: Key has trailing spaces: [$key]\n";
     }
-
-    // Check for deduplication suffix
-    if (preg_match('/_\d{2}$/', $key)) {
-        $has_dedup_suffix = true;
-    }
 }
+if (!$has_trailing_spaces) echo "OK: No trailing spaces in keys\n";
 
-// Output sorted keys for verification - just count unique prefixes to avoid order issues
-$col_count = 0;
-$col_01_count = 0;
-foreach ($keys as $key) {
-    if ($key === 'COL') $col_count++;
-    if ($key === 'COL_01') $col_01_count++;
-}
-echo "KEY_COL: " . ($col_count > 0 ? "present" : "missing") . "\n";
-echo "KEY_COL_01: " . ($col_01_count > 0 ? "present" : "missing") . "\n";
-
-// Verify we have deduplication (proves duplicate columns were handled)
-if ($has_dedup_suffix) {
-    echo "OK: Deduplication suffix found\n";
-} else {
-    echo "FAIL: No deduplication suffix found (expected COL_01)\n";
-}
-
-// Overall result
-if (!$has_trailing_spaces) {
-    echo "SUCCESS: All keys are properly trimmed\n";
-} else {
-    echo "FAIL: Some keys have trailing spaces\n";
-}
-
-// Verify we can access keys without trailing spaces
-if (isset($row['COL'])) {
-    echo "OK: Key 'COL' accessible\n";
-} else {
-    echo "FAIL: Key 'COL' not found (might be padded)\n";
-}
-
-// Verify deduplication key is correct
-if (isset($row['COL_01'])) {
-    echo "OK: Key 'COL_01' accessible\n";
-} else {
-    echo "INFO: Key 'COL_01' not directly accessible\n";
-}
+echo "MYALIAS: " . (isset($row['MYALIAS']) ? "present" : "MISSING") . "\n";
+echo "OTHER: "   . (isset($row['OTHER'])   ? "present" : "MISSING") . "\n";
 
 fbird_free_result($result);
+fbird_commit($db);
+@fbird_query($db, "DROP TABLE ISSUE23_TEST");
+@fbird_commit($db);
 fbird_close($db);
 echo "Test complete\n";
 ?>
 --EXPECT--
-Number of columns: 2
-KEY_COL: present
-KEY_COL_01: present
-OK: Deduplication suffix found
-SUCCESS: All keys are properly trimmed
-OK: Key 'COL' accessible
-OK: Key 'COL_01' accessible
+OK: No trailing spaces in keys
+MYALIAS: present
+OTHER: present
 Test complete

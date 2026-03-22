@@ -13,6 +13,7 @@
 #include "zend_exceptions.h"
 #include "php_firebird.h"
 #include "php_fbird_includes.h"
+#include "firebird_utils.h"
 
 PHP_FUNCTION(fbird_errmsg)
 {
@@ -179,7 +180,7 @@ void _php_fbird_error(void)
 	const ISC_STATUS *statusp = IB_STATUS;
 	size_t msg_len;
 
-	IBG(sql_code) = isc_sqlcode(IB_STATUS);
+	IBG(sql_code) = fbu_sqlcode(IB_STATUS);
 
 	msg_len = strlen(IBG(errmsg));
 	while (msg_len < MAX_ERRMSG && fb_interpret(s, MAX_ERRMSG - msg_len - 1, &statusp)) {

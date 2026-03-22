@@ -40,6 +40,7 @@ All layers use the Firebird 3.0+ OO API internally — zero legacy `isc_*` calls
 
 ### doctrine-firebird-driver
 
+- **Issue #95** — Migration roadmap filed: upgrade from php-firebird v7.3.0 → v8.0.0 (filed 2026-03-22)
 - **Issue #50** — Schema test transaction deadlocks (bug — fix first)
 - **Issue #47** — Simplify test suite (drop PHP 8.1 compat code)
 - **Issue #20** — Release v3.11.0 (Configurable LIKE CAST Length)

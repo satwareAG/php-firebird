@@ -34,11 +34,9 @@ if (!$db) {
     die("Could not connect to database\n");
 }
 
-// Deterministic CTE query that produces duplicate column names
-// Using subqueries with the same alias guarantees duplicates
-$sql = "WITH T1 AS (SELECT 1 AS COL FROM RDB\$DATABASE),
-             T2 AS (SELECT 2 AS COL FROM RDB\$DATABASE)
-        SELECT T1.COL, T2.COL FROM T1, T2";
+// Deterministic query that produces duplicate column names
+// Using direct aliases on RDB$DATABASE avoids CTE deduplication differences between FB versions
+$sql = "SELECT 1 AS COL, 2 AS COL FROM RDB\$DATABASE";
 
 $result = fbird_query($db, $sql);
 if (!$result) {

@@ -67,7 +67,7 @@ class PcntlEventPoller implements EventPollerInterface
     /**
      * Create a new PCNTL-based event poller.
      *
-     * @param resource $event The event handler resource from fbird_set_event_handler()
+     * @param resource $event The event handler resource from \fbird_set_event_handler()
      *
      * @throws \RuntimeException If pcntl extension is not available
      */
@@ -82,7 +82,7 @@ class PcntlEventPoller implements EventPollerInterface
 
         if (!is_resource($event) && !($event instanceof \Firebird\Event)) {
             throw new \InvalidArgumentException(
-                'Expected event handler resource from fbird_set_event_handler()'
+                'Expected event handler resource from \fbird_set_event_handler()'
             );
         }
 
@@ -104,7 +104,7 @@ class PcntlEventPoller implements EventPollerInterface
 
         // No timeout requested - block indefinitely
         if ($timeoutMs < 0) {
-            return fbird_poll_event($this->event);
+            return \fbird_poll_event($this->event);
         }
 
         // Convert to seconds (round up to ensure at least 1 second)
@@ -145,7 +145,7 @@ class PcntlEventPoller implements EventPollerInterface
             $startTime = microtime(true);
 
             // Attempt blocking call
-            $result = fbird_poll_event($this->event);
+            $result = \fbird_poll_event($this->event);
 
             // Ensure any pending signals get dispatched before we check $this->timedOut.
             pcntl_signal_dispatch();
@@ -224,7 +224,7 @@ class PcntlEventPoller implements EventPollerInterface
     public function free(): void
     {
         if (!$this->freed && $this->event !== null) {
-            @fbird_free_event_handler($this->event);
+            @\fbird_free_event_handler($this->event);
             $this->event = null;
             $this->freed = true;
         }

@@ -80,13 +80,13 @@ class ProcessEventPoller implements EventPollerInterface
      * that can independently connect and wait for events. You must call
      * setConnectionDetails() before polling.
      *
-     * @param resource $event The event handler resource from fbird_set_event_handler()
+     * @param resource $event The event handler resource from \fbird_set_event_handler()
      */
     public function __construct(mixed $event)
     {
         if (!is_resource($event) && !($event instanceof \Firebird\Event)) {
             throw new \InvalidArgumentException(
-                'Expected event handler resource from fbird_set_event_handler()'
+                'Expected event handler resource from \fbird_set_event_handler()'
             );
         }
         $this->event = $event;
@@ -139,7 +139,7 @@ class ProcessEventPoller implements EventPollerInterface
     }
 
     /**
-     * Poll using direct fbird_poll_event() call (no timeout support).
+     * Poll using direct \fbird_poll_event() call (no timeout support).
      *
      * @param int $timeoutMs Timeout (ignored - direct call blocks indefinitely)
      *
@@ -148,9 +148,9 @@ class ProcessEventPoller implements EventPollerInterface
     private function pollDirect(int $timeoutMs): mixed
     {
         // Use the C extension's poll function directly
-        // Note: timeout_ms parameter in fbird_poll_event doesn't actually work
+        // Note: timeout_ms parameter in \fbird_poll_event doesn't actually work
         // due to Firebird client limitations, but we pass it anyway
-        return fbird_poll_event($this->event, $timeoutMs);
+        return \fbird_poll_event($this->event, $timeoutMs);
     }
 
     /**
@@ -213,9 +213,9 @@ if (!\$database || !\$username) {
 }
 
 // Connect to database
-\$conn = @fbird_connect(\$database, \$username, \$password);
+\$conn = @\fbird_connect(\$database, \$username, \$password);
 if (!\$conn) {
-    echo json_encode(['error' => 'Database connection failed: ' . fbird_errmsg()]);
+    echo json_encode(['error' => 'Database connection failed: ' . \fbird_errmsg()]);
     exit(1);
 }
 
@@ -223,20 +223,20 @@ if (!\$conn) {
 \$eventFired = null;
 \$eventCount = 0;
 
-\$event = @fbird_set_event_handler(\$conn, function(\$name, \$count) use (&\$eventFired, &\$eventCount) {
+\$event = @\fbird_set_event_handler(\$conn, function(\$name, \$count) use (&\$eventFired, &\$eventCount) {
     \$eventFired = \$name;
     \$eventCount = \$count;
     return false; // Stop after first event
 }, {$eventList});
 
 if (!\$event) {
-    echo json_encode(['error' => 'Failed to set event handler: ' . fbird_errmsg()]);
-    fbird_close(\$conn);
+    echo json_encode(['error' => 'Failed to set event handler: ' . \fbird_errmsg()]);
+    \fbird_close(\$conn);
     exit(1);
 }
 
 // Poll for event (blocks until event fires)
-\$result = @fbird_poll_event(\$event);
+\$result = @\fbird_poll_event(\$event);
 
 // Output result as JSON
 if (\$eventFired !== null) {
@@ -246,14 +246,14 @@ if (\$eventFired !== null) {
         'result' => \$result
     ]);
 } elseif (\$result === false) {
-    echo json_encode(['error' => 'Poll failed: ' . fbird_errmsg()]);
+    echo json_encode(['error' => 'Poll failed: ' . \fbird_errmsg()]);
 } else {
     echo json_encode(['result' => \$result]);
 }
 
 // Cleanup
-@fbird_free_event_handler(\$event);
-@fbird_close(\$conn);
+@\fbird_free_event_handler(\$event);
+@\fbird_close(\$conn);
 PHP;
     }
 
@@ -412,7 +412,7 @@ PHP;
     public function free(): void
     {
         if (!$this->freed && $this->event !== null) {
-            @fbird_free_event_handler($this->event);
+            @\fbird_free_event_handler($this->event);
             $this->event = null;
             $this->freed = true;
         }

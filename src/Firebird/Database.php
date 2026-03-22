@@ -3,7 +3,7 @@
 /**
  * php-firebird: OO Database Wrapper
  *
- * Provides an object-oriented interface wrapping the procedural fbird_* functions.
+ * Provides an object-oriented interface wrapping the procedural \fbird_* functions.
  *
  * @package   Firebird
  * @author    Michael Wegener <mw@satware.com>
@@ -19,7 +19,7 @@ namespace Firebird;
  * Object-oriented wrapper for Firebird database connections.
  *
  * This class provides a modern OO interface while wrapping the procedural
- * fbird_* functions. Full backward compatibility with procedural code is
+ * \fbird_* functions. Full backward compatibility with procedural code is
  * maintained - you can use both styles interchangeably.
  *
  * Usage:
@@ -39,7 +39,7 @@ namespace Firebird;
  * $result = $db->query("SELECT * FROM users WHERE id = ?", [1]);
  *
  * // Or using the procedural function with the resource
- * $result = fbird_query($db->getResource(), "SELECT * FROM users");
+ * $result = \fbird_query($db->getResource(), "SELECT * FROM users");
  * ```
  *
  * @see https://github.com/satwareAG/php-firebird
@@ -84,10 +84,10 @@ class Database
         int $dialect = 3,
         ?string $role = null
     ): self {
-        $resource = @fbird_connect($database, $username, $password, $charset, $buffers, $dialect, $role);
+        $resource = @\fbird_connect($database, $username, $password, $charset ?? '', $buffers, $dialect, $role ?? '');
 
         if ($resource === false) {
-            throw new \Exception(fbird_errmsg() ?: 'Failed to connect to database');
+            throw new \Exception(\fbird_errmsg() ?: 'Failed to connect to database');
         }
 
         return new self($resource, $database, $username, false);
@@ -115,10 +115,10 @@ class Database
         int $dialect = 3,
         ?string $role = null
     ): self {
-        $resource = @fbird_pconnect($database, $username, $password, $charset, $buffers, $dialect, $role);
+        $resource = @\fbird_pconnect($database, $username, $password, $charset ?? '', $buffers, $dialect, $role ?? '');
 
         if ($resource === false) {
-            throw new \Exception(fbird_errmsg() ?: 'Failed to create persistent connection');
+            throw new \Exception(\fbird_errmsg() ?: 'Failed to create persistent connection');
         }
 
         return new self($resource, $database, $username, true);
@@ -139,7 +139,7 @@ class Database
     /**
      * Get the underlying connection resource.
      *
-     * Useful for interoperability with procedural fbird_* functions.
+     * Useful for interoperability with procedural \fbird_* functions.
      *
      * @return mixed
      */
@@ -192,10 +192,10 @@ class Database
     /**
      * Start a default transaction.
      *
-     * @return Transaction
+     * @return TransactionManager
      * @throws \Exception If transaction start fails
      */
-    public function beginTransaction(): Transaction
+    public function beginTransaction(): TransactionManager
     {
         return $this->transaction()->start();
     }
@@ -210,22 +210,31 @@ class Database
      */
     public function query(string $sql, array $params = [], int $bindTypes = 0): mixed
     {
-        return fbird_query_params($this->resource, $sql, $params);
+        $trans = \fbird_trans($this->resource);
+        if ($trans === false) {
+            throw new \Exception(\fbird_errmsg() ?: 'Failed to start implicit transaction');
+        }
+        if ($params) {
+            return \fbird_query_params_tx($this->resource, $trans, $sql, $params);
+        }
+        return \fbird_query_params_tx($this->resource, $trans, $sql);
     }
 
     /**
      * Execute a query within a transaction.
      *
-     * @param mixed $transaction Transaction resource or Transaction object
+     * @param mixed $transaction Transaction resource or TransactionManager object
      * @param string $sql SQL query
      * @param array<int, mixed> $params Parameters
      * @return mixed
      */
     public function queryWithTransaction(mixed $transaction, string $sql, array $params = []): mixed
     {
-        $trans = $transaction instanceof Transaction ? $transaction->getResource() : $transaction;
-
-        return fbird_query_params_tx($this->resource, $trans, $sql, $params);
+        $trans = $transaction instanceof TransactionManager ? $transaction->getResource() : $transaction;
+        if ($params) {
+            return \fbird_query_params_tx($this->resource, $trans, $sql, $params);
+        }
+        return \fbird_query_params_tx($this->resource, $trans, $sql);
     }
 
     /**
@@ -236,7 +245,7 @@ class Database
      */
     public function prepare(string $sql): mixed
     {
-        return fbird_prepare($this->resource, $sql);
+        return \fbird_prepare($this->resource, $sql);
     }
 
     /**
@@ -248,7 +257,10 @@ class Database
      */
     public function execute(mixed $statement, array $params = []): mixed
     {
-        return fbird_execute_params($statement, $params);
+        if ($params) {
+            return \fbird_execute($statement, ...$params);
+        }
+        return \fbird_execute($statement);
     }
 
     /**
@@ -258,13 +270,13 @@ class Database
      */
     public function affectedRows(): int
     {
-        return fbird_affected_rows($this->resource);
+        return \fbird_affected_rows($this->resource);
     }
 
     /**
      * Create a BLOB for writing.
      *
-     * The fbird_blob_create() function accepts a link or transaction resource.
+     * The \fbird_blob_create() function accepts a link or transaction resource.
      * When a transaction is passed, the extension resolves both link and trans.
      *
      * @param mixed|null $transaction Transaction resource (optional)
@@ -274,16 +286,16 @@ class Database
     {
         if ($transaction !== null) {
             // Pass transaction resource - extension resolves link from it
-            $trans = $transaction instanceof Transaction ? $transaction->getResource() : $transaction;
-            return fbird_blob_create($trans);
+            $trans = $transaction instanceof TransactionManager ? $transaction->getResource() : $transaction;
+            return \fbird_blob_create($trans);
         }
-        return fbird_blob_create($this->resource);
+        return \fbird_blob_create($this->resource);
     }
 
     /**
      * Open a BLOB for reading.
      *
-     * The fbird_blob_open() function accepts (link, blob_id) or (trans, blob_id).
+     * The \fbird_blob_open() function accepts (link, blob_id) or (trans, blob_id).
      * When a transaction is passed, the extension resolves both link and trans.
      *
      * @param mixed $transaction Transaction resource
@@ -293,8 +305,8 @@ class Database
     public function openBlob(mixed $transaction, string $blobId): mixed
     {
         // Pass transaction resource - extension resolves link from it
-        $trans = $transaction instanceof Transaction ? $transaction->getResource() : $transaction;
-        return fbird_blob_open($trans, $blobId);
+        $trans = $transaction instanceof TransactionManager ? $transaction->getResource() : $transaction;
+        return \fbird_blob_open($trans, $blobId);
     }
 
     /**
@@ -307,9 +319,9 @@ class Database
      */
     public function genId(string $generator, int $increment = 1): int|string
     {
-        $result = fbird_gen_id($generator, $increment, $this->resource);
+        $result = \fbird_gen_id($generator, $increment, $this->resource);
         if ($result === false) {
-            throw new \Exception(fbird_errmsg() ?: "Failed to get generator value for: {$generator}");
+            throw new \Exception(\fbird_errmsg() ?: "Failed to get generator value for: {$generator}");
         }
         return $result;
     }
@@ -331,7 +343,7 @@ class Database
      */
     public function close(): bool
     {
-        $result = fbird_close($this->resource);
+        $result = \fbird_close($this->resource);
         $this->resource = null;
         return $result;
     }
@@ -353,7 +365,7 @@ class Database
      */
     public static function getLastError(): ?string
     {
-        $msg = fbird_errmsg();
+        $msg = \fbird_errmsg();
         return $msg ?: null;
     }
 
@@ -364,7 +376,7 @@ class Database
      */
     public static function getLastErrorCode(): ?int
     {
-        $code = fbird_errcode();
+        $code = \fbird_errcode();
         return $code !== false ? $code : null;
     }
 
@@ -374,7 +386,7 @@ class Database
     public function __destruct()
     {
         if ($this->resource !== null && !$this->persistent) {
-            @fbird_close($this->resource);
+            @\fbird_close($this->resource);
         }
     }
 }

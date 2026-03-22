@@ -274,6 +274,13 @@ jobs:
           cd /
           rm -rf /tmp/php-src /tmp/php.tar.xz
       
+      - name: Write VERSION from git tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "${GITHUB_REF#refs/tags/v}" > VERSION
+            echo "VERSION set to: $(cat VERSION)"
+          fi
+
       - name: Build Extension
         run: |
           export PATH="/opt/php/${{ matrix.php }}-${{ matrix.variant }}/bin:${PATH}"

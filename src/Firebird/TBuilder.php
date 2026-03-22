@@ -564,7 +564,7 @@ final class TBuilder
     /**
      * Set the connection for this transaction builder.
      *
-     * This enables the fluent start() method to create and return a Transaction.
+     * This enables the fluent start() method to create and return a TransactionManager.
      *
      * @param mixed $connection Database connection resource or Database instance
      * @return $this
@@ -594,10 +594,10 @@ final class TBuilder
      *     ->start();
      * ```
      *
-     * @return Transaction
+     * @return TransactionManager
      * @throws \Exception If connection not set or transaction start fails
      */
-    public function start(): Transaction
+    public function start(): TransactionManager
     {
         if ($this->connection === null) {
             throw new \Exception('Connection not set. Call connection() before start().');
@@ -610,7 +610,7 @@ final class TBuilder
             throw new \Exception(fbird_errmsg() ?: 'Failed to start transaction');
         }
 
-        return Transaction::fromResource($resource, $this->connection);
+        return TransactionManager::fromResource($resource, $this->connection);
     }
 
     /**

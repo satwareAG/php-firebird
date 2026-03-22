@@ -1,9 +1,11 @@
 <?php
 
 /**
- * php-firebird: OO Transaction Wrapper
+ * php-firebird: OO Transaction Manager
  *
  * Provides an object-oriented interface for transaction management.
+ * Renamed from Transaction to TransactionManager to avoid conflict with
+ * the C-level Firebird\Transaction class registered by the extension.
  *
  * @package   Firebird
  * @author    Michael Wegener <mw@satware.com>
@@ -37,7 +39,7 @@ require_once __DIR__ . '/functions.php';
  *     ->start();
  *
  * // Method 2: Direct creation
- * $trans = Transaction::begin($db);
+ * $trans = TransactionManager::begin($db);
  *
  * try {
  *     $db->queryWithTransaction($trans, "INSERT INTO ...");
@@ -56,7 +58,7 @@ require_once __DIR__ . '/functions.php';
  *
  * @see https://github.com/satwareAG/php-firebird
  */
-class Transaction
+class TransactionManager
 {
     private mixed $resource;
     private mixed $connection;
@@ -96,7 +98,7 @@ class Transaction
     }
 
     /**
-     * Create a transaction from an existing resource.
+     * Create a TransactionManager from an existing resource.
      *
      * @param mixed $resource Transaction resource
      * @param mixed $connection Connection resource

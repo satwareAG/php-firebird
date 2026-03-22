@@ -192,10 +192,10 @@ class Database
     /**
      * Start a default transaction.
      *
-     * @return Transaction
+     * @return TransactionManager
      * @throws \Exception If transaction start fails
      */
-    public function beginTransaction(): Transaction
+    public function beginTransaction(): TransactionManager
     {
         return $this->transaction()->start();
     }
@@ -216,14 +216,14 @@ class Database
     /**
      * Execute a query within a transaction.
      *
-     * @param mixed $transaction Transaction resource or Transaction object
+     * @param mixed $transaction Transaction resource or TransactionManager object
      * @param string $sql SQL query
      * @param array<int, mixed> $params Parameters
      * @return mixed
      */
     public function queryWithTransaction(mixed $transaction, string $sql, array $params = []): mixed
     {
-        $trans = $transaction instanceof Transaction ? $transaction->getResource() : $transaction;
+        $trans = $transaction instanceof TransactionManager ? $transaction->getResource() : $transaction;
 
         return fbird_query_params_tx($this->resource, $trans, $sql, $params);
     }
@@ -274,7 +274,7 @@ class Database
     {
         if ($transaction !== null) {
             // Pass transaction resource - extension resolves link from it
-            $trans = $transaction instanceof Transaction ? $transaction->getResource() : $transaction;
+            $trans = $transaction instanceof TransactionManager ? $transaction->getResource() : $transaction;
             return fbird_blob_create($trans);
         }
         return fbird_blob_create($this->resource);
@@ -293,7 +293,7 @@ class Database
     public function openBlob(mixed $transaction, string $blobId): mixed
     {
         // Pass transaction resource - extension resolves link from it
-        $trans = $transaction instanceof Transaction ? $transaction->getResource() : $transaction;
+        $trans = $transaction instanceof TransactionManager ? $transaction->getResource() : $transaction;
         return fbird_blob_open($trans, $blobId);
     }
 

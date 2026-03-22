@@ -15,7 +15,7 @@ All 6 planned features have been implemented in PHP:
 | BLOB Seek | 📋 Documented | `docs/BLOB_SEEK_IMPLEMENTATION.md` | C implementation plan for fbird_blob_seek() |
 | DbInfo | ✅ Complete | `src/Firebird/DbInfo.php` | Rich database information structure |
 | IBatch | 📋 Documented | `docs/IBATCH_API_RESEARCH.md` | Research for bulk operations API |
-| OO Wrapper | ✅ Complete | `src/Firebird/Database.php`, `Transaction.php` | OO wrapper layer |
+| OO Wrapper | ✅ Complete | `src/Firebird/Database.php`, `TransactionManager.php` | OO wrapper layer |
 
 ## Files Created
 
@@ -27,7 +27,7 @@ src/Firebird/
 ├── Database.php      # OO database connection wrapper
 ├── DbInfo.php        # Database information structure
 ├── TBuilder.php      # Transaction parameter builder
-└── Transaction.php   # OO transaction wrapper
+└── TransactionManager.php   # OO transaction manager wrapper
 ```
 
 ### Tests (`tests/`)

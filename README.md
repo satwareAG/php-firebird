@@ -3,7 +3,7 @@
 [![CI](https://github.com/satwareAG/php-firebird/actions/workflows/ci.yml/badge.svg)](https://github.com/satwareAG/php-firebird/actions/workflows/ci.yml)
 [![License: PHP-3.01](https://img.shields.io/badge/License-PHP--3.01-blue.svg)](LICENSE)
 [![PHP 8.2+](https://img.shields.io/badge/PHP-8.2%2B-8892BF.svg)](https://www.php.net/)
-[![Version](https://img.shields.io/badge/version-7.3.5-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-8.0.0-blue.svg)](CHANGELOG.md)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/satwareAG/php-firebird)
 
 A high-performance PHP extension providing native connectivity to Firebird databases. This modernized version targets PHP 8.2+ with C++17 standards and comprehensive development tooling.
@@ -13,43 +13,49 @@ A high-performance PHP extension providing native connectivity to Firebird datab
 ## Features
 
 - **Native Performance**: Direct fbclient library integration
-- **Full Firebird Support**: Connects to Firebird 3.0, 4.0, 5.0+ servers (tested against full 12-row PHP/Firebird matrix)
-- **Modern C++ OO API**: Uses Firebird 3.0+ Object-Oriented API with RAII wrappers
-- **Modern PHP**: Optimized for PHP 8.1+ with typed properties and attributes
+- **Full Firebird Support**: Connects to Firebird 3.0, 4.0, 5.0+ servers (tested against full 12-target PHP/Firebird matrix)
+- **Modern C++ OO API**: Uses Firebird 3.0+ Object-Oriented API with RAII wrappers — zero legacy `isc_*` calls
+- **Modern PHP**: Optimized for PHP 8.2+ with typed properties and attributes
+- **Layer 1 — `fbird_*` procedural API**: Full-featured function-based interface for Firebird-specific features
+- **Layer 2 — `Firebird\*` OOP classes**: Native C-registered PHP classes (`Connection`, `Transaction`, `Statement`, `ResultSet`, `Blob`, `Service`) with Firebird-specific features
+- **Layer 3 — `pdo_fbird` PDO driver**: Separate `pdo_fbird.so` with `fbird:` DSN prefix, compatible with PDO without colliding with PHP's bundled `pdo_firebird`
 - **Exception Mode API**: PDO-style exception handling with runtime switchable error modes (SILENT/THROW)
 - **Memory Safety**: Built with AddressSanitizer and comprehensive static analysis
 - **Cross-Platform**: Linux, Windows, macOS support
 - **Clean API**: `fbird_*` function prefix (no legacy InterBase naming)
 
-## PDO_Firebird vs php-firebird Extension
+## API Layers
 
-Choosing between PDO\_Firebird and php-firebird depends on your project requirements:
+This extension provides three complementary API layers:
 
-| Feature | PDO_Firebird | php-firebird |
-|---------|--------------|--------------|
-| **API Style** | PDO (database-agnostic) | Native (Firebird-specific) |
-| **Function Prefix** | `$pdo->method()` | `fbird_*()` |
-| **Events Support** | ❌ No | ✅ Yes |
-| **Service API** | ❌ No | ✅ Full (backup, restore, users) |
-| **Array Fields** | ❌ No | ✅ Yes |
-| **BLOB Streaming** | ✅ Via LOB | ✅ Native + Streams |
-| **Prepared Statements** | ✅ Yes | ✅ Yes |
-| **Transaction Control** | ✅ Basic | ✅ Advanced (savepoints, TPB) |
-| **Named Cursors** | ❌ No | ✅ Yes (`fbird_name_result`) |
-| **Generator/Sequence** | Via SQL only | ✅ Native `fbird_gen_id()` |
-| **Modern OO API** | ❌ Legacy C API | ✅ FB 3.0+ OO API |
+| Feature | `PDO_Firebird` (bundled) | `pdo_fbird` (Layer 3) | `Firebird\*` (Layer 2) | `fbird_*` (Layer 1) |
+|---------|--------------------------|----------------------|------------------------|---------------------|
+| **API Style** | PDO (agnostic) | PDO (agnostic) | OOP (Firebird-specific) | Procedural |
+| **DSN prefix** | `firebird:` | `fbird:` | N/A | N/A |
+| **Events Support** | ❌ No | ❌ No | ✅ Yes | ✅ Yes |
+| **Service API** | ❌ No | ❌ No | ✅ Yes | ✅ Full |
+| **Array Fields** | ❌ No | ❌ No | ❌ No | ✅ Yes |
+| **BLOB Streaming** | ✅ Via LOB | ✅ Via LOB | ✅ Native | ✅ Native + Streams |
+| **Prepared Statements** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
+| **Transaction Control** | ✅ Basic | ✅ Basic | ✅ Advanced | ✅ Advanced (TPB) |
+| **Named Cursors** | ❌ No | ❌ No | ❌ No | ✅ Yes |
+| **Generator/Sequence** | Via SQL only | Via SQL only | Via SQL only | ✅ `fbird_gen_id()` |
+| **Modern OO API** | ❌ Legacy C API | ✅ FB 3.0+ OO API | ✅ FB 3.0+ OO API | ✅ FB 3.0+ OO API |
 
-**When to use PDO_Firebird:**
-- Building database-agnostic applications
-- Simple CRUD operations
-- Portability across databases is priority
+**When to use `pdo_fbird` (Layer 3):**
+- Building database-agnostic applications that need PDO compatibility
+- Migrating from `PDO_Firebird` without changing application code structure
+- Simple CRUD operations via PDO interface
 
-**When to use php-firebird:**
-- Firebird-specific features needed (events, service API)
-- Array field support required
-- Advanced transaction control (savepoints, table locking)
+**When to use `Firebird\*` classes (Layer 2):**
+- OOP-style code with Firebird-specific features (events, service API)
+- Modern PHP applications preferring class-based APIs
+
+**When to use `fbird_*` functions (Layer 1):**
+- Firebird array field support required
+- Advanced transaction control (savepoints, table locking, TPB)
 - Performance-critical applications
-- Need modern Firebird 3.0+ OO API benefits
+- Full service API (backup, restore, user management)
 
 ## Requirements
 
@@ -66,7 +72,7 @@ Choosing between PDO\_Firebird and php-firebird depends on your project requirem
 - Windows 10/11 (Visual Studio 2019+)
 - macOS 10.15+ (Xcode 11+)
 
-> **Note**: glibc 2.28+ is required for precompiled binaries. PHP 8.1+ is required; use third-party repos if your distribution has an older default PHP version.
+> **Note**: glibc 2.28+ is required for precompiled binaries. PHP 8.2+ is required; use third-party repos if your distribution has an older default PHP version.
 
 ## Quick Start
 
@@ -91,7 +97,7 @@ docker exec php-firebird-dev-php83-dev-1 /ext/scripts/container/test.sh
 
 #### Linux (Ubuntu/Debian)
 ```bash
-# Install dependencies (PHP 8.1+)
+# Install dependencies (PHP 8.2+)
 sudo apt-get update
 sudo apt-get install php8.3-dev firebird-dev firebird3.0-server
 
@@ -110,7 +116,7 @@ sudo phpenmod firebird
 
 #### Linux (openSUSE)
 ```bash
-# Install dependencies (PHP 8.1+)
+# Install dependencies (PHP 8.2+)
 sudo zypper install php8-devel libfbclient2 libfbclient-devel
 
 # Build extension

@@ -1,96 +1,64 @@
 # Next Session Tasks — php-firebird
 
-**Last updated:** 2026-03-20
-**Current version:** 7.3.5-dev (post-7.3.4 release)
+**Last updated:** 2026-03-22
+**Current version:** 8.0.0
 **Branch:** `satware-main`
 
 ---
 
-## Status: v7.3.4 Released 🚀
+## Status: v8.0.0 Released 🚀
 
 | Item | Status |
 |------|--------|
-| v7.3.2 release | ✅ Published (Deduplication, Service API fixes) |
-| v7.3.3 release | ✅ Published (Version stabilization) |
-| v7.3.4 release | ✅ Published (Final stabilization) |
-| fbird_blob_info() fix | ✅ Merged (Fixed SIGSEGV with resource handles) |
-| issue23 stability | ✅ Verified (10/10 passes on PHP 8.5 / FB 4.0) |
+| Phase A — OO API migration (isc_* elimination) | ✅ Complete (PR #111) |
+| Phase B — Layer 2 `Firebird\*` OOP classes | ✅ Complete (PR #112) |
+| Phase C Part 1 — Legacy debt cleanup (`fb_safe_handle` removal) | ✅ Complete (PR #113) |
+| Phase C Part 2 — Layer 3 `pdo_fbird` PDO driver | ✅ Complete (PR #114) |
+| Phase D — Stubs, docs, VERSION 8.0.0 | ✅ Complete (PR #115) |
+| Issue #107 — Extension version missing | ✅ Closed (fixed in v8.0.0) |
+| Issue #108 — fbird_pconnect_001 test failure | ✅ Closed (fixed in v8.0.0) |
+| v8.0.0 release artifacts (Linux + Windows) | ✅ Published — all 16 artifacts embed `8.0.0` |
 
-**CI matrix is now 12 combinations:** PHP 8.2/8.3/8.4/8.5 × FB 3.0/4.0/5.0
-
----
-
-## Known Flaky Test (Stabilized)
-
-`tests/issue23_alias_padding_001.phpt` (PHP 8.5 / FB 4.0)
-Verified stability in current session (2026-03-20) with 10 consecutive passes in a fresh PHP 8.5 environment.
-The metadata deduplication fix in v7.3.2 (using `zend_symtable_str_update`) appears to have fully resolved the non-determinism.
-
-**Action:** Continue monitoring in CI, but primary stabilization is complete.
+**CI matrix: 12 combinations green** — PHP 8.2/8.3/8.4/8.5 × FB 3.0/4.0/5.0
 
 ---
 
-## Priority 1 — doctrine-firebird-driver v3.11.0
+## Architecture: 3-Layer Design
 
-**Milestone**: https://github.com/satwareAG/doctrine-firebird-driver/milestone/7
+```
+Layer 1: fbird_*()          — Procedural API (full Firebird feature set)
+Layer 2: Firebird\*         — OOP classes (Connection, Transaction, Statement,
+                               ResultSet, Blob, Service, Exception hierarchy)
+Layer 3: pdo_fbird.so       — PDO driver with fbird: DSN prefix
+```
 
-Start order:
-1. **Issue #50** — Schema test transaction deadlocks (bug — fix first)
-2. **Issue #47** — Simplify test suite (drop PHP 8.1 compat code) — now actionable since php-firebird v7.2.0 dropped PHP 8.1
-3. **Issue #20** — Release v3.11.0 - Configurable LIKE CAST Length (release blocker)
-
-| Issue | Title | Priority |
-|-------|-------|----------|
-| #50 | Schema test transaction deadlocks | Bug — fix first |
-| #47 | Simplify test suite (php-firebird v7 minimum) | High — now actionable |
-| #20 | Release v3.11.0 - Configurable LIKE CAST Length | High — release blocker |
-| #44 | Is BLOB streaming workaround still needed in v7? | Medium — investigate |
-| #51 | PHPUnit test timeouts for schema operations | Enhancement |
-| #53 | Verify phpunit.sh TTY exit code fix | Testing |
-| #42 | Use fbird_escape_string() for SQL string escaping | Low |
-| #43 | Add INT128 and DECFLOAT type mappings (FB 4.0+) | Low |
-| #46 | Add functional tests for IBatch API (FB 4.0+) | Low |
-| #48 | Document SQLSTATE error handling improvements | Docs |
+All layers use the Firebird 3.0+ OO API internally — zero legacy `isc_*` calls.
 
 ---
 
-## Priority 2 — doctrine-firebird-driver v4.0.0-planning
-
-**Milestone**: https://github.com/satwareAG/doctrine-firebird-driver/milestone/8
-
-| Issue | Title | Notes |
-|-------|-------|-------|
-| #78 | Sprint 5 [TRACKING] DBAL 4.x forward-compatibility | Tracking issue — convert to milestone when DBAL 4.x stable |
-| #38 | Windows CI Testing | Blocked by php-firebird Windows DLLs |
-
----
-
-## Milestone State (post-2026-03-06)
-
-### php-firebird
-
-| Milestone | State | Issues |
-|-----------|-------|--------|
-| v7.0.0 | ✅ Closed | 26 closed |
-| v7.2.0 | ✅ Closed | 6 closed |
-| v7.3.0 | ✅ Closed | 4 closed (#97, #98, #99, #104) |
+## Open Items
 
 ### doctrine-firebird-driver
 
-| Milestone | State | Issues |
-|-----------|-------|--------|
-| Sprint 1-5 | ✅ All Closed | All issues resolved |
-| v3.10.0 | ✅ Closed | 1 closed |
-| v3.11.0 | 🔄 Open | 10 open |
-| v4.0.0-planning | 🔄 Open | 2 open (#78, #38) |
+- **Issue #50** — Schema test transaction deadlocks (bug — fix first)
+- **Issue #47** — Simplify test suite (drop PHP 8.1 compat code)
+- **Issue #20** — Release v3.11.0 (Configurable LIKE CAST Length)
+
+### php-firebird future work
+
+- **pdo_fbird**: Add named cursor support, scrollable result sets
+- **Firebird\Events**: Full async event API in Layer 2
+- **Firebird\Array**: Array field support in Layer 2
+- **Statement migration**: Migrate `fbird_query_prepare.c` / `fbird_query_exec.c` to `IStatement` OO API (removes last `isc_dsql_*` calls)
+- **Split-stubs workflow**: Fix tag collision in target repo (pre-existing CI issue)
 
 ---
 
-## Context
+## Validation Baseline (v8.0.0)
 
-- **php-firebird repo:** https://github.com/satwareAG/php-firebird
-- **php-firebird release:** https://github.com/satwareAG/php-firebird/releases/tag/v7.3.0
-- **Stubs release:** https://github.com/satwareAG/php-firebird-stubs/releases/tag/v7.3.0
-- **v7.3.0 milestone:** https://github.com/satwareAG/php-firebird/milestone/3 (closed)
-- **doctrine v3.11.0 milestone:** https://github.com/satwareAG/doctrine-firebird-driver/milestone/7
-- **doctrine v4.0.0-planning:** https://github.com/satwareAG/doctrine-firebird-driver/milestone/8
+| Check | Result |
+|-------|--------|
+| Test matrix (12 targets) | ✅ 12/12 PASS |
+| AddressSanitizer | ✅ 3/3 PASS |
+| Valgrind | ✅ 0 definitely/indirectly lost bytes |
+| Release artifacts | ✅ 16/16 embed `8.0.0` |

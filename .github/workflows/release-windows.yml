@@ -4,7 +4,7 @@
 # Builds Windows DLLs using official php/php-windows-builder actions.
 #
 # Triggers:
-#   - Tag push (v7.*) - immutable releases
+#   - Tag push (v[0-9]*.*) - immutable releases
 #   - Release created/published - non-immutable releases
 #   - Pull requests (build only, no release)
 #   - Manual dispatch (testing)
@@ -17,7 +17,7 @@ name: Release (Windows)
 on:
   push:
     tags:
-      - 'v7.*'
+      - 'v[0-9]*.*'
     branches: [satware-main]
     paths:
       - '*.c'

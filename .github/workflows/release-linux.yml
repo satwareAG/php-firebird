@@ -6,7 +6,7 @@
 # libraries for all supported PHP versions and variants.
 #
 # Triggers:
-#   - Tag push (v7.*) - immutable releases
+#   - Tag push (v[0-9]*.*) - immutable releases
 #   - Release created/published - non-immutable releases
 #   - Manual dispatch (for testing)
 #
@@ -23,7 +23,7 @@ name: Release (Linux)
 on:
   push:
     tags:
-      - 'v7.*'
+      - 'v[0-9]*.*'
   release:
     types: [created, published]
   workflow_dispatch:

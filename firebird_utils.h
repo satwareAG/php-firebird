@@ -175,6 +175,16 @@ int fbc_is_connected(void* connection);
 void* fbc_get_attachment(void* connection);
 
 /**
+ * Get a pointer to the legacy isc_db_handle stored inside the connection.
+ * Required for isc_wait_for_event() and similar legacy APIs that need
+ * a stable pointer to the handle (not the handle value itself).
+ *
+ * @param connection Pointer returned by fbc_connect()
+ * @return Pointer to the internal isc_db_handle, or NULL
+ */
+void* fbc_get_legacy_handle_ptr(void* connection);
+
+/**
  * Get the server version from a connection.
  *
  * @param connection Pointer returned by fbc_connect()
@@ -757,6 +767,53 @@ int fbe_is_queued(void* events_wrapper);
  * @param events_wrapper Events wrapper pointer
  */
 void fbe_free(void* events_wrapper);
+
+/**
+ * Free an event buffer allocated by fbe_event_block() / isc_event_block().
+ *
+ * @param buf Buffer to free (may be NULL)
+ */
+void fbe_event_free(unsigned char* buf);
+
+/**
+ * Build event parameter block (EPB) for up to 15 events.
+ * Replacement for isc_event_block().
+ *
+ * @param event_buf  Output: allocated event buffer
+ * @param result_buf Output: allocated result buffer
+ * @param count      Number of event names
+ * @return Length of the event buffer
+ */
+unsigned short fbe_event_block(unsigned char** event_buf, unsigned char** result_buf,
+                               unsigned short count, ...);
+
+/**
+ * Wait synchronously for any of the registered events.
+ * Replacement for isc_wait_for_event().
+ *
+ * @param status_vector  Output status vector
+ * @param db_handle_ptr  Pointer to isc_db_handle (from fbc_get_legacy_handle_ptr())
+ * @param buffer_length  Length of event buffer
+ * @param event_buffer   Event buffer (from fbe_event_block())
+ * @param result_buffer  Result buffer (from fbe_event_block())
+ * @return 0 on success, non-zero on error
+ */
+ISC_STATUS fbe_wait_for_event(ISC_STATUS* status_vector, void* db_handle_ptr,
+                              unsigned short buffer_length,
+                              unsigned char* event_buffer,
+                              unsigned char* result_buffer);
+
+/**
+ * Decode event counts from result buffer.
+ * Replacement for isc_event_counts().
+ *
+ * @param result_counts  Output: array of event counts
+ * @param buffer_length  Length of event buffer
+ * @param event_buffer   Event buffer (from fbe_event_block())
+ * @param result_buffer  Result buffer (filled by fbe_wait_for_event())
+ */
+void fbe_event_counts(ISC_ULONG* result_counts, unsigned short buffer_length,
+                      unsigned char* event_buffer, unsigned char* result_buffer);
 
 /* Firebird OO API Service Functions */
 

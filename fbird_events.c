@@ -48,10 +48,10 @@ static int le_event;
 static void _php_fbird_event_free(unsigned char *event_buf, unsigned char *result_buf)
 {
 	if (event_buf) {
-		isc_free((ISC_SCHAR *)event_buf);
+		fbe_event_free(event_buf);
 	}
 	if (result_buf) {
-		isc_free((ISC_SCHAR *)result_buf);
+		fbe_event_free(result_buf);
 	}
 }
 
@@ -61,14 +61,11 @@ void _php_fbird_free_event(fbird_event *event)
 
 	event->state = DEAD;
 
-#if FB_API_VER >= 30
-	/* Phase 7: Free OO API event wrapper if present */
 	if (event->fbe_events) {
 		fbe_cancel(IBG(master_instance), event->fbe_events, NULL);
 		fbe_free(event->fbe_events);
 		event->fbe_events = NULL;
 	}
-#endif
 
 	if (event->link != NULL) {
 		fbird_event **node;
@@ -135,7 +132,7 @@ static void _php_fbird_event_block(unsigned short count, char **events,
 	 * The Interbase API uses variadic arguments which we can't easily
 	 * construct at runtime, but the maximum is 15 events.
 	 */
-	*l = (unsigned short) isc_event_block(event_buf, result_buf, count,
+	*l = (unsigned short) fbe_event_block(event_buf, result_buf, count,
 		events[0], events[1], events[2], events[3], events[4],
 		events[5], events[6], events[7], events[8], events[9],
 		events[10], events[11], events[12], events[13], events[14]);
@@ -201,24 +198,28 @@ PHP_FUNCTION(fbird_wait_event)
 	{
 		ISC_STATUS init_status[20];
 		ISC_ULONG init_counts[15];
-		if (isc_wait_for_event(init_status, &ib_link->handle.db, buffer_size, event_buffer, result_buffer)) {
+		void *db_handle_ptr = fbc_get_legacy_handle_ptr(ib_link->fbc_connection);
+		if (fbe_wait_for_event(init_status, db_handle_ptr, buffer_size, event_buffer, result_buffer)) {
 			/* Initial wait failed - likely connection issue */
 			_php_fbird_error();
 			_php_fbird_event_free(event_buffer, result_buffer);
 			RETURN_FALSE;
 		}
-		isc_event_counts(init_counts, buffer_size, event_buffer, result_buffer);
+		fbe_event_counts(init_counts, buffer_size, event_buffer, result_buffer);
 	}
 
 	/* Now wait for actual events */
-	if (isc_wait_for_event(IB_STATUS, &ib_link->handle.db, buffer_size, event_buffer, result_buffer)) {
-		_php_fbird_error();
-		_php_fbird_event_free(event_buffer, result_buffer);
-		RETURN_FALSE;
+	{
+		void *db_handle_ptr = fbc_get_legacy_handle_ptr(ib_link->fbc_connection);
+		if (fbe_wait_for_event(IB_STATUS, db_handle_ptr, buffer_size, event_buffer, result_buffer)) {
+			_php_fbird_error();
+			_php_fbird_event_free(event_buffer, result_buffer);
+			RETURN_FALSE;
+		}
 	}
 
 	/* Determine which event fired */
-	isc_event_counts(occurred_event, buffer_size, event_buffer, result_buffer);
+	fbe_event_counts(occurred_event, buffer_size, event_buffer, result_buffer);
 	for (i = 0; i < event_count; ++i) {
 		if (occurred_event[i]) {
 			zend_string *result = zend_string_init(events[i], strlen(events[i]), 0);
@@ -402,15 +403,16 @@ PHP_FUNCTION(fbird_poll_event)
 	if (event->needs_reregistration) {
 		ISC_STATUS init_status[20];
 		ISC_ULONG init_counts[15];
+		void *db_handle_ptr = fbc_get_legacy_handle_ptr(event->link->fbc_connection);
 
-		if (isc_wait_for_event(init_status, &event->link->handle.db,
+		if (fbe_wait_for_event(init_status, db_handle_ptr,
 				event->buffer_size, event->event_buffer, event->result_buffer)) {
 			/* Initial wait failed - likely connection issue */
 			_php_fbird_error();
 			event->state = DEAD;
 			RETURN_FALSE;
 		}
-		isc_event_counts(init_counts, event->buffer_size,
+		fbe_event_counts(init_counts, event->buffer_size,
 			event->event_buffer, event->result_buffer);
 		event->needs_reregistration = 0;
 	}
@@ -464,8 +466,8 @@ PHP_FUNCTION(fbird_poll_event)
 	 * Use isc_wait_for_event() synchronously.
 	 * This blocks until an event fires OR until interrupted by SIGALRM.
 	 */
-	wait_result = isc_wait_for_event(IB_STATUS, &event->link->handle.db, event->buffer_size,
-			event->event_buffer, event->result_buffer);
+	wait_result = fbe_wait_for_event(IB_STATUS, fbc_get_legacy_handle_ptr(event->link->fbc_connection),
+			event->buffer_size, event->event_buffer, event->result_buffer);
 
 #ifndef PHP_WIN32
 	/* Clean up timeout handling */
@@ -502,7 +504,7 @@ PHP_FUNCTION(fbird_poll_event)
 	}
 
 	/* Get event counts to determine which event fired */
-	isc_event_counts(occurred_event, event->buffer_size,
+	fbe_event_counts(occurred_event, event->buffer_size,
 		event->event_buffer, event->result_buffer);
 
 	/* Find the event that occurred */

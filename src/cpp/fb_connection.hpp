@@ -183,6 +183,13 @@ public:
     }
 
     /**
+     * Get a pointer to the internal legacy handle (for APIs needing isc_db_handle*).
+     */
+    [[nodiscard]] isc_db_handle* getLegacyHandlePtr() noexcept {
+        return &legacy_handle_;
+    }
+
+    /**
      * Get version information for this connection's client library.
      */
     [[nodiscard]] const VersionInfo& getVersion() const noexcept {

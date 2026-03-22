@@ -612,13 +612,8 @@ PHP_FUNCTION(fbird_connection_info)
 			RETURN_FALSE;
 		}
 	} else {
-		/* Fallback to legacy API for connections without OO API handle */
-		if (isc_database_info(status, &ib_link->handle.db, sizeof(info_items), info_items,
-				sizeof(res_buf), res_buf)) {
-			memcpy(IB_STATUS, status, sizeof(status));
-			_php_fbird_error();
-			RETURN_FALSE;
-		}
+		_php_fbird_module_error("No OO API connection available for database info");
+		RETURN_FALSE;
 	}
 
 	array_init(return_value);

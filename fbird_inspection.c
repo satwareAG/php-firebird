@@ -9,9 +9,7 @@
 #include "php_firebird.h"
 #include "php_fbird_includes.h"
 
-#if FB_API_VER >= 30
 #include "firebird_utils.h"
-#endif
 
 /* =============================================================================
  * OO API Only Helper Functions for Inspection
@@ -19,10 +17,6 @@
  * These helpers use fbs_* functions for SQL execution via the modern OO API.
  * All connections MUST have fbc_connection (OO API is the only supported path).
  * ============================================================================= */
-
-#if FB_API_VER < 30
-#error "This file requires Firebird 3.0+ OO API (FB_API_VER >= 30)"
-#endif
 
 /**
  * Execute a DELETE statement with one BIGINT parameter using OO API.

@@ -1171,7 +1171,6 @@ PHP_FUNCTION(fbird_reconnect_transaction)
 	/* Allocate and initialize transaction structure */
 	ib_trans = (fbird_transaction *)safe_emalloc(1, sizeof(fbird_transaction), 0);
 	ib_trans->fbt_transaction = reconnected_trans;
-	ib_trans->handle.ptr = NULL;
 	ib_trans->link_cnt = 1;
 	ib_trans->affected_rows = 0;
 	ib_trans->db_link[0] = ib_link;

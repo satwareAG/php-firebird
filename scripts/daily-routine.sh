@@ -3,7 +3,7 @@
 # Usage: bash scripts/daily-routine.sh eod
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="${REPO_ROOT:-"$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"}"
 
 eod_command() {
     echo "============================================"

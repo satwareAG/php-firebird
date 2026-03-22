@@ -141,3 +141,7 @@ test_array
 
 # Cline AI agent config (project-local, not for public repos)
 .clinerules/
+
+# Environment files (local secrets, not for public repos)
+.env
+docker/.env

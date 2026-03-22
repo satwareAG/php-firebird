@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [8.0.0] - 2026-03-22
+
+### Added
+
+- **Layer 2: `Firebird\*` OOP Classes** — Native C-registered PHP classes: `Connection`, `Transaction`, `Statement`, `ResultSet`, `Blob`, `Service`, and exception hierarchy (`Exception`, `DatabaseException`, `TransactionException`).
+- **Layer 3: `pdo_fbird` PDO Driver** — Separate `pdo_fbird.so` with `fbird:` DSN prefix, avoiding collision with PHP's bundled `pdo_firebird`. Supports positional/named parameters, transactions, BLOB/LOB streams, GDS→SQLSTATE mapping.
+- **Stubs** — Updated `stubs/firebird-classes.php` (all 10 Layer 2 classes); new `stubs/pdo-fbird-stubs.php` for PDO driver.
+- **Docs** — `docs/oop-api.md` (Layer 2 reference) and `docs/pdo-driver.md` (Layer 3 reference).
+
+### Changed
+
+- **Deprecation-free OO API** — All `isc_*` legacy calls replaced with Firebird 3.0+ OO API (`IAttachment`, `ITransaction`, `IStatement`, `IBlob`, `IService`, `IEvents`).
+- **Minimum Firebird client: 3.0** — Enforced by `#error` in `firebird_utils.h`; Firebird server 2.5+ still supported via FB 3.0+ client wire protocol.
+- **VERSION bumped to 8.0.0** — Major version reflects the new 3-layer architecture.
+
+### Removed
+
+- **`fb_safe_handle` union** — Removed from all structs (`fbird_db_link`, `fbird_transaction`, `fbird_blob`, `_ib_query`).
+- **Dead `_php_fbird_alloc_array()`** — Zero-caller function removed from `fbird_query_array.c`.
+
+---
+
 ## [7.3.5] - 2026-03-21
 
 ### Added

@@ -607,18 +607,19 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 		void *field_data = msg_buffer + field_offset;
 		ISC_SHORT *null_indicator = (ISC_SHORT *)(msg_buffer + null_offset);
 
+		/* Get current slot pointer before any null/move logic */
+		result = zend_hash_get_current_data(ht_ret);
+		if (!result) {
+			_php_fbird_module_error("Internal error: result array iterator out of sync");
+			RETURN_FALSE;
+		}
+
 		/* Check if field is NULL */
 		bool is_null_field = (*null_indicator != 0);
 
 		if (is_null_field) {
 			zend_hash_move_forward(ht_ret);
 			continue;
-		}
-
-		result = zend_hash_get_current_data(ht_ret);
-		if (!result) {
-			_php_fbird_module_error("Internal error: result array iterator out of sync");
-			RETURN_FALSE;
 		}
 
 		/* Map OO type to legacy SQL_* type for _php_fbird_var_zval compatibility */

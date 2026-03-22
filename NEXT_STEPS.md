@@ -1,6 +1,6 @@
 # Next Session Tasks — php-firebird
 
-**Last updated:** 2026-03-22
+**Last updated:** 2026-03-22 (EOD session)
 **Current version:** 8.0.0
 **Branch:** `satware-main`
 
@@ -33,6 +33,20 @@ Layer 3: pdo_fbird.so       — PDO driver with fbird: DSN prefix
 ```
 
 All layers use the Firebird 3.0+ OO API internally — zero legacy `isc_*` calls.
+
+---
+
+## EOD Session — 2026-03-22
+
+| Item | Status |
+|------|--------|
+| `.gitignore`: ignore `.env` and `docker/.env` | ✅ Done (commit `7b7f7a0`) |
+| EOD protocol: `Workflows/eod.hygiene-git.standards.md` | ✅ Done |
+| EOD protocol: `Workflows/eod.knowledge-documentation.md` | ✅ Done |
+| EOD protocol: `Workflows/eod.ops-automation.md` | ✅ Done |
+| EOD automation: `scripts/daily-routine.sh eod` | ✅ Done |
+
+Run `bash scripts/daily-routine.sh eod` to execute the full EOD checklist.
 
 ---
 

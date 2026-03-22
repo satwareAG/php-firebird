@@ -493,4 +493,20 @@ jobs:
           echo "  PHP_TEST_SHARED_EXTENSIONS=${PHP_TEST_SHARED_EXTENSIONS}"
 
           echo "Running all PHPT tests..."
-          make test TESTS=tests/
+          make test TESTS=tests/ || true
+
+      - name: Upload test failure diffs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-diffs-php${{ matrix.php-version }}-fb${{ matrix.firebird-version }}
+          path: tests/**/*.diff
+          if-no-files-found: ignore
+
+      - name: Fail if tests failed
+        run: |
+          if find tests/ -name "*.diff" | grep -q .; then
+            echo "Test failures detected:"
+            find tests/ -name "*.diff" -exec echo "  {}" \;
+            exit 1
+          fi

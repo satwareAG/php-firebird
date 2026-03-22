@@ -14,13 +14,10 @@
 #include "firebird_utils.h"
 
 typedef struct {
-	void *handle; /* void* to support 64-bit handles */
 	char *hostname;
 	char *username;
 	zend_resource *res;
-#if FB_API_VER >= 30
-	void *fbsvc_service; /* OO API ServiceWrapper* (Phase 8) */
-#endif
+	void *fbsvc_service; /* OO API ServiceWrapper* */
 } fbird_service;
 
 static int le_service;
@@ -29,20 +26,10 @@ static void _php_fbird_free_service(zend_resource *rsrc)
 {
 	fbird_service *sv = (fbird_service *) rsrc->ptr;
 
-#if FB_API_VER >= 30
-	/* Phase 8: Clean up OO API wrapper first (if used) */
 	if (sv->fbsvc_service) {
 		fbsvc_detach(IBG(master_instance), sv->fbsvc_service, IB_STATUS);
 		fbsvc_free(sv->fbsvc_service);
 		sv->fbsvc_service = NULL;
-	}
-#endif
-
-	/* Guard against NULL/invalid handle (can occur when isc_service_start
-	 * failed and left the handle in a bad state before FBIRD_SVC_ERROR
-	 * triggered the destructor). */
-	if (sv->handle && isc_service_detach(IB_STATUS, (isc_svc_handle *)&sv->handle)) {
-		_php_fbird_error();
 	}
 
 	if (sv->hostname) {
@@ -188,7 +175,8 @@ static void _php_fbird_user(INTERNAL_FUNCTION_PARAMETERS, char operation)
 	}
 
 	/* now start the job */
-	if (isc_service_start(IB_STATUS, (isc_svc_handle *)&svm->handle, NULL, spb_len, buf)) {
+	if (!fbsvc_start(IBG(master_instance), svm->fbsvc_service,
+			(unsigned short)spb_len, (const unsigned char *)buf, IB_STATUS)) {
 		FBIRD_SVC_ERROR(svm);
 		RETURN_FALSE;
 	}
@@ -218,7 +206,6 @@ PHP_FUNCTION(fbird_service_attach)
 	char *host = NULL, *user = NULL, *pass = NULL;
 	char buf[350];
 	char loc[128] = "service_mgr";
-	void *handle = 0;
 	unsigned short p = 0;
 
 	RESET_ERRMSG;
@@ -283,19 +270,17 @@ PHP_FUNCTION(fbird_service_attach)
 		slprintf(loc, sizeof(loc), "%s:service_mgr", host);
 	}
 
-	/* attach to the service manager */
-	if (isc_service_attach(IB_STATUS, 0, loc, (isc_svc_handle *)&handle, p, buf)) {
-		_php_fbird_error();
-		RETURN_FALSE;
-	}
-
 	svm = (fbird_service*)emalloc(sizeof(fbird_service));
-	svm->handle = handle;
 	svm->hostname = hlen > 0 ? estrdup(host) : NULL;
 	svm->username = ulen > 0 ? estrdup(user) : NULL;
-#if FB_API_VER >= 30
-	svm->fbsvc_service = NULL;  /* Phase 8: OO API wrapper, initialized on demand */
-#endif
+	svm->fbsvc_service = fbsvc_attach(IBG(master_instance), loc, p, (const unsigned char *)buf, IB_STATUS);
+	if (!svm->fbsvc_service) {
+		_php_fbird_error();
+		efree(svm->hostname);
+		efree(svm->username);
+		efree(svm);
+		RETURN_FALSE;
+	}
 
 	RETVAL_RES(zend_register_resource(svm, le_service));
 	Z_TRY_ADDREF_P(return_value);
@@ -329,7 +314,8 @@ static void _php_fbird_service_query(INTERNAL_FUNCTION_PARAMETERS,
 	if (info_action == isc_info_svc_get_users) {
 		static char action[] = { isc_action_svc_display_user };
 
-		if (isc_service_start(IB_STATUS, (isc_svc_handle *)&svm->handle, NULL, sizeof(action), action)) {
+		if (!fbsvc_start(IBG(master_instance), svm->fbsvc_service,
+				sizeof(action), (const unsigned char *)action, IB_STATUS)) {
 			FBIRD_SVC_ERROR(svm);
 			RETURN_FALSE;
 		}
@@ -338,9 +324,10 @@ static void _php_fbird_service_query(INTERNAL_FUNCTION_PARAMETERS,
 query_loop:
 	result = res_buf;
 
-	if (isc_service_query(IB_STATUS, (isc_svc_handle *)&svm->handle, NULL, sizeof(spb), spb,
-			1, &info_action, sizeof(res_buf), res_buf)) {
-
+	if (!fbsvc_query(IBG(master_instance), svm->fbsvc_service,
+			sizeof(spb), (const unsigned char *)spb,
+			1, (const unsigned char *)&info_action,
+			sizeof(res_buf), (unsigned char *)res_buf, IB_STATUS)) {
 		FBIRD_SVC_ERROR(svm);
 		RETURN_FALSE;
 	}
@@ -510,7 +497,8 @@ static void _php_fbird_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operati
 	}
 
 	/* now start the backup/restore job */
-	if (isc_service_start(IB_STATUS, (isc_svc_handle *)&svm->handle, NULL, (unsigned short)spb_len, buf)) {
+	if (!fbsvc_start(IBG(master_instance), svm->fbsvc_service,
+			(unsigned short)spb_len, (const unsigned char *)buf, IB_STATUS)) {
 		FBIRD_SVC_ERROR(svm);
 		RETURN_FALSE;
 	}
@@ -614,7 +602,8 @@ options_argument:
 		RETURN_FALSE;
 	}
 
-	if (isc_service_start(IB_STATUS, (isc_svc_handle *)&svm->handle, NULL, (unsigned short)spb_len, buf)) {
+	if (!fbsvc_start(IBG(master_instance), svm->fbsvc_service,
+			(unsigned short)spb_len, (const unsigned char *)buf, IB_STATUS)) {
 		FBIRD_SVC_ERROR(svm);
 		RETURN_FALSE;
 	}

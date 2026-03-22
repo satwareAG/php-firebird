@@ -343,9 +343,6 @@ void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 	/* ... or a persistent one */
 	do {
 		zend_long l;
-		static char info[] = { isc_info_base_level, isc_info_end };
-		char result[8];
-		ISC_STATUS status[20];
 
 		if ((le = zend_hash_str_find_ptr(&EG(persistent_list), hash, sizeof(hash)-1)) != NULL) {
 			if (le->type != le_plink) {
@@ -353,7 +350,7 @@ void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 			}
 			/* check if connection has timed out */
 			ib_link = (fbird_db_link *) le->ptr;
-			if (!isc_database_info(status, &ib_link->handle.db, sizeof(info), info, sizeof(result), result)) {
+			if (ib_link->fbc_connection && fbc_is_connected(ib_link->fbc_connection)) {
 				RETVAL_RES(zend_register_resource(ib_link, le_plink));
 				break;
 			}

@@ -3,7 +3,6 @@
 
 #include <ibase.h>
 
-#if FB_API_VER >= 30
 #include <firebird/Interface.h>
 #include <cstring>
 #include <memory>
@@ -687,6 +686,14 @@ extern "C" void* fbc_get_attachment(void* connection) {
     return conn->get();  // Returns IAttachment*
 }
 
+extern "C" void* fbc_get_legacy_handle_ptr(void* connection) {
+    if (!connection) {
+        return nullptr;
+    }
+    auto* conn = reinterpret_cast<fb::Connection*>(connection);
+    return conn->getLegacyHandlePtr();
+}
+
 extern "C" int fbc_is_connected(void* connection) {
     if (!connection) {
         return 0;
@@ -1005,7 +1012,6 @@ extern "C" int fbc_get_info(
     }
 }
 
-#endif // FB_API_VER >= 30
 
 #if FB_API_VER >= 40
 /* Decodes a time with time zone into its time components. */
@@ -1138,8 +1144,6 @@ extern "C" int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* times
 }
 
 #endif // FB_API_VER >= 40
-
-#if FB_API_VER >= 30
 
 #include "src/cpp/fb_statement.hpp"
 
@@ -1561,34 +1565,67 @@ extern "C" unsigned fbs_get_output_count(void* master_ptr, void* statement_ptr, 
     return count;
 }
 
-#endif // FB_API_VER >= 30 (Phase 5 Statement functions)
-
 /* =============================================================================
  * OO API Blob Functions (fbb_*)
  * ============================================================================= */
-#if FB_API_VER >= 30
 #define FBB_NO_INLINE_IMPL
 #include "src/cpp/fb_blob.hpp"
-#endif // FB_API_VER >= 30 (Phase 6 Blob functions)
 
 /* =============================================================================
  * OO API Event Functions (fbe_*)
  * ============================================================================= */
-#if FB_API_VER >= 30
 #include "src/cpp/fb_events.hpp"
-#endif // FB_API_VER >= 30 (Phase 7 Event functions)
+#include <cstdarg>
+
+extern "C" void fbe_event_free(unsigned char* buf)
+{
+    if (buf) {
+        isc_free(reinterpret_cast<ISC_SCHAR*>(buf));
+    }
+}
+
+extern "C" unsigned short fbe_event_block(unsigned char** event_buf, unsigned char** result_buf,
+                                           unsigned short count, ...)
+{
+    va_list args;
+    va_start(args, count);
+
+    /* isc_event_block takes up to 15 event name arguments */
+    char* e[15] = {};
+    for (unsigned short i = 0; i < count && i < 15; ++i) {
+        e[i] = va_arg(args, char*);
+    }
+    va_end(args);
+
+    return (unsigned short) isc_event_block(event_buf, result_buf, count,
+        e[0], e[1], e[2], e[3], e[4], e[5], e[6], e[7],
+        e[8], e[9], e[10], e[11], e[12], e[13], e[14]);
+}
+
+extern "C" ISC_STATUS fbe_wait_for_event(ISC_STATUS* status_vector, void* db_handle_ptr,
+                                          unsigned short buffer_length,
+                                          unsigned char* event_buffer,
+                                          unsigned char* result_buffer)
+{
+    return isc_wait_for_event(status_vector,
+        reinterpret_cast<isc_db_handle*>(db_handle_ptr),
+        buffer_length, event_buffer, result_buffer);
+}
+
+extern "C" void fbe_event_counts(ISC_ULONG* result_counts, unsigned short buffer_length,
+                                  unsigned char* event_buffer, unsigned char* result_buffer)
+{
+    isc_event_counts(result_counts, buffer_length, event_buffer, result_buffer);
+}
 
 /* =============================================================================
  * OO API Service Functions (fbsvc_*)
  * ============================================================================= */
-#if FB_API_VER >= 30
 #include "src/cpp/fb_service.hpp"
-#endif // FB_API_VER >= 30 (Phase 8 Service functions)
 
 /* =============================================================================
  * OO API Array Functions (fba_*)
  * ============================================================================= */
-#if FB_API_VER >= 30
 #include "src/cpp/fb_array.hpp"
 
 extern "C" int fba_get_slice(
@@ -2231,7 +2268,6 @@ extern "C" int fba_lookup_bounds(
     }
 }
 
-#endif // FB_API_VER >= 30 (Phase 9 Array functions)
 
 // Non-inline implementations needed for C linkage (inline functions in headers
 // don't get proper linkage when called from C code)

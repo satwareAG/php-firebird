@@ -12,7 +12,6 @@
 #ifndef FIREBIRD_UTILS_INTERNAL_H
 #define FIREBIRD_UTILS_INTERNAL_H
 
-#if FB_API_VER >= 30
 #include <firebird/Interface.h>
 #include <cstring>
 #include <memory>
@@ -171,7 +170,5 @@ public:
     }
 };
 #endif // FB_API_VER >= 40
-
-#endif // FB_API_VER >= 30
 
 #endif // FIREBIRD_UTILS_INTERNAL_H

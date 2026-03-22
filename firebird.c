@@ -23,6 +23,7 @@
 #include <math.h>
 #include "firebird_utils.h"
 #include "fbird_datetime.h"
+#include "fbird_classes.h"
 #include "php_fbird_connection.h"
 #include "php_fbird_transaction.h"
 #include "php_fbird_batch.h"
@@ -784,8 +785,11 @@ PHP_MINIT_FUNCTION(fbird)
 	REGISTER_INI_ENTRIES();
 
 	zend_class_entry ce;
+	zend_class_entry *runtime_ce = zend_hash_str_find_ptr(CG(class_table),
+		"runtimeexception", sizeof("runtimeexception") - 1);
 	INIT_CLASS_ENTRY(ce, "Firebird\\Exception", firebird_exception_methods);
-	firebird_exception_ce = zend_register_internal_class_ex(&ce, zend_ce_exception);
+	firebird_exception_ce = zend_register_internal_class_ex(&ce,
+		runtime_ce ? runtime_ce : zend_ce_exception);
 
 	le_link = zend_register_list_destructors_ex(_php_fbird_close_link, NULL, LE_LINK, module_number);
 	le_plink = zend_register_list_destructors_ex(php_fbird_commit_link_rsrc, _php_fbird_close_plink, LE_PLINK, module_number);
@@ -839,6 +843,8 @@ PHP_MINIT_FUNCTION(fbird)
 #if FB_API_VER >= 40
 	le_batch = zend_register_list_destructors_ex(_php_fbird_free_batch, NULL, LE_BATCH, module_number);
 #endif
+
+	fbird_register_classes();
 
 	php_fbird_query_minit(INIT_FUNC_ARGS_PASSTHRU);
 	php_fbird_blobs_minit(INIT_FUNC_ARGS_PASSTHRU);

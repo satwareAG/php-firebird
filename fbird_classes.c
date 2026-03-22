@@ -867,9 +867,9 @@ PHP_METHOD(FirebirdService, __construct)
 	/* Build service location: host:service_mgr */
 	char loc[256];
 	if (host_len > 0)
-		slprintf(loc, sizeof(loc), "%s:service_mgr", host);
+		snprintf(loc, sizeof(loc), "%s:service_mgr", host);
 	else
-		strlcpy(loc, "service_mgr", sizeof(loc));
+		snprintf(loc, sizeof(loc), "%s", "service_mgr");
 
 	ISC_STATUS sv[20];
 	intern->fbsvc = fbsvc_attach(IBG(master_instance), loc,

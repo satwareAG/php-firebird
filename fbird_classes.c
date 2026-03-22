@@ -547,6 +547,410 @@ PHP_METHOD(FirebirdConnection, prepare)
 	zval_ptr_dtor(&retval);
 }
 
+/* -----------------------------------------------------------------------
+ * B5: Firebird\Blob
+ * --------------------------------------------------------------------- */
+zend_class_entry    *fbird_blob_ce;
+static zend_object_handlers fbird_blob_handlers;
+
+typedef struct {
+	void        *fbb_wrap;   /* BlobWrapper* from fbb_create/fbb_open */
+	ISC_QUAD     blob_id;    /* blob ID (set after create/close) */
+	zend_object  std;
+} fbird_blob_obj;
+
+static inline fbird_blob_obj *fbird_blob_from_obj(zend_object *obj)
+{
+	return (fbird_blob_obj *)((char *)obj - XtOffsetOf(fbird_blob_obj, std));
+}
+
+#define Z_FBIRD_BLOB_P(zv) fbird_blob_from_obj(Z_OBJ_P(zv))
+
+static zend_object *fbird_blob_create_obj(zend_class_entry *ce)
+{
+	fbird_blob_obj *intern = zend_object_alloc(sizeof(fbird_blob_obj), ce);
+	intern->fbb_wrap = NULL;
+	memset(&intern->blob_id, 0, sizeof(ISC_QUAD));
+	zend_object_std_init(&intern->std, ce);
+	object_properties_init(&intern->std, ce);
+	intern->std.handlers = &fbird_blob_handlers;
+	return &intern->std;
+}
+
+static void fbird_blob_free_obj(zend_object *obj)
+{
+	fbird_blob_obj *intern = fbird_blob_from_obj(obj);
+	if (intern->fbb_wrap) {
+		ISC_STATUS sv[20];
+		fbb_cancel(IBG(master_instance), intern->fbb_wrap, sv);
+		fbb_free(intern->fbb_wrap);
+		intern->fbb_wrap = NULL;
+	}
+	zend_object_std_dtor(obj);
+}
+
+/* Helper: get fbird_db_link from Firebird\Connection object */
+static fbird_db_link *fbird_get_link_from_conn(zval *conn_zv)
+{
+	fbird_connection_obj *conn = fbird_connection_from_obj(Z_OBJ_P(conn_zv));
+	if (!conn->conn_res || conn->conn_res->type <= 0) return NULL;
+	return (fbird_db_link *)conn->conn_res->ptr;
+}
+
+/* Firebird\Blob::create(Connection $conn, Transaction $tr): Blob */
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_blob_create, 0, 0, 2)
+	ZEND_ARG_OBJ_INFO(0, connection,  Firebird\\Connection,  0)
+	ZEND_ARG_OBJ_INFO(0, transaction, Firebird\\Transaction, 0)
+ZEND_END_ARG_INFO()
+
+PHP_METHOD(FirebirdBlob, create)
+{
+	zval *conn_zv, *tr_zv;
+	ZEND_PARSE_PARAMETERS_START(2, 2)
+		Z_PARAM_OBJECT_OF_CLASS(conn_zv, fbird_connection_ce)
+		Z_PARAM_OBJECT_OF_CLASS(tr_zv,   fbird_transaction_ce)
+	ZEND_PARSE_PARAMETERS_END();
+
+	fbird_db_link *link = fbird_get_link_from_conn(conn_zv);
+	if (!link || !link->fbc_connection) {
+		zend_throw_exception(fbird_connection_exception_ce, "Not connected", 0);
+		RETURN_THROWS();
+	}
+	fbird_transaction_obj *tr = Z_FBIRD_TRANSACTION_P(tr_zv);
+	if (!tr->fbt_trans || !fbt_is_active(tr->fbt_trans)) {
+		zend_throw_exception(fbird_connection_exception_ce, "Transaction not active", 0);
+		RETURN_THROWS();
+	}
+
+	object_init_ex(return_value, fbird_blob_ce);
+	fbird_blob_obj *blob = Z_FBIRD_BLOB_P(return_value);
+
+	ISC_STATUS sv[20];
+	blob->fbb_wrap = fbb_create(IBG(master_instance),
+		fbc_get_attachment(link->fbc_connection),
+		fbt_get_handle(tr->fbt_trans),
+		&blob->blob_id, 0, NULL, sv);
+
+	if (!blob->fbb_wrap) {
+		_php_fbird_error();
+		zend_throw_exception(fbird_query_exception_ce, "Failed to create blob", 0);
+		RETURN_THROWS();
+	}
+}
+
+/* Firebird\Blob::open(Connection $conn, Transaction $tr, string $id): Blob */
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_blob_open, 0, 0, 3)
+	ZEND_ARG_OBJ_INFO(0, connection,  Firebird\\Connection,  0)
+	ZEND_ARG_OBJ_INFO(0, transaction, Firebird\\Transaction, 0)
+	ZEND_ARG_TYPE_INFO(0, blobId, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
+PHP_METHOD(FirebirdBlob, open)
+{
+	zval *conn_zv, *tr_zv;
+	char *id_str;
+	size_t id_len;
+	ZEND_PARSE_PARAMETERS_START(3, 3)
+		Z_PARAM_OBJECT_OF_CLASS(conn_zv, fbird_connection_ce)
+		Z_PARAM_OBJECT_OF_CLASS(tr_zv,   fbird_transaction_ce)
+		Z_PARAM_STRING(id_str, id_len)
+	ZEND_PARSE_PARAMETERS_END();
+
+	fbird_db_link *link = fbird_get_link_from_conn(conn_zv);
+	if (!link || !link->fbc_connection) {
+		zend_throw_exception(fbird_connection_exception_ce, "Not connected", 0);
+		RETURN_THROWS();
+	}
+	fbird_transaction_obj *tr = Z_FBIRD_TRANSACTION_P(tr_zv);
+	if (!tr->fbt_trans || !fbt_is_active(tr->fbt_trans)) {
+		zend_throw_exception(fbird_connection_exception_ce, "Transaction not active", 0);
+		RETURN_THROWS();
+	}
+
+	/* Parse blob ID from hex string "XXXXXXXX:XXXXXXXX" */
+	ISC_QUAD blob_id;
+	if (id_len < 17 || sscanf(id_str, "%08x:%08x",
+			(unsigned *)&blob_id.gds_quad_high,
+			(unsigned *)&blob_id.gds_quad_low) != 2) {
+		zend_throw_exception(fbird_query_exception_ce, "Invalid blob ID format", 0);
+		RETURN_THROWS();
+	}
+
+	object_init_ex(return_value, fbird_blob_ce);
+	fbird_blob_obj *blob = Z_FBIRD_BLOB_P(return_value);
+	blob->blob_id = blob_id;
+
+	ISC_STATUS sv[20];
+	blob->fbb_wrap = fbb_open(IBG(master_instance),
+		fbc_get_attachment(link->fbc_connection),
+		fbt_get_handle(tr->fbt_trans),
+		&blob_id, 0, NULL, sv);
+
+	if (!blob->fbb_wrap) {
+		_php_fbird_error();
+		zend_throw_exception(fbird_query_exception_ce, "Failed to open blob", 0);
+		RETURN_THROWS();
+	}
+}
+
+/* Firebird\Blob::write(string $data): void */
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_blob_write, 0, 1, IS_VOID, 0)
+	ZEND_ARG_TYPE_INFO(0, data, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
+PHP_METHOD(FirebirdBlob, write)
+{
+	char *data;
+	size_t data_len;
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_STRING(data, data_len)
+	ZEND_PARSE_PARAMETERS_END();
+
+	fbird_blob_obj *intern = Z_FBIRD_BLOB_P(ZEND_THIS);
+	if (!intern->fbb_wrap) {
+		zend_throw_exception(fbird_query_exception_ce, "Blob not open", 0);
+		RETURN_THROWS();
+	}
+	ISC_STATUS sv[20];
+	if (!fbb_put_segment(IBG(master_instance), intern->fbb_wrap,
+			(unsigned)data_len, data, sv)) {
+		_php_fbird_error();
+		zend_throw_exception(fbird_query_exception_ce, "Failed to write blob segment", 0);
+	}
+}
+
+/* Firebird\Blob::read(int $length): string|false */
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_blob_read, 0, 0, 1)
+	ZEND_ARG_TYPE_INFO(0, length, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+PHP_METHOD(FirebirdBlob, read)
+{
+	zend_long length;
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_LONG(length)
+	ZEND_PARSE_PARAMETERS_END();
+
+	fbird_blob_obj *intern = Z_FBIRD_BLOB_P(ZEND_THIS);
+	if (!intern->fbb_wrap) {
+		RETURN_FALSE;
+	}
+
+	zend_string *buf = zend_string_alloc((size_t)length, 0);
+	unsigned actual = 0;
+	ISC_STATUS sv[20];
+	int rc = fbb_get_segment(IBG(master_instance), intern->fbb_wrap,
+		(unsigned)length, ZSTR_VAL(buf), &actual, sv);
+
+	if (rc == -1) {
+		zend_string_efree(buf);
+		RETURN_FALSE;
+	}
+	ZSTR_LEN(buf) = actual;
+	ZSTR_VAL(buf)[actual] = '\0';
+	RETURN_STR(buf);
+}
+
+/* Firebird\Blob::close(): void */
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_blob_close, 0, 0, IS_VOID, 0)
+ZEND_END_ARG_INFO()
+
+PHP_METHOD(FirebirdBlob, close)
+{
+	ZEND_PARSE_PARAMETERS_NONE();
+	fbird_blob_obj *intern = Z_FBIRD_BLOB_P(ZEND_THIS);
+	if (intern->fbb_wrap) {
+		ISC_STATUS sv[20];
+		fbb_get_blob_id(intern->fbb_wrap, &intern->blob_id);
+		fbb_close(IBG(master_instance), intern->fbb_wrap, sv);
+		fbb_free(intern->fbb_wrap);
+		intern->fbb_wrap = NULL;
+	}
+}
+
+/* Firebird\Blob::getId(): string */
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_blob_getId, 0, 0, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
+PHP_METHOD(FirebirdBlob, getId)
+{
+	ZEND_PARSE_PARAMETERS_NONE();
+	fbird_blob_obj *intern = Z_FBIRD_BLOB_P(ZEND_THIS);
+	char id_str[20];
+	snprintf(id_str, sizeof(id_str), "%08x:%08x",
+		(unsigned)intern->blob_id.gds_quad_high,
+		(unsigned)intern->blob_id.gds_quad_low);
+	RETURN_STRING(id_str);
+}
+
+static const zend_function_entry fbird_blob_methods[] = {
+	PHP_ME(FirebirdBlob, create, arginfo_fbird_blob_create, ZEND_ACC_PUBLIC | ZEND_ACC_STATIC)
+	PHP_ME(FirebirdBlob, open,   arginfo_fbird_blob_open,   ZEND_ACC_PUBLIC | ZEND_ACC_STATIC)
+	PHP_ME(FirebirdBlob, write,  arginfo_fbird_blob_write,  ZEND_ACC_PUBLIC)
+	PHP_ME(FirebirdBlob, read,   arginfo_fbird_blob_read,   ZEND_ACC_PUBLIC)
+	PHP_ME(FirebirdBlob, close,  arginfo_fbird_blob_close,  ZEND_ACC_PUBLIC)
+	PHP_ME(FirebirdBlob, getId,  arginfo_fbird_blob_getId,  ZEND_ACC_PUBLIC)
+	PHP_FE_END
+};
+
+/* -----------------------------------------------------------------------
+ * B6: Firebird\Service
+ * --------------------------------------------------------------------- */
+zend_class_entry    *fbird_service_ce;
+static zend_object_handlers fbird_service_handlers;
+
+typedef struct {
+	void        *fbsvc;   /* fbsvc_service pointer from fbsvc_attach() */
+	zend_object  std;
+} fbird_service_obj;
+
+static inline fbird_service_obj *fbird_service_from_obj(zend_object *obj)
+{
+	return (fbird_service_obj *)((char *)obj - XtOffsetOf(fbird_service_obj, std));
+}
+
+#define Z_FBIRD_SERVICE_P(zv) fbird_service_from_obj(Z_OBJ_P(zv))
+
+static zend_object *fbird_service_create_obj(zend_class_entry *ce)
+{
+	fbird_service_obj *intern = zend_object_alloc(sizeof(fbird_service_obj), ce);
+	intern->fbsvc = NULL;
+	zend_object_std_init(&intern->std, ce);
+	object_properties_init(&intern->std, ce);
+	intern->std.handlers = &fbird_service_handlers;
+	return &intern->std;
+}
+
+static void fbird_service_free_obj(zend_object *obj)
+{
+	fbird_service_obj *intern = fbird_service_from_obj(obj);
+	if (intern->fbsvc) {
+		ISC_STATUS sv[20];
+		fbsvc_detach(IBG(master_instance), intern->fbsvc, sv);
+		fbsvc_free(intern->fbsvc);
+		intern->fbsvc = NULL;
+	}
+	zend_object_std_dtor(obj);
+}
+
+/* Firebird\Service::__construct(string $host, string $user, string $pass) */
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_service_construct, 0, 0, 3)
+	ZEND_ARG_TYPE_INFO(0, host,     IS_STRING, 0)
+	ZEND_ARG_TYPE_INFO(0, username, IS_STRING, 0)
+	ZEND_ARG_TYPE_INFO(0, password, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
+PHP_METHOD(FirebirdService, __construct)
+{
+	char *host, *user, *pass;
+	size_t host_len, user_len, pass_len;
+	ZEND_PARSE_PARAMETERS_START(3, 3)
+		Z_PARAM_STRING(host, host_len)
+		Z_PARAM_STRING(user, user_len)
+		Z_PARAM_STRING(pass, pass_len)
+	ZEND_PARSE_PARAMETERS_END();
+
+	fbird_service_obj *intern = Z_FBIRD_SERVICE_P(ZEND_THIS);
+
+	/* Build SPB: user + password */
+	char buf[256];
+	int buf_len = 0;
+	buf[buf_len++] = isc_spb_version;
+	buf[buf_len++] = isc_spb_current_version;
+	buf[buf_len++] = isc_spb_user_name;
+	buf[buf_len++] = (char)user_len;
+	memcpy(buf + buf_len, user, user_len); buf_len += user_len;
+	buf[buf_len++] = isc_spb_password;
+	buf[buf_len++] = (char)pass_len;
+	memcpy(buf + buf_len, pass, pass_len); buf_len += pass_len;
+
+	/* Build service location: host:service_mgr */
+	char loc[256];
+	if (host_len > 0)
+		slprintf(loc, sizeof(loc), "%s:service_mgr", host);
+	else
+		strlcpy(loc, "service_mgr", sizeof(loc));
+
+	ISC_STATUS sv[20];
+	intern->fbsvc = fbsvc_attach(IBG(master_instance), loc,
+		buf_len, (const unsigned char *)buf, sv);
+
+	if (!intern->fbsvc) {
+		_php_fbird_error();
+		zend_throw_exception(fbird_service_exception_ce,
+			"Failed to attach to Firebird service manager", 0);
+	}
+}
+
+/* Firebird\Service::detach(): void */
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_service_detach, 0, 0, IS_VOID, 0)
+ZEND_END_ARG_INFO()
+
+PHP_METHOD(FirebirdService, detach)
+{
+	ZEND_PARSE_PARAMETERS_NONE();
+	fbird_service_obj *intern = Z_FBIRD_SERVICE_P(ZEND_THIS);
+	if (intern->fbsvc) {
+		ISC_STATUS sv[20];
+		fbsvc_detach(IBG(master_instance), intern->fbsvc, sv);
+		fbsvc_free(intern->fbsvc);
+		intern->fbsvc = NULL;
+	}
+}
+
+/* Firebird\Service::isAttached(): bool */
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_service_isAttached, 0, 0, _IS_BOOL, 0)
+ZEND_END_ARG_INFO()
+
+PHP_METHOD(FirebirdService, isAttached)
+{
+	ZEND_PARSE_PARAMETERS_NONE();
+	fbird_service_obj *intern = Z_FBIRD_SERVICE_P(ZEND_THIS);
+	RETURN_BOOL(intern->fbsvc && fbsvc_is_attached(intern->fbsvc));
+}
+
+/* Firebird\Service::getServerVersion(): string */
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_service_getServerVersion, 0, 0, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
+PHP_METHOD(FirebirdService, getServerVersion)
+{
+	ZEND_PARSE_PARAMETERS_NONE();
+	fbird_service_obj *intern = Z_FBIRD_SERVICE_P(ZEND_THIS);
+	if (!intern->fbsvc) {
+		zend_throw_exception(fbird_service_exception_ce, "Not attached", 0);
+		RETURN_THROWS();
+	}
+
+	static char spb[] = { isc_info_svc_timeout, 10, 0, 0, 0 };
+	char info_action = isc_info_svc_server_version;
+	char res_buf[256];
+	ISC_STATUS sv[20];
+
+	if (!fbsvc_query(IBG(master_instance), intern->fbsvc,
+			sizeof(spb), (const unsigned char *)spb,
+			1, (const unsigned char *)&info_action,
+			sizeof(res_buf), (unsigned char *)res_buf, sv)) {
+		_php_fbird_error();
+		RETURN_STRING("");
+	}
+
+	char *result = res_buf;
+	if (*result == isc_info_svc_server_version) {
+		int len = isc_vax_integer(result + 1, 2);
+		RETURN_STRINGL(result + 3, len);
+	}
+	RETURN_STRING("");
+}
+
+static const zend_function_entry fbird_service_methods[] = {
+	PHP_ME(FirebirdService, __construct,      arginfo_fbird_service_construct,      ZEND_ACC_PUBLIC)
+	PHP_ME(FirebirdService, detach,           arginfo_fbird_service_detach,         ZEND_ACC_PUBLIC)
+	PHP_ME(FirebirdService, isAttached,       arginfo_fbird_service_isAttached,     ZEND_ACC_PUBLIC)
+	PHP_ME(FirebirdService, getServerVersion, arginfo_fbird_service_getServerVersion, ZEND_ACC_PUBLIC)
+	PHP_FE_END
+};
+
 /* Define connection methods table here — after all methods are declared */
 static const zend_function_entry fbird_connection_methods[] = {
 	PHP_ME(FirebirdConnection, __construct,      arginfo_fbird_connection_construct,        ZEND_ACC_PUBLIC)
@@ -614,4 +1018,24 @@ void fbird_register_classes(void)
 		sizeof(zend_object_handlers));
 	fbird_resultset_handlers.offset    = XtOffsetOf(fbird_resultset_obj, std);
 	fbird_resultset_handlers.free_obj  = fbird_resultset_free;
+
+	/* B5: Firebird\Blob */
+	INIT_CLASS_ENTRY(ce, "Firebird\\Blob", fbird_blob_methods);
+	fbird_blob_ce = zend_register_internal_class(&ce);
+	fbird_blob_ce->create_object = fbird_blob_create_obj;
+
+	memcpy(&fbird_blob_handlers, zend_get_std_object_handlers(),
+		sizeof(zend_object_handlers));
+	fbird_blob_handlers.offset    = XtOffsetOf(fbird_blob_obj, std);
+	fbird_blob_handlers.free_obj  = fbird_blob_free_obj;
+
+	/* B6: Firebird\Service */
+	INIT_CLASS_ENTRY(ce, "Firebird\\Service", fbird_service_methods);
+	fbird_service_ce = zend_register_internal_class(&ce);
+	fbird_service_ce->create_object = fbird_service_create_obj;
+
+	memcpy(&fbird_service_handlers, zend_get_std_object_handlers(),
+		sizeof(zend_object_handlers));
+	fbird_service_handlers.offset    = XtOffsetOf(fbird_service_obj, std);
+	fbird_service_handlers.free_obj  = fbird_service_free_obj;
 }

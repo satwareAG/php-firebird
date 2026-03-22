@@ -504,12 +504,8 @@ execute_done:
              * For EXECUTE PROCEDURE it is ignored, but keep it consistent. */
             result_query->was_result_once = ib_query->was_result_once;
 
-            /* Reuse the original statement handle for metadata operations.
-             * This is safe for EXECUTE PROCEDURE and DML RETURNING because
-             * there is no open cursor to conflict with, and it enables
-             * alias resolution via the newer Firebird API which requires
-             * a valid statement handle. */
-            result_query->stmt = ib_query->stmt;
+            /* Reuse the OO statement wrapper for metadata operations. */
+            result_query->fbs_statement = ib_query->fbs_statement;
             /* Keep a copy of SQL text for symmetry with SELECT path and
              * potential debug/logging uses in helper routines. */
             if (ib_query->query) {
@@ -620,7 +616,7 @@ execute_done:
                 goto cleanup_result_query;
             }
 
-            result_query->stmt.ptr = 0; /* Do not reference the handle as it may be freed */
+            result_query->fbs_statement = NULL; /* Do not reference the handle as it may be freed */
 
 			/* Success - disable cleanup since resource system now owns the memory */
 			cleanup_needed = 0;
@@ -682,7 +678,6 @@ cleanup_result_query:
 			result_query->was_result_once = 1;
 
    /* Reuse parent's prepared statement and already-open cursor */
-   result_query->stmt = ib_query->stmt;
    result_query->query = estrdup(ib_query->query);
 
    /* Copy OO API structures for fetch operations

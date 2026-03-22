@@ -109,15 +109,6 @@ ZEND_END_MODULE_GLOBALS(fbird)
 
 ZEND_EXTERN_MODULE_GLOBALS(fbird)
 
-/* Union to safely hold 64-bit handles even if headers define them as 32-bit integers */
-typedef union {
-	void *ptr;
-	isc_db_handle db;
-	isc_tr_handle tr;
-	isc_stmt_handle stmt;
-	isc_blob_handle blob;
-} fb_safe_handle;
-
 typedef struct {
 	struct tr_list *tr_list;
 	unsigned short dialect;
@@ -212,7 +203,6 @@ typedef struct _ib_query {
     fbird_transaction *trans;
     zend_resource *trans_res;
     zend_resource *res;
-    fb_safe_handle stmt;
     XSQLDA *in_sqlda, *out_sqlda;
     fbird_array *in_array, *out_array;
     unsigned short type, has_more_rows, is_open;
@@ -236,9 +226,7 @@ typedef struct _ib_query {
     struct _ib_query *parent;
     struct _ib_query *child_head;
     struct _ib_query *child_next;
-    /* OO API statement wrapper (fb::Statement* from fbs_prepare())
-     * When non-NULL, this statement was prepared via the modern OO API.
-     * The stmt.ptr may be 0 in this case - use fbs_get_statement() instead. */
+    /* OO API statement wrapper (fb::Statement* from fbs_prepare()) */
     void *fbs_statement;
     void *fbs_resultset;  /* OO API IResultSet* for cursor operations */
     /* OO API message buffer for fetch operations (Phase 12+)

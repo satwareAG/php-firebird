@@ -285,13 +285,7 @@ static inline int fbird_query_is_valid(const fbird_query* q)
     if (q == NULL) {
         return 0;
     }
-    if (fbird_query_is_oo(q)) {
-        /* OO mode: fbs_statement must be set */
-        return q->fbs_statement != NULL;
-    } else {
-        /* Legacy mode: stmt.stmt must be set */
-        return q->stmt.stmt != 0;
-    }
+    return q->fbs_statement != NULL;
 }
 
 #endif /* PHP_FBIRD_COMPAT_H */

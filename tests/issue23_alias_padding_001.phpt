@@ -1,14 +1,13 @@
 --TEST--
-Issue #23: Column alias deduplication works correctly with padded aliases (Firebird 4.0+)
+Issue #23: Column alias deduplication works correctly with padded aliases (Firebird 3.0)
 --SKIPIF--
 <?php
 include("skipif.inc");
 // This test validates alias trimming behavior which varies between Firebird versions
 // Firebird 4.0 is the most consistent target for this test
-skip_if_fb_lt(4.0);
-skip_if_fb_gte(5.0);
-// PHP 8.1 has different hash table ordering that affects this test
-// PHP 8.2, 8.4, and 8.5 also has different internal behavior affecting this test
+// Firebird 4.0 deduplicates identical column aliases at the server level,
+// returning only 1 column for SELECT 1 AS COL, 2 AS COL — skip FB4+
+skip_if_fb_gte(4.0);
 if (PHP_VERSION_ID < 80200) die('skip PHP < 8.2');
 ?>
 --FILE--

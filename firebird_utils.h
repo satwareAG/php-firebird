@@ -25,6 +25,32 @@ ISC_TIME fbu_encode_time(void *master_ptr, unsigned hours, unsigned minutes,
   unsigned seconds, unsigned fractions);
 ISC_DATE fbu_encode_date(void *master_ptr, unsigned year, unsigned month, unsigned day);
 
+/**
+ * Extract SQLCODE from a Firebird status vector.
+ * Wraps isc_sqlcode() to isolate the legacy isc_* call in firebird_utils.cpp.
+ *
+ * @param status_vector ISC_STATUS array (typically IB_STATUS)
+ * @return SQLCODE value (negative for errors, 0 for success)
+ */
+long fbu_sqlcode(const ISC_STATUS *status_vector);
+
+/**
+ * Look up array bounds for a named array column.
+ * Wraps isc_array_lookup_bounds() to isolate the legacy call.
+ *
+ * @param status_vector Output status vector
+ * @param db_handle Pointer to isc_db_handle
+ * @param tr_handle Pointer to isc_tr_handle
+ * @param relation_name Table name (null-terminated)
+ * @param field_name Column name (null-terminated)
+ * @param desc Output ISC_ARRAY_DESC
+ * @return 0 on success, non-zero on failure
+ */
+ISC_STATUS fba_array_lookup_bounds(ISC_STATUS *status_vector,
+    isc_db_handle *db_handle, isc_tr_handle *tr_handle,
+    const char *relation_name, const char *field_name,
+    ISC_ARRAY_DESC *desc);
+
 /* Type Encoding/Decoding Functions (OO API via IUtil interface) */
 
 /**

@@ -382,7 +382,7 @@ PHP_FUNCTION(fbird_poll_event)
 		RETURN_NULL(); /* Handler was cancelled */
 	}
 
-	if (!event->link || event->link->handle.ptr == 0) {
+	if (!event->link || !fbc_is_connected(event->link->fbc_connection)) {
 		event->state = DEAD;
 		RETURN_FALSE; /* Connection lost */
 	}

@@ -85,7 +85,7 @@ int _php_fbird_alloc_array(fbird_array **ib_arrayp, XSQLDA *sqlda,
             if (len > 0) memcpy(sname, var->sqlname, len);
         }
 
-		if (isc_array_lookup_bounds(IB_STATUS, &link.db, &trans.tr, rname,
+		if (fba_array_lookup_bounds(IB_STATUS, &link.db, &trans.tr, rname,
 				sname, ar_desc)) {
 			_php_fbird_error();
 			efree(ar);
@@ -306,8 +306,6 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size,
 					break;
 			}
 		} else {
-			struct tm t = { 0 };
-
 			switch (array->el_type) {
 				case SQL_SHORT:
 					{
@@ -387,8 +385,8 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size,
 								dt.hours, dt.minutes, dt.seconds,
 								dt.fractions);
 						} else {
-							/* Parsing failed - use legacy encoding with zeroed struct tm */
-							isc_encode_timestamp(&t, (ISC_TIMESTAMP *)buf);
+							/* Parsing failed - encode zero timestamp via OO API */
+							*(ISC_TIMESTAMP *)buf = fbu_encode_timestamp(IBG(master_instance), 0, 0, 0, 0, 0, 0, 0);
 						}
 						zend_string_release(str);
 					}
@@ -437,8 +435,8 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size,
 							*(ISC_DATE *)buf = fbu_encode_date(IBG(master_instance),
 								dt.year, dt.month, dt.day);
 						} else {
-							/* Parsing failed - use legacy encoding with zeroed struct tm */
-							isc_encode_sql_date(&t, (ISC_DATE *)buf);
+							/* Parsing failed - encode zero date via OO API */
+							*(ISC_DATE *)buf = fbu_encode_date(IBG(master_instance), 0, 0, 0);
 						}
 						zend_string_release(str);
 					}
@@ -455,8 +453,8 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size,
 								dt.hours, dt.minutes, dt.seconds,
 								dt.fractions);
 						} else {
-							/* Parsing failed - use legacy encoding with zeroed struct tm */
-							isc_encode_sql_time(&t, (ISC_TIME *)buf);
+							/* Parsing failed - encode zero time via OO API */
+							*(ISC_TIME *)buf = fbu_encode_time(IBG(master_instance), 0, 0, 0, 0);
 						}
 						zend_string_release(str);
 					}

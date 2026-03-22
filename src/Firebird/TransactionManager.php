@@ -23,7 +23,7 @@ require_once __DIR__ . '/functions.php';
  * Object-oriented wrapper for Firebird transactions.
  *
  * This class provides a modern OO interface for transaction management,
- * wrapping the procedural fbird_trans(), fbird_commit(), fbird_rollback()
+ * wrapping the procedural \fbird_trans(), \fbird_commit(), \fbird_rollback()
  * functions.
  *
  * Usage:
@@ -88,10 +88,10 @@ class TransactionManager
     {
         $conn = $connection instanceof Database ? $connection->getResource() : $connection;
 
-        $resource = fbird_trans_begin($conn, FBIRD_DEFAULT);
+        $resource = \fbird_trans($conn);
 
         if ($resource === false) {
-            throw new \Exception(fbird_errmsg() ?: 'Failed to start transaction');
+            throw new \Exception(\fbird_errmsg() ?: 'Failed to start transaction');
         }
 
         return new self($resource, $conn);
@@ -133,7 +133,7 @@ class TransactionManager
             return null;
         }
 
-        $info = fbird_trans_info($this->resource);
+        $info = \fbird_trans_info($this->resource);
         return $info['id'] ?? null;
     }
 
@@ -155,7 +155,7 @@ class TransactionManager
             return null;
         }
 
-        $info = fbird_trans_info($this->resource);
+        $info = \fbird_trans_info($this->resource);
         return $info !== false ? $info : null;
     }
 
@@ -201,9 +201,9 @@ class TransactionManager
             throw new \Exception('Transaction is not active');
         }
 
-        $result = fbird_commit($this->resource);
+        $result = \fbird_commit($this->resource);
         if ($result === false) {
-            throw new \Exception(fbird_errmsg() ?: 'Failed to commit transaction');
+            throw new \Exception(\fbird_errmsg() ?: 'Failed to commit transaction');
         }
 
         $this->committed = true;
@@ -225,9 +225,9 @@ class TransactionManager
             throw new \Exception('Transaction is not active');
         }
 
-        $result = fbird_commit_ret($this->resource);
+        $result = \fbird_commit_ret($this->resource);
         if ($result === false) {
-            throw new \Exception(fbird_errmsg() ?: 'Failed to commit transaction with retain');
+            throw new \Exception(\fbird_errmsg() ?: 'Failed to commit transaction with retain');
         }
 
         return true;
@@ -245,9 +245,9 @@ class TransactionManager
             throw new \Exception('Transaction is not active');
         }
 
-        $result = fbird_rollback($this->resource);
+        $result = \fbird_rollback($this->resource);
         if ($result === false) {
-            throw new \Exception(fbird_errmsg() ?: 'Failed to rollback transaction');
+            throw new \Exception(\fbird_errmsg() ?: 'Failed to rollback transaction');
         }
 
         $this->rolledBack = true;
@@ -269,9 +269,9 @@ class TransactionManager
             throw new \Exception('Transaction is not active');
         }
 
-        $result = fbird_rollback_ret($this->resource);
+        $result = \fbird_rollback_ret($this->resource);
         if ($result === false) {
-            throw new \Exception(fbird_errmsg() ?: 'Failed to rollback transaction with retain');
+            throw new \Exception(\fbird_errmsg() ?: 'Failed to rollback transaction with retain');
         }
 
         return true;
@@ -297,9 +297,9 @@ class TransactionManager
             );
         }
 
-        $result = fbird_query_params_tx($this->connection, $this->resource, "SAVEPOINT {$name}");
+        $result = \fbird_savepoint($this->resource, $name);
         if ($result === false) {
-            throw new \Exception(fbird_errmsg() ?: "Failed to create savepoint: {$name}");
+            throw new \Exception(\fbird_errmsg() ?: "Failed to create savepoint: {$name}");
         }
 
         $this->savepoints[$name] = true;
@@ -323,9 +323,9 @@ class TransactionManager
             throw new \Exception("Savepoint not found: {$name}");
         }
 
-        $result = fbird_query_params_tx($this->connection, $this->resource, "ROLLBACK TO SAVEPOINT {$name}");
+        $result = \fbird_rollback_savepoint($this->resource, $name);
         if ($result === false) {
-            throw new \Exception(fbird_errmsg() ?: "Failed to rollback to savepoint: {$name}");
+            throw new \Exception(\fbird_errmsg() ?: "Failed to rollback to savepoint: {$name}");
         }
 
         return $this;
@@ -348,9 +348,9 @@ class TransactionManager
             throw new \Exception("Savepoint not found: {$name}");
         }
 
-        $result = fbird_query_params_tx($this->connection, $this->resource, "RELEASE SAVEPOINT {$name}");
+        $result = \fbird_release_savepoint($this->resource, $name);
         if ($result === false) {
-            throw new \Exception(fbird_errmsg() ?: "Failed to release savepoint: {$name}");
+            throw new \Exception(\fbird_errmsg() ?: "Failed to release savepoint: {$name}");
         }
 
         unset($this->savepoints[$name]);
@@ -380,7 +380,10 @@ class TransactionManager
             throw new \Exception('Transaction is not active');
         }
 
-        return fbird_query_params_tx($this->connection, $this->resource, $sql, $params);
+        if ($params) {
+            return \fbird_query_params_tx($this->connection, $this->resource, $sql, $params);
+        }
+        return \fbird_query_params_tx($this->connection, $this->resource, $sql);
     }
 
     /**
@@ -389,7 +392,7 @@ class TransactionManager
     public function __destruct()
     {
         if ($this->isActive()) {
-            @fbird_rollback($this->resource);
+            @\fbird_rollback($this->resource);
         }
     }
 }

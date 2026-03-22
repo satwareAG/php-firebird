@@ -300,6 +300,7 @@ private:
     AttachmentPtr attachment_;              ///< RAII-managed attachment
     Firebird::IMaster* master_ = nullptr;   ///< Master interface (not owned)
     isc_db_handle legacy_handle_ = 0;       ///< Legacy handle (for compatibility)
+    bool dropped_ = false;                  ///< True after dropDatabase() — attachment is invalid
     std::string database_path_;             ///< Database path for this connection
     unsigned short dialect_ = 3;            ///< SQL dialect
     VersionInfo version_{VersionInfo::FB30}; ///< Client library version
@@ -539,6 +540,12 @@ inline bool Connection::detachNoThrow() noexcept {
         return true;
     }
 
+    // If the database was dropped on this connection, skip detach() — attachment is already invalid.
+    if (dropped_) {
+        attachment_.reset();
+        return true;
+    }
+
     try {
         if (master_) {
             // Use CheckStatusWrapper for Firebird template API
@@ -578,8 +585,9 @@ inline void Connection::dropDatabase() {
         throw Exception(raw_status);
     }
 
-    // After drop, the attachment is invalid
-    attachment_.release(); // Don't call release() on dropped attachment
+    // After drop, the attachment is invalid — mark dropped so detachNoThrow() skips detach()
+    dropped_ = true;
+    attachment_.reset();
 }
 
 inline void Connection::copyLastStatus(ISC_STATUS* dest, std::size_t dest_size) const noexcept {

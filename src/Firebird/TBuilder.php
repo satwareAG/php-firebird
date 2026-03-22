@@ -4,7 +4,7 @@
  * php-firebird: Fluent Transaction Parameter Builder
  *
  * Provides a modern, fluent interface for building transaction parameters
- * that wrap the existing fbird_trans() constants.
+ * that wrap the existing \fbird_trans() constants.
  *
  * @package   Firebird
  * @author    Michael Wegener <mw@satware.com>
@@ -21,7 +21,7 @@ namespace Firebird;
  *
  * This class provides a type-safe, discoverable API for configuring transactions
  * instead of using raw bitmask constants. The build() method returns an array
- * compatible with fbird_trans() and fbird_trans_start().
+ * compatible with \fbird_trans() and \fbird_trans_start().
  *
  * Usage:
  * ```php
@@ -32,7 +32,7 @@ namespace Firebird;
  *     ->wait(5)
  *     ->build();
  *
- * $trans = fbird_trans_start($db, $options);
+ * $trans = \fbird_trans_start($db, $options);
  * ```
  *
  * @see https://github.com/satwareAG/php-firebird
@@ -399,9 +399,9 @@ final class TBuilder
     // =========================================================================
 
     /**
-     * Build the options array for fbird_trans() / fbird_trans_start().
+     * Build the options array for \fbird_trans() / \fbird_trans_start().
      *
-     * Returns an associative array compatible with the new fbird_trans_start()
+     * Returns an associative array compatible with the new \fbird_trans_start()
      * array options format. For legacy bitmask usage, use buildFlags() instead.
      *
      * @return array{
@@ -450,10 +450,10 @@ final class TBuilder
     }
 
     /**
-     * Build a bitmask flags value for legacy fbird_trans() usage.
+     * Build a bitmask flags value for legacy \fbird_trans() usage.
      *
      * Use this when you need to pass a single integer value to the
-     * traditional fbird_trans($db, $flags) call.
+     * traditional \fbird_trans($db, $flags) call.
      *
      * @return int Combined bitmask of all configured options
      */
@@ -604,10 +604,12 @@ final class TBuilder
         }
 
         $options = $this->build();
-        $resource = fbird_trans_start($this->connection, $options);
+        $resource = empty($options)
+            ? \fbird_trans($this->connection)
+            : \fbird_trans_start($this->connection, $options);
 
         if ($resource === false) {
-            throw new \Exception(fbird_errmsg() ?: 'Failed to start transaction');
+            throw new \Exception(\fbird_errmsg() ?: 'Failed to start transaction');
         }
 
         return TransactionManager::fromResource($resource, $this->connection);

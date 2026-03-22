@@ -27,7 +27,7 @@ namespace Firebird;
  *
  * Usage:
  * ```php
- * // When fbird_connection_info() is implemented:
+ * // When \fbird_connection_info() is implemented:
  * $info = DbInfo::fromConnection($db);
  *
  * echo "Page size: {$info->pageSize}\n";
@@ -140,7 +140,7 @@ final class DbInfo
      */
     public static function fromConnection(mixed $connection): self
     {
-        $data = fbird_connection_info($connection);
+        $data = \fbird_connection_info($connection);
 
         return $data === false ? new self([]) : new self($data);
     }

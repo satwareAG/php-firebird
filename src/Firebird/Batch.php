@@ -20,7 +20,7 @@ use RuntimeException;
 /**
  * Object-oriented wrapper for Firebird IBatch bulk operations.
  *
- * This class provides a fluent interface around the procedural fbird_batch_*
+ * This class provides a fluent interface around the procedural \fbird_batch_*
  * functions for efficient bulk insert operations. IBatch (Firebird 4.0+)
  * offers significant performance improvements for inserting large numbers
  * of rows compared to individual INSERT statements.
@@ -34,7 +34,7 @@ use RuntimeException;
  * Usage:
  * ```php
  * // Create batch from prepared statement
- * $stmt = fbird_prepare($db, "INSERT INTO users (id, name) VALUES (?, ?)");
+ * $stmt = \fbird_prepare($db, "INSERT INTO users (id, name) VALUES (?, ?)");
  * $batch = Batch::fromQuery($stmt);
  *
  * // Add rows using fluent interface
@@ -59,7 +59,7 @@ use RuntimeException;
 final class Batch
 {
     /**
-     * The underlying batch resource from fbird_batch_create().
+     * The underlying batch resource from \fbird_batch_create().
      *
      * @var resource|null
      */
@@ -95,22 +95,22 @@ final class Batch
     /**
      * Create a Batch from a prepared query resource.
      *
-     * @param resource $query Prepared statement from fbird_prepare()
+     * @param resource $query Prepared statement from \fbird_prepare()
      * @return self
      * @throws RuntimeException If batch creation fails
      */
     public static function fromQuery(mixed $query): self
     {
-        if (!function_exists('fbird_batch_create')) {
+        if (!function_exists('\fbird_batch_create')) {
             throw new RuntimeException(
                 'IBatch API requires Firebird 4.0+ and php-firebird compiled with FB_API_VER >= 40'
             );
         }
 
-        $resource = fbird_batch_create($query);
+        $resource = \fbird_batch_create($query);
         if ($resource === false) {
             throw new RuntimeException(
-                'Failed to create batch: ' . (fbird_errmsg() ?: 'Unknown error')
+                'Failed to create batch: ' . (\fbird_errmsg() ?: 'Unknown error')
             );
         }
 
@@ -151,10 +151,10 @@ final class Batch
         $this->ensureValidResource();
         assert(is_resource($this->resource));
 
-        $result = fbird_batch_add($this->resource, ...$params);
+        $result = \fbird_batch_add($this->resource, ...$params);
         if ($result === false) {
             throw new RuntimeException(
-                'Failed to add row to batch: ' . (fbird_errmsg() ?: 'Unknown error')
+                'Failed to add row to batch: ' . (\fbird_errmsg() ?: 'Unknown error')
             );
         }
 
@@ -176,10 +176,10 @@ final class Batch
         $this->ensureValidResource();
         assert(is_resource($this->resource));
 
-        $result = fbird_batch_execute($this->resource);
+        $result = \fbird_batch_execute($this->resource);
         if ($result === false) {
             throw new RuntimeException(
-                'Failed to execute batch: ' . (fbird_errmsg() ?: 'Unknown error')
+                'Failed to execute batch: ' . (\fbird_errmsg() ?: 'Unknown error')
             );
         }
 
@@ -198,10 +198,11 @@ final class Batch
     public function cancel(): void
     {
         if ($this->resource !== null && is_resource($this->resource)) {
-            fbird_batch_cancel($this->resource);
+            \fbird_batch_cancel($this->resource);
         }
         $this->resource = null;
         $this->executed = true;
+        $this->rowCount = 0;
     }
 
     /**
@@ -220,10 +221,10 @@ final class Batch
         $this->ensureValidResource();
         assert(is_resource($this->resource));
 
-        $blobIdStr = fbird_batch_add_blob($this->resource, $data, $type);
+        $blobIdStr = \fbird_batch_add_blob($this->resource, $data, $type);
         if ($blobIdStr === false) {
             throw new RuntimeException(
-                'Failed to add BLOB to batch: ' . (fbird_errmsg() ?: 'Unknown error')
+                'Failed to add BLOB to batch: ' . (\fbird_errmsg() ?: 'Unknown error')
             );
         }
 
@@ -248,10 +249,10 @@ final class Batch
         $this->ensureValidResource();
         assert(is_resource($this->resource));
 
-        $blobIdStr = fbird_batch_register_blob($this->resource, (string) $existingBlob);
+        $blobIdStr = \fbird_batch_register_blob($this->resource, (string) $existingBlob);
         if ($blobIdStr === false) {
             throw new RuntimeException(
-                'Failed to register BLOB in batch: ' . (fbird_errmsg() ?: 'Unknown error')
+                'Failed to register BLOB in batch: ' . (\fbird_errmsg() ?: 'Unknown error')
             );
         }
 
@@ -272,10 +273,10 @@ final class Batch
         $this->ensureValidResource();
         assert(is_resource($this->resource));
 
-        $alignment = fbird_batch_get_blob_alignment($this->resource);
+        $alignment = \fbird_batch_get_blob_alignment($this->resource);
         if ($alignment === false) {
             throw new RuntimeException(
-                'Failed to get BLOB alignment: ' . (fbird_errmsg() ?: 'Unknown error')
+                'Failed to get BLOB alignment: ' . (\fbird_errmsg() ?: 'Unknown error')
             );
         }
 

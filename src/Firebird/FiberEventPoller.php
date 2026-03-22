@@ -26,7 +26,7 @@ namespace Firebird;
  * - revolt/event-loop package (usually included with amphp)
  *
  * **Note on Implementation:**
- * Since fbird_poll_event() is a blocking call and PHP Fibers don't
+ * Since \fbird_poll_event() is a blocking call and PHP Fibers don't
  * provide true thread-level parallelism, this implementation uses
  * process isolation internally (similar to ProcessEventPoller) but
  * integrates with the AMPHP event loop for timeout handling.
@@ -86,7 +86,7 @@ class FiberEventPoller implements EventPollerInterface
     /**
      * Create a new Fiber-based event poller.
      *
-     * @param resource $event The event handler resource from fbird_set_event_handler()
+     * @param resource $event The event handler resource from \fbird_set_event_handler()
      *
      * @throws \RuntimeException If requirements are not met
      */
@@ -101,7 +101,7 @@ class FiberEventPoller implements EventPollerInterface
 
         if (!is_resource($event) && !($event instanceof \Firebird\Event)) {
             throw new \InvalidArgumentException(
-                'Expected event handler resource from fbird_set_event_handler()'
+                'Expected event handler resource from \fbird_set_event_handler()'
             );
         }
 
@@ -153,7 +153,7 @@ class FiberEventPoller implements EventPollerInterface
         }
 
         // Fallback to direct blocking call
-        return fbird_poll_event($this->event, $timeoutMs);
+        return \fbird_poll_event($this->event, $timeoutMs);
     }
 
     /**
@@ -286,7 +286,7 @@ class FiberEventPoller implements EventPollerInterface
     public function free(): void
     {
         if (!$this->freed && $this->event !== null) {
-            @fbird_free_event_handler($this->event);
+            @\fbird_free_event_handler($this->event);
             $this->event = null;
             $this->freed = true;
         }

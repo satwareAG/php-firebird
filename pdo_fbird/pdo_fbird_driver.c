@@ -323,6 +323,18 @@ static bool pdo_fbird_handle_set_attribute(pdo_dbh_t *dbh, zend_long attr, zval 
 		case PDO_FBIRD_ATTR_FETCH_TABLE_NAMES:
 			H->fetch_table_names = zval_is_true(val) ? 1 : 0;
 			return true;
+		case PDO_FBIRD_ATTR_SET_BIND: {
+			/* Execute SET BIND statement (Firebird 4+ only) */
+			if (Z_TYPE_P(val) != IS_STRING || Z_STRLEN_P(val) == 0) {
+				return false;
+			}
+			char buf[256];
+			snprintf(buf, sizeof(buf), "SET BIND OF %s", Z_STRVAL_P(val));
+			zend_string *sql = zend_string_init(buf, strlen(buf), 0);
+			zend_long rows = pdo_fbird_handle_doer(dbh, sql);
+			zend_string_release(sql);
+			return (rows != -1) ? true : false;
+		}
 	}
 	return false;
 }
@@ -378,6 +390,10 @@ static int pdo_fbird_handle_get_attribute(pdo_dbh_t *dbh, zend_long attr, zval *
 		case PDO_FBIRD_ATTR_FETCH_TABLE_NAMES:
 			ZVAL_BOOL(val, H->fetch_table_names);
 			return 1;
+		case PDO_FBIRD_ATTR_SET_BIND:
+			/* SET BIND is write-only; return empty string for get */
+			ZVAL_STRING(val, "");
+			return 1;
 	}
 	return 0;
 }
@@ -387,7 +403,11 @@ static int pdo_fbird_handle_get_attribute(pdo_dbh_t *dbh, zend_long attr, zval *
 static zend_result pdo_fbird_check_liveness(pdo_dbh_t *dbh)
 {
 	pdo_fbird_db_handle *H = (pdo_fbird_db_handle *)dbh->driver_data;
-	return (H->fbc_conn && fbc_is_connected(H->fbc_conn)) ? SUCCESS : FAILURE;
+	if (!H->fbc_conn || !fbc_is_connected(H->fbc_conn)) {
+		return FAILURE;
+	}
+	/* Real server ping via isc_info roundtrip */
+	return fbc_ping(IBG(master_instance), H->fbc_conn, H->status) ? SUCCESS : FAILURE;
 }
 /* }}} */
 

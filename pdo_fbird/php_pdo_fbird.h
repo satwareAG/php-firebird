@@ -30,6 +30,7 @@ PHP_MSHUTDOWN_FUNCTION(pdo_fbird);
 #define PDO_FBIRD_ATTR_TIME_FORMAT                 1008
 #define PDO_FBIRD_ATTR_TIMESTAMP_FORMAT            1009
 #define PDO_FBIRD_ATTR_FETCH_TABLE_NAMES           1010
+#define PDO_FBIRD_ATTR_SET_BIND                    1011
 
 /* Transaction isolation level values for PDO_FBIRD_ATTR_TRANSACTION_ISOLATION_LEVEL */
 #define PDO_FBIRD_TXN_READ_COMMITTED   1

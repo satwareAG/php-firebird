@@ -57,6 +57,10 @@ PHP_MINIT_FUNCTION(pdo_fbird)
 		/* Fetch table names attribute */
 		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_FETCH_TABLE_NAMES",
 			sizeof("FBIRD_ATTR_FETCH_TABLE_NAMES") - 1, PDO_FBIRD_ATTR_FETCH_TABLE_NAMES);
+
+		/* Bind config attribute (FB 4+ SET BIND) */
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_SET_BIND",
+			sizeof("FBIRD_ATTR_SET_BIND") - 1, PDO_FBIRD_ATTR_SET_BIND);
 	}
 
 	return SUCCESS;

@@ -722,6 +722,31 @@ extern "C" int fbc_is_connected(void* connection) {
     return conn->isConnected() ? 1 : 0;
 }
 
+extern "C" int fbc_ping(void* master_ptr, void* connection, ISC_STATUS* status_vector) {
+    if (!master_ptr || !connection) {
+        return 0;
+    }
+    if (!fbc_is_connected(connection)) {
+        return 0;
+    }
+
+    /* Use fbc_get_info with isc_info_ods_version as a lightweight server roundtrip */
+    void* attachment = fbc_get_attachment(connection);
+    if (!attachment) {
+        return 0;
+    }
+
+    unsigned char info_items[] = { isc_info_ods_version };
+    unsigned char info_buffer[32] = {0};
+    ISC_STATUS local_status[ISC_STATUS_LENGTH] = {0};
+
+    int ok = fbc_get_info(master_ptr, attachment,
+                          sizeof(info_items), info_items,
+                          sizeof(info_buffer), info_buffer,
+                          status_vector ? status_vector : local_status);
+    return ok;
+}
+
 extern "C" unsigned fbc_get_server_version(void* connection) {
     if (!connection) {
         return 0;

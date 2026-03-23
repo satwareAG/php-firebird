@@ -193,6 +193,18 @@ void* fbc_create_database(
 int fbc_is_connected(void* connection);
 
 /**
+ * Ping the server to verify the connection is alive.
+ * Executes a lightweight query (SELECT 1 FROM RDB$DATABASE) to confirm
+ * the server is reachable and the connection is valid.
+ *
+ * @param master_ptr IMaster interface pointer
+ * @param connection Pointer returned by fbc_connect()
+ * @param status_vector Output status vector for errors
+ * @return 1 if alive, 0 if dead or error
+ */
+int fbc_ping(void* master_ptr, void* connection, ISC_STATUS* status_vector);
+
+/**
  * Get the IAttachment pointer from a connection.
  *
  * @param connection Pointer returned by fbc_connect()

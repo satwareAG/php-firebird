@@ -269,3 +269,19 @@ Run `bash scripts/daily-routine.sh eod` to execute the full EOD checklist.
 ### Status
 - v8.2.0 milestone issues #127, #128, #130, #131 all resolved
 - v8.2.0 milestone: all P1 features + issues complete, ready for release
+
+## Evening Session 3 — 2026-03-23 17:50
+
+### Completed
+- **v8.2.0 released** — GitHub release at https://github.com/satwareAG/php-firebird/releases/tag/v8.2.0, milestone closed
+- **§4.1 check_liveness** — `fbc_ping()` added using `fbc_get_info(isc_info_ods_version)` for real server roundtrip; `pdo_fbird_check_liveness()` upgraded from local-only check
+- **§4.5 bind config** — `PDO::FBIRD_ATTR_SET_BIND` attribute executes `SET BIND OF <rule>` via doer (FB 4+ only)
+- 2 new tests: `pdo_fbird_check_liveness.phpt`, `pdo_fbird_bind_config.phpt`
+
+### Test Results
+- 235 passed, 8 skipped, 0 failed (100% pass rate)
+
+### Remaining Section 4 P2 Items
+- §4.2 Service API via PDO (L complexity — design + implement)
+- §4.3 Array field support (L complexity)
+- §4.4 Async event polling (L complexity)

@@ -283,6 +283,12 @@ namespace fb {
  * PHP extension's global state.
  */
 Firebird::IMaster* getMaster() noexcept {
+    // During MSHUTDOWN, the Firebird client library may already be released.
+    // Return nullptr to prevent dangling pointer access in persistent connection
+    // destructors (fixes pconnect shutdown SIGSEGV — Issue #50, #51).
+    if (IBG(in_mshutdown)) {
+        return nullptr;
+    }
     // IBG(master_instance) is defined in php_fbird_includes.h
     // It's stored as void* for C compatibility
     return static_cast<Firebird::IMaster*>(IBG(master_instance));
@@ -1129,6 +1135,66 @@ extern "C" int fbu_encode_time_tz(void *master_ptr, ISC_TIME_TZ* time_tz,
     }
 }
 
+/* Convert INT128 to string */
+extern "C" int fbu_int128_to_string(void *master_ptr, const void *value, int scale,
+	char *buffer, unsigned buffer_length)
+{
+    if (!master_ptr || !value || !buffer || buffer_length == 0) return -1;
+    try {
+        auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+        Firebird::IStatus* fb_status = master->getStatus();
+        Firebird::CheckStatusWrapper status(fb_status);
+        Firebird::IUtil* util = master->getUtilInterface();
+        Firebird::IInt128* i128 = util->getInt128(&status);
+        if (status.isDirty()) return -1;
+        i128->toString(&status, static_cast<const FB_I128*>(value), scale, buffer_length, buffer);
+        if (status.isDirty()) return -1;
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+/* Convert DECFLOAT(16) to string */
+extern "C" int fbu_decfloat16_to_string(void *master_ptr, const void *value,
+	char *buffer, unsigned buffer_length)
+{
+    if (!master_ptr || !value || !buffer || buffer_length == 0) return -1;
+    try {
+        auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+        Firebird::IStatus* fb_status = master->getStatus();
+        Firebird::CheckStatusWrapper status(fb_status);
+        Firebird::IUtil* util = master->getUtilInterface();
+        Firebird::IDecFloat16* df16 = util->getDecFloat16(&status);
+        if (status.isDirty()) return -1;
+        df16->toString(&status, static_cast<const FB_DEC16*>(value), buffer_length, buffer);
+        if (status.isDirty()) return -1;
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+/* Convert DECFLOAT(34) to string */
+extern "C" int fbu_decfloat34_to_string(void *master_ptr, const void *value,
+	char *buffer, unsigned buffer_length)
+{
+    if (!master_ptr || !value || !buffer || buffer_length == 0) return -1;
+    try {
+        auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+        Firebird::IStatus* fb_status = master->getStatus();
+        Firebird::CheckStatusWrapper status(fb_status);
+        Firebird::IUtil* util = master->getUtilInterface();
+        Firebird::IDecFloat34* df34 = util->getDecFloat34(&status);
+        if (status.isDirty()) return -1;
+        df34->toString(&status, static_cast<const FB_DEC34*>(value), buffer_length, buffer);
+        if (status.isDirty()) return -1;
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
 /* Encode timestamp with timezone */
 extern "C" int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* timestamp_tz,
 	unsigned year, unsigned month, unsigned day,
@@ -1302,6 +1368,41 @@ extern "C" int fbs_fetch(
     auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
 
     return wrapper->fetchNext(master, out_msg, status_vector);
+}
+
+extern "C" int fbs_fetch_prior(void* master_ptr, void* statement_ptr, void* out_msg, ISC_STATUS* status_vector) {
+    if (!master_ptr || !statement_ptr) return -1;
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    return wrapper->fetchPrior(master, out_msg, status_vector);
+}
+
+extern "C" int fbs_fetch_first(void* master_ptr, void* statement_ptr, void* out_msg, ISC_STATUS* status_vector) {
+    if (!master_ptr || !statement_ptr) return -1;
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    return wrapper->fetchFirst(master, out_msg, status_vector);
+}
+
+extern "C" int fbs_fetch_last(void* master_ptr, void* statement_ptr, void* out_msg, ISC_STATUS* status_vector) {
+    if (!master_ptr || !statement_ptr) return -1;
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    return wrapper->fetchLast(master, out_msg, status_vector);
+}
+
+extern "C" int fbs_fetch_absolute(void* master_ptr, void* statement_ptr, int position, void* out_msg, ISC_STATUS* status_vector) {
+    if (!master_ptr || !statement_ptr) return -1;
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    return wrapper->fetchAbsolute(master, position, out_msg, status_vector);
+}
+
+extern "C" int fbs_fetch_relative(void* master_ptr, void* statement_ptr, int offset, void* out_msg, ISC_STATUS* status_vector) {
+    if (!master_ptr || !statement_ptr) return -1;
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    return wrapper->fetchRelative(master, offset, out_msg, status_vector);
 }
 
 extern "C" int fbs_close_cursor(void* statement_ptr, ISC_STATUS* status_vector) {

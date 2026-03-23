@@ -110,6 +110,12 @@ static bool pdo_fbird_handle_preparer(pdo_dbh_t *dbh, zend_string *sql,
 	   named params through param_hook for positional resolution. */
 	stmt->supports_placeholders = PDO_PLACEHOLDER_NAMED;
 
+	/* Check for scrollable cursor request */
+	if (driver_options) {
+		zend_long cursor_type = pdo_attr_lval(driver_options, PDO_ATTR_CURSOR, PDO_CURSOR_FWDONLY);
+		S->scrollable = (cursor_type == PDO_CURSOR_SCROLL) ? 1 : 0;
+	}
+
 	/* Preprocess: convert :name → ? and build name→position map */
 	pdo_fbird_named_param *np = NULL;
 	unsigned int np_count = 0;

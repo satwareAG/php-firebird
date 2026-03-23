@@ -431,6 +431,36 @@ int fbs_fetch(
 );
 
 /**
+ * Fetch previous row from scrollable cursor.
+ * @return 1 = row fetched, 0 = end of data, -1 = error
+ */
+int fbs_fetch_prior(void* master_ptr, void* statement_ptr, void* out_msg, ISC_STATUS* status_vector);
+
+/**
+ * Fetch first row from scrollable cursor.
+ * @return 1 = row fetched, 0 = end of data, -1 = error
+ */
+int fbs_fetch_first(void* master_ptr, void* statement_ptr, void* out_msg, ISC_STATUS* status_vector);
+
+/**
+ * Fetch last row from scrollable cursor.
+ * @return 1 = row fetched, 0 = end of data, -1 = error
+ */
+int fbs_fetch_last(void* master_ptr, void* statement_ptr, void* out_msg, ISC_STATUS* status_vector);
+
+/**
+ * Fetch row at absolute position from scrollable cursor.
+ * @return 1 = row fetched, 0 = end of data, -1 = error
+ */
+int fbs_fetch_absolute(void* master_ptr, void* statement_ptr, int position, void* out_msg, ISC_STATUS* status_vector);
+
+/**
+ * Fetch row at relative offset from scrollable cursor.
+ * @return 1 = row fetched, 0 = end of data, -1 = error
+ */
+int fbs_fetch_relative(void* master_ptr, void* statement_ptr, int offset, void* out_msg, ISC_STATUS* status_vector);
+
+/**
  * Close cursor.
  *
  * @param statement_ptr StatementWrapper pointer
@@ -1012,6 +1042,40 @@ int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* timestamp_tz,
 	unsigned year, unsigned month, unsigned day,
 	unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions,
 	const char* time_zone);
+
+/**
+ * Convert FB_I128 (INT128) to string representation.
+ * @param master_ptr IMaster pointer
+ * @param value Pointer to FB_I128 value
+ * @param scale Scale factor (negative for decimal places)
+ * @param buffer Output buffer
+ * @param buffer_length Buffer size
+ * @return 0 on success, -1 on error
+ */
+int fbu_int128_to_string(void *master_ptr, const void *value, int scale,
+	char *buffer, unsigned buffer_length);
+
+/**
+ * Convert FB_DEC16 (DECFLOAT(16)) to string representation.
+ * @param master_ptr IMaster pointer
+ * @param value Pointer to FB_DEC16 value
+ * @param buffer Output buffer
+ * @param buffer_length Buffer size
+ * @return 0 on success, -1 on error
+ */
+int fbu_decfloat16_to_string(void *master_ptr, const void *value,
+	char *buffer, unsigned buffer_length);
+
+/**
+ * Convert FB_DEC34 (DECFLOAT(34)) to string representation.
+ * @param master_ptr IMaster pointer
+ * @param value Pointer to FB_DEC34 value
+ * @param buffer Output buffer
+ * @param buffer_length Buffer size
+ * @return 0 on success, -1 on error
+ */
+int fbu_decfloat34_to_string(void *master_ptr, const void *value,
+	char *buffer, unsigned buffer_length);
 #endif // FB_API_VER >= 40
 
 int fbu_insert_field_info(void *master_ptr, ISC_STATUS* status, int is_outvar, int num,

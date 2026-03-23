@@ -314,6 +314,108 @@ public:
     }
 
     /**
+     * @brief Fetch previous row from scrollable cursor
+     * @return 1 = row fetched, 0 = end of data, -1 = error
+     */
+    int fetchPrior(
+        Firebird::IMaster* master,
+        void* out_msg,
+        ISC_STATUS* status_vector
+    ) noexcept {
+        if (!result_set_ || !master) return -1;
+        try {
+            Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
+            Firebird::CheckStatusWrapper status(fb_status);
+            int r = result_set_->fetchPrior(&status, static_cast<unsigned char*>(out_msg));
+            if (statusHasError(fb_status)) { copyStatusToVector(fb_status, status_vector); return -1; }
+            return (r == Firebird::IStatus::RESULT_OK) ? 1 : 0;
+        } catch (...) { return -1; }
+    }
+
+    /**
+     * @brief Fetch first row from scrollable cursor
+     * @return 1 = row fetched, 0 = end of data, -1 = error
+     */
+    int fetchFirst(
+        Firebird::IMaster* master,
+        void* out_msg,
+        ISC_STATUS* status_vector
+    ) noexcept {
+        if (!result_set_ || !master) return -1;
+        try {
+            Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
+            Firebird::CheckStatusWrapper status(fb_status);
+            int r = result_set_->fetchFirst(&status, static_cast<unsigned char*>(out_msg));
+            if (statusHasError(fb_status)) { copyStatusToVector(fb_status, status_vector); return -1; }
+            return (r == Firebird::IStatus::RESULT_OK) ? 1 : 0;
+        } catch (...) { return -1; }
+    }
+
+    /**
+     * @brief Fetch last row from scrollable cursor
+     * @return 1 = row fetched, 0 = end of data, -1 = error
+     */
+    int fetchLast(
+        Firebird::IMaster* master,
+        void* out_msg,
+        ISC_STATUS* status_vector
+    ) noexcept {
+        if (!result_set_ || !master) return -1;
+        try {
+            Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
+            Firebird::CheckStatusWrapper status(fb_status);
+            int r = result_set_->fetchLast(&status, static_cast<unsigned char*>(out_msg));
+            if (statusHasError(fb_status)) { copyStatusToVector(fb_status, status_vector); return -1; }
+            return (r == Firebird::IStatus::RESULT_OK) ? 1 : 0;
+        } catch (...) { return -1; }
+    }
+
+    /**
+     * @brief Fetch row at absolute position from scrollable cursor
+     * @return 1 = row fetched, 0 = end of data, -1 = error
+     */
+    int fetchAbsolute(
+        Firebird::IMaster* master,
+        int position,
+        void* out_msg,
+        ISC_STATUS* status_vector
+    ) noexcept {
+        if (!result_set_ || !master) return -1;
+        try {
+            Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
+            Firebird::CheckStatusWrapper status(fb_status);
+            int r = result_set_->fetchAbsolute(&status, position, static_cast<unsigned char*>(out_msg));
+            if (statusHasError(fb_status)) { copyStatusToVector(fb_status, status_vector); return -1; }
+            return (r == Firebird::IStatus::RESULT_OK) ? 1 : 0;
+        } catch (...) { return -1; }
+    }
+
+    /**
+     * @brief Fetch row at relative offset from scrollable cursor
+     * @return 1 = row fetched, 0 = end of data, -1 = error
+     */
+    int fetchRelative(
+        Firebird::IMaster* master,
+        int offset,
+        void* out_msg,
+        ISC_STATUS* status_vector
+    ) noexcept {
+        if (!result_set_ || !master) return -1;
+        try {
+            Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
+            Firebird::CheckStatusWrapper status(fb_status);
+            int r = result_set_->fetchRelative(&status, offset, static_cast<unsigned char*>(out_msg));
+            if (statusHasError(fb_status)) { copyStatusToVector(fb_status, status_vector); return -1; }
+            return (r == Firebird::IStatus::RESULT_OK) ? 1 : 0;
+        } catch (...) { return -1; }
+    }
+
+    /**
      * @brief Close the cursor
      * @return true on success
      */

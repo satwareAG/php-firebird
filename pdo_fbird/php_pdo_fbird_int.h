@@ -45,6 +45,7 @@ typedef struct {
 	unsigned int         out_count; /* number of output columns      */
 	unsigned int         in_count;  /* number of input parameters    */
 	int                  has_rows;  /* cursor open and has data      */
+	int                  scrollable; /* 1 = scrollable cursor        */
 	pdo_fbird_named_param *named_params; /* named→positional map    */
 	unsigned int         named_param_count; /* entries in map        */
 	ISC_STATUS_ARRAY     status;    /* status vector                 */

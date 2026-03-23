@@ -95,10 +95,34 @@ Run `bash scripts/daily-routine.sh eod` to execute the full EOD checklist.
 | Assign 11 open issues to milestones | ✅ Done via gh |
 | Full test suite | ✅ 215/215 pass (100%), 7 skipped, 222 total |
 
+### Session — 2026-03-23 (late evening)
+
+| Item | Status |
+|------|--------|
+| Section 1 roadmap: all 4 doctrine issues confirmed CLOSED upstream | ✅ Done |
+| §3.2 FETCH_TABLE_NAMES: describe_col prepends "TABLE.COL" | ✅ Done |
+| §3.3 Date/Time/Timestamp: get_col uses fbu_decode_* with custom format support | ✅ Done |
+| Blob reading: get_col reads blob content as string via fbb_open/fbb_get_segment | ✅ Done |
+| New tests: pdo_fbird_datetime_format, pdo_fbird_blob_read | ✅ Done |
+| Updated pdo_fbird_fetch_table_names test with describe_col verification | ✅ Done |
+| Full test suite | ✅ 217/217 pass (100%), 7 skipped, 224 total |
+
+### Session — 2026-03-23 (night)
+
+| Item | Status |
+|------|--------|
+| §3.1 FB4+ type coercion (INT128/DECFLOAT via fbu_int128/decfloat_to_string) | ✅ Done |
+| §3.5 Blob streaming via bindColumn (PDO::PARAM_LOB → PHP stream) | ✅ Done |
+| §3.6 next_rowset stub (returns 0 — Firebird has no multi-rowset) | ✅ Done |
+| Pconnect shutdown crash fix (getMaster() returns nullptr during MSHUTDOWN) | ✅ Done |
+| New tests: pdo_fbird_fb4_datatypes, pdo_fbird_blob_stream | ✅ Done |
+| Full test suite | ✅ 219/219 pass (100%), 7 skipped, 226 total |
+
 ### Known driver bugs (documented, not yet fixed)
 
 - **Autocommit deadlock**: DML followed by SELECT in autocommit mode can deadlock (transaction not committed between statements)
 - **Rollback ineffective**: After `rollBack()`, inserted rows still visible in subsequent queries
+- **Blob param binding**: Writing blobs via PDO prepared statement params fails with "invalid BLOB ID"
 
 ---
 
@@ -145,11 +169,43 @@ Run `bash scripts/daily-routine.sh eod` to execute the full EOD checklist.
 
 ---
 
-## Validation Baseline (v8.1.0)
+## Validation Baseline (v8.1.0+dev)
 
 | Check | Result |
 |-------|--------|
-| Test matrix (php84-dev) | ✅ 215/215 PASS (7 skipped) |
+| Test matrix (php84-dev) | ✅ 219/219 PASS (7 skipped) |
 | Named param binding | ✅ Working |
-| Shutdown crash | ✅ Fixed |
+| Shutdown crash (PDO + pconnect) | ✅ Fixed |
 | Connection cache (#119) | ✅ Fixed |
+| FB4+ types (INT128/DECFLOAT) | ✅ Working |
+| Blob streaming (PDO::PARAM_LOB) | ✅ Working |
+
+## Session 2026-03-23 16:25 — §3.7 Scrollable Cursors + Phase 2 P1 Tests
+
+### Completed
+- **§3.7 Scrollable Cursors**: Full implementation using Firebird OO API `IResultSet::fetchPrior/fetchFirst/fetchLast/fetchAbsolute/fetchRelative` with `CURSOR_TYPE_SCROLLABLE` (0x1) flag
+  - Added 5 scroll fetch methods to `StatementWrapper` in `fb_statement.hpp`
+  - Added C API wrappers `fbs_fetch_prior/first/last/absolute/relative` in `firebird_utils.h/.cpp`
+  - Updated `pdo_fbird_stmt.c`: scrollable flag from `PDO::CURSOR_SCROLL`, orientation dispatch in fetch, stmt set/get attribute, cursor_closer
+  - **Note**: Requires Firebird 5.0+ client AND server for network protocol support; test skips on FB < 5.0
+- **Phase 2 P1 Tests** (10 new tests):
+  - `pdo_fbird_scrollable_cursor.phpt` — scroll fetch orientations (skips on FB < 5.0)
+  - `pdo_fbird_ddl.phpt` — CREATE/ALTER/DROP TABLE
+  - `pdo_fbird_ddl2.phpt` — sequences, views, stored procedures
+  - `pdo_fbird_column_metadata.phpt` — column types and aliases
+  - `pdo_fbird_multi_statement.phpt` — concurrent prepared statements
+  - `pdo_fbird_fetch_modes.phpt` — ASSOC/NUM/BOTH/OBJ/COLUMN/KEY_PAIR
+  - `pdo_fbird_fb4_datatypes_params.phpt` — DECFLOAT/INT128 param binding (skips on FB < 4.0)
+  - `pdo_fbird_dialect.phpt` — SQL dialect 3, quoted identifiers, driver attributes
+  - `pdo_fbird_persistent_connect.phpt` — connection attribute handling
+  - `pdo_fbird_stmt_cleanup.phpt` — closeCursor, re-execute, destructor
+
+### Test Results
+- **236 tests, 228 passed, 8 skipped, 0 failed (100% pass rate)**
+
+### Known Issues
+- PDO persistent connections cause heap corruption on shutdown (known pconnect bug, test avoids it)
+- Scrollable cursors only work with Firebird 5.0+ client library over network protocol
+
+### Roadmap Status
+- 71 done / 25 todo

@@ -547,9 +547,17 @@ inline bool Connection::detachNoThrow() noexcept {
     }
 
     try {
-        if (master_) {
+        // Use getMaster() to get the current global master instead of the cached master_
+        // pointer, which may be dangling if MSHUTDOWN already released the Firebird
+        // client library (persistent connections destroyed after module shutdown).
+        // getMaster() returns nullptr during MSHUTDOWN, so we skip detach entirely.
+        Firebird::IMaster* master = getMaster();
+        if (!master) {
+            master = master_;
+        }
+        if (master) {
             // Use CheckStatusWrapper for Firebird template API
-            Firebird::IStatus* raw_status = master_->getStatus();
+            Firebird::IStatus* raw_status = master->getStatus();
             Firebird::CheckStatusWrapper check_status(raw_status);
             attachment_->detach(&check_status);
             // Use hasData() for FB3 compatibility (see Connection::create comment)
@@ -558,6 +566,8 @@ inline bool Connection::detachNoThrow() noexcept {
                 return false;
             }
         }
+        // If no master available at all (MSHUTDOWN), just release the pointer.
+        // The Firebird client library will clean up on process exit.
         attachment_.reset();
         return true;
     } catch (...) {

@@ -1,5 +1,5 @@
 --TEST--
-pdo_fbird: FETCH_TABLE_NAMES attribute set/get
+pdo_fbird: FETCH_TABLE_NAMES attribute set/get and describe_col prepend
 --SKIPIF--
 <?php
 if (!extension_loaded('pdo')) die('skip PDO not available');
@@ -23,6 +23,22 @@ echo "After enable: " . ($pdo->getAttribute(PDO::FBIRD_ATTR_FETCH_TABLE_NAMES) ?
 $pdo->setAttribute(PDO::FBIRD_ATTR_FETCH_TABLE_NAMES, false);
 echo "After disable: " . ($pdo->getAttribute(PDO::FBIRD_ATTR_FETCH_TABLE_NAMES) ? "on" : "off") . "\n";
 
+// Verify describe_col prepends table name
+pdo_fbird_with_table($pdo, 'FTN_T', 'ID INTEGER, NAME VARCHAR(50)', function($pdo) {
+    $pdo->exec("INSERT INTO FTN_T VALUES (1, 'Alice')");
+
+    // Without FETCH_TABLE_NAMES
+    $stmt = $pdo->query("SELECT ID, NAME FROM FTN_T");
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    echo "cols without: " . implode(', ', array_keys($row)) . "\n";
+
+    // With FETCH_TABLE_NAMES
+    $pdo->setAttribute(PDO::FBIRD_ATTR_FETCH_TABLE_NAMES, true);
+    $stmt = $pdo->query("SELECT ID, NAME FROM FTN_T");
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    echo "cols with: " . implode(', ', array_keys($row)) . "\n";
+});
+
 $pdo = null;
 echo "Done\n";
 ?>
@@ -30,4 +46,6 @@ echo "Done\n";
 Default: off
 After enable: on
 After disable: off
+cols without: ID, NAME
+cols with: FTN_T.ID, FTN_T.NAME
 Done

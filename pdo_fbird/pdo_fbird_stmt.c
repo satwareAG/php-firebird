@@ -14,6 +14,8 @@
 #include "php_pdo_fbird_int.h"
 #include <ibase.h>
 #include <ctype.h>
+#include <time.h>
+#include "zend_smart_str.h"
 #include "../firebird_utils.h"
 #include "../php_firebird.h"
 #include "../php_fbird_includes.h"
@@ -228,10 +230,11 @@ static int pdo_fbird_stmt_execute(pdo_stmt_t *stmt)
 	    stmt_type == isc_info_sql_stmt_select_for_upd ||
 	    stmt_type == isc_info_sql_stmt_exec_procedure) {
 
+		unsigned cursor_flags = S->scrollable ? 0x1 : 0; /* CURSOR_TYPE_SCROLLABLE */
 		int rc = fbs_open_cursor(
 			IBG(master_instance), S->fbs_stmt, tr,
 			S->in_buf, S->in_meta,
-			0, S->status
+			cursor_flags, S->status
 		);
 		if (!rc) {
 			pdo_fbird_stmt_error(stmt);
@@ -272,8 +275,32 @@ static int pdo_fbird_stmt_fetch(pdo_stmt_t *stmt,
 
 	if (!S->has_rows || !S->fbs_stmt) return 0;
 
-	int rc = fbs_fetch(IBG(master_instance), S->fbs_stmt,
-		S->out_buf, S->status);
+	int rc;
+	if (S->scrollable) {
+		switch (ori) {
+			case PDO_FETCH_ORI_FIRST:
+				rc = fbs_fetch_first(IBG(master_instance), S->fbs_stmt, S->out_buf, S->status);
+				break;
+			case PDO_FETCH_ORI_LAST:
+				rc = fbs_fetch_last(IBG(master_instance), S->fbs_stmt, S->out_buf, S->status);
+				break;
+			case PDO_FETCH_ORI_ABS:
+				rc = fbs_fetch_absolute(IBG(master_instance), S->fbs_stmt, (int)offset, S->out_buf, S->status);
+				break;
+			case PDO_FETCH_ORI_REL:
+				rc = fbs_fetch_relative(IBG(master_instance), S->fbs_stmt, (int)offset, S->out_buf, S->status);
+				break;
+			case PDO_FETCH_ORI_PRIOR:
+				rc = fbs_fetch_prior(IBG(master_instance), S->fbs_stmt, S->out_buf, S->status);
+				break;
+			case PDO_FETCH_ORI_NEXT:
+			default:
+				rc = fbs_fetch(IBG(master_instance), S->fbs_stmt, S->out_buf, S->status);
+				break;
+		}
+	} else {
+		rc = fbs_fetch(IBG(master_instance), S->fbs_stmt, S->out_buf, S->status);
+	}
 
 	if (rc == 1) return 1;   /* row fetched */
 	if (rc == 0) {           /* end of data */
@@ -300,7 +327,25 @@ static int pdo_fbird_stmt_describe(pdo_stmt_t *stmt, int colno)
 	const char *field = fbm_get_field(IBG(master_instance), S->out_meta, (unsigned)colno);
 	const char *name  = (alias && alias[0]) ? alias : (field ? field : "");
 
-	col->name        = zend_string_init(name, strlen(name), 0);
+	/* §3.2 FETCH_TABLE_NAMES: prepend "TABLE." to column name */
+	if (S->H->fetch_table_names) {
+		const char *relation = fbm_get_relation(IBG(master_instance), S->out_meta, (unsigned)colno);
+		if (relation && relation[0]) {
+			size_t rlen = strlen(relation);
+			size_t nlen = strlen(name);
+			char *combined = emalloc(rlen + 1 + nlen + 1);
+			memcpy(combined, relation, rlen);
+			combined[rlen] = '.';
+			memcpy(combined + rlen + 1, name, nlen);
+			combined[rlen + 1 + nlen] = '\0';
+			col->name = zend_string_init(combined, rlen + 1 + nlen, 0);
+			efree(combined);
+		} else {
+			col->name = zend_string_init(name, strlen(name), 0);
+		}
+	} else {
+		col->name = zend_string_init(name, strlen(name), 0);
+	}
 	col->maxlen      = fbm_get_length(IBG(master_instance), S->out_meta, (unsigned)colno);
 	col->precision   = (zend_long)fbm_get_scale(IBG(master_instance), S->out_meta, (unsigned)colno);
 
@@ -385,28 +430,164 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 			ZVAL_STRINGL(result, s, len);
 			break;
 		}
-		case SQL_TIMESTAMP:
-		case SQL_TYPE_DATE:
-		case SQL_TYPE_TIME:
-#ifdef SQL_TIMESTAMP_TZ
-		case SQL_TIMESTAMP_TZ:
-#endif
-#ifdef SQL_TIME_TZ
-		case SQL_TIME_TZ:
-#endif
-		{
-			/* Return as string via fb_interpret-style formatting — use raw hex for now */
+		case SQL_TYPE_DATE: {
+			ISC_DATE dt; memcpy(&dt, data, sizeof(ISC_DATE));
+			unsigned year, month, day;
+			fbu_decode_date(IBG(master_instance), dt, &year, &month, &day);
 			char buf[64];
-			snprintf(buf, sizeof(buf), "(datetime:%u)", sql_type);
+			if (S->H->date_format) {
+				struct tm tm = {0};
+				tm.tm_year = year - 1900; tm.tm_mon = month - 1; tm.tm_mday = day;
+				strftime(buf, sizeof(buf), S->H->date_format, &tm);
+			} else {
+				snprintf(buf, sizeof(buf), "%04u-%02u-%02u", year, month, day);
+			}
 			ZVAL_STRING(result, buf);
 			break;
 		}
-		case SQL_BLOB: {
-			/* Return blob ID as string for now; full LOB streaming in T16 */
-			ISC_QUAD bid; memcpy(&bid, data, sizeof(ISC_QUAD));
-			char buf[48];
-			snprintf(buf, sizeof(buf), "%08x:%08x", bid.gds_quad_high, bid.gds_quad_low);
+		case SQL_TYPE_TIME: {
+			ISC_TIME tm_val; memcpy(&tm_val, data, sizeof(ISC_TIME));
+			unsigned hours, minutes, seconds, fractions;
+			fbu_decode_time(IBG(master_instance), tm_val, &hours, &minutes, &seconds, &fractions);
+			char buf[64];
+			if (S->H->time_format) {
+				struct tm tm = {0};
+				tm.tm_hour = hours; tm.tm_min = minutes; tm.tm_sec = seconds;
+				strftime(buf, sizeof(buf), S->H->time_format, &tm);
+			} else {
+				if (fractions > 0) {
+					snprintf(buf, sizeof(buf), "%02u:%02u:%02u.%04u", hours, minutes, seconds, fractions);
+				} else {
+					snprintf(buf, sizeof(buf), "%02u:%02u:%02u", hours, minutes, seconds);
+				}
+			}
 			ZVAL_STRING(result, buf);
+			break;
+		}
+		case SQL_TIMESTAMP: {
+			ISC_TIMESTAMP ts; memcpy(&ts, data, sizeof(ISC_TIMESTAMP));
+			unsigned year, month, day, hours, minutes, seconds, fractions;
+			fbu_decode_timestamp(IBG(master_instance), &ts, &year, &month, &day, &hours, &minutes, &seconds, &fractions);
+			char buf[80];
+			if (S->H->timestamp_format) {
+				struct tm tm = {0};
+				tm.tm_year = year - 1900; tm.tm_mon = month - 1; tm.tm_mday = day;
+				tm.tm_hour = hours; tm.tm_min = minutes; tm.tm_sec = seconds;
+				strftime(buf, sizeof(buf), S->H->timestamp_format, &tm);
+			} else {
+				if (fractions > 0) {
+					snprintf(buf, sizeof(buf), "%04u-%02u-%02u %02u:%02u:%02u.%04u", year, month, day, hours, minutes, seconds, fractions);
+				} else {
+					snprintf(buf, sizeof(buf), "%04u-%02u-%02u %02u:%02u:%02u", year, month, day, hours, minutes, seconds);
+				}
+			}
+			ZVAL_STRING(result, buf);
+			break;
+		}
+#ifdef SQL_TIMESTAMP_TZ
+		case SQL_TIMESTAMP_TZ: {
+			ISC_TIMESTAMP_TZ ts_tz; memcpy(&ts_tz, data, sizeof(ISC_TIMESTAMP_TZ));
+			unsigned year, month, day, hours, minutes, seconds, fractions;
+			char tz_buf[64] = "";
+			fbu_decode_timestamp_tz(IBG(master_instance), &ts_tz, &year, &month, &day, &hours, &minutes, &seconds, &fractions, sizeof(tz_buf), tz_buf);
+			char buf[128];
+			snprintf(buf, sizeof(buf), "%04u-%02u-%02u %02u:%02u:%02u.%04u %s", year, month, day, hours, minutes, seconds, fractions, tz_buf);
+			ZVAL_STRING(result, buf);
+			break;
+		}
+#endif
+#ifdef SQL_TIME_TZ
+		case SQL_TIME_TZ: {
+			ISC_TIME_TZ tm_tz; memcpy(&tm_tz, data, sizeof(ISC_TIME_TZ));
+			unsigned hours, minutes, seconds, fractions;
+			char tz_buf[64] = "";
+			fbu_decode_time_tz(IBG(master_instance), &tm_tz, &hours, &minutes, &seconds, &fractions, sizeof(tz_buf), tz_buf);
+			char buf[128];
+			snprintf(buf, sizeof(buf), "%02u:%02u:%02u.%04u %s", hours, minutes, seconds, fractions, tz_buf);
+			ZVAL_STRING(result, buf);
+			break;
+		}
+#endif
+#ifdef SQL_INT128
+		case SQL_INT128: {
+			char buf[64];
+			if (fbu_int128_to_string(IBG(master_instance), data, scale, buf, sizeof(buf)) == 0) {
+				ZVAL_STRING(result, buf);
+			} else {
+				ZVAL_STRINGL(result, (char *)data, length);
+			}
+			break;
+		}
+#endif
+#ifdef SQL_DEC16
+		case SQL_DEC16: {
+			char buf[32];
+			if (fbu_decfloat16_to_string(IBG(master_instance), data, buf, sizeof(buf)) == 0) {
+				ZVAL_STRING(result, buf);
+			} else {
+				ZVAL_STRINGL(result, (char *)data, length);
+			}
+			break;
+		}
+#endif
+#ifdef SQL_DEC34
+		case SQL_DEC34: {
+			char buf[48];
+			if (fbu_decfloat34_to_string(IBG(master_instance), data, buf, sizeof(buf)) == 0) {
+				ZVAL_STRING(result, buf);
+			} else {
+				ZVAL_STRINGL(result, (char *)data, length);
+			}
+			break;
+		}
+#endif
+		case SQL_BLOB: {
+			/* Read blob content */
+			ISC_QUAD bid; memcpy(&bid, data, sizeof(ISC_QUAD));
+			void *attachment = fbc_get_attachment(S->H->fbc_conn);
+			void *transaction = fbt_get_handle(S->H->fbt_trans);
+			void *blob = (attachment && transaction) ? fbb_open(IBG(master_instance), attachment, transaction, &bid, 0, NULL, S->H->status) : NULL;
+			if (!blob) {
+				/* Fallback: return blob ID */
+				char buf[48];
+				snprintf(buf, sizeof(buf), "%08x:%08x", bid.gds_quad_high, bid.gds_quad_low);
+				ZVAL_STRING(result, buf);
+				break;
+			}
+			smart_str blob_str = {0};
+			char seg_buf[4096];
+			unsigned actual_len = 0;
+			int rc;
+			while ((rc = fbb_get_segment(IBG(master_instance), blob, sizeof(seg_buf), seg_buf, &actual_len, S->H->status)) == 0 || rc == 2) {
+				smart_str_appendl(&blob_str, seg_buf, actual_len);
+				if (rc == 0) continue; /* more data */
+			}
+			fbb_close(IBG(master_instance), blob, S->H->status);
+
+			if (type && *type == PDO_PARAM_LOB) {
+				/* Return as PHP stream for LOB binding */
+				php_stream *stream = php_stream_memory_create(TEMP_STREAM_DEFAULT);
+				if (stream && blob_str.s) {
+					php_stream_write(stream, ZSTR_VAL(blob_str.s), ZSTR_LEN(blob_str.s));
+					php_stream_seek(stream, 0, SEEK_SET);
+				}
+				if (blob_str.s) {
+					smart_str_free(&blob_str);
+				}
+				if (stream) {
+					php_stream_to_zval(stream, result);
+				} else {
+					ZVAL_NULL(result);
+				}
+			} else {
+				/* Return as string */
+				if (blob_str.s) {
+					smart_str_0(&blob_str);
+					ZVAL_STR(result, blob_str.s);
+				} else {
+					ZVAL_EMPTY_STRING(result);
+				}
+			}
 			break;
 		}
 		default:
@@ -520,6 +701,59 @@ static int pdo_fbird_stmt_param_hook(pdo_stmt_t *stmt,
 }
 /* }}} */
 
+/* {{{ pdo_fbird_stmt_next_rowset — Firebird does not support multi-rowset */
+static int pdo_fbird_stmt_next_rowset(pdo_stmt_t *stmt)
+{
+	(void)stmt;
+	return 0; /* not supported */
+}
+/* }}} */
+
+/* {{{ pdo_fbird_stmt_set_attribute */
+static int pdo_fbird_stmt_set_attribute(pdo_stmt_t *stmt, zend_long attr, zval *val)
+{
+	pdo_fbird_stmt *S = (pdo_fbird_stmt *)stmt->driver_data;
+
+	switch (attr) {
+		case PDO_ATTR_CURSOR_NAME: {
+			if (Z_TYPE_P(val) != IS_STRING) return 0;
+			fbs_set_cursor_name(IBG(master_instance), S->fbs_stmt,
+				Z_STRVAL_P(val), S->status);
+			return 1;
+		}
+		default:
+			return 0;
+	}
+}
+/* }}} */
+
+/* {{{ pdo_fbird_stmt_get_attribute */
+static int pdo_fbird_stmt_get_attribute(pdo_stmt_t *stmt, zend_long attr, zval *val)
+{
+	pdo_fbird_stmt *S = (pdo_fbird_stmt *)stmt->driver_data;
+
+	switch (attr) {
+		case PDO_ATTR_CURSOR:
+			ZVAL_LONG(val, S->scrollable ? PDO_CURSOR_SCROLL : PDO_CURSOR_FWDONLY);
+			return 1;
+		default:
+			return 0;
+	}
+}
+/* }}} */
+
+/* {{{ pdo_fbird_stmt_cursor_closer */
+static int pdo_fbird_stmt_cursor_closer(pdo_stmt_t *stmt)
+{
+	pdo_fbird_stmt *S = (pdo_fbird_stmt *)stmt->driver_data;
+	if (S->has_rows && S->fbs_stmt && fbs_is_cursor_open(S->fbs_stmt)) {
+		fbs_close_cursor(S->fbs_stmt, S->status);
+	}
+	S->has_rows = 0;
+	return 1;
+}
+/* }}} */
+
 /* {{{ pdo_fbird_stmt_methods */
 const struct pdo_stmt_methods pdo_fbird_stmt_methods = {
 	pdo_fbird_stmt_dtor,
@@ -528,10 +762,10 @@ const struct pdo_stmt_methods pdo_fbird_stmt_methods = {
 	pdo_fbird_stmt_describe,
 	pdo_fbird_stmt_get_col,
 	pdo_fbird_stmt_param_hook,
-	NULL, /* set_attribute */
-	NULL, /* get_attribute */
+	pdo_fbird_stmt_set_attribute,
+	pdo_fbird_stmt_get_attribute,
 	NULL, /* get_column_meta */
-	NULL, /* next_rowset */
-	NULL, /* cursor_closer */
+	pdo_fbird_stmt_next_rowset,
+	pdo_fbird_stmt_cursor_closer,
 };
 /* }}} */

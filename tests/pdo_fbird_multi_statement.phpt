@@ -4,6 +4,8 @@ pdo_fbird: multiple concurrent statements
 <?php
 if (!extension_loaded('firebird')) die('skip firebird not loaded');
 if (!in_array('fbird', PDO::getAvailableDrivers())) die('skip pdo_fbird not available');
+require_once __DIR__ . '/pdo_fbird.inc';
+try { pdo_fbird_connect(); } catch (Throwable $e) { die('skip cannot connect: ' . $e->getMessage()); }
 ?>
 --FILE--
 <?php

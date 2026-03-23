@@ -616,6 +616,11 @@ jobs:
             exit(1);
           '
 
+      - name: Install Composer dependencies
+        run: |
+          curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+          composer install --prefer-dist --no-progress --no-suggest
+
       - name: Run tests with LeakSanitizer
         env:
           NO_INTERACTION: 1

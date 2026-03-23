@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [8.2.0] - 2026-03-23
+
+### Added
+
+- **FETCH_TABLE_NAMES attribute** — `PDO::FBIRD_ATTR_FETCH_TABLE_NAMES` prepends table name to column names in result sets (`TABLE.COLUMN` format) via `describe_col` using `fbm_get_relation()`.
+- **Date/Time/Timestamp format attributes** — `PDO::FBIRD_ATTR_DATE_FORMAT`, `PDO::FBIRD_ATTR_TIME_FORMAT`, `PDO::FBIRD_ATTR_TIMESTAMP_FORMAT` allow custom `strftime`-style formatting of date/time columns in `get_col`.
+- **FB4+ type coercion** — Added `fbu_int128_to_string()`, `fbu_decfloat16_to_string()`, `fbu_decfloat34_to_string()` in `firebird_utils.cpp` for INT128/DECFLOAT conversion; added `SQL_INT128`/`SQL_DEC16`/`SQL_DEC34` cases in `pdo_fbird_stmt.c`.
+- **Blob LOB streaming** — When `PDO::PARAM_LOB` is requested via `bindColumn`, `get_col` returns a `php_stream` memory resource instead of a string.
+- **Blob content reading** — Implemented blob reading in `get_col` via `fbc_get_attachment()`/`fbt_get_handle()`/`fbb_open()`/`fbb_get_segment()` with `smart_str` accumulation.
+- **Scrollable cursors** — Added `fetchPrior/First/Last/Absolute/Relative` methods to `StatementWrapper` in `fb_statement.hpp`, C API wrappers in `firebird_utils.h/.cpp`, wired into `pdo_fbird_stmt.c` with `CURSOR_TYPE_SCROLLABLE` flag and orientation dispatch. Requires Firebird 5.0+ client and server.
+- **`next_rowset` stub** — `pdo_fbird_stmt_next_rowset()` returns 0 (Firebird has no multi-rowset support).
+- **`fbird_last_insert_id()`** — Procedural function using `GEN_ID(sequence,0)` for retrieving last generated sequence value.
+- **`PDO::lastInsertId()`** — PDO driver implementation via `pdo_fbird_handle_last_id()` using `GEN_ID(sequence,0)`.
+- **10 new Phase 2 P1 tests** — `pdo_fbird_scrollable_cursor`, `pdo_fbird_ddl`, `pdo_fbird_ddl2`, `pdo_fbird_column_metadata`, `pdo_fbird_multi_statement`, `pdo_fbird_fetch_modes`, `pdo_fbird_fb4_datatypes_params`, `pdo_fbird_dialect`, `pdo_fbird_persistent_connect`, `pdo_fbird_stmt_cleanup`.
+- **5 new functional tests** — `fbird_fetch_eof_no_warning`, `fbird_execute_reuse`, `fbird_commit_ret_lifecycle`, `fbird_last_insert_id`, `pdo_fbird_last_insert_id`.
+
+### Fixed
+
+- **Fetch EOF warnings (#127)** — `fetchNext()` in `fb_statement.hpp` now checks `cursor_open_` and marks closed on error/EOF; suppressed E_WARNING in `fbird_result.c` fetch error path.
+  Closes [#127](https://github.com/satwareAG/php-firebird/issues/127).
+- **Execute reuse (#128)** — Verified prepare-once/execute-many pattern works correctly.
+  Closes [#128](https://github.com/satwareAG/php-firebird/issues/128).
+- **Commit-retain lifecycle (#131)** — Verified statements and cursors survive `fbird_commit_ret()`.
+  Closes [#131](https://github.com/satwareAG/php-firebird/issues/131).
+- **Firebird 3.0 compat** — Added `#ifdef SQL_TIMESTAMP_TZ` / `#ifdef SQL_TIME_TZ` guards in `pdo_fbird_stmt.c` for compilation on Firebird 3.0 client headers.
+- **CI test stability** — Added connection-check SKIPIF to 9 PDO tests for CI compatibility; fixed `pdo_fbird.inc` to prefer `FIREBIRD_DB_PATH` over `FIREBIRD_DATABASE`.
+
+### Implemented
+
+- **Last insert ID (#130)** — `fbird_last_insert_id()` and `PDO::lastInsertId()` using `GEN_ID(sequence,0)`.
+  Closes [#130](https://github.com/satwareAG/php-firebird/issues/130).
+
+---
+
 ## [8.1.0] - 2026-03-23
 
 ### Fixed

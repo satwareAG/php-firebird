@@ -331,3 +331,16 @@ Run `bash scripts/daily-routine.sh eod` to execute the full EOD checklist.
 ### Roadmap Status
 - All Section 4 P2 items now complete (§4.1-§4.5 all ✅)
 - Remaining: Phase 3 P2 test suite (5 tests), 7 open issues in v9.0.0 milestone
+
+## Session — 2026-03-23 Evening (Section 5 Test Coverage)
+
+### Completed
+- Created 3 missing tests to complete all Section 5 phases:
+  - `pdo_fbird_txn_isolation_behavior.phpt` (Phase 1 — single-connection commit/rollback verification)
+  - `pdo_fbird_blob_handling.phpt` (Phase 2 — blob insert/read/stream via exec)
+  - `pdo_fbird_service_backup.phpt` (Phase 3 — service attach/version/stats/detach)
+- Full test matrix: 241 passed, 8 skipped, 0 failed (100%)
+- Roadmap: 92 done / 4 todo
+
+### Remaining (4 unchecked roadmap items)
+- All remaining items are in Section 4 or deferred to v9.0.0

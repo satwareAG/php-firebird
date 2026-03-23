@@ -315,3 +315,19 @@ Run `bash scripts/daily-routine.sh eod` to execute the full EOD checklist.
 - §4.3.1, §4.3.2, §4.3.3 all ✅
 - Remaining P2: §4.4 Events (L-complexity)
 - Total: ~89 done / ~7 todo
+
+## Evening Session 5 — 2026-03-23 18:46
+
+### Completed
+- **§4.4 Async Event Polling via PDO** — all 3 sub-items done:
+  - §4.4.1 Design: 4 new PDO constants (EVENT_NAMES, EVENT_WAIT, EVENT_CANCEL, EVENT_COUNT)
+  - §4.4.2 Implementation: setAttribute for register/wait/cancel, getAttribute for names/counts
+  - §4.4.3 Test: `pdo_fbird_events.phpt` covering register, wait, count, cancel
+  - Added `fbe_wait_for_event_oo()` using `fb_get_database_handle()` to bridge OO API to legacy event API
+
+### Test Results
+- Full test matrix: 238 passed, 8 skipped, 0 failed (100% pass rate)
+
+### Roadmap Status
+- All Section 4 P2 items now complete (§4.1-§4.5 all ✅)
+- Remaining: Phase 3 P2 test suite (5 tests), 7 open issues in v9.0.0 milestone

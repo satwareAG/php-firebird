@@ -83,6 +83,16 @@ PHP_MINIT_FUNCTION(pdo_fbird)
 			sizeof("FBIRD_ATTR_SERVICE_MODIFY_USER") - 1, PDO_FBIRD_ATTR_SERVICE_MODIFY_USER);
 		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_SERVICE_DELETE_USER",
 			sizeof("FBIRD_ATTR_SERVICE_DELETE_USER") - 1, PDO_FBIRD_ATTR_SERVICE_DELETE_USER);
+
+		/* Event API attributes */
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_EVENT_NAMES",
+			sizeof("FBIRD_ATTR_EVENT_NAMES") - 1, PDO_FBIRD_ATTR_EVENT_NAMES);
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_EVENT_WAIT",
+			sizeof("FBIRD_ATTR_EVENT_WAIT") - 1, PDO_FBIRD_ATTR_EVENT_WAIT);
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_EVENT_CANCEL",
+			sizeof("FBIRD_ATTR_EVENT_CANCEL") - 1, PDO_FBIRD_ATTR_EVENT_CANCEL);
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_EVENT_COUNT",
+			sizeof("FBIRD_ATTR_EVENT_COUNT") - 1, PDO_FBIRD_ATTR_EVENT_COUNT);
 	}
 
 	return SUCCESS;

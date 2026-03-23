@@ -872,6 +872,22 @@ ISC_STATUS fbe_wait_for_event(ISC_STATUS* status_vector, void* db_handle_ptr,
                               unsigned char* result_buffer);
 
 /**
+ * Wait synchronously for events using OO API attachment pointer.
+ * Uses fb_get_database_handle() to obtain a legacy handle from IAttachment*.
+ *
+ * @param status_vector  Output status vector
+ * @param attachment_ptr IAttachment pointer (from fbc_get_attachment())
+ * @param buffer_length  Length of event buffer
+ * @param event_buffer   Event buffer (from fbe_event_block())
+ * @param result_buffer  Result buffer (from fbe_event_block())
+ * @return 0 on success, non-zero on error
+ */
+ISC_STATUS fbe_wait_for_event_oo(ISC_STATUS* status_vector, void* attachment_ptr,
+                                  unsigned short buffer_length,
+                                  unsigned char* event_buffer,
+                                  unsigned char* result_buffer);
+
+/**
  * Decode event counts from result buffer.
  * Replacement for isc_event_counts().
  *

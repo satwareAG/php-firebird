@@ -86,6 +86,18 @@ static void pdo_fbird_handle_closer(pdo_dbh_t *dbh)
 		H->fbsvc_service = NULL;
 	}
 
+	/* Clean up event buffers */
+	if (H->event_buffer) { fbe_event_free(H->event_buffer); H->event_buffer = NULL; }
+	if (H->result_buffer) { fbe_event_free(H->result_buffer); H->result_buffer = NULL; }
+	if (H->event_names) {
+		for (unsigned i = 0; i < H->event_count; i++) {
+			if (H->event_names[i]) efree(H->event_names[i]);
+		}
+		efree(H->event_names);
+		H->event_names = NULL;
+	}
+	H->event_count = 0;
+
 	if (H->fbc_conn) {
 		fbc_disconnect(H->fbc_conn, H->status);
 		H->fbc_conn = NULL;
@@ -655,6 +667,95 @@ static bool pdo_fbird_handle_set_attribute(pdo_dbh_t *dbh, zend_long attr, zval 
 			}
 			return true;
 		}
+
+		/* Event API attributes */
+		case PDO_FBIRD_ATTR_EVENT_NAMES: {
+			/* Register event names: setAttribute(EVENT_NAMES, ['evt1','evt2',...]) */
+			if (Z_TYPE_P(val) != IS_ARRAY) {
+				pdo_raise_impl_error(dbh, NULL, "HY000",
+					"EVENT_NAMES requires an array of event name strings (max 15)");
+				return false;
+			}
+			HashTable *ht = Z_ARRVAL_P(val);
+			unsigned int count = zend_hash_num_elements(ht);
+			if (count == 0 || count > 15) {
+				pdo_raise_impl_error(dbh, NULL, "HY000",
+					"EVENT_NAMES requires 1-15 event name strings");
+				return false;
+			}
+			/* Free previous event state */
+			if (H->event_buffer) { fbe_event_free(H->event_buffer); H->event_buffer = NULL; }
+			if (H->result_buffer) { fbe_event_free(H->result_buffer); H->result_buffer = NULL; }
+			if (H->event_names) {
+				for (unsigned i = 0; i < H->event_count; i++) {
+					if (H->event_names[i]) efree(H->event_names[i]);
+				}
+				efree(H->event_names);
+			}
+			H->event_count = count;
+			H->event_names = (char **)safe_emalloc(sizeof(char *), count, 0);
+			memset(H->event_names, 0, sizeof(char *) * count);
+			/* Collect names into a flat array for fbe_event_block */
+			char *names[15] = {0};
+			unsigned idx = 0;
+			zval *z_name;
+			ZEND_HASH_FOREACH_VAL(ht, z_name) {
+				if (idx >= count) break;
+				zend_string *s = zval_get_string(z_name);
+				H->event_names[idx] = estrndup(ZSTR_VAL(s), ZSTR_LEN(s));
+				names[idx] = H->event_names[idx];
+				zend_string_release(s);
+				idx++;
+			} ZEND_HASH_FOREACH_END();
+			/* Build event parameter block */
+			H->event_buf_len = fbe_event_block(
+				&H->event_buffer, &H->result_buffer, (unsigned short)count,
+				names[0], names[1], names[2], names[3], names[4],
+				names[5], names[6], names[7], names[8], names[9],
+				names[10], names[11], names[12], names[13], names[14]);
+			memset(H->event_counts, 0, sizeof(H->event_counts));
+			return true;
+		}
+
+		case PDO_FBIRD_ATTR_EVENT_WAIT: {
+			/* Synchronous wait: setAttribute(EVENT_WAIT, true) blocks until event fires */
+			if (!H->event_buffer || !H->result_buffer || H->event_count == 0) {
+				pdo_raise_impl_error(dbh, NULL, "HY000",
+					"No events registered — call setAttribute(EVENT_NAMES, [...]) first");
+				return false;
+			}
+			void *att = fbc_get_attachment(H->fbc_conn);
+			if (!att) {
+				pdo_raise_impl_error(dbh, NULL, "HY000", "Cannot get database attachment for events");
+				return false;
+			}
+			ISC_STATUS_ARRAY ev_status;
+			if (fbe_wait_for_event_oo(ev_status, att,
+					H->event_buf_len, H->event_buffer, H->result_buffer)) {
+				memcpy(H->status, ev_status, sizeof(ISC_STATUS_ARRAY));
+				pdo_fbird_error(dbh);
+				return false;
+			}
+			fbe_event_counts(H->event_counts, H->event_buf_len,
+				H->event_buffer, H->result_buffer);
+			return true;
+		}
+
+		case PDO_FBIRD_ATTR_EVENT_CANCEL: {
+			/* Cancel / clear registered events */
+			if (H->event_buffer) { fbe_event_free(H->event_buffer); H->event_buffer = NULL; }
+			if (H->result_buffer) { fbe_event_free(H->result_buffer); H->result_buffer = NULL; }
+			if (H->event_names) {
+				for (unsigned i = 0; i < H->event_count; i++) {
+					if (H->event_names[i]) efree(H->event_names[i]);
+				}
+				efree(H->event_names);
+				H->event_names = NULL;
+			}
+			H->event_count = 0;
+			memset(H->event_counts, 0, sizeof(H->event_counts));
+			return true;
+		}
 	}
 	return false;
 }
@@ -763,6 +864,33 @@ static int pdo_fbird_handle_get_attribute(pdo_dbh_t *dbh, zend_long attr, zval *
 				efree(lines);
 			} else {
 				ZVAL_FALSE(val);
+			}
+			return 1;
+		}
+
+		/* Event API get attributes */
+		case PDO_FBIRD_ATTR_EVENT_NAMES: {
+			if (!H->event_names || H->event_count == 0) {
+				ZVAL_NULL(val);
+				return 1;
+			}
+			array_init(val);
+			for (unsigned i = 0; i < H->event_count; i++) {
+				add_next_index_string(val, H->event_names[i] ? H->event_names[i] : "");
+			}
+			return 1;
+		}
+
+		case PDO_FBIRD_ATTR_EVENT_COUNT: {
+			/* Return associative array of event_name => count after EVENT_WAIT */
+			if (!H->event_names || H->event_count == 0) {
+				ZVAL_NULL(val);
+				return 1;
+			}
+			array_init(val);
+			for (unsigned i = 0; i < H->event_count; i++) {
+				add_assoc_long(val, H->event_names[i] ? H->event_names[i] : "",
+					(zend_long)H->event_counts[i]);
 			}
 			return 1;
 		}

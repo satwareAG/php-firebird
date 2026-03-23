@@ -1752,6 +1752,33 @@ extern "C" ISC_STATUS fbe_wait_for_event(ISC_STATUS* status_vector, void* db_han
         buffer_length, event_buffer, result_buffer);
 }
 
+extern "C" ISC_STATUS fbe_wait_for_event_oo(ISC_STATUS* status_vector, void* attachment_ptr,
+                                             unsigned short buffer_length,
+                                             unsigned char* event_buffer,
+                                             unsigned char* result_buffer)
+{
+    if (!attachment_ptr) {
+        if (status_vector) {
+            status_vector[0] = isc_arg_gds;
+            status_vector[1] = isc_bad_db_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return isc_bad_db_handle;
+    }
+    auto* attachment = static_cast<Firebird::IAttachment*>(attachment_ptr);
+    /* Get a legacy isc_db_handle from the OO API attachment */
+    ISC_STATUS_ARRAY local_status = {0};
+    isc_db_handle handle = 0;
+    fb_get_database_handle(local_status, &handle, attachment);
+    if (!handle) {
+        if (status_vector) {
+            memcpy(status_vector, local_status, sizeof(ISC_STATUS_ARRAY));
+        }
+        return local_status[1] ? local_status[1] : isc_bad_db_handle;
+    }
+    return isc_wait_for_event(status_vector, &handle, buffer_length, event_buffer, result_buffer);
+}
+
 extern "C" void fbe_event_counts(ISC_ULONG* result_counts, unsigned short buffer_length,
                                   unsigned char* event_buffer, unsigned char* result_buffer)
 {

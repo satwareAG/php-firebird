@@ -27,6 +27,13 @@ typedef struct {
 	char        *time_format;       /* strftime format for TIME columns */
 	char        *timestamp_format;  /* strftime format for TIMESTAMP columns */
 	void        *fbsvc_service; /* service manager handle (fbsvc_attach) */
+	/* Event API state */
+	unsigned char *event_buffer;    /* event parameter block */
+	unsigned char *result_buffer;   /* event result block    */
+	unsigned short event_buf_len;   /* length of event buffers */
+	unsigned int   event_count;     /* number of registered events */
+	char         **event_names;     /* array of event name strings */
+	ISC_ULONG      event_counts[15]; /* last event counts */
 	ISC_STATUS_ARRAY status;    /* status vector for error reporting */
 } pdo_fbird_db_handle;
 

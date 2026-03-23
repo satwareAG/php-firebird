@@ -22,6 +22,7 @@ var_dump(fbird_drop_db(1));
 
 ?>
 --EXPECTF--
+Deprecated: fbird_query(): Passing FBIRD_CREATE to fbird_query() is deprecated, use fbird_create_database() instead in %s on line %d
 resource(%d) of type (Firebird link)
 bool(true)
 

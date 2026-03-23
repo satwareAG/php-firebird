@@ -1,45 +1,30 @@
 --TEST--
-Issue #122: fbird_drop_db() without open resource
+Issue #122: fbird_drop_db() with connection string overload
 --SKIPIF--
 <?php include("skipif.inc"); ?>
 --FILE--
 <?php
 require("firebird.inc");
 
-echo "Checking if fbird_drop_database exists (procedural with connection string)...\n";
-if (function_exists('fbird_drop_database')) {
-    echo "OK: fbird_drop_database exists\n";
-    // Create DB first
-    $dbPath = $test_base . "_i122";
-    $sql = sprintf("CREATE DATABASE '%s' USER '%s' PASSWORD '%s'", $dbPath, $user, $password);
-    fbird_query(FBIRD_CREATE, $sql);
-    
-    // Now drop it using connection string
-    $result = fbird_drop_database($dbPath, $user, $password);
-    if ($result) {
-        echo "OK: Database dropped via connection string\n";
-    } else {
-        echo "FAIL: Could not drop database: " . fbird_errmsg() . "\n";
-    }
-} else {
-    echo "Current behavior: fbird_drop_database does not exist\n";
-    
-    // Create DB first
-    $dbPath = $test_base . "_i122";
-    $sql = sprintf("CREATE DATABASE '%s' USER '%s' PASSWORD '%s'", $dbPath, $user, $password);
-    fbird_query(FBIRD_CREATE, $sql);
-    
-    // Drop using resource
-    $conn = fbird_connect($dbPath, $user, $password);
-    $result = fbird_drop_db($conn);
-    if ($result) {
-        echo "OK: Database dropped via resource\n";
-    } else {
-        echo "FAIL: Could not drop database: " . fbird_errmsg() . "\n";
-    }
+echo "Testing fbird_drop_db() with connection string...\n";
+
+$dsn = dirname($test_base) . "/issue122_" . getmypid() . ".fdb";
+
+/* Create DB using new function */
+$conn = fbird_create_database($dsn, $user, $password);
+if (!$conn) {
+    die("FAIL: cannot create: " . fbird_errmsg() . "\n");
 }
+fbird_close($conn);
+echo "created\n";
+
+/* Drop using string overload */
+$result = fbird_drop_db($dsn, $user, $password);
+var_dump($result);
+echo "Done\n";
 ?>
 --EXPECTF--
-Checking if fbird_drop_database exists (procedural with connection string)...
-Current behavior: fbird_drop_database does not exist
-OK: Database dropped via resource
+Testing fbird_drop_db() with connection string...
+created
+bool(true)
+Done

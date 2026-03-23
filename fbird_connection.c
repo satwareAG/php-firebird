@@ -546,6 +546,65 @@ PHP_FUNCTION(fbird_close)
 	RETURN_TRUE;
 }
 
+/* {{{ proto resource fbird_create_database(string $database [, string $username [, string $password [, string $charset [, int $page_size]]]])
+   Create a new Firebird database and return a connection resource */
+PHP_FUNCTION(fbird_create_database)
+{
+	char *database = NULL, *username = NULL, *password = NULL, *charset = NULL;
+	size_t database_len, username_len = 0, password_len = 0, charset_len = 0;
+	zend_long page_size = 0;
+	unsigned short dialect = 3;
+	fbird_db_link *ib_link;
+	char create_sql[4096];
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "s|sssl",
+			&database, &database_len,
+			&username, &username_len,
+			&password, &password_len,
+			&charset, &charset_len,
+			&page_size) == FAILURE) {
+		return;
+	}
+
+	/* Build CREATE DATABASE SQL */
+	int pos = snprintf(create_sql, sizeof(create_sql), "CREATE DATABASE '%s'", database);
+	if (username && username_len > 0) {
+		pos += snprintf(create_sql + pos, sizeof(create_sql) - pos, " USER '%s'", username);
+	}
+	if (password && password_len > 0) {
+		pos += snprintf(create_sql + pos, sizeof(create_sql) - pos, " PASSWORD '%s'", password);
+	}
+	if (page_size > 0) {
+		pos += snprintf(create_sql + pos, sizeof(create_sql) - pos, " PAGE_SIZE = %ld", (long)page_size);
+	}
+	if (charset && charset_len > 0) {
+		pos += snprintf(create_sql + pos, sizeof(create_sql) - pos, " DEFAULT CHARACTER SET %s", charset);
+	}
+
+	void *create_result = fbc_create_database(
+		IBG(master_instance),
+		create_sql,
+		dialect,
+		IB_STATUS
+	);
+
+	if (!create_result) {
+		_php_fbird_error();
+		RETURN_FALSE;
+	}
+
+	ib_link = (fbird_db_link *) ecalloc(1, sizeof(fbird_db_link));
+	ib_link->dialect = dialect;
+	ib_link->tr_list = NULL;
+	ib_link->event_head = NULL;
+	ib_link->fbc_connection = create_result;
+
+	RETVAL_RES(zend_register_resource(ib_link, le_link));
+}
+/* }}} */
+
 PHP_FUNCTION(fbird_drop_db)
 {
 	zval *link_arg = NULL;
@@ -553,9 +612,59 @@ PHP_FUNCTION(fbird_drop_db)
 	fbird_tr_list *l;
 	zend_resource *link_res;
 	int drop_result;
+	char *database = NULL, *username = NULL, *password = NULL;
+	size_t database_len = 0, username_len = 0, password_len = 0;
+	zend_bool string_mode = 0;
 
 	RESET_ERRMSG;
 
+	/* Try string overload first: fbird_drop_db(string $dsn, string $user, string $pass)
+	 * Only activate if the first argument is actually a string (not resource/int/null) */
+	if (ZEND_NUM_ARGS() >= 1) {
+		zval *first_arg = NULL;
+		zval tmp_args[1];
+		if (zend_get_parameters_array_ex(1, tmp_args) == SUCCESS) {
+			first_arg = &tmp_args[0];
+			ZVAL_DEREF(first_arg);
+		}
+		if (first_arg && Z_TYPE_P(first_arg) == IS_STRING) {
+			if (zend_parse_parameters_ex(ZEND_PARSE_PARAMS_QUIET, ZEND_NUM_ARGS(), "s|ss",
+					&database, &database_len, &username, &username_len, &password, &password_len) == SUCCESS
+					&& database != NULL) {
+				string_mode = 1;
+			}
+		}
+	}
+
+	if (string_mode) {
+		/* Connect, drop, return */
+		const char *u = username ? username : "SYSDBA";
+		const char *p = password ? password : "masterkey";
+		void *conn = fbc_connect(
+			IBG(master_instance),
+			database, database_len,
+			u, strlen(u),
+			p, strlen(p),
+			NULL, 0,  /* charset */
+			NULL, 0,  /* role */
+			0,        /* num_buffers */
+			3,        /* dialect */
+			-1,       /* force_write */
+			IB_STATUS
+		);
+		if (!conn) {
+			_php_fbird_error();
+			RETURN_FALSE;
+		}
+		drop_result = fbc_drop_database(conn, IB_STATUS);
+		if (drop_result != 0) {
+			_php_fbird_error();
+			RETURN_FALSE;
+		}
+		RETURN_TRUE;
+	}
+
+	/* Original resource-based path */
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|r", &link_arg) == FAILURE) {
 		return;
 	}

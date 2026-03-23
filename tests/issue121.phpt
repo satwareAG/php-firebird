@@ -9,36 +9,25 @@ require("firebird.inc");
 echo "Checking if fbird_create_database exists...\n";
 if (function_exists('fbird_create_database')) {
     echo "OK: fbird_create_database exists\n";
-    
-    // Test it (this would fail if not implemented)
-    $dbPath = dirname($test_base) . "/issue121.fdb";
-    @unlink($dbPath);
-    
-    $conn = fbird_create_database($dbPath, $user, $password, [
-        'page_size' => 8192,
-        'charset' => 'UTF8'
-    ]);
-    
+
+    $dsn = dirname($test_base) . "/issue121_" . getmypid() . ".fdb";
+
+    $conn = fbird_create_database($dsn, $user, $password, 'UTF8', 8192);
+
     if ($conn) {
         echo "OK: Database created\n";
         fbird_drop_db($conn);
+        echo "OK: Database dropped\n";
     } else {
         echo "FAIL: Could not create database: " . fbird_errmsg() . "\n";
     }
 } else {
-    echo "Current behavior: fbird_create_database does not exist\n";
-    
-    // Current alternative is using FBIRD_CREATE constant
-    $sql = sprintf("CREATE DATABASE '%s' USER '%s' PASSWORD '%s'", $test_base . "_i121", $user, $password);
-    $conn = fbird_query(FBIRD_CREATE, $sql);
-    if ($conn) {
-        echo "Alternative worked: FBIRD_CREATE still supported\n";
-        fbird_drop_db($conn);
-    }
+    echo "FAIL: fbird_create_database does not exist\n";
 }
 
 ?>
 --EXPECTF--
 Checking if fbird_create_database exists...
-Current behavior: fbird_create_database does not exist
-Alternative worked: FBIRD_CREATE still supported
+OK: fbird_create_database exists
+OK: Database created
+OK: Database dropped

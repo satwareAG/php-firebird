@@ -795,14 +795,72 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 				continue;
 #endif /* FB_API_VER >= 40 */
 
-			case SQL_BLOB:
+ 		case SQL_BLOB:
 
-				convert_to_string(b_var);
+ 			/* §6 Stream support: if a PHP stream resource is passed, read it into a blob */
+ 			if (Z_TYPE_P(b_var) == IS_RESOURCE) {
+ 				php_stream *stream = NULL;
+ 				php_stream_from_zval_no_verify(stream, b_var);
+ 				if (stream) {
+ 					fbird_blob ib_blob = { 0 };
+ 					ib_blob.type = BLOB_INPUT;
+ 					ib_blob.fbb_blob = NULL;
 
-				if (Z_STRLEN_P(b_var) != BLOB_ID_LEN ||
-					!_php_fbird_string_to_quad(Z_STRVAL_P(b_var), &buf[i].val.qval)) {
+ 					if (!ib_query->link || !ib_query->link->fbc_connection) {
+ 						_php_fbird_module_error("Parameter %d: OO API connection required for stream BLOB binding", i + 1);
+ 						return FAILURE;
+ 					}
+ 					if (!ib_query->trans || !ib_query->trans->fbt_transaction) {
+ 						_php_fbird_module_error("Parameter %d: OO API transaction required for stream BLOB binding", i + 1);
+ 						return FAILURE;
+ 					}
 
-					/* OO API only: create a blob, write the string into it, then bind by blob id (ISC_QUAD). */
+ 					void *attachment_ptr = fbc_get_attachment(ib_query->link->fbc_connection);
+ 					void *transaction_ptr = fbt_get_handle(ib_query->trans->fbt_transaction);
+ 					if (!attachment_ptr || !transaction_ptr) {
+ 						_php_fbird_module_error("Parameter %d: invalid OO API handles for stream BLOB binding", i + 1);
+ 						return FAILURE;
+ 					}
+
+ 					ib_blob.fbb_blob = fbb_create(
+ 						IBG(master_instance), attachment_ptr, transaction_ptr,
+ 						&ib_blob.bl_qd, 0, NULL, IB_STATUS
+ 					);
+ 					if (!ib_blob.fbb_blob) {
+ 						_php_fbird_error();
+ 						return FAILURE;
+ 					}
+
+ 					/* Read stream in chunks and write to blob */
+ 					char chunk[8192];
+ 					ssize_t read_len;
+ 					while ((read_len = php_stream_read(stream, chunk, sizeof(chunk))) > 0) {
+ 						if (fbb_put_segment(IBG(master_instance), ib_blob.fbb_blob,
+ 								(unsigned int)read_len, chunk, IB_STATUS) == 0) {
+ 							_php_fbird_error();
+ 							fbb_cancel(IBG(master_instance), ib_blob.fbb_blob, IB_STATUS);
+ 							fbb_free(ib_blob.fbb_blob);
+ 							return FAILURE;
+ 						}
+ 					}
+
+ 					if (fbb_close(IBG(master_instance), ib_blob.fbb_blob, IB_STATUS) == 0) {
+ 						_php_fbird_error();
+ 						fbb_free(ib_blob.fbb_blob);
+ 						return FAILURE;
+ 					}
+ 					fbb_free(ib_blob.fbb_blob);
+ 					buf[i].val.qval = ib_blob.bl_qd;
+ 					continue;
+ 				}
+ 			}
+
+ 			convert_to_string(b_var);
+
+ 			if (Z_STRLEN_P(b_var) != BLOB_ID_LEN ||
+ 				!_php_fbird_string_to_quad(Z_STRVAL_P(b_var), &buf[i].val.qval)) {
+
+ 				/* OO API only: create a blob, write the string into it, then bind by blob id (ISC_QUAD). */
 					fbird_blob ib_blob = { 0 };
 					ib_blob.type = BLOB_INPUT;
 					ib_blob.fbb_blob = NULL;

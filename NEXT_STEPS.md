@@ -377,3 +377,23 @@ Run `bash scripts/daily-routine.sh eod` to execute the full EOD checklist.
 **Released v8.3.0** — All P2 enhancements complete.
 **Updated ROADMAP-2026-03-23.md Section 6** — All 3 milestones marked RELEASED with final test counts and dates.
 **Roadmap status**: 92 done / 4 deferred to v9.0.0 — **ROADMAP COMPLETE**
+
+---
+
+### Evening Session 4 — v9.0.0 Release (2026-03-23)
+
+**Completed:**
+- §1 Deprecate FBIRD_CREATE in fbird_query() — E_DEPRECATED warning (#125) ✅
+- §2 fbird_create_database() — standalone function (#121) ✅
+- §3 fbird_drop_db() string overload — drop by DSN (#122) ✅
+- §4 Exception-by-default infrastructure — COMPAT constant, _php_fbird_module_error respects mode (#123) ✅
+- §5 fbird_prepare_ex() — fixed signature (#126) ✅
+- §6 BLOB stream params — php_stream in fbird_execute() (#129) ✅
+- 7 new tests, 6 updated tests
+- Full test matrix: 247/247 pass (100%), 8 skipped
+
+**Deferred to post-v9.0.0:**
+- §7 Typed connection object (#120) — L complexity, touches every fbird_* function
+- §8 Deprecation audit items — void* typed opaques, ISC_TEB removal, events OO API, legacy_handle_ removal
+
+**Status:** v9.0.0 released, milestone closed

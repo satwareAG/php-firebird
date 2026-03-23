@@ -986,6 +986,8 @@ PHP_FUNCTION(fbird_query)
 
 		/* Handle FBIRD_CREATE (0) passed as first argument */
 		if (i == 0 && Z_TYPE_P(arg) == IS_LONG && Z_LVAL_P(arg) == PHP_FBIRD_CREATE) {
+			php_error_docref(NULL, E_DEPRECATED,
+				"Passing FBIRD_CREATE to fbird_query() is deprecated, use fbird_create_database() instead");
 			explicit_create = 1;
 			i++;
 			continue;
@@ -1264,6 +1266,58 @@ PHP_FUNCTION(fbird_prepare)
 	RETVAL_RES(ib_query->res);
 	Z_TRY_ADDREF_P(return_value);
 }
+
+/* {{{ proto resource fbird_prepare_ex(resource $link, string $query [, resource $trans])
+   Prepare a statement with a fixed, non-shifting signature */
+PHP_FUNCTION(fbird_prepare_ex)
+{
+	zval *link_arg = NULL, *trans_arg = NULL;
+	char *query = NULL;
+	size_t query_len;
+	fbird_db_link *link = NULL;
+	fbird_transaction *trans = NULL;
+	zend_resource *trans_res = NULL;
+	fbird_query *ib_query;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "rs|r!",
+			&link_arg, &query, &query_len, &trans_arg) == FAILURE) {
+		return;
+	}
+
+	/* Resolve link */
+	link = (fbird_db_link *)zend_fetch_resource_ex(link_arg, NULL, le_link);
+	if (!link) {
+		link = (fbird_db_link *)zend_fetch_resource_ex(link_arg, NULL, le_plink);
+	}
+	if (!link) {
+		_php_fbird_module_error("First argument must be a Firebird connection resource");
+		RETURN_FALSE;
+	}
+
+	/* Resolve optional transaction */
+	if (trans_arg) {
+		trans = (fbird_transaction *)zend_fetch_resource_ex(trans_arg, NULL, le_trans);
+		if (trans) {
+			trans_res = Z_RES_P(trans_arg);
+		}
+	}
+
+	if (!trans) {
+		if (SUCCESS != _php_fbird_def_trans(link, &trans)) {
+			RETURN_FALSE;
+		}
+	}
+
+	if (FAILURE == _php_fbird_prepare(&ib_query, link, trans, trans_res, query)) {
+		RETURN_FALSE;
+	}
+
+	RETVAL_RES(ib_query->res);
+	Z_TRY_ADDREF_P(return_value);
+}
+/* }}} */
 
 PHP_FUNCTION(fbird_execute)
 {

@@ -38,6 +38,8 @@ PHP_FUNCTION(fbird_connect);
 PHP_FUNCTION(fbird_pconnect);
 PHP_FUNCTION(fbird_close);
 PHP_FUNCTION(fbird_drop_db);
+PHP_FUNCTION(fbird_create_database);
+PHP_FUNCTION(fbird_prepare_ex);
 PHP_FUNCTION(fbird_query);
 PHP_FUNCTION(fbird_fetch_row);
 PHP_FUNCTION(fbird_fetch_assoc);

@@ -97,6 +97,20 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_drop_db, 0, 0, 0)
 	ZEND_ARG_INFO(0, link_identifier)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_create_database, 0, 0, 1)
+	ZEND_ARG_INFO(0, database)
+	ZEND_ARG_INFO(0, username)
+	ZEND_ARG_INFO(0, password)
+	ZEND_ARG_INFO(0, charset)
+	ZEND_ARG_INFO(0, page_size)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_prepare_ex, 0, 0, 2)
+	ZEND_ARG_INFO(0, link_identifier)
+	ZEND_ARG_INFO(0, query)
+	ZEND_ARG_INFO(0, trans_handle)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_trans, 0, 0, 0)
 	ZEND_ARG_VARIADIC_INFO(0, trans_args)
 ZEND_END_ARG_INFO()
@@ -479,6 +493,8 @@ static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_pconnect, 		arginfo_fbird_pconnect)
 	PHP_FE(fbird_close, 		arginfo_fbird_close)
 	PHP_FE(fbird_drop_db, 		arginfo_fbird_drop_db)
+	PHP_FE(fbird_create_database, arginfo_fbird_create_database)
+	PHP_FE(fbird_prepare_ex, 	arginfo_fbird_prepare_ex)
 	PHP_FE(fbird_query, 		arginfo_fbird_query)
 	PHP_FE(fbird_fetch_row, 	arginfo_fbird_fetch_row)
 	PHP_FE(fbird_fetch_assoc, 	arginfo_fbird_fetch_assoc)
@@ -782,7 +798,9 @@ static PHP_GINIT_FUNCTION(fbird)
 	fbird_globals->init_pid = 0;
 #endif
 
-	/* Exception mode: SILENT (0) by default for backward compatibility */
+	/* Exception mode: SILENT (0) by default for backward compatibility.
+	 * Users can opt-in to THROW via fbird_set_exception_mode(FBIRD_EXCEPTION_MODE_THROW).
+	 * FBIRD_EXCEPTION_MODE_COMPAT is an alias for SILENT. */
 	fbird_globals->exception_mode = FBIRD_EXCEPTION_MODE_SILENT;
 
 	/* MSHUTDOWN detection flag for safe persistent resource cleanup (Issue #50, #51) */
@@ -837,6 +855,7 @@ PHP_MINIT_FUNCTION(fbird)
 	/* Exception mode constants */
 	REGISTER_LONG_CONSTANT("FBIRD_EXCEPTION_MODE_SILENT", FBIRD_EXCEPTION_MODE_SILENT, CONST_PERSISTENT);
 	REGISTER_LONG_CONSTANT("FBIRD_EXCEPTION_MODE_THROW", FBIRD_EXCEPTION_MODE_THROW, CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("FBIRD_EXCEPTION_MODE_COMPAT", FBIRD_EXCEPTION_MODE_SILENT, CONST_PERSISTENT);
 
 	/* Event constants */
 	REGISTER_LONG_CONSTANT("FBIRD_EVENT_TIMEOUT", PHP_FBIRD_EVENT_TIMEOUT, CONST_PERSISTENT);

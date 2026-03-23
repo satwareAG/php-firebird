@@ -5,6 +5,29 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.0.0] - 2026-03-23
+
+### Added
+- `fbird_create_database()` — standalone function to create databases (#121)
+- `fbird_drop_db()` string overload — drop database by DSN without open resource (#122)
+- `fbird_prepare_ex()` — prepare with fixed `(link, query, ?trans)` signature (#126)
+- BLOB stream parameter binding — pass `php_stream` resource to `fbird_execute()` for BLOB params (#129)
+- `FBIRD_EXCEPTION_MODE_COMPAT` constant (alias for SILENT) for forward-compat (#123)
+- `_php_fbird_module_error()` now respects runtime `exception_mode` setting (#123)
+- 7 new tests: `fbird_deprecate_create`, `fbird_create_database`, `fbird_drop_db_string`, `fbird_exception_default`, `fbird_prepare_ex`, `fbird_blob_stream_param`, plus updated issue121/122/125 tests
+- `docs/ROADMAP-v9.0.0.md` — baby-step execution plan for all v9.0.0 issues
+
+### Changed
+- `fbird_query(FBIRD_CREATE, ...)` now emits `E_DEPRECATED` — use `fbird_create_database()` instead (#125)
+- Updated issue121, issue122, issue125 tests to verify new implementations
+- Updated fbird_drop_db_001/003/004 expected output for deprecation notice
+
+### Fixed
+- `fbird_drop_db()` string overload correctly checks first argument type before parsing
+
+### Test Results
+- 247/247 pass (100%), 8 skipped, 0 failed on PHP 8.4 / Firebird 4.0
+
 ## [Unreleased]
 
 ---

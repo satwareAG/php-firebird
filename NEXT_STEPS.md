@@ -1,12 +1,37 @@
 # Next Session Tasks — php-firebird
 
-**Last updated:** 2026-03-23
-**Current version:** 8.1.0
+**Last updated:** 2026-03-23 19:30
+**Current version:** 8.3.0
 **Branch:** `satware-main`
 
 ---
 
-## Status: v8.1.0 Released 🚀
+## Status: ROADMAP-2026-03-23 Complete 🎉
+
+The entire [ROADMAP-2026-03-23](docs/ROADMAP-2026-03-23.md) is **complete**: 92 items done, 4 deferred to v9.0.0.
+
+| Release | Date | Tests | Highlights |
+|---------|------|-------|------------|
+| v8.1.0 | 2026-03-23 | 215/215 (100%) | P0 gap closures, shutdown crash fix, named params, 14 PDO tests |
+| v8.2.0 | 2026-03-23 | 233/233 (100%) | P1 features, FB4+ types, blob streaming, scrollable cursors, 15 P1 tests |
+| v8.3.0 | 2026-03-23 | 241/241 (100%) | P2 enhancements, service API, array fields, events, 5 P2 tests |
+
+### Remaining Work — v9.0.0 (API Modernization)
+
+7 open issues assigned to milestone v9.0.0:
+- **#120** — fbird_connect() returns typed object
+- **#121** — fbird_create_database() procedural function
+- **#122** — fbird_drop_db() with connection string
+- **#123** — fbird_set_exception_mode() on-by-default
+- **#125** — Deprecate FBIRD_CREATE in fbird_query()
+- **#126** — Standardize fbird_prepare()/fbird_trans() signatures
+- **#129** — PHP stream support for BLOB params in fbird_execute()
+
+Plus 4 deferred deprecation/modernization items (see `docs/DEPRECATION-AUDIT.md`):
+- Replace `void*` opaque pointers with typed opaque structs
+- Modernize `fbird_transaction.c` multi-db transactions (remove `ISC_TEB`)
+- Modernize `fbird_events.c` (replace `isc_wait_for_event` with OO API)
+- Remove `legacy_handle_` and `fbc_get_legacy_handle_ptr()` bridge
 
 | Item | Status |
 |------|--------|
@@ -342,21 +367,13 @@ Run `bash scripts/daily-routine.sh eod` to execute the full EOD checklist.
 - Full test matrix: 241 passed, 8 skipped, 0 failed (100%)
 - Roadmap: 92 done / 4 todo
 
-### Remaining (4 unchecked roadmap items)
-- All remaining items are in Section 4 or deferred to v9.0.0
+### Remaining (4 deferred roadmap items)
+- All deferred to v9.0.0 (see top of file for details)
 
 ---
 
-### Evening Session — v8.3.0 Release (2026-03-23)
+### Evening Session — v8.3.0 Release + Roadmap Finalization (2026-03-23)
 
-**Released v8.3.0** — All P2 enhancements complete:
-- §4.1 check_liveness with real server ping
-- §4.2 Service API via PDO (10 new constants)
-- §4.3 Array field support (read + write)
-- §4.4 Async event polling via PDO
-- §4.5 Bind config attribute
-- Section 5 test coverage complete (3 new tests)
-- 241/241 tests passing (100%)
-
-**Roadmap status**: 92 done / 4 deferred to v9.0.0
-**Remaining work**: 7 open issues (#120-#126, #129) all in v9.0.0 milestone (API modernization)
+**Released v8.3.0** — All P2 enhancements complete.
+**Updated ROADMAP-2026-03-23.md Section 6** — All 3 milestones marked RELEASED with final test counts and dates.
+**Roadmap status**: 92 done / 4 deferred to v9.0.0 — **ROADMAP COMPLETE**

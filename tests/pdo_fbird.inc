@@ -7,6 +7,9 @@
 require_once __DIR__ . '/config.inc';
 
 $dbEnv = getenv('FIREBIRD_DATABASE');
+if ($dbEnv === false || $dbEnv === '') {
+    $dbEnv = getenv('FIREBIRD_DB_PATH');
+}
 $db = ($dbEnv !== false && $dbEnv !== '') ? $dbEnv : '/firebird/data/test.fdb';
 
 $dsn_base = $host . ':' . $db;

@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [8.3.0] - 2026-03-23
+
+### Added
+- **§4.1 check_liveness**: Real server ping via `fbc_ping()` using `isc_info_ods_version` roundtrip; upgraded `pdo_fbird_check_liveness()` from local-only to actual server ping
+- **§4.2 Service API via PDO**: 10 new PDO attribute constants (`FBIRD_ATTR_SERVICE_ATTACH/DETACH/BACKUP/RESTORE/SERVER_VERSION/SERVER_INFO/DB_STATS/ADD_USER/MODIFY_USER/DELETE_USER`) exposing Firebird service manager through `setAttribute`/`getAttribute`
+- **§4.3 Array field support**: `SQL_ARRAY` read in `get_col` (1-D/multi-D, all element types) and write in `param_hook` via `fba_lookup_bounds()`/`fba_put_slice()`
+- **§4.4 Async event polling via PDO**: `FBIRD_ATTR_EVENT_NAMES/WAIT/CANCEL/COUNT` attributes for register/wait/cancel/count event operations using `fbe_wait_for_event_oo()`
+- **§4.5 Bind config**: `PDO::FBIRD_ATTR_SET_BIND` attribute executing `SET BIND OF <rule>` for FB4+ type coercion configuration
+- **Section 5 test coverage complete**: `pdo_fbird_txn_isolation_behavior.phpt`, `pdo_fbird_blob_handling.phpt`, `pdo_fbird_service_backup.phpt` filling all Phase 1/2/3 test gaps
+- 6 new tests: `pdo_fbird_check_liveness.phpt`, `pdo_fbird_bind_config.phpt`, `pdo_fbird_service_api.phpt`, `pdo_fbird_array_fields.phpt`, `pdo_fbird_events.phpt`, plus 3 Section 5 tests
+
+### Fixed
+- Persistent connection shutdown SIGSEGV: `getMaster()` returns `nullptr` when `IBG(in_mshutdown)` is set
+
+### Test Results
+- 241 tests, 241 passed, 8 skipped, 0 failed (100% pass rate) on PHP 8.4 / Firebird 4.0
+
 ## [8.2.0] - 2026-03-23
 
 ### Added

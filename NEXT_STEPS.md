@@ -344,3 +344,19 @@ Run `bash scripts/daily-routine.sh eod` to execute the full EOD checklist.
 
 ### Remaining (4 unchecked roadmap items)
 - All remaining items are in Section 4 or deferred to v9.0.0
+
+---
+
+### Evening Session — v8.3.0 Release (2026-03-23)
+
+**Released v8.3.0** — All P2 enhancements complete:
+- §4.1 check_liveness with real server ping
+- §4.2 Service API via PDO (10 new constants)
+- §4.3 Array field support (read + write)
+- §4.4 Async event polling via PDO
+- §4.5 Bind config attribute
+- Section 5 test coverage complete (3 new tests)
+- 241/241 tests passing (100%)
+
+**Roadmap status**: 92 done / 4 deferred to v9.0.0
+**Remaining work**: 7 open issues (#120-#126, #129) all in v9.0.0 milestone (API modernization)

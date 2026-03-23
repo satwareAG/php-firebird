@@ -342,7 +342,9 @@ jobs:
           '
 
       - name: Install Composer dependencies
-        run: composer install --prefer-dist --no-progress --no-suggest
+        run: |
+          curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+          composer install --prefer-dist --no-progress --no-suggest
 
       - name: Run PHPT tests
         env:

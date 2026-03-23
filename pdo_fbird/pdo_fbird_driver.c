@@ -15,17 +15,56 @@
 #include <ibase.h>
 #include "../firebird_utils.h"
 #include "../php_firebird.h"
+#include "../php_fbird_includes.h"
 
 extern const struct pdo_stmt_methods pdo_fbird_stmt_methods;
+
+/* Named-param preprocessor (defined in pdo_fbird_stmt.c) */
+extern zend_string *php_firebird_preprocess(const char *sql, size_t sql_len,
+	pdo_fbird_named_param **out_params, unsigned int *out_count);
 
 /* Forward declarations */
 static void pdo_fbird_fetch_error_func(pdo_dbh_t *dbh, pdo_stmt_t *stmt, zval *info);
 
-/* Helper: start a transaction using master + attachment */
+/* Helper: build TPB flags from handle isolation_level + writable */
+static zend_long _pdo_fbird_tpb_flags(pdo_fbird_db_handle *H, int for_autocommit)
+{
+	zend_long flags = 0;
+
+	/* Access mode */
+	flags |= H->writable ? PHP_FBIRD_WRITE : PHP_FBIRD_READ;
+
+	/* Isolation level */
+	switch (H->isolation_level) {
+		case PDO_FBIRD_TXN_SERIALIZABLE:
+			flags |= PHP_FBIRD_CONSISTENCY;
+			break;
+		case PDO_FBIRD_TXN_REPEATABLE_READ:
+			flags |= PHP_FBIRD_CONCURRENCY;
+			break;
+		case PDO_FBIRD_TXN_READ_COMMITTED:
+		default:
+			flags |= PHP_FBIRD_COMMITTED | PHP_FBIRD_REC_VERSION;
+			break;
+	}
+
+	/* Wait mode */
+	flags |= PHP_FBIRD_WAIT;
+
+	return flags;
+}
+
+/* Helper: start a transaction using master + attachment with TPB */
 static void* _pdo_fbt_start(pdo_fbird_db_handle *H)
 {
 	void *att = fbc_get_attachment(H->fbc_conn);
-	return fbt_start(IBG(master_instance), att, 0, NULL, H->status);
+	zend_long flags = _pdo_fbird_tpb_flags(H, !H->in_manually_transaction);
+	unsigned tpb_len = 0;
+	unsigned char *tpb = fbxpb_build_tpb(
+		IBG(master_instance), flags, 0, &tpb_len, H->status);
+	void *trans = fbt_start(IBG(master_instance), att, tpb_len, tpb, H->status);
+	fbxpb_free_tpb(tpb);
+	return trans;
 }
 
 /* {{{ pdo_fbird_handle_closer */
@@ -47,6 +86,9 @@ static void pdo_fbird_handle_closer(pdo_dbh_t *dbh)
 
 	if (H->charset) { efree(H->charset); H->charset = NULL; }
 	if (H->role)    { efree(H->role);    H->role    = NULL; }
+	if (H->date_format) { efree(H->date_format); H->date_format = NULL; }
+	if (H->time_format) { efree(H->time_format); H->time_format = NULL; }
+	if (H->timestamp_format) { efree(H->timestamp_format); H->timestamp_format = NULL; }
 
 	efree(H);
 	dbh->driver_data = NULL;
@@ -63,7 +105,28 @@ static bool pdo_fbird_handle_preparer(pdo_dbh_t *dbh, zend_string *sql,
 	S->H = H;
 	stmt->driver_data = S;
 	stmt->methods = &pdo_fbird_stmt_methods;
-	stmt->supports_placeholders = PDO_PLACEHOLDER_POSITIONAL;
+	/* We support both :name and ? — preprocess :name→? ourselves,
+	   then tell PDO we handle named placeholders so it routes
+	   named params through param_hook for positional resolution. */
+	stmt->supports_placeholders = PDO_PLACEHOLDER_NAMED;
+
+	/* Preprocess: convert :name → ? and build name→position map */
+	pdo_fbird_named_param *np = NULL;
+	unsigned int np_count = 0;
+	zend_string *rewritten = php_firebird_preprocess(
+		ZSTR_VAL(sql), ZSTR_LEN(sql), &np, &np_count);
+
+	const char *prepare_sql;
+	unsigned prepare_len;
+	if (rewritten) {
+		prepare_sql = ZSTR_VAL(rewritten);
+		prepare_len = (unsigned)ZSTR_LEN(rewritten);
+		S->named_params = np;
+		S->named_param_count = np_count;
+	} else {
+		prepare_sql = ZSTR_VAL(sql);
+		prepare_len = (unsigned)ZSTR_LEN(sql);
+	}
 
 	if (!H->fbt_trans) {
 		H->fbt_trans = _pdo_fbt_start(H);
@@ -80,12 +143,17 @@ static bool pdo_fbird_handle_preparer(pdo_dbh_t *dbh, zend_string *sql,
 
 	S->fbs_stmt = fbs_prepare(
 		IBG(master_instance), att, tr,
-		ZSTR_VAL(sql), (unsigned)ZSTR_LEN(sql),
+		prepare_sql, prepare_len,
 		H->dialect, S->status
 	);
 
+	if (rewritten) {
+		zend_string_release(rewritten);
+	}
+
 	if (!S->fbs_stmt) {
 		pdo_fbird_stmt_error(stmt);
+		if (S->named_params) { efree(S->named_params); }
 		efree(S);
 		stmt->driver_data = NULL;
 		return 0;
@@ -148,10 +216,8 @@ static zend_long pdo_fbird_handle_doer(pdo_dbh_t *dbh, const zend_string *sql)
 		IBG(master_instance), fbs, st);
 	fbs_free(fbs, st);
 
-	if (H->autocommit) {
-		fbt_commit(H->fbt_trans, H->status);
-		fbt_free(H->fbt_trans);
-		H->fbt_trans = NULL;
+	if (H->autocommit && !H->in_manually_transaction) {
+		fbt_commit_retaining(H->fbt_trans, H->status);
 	}
 
 	return affected >= 0 ? affected : 0;
@@ -169,8 +235,10 @@ static bool pdo_fbird_handle_begin(pdo_dbh_t *dbh)
 		H->fbt_trans = NULL;
 	}
 
+	H->in_manually_transaction = 1;
 	H->fbt_trans = _pdo_fbt_start(H);
 	if (!H->fbt_trans) {
+		H->in_manually_transaction = 0;
 		pdo_fbird_error(dbh);
 		return false;
 	}
@@ -185,6 +253,7 @@ static bool pdo_fbird_handle_commit(pdo_dbh_t *dbh)
 	int rc = fbt_commit(H->fbt_trans, H->status);
 	fbt_free(H->fbt_trans);
 	H->fbt_trans = NULL;
+	H->in_manually_transaction = 0;
 
 	if (rc != 0) { pdo_fbird_error(dbh); return false; }
 	return true;
@@ -198,6 +267,7 @@ static bool pdo_fbird_handle_rollback(pdo_dbh_t *dbh)
 	fbt_rollback(H->fbt_trans, H->status);
 	fbt_free(H->fbt_trans);
 	H->fbt_trans = NULL;
+	H->in_manually_transaction = 0;
 	return true;
 }
 /* }}} */
@@ -220,6 +290,32 @@ static bool pdo_fbird_handle_set_attribute(pdo_dbh_t *dbh, zend_long attr, zval 
 		case PDO_FBIRD_ATTR_ROLE:
 			if (H->role) efree(H->role);
 			H->role = estrdup(Z_STRVAL_P(val));
+			return true;
+		case PDO_FBIRD_ATTR_TRANSACTION_ISOLATION_LEVEL: {
+			int level = (int)zval_get_long(val);
+			if (level < PDO_FBIRD_TXN_READ_COMMITTED || level > PDO_FBIRD_TXN_SERIALIZABLE) {
+				return false;
+			}
+			H->isolation_level = level;
+			return true;
+		}
+		case PDO_FBIRD_ATTR_WRITABLE_TRANSACTION:
+			H->writable = zval_is_true(val) ? 1 : 0;
+			return true;
+		case PDO_FBIRD_ATTR_DATE_FORMAT:
+			if (H->date_format) efree(H->date_format);
+			H->date_format = estrdup(Z_STRVAL_P(val));
+			return true;
+		case PDO_FBIRD_ATTR_TIME_FORMAT:
+			if (H->time_format) efree(H->time_format);
+			H->time_format = estrdup(Z_STRVAL_P(val));
+			return true;
+		case PDO_FBIRD_ATTR_TIMESTAMP_FORMAT:
+			if (H->timestamp_format) efree(H->timestamp_format);
+			H->timestamp_format = estrdup(Z_STRVAL_P(val));
+			return true;
+		case PDO_FBIRD_ATTR_FETCH_TABLE_NAMES:
+			H->fetch_table_names = zval_is_true(val) ? 1 : 0;
 			return true;
 	}
 	return false;
@@ -257,6 +353,24 @@ static int pdo_fbird_handle_get_attribute(pdo_dbh_t *dbh, zend_long attr, zval *
 			return 1;
 		case PDO_ATTR_CONNECTION_STATUS:
 			ZVAL_BOOL(val, H->fbc_conn && fbc_is_connected(H->fbc_conn));
+			return 1;
+		case PDO_FBIRD_ATTR_TRANSACTION_ISOLATION_LEVEL:
+			ZVAL_LONG(val, H->isolation_level);
+			return 1;
+		case PDO_FBIRD_ATTR_WRITABLE_TRANSACTION:
+			ZVAL_BOOL(val, H->writable);
+			return 1;
+		case PDO_FBIRD_ATTR_DATE_FORMAT:
+			ZVAL_STRING(val, H->date_format ? H->date_format : "%Y-%m-%d");
+			return 1;
+		case PDO_FBIRD_ATTR_TIME_FORMAT:
+			ZVAL_STRING(val, H->time_format ? H->time_format : "%H:%M:%S");
+			return 1;
+		case PDO_FBIRD_ATTR_TIMESTAMP_FORMAT:
+			ZVAL_STRING(val, H->timestamp_format ? H->timestamp_format : "%Y-%m-%d %H:%M:%S");
+			return 1;
+		case PDO_FBIRD_ATTR_FETCH_TABLE_NAMES:
+			ZVAL_BOOL(val, H->fetch_table_names);
 			return 1;
 	}
 	return 0;
@@ -301,12 +415,50 @@ static void pdo_fbird_fetch_error_func(pdo_dbh_t *dbh, pdo_stmt_t *stmt, zval *i
 }
 /* }}} */
 
+/* {{{ pdo_fbird_handle_quoter */
+static zend_string *pdo_fbird_handle_quoter(pdo_dbh_t *dbh, const zend_string *unquoted,
+	enum pdo_param_type paramtype)
+{
+	const char *src = ZSTR_VAL(unquoted);
+	size_t src_len = ZSTR_LEN(unquoted);
+
+	/* Count single quotes to determine output size */
+	size_t quote_count = 0;
+	for (size_t i = 0; i < src_len; i++) {
+		if (src[i] == '\'' ) quote_count++;
+		if (src[i] == '\0') {
+			/* NULL bytes not allowed in Firebird strings */
+			return NULL;
+		}
+	}
+
+	/* Output: opening quote + doubled quotes + closing quote */
+	size_t out_len = src_len + quote_count + 2;
+	zend_string *quoted = zend_string_alloc(out_len, 0);
+	char *dst = ZSTR_VAL(quoted);
+
+	*dst++ = '\'';
+	for (size_t i = 0; i < src_len; i++) {
+		if (src[i] == '\'') {
+			*dst++ = '\'';
+			*dst++ = '\'';
+		} else {
+			*dst++ = src[i];
+		}
+	}
+	*dst++ = '\'';
+	*dst = '\0';
+
+	return quoted;
+}
+/* }}} */
+
 /* {{{ pdo_fbird_dbh_methods */
 const struct pdo_dbh_methods pdo_fbird_dbh_methods = {
 	pdo_fbird_handle_closer,
 	pdo_fbird_handle_preparer,
 	pdo_fbird_handle_doer,
-	NULL,                           /* quoter */
+	pdo_fbird_handle_quoter,
 	pdo_fbird_handle_begin,
 	pdo_fbird_handle_commit,
 	pdo_fbird_handle_rollback,
@@ -326,6 +478,9 @@ static int pdo_fbird_handle_factory(pdo_dbh_t *dbh, zval *driver_options)
 	dbh->driver_data = H;
 	H->dialect    = 3;
 	H->autocommit = dbh->auto_commit ? 1 : 0;
+	H->in_manually_transaction = 0;
+	H->isolation_level = PDO_FBIRD_TXN_READ_COMMITTED;
+	H->writable = 1;
 
 	char host[256]    = {0};
 	char dbname[1024] = {0};
@@ -378,6 +533,9 @@ static int pdo_fbird_handle_factory(pdo_dbh_t *dbh, zval *driver_options)
 		pdo_fbird_error(dbh);
 		if (H->charset) efree(H->charset);
 		if (H->role)    efree(H->role);
+		if (H->date_format) efree(H->date_format);
+		if (H->time_format) efree(H->time_format);
+		if (H->timestamp_format) efree(H->timestamp_format);
 		efree(H);
 		dbh->driver_data = NULL;
 		return 0;

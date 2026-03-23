@@ -98,7 +98,6 @@ ZEND_BEGIN_MODULE_GLOBALS(fbird)
 	zend_long blob_segment_size;    /* configurable BLOB segment size (default: 4096) */
 	void *get_master_interface;
 	void *master_instance;
-	void *get_statement_interface;
 	int client_version;
 	int client_major_version;
 	int client_minor_version;
@@ -395,9 +394,6 @@ void fbp_error_ex(long level, const char *, ...)
 #define fbp_notice(msg, ...)  fbp_error_ex(E_NOTICE,  msg " (%s:%d)\n" __VA_OPT__(,) __VA_ARGS__, __FILE__, __LINE__)
 #endif
 
-typedef ISC_STATUS (ISC_EXPORT *fb_get_statement_interface_t)(
-	ISC_STATUS* status_vector, void* db_handle, isc_stmt_handle* stmt_handle
-);
 
 typedef void* (ISC_EXPORT *fb_get_master_interface_t)(void);
 

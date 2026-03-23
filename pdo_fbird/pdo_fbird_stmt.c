@@ -13,9 +13,152 @@
 #include "php_pdo_fbird.h"
 #include "php_pdo_fbird_int.h"
 #include <ibase.h>
+#include <ctype.h>
 #include "../firebird_utils.h"
 #include "../php_firebird.h"
 #include "../php_fbird_includes.h"
+
+/* {{{ php_firebird_preprocess — replace :name with ? and build name→position map */
+zend_string *php_firebird_preprocess(const char *sql, size_t sql_len,
+	pdo_fbird_named_param **out_params, unsigned int *out_count)
+{
+	/* Pass 1: count named params and compute output length */
+	unsigned int count = 0;
+	int in_string = 0;
+	int in_comment = 0;
+	int in_block = 0; /* inside EXECUTE BLOCK's BEGIN...END */
+
+	for (size_t i = 0; i < sql_len; i++) {
+		char c = sql[i];
+		if (in_comment) {
+			if (c == '*' && i + 1 < sql_len && sql[i + 1] == '/') {
+				in_comment = 0; i++;
+			}
+			continue;
+		}
+		if (c == '/' && i + 1 < sql_len && sql[i + 1] == '*') {
+			in_comment = 1; i++;
+			continue;
+		}
+		if (c == '-' && i + 1 < sql_len && sql[i + 1] == '-') {
+			while (i < sql_len && sql[i] != '\n') i++;
+			continue;
+		}
+		if (c == '\'') { in_string = !in_string; continue; }
+		if (in_string) continue;
+
+		/* Detect BEGIN keyword (for EXECUTE BLOCK) */
+		if (!in_block && (c == 'B' || c == 'b') && i + 5 <= sql_len) {
+			if (strncasecmp(sql + i, "BEGIN", 5) == 0 &&
+			    (i + 5 >= sql_len || !isalnum((unsigned char)sql[i + 5]))) {
+				in_block = 1;
+				i += 4;
+				continue;
+			}
+		}
+
+		/* Skip :name inside BEGIN...END block (those are PSQL variables) */
+		if (in_block) {
+			if ((c == 'E' || c == 'e') && i + 3 <= sql_len) {
+				if (strncasecmp(sql + i, "END", 3) == 0 &&
+				    (i + 3 >= sql_len || !isalnum((unsigned char)sql[i + 3]))) {
+					in_block = 0;
+					i += 2;
+				}
+			}
+			continue;
+		}
+
+		if (c == ':' && i + 1 < sql_len && (isalpha((unsigned char)sql[i + 1]) || sql[i + 1] == '_')) {
+			size_t start = i + 1;
+			size_t end = start;
+			while (end < sql_len && (isalnum((unsigned char)sql[end]) || sql[end] == '_')) end++;
+			count++;
+			i = end - 1;
+		}
+	}
+
+	if (count == 0) {
+		*out_params = NULL;
+		*out_count = 0;
+		return NULL; /* no named params, use original SQL */
+	}
+
+	/* Pass 2: build output SQL and param map */
+	pdo_fbird_named_param *params = ecalloc(count, sizeof(pdo_fbird_named_param));
+	zend_string *out = zend_string_alloc(sql_len + 16, 0); /* generous */
+	char *dst = ZSTR_VAL(out);
+	unsigned int pidx = 0;
+	in_string = 0;
+	in_comment = 0;
+	in_block = 0;
+
+	for (size_t i = 0; i < sql_len; i++) {
+		char c = sql[i];
+		if (in_comment) {
+			*dst++ = c;
+			if (c == '*' && i + 1 < sql_len && sql[i + 1] == '/') {
+				in_comment = 0; *dst++ = sql[++i];
+			}
+			continue;
+		}
+		if (c == '/' && i + 1 < sql_len && sql[i + 1] == '*') {
+			in_comment = 1; *dst++ = c; *dst++ = sql[++i];
+			continue;
+		}
+		if (c == '-' && i + 1 < sql_len && sql[i + 1] == '-') {
+			while (i < sql_len && sql[i] != '\n') { *dst++ = sql[i]; i++; }
+			if (i < sql_len) *dst++ = sql[i];
+			continue;
+		}
+		if (c == '\'') { in_string = !in_string; *dst++ = c; continue; }
+		if (in_string) { *dst++ = c; continue; }
+
+		if (!in_block && (c == 'B' || c == 'b') && i + 5 <= sql_len) {
+			if (strncasecmp(sql + i, "BEGIN", 5) == 0 &&
+			    (i + 5 >= sql_len || !isalnum((unsigned char)sql[i + 5]))) {
+				in_block = 1;
+				memcpy(dst, sql + i, 5); dst += 5;
+				i += 4;
+				continue;
+			}
+		}
+
+		if (in_block) {
+			if ((c == 'E' || c == 'e') && i + 3 <= sql_len) {
+				if (strncasecmp(sql + i, "END", 3) == 0 &&
+				    (i + 3 >= sql_len || !isalnum((unsigned char)sql[i + 3]))) {
+					in_block = 0;
+				}
+			}
+			*dst++ = c;
+			continue;
+		}
+
+		if (c == ':' && i + 1 < sql_len && (isalpha((unsigned char)sql[i + 1]) || sql[i + 1] == '_')) {
+			size_t start = i + 1;
+			size_t end = start;
+			while (end < sql_len && (isalnum((unsigned char)sql[end]) || sql[end] == '_')) end++;
+			params[pidx].name = estrndup(sql + start, end - start);
+			params[pidx].position = pidx;
+			pidx++;
+			*dst++ = '?';
+			i = end - 1;
+			continue;
+		}
+
+		*dst++ = c;
+	}
+	*dst = '\0';
+
+	size_t final_len = dst - ZSTR_VAL(out);
+	out = zend_string_truncate(out, final_len, 0);
+
+	*out_params = params;
+	*out_count = pidx;
+	return out;
+}
+/* }}} */
 
 /* Helper: read a null indicator from message buffer */
 static int _pdo_fbird_is_null(pdo_fbird_stmt *S, unsigned idx)
@@ -32,6 +175,14 @@ static int pdo_fbird_stmt_dtor(pdo_stmt_t *stmt)
 {
 	pdo_fbird_stmt *S = (pdo_fbird_stmt *)stmt->driver_data;
 	if (!S) return 1;
+
+	if (S->named_params) {
+		for (unsigned int i = 0; i < S->named_param_count; i++) {
+			if (S->named_params[i].name) efree(S->named_params[i].name);
+		}
+		efree(S->named_params);
+		S->named_params = NULL;
+	}
 
 	if (S->out_buf)  { efree(S->out_buf);  S->out_buf  = NULL; }
 	if (S->in_buf)   { efree(S->in_buf);   S->in_buf   = NULL; }
@@ -105,9 +256,9 @@ static int pdo_fbird_stmt_execute(pdo_stmt_t *stmt)
 		stmt->row_count = (zend_long)aff;
 
 		/* Only autocommit for DML/DDL — never for SELECT (cursor still open) */
-		if (H->autocommit && H->fbt_trans) {
-			fbt_commit_retaining(H->fbt_trans, H->status);
-		}
+ 	if (H->autocommit && !H->in_manually_transaction) {
+ 		fbt_commit_retaining(H->fbt_trans, H->status);
+ 	}
 	}
 	return 1;
 }
@@ -267,6 +418,20 @@ static int pdo_fbird_stmt_param_hook(pdo_stmt_t *stmt,
 {
 	pdo_fbird_stmt *S = (pdo_fbird_stmt *)stmt->driver_data;
 
+	/* Resolve named parameter to positional index.
+	   PDO passes names with leading ':', our map stores without. */
+	if (event_type == PDO_PARAM_EVT_NORMALIZE && param->name && S->named_params) {
+		const char *pname = ZSTR_VAL(param->name);
+		if (pname[0] == ':') pname++;
+		for (unsigned int i = 0; i < S->named_param_count; i++) {
+			if (S->named_params[i].name && strcasecmp(pname, S->named_params[i].name) == 0) {
+				param->paramno = S->named_params[i].position;
+				return 1;
+			}
+		}
+		return 1;
+	}
+
 	if (event_type != PDO_PARAM_EVT_EXEC_PRE) return 1;
 	if (!S->in_meta || !S->in_buf) return 1;
 	if (param->paramno < 0 || (unsigned)param->paramno >= S->in_count) return 1;
@@ -276,9 +441,11 @@ static int pdo_fbird_stmt_param_hook(pdo_stmt_t *stmt,
 	unsigned length = fbm_get_length(IBG(master_instance), S->in_meta, idx);
 	unsigned null_off = fbm_get_null_offset(IBG(master_instance), S->in_meta, idx);
 	unsigned sql_type = fbm_get_type(IBG(master_instance), S->in_meta, idx);
-	int      scale    = fbm_get_scale(IBG(master_instance), S->in_meta, idx);
 	unsigned char *dest = S->in_buf + offset;
 	short *null_flag    = (short *)(S->in_buf + null_off);
+
+	/* Allow NULL binding: ensure nullable bit is set (sql_type |= 1) */
+	sql_type |= 1;
 
 	zval *val = &param->parameter;
 	if (!val || Z_TYPE_P(val) == IS_NULL) {
@@ -344,7 +511,6 @@ static int pdo_fbird_stmt_param_hook(pdo_stmt_t *stmt,
 			break;
 		}
 	}
-	(void)scale;
 	return 1;
 }
 /* }}} */

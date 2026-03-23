@@ -35,7 +35,7 @@ When adding a new `fbird_*` function, the stub entry MUST include:
 - [ ] Return type (use `mixed` when return can be `resource`)
 - [ ] PHPDoc `@param` for each parameter with type and description
 - [ ] PHPDoc `@return` with type and meaning
-- [ ] PHPDoc `@since 7.0.0` (or current version)
+- [ ] PHPDoc `@since 8.0.0` (or current version)
 - [ ] Entry added to BOTH `stubs/firebird-stubs.php` AND `phpstan/fbird.stub.php`
 - [ ] `bash scripts/check-stubs-sync.sh` exits 0
 

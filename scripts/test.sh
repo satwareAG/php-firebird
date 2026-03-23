@@ -32,6 +32,10 @@ if [ -d "tests" ]; then
     # or subdirectory). Defaults to running the entire tests/ tree.
     if [ $# -eq 0 ]; then
         TARGET="tests/"
+        # Include pdo_fbird tests if they exist
+        if [ -d "pdo_fbird/tests" ]; then
+            TARGET="$TARGET pdo_fbird/tests/"
+        fi
     else
         # Resolve test file arguments to actual paths
         TARGET=""
@@ -49,6 +53,11 @@ if [ -d "tests" ]; then
             # Try tests/ prefix with .phpt extension
             elif [ -e "tests/$arg.phpt" ]; then
                 resolved="tests/$arg.phpt"
+            # Try pdo_fbird/tests/ prefix
+            elif [ -e "pdo_fbird/tests/$arg" ]; then
+                resolved="pdo_fbird/tests/$arg"
+            elif [ -e "pdo_fbird/tests/$arg.phpt" ]; then
+                resolved="pdo_fbird/tests/$arg.phpt"
             else
                 echo "Cannot find test file \"$arg\"."
                 exit 1
@@ -56,7 +65,7 @@ if [ -d "tests" ]; then
             TARGET="$TARGET $resolved"
         done
     fi
-    # Build extension arguments - always load firebird, conditionally load pcntl if available
+    # Build extension arguments - always load firebird (pdo_fbird is integrated)
     EXT_ARGS="-d extension=$(pwd)/modules/firebird.so"
     # Check if pcntl is available (needed for fork tests)
     if php -m 2>/dev/null | grep -q pcntl; then

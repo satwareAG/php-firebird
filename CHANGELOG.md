@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [8.1.0] - 2026-03-23
+
+### Fixed
+
+- **Shutdown crash (SIGSEGV in `detachNoThrow`)** — Added `IBG(in_mshutdown)` guard to `getMaster()` in `firebird_utils.cpp` and defensive logic in `fb_connection.hpp` to prevent dangling `master_` pointer access during PHP shutdown when PDO objects outlive the Firebird master instance.
+- **Connection cache bug (#119)** — Fixed `fbird_connection.c` cache-hit path to validate `fbc_connection` is non-NULL and connected before reusing cached resources.
+  Closes [#119](https://github.com/satwareAG/php-firebird/issues/119).
+- **Named parameter binding** — Implemented `:name` → `?` preprocessing via `php_firebird_preprocess()` in `pdo_fbird_driver.c`, storing name→position map and using `PDO_PLACEHOLDER_NAMED` so PDO routes named params correctly. Fixed colon-stripping in `pdo_fbird_stmt.c` param_hook.
+- **Test fixes** — Fixed `issue119.phpt` (updated `fbird_trans_start()` arg from int to array), `issue124.phpt` (updated expected output for existing `fbird_connection_info()`), `debug_oo.phpt` (added missing `bool(true)` lines), `inspection_deep.phpt` (added Docker skip condition for `fbird_kill_attachment` blocking).
+
+### Added
+
+- **PDO driver attributes** — Transaction isolation level (`PDO::FBIRD_TXN_ISOLATION_LEVEL`), writable transaction (`PDO::FBIRD_WRITABLE_TRANSACTION`), fetch table names (`PDO::FBIRD_FETCH_TABLE_NAMES`), and date/time/timestamp format attributes (`PDO::FBIRD_DATE_FORMAT`, `PDO::FBIRD_TIME_FORMAT`, `PDO::FBIRD_TIMESTAMP_FORMAT`) with full `setAttribute`/`getAttribute` support.
+- **PDO constants** — Registered all custom PDO constants in `pdo_fbird.c` MINIT including isolation level values (`PDO::FBIRD_READ_COMMITTED`, `PDO::FBIRD_REPEATABLE_READ`, `PDO::FBIRD_SERIALIZABLE`).
+- **13 new PDO tests** — `pdo_fbird_001` through `pdo_fbird_003` (basic CRUD), `pdo_fbird_connect`, `pdo_fbird_error_handle`, `pdo_fbird_execute`, `pdo_fbird_execute_block`, `pdo_fbird_rowCount`, `pdo_fbird_quote_001`, `pdo_fbird_autocommit`, `pdo_fbird_named_params`, `pdo_fbird_nullable_binding`, `pdo_fbird_txn_isolation_attr`.
+- **P0 test completion** — `pdo_fbird_autocommit_change`, `pdo_fbird_ignore_parammarks`, `pdo_fbird_bug_error_codes` completing all 14 P0 test scenarios.
+- **P1 attribute tests** — `pdo_fbird_transaction_access_mode`, `pdo_fbird_fetch_table_names`, `pdo_fbird_attr_datetime_format`.
+- **Deprecation audit** — Created `docs/DEPRECATION-AUDIT.md` documenting 8 legacy patterns with priority, complexity, and remediation plan.
+  Closes [#124](https://github.com/satwareAG/php-firebird/issues/124).
+
+### Removed
+
+- **Dead legacy code** — Removed `FBIRD_API_MODE_LEGACY` enum and all `FBIRD_REQUIRE_LEGACY_*` guard macros from `src/php_fbird_compat.h`, `get_statement_interface` global from `php_fbird_includes.h` and `firebird.c`.
+
+### Changed
+
+- **Test suite** — 222 tests total, 215 pass, 7 skipped, 0 failures (100% pass rate) on PHP 8.4 / Firebird 4.0.
+
+---
+
 ## [8.0.0] - 2026-03-22
 
 ### Added

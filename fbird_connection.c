@@ -324,15 +324,25 @@ void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 
 		xlink = (zend_resource*) le->ptr;
 		if ((!persistent && xlink->type == le_link) || xlink->type == le_plink) {
-			if (IBG(default_link) != xlink) {
-				GC_ADDREF(xlink);
-				if (IBG(default_link)) {
-					zend_list_delete(IBG(default_link));
+			/* Issue #119: Verify the cached connection is still usable.
+			 * After fbird_close(), fbc_connection may be NULL even though
+			 * the zend_resource still exists with refcount > 0. */
+			ib_link = (fbird_db_link *)xlink->ptr;
+			if (ib_link == NULL || ib_link->fbc_connection == NULL ||
+				!fbc_is_connected(ib_link->fbc_connection)) {
+				/* Stale cache entry — remove and fall through to create new connection */
+				zend_hash_str_del(&EG(regular_list), hash, sizeof(hash)-1);
+			} else {
+				if (IBG(default_link) != xlink) {
+					GC_ADDREF(xlink);
+					if (IBG(default_link)) {
+						zend_list_delete(IBG(default_link));
+					}
+					IBG(default_link) = xlink;
 				}
-				IBG(default_link) = xlink;
+				GC_ADDREF(xlink);
+				RETURN_RES(xlink);
 			}
-			GC_ADDREF(xlink);
-			RETURN_RES(xlink);
 		} else {
 			zend_hash_str_del(&EG(regular_list), hash, sizeof(hash)-1);
 		}

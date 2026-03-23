@@ -33,6 +33,30 @@ PHP_MINIT_FUNCTION(pdo_fbird)
 			sizeof("FBIRD_ATTR_ROLE") - 1, PDO_FBIRD_ATTR_ROLE);
 		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_PAGE_BUFFERS",
 			sizeof("FBIRD_ATTR_PAGE_BUFFERS") - 1, PDO_FBIRD_ATTR_PAGE_BUFFERS);
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_TRANSACTION_ISOLATION_LEVEL",
+			sizeof("FBIRD_ATTR_TRANSACTION_ISOLATION_LEVEL") - 1, PDO_FBIRD_ATTR_TRANSACTION_ISOLATION_LEVEL);
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_WRITABLE_TRANSACTION",
+			sizeof("FBIRD_ATTR_WRITABLE_TRANSACTION") - 1, PDO_FBIRD_ATTR_WRITABLE_TRANSACTION);
+
+		/* Transaction isolation level values */
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_TXN_READ_COMMITTED",
+			sizeof("FBIRD_TXN_READ_COMMITTED") - 1, PDO_FBIRD_TXN_READ_COMMITTED);
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_TXN_REPEATABLE_READ",
+			sizeof("FBIRD_TXN_REPEATABLE_READ") - 1, PDO_FBIRD_TXN_REPEATABLE_READ);
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_TXN_SERIALIZABLE",
+			sizeof("FBIRD_TXN_SERIALIZABLE") - 1, PDO_FBIRD_TXN_SERIALIZABLE);
+
+		/* Date/time format attributes */
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_DATE_FORMAT",
+			sizeof("FBIRD_ATTR_DATE_FORMAT") - 1, PDO_FBIRD_ATTR_DATE_FORMAT);
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_TIME_FORMAT",
+			sizeof("FBIRD_ATTR_TIME_FORMAT") - 1, PDO_FBIRD_ATTR_TIME_FORMAT);
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_TIMESTAMP_FORMAT",
+			sizeof("FBIRD_ATTR_TIMESTAMP_FORMAT") - 1, PDO_FBIRD_ATTR_TIMESTAMP_FORMAT);
+
+		/* Fetch table names attribute */
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_FETCH_TABLE_NAMES",
+			sizeof("FBIRD_ATTR_FETCH_TABLE_NAMES") - 1, PDO_FBIRD_ATTR_FETCH_TABLE_NAMES);
 	}
 
 	return SUCCESS;
@@ -72,6 +96,7 @@ zend_module_entry pdo_fbird_module_entry = {
 };
 /* }}} */
 
+/* When built as standalone extension */
 #ifdef COMPILE_DL_PDO_FBIRD
 ZEND_GET_MODULE(pdo_fbird)
 #endif

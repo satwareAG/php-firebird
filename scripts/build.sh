@@ -13,12 +13,22 @@ fi
 # that differ between PHP versions and cause "No rule to make target" errors
 find . -name '*.dep' -delete 2>/dev/null || true
 find . -name '*.lo' -delete 2>/dev/null || true
-rm -rf .libs 2>/dev/null || true
+rm -rf .libs pdo_fbird/.libs 2>/dev/null || true
 
 if [ -f Makefile ]; then
     make clean 2>/dev/null || true
     phpize --clean 2>/dev/null || true
 fi
+
+# Clean any standalone pdo_fbird build artifacts — pdo_fbird is compiled
+# as part of the unified firebird.so via config.m4.  A leftover
+# pdo_fbird/config.h from a standalone build defines COMPILE_DL_PDO_FBIRD
+# which causes duplicate get_module symbols.
+if [ -f pdo_fbird/Makefile ]; then
+    (cd pdo_fbird && make clean 2>/dev/null || true && phpize --clean 2>/dev/null || true)
+fi
+rm -f pdo_fbird/config.h pdo_fbird/config.h.in~ pdo_fbird/config.log \
+     pdo_fbird/config.status pdo_fbird/config.nice 2>/dev/null || true
 
 # Prepare build environment
 phpize
@@ -49,3 +59,4 @@ make -j$(nproc)
 
 echo "Build completed. Extension is available at: $(pwd)/modules/firebird.so"
 echo "Firebird client library: $FIREBIRD_PATH"
+echo "Note: pdo_fbird PDO driver is integrated into firebird.so (no separate build needed)"

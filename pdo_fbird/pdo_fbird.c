@@ -61,6 +61,28 @@ PHP_MINIT_FUNCTION(pdo_fbird)
 		/* Bind config attribute (FB 4+ SET BIND) */
 		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_SET_BIND",
 			sizeof("FBIRD_ATTR_SET_BIND") - 1, PDO_FBIRD_ATTR_SET_BIND);
+
+		/* Service API attributes */
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_SERVICE_ATTACH",
+			sizeof("FBIRD_ATTR_SERVICE_ATTACH") - 1, PDO_FBIRD_ATTR_SERVICE_ATTACH);
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_SERVICE_DETACH",
+			sizeof("FBIRD_ATTR_SERVICE_DETACH") - 1, PDO_FBIRD_ATTR_SERVICE_DETACH);
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_SERVICE_BACKUP",
+			sizeof("FBIRD_ATTR_SERVICE_BACKUP") - 1, PDO_FBIRD_ATTR_SERVICE_BACKUP);
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_SERVICE_RESTORE",
+			sizeof("FBIRD_ATTR_SERVICE_RESTORE") - 1, PDO_FBIRD_ATTR_SERVICE_RESTORE);
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_SERVICE_SERVER_VERSION",
+			sizeof("FBIRD_ATTR_SERVICE_SERVER_VERSION") - 1, PDO_FBIRD_ATTR_SERVICE_SERVER_VERSION);
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_SERVICE_SERVER_INFO",
+			sizeof("FBIRD_ATTR_SERVICE_SERVER_INFO") - 1, PDO_FBIRD_ATTR_SERVICE_SERVER_INFO);
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_SERVICE_DB_STATS",
+			sizeof("FBIRD_ATTR_SERVICE_DB_STATS") - 1, PDO_FBIRD_ATTR_SERVICE_DB_STATS);
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_SERVICE_ADD_USER",
+			sizeof("FBIRD_ATTR_SERVICE_ADD_USER") - 1, PDO_FBIRD_ATTR_SERVICE_ADD_USER);
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_SERVICE_MODIFY_USER",
+			sizeof("FBIRD_ATTR_SERVICE_MODIFY_USER") - 1, PDO_FBIRD_ATTR_SERVICE_MODIFY_USER);
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_SERVICE_DELETE_USER",
+			sizeof("FBIRD_ATTR_SERVICE_DELETE_USER") - 1, PDO_FBIRD_ATTR_SERVICE_DELETE_USER);
 	}
 
 	return SUCCESS;

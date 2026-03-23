@@ -15,6 +15,7 @@
 #include <ibase.h>
 #include <ctype.h>
 #include <time.h>
+#include <math.h>
 #include "zend_smart_str.h"
 #include "../firebird_utils.h"
 #include "../php_firebird.h"
@@ -354,6 +355,113 @@ static int pdo_fbird_stmt_describe(pdo_stmt_t *stmt, int colno)
 }
 /* }}} */
 
+/* {{{ _pdo_fbird_arr_zval — convert Firebird array slice to PHP array */
+static int _pdo_fbird_arr_zval(zval *ar_zval, char *data, zend_ulong data_size,
+	ISC_ARRAY_DESC *desc, unsigned short el_type, unsigned short el_size,
+	int dim)
+{
+	int u_bound = desc->array_desc_bounds[dim].array_bound_upper;
+	int l_bound = desc->array_desc_bounds[dim].array_bound_lower;
+	int dim_len = 1 + u_bound - l_bound;
+
+	if (dim < desc->array_desc_dimensions) {
+		zend_ulong slice_size = data_size / dim_len;
+		array_init(ar_zval);
+		for (int i = 0; i < dim_len; i++) {
+			zval slice_zval;
+			if (_pdo_fbird_arr_zval(&slice_zval, data, slice_size, desc,
+					el_type, el_size, dim + 1) != SUCCESS) {
+				return FAILURE;
+			}
+			data += slice_size;
+			add_index_zval(ar_zval, l_bound + i, &slice_zval);
+		}
+	} else {
+		/* leaf element */
+		switch (el_type) {
+			case SQL_SHORT: {
+				short v; memcpy(&v, data, sizeof(short));
+				if (desc->array_desc_scale < 0) {
+					char buf[64]; snprintf(buf, sizeof(buf), "%.*f", -desc->array_desc_scale, v / pow(10, -desc->array_desc_scale));
+					ZVAL_STRING(ar_zval, buf);
+				} else { ZVAL_LONG(ar_zval, v); }
+				break;
+			}
+			case SQL_LONG: {
+				ISC_LONG v; memcpy(&v, data, sizeof(ISC_LONG));
+				if (desc->array_desc_scale < 0) {
+					char buf[64]; snprintf(buf, sizeof(buf), "%.*f", -desc->array_desc_scale, v / pow(10, -desc->array_desc_scale));
+					ZVAL_STRING(ar_zval, buf);
+				} else { ZVAL_LONG(ar_zval, v); }
+				break;
+			}
+			case SQL_INT64: {
+				ISC_INT64 v; memcpy(&v, data, sizeof(ISC_INT64));
+				if (desc->array_desc_scale < 0) {
+					char buf[64]; snprintf(buf, sizeof(buf), "%.*f", -desc->array_desc_scale, (double)v / pow(10, -desc->array_desc_scale));
+					ZVAL_STRING(ar_zval, buf);
+				} else { ZVAL_LONG(ar_zval, (zend_long)v); }
+				break;
+			}
+			case SQL_FLOAT: {
+				float v; memcpy(&v, data, sizeof(float));
+				ZVAL_DOUBLE(ar_zval, (double)v);
+				break;
+			}
+			case SQL_DOUBLE: {
+				double v; memcpy(&v, data, sizeof(double));
+				ZVAL_DOUBLE(ar_zval, v);
+				break;
+			}
+			case SQL_VARYING: {
+				/* cstring format: null-terminated */
+				size_t slen = strnlen(data, el_size - 1);
+				ZVAL_STRINGL(ar_zval, data, slen);
+				break;
+			}
+			case SQL_TEXT: {
+				/* Fixed CHAR: trim trailing spaces */
+				int len = desc->array_desc_length;
+				while (len > 0 && data[len - 1] == ' ') len--;
+				ZVAL_STRINGL(ar_zval, data, len);
+				break;
+			}
+ 		case SQL_TIMESTAMP: {
+				ISC_TIMESTAMP ts; memcpy(&ts, data, sizeof(ISC_TIMESTAMP));
+				struct tm t;
+				isc_decode_timestamp(&ts, &t);
+				char buf[64]; snprintf(buf, sizeof(buf), "%04d-%02d-%02d %02d:%02d:%02d",
+					t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec);
+				ZVAL_STRING(ar_zval, buf);
+				break;
+			}
+			case SQL_TYPE_DATE: {
+				ISC_DATE dt; memcpy(&dt, data, sizeof(ISC_DATE));
+				struct tm t;
+				isc_decode_sql_date(&dt, &t);
+				char buf[32]; snprintf(buf, sizeof(buf), "%04d-%02d-%02d",
+					t.tm_year + 1900, t.tm_mon + 1, t.tm_mday);
+				ZVAL_STRING(ar_zval, buf);
+				break;
+			}
+			case SQL_TYPE_TIME: {
+				ISC_TIME tm_val; memcpy(&tm_val, data, sizeof(ISC_TIME));
+				struct tm t;
+				isc_decode_sql_time(&tm_val, &t);
+				char buf[32]; snprintf(buf, sizeof(buf), "%02d:%02d:%02d",
+					t.tm_hour, t.tm_min, t.tm_sec);
+				ZVAL_STRING(ar_zval, buf);
+				break;
+			}
+			default:
+				ZVAL_STRINGL(ar_zval, data, el_size);
+				break;
+		}
+	}
+	return SUCCESS;
+}
+/* }}} */
+
 /* {{{ pdo_fbird_stmt_get_col */
 static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 	zval *result, enum pdo_param_type *type)
@@ -541,6 +649,71 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 			break;
 		}
 #endif
+		case SQL_ARRAY: {
+			/* Read array field */
+			ISC_QUAD ar_qd; memcpy(&ar_qd, data, sizeof(ISC_QUAD));
+			void *attachment = fbc_get_attachment(S->H->fbc_conn);
+			void *transaction = fbt_get_handle(S->H->fbt_trans);
+			if (!attachment || !transaction) {
+				ZVAL_NULL(result);
+				break;
+			}
+			/* Get table/column name for descriptor lookup */
+			const char *rel = fbm_get_relation(IBG(master_instance), S->out_meta, (unsigned)colno);
+			const char *fld = fbm_get_field(IBG(master_instance), S->out_meta, (unsigned)colno);
+			if (!rel || !fld) { ZVAL_NULL(result); break; }
+			ISC_ARRAY_DESC ar_desc;
+			if (fba_lookup_bounds(IBG(master_instance), attachment, transaction,
+					rel, fld, &ar_desc, S->status) != 0) {
+				ZVAL_NULL(result); break;
+			}
+			/* Determine element type and size */
+			unsigned short el_type, el_size;
+			switch (ar_desc.array_desc_dtype) {
+				case blr_text: case blr_text2:
+					el_type = SQL_TEXT; el_size = ar_desc.array_desc_length; break;
+				case blr_short:
+					el_type = SQL_SHORT; el_size = sizeof(short); break;
+				case blr_long:
+					el_type = SQL_LONG; el_size = sizeof(ISC_LONG); break;
+				case blr_int64:
+					el_type = SQL_INT64; el_size = sizeof(ISC_INT64); break;
+				case blr_float:
+					el_type = SQL_FLOAT; el_size = sizeof(float); break;
+				case blr_double:
+					el_type = SQL_DOUBLE; el_size = sizeof(double); break;
+				case blr_timestamp:
+					el_type = SQL_TIMESTAMP; el_size = sizeof(ISC_TIMESTAMP); break;
+				case blr_sql_date:
+					el_type = SQL_TYPE_DATE; el_size = sizeof(ISC_DATE); break;
+				case blr_sql_time:
+					el_type = SQL_TYPE_TIME; el_size = sizeof(ISC_TIME); break;
+				case blr_varying: case blr_varying2:
+					el_type = SQL_VARYING; el_size = ar_desc.array_desc_length + 1; break;
+				default:
+					ZVAL_NULL(result); break;
+			}
+			/* Calculate total array size */
+			zend_ulong total_elems = 1;
+			for (unsigned short d = 0; d < ar_desc.array_desc_dimensions; d++) {
+				total_elems *= 1 + ar_desc.array_desc_bounds[d].array_bound_upper
+					- ar_desc.array_desc_bounds[d].array_bound_lower;
+			}
+			ISC_LONG fetch_size = (ISC_LONG)(el_size * total_elems);
+			void *ar_data = ecalloc(1, (size_t)fetch_size);
+			if (fba_get_slice(IBG(master_instance), attachment, transaction,
+					&ar_qd, &ar_desc, ar_data, &fetch_size, S->status) != 0) {
+				efree(ar_data);
+				ZVAL_NULL(result); break;
+			}
+			if (_pdo_fbird_arr_zval(result, (char *)ar_data, fetch_size,
+					&ar_desc, el_type, el_size, 0) != SUCCESS) {
+				efree(ar_data);
+				ZVAL_NULL(result); break;
+			}
+			efree(ar_data);
+			break;
+		}
 		case SQL_BLOB: {
 			/* Read blob content */
 			ISC_QUAD bid; memcpy(&bid, data, sizeof(ISC_QUAD));
@@ -687,6 +860,97 @@ static int pdo_fbird_stmt_param_hook(pdo_stmt_t *stmt,
 			memcpy(dest, ZSTR_VAL(s), slen);
 			if (slen < length) memset(dest + slen, ' ', length - slen);
 			zend_string_release(s);
+			break;
+		}
+		case SQL_ARRAY: {
+			/* Array parameter binding: serialize PHP array into Firebird layout */
+			if (Z_TYPE_P(val) != IS_ARRAY) {
+				/* Non-array value: treat as string for the ISC_QUAD */
+				memset(dest, 0, sizeof(ISC_QUAD));
+				break;
+			}
+			void *attachment = fbc_get_attachment(S->H->fbc_conn);
+			void *transaction = fbt_get_handle(S->H->fbt_trans);
+			if (!attachment || !transaction) { memset(dest, 0, sizeof(ISC_QUAD)); break; }
+			/* Get relation/field name from input metadata */
+			const char *rel = fbm_get_relation(IBG(master_instance), S->in_meta, idx);
+			const char *fld = fbm_get_field(IBG(master_instance), S->in_meta, idx);
+			if (!rel || !fld || !*rel || !*fld) { memset(dest, 0, sizeof(ISC_QUAD)); break; }
+			ISC_ARRAY_DESC ar_desc;
+			if (fba_lookup_bounds(IBG(master_instance), attachment, transaction,
+					rel, fld, &ar_desc, S->status) != 0) {
+				memset(dest, 0, sizeof(ISC_QUAD)); break;
+			}
+			/* Determine element size */
+			unsigned short el_size;
+			switch (ar_desc.array_desc_dtype) {
+				case blr_short: el_size = sizeof(short); break;
+				case blr_long: el_size = sizeof(ISC_LONG); break;
+				case blr_int64: el_size = sizeof(ISC_INT64); break;
+				case blr_float: el_size = sizeof(float); break;
+				case blr_double: el_size = sizeof(double); break;
+				case blr_text: case blr_text2: el_size = ar_desc.array_desc_length; break;
+				case blr_varying: case blr_varying2: el_size = ar_desc.array_desc_length + 1; break;
+				case blr_timestamp: el_size = sizeof(ISC_TIMESTAMP); break;
+				case blr_sql_date: el_size = sizeof(ISC_DATE); break;
+				case blr_sql_time: el_size = sizeof(ISC_TIME); break;
+				default: el_size = ar_desc.array_desc_length; break;
+			}
+			/* Calculate total elements */
+			zend_ulong total_elems = 1;
+			for (unsigned short d = 0; d < ar_desc.array_desc_dimensions; d++) {
+				total_elems *= 1 + ar_desc.array_desc_bounds[d].array_bound_upper
+					- ar_desc.array_desc_bounds[d].array_bound_lower;
+			}
+			ISC_LONG buf_size = (ISC_LONG)(el_size * total_elems);
+			char *ar_buf = ecalloc(1, (size_t)buf_size);
+			/* Flatten PHP array into buffer */
+			char *ptr = ar_buf;
+			zval *elem;
+			zend_ulong elem_idx = 0;
+			ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(val), elem) {
+				if (elem_idx >= total_elems) break;
+				switch (ar_desc.array_desc_dtype) {
+					case blr_short: { short v = (short)zval_get_long(elem); memcpy(ptr, &v, sizeof(short)); break; }
+					case blr_long: { ISC_LONG v = (ISC_LONG)zval_get_long(elem); memcpy(ptr, &v, sizeof(ISC_LONG)); break; }
+					case blr_int64: { ISC_INT64 v = (ISC_INT64)zval_get_long(elem); memcpy(ptr, &v, sizeof(ISC_INT64)); break; }
+					case blr_float: { float v = (float)zval_get_double(elem); memcpy(ptr, &v, sizeof(float)); break; }
+					case blr_double: { double v = zval_get_double(elem); memcpy(ptr, &v, sizeof(double)); break; }
+					case blr_text: case blr_text2: {
+						zend_string *s = zval_get_string(elem);
+						size_t slen = MIN(ZSTR_LEN(s), el_size);
+						memcpy(ptr, ZSTR_VAL(s), slen);
+						if (slen < el_size) memset(ptr + slen, ' ', el_size - slen);
+						zend_string_release(s);
+						break;
+					}
+					case blr_varying: case blr_varying2: {
+						zend_string *s = zval_get_string(elem);
+						size_t slen = MIN(ZSTR_LEN(s), (size_t)(el_size - 1));
+						memcpy(ptr, ZSTR_VAL(s), slen);
+						ptr[slen] = '\0';
+						zend_string_release(s);
+						break;
+					}
+					default: {
+						zend_string *s = zval_get_string(elem);
+						size_t slen = MIN(ZSTR_LEN(s), el_size);
+						memcpy(ptr, ZSTR_VAL(s), slen);
+						zend_string_release(s);
+						break;
+					}
+				}
+				ptr += el_size;
+				elem_idx++;
+			} ZEND_HASH_FOREACH_END();
+			ISC_QUAD array_id = {0, 0};
+			if (fba_put_slice(IBG(master_instance), attachment, transaction,
+					&array_id, &ar_desc, ar_buf, buf_size, S->status) != 0) {
+				efree(ar_buf);
+				memset(dest, 0, sizeof(ISC_QUAD)); break;
+			}
+			efree(ar_buf);
+			memcpy(dest, &array_id, sizeof(ISC_QUAD));
 			break;
 		}
 		default: {

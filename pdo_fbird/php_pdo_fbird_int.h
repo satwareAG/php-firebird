@@ -22,9 +22,11 @@ typedef struct {
 	int          isolation_level; /* PDO_FBIRD_TXN_READ_COMMITTED etc */
 	int          writable;      /* 1 = read/write txn (default), 0 = read-only */
 	int          fetch_table_names; /* 1 = prepend table name to column names */
+	char        *host;             /* server hostname for service API   */
 	char        *date_format;       /* strftime format for DATE columns */
 	char        *time_format;       /* strftime format for TIME columns */
 	char        *timestamp_format;  /* strftime format for TIMESTAMP columns */
+	void        *fbsvc_service; /* service manager handle (fbsvc_attach) */
 	ISC_STATUS_ARRAY status;    /* status vector for error reporting */
 } pdo_fbird_db_handle;
 

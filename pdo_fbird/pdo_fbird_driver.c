@@ -8,6 +8,7 @@
 #endif
 
 #include "php.h"
+#include "zend_smart_str.h"
 #include "ext/pdo/php_pdo.h"
 #include "ext/pdo/php_pdo_driver.h"
 #include "php_pdo_fbird.h"
@@ -79,11 +80,18 @@ static void pdo_fbird_handle_closer(pdo_dbh_t *dbh)
 		H->fbt_trans = NULL;
 	}
 
+	if (H->fbsvc_service) {
+		fbsvc_detach(IBG(master_instance), H->fbsvc_service, H->status);
+		fbsvc_free(H->fbsvc_service);
+		H->fbsvc_service = NULL;
+	}
+
 	if (H->fbc_conn) {
 		fbc_disconnect(H->fbc_conn, H->status);
 		H->fbc_conn = NULL;
 	}
 
+	if (H->host)    { efree(H->host);    H->host    = NULL; }
 	if (H->charset) { efree(H->charset); H->charset = NULL; }
 	if (H->role)    { efree(H->role);    H->role    = NULL; }
 	if (H->date_format) { efree(H->date_format); H->date_format = NULL; }
@@ -278,6 +286,216 @@ static bool pdo_fbird_handle_rollback(pdo_dbh_t *dbh)
 }
 /* }}} */
 
+/* {{{ Service API helpers */
+
+/* Ensure service manager is attached; returns 1 on success, 0 on error */
+static int _pdo_fbird_service_ensure_attached(pdo_dbh_t *dbh)
+{
+	pdo_fbird_db_handle *H = (pdo_fbird_db_handle *)dbh->driver_data;
+	if (H->fbsvc_service && fbsvc_is_attached(H->fbsvc_service)) {
+		return 1;
+	}
+	/* Build SPB with user + password */
+	char spb[256];
+	unsigned short p = 0;
+	spb[p++] = isc_spb_version;
+	spb[p++] = isc_spb_current_version;
+
+	const char *user = dbh->username ? dbh->username : "SYSDBA";
+	size_t ulen = strlen(user);
+	if (ulen > 0) {
+		spb[p++] = isc_spb_user_name;
+		spb[p++] = (char)ulen;
+		memcpy(&spb[p], user, ulen);
+		p += ulen;
+	}
+	const char *pass = dbh->password ? dbh->password : "";
+	size_t plen = strlen(pass);
+	if (plen > 0) {
+		spb[p++] = isc_spb_password;
+		spb[p++] = (char)plen;
+		memcpy(&spb[p], pass, plen);
+		p += plen;
+	}
+
+	/* Build service name: host:service_mgr or just service_mgr */
+	char svc_name[256] = "service_mgr";
+	if (H->host && H->host[0]) {
+		snprintf(svc_name, sizeof(svc_name), "%s:service_mgr", H->host);
+	}
+
+	if (H->fbsvc_service) {
+		fbsvc_detach(IBG(master_instance), H->fbsvc_service, H->status);
+		fbsvc_free(H->fbsvc_service);
+		H->fbsvc_service = NULL;
+	}
+
+	H->fbsvc_service = fbsvc_attach(IBG(master_instance), svc_name, p,
+		(const unsigned char *)spb, H->status);
+	if (!H->fbsvc_service) {
+		pdo_fbird_error(dbh);
+		return 0;
+	}
+	return 1;
+}
+
+/* Query service for a single text line result (server version, etc.) */
+static char *_pdo_fbird_service_query_line(pdo_dbh_t *dbh, char info_action)
+{
+	pdo_fbird_db_handle *H = (pdo_fbird_db_handle *)dbh->driver_data;
+	static char spb[] = { isc_info_svc_timeout, 10, 0, 0, 0 };
+	char res_buf[512];
+
+	if (!fbsvc_query(IBG(master_instance), H->fbsvc_service,
+			sizeof(spb), (const unsigned char *)spb,
+			1, (const unsigned char *)&info_action,
+			sizeof(res_buf), (unsigned char *)res_buf, H->status)) {
+		return NULL;
+	}
+
+	char *result = res_buf;
+	while (*result != isc_info_end) {
+		switch (*result++) {
+			case isc_info_svc_server_version:
+			case isc_info_svc_implementation:
+			case isc_info_svc_get_env:
+			case isc_info_svc_get_env_lock:
+			case isc_info_svc_get_env_msg:
+			case isc_info_svc_user_dbpath: {
+				int len = isc_vax_integer(result, 2);
+				char *str = emalloc(len + 1);
+				memcpy(str, result + 2, len);
+				str[len] = '\0';
+				return str;
+			}
+			default:
+				return NULL;
+		}
+	}
+	return NULL;
+}
+
+/* Query service for multi-line output (db stats, backup verbose) */
+static char *_pdo_fbird_service_query_lines(pdo_dbh_t *dbh)
+{
+	pdo_fbird_db_handle *H = (pdo_fbird_db_handle *)dbh->driver_data;
+	static char spb[] = { isc_info_svc_timeout, 10, 0, 0, 0 };
+	char info_action = isc_info_svc_line;
+	char res_buf[4096];
+	smart_str output = {0};
+
+	for (;;) {
+		if (!fbsvc_query(IBG(master_instance), H->fbsvc_service,
+				sizeof(spb), (const unsigned char *)spb,
+				1, (const unsigned char *)&info_action,
+				sizeof(res_buf), (unsigned char *)res_buf, H->status)) {
+			smart_str_free(&output);
+			return NULL;
+		}
+
+		char *result = res_buf;
+		int done = 0;
+		while (*result != isc_info_end && !done) {
+			switch (*result++) {
+				case isc_info_svc_line: {
+					int len = isc_vax_integer(result, 2);
+					if (len == 0) { done = 1; break; }
+					result += 2;
+					smart_str_appendl(&output, result, len);
+					smart_str_appendc(&output, '\n');
+					result += len;
+					break;
+				}
+				default:
+					done = 1;
+					break;
+			}
+		}
+		if (done) break;
+	}
+
+	if (output.s) {
+		smart_str_0(&output);
+		char *ret = estrdup(ZSTR_VAL(output.s));
+		smart_str_free(&output);
+		return ret;
+	}
+	return estrdup("");
+}
+
+/* Build user SPB for add/modify/delete user */
+static int _pdo_fbird_service_user_op(pdo_dbh_t *dbh, char operation, zval *val)
+{
+	pdo_fbird_db_handle *H = (pdo_fbird_db_handle *)dbh->driver_data;
+
+	if (Z_TYPE_P(val) != IS_ARRAY) {
+		pdo_raise_impl_error(dbh, NULL, "HY000",
+			"Service user operation requires an array with 'username' key");
+		return 0;
+	}
+
+	HashTable *ht = Z_ARRVAL_P(val);
+	zval *z_user = zend_hash_str_find(ht, "username", sizeof("username") - 1);
+	if (!z_user || Z_TYPE_P(z_user) != IS_STRING) {
+		pdo_raise_impl_error(dbh, NULL, "HY000",
+			"Service user operation requires 'username' string");
+		return 0;
+	}
+
+	char buf[512];
+	unsigned short p = 0;
+	buf[p++] = operation;
+
+	/* username (required) */
+	size_t ulen = Z_STRLEN_P(z_user);
+	buf[p++] = isc_spb_sec_username;
+	buf[p++] = (char)ulen;
+	buf[p++] = (char)(ulen >> 8);
+	memcpy(&buf[p], Z_STRVAL_P(z_user), ulen);
+	p += ulen;
+
+	/* password (optional for modify/delete) */
+	zval *z_pass = zend_hash_str_find(ht, "password", sizeof("password") - 1);
+	if (z_pass && Z_TYPE_P(z_pass) == IS_STRING && Z_STRLEN_P(z_pass) > 0) {
+		size_t plen = Z_STRLEN_P(z_pass);
+		buf[p++] = isc_spb_sec_password;
+		buf[p++] = (char)plen;
+		buf[p++] = (char)(plen >> 8);
+		memcpy(&buf[p], Z_STRVAL_P(z_pass), plen);
+		p += plen;
+	}
+
+	/* first_name (optional) */
+	zval *z_fn = zend_hash_str_find(ht, "first_name", sizeof("first_name") - 1);
+	if (z_fn && Z_TYPE_P(z_fn) == IS_STRING && Z_STRLEN_P(z_fn) > 0) {
+		size_t len = Z_STRLEN_P(z_fn);
+		buf[p++] = isc_spb_sec_firstname;
+		buf[p++] = (char)len;
+		buf[p++] = (char)(len >> 8);
+		memcpy(&buf[p], Z_STRVAL_P(z_fn), len);
+		p += len;
+	}
+
+	/* last_name (optional) */
+	zval *z_ln = zend_hash_str_find(ht, "last_name", sizeof("last_name") - 1);
+	if (z_ln && Z_TYPE_P(z_ln) == IS_STRING && Z_STRLEN_P(z_ln) > 0) {
+		size_t len = Z_STRLEN_P(z_ln);
+		buf[p++] = isc_spb_sec_lastname;
+		buf[p++] = (char)len;
+		buf[p++] = (char)(len >> 8);
+		memcpy(&buf[p], Z_STRVAL_P(z_ln), len);
+		p += len;
+	}
+
+	if (!fbsvc_start(IBG(master_instance), H->fbsvc_service,
+			p, (const unsigned char *)buf, H->status)) {
+		pdo_fbird_error(dbh);
+		return 0;
+	}
+	return 1;
+}
+/* }}} */
+
 /* {{{ Attribute get/set */
 static bool pdo_fbird_handle_set_attribute(pdo_dbh_t *dbh, zend_long attr, zval *val)
 {
@@ -334,6 +552,108 @@ static bool pdo_fbird_handle_set_attribute(pdo_dbh_t *dbh, zend_long attr, zval 
 			zend_long rows = pdo_fbird_handle_doer(dbh, sql);
 			zend_string_release(sql);
 			return (rows != -1) ? true : false;
+		}
+
+		/* Service API attributes */
+		case PDO_FBIRD_ATTR_SERVICE_ATTACH:
+			return _pdo_fbird_service_ensure_attached(dbh) ? true : false;
+
+		case PDO_FBIRD_ATTR_SERVICE_DETACH:
+			if (H->fbsvc_service) {
+				fbsvc_detach(IBG(master_instance), H->fbsvc_service, H->status);
+				fbsvc_free(H->fbsvc_service);
+				H->fbsvc_service = NULL;
+			}
+			return true;
+
+		case PDO_FBIRD_ATTR_SERVICE_BACKUP:
+		case PDO_FBIRD_ATTR_SERVICE_RESTORE: {
+			if (!_pdo_fbird_service_ensure_attached(dbh)) return false;
+			if (Z_TYPE_P(val) != IS_ARRAY) {
+				pdo_raise_impl_error(dbh, NULL, "HY000",
+					"Backup/restore requires array with 'database' and 'backup_file' keys");
+				return false;
+			}
+			HashTable *ht = Z_ARRVAL_P(val);
+			zval *z_db = zend_hash_str_find(ht, "database", sizeof("database") - 1);
+			zval *z_bk = zend_hash_str_find(ht, "backup_file", sizeof("backup_file") - 1);
+			if (!z_db || Z_TYPE_P(z_db) != IS_STRING || !z_bk || Z_TYPE_P(z_bk) != IS_STRING) {
+				pdo_raise_impl_error(dbh, NULL, "HY000",
+					"Backup/restore requires 'database' and 'backup_file' string keys");
+				return false;
+			}
+			zval *z_opts = zend_hash_str_find(ht, "options", sizeof("options") - 1);
+			zend_long opts = z_opts ? zval_get_long(z_opts) : 0;
+			zval *z_verbose = zend_hash_str_find(ht, "verbose", sizeof("verbose") - 1);
+			int verbose = z_verbose ? zval_is_true(z_verbose) : 0;
+
+			char operation = (attr == PDO_FBIRD_ATTR_SERVICE_BACKUP)
+				? isc_action_svc_backup : isc_action_svc_restore;
+			size_t dblen = Z_STRLEN_P(z_db);
+			size_t bklen = Z_STRLEN_P(z_bk);
+			char spb_buf[512];
+			int spb_len = slprintf(spb_buf, sizeof(spb_buf),
+				"%c%c%c%c%s%c%c%c%s%c%c%c%c%c",
+				operation,
+				isc_spb_dbname, (char)dblen, (char)(dblen >> 8), Z_STRVAL_P(z_db),
+				isc_spb_bkp_file, (char)bklen, (char)(bklen >> 8), Z_STRVAL_P(z_bk),
+				isc_spb_options,
+				(char)opts, (char)(opts >> 8), (char)(opts >> 16), (char)(opts >> 24));
+			if (verbose) spb_buf[spb_len++] = isc_spb_verbose;
+
+			if (!fbsvc_start(IBG(master_instance), H->fbsvc_service,
+					(unsigned short)spb_len, (const unsigned char *)spb_buf, H->status)) {
+				pdo_fbird_error(dbh);
+				return false;
+			}
+			return true;
+		}
+
+		case PDO_FBIRD_ATTR_SERVICE_ADD_USER:
+			if (!_pdo_fbird_service_ensure_attached(dbh)) return false;
+			return _pdo_fbird_service_user_op(dbh, isc_action_svc_add_user, val) ? true : false;
+
+		case PDO_FBIRD_ATTR_SERVICE_MODIFY_USER:
+			if (!_pdo_fbird_service_ensure_attached(dbh)) return false;
+			return _pdo_fbird_service_user_op(dbh, isc_action_svc_modify_user, val) ? true : false;
+
+		case PDO_FBIRD_ATTR_SERVICE_DELETE_USER:
+			if (!_pdo_fbird_service_ensure_attached(dbh)) return false;
+			return _pdo_fbird_service_user_op(dbh, isc_action_svc_delete_user, val) ? true : false;
+
+		case PDO_FBIRD_ATTR_SERVICE_DB_STATS: {
+			if (!_pdo_fbird_service_ensure_attached(dbh)) return false;
+			if (Z_TYPE_P(val) != IS_ARRAY) {
+				pdo_raise_impl_error(dbh, NULL, "HY000",
+					"DB stats requires array with 'database' and 'options' keys");
+				return false;
+			}
+			HashTable *ht = Z_ARRVAL_P(val);
+			zval *z_db = zend_hash_str_find(ht, "database", sizeof("database") - 1);
+			zval *z_opts = zend_hash_str_find(ht, "options", sizeof("options") - 1);
+			if (!z_db || Z_TYPE_P(z_db) != IS_STRING || !z_opts) {
+				pdo_raise_impl_error(dbh, NULL, "HY000",
+					"DB stats requires 'database' string and 'options' integer");
+				return false;
+			}
+			size_t dblen = Z_STRLEN_P(z_db);
+			zend_long action = zval_get_long(z_opts);
+			zend_long argument = action;
+			action = isc_spb_options;
+			char spb_buf[256];
+			int spb_len = slprintf(spb_buf, sizeof(spb_buf),
+				"%c%c%c%c%s%c%c%c%c%c",
+				(char)isc_action_svc_db_stats,
+				isc_spb_dbname, (char)dblen, (char)(dblen >> 8), Z_STRVAL_P(z_db),
+				(char)action, (char)argument, (char)(argument >> 8),
+				(char)(argument >> 16), (char)(argument >> 24));
+
+			if (!fbsvc_start(IBG(master_instance), H->fbsvc_service,
+					(unsigned short)spb_len, (const unsigned char *)spb_buf, H->status)) {
+				pdo_fbird_error(dbh);
+				return false;
+			}
+			return true;
 		}
 	}
 	return false;
@@ -394,6 +714,58 @@ static int pdo_fbird_handle_get_attribute(pdo_dbh_t *dbh, zend_long attr, zval *
 			/* SET BIND is write-only; return empty string for get */
 			ZVAL_STRING(val, "");
 			return 1;
+
+		/* Service API get attributes */
+		case PDO_FBIRD_ATTR_SERVICE_ATTACH:
+			ZVAL_BOOL(val, H->fbsvc_service && fbsvc_is_attached(H->fbsvc_service));
+			return 1;
+
+		case PDO_FBIRD_ATTR_SERVICE_SERVER_VERSION: {
+			if (!_pdo_fbird_service_ensure_attached(dbh)) {
+				ZVAL_FALSE(val);
+				return 1;
+			}
+			char *ver = _pdo_fbird_service_query_line(dbh, isc_info_svc_server_version);
+			if (ver) {
+				ZVAL_STRING(val, ver);
+				efree(ver);
+			} else {
+				ZVAL_FALSE(val);
+			}
+			return 1;
+		}
+
+		case PDO_FBIRD_ATTR_SERVICE_SERVER_INFO: {
+			if (!_pdo_fbird_service_ensure_attached(dbh)) {
+				ZVAL_FALSE(val);
+				return 1;
+			}
+			char *info = _pdo_fbird_service_query_line(dbh, isc_info_svc_implementation);
+			if (info) {
+				ZVAL_STRING(val, info);
+				efree(info);
+			} else {
+				ZVAL_FALSE(val);
+			}
+			return 1;
+		}
+
+		case PDO_FBIRD_ATTR_SERVICE_DB_STATS: {
+			/* After setAttribute(DB_STATS, [...]) starts the stats job,
+			   getAttribute(DB_STATS) retrieves the output lines */
+			if (!H->fbsvc_service || !fbsvc_is_attached(H->fbsvc_service)) {
+				ZVAL_FALSE(val);
+				return 1;
+			}
+			char *lines = _pdo_fbird_service_query_lines(dbh);
+			if (lines) {
+				ZVAL_STRING(val, lines);
+				efree(lines);
+			} else {
+				ZVAL_FALSE(val);
+			}
+			return 1;
+		}
 	}
 	return 0;
 }
@@ -581,6 +953,7 @@ static int pdo_fbird_handle_factory(pdo_dbh_t *dbh, zval *driver_options)
 	efree(dsn_copy);
 
 	H->dialect = dialect;
+	if (host[0])    H->host    = estrdup(host);
 	if (charset[0]) H->charset = estrdup(charset);
 	if (role[0])    H->role    = estrdup(role);
 
@@ -603,6 +976,7 @@ static int pdo_fbird_handle_factory(pdo_dbh_t *dbh, zval *driver_options)
 
 	if (!H->fbc_conn) {
 		pdo_fbird_error(dbh);
+		if (H->host)    efree(H->host);
 		if (H->charset) efree(H->charset);
 		if (H->role)    efree(H->role);
 		if (H->date_format) efree(H->date_format);

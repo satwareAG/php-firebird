@@ -285,3 +285,33 @@ Run `bash scripts/daily-routine.sh eod` to execute the full EOD checklist.
 - §4.2 Service API via PDO (L complexity — design + implement)
 - §4.3 Array field support (L complexity)
 - §4.4 Async event polling (L complexity)
+
+## Session: 2026-03-23 Evening (§4.2 Service API)
+
+### Completed
+- **§4.2 Service API via PDO** — All 4 sub-items done:
+  - §4.2.1 Designed PDO attribute interface (10 new constants: SERVICE_ATTACH/DETACH/BACKUP/RESTORE/SERVER_VERSION/SERVER_INFO/DB_STATS/ADD_USER/MODIFY_USER/DELETE_USER)
+  - §4.2.2 Implemented service attach/detach via custom PDO attributes with auto-attach
+  - §4.2.3 Exposed backup, restore, user management, db stats as attribute-driven operations
+  - §4.2.4 Added test `pdo_fbird_service_api.phpt`
+- Host stored in `pdo_fbird_db_handle` for service manager connection
+- Service handle properly cleaned up in `pdo_fbird_handle_closer()`
+
+### Test Results
+- Full test matrix: 236 passed, 8 skipped, 0 failed (100%)
+
+### Roadmap Status
+- §4.1 ✅, §4.2 ✅, §4.5 ✅ — 3 of 5 P2 items done
+- Remaining: §4.3 Array fields (L), §4.4 Events (L)
+
+## Evening Session 2 — 2026-03-23
+
+### Completed
+- **§4.3 Array field support** — Implemented SQL_ARRAY read in `pdo_fbird_stmt.c` `get_col` (converts Firebird arrays to PHP arrays with proper type handling for INTEGER, VARCHAR, FLOAT, DOUBLE, TIMESTAMP, DATE, TIME) and SQL_ARRAY write in `param_hook` (serializes PHP arrays into Firebird layout via `fba_put_slice`)
+- Created `tests/pdo_fbird_array_fields.phpt` covering NULL arrays, INTEGER[5], VARCHAR[3], both-column rows, and multi-row fetch
+- Full test matrix: 237 passed, 8 skipped, 0 failed (100%)
+
+### Roadmap Status
+- §4.3.1, §4.3.2, §4.3.3 all ✅
+- Remaining P2: §4.4 Events (L-complexity)
+- Total: ~89 done / ~7 todo

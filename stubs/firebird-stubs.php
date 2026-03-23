@@ -361,6 +361,41 @@ function fbird_close(mixed $connection = null): bool {}
  */
 function fbird_drop_db(mixed $connection = null): bool {}
 
+/**
+ * Create a new Firebird database.
+ *
+ * Creates a database at the specified path with optional credentials, charset,
+ * and page size. Returns a connection resource to the newly created database.
+ *
+ * @param string      $database  Database connection string (e.g. "host:/path/to/db.fdb")
+ * @param string|null $username  Username (default: SYSDBA)
+ * @param string|null $password  Password
+ * @param string|null $charset   Character set (default: UTF8)
+ * @param int|null    $page_size Page size in bytes (default: 8192)
+ * @return resource|false Connection resource on success, false on failure
+ * @since 9.0.0
+ */
+function fbird_create_database(
+    string $database,
+    ?string $username = null,
+    ?string $password = null,
+    ?string $charset = null,
+    ?int $page_size = null
+): mixed {}
+
+/**
+ * Get the last insert ID using a named generator/sequence.
+ *
+ * Firebird does not have implicit auto-increment IDs. This function queries
+ * the current value of a named generator (sequence) using GEN_ID(sequence, 0).
+ *
+ * @param resource $link_identifier Connection resource
+ * @param string   $sequence        Generator/sequence name
+ * @return int|false Current generator value or false on failure
+ * @since 8.2.0
+ */
+function fbird_last_insert_id(mixed $link_identifier, string $sequence): int|false {}
+
 // ============================================================================
 // QUERY FUNCTIONS
 // ============================================================================
@@ -388,6 +423,25 @@ function fbird_prepare(
     mixed $link_or_trans_or_query,
     mixed $link_or_trans_or_query_2 = null,
     ?string $query = null
+): mixed {}
+
+/**
+ * Prepare a SQL statement with a fixed, non-shifting signature.
+ *
+ * Unlike fbird_prepare() which uses argument-shifting heuristics,
+ * this function has a clear signature: connection first, query second,
+ * optional transaction third.
+ *
+ * @param resource    $link_identifier Connection resource
+ * @param string      $query           SQL query string
+ * @param resource|null $trans_handle  Transaction resource (optional)
+ * @return resource|false Prepared statement resource or false on failure
+ * @since 9.0.0
+ */
+function fbird_prepare_ex(
+    mixed $link_identifier,
+    string $query,
+    mixed $trans_handle = null
 ): mixed {}
 
 /**

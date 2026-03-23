@@ -284,6 +284,29 @@ function fbird_close(mixed $connection = null): bool {}
  */
 function fbird_drop_db(mixed $connection = null): bool {}
 
+/**
+ * @param string $database Database connection string
+ * @param string|null $username
+ * @param string|null $password
+ * @param string|null $charset
+ * @param int|null $page_size
+ * @return resource|false
+ */
+function fbird_create_database(
+    string $database,
+    ?string $username = null,
+    ?string $password = null,
+    ?string $charset = null,
+    ?int $page_size = null
+): mixed {}
+
+/**
+ * @param resource $link_identifier Connection resource
+ * @param string $sequence Generator/sequence name
+ * @return int|false
+ */
+function fbird_last_insert_id(mixed $link_identifier, string $sequence): int|false {}
+
 // ============================================================================
 // QUERY FUNCTIONS
 // ============================================================================
@@ -314,6 +337,19 @@ function fbird_prepare(
     mixed $link_or_trans_or_query,
     mixed $link_or_trans_or_query_2 = null,
     ?string $query = null
+): mixed {}
+
+/**
+ * Prepare with fixed signature: connection, query, optional transaction.
+ * @param resource $link_identifier
+ * @param string $query
+ * @param resource|null $trans_handle
+ * @return resource|false
+ */
+function fbird_prepare_ex(
+    mixed $link_identifier,
+    string $query,
+    mixed $trans_handle = null
 ): mixed {}
 
 /**

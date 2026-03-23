@@ -341,6 +341,9 @@ jobs:
             exit(1);
           '
 
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-progress --no-suggest
+
       - name: Run PHPT tests
         env:
           NO_INTERACTION: 1

@@ -228,3 +228,22 @@ Run `bash scripts/daily-routine.sh eod` to execute the full EOD checklist.
 - All are future enhancements, none closeable yet
 
 **Roadmap Status:** 71 done / 25 todo
+
+## Session: 2026-03-23 16:53 — Update Issues & Milestones
+
+### Completed
+- Fixed 9 PDO tests missing SKIPIF connection checks → CI now 4/4 green
+- Fixed `pdo_fbird.inc` to prefer `FIREBIRD_DB_PATH` over `FIREBIRD_DATABASE` env var
+- Updated v8.2.0 milestone description with completed P1 items
+- Updated v9.0.0 milestone description with API modernization scope
+- All CI workflows passing: CI (12/12 matrix), Code Quality, Coverage, Sanitizers
+
+### Current Status
+- **php-firebird**: 11 open enhancement issues, 2 milestones (v8.2.0: 5 issues, v9.0.0: 6 issues)
+- **doctrine-firebird-driver**: 0 open issues, 0 milestones
+- **Test baseline**: 228/228 pass (100%), 8 skipped, 0 failed
+- **CI**: All 4 workflows green on satware-main
+
+### Next Steps
+- v8.2.0 remaining: #127 (fetch EOF), #128 (execute reuse), #129 (blob params), #130 (last_insert_id), #131 (commit_ret)
+- v9.0.0: #120-#126 (typed objects, new functions, exception-by-default, signature cleanup)

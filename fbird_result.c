@@ -535,8 +535,11 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 
 		if (!is_buffered_returning) {
 			/* OO API fetch via fbs_fetch() with message buffer */
-			if (!ib_query->fbs_statement || !fbs_is_cursor_open(ib_query->fbs_statement)) {
-				_php_fbird_module_error("OO API cursor not open");
+ 		if (!ib_query->fbs_statement || !fbs_is_cursor_open(ib_query->fbs_statement)) {
+				/* Return false silently on closed cursor (e.g. after commit/rollback)
+				 * instead of emitting E_WARNING — see issue #127 */
+				ib_query->has_more_rows = 0;
+				ib_query->is_open = 0;
 				RETURN_FALSE;
 			}
 
@@ -553,12 +556,11 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 				ib_query->is_open = 0;
 				fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
 				RETURN_FALSE;
-			} else if (fetch_result == -1) {
-				/* Error */
+ 		} else if (fetch_result == -1) {
+				/* Error or invalidated cursor (e.g. after commit/rollback).
+				 * Return false silently — see issue #127 */
 				ib_query->has_more_rows = 0;
 				ib_query->is_open = 0;
-				_php_fbird_error();
-				fbs_close_cursor(ib_query->fbs_statement, IB_STATUS);
 				RETURN_FALSE;
 			}
 			/* fetch_result == 1: row fetched into out_msg_buffer */

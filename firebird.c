@@ -137,6 +137,11 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_gen_id, 0, 0, 1)
 	ZEND_ARG_INFO(0, link_identifier)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_last_insert_id, 0, 0, 1)
+	ZEND_ARG_INFO(0, link_identifier)
+	ZEND_ARG_INFO(0, sequence)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_blob_create, 0, 0, 0)
 	ZEND_ARG_INFO(0, link_identifier)
 ZEND_END_ARG_INFO()
@@ -494,6 +499,7 @@ static const zend_function_entry fbird_functions[] = {
     PHP_FE(fbird_query_params_tx, arginfo_fbird_query_params_tx)
 
 	PHP_FE(fbird_gen_id, 		arginfo_fbird_gen_id)
+	PHP_FE(fbird_last_insert_id, arginfo_fbird_last_insert_id)
 	PHP_FE(fbird_num_fields, 	arginfo_fbird_num_fields)
 	PHP_FE(fbird_num_params, 	arginfo_fbird_num_params)
 	PHP_FE(fbird_affected_rows, arginfo_fbird_affected_rows)
@@ -1050,6 +1056,100 @@ PHP_FUNCTION(fbird_gen_id)
 #endif
 	RETURN_LONG((zend_long)result);
 }
+
+/* {{{ proto mixed fbird_last_insert_id(resource link_identifier [, string sequence])
+   Returns the last generated value for a sequence/generator without incrementing.
+   If sequence is omitted, returns false (Firebird has no implicit last-insert-id). */
+PHP_FUNCTION(fbird_last_insert_id)
+{
+	zval *link = NULL;
+	char *sequence = NULL;
+	size_t seq_len = 0;
+	fbird_db_link *ib_link = NULL;
+	fbird_transaction *trans = NULL;
+
+	RESET_ERRMSG;
+
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "z!|s", &link, &sequence, &seq_len)) {
+		RETURN_FALSE;
+	}
+
+	if (!sequence || seq_len == 0) {
+		/* Firebird has no implicit last-insert-id — sequence name is required */
+		php_error_docref(NULL, E_WARNING,
+			"Firebird requires a sequence/generator name to retrieve the last generated value");
+		RETURN_FALSE;
+	}
+
+	if (seq_len > 31) {
+		php_error_docref(NULL, E_WARNING, "Invalid sequence name (length > 31 characters)");
+		RETURN_FALSE;
+	}
+
+	if (!is_valid_identifier(sequence, seq_len)) {
+		php_error_docref(NULL, E_WARNING, "Invalid sequence name (contains invalid characters)");
+		RETURN_FALSE;
+	}
+
+	if (link) {
+		FBIRD_VALIDATE_LINK_EX(link, 1, ib_link);
+	}
+
+	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
+
+	if (ib_link->fbc_connection == NULL) {
+		_php_fbird_module_error("Connection has no OO API handle");
+		RETURN_FALSE;
+	}
+
+	if (trans->fbt_transaction == NULL) {
+		_php_fbird_module_error("Transaction has no OO API handle");
+		RETURN_FALSE;
+	}
+
+	char query[128];
+	snprintf(query, sizeof(query), "SELECT GEN_ID(%s,0) FROM rdb$database", sequence);
+
+	void *attachment = fbc_get_attachment(ib_link->fbc_connection);
+	if (!attachment) {
+		_php_fbird_module_error("Failed to get attachment from connection");
+		RETURN_FALSE;
+	}
+
+	void *transaction_ptr = fbt_get_handle(trans->fbt_transaction);
+	if (!transaction_ptr) {
+		_php_fbird_module_error("Failed to get transaction handle");
+		RETURN_FALSE;
+	}
+
+	void *stmt = fbs_prepare(IBG(master_instance), attachment, transaction_ptr,
+		query, (unsigned)strlen(query), SQL_DIALECT_CURRENT, IB_STATUS);
+	if (!stmt) {
+		_php_fbird_error();
+		RETURN_FALSE;
+	}
+
+	ISC_INT64 result = fbs_execute_singleton_int64(IBG(master_instance), stmt, transaction_ptr, IB_STATUS);
+
+	if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
+		_php_fbird_error();
+		fbs_free(stmt, IB_STATUS);
+		RETURN_FALSE;
+	}
+
+	fbs_free(stmt, IB_STATUS);
+
+#if SIZEOF_ZEND_LONG < 8
+	if (result < ZEND_LONG_MIN || result > ZEND_LONG_MAX) {
+		char *res;
+		int l;
+		l = spprintf(&res, 0, "%" LL_MASK "d", result);
+		RETURN_STRINGL(res, l);
+	}
+#endif
+	RETURN_LONG((zend_long)result);
+}
+/* }}} */
 
 #if PHP_DEBUG
 void fbp_dump_buffer(int len, const unsigned char *buffer)

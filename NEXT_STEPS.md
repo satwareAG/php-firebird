@@ -247,3 +247,25 @@ Run `bash scripts/daily-routine.sh eod` to execute the full EOD checklist.
 ### Next Steps
 - v8.2.0 remaining: #127 (fetch EOF), #128 (execute reuse), #129 (blob params), #130 (last_insert_id), #131 (commit_ret)
 - v9.0.0: #120-#126 (typed objects, new functions, exception-by-default, signature cleanup)
+
+## Session: 2026-03-23 Evening (Section 3 continued — v8.2.0 milestone issues)
+
+### Completed
+1. **#127 Fetch EOF warnings** — Fixed `fetchNext()` in `fb_statement.hpp` to check `cursor_open_` and mark closed on error/EOF; suppressed `_php_fbird_error()` in `fbird_result.c` fetch error path so fetch-after-commit returns false silently
+2. **#128 Execute reuse** — Already works; added test `fbird_execute_reuse.phpt` confirming prepare-once/execute-many pattern
+3. **#130 last_insert_id** — Implemented `fbird_last_insert_id()` in `firebird.c` (procedural API) and `pdo_fbird_handle_last_id()` in `pdo_fbird_driver.c` (PDO); both use `GEN_ID(sequence,0)` to read current value without incrementing; updated `issue130.phpt`
+4. **#131 commit_ret lifecycle** — Already works; added test `fbird_commit_ret_lifecycle.phpt` confirming statements and cursors survive `commit_ret`
+
+### New Tests
+- `tests/fbird_fetch_eof_no_warning.phpt` — fetch past EOF and after commit returns false silently
+- `tests/fbird_execute_reuse.phpt` — prepare once, execute 3 times with different params
+- `tests/fbird_commit_ret_lifecycle.phpt` — commit_ret preserves statements and cursors
+- `tests/fbird_last_insert_id.phpt` — procedural API sequence value retrieval
+- `tests/pdo_fbird_last_insert_id.phpt` — PDO lastInsertId() with trigger-based sequence
+
+### Test Results
+- Full matrix: 233 passed, 8 skipped, 0 failed (100%)
+
+### Status
+- v8.2.0 milestone issues #127, #128, #130, #131 all resolved
+- v8.2.0 milestone: all P1 features + issues complete, ready for release

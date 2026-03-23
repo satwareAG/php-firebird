@@ -459,6 +459,52 @@ static zend_string *pdo_fbird_handle_quoter(pdo_dbh_t *dbh, const zend_string *u
 }
 /* }}} */
 
+/* {{{ pdo_fbird_handle_last_id
+ * Return last generated value for a sequence/generator.
+ * name = sequence name (required for Firebird). */
+static zend_string *pdo_fbird_handle_last_id(pdo_dbh_t *dbh, const zend_string *name)
+{
+	pdo_fbird_db_handle *H = (pdo_fbird_db_handle *)dbh->driver_data;
+
+	if (!name || ZSTR_LEN(name) == 0) {
+		/* Firebird has no implicit last-insert-id; sequence name is required */
+		return NULL;
+	}
+
+	if (ZSTR_LEN(name) > 31) {
+		return NULL;
+	}
+
+	char query[128];
+	snprintf(query, sizeof(query), "SELECT GEN_ID(%s,0) FROM rdb$database", ZSTR_VAL(name));
+
+	void *attachment = fbc_get_attachment(H->fbc_conn);
+	void *tr_handle = fbt_get_handle(H->fbt_trans);
+	if (!attachment || !tr_handle) {
+		return NULL;
+	}
+
+	void *stmt = fbs_prepare(IBG(master_instance), attachment, tr_handle,
+		query, (unsigned)strlen(query), H->dialect, H->status);
+	if (!stmt) {
+		return NULL;
+	}
+
+	ISC_INT64 result = fbs_execute_singleton_int64(IBG(master_instance), stmt, tr_handle, H->status);
+
+	if (H->status[0] == 1 && H->status[1] != 0) {
+		fbs_free(stmt, H->status);
+		return NULL;
+	}
+
+	fbs_free(stmt, H->status);
+
+	char buf[32];
+	int len = snprintf(buf, sizeof(buf), "%lld", (long long)result);
+	return zend_string_init(buf, len, 0);
+}
+/* }}} */
+
 /* {{{ pdo_fbird_dbh_methods */
 const struct pdo_dbh_methods pdo_fbird_dbh_methods = {
 	pdo_fbird_handle_closer,
@@ -469,7 +515,7 @@ const struct pdo_dbh_methods pdo_fbird_dbh_methods = {
 	pdo_fbird_handle_commit,
 	pdo_fbird_handle_rollback,
 	pdo_fbird_handle_set_attribute,
-	NULL,                           /* last_id */
+	pdo_fbird_handle_last_id,
 	pdo_fbird_fetch_error_func,
 	pdo_fbird_handle_get_attribute,
 	pdo_fbird_check_liveness,

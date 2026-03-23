@@ -276,7 +276,7 @@ public:
         void* out_msg,
         ISC_STATUS* status_vector
     ) noexcept {
-        if (!result_set_ || !master) {
+        if (!result_set_ || !master || !cursor_open_) {
             if (status_vector) {
                 status_vector[0] = isc_arg_gds;
                 status_vector[1] = isc_bad_stmt_handle;
@@ -297,13 +297,21 @@ public:
 
             if (statusHasError(fb_status)) {
                 copyStatusToVector(fb_status, status_vector);
+                /* Mark cursor as closed on error — the result set is likely
+                 * invalidated (e.g. transaction committed/rolled back) */
+                cursor_open_ = false;
                 return -1;
             }
 
             // Firebird::IStatus::RESULT_OK = 0, RESULT_NO_DATA = 100
-            return (fetch_result == Firebird::IStatus::RESULT_OK) ? 1 : 0;
+            if (fetch_result != Firebird::IStatus::RESULT_OK) {
+                cursor_open_ = false;
+                return 0;
+            }
+            return 1;
 
         } catch (...) {
+            cursor_open_ = false;
             if (status_vector) {
                 status_vector[0] = isc_arg_gds;
                 status_vector[1] = isc_except2;

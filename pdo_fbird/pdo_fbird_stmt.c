@@ -388,8 +388,13 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 		case SQL_TIMESTAMP:
 		case SQL_TYPE_DATE:
 		case SQL_TYPE_TIME:
+#ifdef SQL_TIMESTAMP_TZ
 		case SQL_TIMESTAMP_TZ:
-		case SQL_TIME_TZ: {
+#endif
+#ifdef SQL_TIME_TZ
+		case SQL_TIME_TZ:
+#endif
+		{
 			/* Return as string via fb_interpret-style formatting — use raw hex for now */
 			char buf[64];
 			snprintf(buf, sizeof(buf), "(datetime:%u)", sql_type);

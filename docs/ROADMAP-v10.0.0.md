@@ -41,6 +41,8 @@ The internal C API defined in `firebird_utils.h` currently uses `void*` for opaq
 - [ ] **4.1** Implement Batch DML support in PDO driver (FB 4.0+).
 - [ ] **4.2** Add native support for FB 4+ `DECFLOAT` and `INT128` types in Layer 2 OOP classes.
 
+- [x] **4.3** **Modern Defaults (2026 Best Practices)**: `fbird.enable_exceptions=1` can be enabled via INI or `ini_set()`, synced with runtime mode.
+
 ---
 
 ## Milestone Checklist
@@ -51,3 +53,4 @@ The internal C API defined in `firebird_utils.h` currently uses `void*` for opaq
 | Internal void* elimination | §2 | ☐ |
 | Legacy pattern removal | §3 | ☐ |
 | PDO Batch DML | §4 | ☐ |
+| Modern Defaults | §4.3 | ✅ |

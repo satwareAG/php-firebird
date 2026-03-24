@@ -1,14 +1,14 @@
 # Next Session Tasks — php-firebird
 
-**Last updated:** 2026-03-24 07:35
+**Last updated:** 2026-03-24 09:20
 **Current version:** 9.0.0
 **Branch:** `satware-main`
 
 ---
 
-## Status: ROADMAP-v9.0.0 Complete 🎉
+## Status: ROADMAP-v9.0.0 & INI Audit Complete 🎉
 
-The [ROADMAP-v9.0.0](docs/ROADMAP-v9.0.0.md) modernization phase is **complete**: 6 major features implemented, 247/247 tests passing (100%).
+The [ROADMAP-v9.0.0](docs/ROADMAP-v9.0.0.md) modernization phase and the comprehensive **INI & Constants Audit** are **complete**: 262/262 tests passing (100%).
 
 | Release | Date | Tests | Highlights |
 |---------|------|-------|------------|
@@ -16,6 +16,7 @@ The [ROADMAP-v9.0.0](docs/ROADMAP-v9.0.0.md) modernization phase is **complete**
 | v8.2.0 | 2026-03-23 | 233/233 (100%) | P1 features, FB4+ types, blob streaming, scrollable cursors, 15 P1 tests |
 | v8.3.0 | 2026-03-23 | 241/241 (100%) | P2 enhancements, service API, array fields, events, 5 P2 tests |
 | v9.0.0 | 2026-03-23 | 247/247 (100%) | API modernization, `fbird_create_database`, BLOB stream params, signature cleanup |
+| v9.0.x-audit | 2026-03-24 | 262/262 (100%) | INI & Constants Audit, INI-behavior fix, 15 new INI/Audit tests |
 
 ### Next Step — v10.0.0 (The Final Modernization)
 
@@ -354,7 +355,25 @@ Run `bash scripts/daily-routine.sh eod` to execute the full EOD checklist.
 - All Section 4 P2 items now complete (§4.1-§4.5 all ✅)
 - Remaining: Phase 3 P2 test suite (5 tests), 7 open issues in v9.0.0 milestone
 
-## Session — 2026-03-23 Evening (Section 5 Test Coverage)
+## Session — 2026-03-24 (Morning) — Audit & Stability
+
+### Completed
+1. **INI & Constants Audit** — Comprehensive review of all 10+ INI settings and 100+ constants.
+2. **INI Bug Fix** — Fixed `ini_set('fbird.enable_exceptions', ...)` synchronization with runtime exception mode via `OnUpdateExceptionMode` handler.
+3. **Constants Sync** — All Batch, Service, Exception, and Inspection constants verified and added to stubs.
+4. **Stubs Modernization** — `stubs/firebird-stubs.php` and `stubs/pdo-fbird-stubs.php` updated to v9.0.0 with full signature accuracy.
+5. **New Test Suite** — 15 new tests covering INI behaviors, default credentials, transaction modes, and format strings.
+
+### Test Results
+- **262 tests, 254 passed, 8 skipped, 0 failed (100% pass rate)**
+- Verified on `php84-dev` (PHP 8.4 / FB 4.0)
+
+### Final Status
+- v9.0.0 branch is fully stable and audited.
+- ROADMAP-v10.0.0 created for final modernization.
+- Gap analysis RESOLVED.
+
+---
 
 ### Completed
 - Created 3 missing tests to complete all Section 5 phases:

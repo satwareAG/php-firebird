@@ -1,37 +1,34 @@
 # Next Session Tasks — php-firebird
 
-**Last updated:** 2026-03-23 19:30
-**Current version:** 8.3.0
+**Last updated:** 2026-03-24 07:35
+**Current version:** 9.0.0
 **Branch:** `satware-main`
 
 ---
 
-## Status: ROADMAP-2026-03-23 Complete 🎉
+## Status: ROADMAP-v9.0.0 Complete 🎉
 
-The entire [ROADMAP-2026-03-23](docs/ROADMAP-2026-03-23.md) is **complete**: 92 items done, 4 deferred to v9.0.0.
+The [ROADMAP-v9.0.0](docs/ROADMAP-v9.0.0.md) modernization phase is **complete**: 6 major features implemented, 247/247 tests passing (100%).
 
 | Release | Date | Tests | Highlights |
 |---------|------|-------|------------|
 | v8.1.0 | 2026-03-23 | 215/215 (100%) | P0 gap closures, shutdown crash fix, named params, 14 PDO tests |
 | v8.2.0 | 2026-03-23 | 233/233 (100%) | P1 features, FB4+ types, blob streaming, scrollable cursors, 15 P1 tests |
 | v8.3.0 | 2026-03-23 | 241/241 (100%) | P2 enhancements, service API, array fields, events, 5 P2 tests |
+| v9.0.0 | 2026-03-23 | 247/247 (100%) | API modernization, `fbird_create_database`, BLOB stream params, signature cleanup |
 
-### Remaining Work — v9.0.0 (API Modernization)
+### Next Step — v10.0.0 (The Final Modernization)
 
-7 open issues assigned to milestone v9.0.0:
-- **#120** — fbird_connect() returns typed object
-- **#121** — fbird_create_database() procedural function
-- **#122** — fbird_drop_db() with connection string
-- **#123** — fbird_set_exception_mode() on-by-default
-- **#125** — Deprecate FBIRD_CREATE in fbird_query()
-- **#126** — Standardize fbird_prepare()/fbird_trans() signatures
-- **#129** — PHP stream support for BLOB params in fbird_execute()
+The focus for v10.0.0 is the final elimination of resource-based handles and full transition to C++ typed objects for all internal and external APIs.
 
-Plus 4 deferred deprecation/modernization items (see `docs/DEPRECATION-AUDIT.md`):
-- Replace `void*` opaque pointers with typed opaque structs
-- Modernize `fbird_transaction.c` multi-db transactions (remove `ISC_TEB`)
-- Modernize `fbird_events.c` (replace `isc_wait_for_event` with OO API)
-- Remove `legacy_handle_` and `fbc_get_legacy_handle_ptr()` bridge
+1 open issue assigned to milestone v10.0.0:
+- **#120** — `fbird_connect()` returns typed `Firebird\Connection` object instead of resource
+
+Plus 4 deferred internal modernization items (see `docs/DEPRECATION-AUDIT.md`):
+- **void* elimination** — Replace `void*` opaque pointers with typed opaque structs in `firebird_utils.h`
+- **ISC_TEB removal** — Modernize `fbird_transaction.c` multi-db transactions (remove `ISC_TEB`/`isc_start_multiple`)
+- **Events OO API** — Modernize `fbird_events.c` (replace `isc_wait_for_event` with OO API `IEvents`)
+- **Legacy handle removal** — Remove `legacy_handle_` and `fbc_get_legacy_handle_ptr()` bridge from `fb::Connection`
 
 | Item | Status |
 |------|--------|

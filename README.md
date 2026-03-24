@@ -32,15 +32,16 @@ This extension provides three complementary API layers:
 |---------|--------------------------|----------------------|------------------------|---------------------|
 | **API Style** | PDO (agnostic) | PDO (agnostic) | OOP (Firebird-specific) | Procedural |
 | **DSN prefix** | `firebird:` | `fbird:` | N/A | N/A |
-| **Events Support** | ❌ No | ❌ No | ✅ Yes | ✅ Yes |
-| **Service API** | ❌ No | ❌ No | ✅ Yes | ✅ Full |
-| **Array Fields** | ❌ No | ❌ No | ❌ No | ✅ Yes |
+| **Events Support** | ❌ No | ✅ Yes (Attributes) | ✅ Yes | ✅ Yes |
+| **Service API** | ❌ No | ✅ Yes (Attributes) | ✅ Yes | ✅ Full |
+| **Array Fields** | ❌ No | ✅ Yes (Read/Write) | ❌ No | ✅ Yes |
 | **BLOB Streaming** | ✅ Via LOB | ✅ Via LOB | ✅ Native | ✅ Native + Streams |
 | **Prepared Statements** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
-| **Transaction Control** | ✅ Basic | ✅ Basic | ✅ Advanced | ✅ Advanced (TPB) |
-| **Named Cursors** | ❌ No | ❌ No | ❌ No | ✅ Yes |
-| **Generator/Sequence** | Via SQL only | Via SQL only | Via SQL only | ✅ `fbird_gen_id()` |
+| **Transaction Control** | ✅ Basic | ✅ Full (Isolation) | ✅ Advanced | ✅ Advanced (TPB) |
+| **Named Cursors** | ❌ No | ✅ Yes (Scrollable) | ❌ No | ✅ Yes |
+| **Generator/Sequence** | Via SQL only | ✅ `lastInsertId()` | Via SQL only | ✅ `fbird_gen_id()` |
 | **Modern OO API** | ❌ Legacy C API | ✅ FB 3.0+ OO API | ✅ FB 3.0+ OO API | ✅ FB 3.0+ OO API |
+| **Exception Mode** | ✅ Always | ✅ Always | ✅ Always | ✅ Optional (v9+) |
 
 **When to use `pdo_fbird` (Layer 3):**
 - Building database-agnostic applications that need PDO compatibility

@@ -191,8 +191,8 @@ void _php_fbird_error(void)
 		s = IBG(errmsg) + msg_len;
 	}
 
-	/* Check runtime exception_mode first, fallback to INI setting */
-	if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW || INI_BOOL("fbird.enable_exceptions")) {
+	/* Check runtime exception_mode */
+	if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) {
 		zend_throw_exception(firebird_exception_ce, IBG(errmsg), IBG(sql_code));
 	} else {
 		php_error_docref(NULL, E_WARNING, "%s", IBG(errmsg));
@@ -212,8 +212,8 @@ void _php_fbird_module_error(const char *msg, ...)
 
 	IBG(sql_code) = -999; /* no SQL error */
 
-	/* Check runtime exception_mode first, fallback to INI setting */
-	if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW || INI_BOOL("fbird.enable_exceptions")) {
+	/* Check runtime exception_mode */
+	if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) {
 		zend_throw_exception(firebird_exception_ce, IBG(errmsg), IBG(sql_code));
 	} else {
 		php_error_docref(NULL, E_WARNING, "%s", IBG(errmsg));

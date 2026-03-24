@@ -605,7 +605,7 @@ zend_module_entry firebird_module_entry = {
 	fbird_functions,
 	PHP_MINIT(fbird),
 	PHP_MSHUTDOWN(fbird),
-	NULL,
+	PHP_RINIT(fbird),
 	PHP_RSHUTDOWN(fbird),
 	PHP_MINFO(fbird),
 	PHP_FIREBIRD_VER_STR,
@@ -721,6 +721,16 @@ static PHP_INI_DISP(php_fbird_trans_displayer)
 	}
 }
 
+static PHP_INI_MH(OnUpdateExceptionMode)
+{
+	if (new_value && zend_ini_parse_bool(new_value)) {
+		IBG(exception_mode) = FBIRD_EXCEPTION_MODE_THROW;
+	} else {
+		IBG(exception_mode) = FBIRD_EXCEPTION_MODE_SILENT;
+	}
+	return SUCCESS;
+}
+
 PHP_INI_BEGIN()
 	PHP_INI_ENTRY_EX("fbird.allow_persistent", "1", PHP_INI_SYSTEM, NULL, zend_ini_boolean_displayer_cb)
 	PHP_INI_ENTRY_EX("fbird.max_persistent", "-1", PHP_INI_SYSTEM, NULL, display_link_numbers)
@@ -735,7 +745,7 @@ PHP_INI_BEGIN()
 	STD_PHP_INI_ENTRY_EX("fbird.default_trans_params", "0", PHP_INI_ALL, OnUpdateLongGEZero, default_trans_params, zend_fbird_globals, fbird_globals, php_fbird_trans_displayer)
 	STD_PHP_INI_ENTRY_EX("fbird.default_lock_timeout", "0", PHP_INI_ALL, OnUpdateLongGEZero, default_lock_timeout, zend_fbird_globals, fbird_globals, display_link_numbers)
 	STD_PHP_INI_ENTRY_EX("fbird.blob_segment_size", "4096", PHP_INI_ALL, OnUpdateLongGEZero, blob_segment_size, zend_fbird_globals, fbird_globals, display_link_numbers)
-	PHP_INI_ENTRY_EX("fbird.enable_exceptions", "0", PHP_INI_ALL, NULL, zend_ini_boolean_displayer_cb)
+	PHP_INI_ENTRY_EX("fbird.enable_exceptions", "0", PHP_INI_ALL, OnUpdateExceptionMode, zend_ini_boolean_displayer_cb)
 PHP_INI_END()
 
 #ifdef __GNUC__
@@ -799,8 +809,8 @@ static PHP_GINIT_FUNCTION(fbird)
 #endif
 
 	/* Exception mode: SILENT (0) by default for backward compatibility.
-	 * Users can opt-in to THROW via fbird_set_exception_mode(FBIRD_EXCEPTION_MODE_THROW).
-	 * FBIRD_EXCEPTION_MODE_COMPAT is an alias for SILENT. */
+	 * Users can opt-in to THROW via fbird_set_exception_mode(FBIRD_EXCEPTION_MODE_THROW)
+	 * or fbird.enable_exceptions=1 INI setting. */
 	fbird_globals->exception_mode = FBIRD_EXCEPTION_MODE_SILENT;
 
 	/* MSHUTDOWN detection flag for safe persistent resource cleanup (Issue #50, #51) */
@@ -921,6 +931,13 @@ PHP_MSHUTDOWN_FUNCTION(fbird)
 	UNREGISTER_INI_ENTRIES();
 	return SUCCESS;
 }
+
+/* {{{ PHP_RINIT_FUNCTION */
+PHP_RINIT_FUNCTION(fbird)
+{
+	return SUCCESS;
+}
+/* }}} */
 
 PHP_RSHUTDOWN_FUNCTION(fbird)
 {

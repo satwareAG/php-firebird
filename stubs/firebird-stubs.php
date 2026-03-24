@@ -10,9 +10,9 @@
  * This stub file does not contain any implementation.
  *
  * @package   php-firebird-stubs
- * @version   7.0.0
+ * @version   9.0.0
  * @author    satware AG <info@satware.com>
- * @copyright 2025 satware AG
+ * @copyright 2025-2026 satware AG
  * @license   PHP-3.01 https://www.php.net/license/3_01.txt
  * @link      https://github.com/satwareAG/php-firebird
  *
@@ -33,14 +33,14 @@ if (extension_loaded('fbird')) {
 /** @var int Default/no special flags */
 const FBIRD_DEFAULT = 0;
 
-/** @var int Create database flag */
+/** @var int Create database flag (used in fbird_query) */
 const FBIRD_CREATE = 0;
 
 /** @var int Force new connection (bypass connection reuse) */
 const FBIRD_CONNECT_FORCE_NEW = 2;
 
-/** @var int Extension version */
-const FBIRD_VER = 10;
+/** @var int Extension version (e.g. 90 for 9.0.x) */
+const FBIRD_VER = 90;
 
 // ============================================================================
 // EXCEPTION MODE CONSTANTS
@@ -94,7 +94,7 @@ const FBIRD_COMMITTED = 8;
 /** @var int SNAPSHOT TABLE STABILITY isolation (CONSISTENCY) */
 const FBIRD_CONSISTENCY = 16;
 
-/** @var int Read committed: use record version */
+/** @var int Read committed: use record version (default for COMMITTED) */
 const FBIRD_REC_VERSION = 64;
 
 /** @var int Read committed: no record version */
@@ -305,7 +305,7 @@ const FBIRD_SVC_GET_USERS = 68;
  * @param int         $buffers  Number of database cache buffers
  * @param int         $dialect  SQL dialect (1, 2, or 3)
  * @param string|null $role     SQL role name
- * @param int         $flags    Connection flags
+ * @param int         $flags    Connection flags (e.g. FBIRD_CONNECT_FORCE_NEW)
  * @return resource|false Connection resource on success, false on failure
  * @since 7.0.0
  */
@@ -355,11 +355,13 @@ function fbird_close(mixed $connection = null): bool {}
 /**
  * Drop a Firebird database.
  *
- * @param resource|null $connection Connection resource
+ * @param resource|string|null $connection Connection resource or database path (v9.0.0+)
+ * @param string|null          $username   Username (if path used)
+ * @param string|null          $password   Password (if path used)
  * @return bool True on success, false on failure
  * @since 7.0.0
  */
-function fbird_drop_db(mixed $connection = null): bool {}
+function fbird_drop_db(mixed $connection = null, ?string $username = null, ?string $password = null): bool {}
 
 /**
  * Create a new Firebird database.
@@ -405,7 +407,7 @@ function fbird_last_insert_id(mixed $link_identifier, string $sequence): int|fal
  *
  * @param resource|string $link_or_query Connection/transaction or query string
  * @param mixed           ...$args       Additional arguments
- * @return resource|bool Result resource or bool for DDL
+ * @return resource|bool Result resource or bool for DML
  * @since 7.0.0
  */
 function fbird_query(mixed $link_or_query, mixed ...$args): mixed {}
@@ -485,7 +487,7 @@ function fbird_execute_query(mixed $trans_handle, string $query, ?array $params 
 /**
  * Execute any SQL statement via an auto-managed transaction on an OO API connection.
  *
- * Requires a Firebird 4+ OO API connection (fbc_connection required). Auto-detects
+ * Requires a Firebird 3.0+ OO API connection. Auto-detects
  * SELECT vs DML/DDL and returns the appropriate result.
  *
  * @param resource               $link_identifier Database connection resource (OO API)
@@ -538,7 +540,7 @@ function fbird_free_result(mixed $result): bool {}
  * Fetch a row as a numeric array.
  *
  * @param resource $result      Result resource
- * @param int      $fetch_flags Fetch flags
+ * @param int      $fetch_flags Fetch flags (e.g. FBIRD_TEXT, FBIRD_FETCH_DATE_OBJ)
  * @return array<int, mixed>|false Row data or false
  * @since 7.0.0
  */
@@ -548,7 +550,7 @@ function fbird_fetch_row(mixed $result, int $fetch_flags = 0): array|false {}
  * Fetch a row as an associative array.
  *
  * @param resource $result      Result resource
- * @param int      $fetch_flags Fetch flags
+ * @param int      $fetch_flags Fetch flags (e.g. FBIRD_TEXT, FBIRD_FETCH_DATE_OBJ)
  * @return array<string, mixed>|false Row data or false
  * @since 7.0.0
  */
@@ -558,7 +560,7 @@ function fbird_fetch_assoc(mixed $result, int $fetch_flags = 0): array|false {}
  * Fetch a row as an object.
  *
  * @param resource $result      Result resource
- * @param int      $fetch_flags Fetch flags
+ * @param int      $fetch_flags Fetch flags (e.g. FBIRD_TEXT, FBIRD_FETCH_DATE_OBJ)
  * @return object|false Row object or false
  * @since 7.0.0
  */
@@ -609,7 +611,7 @@ function fbird_affected_rows(mixed $link = null): int {}
  * Get field information.
  *
  * @param resource $result       Result resource
- * @param int      $field_number Field index
+ * @param int      $field_number Field index (0-based)
  * @return array<string, mixed>|false Field info or false
  * @since 7.0.0
  */
@@ -619,7 +621,7 @@ function fbird_field_info(mixed $result, int $field_number): array|false {}
  * Get parameter information.
  *
  * @param resource $query        Prepared statement resource
- * @param int      $param_number Parameter index
+ * @param int      $param_number Parameter index (0-based)
  * @return array<string, mixed>|false Parameter info or false
  * @since 7.0.0
  */
@@ -632,8 +634,8 @@ function fbird_param_info(mixed $query, int $param_number): array|false {}
 /**
  * Start a transaction.
  *
- * @param resource|int|null $link_or_flags Connection or flags
- * @param mixed             ...$args       Additional arguments
+ * @param resource|int|null $link_or_flags Connection resource or transaction flags
+ * @param mixed             ...$args       Additional connection resources for multi-db transaction
  * @return resource|false Transaction resource
  * @since 7.0.0
  */
@@ -653,7 +655,7 @@ function fbird_trans_start(mixed $link, mixed $options = 0): mixed {}
  * Commit a transaction.
  *
  * @param resource|null $link Transaction or connection resource
- * @return bool True on success
+ * @return bool True on success, false on failure
  * @since 7.0.0
  */
 function fbird_commit(mixed $link = null): bool {}
@@ -662,7 +664,7 @@ function fbird_commit(mixed $link = null): bool {}
  * Rollback a transaction.
  *
  * @param resource|null $link Transaction or connection resource
- * @return bool True on success
+ * @return bool True on success, false on failure
  * @since 7.0.0
  */
 function fbird_rollback(mixed $link = null): bool {}
@@ -671,7 +673,7 @@ function fbird_rollback(mixed $link = null): bool {}
  * Commit and retain a transaction.
  *
  * @param resource|null $link Transaction or connection resource
- * @return bool True on success
+ * @return bool True on success, false on failure
  * @since 7.0.0
  */
 function fbird_commit_ret(mixed $link = null): bool {}
@@ -680,7 +682,7 @@ function fbird_commit_ret(mixed $link = null): bool {}
  * Rollback and retain a transaction.
  *
  * @param resource|null $link Transaction or connection resource
- * @return bool True on success
+ * @return bool True on success, false on failure
  * @since 7.0.0
  */
 function fbird_rollback_ret(mixed $link = null): bool {}
@@ -809,7 +811,7 @@ function fbird_blob_info(mixed $link_or_id, ?string $blob_id = null): array|fals
  * Import a file as a blob.
  *
  * @param resource $link Database connection
- * @param resource $file File handle
+ * @param resource $file File handle (e.g. from fopen)
  * @return string|false Blob ID or false
  * @since 7.0.0
  */
@@ -921,15 +923,15 @@ function fbird_escape_string(string $string): string {}
  *
  * @param int $mode FBIRD_EXCEPTION_MODE_SILENT or FBIRD_EXCEPTION_MODE_THROW
  * @return bool True on success
- * @since 7.0.0
+ * @since 9.0.0
  */
 function fbird_set_exception_mode(int $mode): bool {}
 
 /**
  * Get the current exception mode.
  *
- * @return int Current exception mode
- * @since 7.0.0
+ * @return int Current exception mode (FBIRD_EXCEPTION_MODE_SILENT or FBIRD_EXCEPTION_MODE_THROW)
+ * @since 9.0.0
  */
 function fbird_get_exception_mode(): int {}
 
@@ -938,7 +940,7 @@ function fbird_get_exception_mode(): int {}
 // ============================================================================
 
 /**
- * Wait for a database event.
+ * Wait for a database event (blocking).
  *
  * @param resource|string $link_or_event Connection or event name
  * @param string          ...$events     Event names
@@ -961,9 +963,9 @@ function fbird_set_event_handler(mixed $link_or_callback, mixed $callback_or_eve
 /**
  * Poll for events (non-blocking).
  *
- * @param resource|null $event      Event handler resource
- * @param int           $timeout_ms Timeout in milliseconds
- * @return array<string, int>|int|false Event counts or timeout
+ * @param resource $event      Event handler resource
+ * @param int      $timeout_ms Timeout in milliseconds (0 = non-blocking)
+ * @return array<string, int>|int|false Event counts or timeout (-2)
  * @since 7.0.0
  */
 function fbird_poll_event(mixed $event, int $timeout_ms = 0): mixed {}
@@ -984,7 +986,7 @@ function fbird_free_event_handler(mixed $event): bool {}
 /**
  * Attach to the service manager.
  *
- * @param string $host     Host name
+ * @param string $host     Host name (e.g. "localhost")
  * @param string $username Username
  * @param string $password Password
  * @return resource|false Service handle or false
@@ -1005,9 +1007,9 @@ function fbird_service_detach(mixed $service): bool {}
  * Backup a database.
  *
  * @param resource $service Service handle
- * @param string   $source  Source database
- * @param string   $dest    Destination backup file
- * @param int      $options Backup options
+ * @param string   $source  Source database path
+ * @param string   $dest    Destination backup file path
+ * @param int      $options Backup options (FBIRD_BKP_*)
  * @param bool     $verbose Verbose output
  * @return mixed Result
  * @since 7.0.0
@@ -1018,9 +1020,9 @@ function fbird_backup(mixed $service, string $source, string $dest, int $options
  * Restore a database.
  *
  * @param resource $service Service handle
- * @param string   $source  Source backup file
- * @param string   $dest    Destination database
- * @param int      $options Restore options
+ * @param string   $source  Source backup file path
+ * @param string   $dest    Destination database path
+ * @param int      $options Restore options (FBIRD_RES_*)
  * @param bool     $verbose Verbose output
  * @return mixed Result
  * @since 7.0.0
@@ -1032,7 +1034,7 @@ function fbird_restore(mixed $service, string $source, string $dest, int $option
  *
  * @param resource $service  Service handle
  * @param string   $db       Database path
- * @param int      $action   Maintenance action
+ * @param int      $action   Maintenance action (FBIRD_PRP_* or FBIRD_RPR_*)
  * @param int      $argument Action argument
  * @return bool True on success
  * @since 7.0.0
@@ -1055,7 +1057,7 @@ function fbird_db_info(mixed $service, string $db, int $action, int $argument = 
  * Get server information via service manager.
  *
  * @param resource $service Service handle
- * @param int      $action  Information action
+ * @param int      $action  Information action (FBIRD_SVC_*)
  * @return string|false Information string or false
  * @since 7.0.0
  */
@@ -1190,9 +1192,9 @@ function fbird_reconnect_transaction(mixed $link_identifier, int $transaction_id
  * Create a batch from a prepared statement.
  *
  * @param resource      $query            Prepared statement
- * @param resource|null $trans_identifier Transaction
+ * @param resource|null $trans_identifier Transaction handle
  * @return resource|false Batch handle or false
- * @since 7.0.0
+ * @since 9.0.0
  */
 function fbird_batch_create(mixed $query, mixed $trans_identifier = null): mixed {}
 
@@ -1200,9 +1202,9 @@ function fbird_batch_create(mixed $query, mixed $trans_identifier = null): mixed
  * Add a row of parameters to the batch.
  *
  * @param resource $batch  Batch handle
- * @param mixed    ...$args Parameters
+ * @param mixed    ...$args Parameters matching the statement
  * @return bool True on success
- * @since 7.0.0
+ * @since 9.0.0
  */
 function fbird_batch_add(mixed $batch, mixed ...$args): bool {}
 
@@ -1213,7 +1215,7 @@ function fbird_batch_add(mixed $batch, mixed ...$args): bool {}
  * @param string   $data  BLOB data
  * @param int      $type  BLOB type
  * @return string|false BLOB ID or false
- * @since 7.0.0
+ * @since 9.0.0
  */
 function fbird_batch_add_blob(mixed $batch, string $data, int $type = 0): string|false {}
 
@@ -1223,7 +1225,7 @@ function fbird_batch_add_blob(mixed $batch, string $data, int $type = 0): string
  * @param resource $batch   Batch handle
  * @param string   $blob_id BLOB ID
  * @return string|false Batch BLOB ID or false
- * @since 7.0.0
+ * @since 9.0.0
  */
 function fbird_batch_register_blob(mixed $batch, string $blob_id): string|false {}
 
@@ -1231,8 +1233,8 @@ function fbird_batch_register_blob(mixed $batch, string $blob_id): string|false 
  * Execute the batch.
  *
  * @param resource $batch Batch handle
- * @return array{total_processed: int, success_count: int, error_count: int, errors?: array<int, array{position: int, sqlstate: string, message: string}>}|false Results or false
- * @since 7.0.0
+ * @return array{total_processed: int, success_count: int, error_count: int}|false Results or false
+ * @since 9.0.0
  */
 function fbird_batch_execute(mixed $batch): array|false {}
 
@@ -1241,56 +1243,48 @@ function fbird_batch_execute(mixed $batch): array|false {}
  *
  * @param resource $batch Batch handle
  * @return bool True on success
- * @since 7.0.0
+ * @since 9.0.0
  */
 function fbird_batch_cancel(mixed $batch): bool {}
 
 /**
  * Returns the BLOB alignment requirement for this batch, in bytes.
  *
- * The alignment value must be used when embedding inline BLOBs via
- * fbird_batch_add_blob(). Inline BLOB data must start at an offset that
- * is a multiple of this alignment. Typically 4 or 8 bytes.
- *
  * Only available with Firebird 4.0+.
  *
- * @param resource $batch Batch resource from fbird_batch_create()
+ * @param resource $batch Batch resource
  * @return int|false Alignment in bytes, or false on error
- * @since 7.0.0
+ * @since 9.0.0
  */
 function fbird_batch_get_blob_alignment(mixed $batch): int|false {}
 
 /**
  * Append a chunk of data to the BLOB currently being constructed in the batch.
- * Must be called after fbird_batch_add_blob() has opened the current BLOB segment.
  *
- * @param resource $batch Batch resource from fbird_batch_create()
- * @param string $data Binary chunk to append to current BLOB
+ * @param resource $batch Batch resource
+ * @param string $data Binary chunk
  * @return bool TRUE on success, FALSE on failure
- * @since 7.0.0
+ * @since 9.0.0
  */
 function fbird_batch_append_blob_data(mixed $batch, string $data): bool {}
 
 /**
  * Add BLOB data to the batch using the IBatch addBlobStream protocol.
- * Alternative streaming approach for large BLOB payloads.
  *
- * @param resource $batch Batch resource from fbird_batch_create()
+ * @param resource $batch Batch resource
  * @param string $data Binary BLOB stream data
  * @return bool TRUE on success, FALSE on failure
- * @since 7.0.0
+ * @since 9.0.0
  */
 function fbird_batch_add_blob_stream(mixed $batch, string $data): bool {}
 
 /**
  * Set the default BLOB Property Block (BPB) for all BLOBs in this batch.
- * The BPB is a raw binary property block controlling BLOB encoding and charset.
- * Must be called before adding any BLOBs to the batch.
  *
- * @param resource $batch Batch resource from fbird_batch_create()
- * @param string $bpb Raw binary BPB data (use isc_bpb_* constants to build)
+ * @param resource $batch Batch resource
+ * @param string $bpb Raw binary BPB data
  * @return bool TRUE on success, FALSE on failure
- * @since 7.0.0
+ * @since 9.0.0
  */
 function fbird_batch_set_default_bpb(mixed $batch, string $bpb): bool {}
 
@@ -1304,7 +1298,7 @@ function fbird_batch_set_default_bpb(mixed $batch, string $bpb): bool {}
  * @param resource $link_or_trans Connection or transaction
  * @param int      $attachment_id Attachment ID
  * @return bool True on success
- * @since 7.0.0
+ * @since 8.0.0
  */
 function fbird_kill_attachment(mixed $link_or_trans, int $attachment_id): bool {}
 
@@ -1314,7 +1308,7 @@ function fbird_kill_attachment(mixed $link_or_trans, int $attachment_id): bool {
  * @param resource $link_or_trans Connection or transaction
  * @param string   $table_name    Table name
  * @return array<int, array{attachment_id: int, user: string}>|false Blockers or false
- * @since 7.0.0
+ * @since 8.0.0
  */
 function fbird_list_table_blockers(mixed $link_or_trans, string $table_name): array|false {}
 
@@ -1324,7 +1318,7 @@ function fbird_list_table_blockers(mixed $link_or_trans, string $table_name): ar
  * @param resource $link_or_trans Connection or transaction
  * @param string   $table_name    Table name
  * @return bool True on success
- * @since 7.0.0
+ * @since 8.0.0
  */
 function fbird_drop_table_force(mixed $link_or_trans, string $table_name): bool {}
 
@@ -1334,3 +1328,13 @@ function fbird_drop_table_force(mixed $link_or_trans, string $table_name): bool 
 // Note: Classes in the Firebird namespace are defined in a separate file
 // to comply with PHP namespace rules.
 // See: firebird-classes.php
+
+      __exit_code__=$?
+      echo "___JVMSPAWN_STATE_MARKER___"
+      echo "___PWD___"
+      pwd
+      echo "___ENV___"
+      env
+      echo "___JOBS___"
+      jobs -p
+      exit $__exit_code__

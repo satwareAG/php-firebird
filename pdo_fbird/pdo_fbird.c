@@ -113,6 +113,25 @@ PHP_MINFO_FUNCTION(pdo_fbird)
 	php_info_print_table_start();
 	php_info_print_table_header(2, "PDO Driver for Firebird", "enabled");
 	php_info_print_table_row(2, "PDO Firebird (fbird:) version", PHP_PDO_FBIRD_VERSION);
+
+#ifdef HAVE_FIREBIRD
+	php_info_print_table_row(2, "Firebird Extension Integration", "integrated");
+#else
+	php_info_print_table_row(2, "Firebird Extension Integration", "standalone");
+#endif
+
+#ifdef FB_API_VER
+	php_info_print_table_row(2, "Client Library Version",
+#if FB_API_VER >= 50
+		"Firebird 5.0 or later"
+#elif FB_API_VER >= 40
+		"Firebird 4.0"
+#else
+		"Firebird 3.0"
+#endif
+	);
+#endif
+
 	php_info_print_table_end();
 }
 /* }}} */

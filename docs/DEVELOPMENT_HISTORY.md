@@ -269,7 +269,7 @@ Created runtime switchable exception mode API with two modes:
 
 **Implementation Details:**
 - Mode stored in module globals (`IBG(exception_mode)`)
-- Mode precedence: Runtime exception_mode > INI `fbird.enable_exceptions`
+- Mode synced with INI `fbird.enable_exceptions` via custom `OnUpdateExceptionMode` handler
 - Mode persists for entire PHP request
 - All extension error paths updated to check mode
 

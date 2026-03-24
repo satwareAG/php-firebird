@@ -690,11 +690,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Exception Mode API (#15)**: PDO-style exception handling for clean error management
   - `fbird_set_exception_mode(int $mode): bool` - Set runtime exception mode (SILENT or THROW)
   - `fbird_get_exception_mode(): int` - Get current exception mode
-  - Constants: `FBIRD_EXCEPTION_MODE_SILENT` (0, default), `FBIRD_EXCEPTION_MODE_THROW` (1)
+  - Constants: `FBIRD_EXCEPTION_MODE_SILENT` (0), `FBIRD_EXCEPTION_MODE_THROW` (1, default)
   - `Firebird\Exception::getSqlState(): string` - Return SQLSTATE error code (e.g., "23000", "42000")
-  - Runtime mode takes precedence over INI setting `fbird.enable_exceptions`
+  - Mode synced with INI setting `fbird.enable_exceptions` via `ini_set()`
   - Required for Doctrine DBAL integration (PDO::ERRMODE_EXCEPTION compatibility)
-  - Backward compatible: SILENT mode is default, maintains existing behavior
+  - Backward compatible: SILENT mode remains default to prevent breaking existing tests
   - Tests: `tests/fbird_exception_mode_001.phpt`, `tests/fbird_exception_mode_002.phpt`
 
 ### Fixed

@@ -11,6 +11,8 @@
 
 #include "php_firebird.h"
 #include "php_fbird_includes.h"
+#include "fbird_classes.h"
+#include "fbird_classes_internal.h"
 #include "firebird_utils.h"
 
 #ifndef PHP_WIN32
@@ -160,9 +162,12 @@ PHP_FUNCTION(fbird_wait_event)
 		return;
 	}
 
-	/* Determine if first argument is a link resource */
-	if (Z_TYPE(args[0]) == IS_RESOURCE) {
-		if ((ib_link = (fbird_db_link *)zend_fetch_resource2_ex(&args[0], "Firebird link", le_link, le_plink)) == NULL) {
+	/* Determine if first argument is a link resource or object */
+	fbird_db_link *obj_link = _fbird_get_link_from_obj(&args[0]);
+	if (Z_TYPE(args[0]) == IS_RESOURCE || obj_link != NULL) {
+		if (obj_link) {
+			ib_link = obj_link;
+		} else if ((ib_link = (fbird_db_link *)zend_fetch_resource2_ex(&args[0], "Firebird link", le_link, le_plink)) == NULL) {
 			RETURN_FALSE;
 		}
 		i = 1;
@@ -170,7 +175,8 @@ PHP_FUNCTION(fbird_wait_event)
 		if (ZEND_NUM_ARGS() > 15) {
 			WRONG_PARAM_COUNT;
 		}
-		if ((ib_link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), "Firebird link", le_link, le_plink)) == NULL) {
+		FBIRD_GET_LINK(NULL, ib_link);
+		if (!ib_link) {
 			RETURN_FALSE;
 		}
 	}
@@ -198,8 +204,8 @@ PHP_FUNCTION(fbird_wait_event)
 	{
 		ISC_STATUS init_status[20];
 		ISC_ULONG init_counts[15];
-		void *db_handle_ptr = fbc_get_legacy_handle_ptr(ib_link->fbc_connection);
-		if (fbe_wait_for_event(init_status, db_handle_ptr, buffer_size, event_buffer, result_buffer)) {
+		fb_ptr_t attachment = fbc_get_attachment_safe(ib_link->fbc_connection);
+		if (fbe_wait_for_event_oo(init_status, (void*)attachment.p, buffer_size, event_buffer, result_buffer)) {
 			/* Initial wait failed - likely connection issue */
 			_php_fbird_error();
 			_php_fbird_event_free(event_buffer, result_buffer);
@@ -210,8 +216,8 @@ PHP_FUNCTION(fbird_wait_event)
 
 	/* Now wait for actual events */
 	{
-		void *db_handle_ptr = fbc_get_legacy_handle_ptr(ib_link->fbc_connection);
-		if (fbe_wait_for_event(IB_STATUS, db_handle_ptr, buffer_size, event_buffer, result_buffer)) {
+		fb_ptr_t attachment = fbc_get_attachment_safe(ib_link->fbc_connection);
+		if (fbe_wait_for_event_oo(IB_STATUS, (void*)attachment.p, buffer_size, event_buffer, result_buffer)) {
 			_php_fbird_error();
 			_php_fbird_event_free(event_buffer, result_buffer);
 			RETURN_FALSE;
@@ -254,8 +260,9 @@ PHP_FUNCTION(fbird_set_event_handler)
 	}
 
 	/* Determine argument layout: [link,] callback, event, [event, ...] */
-	if (Z_TYPE(args[0]) != IS_STRING) {
-		/* First argument is resource, second is callback */
+	fbird_db_link *obj_link = _fbird_get_link_from_obj(&args[0]);
+	if (Z_TYPE(args[0]) == IS_RESOURCE || obj_link != NULL) {
+		/* First argument is resource or object, second is callback */
 		if (ZEND_NUM_ARGS() < 3 || ZEND_NUM_ARGS() > 17) {
 			WRONG_PARAM_COUNT;
 		}
@@ -263,10 +270,15 @@ PHP_FUNCTION(fbird_set_event_handler)
 		cb_arg = &args[1];
 		i = 2;
 
-		if ((ib_link = (fbird_db_link *)zend_fetch_resource2_ex(&args[0], "Firebird link", le_link, le_plink)) == NULL) {
-			RETURN_FALSE;
+		if (obj_link) {
+			ib_link = obj_link;
+			link_res = zend_hash_str_find_ptr(&EG(regular_list), (Z_FB_CONN_P(&args[0]))->hash_key, 16);
+		} else {
+			if ((ib_link = (fbird_db_link *)zend_fetch_resource2_ex(&args[0], "Firebird link", le_link, le_plink)) == NULL) {
+				RETURN_FALSE;
+			}
+			link_res = Z_RES(args[0]);
 		}
-		link_res = Z_RES(args[0]);
 	} else {
 		/* First argument is callback (use default link) */
 		if (ZEND_NUM_ARGS() < 2 || ZEND_NUM_ARGS() > 16) {
@@ -403,9 +415,9 @@ PHP_FUNCTION(fbird_poll_event)
 	if (event->needs_reregistration) {
 		ISC_STATUS init_status[20];
 		ISC_ULONG init_counts[15];
-		void *db_handle_ptr = fbc_get_legacy_handle_ptr(event->link->fbc_connection);
+		fb_ptr_t attachment = fbc_get_attachment_safe(event->link->fbc_connection);
 
-		if (fbe_wait_for_event(init_status, db_handle_ptr,
+		if (fbe_wait_for_event_oo(init_status, (void*)attachment.p,
 				event->buffer_size, event->event_buffer, event->result_buffer)) {
 			/* Initial wait failed - likely connection issue */
 			_php_fbird_error();
@@ -466,7 +478,7 @@ PHP_FUNCTION(fbird_poll_event)
 	 * Use isc_wait_for_event() synchronously.
 	 * This blocks until an event fires OR until interrupted by SIGALRM.
 	 */
-	wait_result = fbe_wait_for_event(IB_STATUS, fbc_get_legacy_handle_ptr(event->link->fbc_connection),
+	wait_result = fbe_wait_for_event_oo(IB_STATUS, (void*)fbc_get_attachment_safe(event->link->fbc_connection).p,
 			event->buffer_size, event->event_buffer, event->result_buffer);
 
 #ifndef PHP_WIN32

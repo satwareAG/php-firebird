@@ -47,8 +47,8 @@ private:
     Firebird::IMaster* master_;
 
 public:
-    explicit FirebirdMasterWrapper(void* master_ptr) noexcept
-        : master_(static_cast<Firebird::IMaster*>(master_ptr)) {
+    explicit FirebirdMasterWrapper(fbc_master_t* master_ptr) noexcept
+        : master_(reinterpret_cast<Firebird::IMaster*>(master_ptr)) {
         assert(master_ != nullptr && "Master pointer cannot be null");
     }
 

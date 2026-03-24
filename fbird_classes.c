@@ -21,6 +21,7 @@
 #include "php_fbird_includes.h"
 #include "firebird_utils.h"
 #include "fbird_classes.h"
+#include "fbird_classes_internal.h"
 
 /* -----------------------------------------------------------------------
  * B1: Sub-exception class entries
@@ -35,33 +36,31 @@ zend_class_entry *fbird_service_exception_ce;
 zend_class_entry    *fbird_connection_ce;
 static zend_object_handlers fbird_connection_handlers;
 
-typedef struct {
-	zend_resource *conn_res;   /* fbird_connect() resource — owns the connection */
-	zend_object    std;
-} fbird_connection_obj;
-
-static inline fbird_connection_obj *fbird_connection_from_obj(zend_object *obj)
-{
-	return (fbird_connection_obj *)((char *)obj - XtOffsetOf(fbird_connection_obj, std));
-}
-
-#define Z_FBIRD_CONNECTION_P(zv) fbird_connection_from_obj(Z_OBJ_P(zv))
-
 static zend_object *fbird_connection_create(zend_class_entry *ce)
 {
 	fbird_connection_obj *intern = zend_object_alloc(sizeof(fbird_connection_obj), ce);
-	intern->conn_res = NULL;
 	zend_object_std_init(&intern->std, ce);
 	object_properties_init(&intern->std, ce);
 	intern->std.handlers = &fbird_connection_handlers;
+	intern->fbc_connection = NULL;
+	intern->persistent = 0;
+	memset(intern->hash_key, 0, 16);
 	return &intern->std;
 }
 
 static void fbird_connection_free(zend_object *obj)
 {
 	fbird_connection_obj *intern = fbird_connection_from_obj(obj);
-	/* conn_res is a weak reference — EG(regular_list) owns it, don't delete */
-	intern->conn_res = NULL;
+	if (intern->fbc_connection) {
+		if (!intern->persistent) {
+			ISC_STATUS sv[20];
+			/* In procedural layer, we use fbc_disconnect which calls detachNoThrow.
+			 * Here we can do the same but we must be sure IBG(in_mshutdown) is NOT set.
+			 * Actually, detachNoThrow is now aggressive. */
+			fbc_disconnect(intern->fbc_connection, sv);
+		}
+		intern->fbc_connection = NULL;
+	}
 	zend_object_std_dtor(obj);
 }
 
@@ -97,35 +96,25 @@ PHP_METHOD(FirebirdConnection, __construct)
 		Z_PARAM_STRING(role,    role_len)
 	ZEND_PARSE_PARAMETERS_END();
 
-	fbird_connection_obj *intern = Z_FBIRD_CONNECTION_P(ZEND_THIS);
+	fbird_connection_obj *intern = Z_FB_CONN_P(ZEND_THIS);
 
-	/* Use fbird_connect() to get a resource — it handles caching, persistent
-	 * connections, and owns the fbc_connection lifecycle. */
-	zval fn, retval;
-	zval args[7];
-	ZVAL_STRING(&fn, "fbird_connect");
-	ZVAL_STRINGL(&args[0], db,      db_len);
-	ZVAL_STRINGL(&args[1], user,    user_len);
-	ZVAL_STRINGL(&args[2], pass,    pass_len);
-	ZVAL_STRINGL(&args[3], charset, charset_len);
-	ZVAL_LONG(&args[4], buffers);
-	ZVAL_LONG(&args[5], dialect ? dialect : 3);
-	ZVAL_STRINGL(&args[6], role,    role_len);
-	call_user_function(NULL, NULL, &fn, &retval, 7, args);
-	zval_ptr_dtor(&fn);
-	for (int i = 0; i < 7; i++) zval_ptr_dtor(&args[i]);
+	intern->fbc_connection = fbc_connect(
+		IBG(master_instance),
+		db, db_len,
+		user, user_len,
+		pass, pass_len,
+		charset, charset_len,
+		role, role_len,
+		(int)buffers,
+		dialect ? (int)dialect : 3,
+		0, /* force_write */
+		IB_STATUS
+	);
 
-	if (Z_TYPE(retval) != IS_RESOURCE) {
-		zval_ptr_dtor(&retval);
-		zend_throw_exception(fbird_connection_exception_ce,
-			"Failed to connect to Firebird database", 0);
-		return;
+	if (!intern->fbc_connection) {
+		_php_fbird_error();
+		zend_throw_exception(fbird_connection_exception_ce, "Failed to connect to Firebird database", 0);
 	}
-
-	/* Store as weak reference — EG(regular_list) owns the resource lifetime */
-	intern->conn_res = Z_RES(retval);
-	zval_ptr_dtor(&retval); /* drops our zval ref but resource stays in regular_list */
-
 }
 
 /* Firebird\Connection::close(): void */
@@ -135,11 +124,11 @@ ZEND_END_ARG_INFO()
 PHP_METHOD(FirebirdConnection, close)
 {
 	ZEND_PARSE_PARAMETERS_NONE();
-	fbird_connection_obj *intern = Z_FBIRD_CONNECTION_P(ZEND_THIS);
-	if (intern->conn_res) {
-		/* Close the resource (marks it invalid, triggers destructor) */
-		zend_list_close(intern->conn_res);
- 	intern->conn_res = NULL;
+	fbird_connection_obj *intern = Z_FB_CONN_P(ZEND_THIS);
+	if (intern->fbc_connection) {
+		ISC_STATUS sv[20];
+		fbc_disconnect(intern->fbc_connection, sv);
+		intern->fbc_connection = NULL;
 	}
 }
 
@@ -150,12 +139,8 @@ ZEND_END_ARG_INFO()
 PHP_METHOD(FirebirdConnection, isConnected)
 {
 	ZEND_PARSE_PARAMETERS_NONE();
-	fbird_connection_obj *intern = Z_FBIRD_CONNECTION_P(ZEND_THIS);
-	if (!intern->conn_res || intern->conn_res->type <= 0) {
-		RETURN_FALSE;
-	}
-	fbird_db_link *link = (fbird_db_link *)intern->conn_res->ptr;
-	RETURN_BOOL(link && link->fbc_connection && fbc_is_connected(link->fbc_connection));
+	fbird_connection_obj *intern = Z_FB_CONN_P(ZEND_THIS);
+	RETURN_BOOL(intern->fbc_connection && fbc_is_connected(intern->fbc_connection));
 }
 
 /* Firebird\Connection::ping(): bool */
@@ -165,12 +150,8 @@ ZEND_END_ARG_INFO()
 PHP_METHOD(FirebirdConnection, ping)
 {
 	ZEND_PARSE_PARAMETERS_NONE();
-	fbird_connection_obj *intern = Z_FBIRD_CONNECTION_P(ZEND_THIS);
-	if (!intern->conn_res || intern->conn_res->type <= 0) {
-		RETURN_FALSE;
-	}
-	fbird_db_link *link = (fbird_db_link *)intern->conn_res->ptr;
-	RETURN_BOOL(link && link->fbc_connection && fbc_is_connected(link->fbc_connection));
+	fbird_connection_obj *intern = Z_FB_CONN_P(ZEND_THIS);
+	RETURN_BOOL(intern->fbc_connection && fbc_is_connected(intern->fbc_connection));
 }
 
 /* -----------------------------------------------------------------------
@@ -178,18 +159,6 @@ PHP_METHOD(FirebirdConnection, ping)
  * --------------------------------------------------------------------- */
 zend_class_entry    *fbird_transaction_ce;
 static zend_object_handlers fbird_transaction_handlers;
-
-typedef struct {
-	void        *fbt_trans;  /* fb::Transaction* from fbt_start() */
-	zend_object  std;
-} fbird_transaction_obj;
-
-static inline fbird_transaction_obj *fbird_transaction_from_obj(zend_object *obj)
-{
-	return (fbird_transaction_obj *)((char *)obj - XtOffsetOf(fbird_transaction_obj, std));
-}
-
-#define Z_FBIRD_TRANSACTION_P(zv) fbird_transaction_from_obj(Z_OBJ_P(zv))
 
 static zend_object *fbird_transaction_create(zend_class_entry *ce)
 {
@@ -220,7 +189,7 @@ ZEND_END_ARG_INFO()
 PHP_METHOD(FirebirdTransaction, commit)
 {
 	ZEND_PARSE_PARAMETERS_NONE();
-	fbird_transaction_obj *intern = Z_FBIRD_TRANSACTION_P(ZEND_THIS);
+	fbird_transaction_obj *intern = Z_FB_TRANS_P(ZEND_THIS);
 	if (intern->fbt_trans) {
 		ISC_STATUS sv[20];
 		fbt_commit(intern->fbt_trans, sv);
@@ -236,7 +205,7 @@ ZEND_END_ARG_INFO()
 PHP_METHOD(FirebirdTransaction, rollback)
 {
 	ZEND_PARSE_PARAMETERS_NONE();
-	fbird_transaction_obj *intern = Z_FBIRD_TRANSACTION_P(ZEND_THIS);
+	fbird_transaction_obj *intern = Z_FB_TRANS_P(ZEND_THIS);
 	if (intern->fbt_trans) {
 		ISC_STATUS sv[20];
 		fbt_rollback(intern->fbt_trans, sv);
@@ -252,7 +221,7 @@ ZEND_END_ARG_INFO()
 PHP_METHOD(FirebirdTransaction, isActive)
 {
 	ZEND_PARSE_PARAMETERS_NONE();
-	fbird_transaction_obj *intern = Z_FBIRD_TRANSACTION_P(ZEND_THIS);
+	fbird_transaction_obj *intern = Z_FB_TRANS_P(ZEND_THIS);
 	RETURN_BOOL(intern->fbt_trans && fbt_is_active(intern->fbt_trans));
 }
 
@@ -270,20 +239,15 @@ ZEND_END_ARG_INFO()
 PHP_METHOD(FirebirdConnection, beginTransaction)
 {
 	ZEND_PARSE_PARAMETERS_NONE();
-	fbird_connection_obj *intern = Z_FBIRD_CONNECTION_P(ZEND_THIS);
-	if (!intern->conn_res || intern->conn_res->type <= 0) {
-		zend_throw_exception(fbird_connection_exception_ce, "Not connected", 0);
-		RETURN_THROWS();
-	}
-	fbird_db_link *link = (fbird_db_link *)intern->conn_res->ptr;
-	if (!link || !link->fbc_connection || !fbc_is_connected(link->fbc_connection)) {
+	fbird_connection_obj *intern = Z_FB_CONN_P(ZEND_THIS);
+	if (!intern->fbc_connection || !fbc_is_connected(intern->fbc_connection)) {
 		zend_throw_exception(fbird_connection_exception_ce, "Not connected", 0);
 		RETURN_THROWS();
 	}
 
 	ISC_STATUS sv[20];
-	void *trans = fbt_start(IBG(master_instance),
-		fbc_get_attachment(link->fbc_connection),
+	fbt_transaction_t *trans = fbt_start(IBG(master_instance),
+		fbc_get_attachment(intern->fbc_connection),
 		0, NULL, sv);
 	if (!trans) {
 		_php_fbird_error();
@@ -292,7 +256,7 @@ PHP_METHOD(FirebirdConnection, beginTransaction)
 	}
 
 	object_init_ex(return_value, fbird_transaction_ce);
-	fbird_transaction_obj *tr = Z_FBIRD_TRANSACTION_P(return_value);
+	fbird_transaction_obj *tr = Z_FB_TRANS_P(return_value);
 	tr->fbt_trans = trans;
 }
 
@@ -308,29 +272,6 @@ zend_class_entry    *fbird_statement_ce;
 zend_class_entry    *fbird_resultset_ce;
 static zend_object_handlers fbird_statement_handlers;
 static zend_object_handlers fbird_resultset_handlers;
-
-typedef struct {
-	zend_resource *query_res; /* result of fbird_prepare() */
-	zend_object    std;
-} fbird_statement_obj;
-
-typedef struct {
-	zend_resource *query_res; /* result of fbird_execute() */
-	zend_object    std;
-} fbird_resultset_obj;
-
-static inline fbird_statement_obj *fbird_statement_from_obj(zend_object *obj)
-{
-	return (fbird_statement_obj *)((char *)obj - XtOffsetOf(fbird_statement_obj, std));
-}
-
-static inline fbird_resultset_obj *fbird_resultset_from_obj(zend_object *obj)
-{
-	return (fbird_resultset_obj *)((char *)obj - XtOffsetOf(fbird_resultset_obj, std));
-}
-
-#define Z_FBIRD_STATEMENT_P(zv) fbird_statement_from_obj(Z_OBJ_P(zv))
-#define Z_FBIRD_RESULTSET_P(zv) fbird_resultset_from_obj(Z_OBJ_P(zv))
 
 static zend_object *fbird_statement_create(zend_class_entry *ce)
 {
@@ -389,7 +330,7 @@ ZEND_END_ARG_INFO()
 PHP_METHOD(FirebirdResultSet, fetch)
 {
 	ZEND_PARSE_PARAMETERS_NONE();
-	fbird_resultset_obj *intern = Z_FBIRD_RESULTSET_P(ZEND_THIS);
+	fbird_resultset_obj *intern = Z_FB_RESULTSET_P(ZEND_THIS);
 	if (!intern->query_res) {
 		RETURN_FALSE;
 	}
@@ -408,7 +349,7 @@ ZEND_END_ARG_INFO()
 PHP_METHOD(FirebirdResultSet, close)
 {
 	ZEND_PARSE_PARAMETERS_NONE();
-	fbird_resultset_obj *intern = Z_FBIRD_RESULTSET_P(ZEND_THIS);
+	fbird_resultset_obj *intern = Z_FB_RESULTSET_P(ZEND_THIS);
 	if (intern->query_res) {
 		zend_list_delete(intern->query_res);
 		intern->query_res = NULL;
@@ -433,7 +374,7 @@ PHP_METHOD(FirebirdStatement, execute)
 		Z_PARAM_OBJECT_OF_CLASS(tr_zv, fbird_transaction_ce)
 	ZEND_PARSE_PARAMETERS_END();
 
-	fbird_statement_obj *intern = Z_FBIRD_STATEMENT_P(ZEND_THIS);
+	fbird_statement_obj *intern = Z_FB_STMT_P(ZEND_THIS);
 	if (!intern->query_res) {
 		zend_throw_exception(fbird_query_exception_ce, "Statement not prepared", 0);
 		RETURN_THROWS();
@@ -454,7 +395,7 @@ PHP_METHOD(FirebirdStatement, execute)
 
 	/* Return a ResultSet wrapping the same query resource */
 	object_init_ex(return_value, fbird_resultset_ce);
-	fbird_resultset_obj *rs = Z_FBIRD_RESULTSET_P(return_value);
+	fbird_resultset_obj *rs = Z_FB_RESULTSET_P(return_value);
 	if (Z_TYPE(retval) == IS_RESOURCE) {
 		rs->query_res = Z_RES(retval);
 		GC_ADDREF(rs->query_res);
@@ -488,46 +429,46 @@ PHP_METHOD(FirebirdConnection, prepare)
 		Z_PARAM_OBJECT_OF_CLASS(tr_zv, fbird_transaction_ce)
 	ZEND_PARSE_PARAMETERS_END();
 
-	fbird_connection_obj *conn = Z_FBIRD_CONNECTION_P(ZEND_THIS);
-	if (!conn->conn_res || conn->conn_res->type <= 0) {
+	fbird_connection_obj *conn = Z_FB_CONN_P(ZEND_THIS);
+	if (!conn->fbc_connection || !fbc_is_connected(conn->fbc_connection)) {
 		zend_throw_exception(fbird_connection_exception_ce, "Not connected", 0);
 		RETURN_THROWS();
 	}
 
-	fbird_transaction_obj *tr = Z_FBIRD_TRANSACTION_P(tr_zv);
+	fbird_transaction_obj *tr = Z_FB_TRANS_P(tr_zv);
 	if (!tr->fbt_trans || !fbt_is_active(tr->fbt_trans)) {
 		zend_throw_exception(fbird_connection_exception_ce, "Transaction not active", 0);
 		RETURN_THROWS();
 	}
 
-	if (!conn->conn_res) {
-		zend_throw_exception(fbird_connection_exception_ce,
-			"No connection resource available for prepare", 0);
+	/* Find the connection resource associated with this object's hash_key */
+	zend_resource *conn_res = zend_hash_str_find_ptr(&EG(regular_list), conn->hash_key, 15);
+	if (!conn_res) {
+		zend_throw_exception(fbird_connection_exception_ce, "Connection resource not found in registry", 0);
 		RETURN_THROWS();
 	}
 
-	/* Get a transaction resource from the Firebird\Transaction object.
-	 * We need to start a matching resource-based transaction on the same conn_res.
-	 * Use fbird_trans() with the conn_res to get a compatible tr_res. */
-	zval conn_zv, tr_res_zv, retval;
-	ZVAL_RES(&conn_zv, conn->conn_res);
-	GC_ADDREF(conn->conn_res);
+	/* We need a transaction resource. We can't easily get one from fbt_transaction_t*.
+	 * For now, use the same hack as before: start a new resource-based transaction.
+	 * Actually, it's better to just pass the transaction object to procedural API?
+	 * No, procedural API doesn't support objects yet. */
 
-	/* Start a resource-based transaction on the connection */
+	zval conn_zv, tr_res_zv, retval;
+	ZVAL_RES(&conn_zv, conn_res);
+	/* No GC_ADDREF here, zend_hash_str_find_ptr doesn't return an owned reference */
+
 	fbird_call_fn("fbird_trans", &conn_zv, 1, &tr_res_zv);
 	zval_ptr_dtor(&conn_zv);
 
 	if (Z_TYPE(tr_res_zv) != IS_RESOURCE) {
 		zval_ptr_dtor(&tr_res_zv);
-		zend_throw_exception(fbird_query_exception_ce,
-			"Failed to start transaction for prepare", 0);
+		zend_throw_exception(fbird_query_exception_ce, "Failed to start transaction for prepare", 0);
 		RETURN_THROWS();
 	}
 
-	/* Call fbird_prepare($conn_res, $tr_res, $sql) */
 	zval prep_args[3];
-	ZVAL_RES(&prep_args[0], conn->conn_res);
-	GC_ADDREF(conn->conn_res);
+	ZVAL_RES(&prep_args[0], conn_res);
+	/* No GC_ADDREF here */
 	ZVAL_COPY(&prep_args[1], &tr_res_zv);
 	ZVAL_STRINGL(&prep_args[2], sql, sql_len);
 	fbird_call_fn("fbird_prepare", prep_args, 3, &retval);
@@ -541,7 +482,7 @@ PHP_METHOD(FirebirdConnection, prepare)
 	}
 
 	object_init_ex(return_value, fbird_statement_ce);
-	fbird_statement_obj *stmt = Z_FBIRD_STATEMENT_P(return_value);
+	fbird_statement_obj *stmt = Z_FB_STMT_P(return_value);
 	stmt->query_res = Z_RES(retval);
 	GC_ADDREF(stmt->query_res);
 	zval_ptr_dtor(&retval);
@@ -552,19 +493,6 @@ PHP_METHOD(FirebirdConnection, prepare)
  * --------------------------------------------------------------------- */
 zend_class_entry    *fbird_blob_ce;
 static zend_object_handlers fbird_blob_handlers;
-
-typedef struct {
-	void        *fbb_wrap;   /* BlobWrapper* from fbb_create/fbb_open */
-	ISC_QUAD     blob_id;    /* blob ID (set after create/close) */
-	zend_object  std;
-} fbird_blob_obj;
-
-static inline fbird_blob_obj *fbird_blob_from_obj(zend_object *obj)
-{
-	return (fbird_blob_obj *)((char *)obj - XtOffsetOf(fbird_blob_obj, std));
-}
-
-#define Z_FBIRD_BLOB_P(zv) fbird_blob_from_obj(Z_OBJ_P(zv))
 
 static zend_object *fbird_blob_create_obj(zend_class_entry *ce)
 {
@@ -592,9 +520,12 @@ static void fbird_blob_free_obj(zend_object *obj)
 /* Helper: get fbird_db_link from Firebird\Connection object */
 static fbird_db_link *fbird_get_link_from_conn(zval *conn_zv)
 {
-	fbird_connection_obj *conn = fbird_connection_from_obj(Z_OBJ_P(conn_zv));
-	if (!conn->conn_res || conn->conn_res->type <= 0) return NULL;
-	return (fbird_db_link *)conn->conn_res->ptr;
+	fbird_connection_obj *conn = Z_FB_CONN_P(conn_zv);
+	zend_resource *rsrc = zend_hash_str_find_ptr(&EG(regular_list), conn->hash_key, 15);
+	if (rsrc && (rsrc->type == le_link || rsrc->type == le_plink)) {
+		return (fbird_db_link *)rsrc->ptr;
+	}
+	return NULL;
 }
 
 /* Firebird\Blob::create(Connection $conn, Transaction $tr): Blob */
@@ -616,14 +547,14 @@ PHP_METHOD(FirebirdBlob, create)
 		zend_throw_exception(fbird_connection_exception_ce, "Not connected", 0);
 		RETURN_THROWS();
 	}
-	fbird_transaction_obj *tr = Z_FBIRD_TRANSACTION_P(tr_zv);
+	fbird_transaction_obj *tr = Z_FB_TRANS_P(tr_zv);
 	if (!tr->fbt_trans || !fbt_is_active(tr->fbt_trans)) {
 		zend_throw_exception(fbird_connection_exception_ce, "Transaction not active", 0);
 		RETURN_THROWS();
 	}
 
 	object_init_ex(return_value, fbird_blob_ce);
-	fbird_blob_obj *blob = Z_FBIRD_BLOB_P(return_value);
+	fbird_blob_obj *blob = Z_FB_BLOB_P(return_value);
 
 	ISC_STATUS sv[20];
 	blob->fbb_wrap = fbb_create(IBG(master_instance),
@@ -661,7 +592,7 @@ PHP_METHOD(FirebirdBlob, open)
 		zend_throw_exception(fbird_connection_exception_ce, "Not connected", 0);
 		RETURN_THROWS();
 	}
-	fbird_transaction_obj *tr = Z_FBIRD_TRANSACTION_P(tr_zv);
+	fbird_transaction_obj *tr = Z_FB_TRANS_P(tr_zv);
 	if (!tr->fbt_trans || !fbt_is_active(tr->fbt_trans)) {
 		zend_throw_exception(fbird_connection_exception_ce, "Transaction not active", 0);
 		RETURN_THROWS();
@@ -677,7 +608,7 @@ PHP_METHOD(FirebirdBlob, open)
 	}
 
 	object_init_ex(return_value, fbird_blob_ce);
-	fbird_blob_obj *blob = Z_FBIRD_BLOB_P(return_value);
+	fbird_blob_obj *blob = Z_FB_BLOB_P(return_value);
 	blob->blob_id = blob_id;
 
 	ISC_STATUS sv[20];
@@ -706,7 +637,7 @@ PHP_METHOD(FirebirdBlob, write)
 		Z_PARAM_STRING(data, data_len)
 	ZEND_PARSE_PARAMETERS_END();
 
-	fbird_blob_obj *intern = Z_FBIRD_BLOB_P(ZEND_THIS);
+	fbird_blob_obj *intern = Z_FB_BLOB_P(ZEND_THIS);
 	if (!intern->fbb_wrap) {
 		zend_throw_exception(fbird_query_exception_ce, "Blob not open", 0);
 		RETURN_THROWS();
@@ -731,7 +662,7 @@ PHP_METHOD(FirebirdBlob, read)
 		Z_PARAM_LONG(length)
 	ZEND_PARSE_PARAMETERS_END();
 
-	fbird_blob_obj *intern = Z_FBIRD_BLOB_P(ZEND_THIS);
+	fbird_blob_obj *intern = Z_FB_BLOB_P(ZEND_THIS);
 	if (!intern->fbb_wrap) {
 		RETURN_FALSE;
 	}
@@ -758,7 +689,7 @@ ZEND_END_ARG_INFO()
 PHP_METHOD(FirebirdBlob, close)
 {
 	ZEND_PARSE_PARAMETERS_NONE();
-	fbird_blob_obj *intern = Z_FBIRD_BLOB_P(ZEND_THIS);
+	fbird_blob_obj *intern = Z_FB_BLOB_P(ZEND_THIS);
 	if (intern->fbb_wrap) {
 		ISC_STATUS sv[20];
 		fbb_get_blob_id(intern->fbb_wrap, &intern->blob_id);
@@ -775,7 +706,7 @@ ZEND_END_ARG_INFO()
 PHP_METHOD(FirebirdBlob, getId)
 {
 	ZEND_PARSE_PARAMETERS_NONE();
-	fbird_blob_obj *intern = Z_FBIRD_BLOB_P(ZEND_THIS);
+	fbird_blob_obj *intern = Z_FB_BLOB_P(ZEND_THIS);
 	char id_str[20];
 	snprintf(id_str, sizeof(id_str), "%08x:%08x",
 		(unsigned)intern->blob_id.gds_quad_high,
@@ -798,18 +729,6 @@ static const zend_function_entry fbird_blob_methods[] = {
  * --------------------------------------------------------------------- */
 zend_class_entry    *fbird_service_ce;
 static zend_object_handlers fbird_service_handlers;
-
-typedef struct {
-	void        *fbsvc;   /* fbsvc_service pointer from fbsvc_attach() */
-	zend_object  std;
-} fbird_service_obj;
-
-static inline fbird_service_obj *fbird_service_from_obj(zend_object *obj)
-{
-	return (fbird_service_obj *)((char *)obj - XtOffsetOf(fbird_service_obj, std));
-}
-
-#define Z_FBIRD_SERVICE_P(zv) fbird_service_from_obj(Z_OBJ_P(zv))
 
 static zend_object *fbird_service_create_obj(zend_class_entry *ce)
 {
@@ -850,7 +769,7 @@ PHP_METHOD(FirebirdService, __construct)
 		Z_PARAM_STRING(pass, pass_len)
 	ZEND_PARSE_PARAMETERS_END();
 
-	fbird_service_obj *intern = Z_FBIRD_SERVICE_P(ZEND_THIS);
+	fbird_service_obj *intern = Z_FB_SERVICE_P(ZEND_THIS);
 
 	/* Build SPB: user + password */
 	char buf[256];
@@ -889,7 +808,7 @@ ZEND_END_ARG_INFO()
 PHP_METHOD(FirebirdService, detach)
 {
 	ZEND_PARSE_PARAMETERS_NONE();
-	fbird_service_obj *intern = Z_FBIRD_SERVICE_P(ZEND_THIS);
+	fbird_service_obj *intern = Z_FB_SERVICE_P(ZEND_THIS);
 	if (intern->fbsvc) {
 		ISC_STATUS sv[20];
 		fbsvc_detach(IBG(master_instance), intern->fbsvc, sv);
@@ -905,7 +824,7 @@ ZEND_END_ARG_INFO()
 PHP_METHOD(FirebirdService, isAttached)
 {
 	ZEND_PARSE_PARAMETERS_NONE();
-	fbird_service_obj *intern = Z_FBIRD_SERVICE_P(ZEND_THIS);
+	fbird_service_obj *intern = Z_FB_SERVICE_P(ZEND_THIS);
 	RETURN_BOOL(intern->fbsvc && fbsvc_is_attached(intern->fbsvc));
 }
 
@@ -916,7 +835,7 @@ ZEND_END_ARG_INFO()
 PHP_METHOD(FirebirdService, getServerVersion)
 {
 	ZEND_PARSE_PARAMETERS_NONE();
-	fbird_service_obj *intern = Z_FBIRD_SERVICE_P(ZEND_THIS);
+	fbird_service_obj *intern = Z_FB_SERVICE_P(ZEND_THIS);
 	if (!intern->fbsvc) {
 		zend_throw_exception(fbird_service_exception_ce, "Not attached", 0);
 		RETURN_THROWS();
@@ -961,6 +880,19 @@ static const zend_function_entry fbird_connection_methods[] = {
 	PHP_ME(FirebirdConnection, prepare,          arginfo_fbird_connection_prepare,          ZEND_ACC_PUBLIC)
 	PHP_FE_END
 };
+
+fbird_db_link *_fbird_get_link_from_obj(zval *conn_zv)
+{
+	if (Z_TYPE_P(conn_zv) != IS_OBJECT || !fbird_connection_ce || !instanceof_function(Z_OBJCE_P(conn_zv), fbird_connection_ce)) {
+		return NULL;
+	}
+	fbird_connection_obj *conn = Z_FB_CONN_P(conn_zv);
+	zend_resource *rsrc = zend_hash_str_find_ptr(&EG(regular_list), conn->hash_key, 15);
+	if (rsrc && (rsrc->type == le_link || rsrc->type == le_plink)) {
+		return (fbird_db_link *)rsrc->ptr;
+	}
+	return NULL;
+}
 
 /* -----------------------------------------------------------------------
  * Registration entry point called from PHP_MINIT_FUNCTION(fbird)

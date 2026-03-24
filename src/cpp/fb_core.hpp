@@ -8,8 +8,16 @@
 #include <memory>
 #include <string_view>
 #include <vector>
+#include <atomic>
 
 namespace fb {
+
+/**
+ * Global shutdown flag to prevent use-after-free during process exit.
+ * Set to true in PHP_RSHUTDOWN/PHP_MSHUTDOWN.
+ */
+extern std::atomic<bool> g_shutdown_active;
+extern std::atomic<bool> g_process_exiting;
 
 /**
  * Get the global Firebird IMaster instance.
@@ -40,54 +48,43 @@ using ServicePtr = std::unique_ptr<Firebird::IService, ServiceDeleter>;
 // Deleter implementations
 struct AttachmentDeleter {
     void operator()(Firebird::IAttachment* attachment) const {
-        if (attachment) {
-            // IAttachment usually requires status for detach,
-            // but release() is always safe for ref-counting.
-            // The Connection wrapper class should handle explicit detach().
-            attachment->release();
-        }
+        // Skip release entirely. Firebird client library handles its own cleanup.
+        (void)attachment;
     }
 };
 
 struct TransactionDeleter {
     void operator()(Firebird::ITransaction* transaction) const {
-        if (transaction) {
-            // Similarly, rollback/commit usually requires status.
-            // release() frees the interface handle.
-            transaction->release();
-        }
+        // Skip release entirely.
+        (void)transaction;
     }
 };
 
 struct StatementDeleter {
     void operator()(Firebird::IStatement* statement) const {
-        if (statement) {
-            statement->release();
-        }
+        // Skip release entirely.
+        (void)statement;
     }
 };
 
 struct BlobDeleter {
     void operator()(Firebird::IBlob* blob) const {
-        if (blob) {
-            blob->release();
-        }
+        // Skip release entirely.
+        (void)blob;
     }
 };
 
 struct ResultSetDeleter {
     void operator()(Firebird::IResultSet* rs) const {
-        if (rs) {
-            rs->release();
-        }
+        // Skip release entirely.
+        (void)rs;
     }
 };
 
 struct ServiceDeleter {
     void operator()(Firebird::IService* service) const {
-        if (service) {
-            service->release();
-        }
+        // Skip release entirely.
+        (void)service;
     }
 };
 

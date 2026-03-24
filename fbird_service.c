@@ -17,7 +17,7 @@ typedef struct {
 	char *hostname;
 	char *username;
 	zend_resource *res;
-	void *fbsvc_service; /* OO API ServiceWrapper* */
+	fbsvc_service_t *fbsvc_service; /* OO API ServiceWrapper* */
 } fbird_service;
 
 static int le_service;

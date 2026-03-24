@@ -174,22 +174,6 @@ public:
     }
 
     /**
-     * Get the legacy isc_db_handle for compatibility with existing code.
-     * @note This returns 0 for OO API connections; use get() instead.
-     * @deprecated Use get() for OO API access.
-     */
-    [[nodiscard]] isc_db_handle getLegacyHandle() const noexcept {
-        return legacy_handle_;
-    }
-
-    /**
-     * Get a pointer to the internal legacy handle (for APIs needing isc_db_handle*).
-     */
-    [[nodiscard]] isc_db_handle* getLegacyHandlePtr() noexcept {
-        return &legacy_handle_;
-    }
-
-    /**
      * Get version information for this connection's client library.
      */
     [[nodiscard]] const VersionInfo& getVersion() const noexcept {
@@ -299,7 +283,6 @@ private:
 
     AttachmentPtr attachment_;              ///< RAII-managed attachment
     Firebird::IMaster* master_ = nullptr;   ///< Master interface (not owned)
-    isc_db_handle legacy_handle_ = 0;       ///< Legacy handle (for compatibility)
     bool dropped_ = false;                  ///< True after dropDatabase() — attachment is invalid
     std::string database_path_;             ///< Database path for this connection
     unsigned short dialect_ = 3;            ///< SQL dialect
@@ -468,7 +451,6 @@ inline Connection::Connection(AttachmentPtr attachment,
                               unsigned version)
     : attachment_(std::move(attachment)),
       master_(master),
-      legacy_handle_(0),
       database_path_(std::move(database_path)),
       dialect_(dialect),
       version_(version),
@@ -482,7 +464,6 @@ inline Connection::~Connection() {
 inline Connection::Connection(Connection&& other) noexcept
     : attachment_(std::move(other.attachment_)),
       master_(other.master_),
-      legacy_handle_(other.legacy_handle_),
       database_path_(std::move(other.database_path_)),
       dialect_(other.dialect_),
       version_(other.version_),
@@ -490,7 +471,6 @@ inline Connection::Connection(Connection&& other) noexcept
       statement_timeout_ms_(other.statement_timeout_ms_),
       idle_timeout_sec_(other.idle_timeout_sec_) {
     other.master_ = nullptr;
-    other.legacy_handle_ = 0;
 }
 
 inline Connection& Connection::operator=(Connection&& other) noexcept {
@@ -498,7 +478,6 @@ inline Connection& Connection::operator=(Connection&& other) noexcept {
         detachNoThrow();
         attachment_ = std::move(other.attachment_);
         master_ = other.master_;
-        legacy_handle_ = other.legacy_handle_;
         database_path_ = std::move(other.database_path_);
         dialect_ = other.dialect_;
         version_ = other.version_;
@@ -506,7 +485,6 @@ inline Connection& Connection::operator=(Connection&& other) noexcept {
         statement_timeout_ms_ = other.statement_timeout_ms_;
         idle_timeout_sec_ = other.idle_timeout_sec_;
         other.master_ = nullptr;
-        other.legacy_handle_ = 0;
     }
     return *this;
 }
@@ -536,13 +514,14 @@ inline void Connection::detach() {
 }
 
 inline bool Connection::detachNoThrow() noexcept {
-    if (!attachment_) {
+    if (!attachment_ || g_shutdown_active) {
+        attachment_.release();
         return true;
     }
 
     // If the database was dropped on this connection, skip detach() — attachment is already invalid.
     if (dropped_) {
-        attachment_.reset();
+        attachment_.release();
         return true;
     }
 
@@ -552,24 +531,22 @@ inline bool Connection::detachNoThrow() noexcept {
         // client library (persistent connections destroyed after module shutdown).
         // getMaster() returns nullptr during MSHUTDOWN, so we skip detach entirely.
         Firebird::IMaster* master = getMaster();
-        if (!master) {
-            master = master_;
+
+    if (master && !g_shutdown_active) {
+        // Use CheckStatusWrapper for Firebird template API
+        Firebird::IStatus* raw_status = master->getStatus();
+        Firebird::CheckStatusWrapper check_status(raw_status);
+        attachment_->detach(&check_status);
+        // Use hasData() for FB3 compatibility (see Connection::create comment)
+        if (check_status.hasData()) {
+            attachment_.release();
+            return false;
         }
-        if (master) {
-            // Use CheckStatusWrapper for Firebird template API
-            Firebird::IStatus* raw_status = master->getStatus();
-            Firebird::CheckStatusWrapper check_status(raw_status);
-            attachment_->detach(&check_status);
-            // Use hasData() for FB3 compatibility (see Connection::create comment)
-            if (check_status.hasData()) {
-                attachment_.reset();
-                return false;
-            }
-        }
-        // If no master available at all (MSHUTDOWN), just release the pointer.
-        // The Firebird client library will clean up on process exit.
-        attachment_.reset();
-        return true;
+    }
+    // If no master available at all (MSHUTDOWN), just release the pointer.
+    // The Firebird client library will clean up on process exit.
+    attachment_.release();
+    return true;
     } catch (...) {
         attachment_.reset();
         return false;
@@ -688,8 +665,8 @@ extern "C" {
  * @param status_vector Output status vector for errors
  * @return Pointer to fb::Connection object, or NULL on failure
  */
-void* fbc_connect(
-    void* master_ptr,
+fbc_connection_t* fbc_connect(
+    fbc_master_t* master_ptr,
     const char* database, size_t db_len,
     const char* user, size_t user_len,
     const char* password, size_t password_len,
@@ -708,7 +685,7 @@ void* fbc_connect(
  * @param status_vector Output status vector for errors
  * @return 0 on success, non-zero on failure
  */
-int fbc_disconnect(void* connection, ISC_STATUS* status_vector);
+int fbc_disconnect(fbc_connection_t* connection, ISC_STATUS* status_vector);
 
 /**
  * Drop a database (destructive operation).
@@ -717,7 +694,7 @@ int fbc_disconnect(void* connection, ISC_STATUS* status_vector);
  * @param status_vector Output status vector for errors
  * @return 0 on success, non-zero on failure
  */
-int fbc_drop_database(void* connection, ISC_STATUS* status_vector);
+int fbc_drop_database(fbc_connection_t* connection, ISC_STATUS* status_vector);
 
 /**
  * Check if a connection is valid.
@@ -725,7 +702,7 @@ int fbc_drop_database(void* connection, ISC_STATUS* status_vector);
  * @param connection Pointer returned by fbc_connect()
  * @return 1 if connected, 0 if not
  */
-int fbc_is_connected(void* connection);
+int fbc_is_connected(fbc_connection_t* connection);
 
 /**
  * Get the IAttachment pointer from a connection.
@@ -733,7 +710,7 @@ int fbc_is_connected(void* connection);
  * @param connection Pointer returned by fbc_connect()
  * @return Raw IAttachment pointer, or NULL
  */
-void* fbc_get_attachment(void* connection);
+fba_attachment_t* fbc_get_attachment(fbc_connection_t* connection);
 
 #ifdef __cplusplus
 } // extern "C"

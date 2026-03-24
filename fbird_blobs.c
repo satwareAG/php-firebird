@@ -424,10 +424,11 @@ PHP_FUNCTION(fbird_blob_create)
 
 	RESET_ERRMSG;
 
-	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "|r", &link)) {
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "|z!", &link)) {
 		RETURN_FALSE;
 	}
 
+	FBIRD_GET_LINK(link, ib_link);
 	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
 
 	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
@@ -467,10 +468,11 @@ PHP_FUNCTION(fbird_blob_create_seekable)
 
 	RESET_ERRMSG;
 
-	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "|r", &link)) {
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "|z!", &link)) {
 		RETURN_FALSE;
 	}
 
+	FBIRD_GET_LINK(link, ib_link);
 	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
 
 	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
@@ -511,8 +513,11 @@ PHP_FUNCTION(fbird_blob_open)
 	fbird_blob *ib_blob;
 
 	RESET_ERRMSG;
-	PARSE_PARAMETERS;
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "s|z!", &blob_id, &blob_id_len, &link)) {
+		RETURN_FALSE;
+	}
 
+	FBIRD_GET_LINK(link, ib_link);
 	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
 
 	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
@@ -706,10 +711,13 @@ PHP_FUNCTION(fbird_blob_info)
 	if (ZEND_NUM_ARGS() == 1) {
 		if (zend_parse_parameters(1, "z", &arg1) == FAILURE) RETURN_FALSE;
 	} else if (ZEND_NUM_ARGS() == 2) {
-		if (zend_parse_parameters(2, "rz", &link, &arg1) == FAILURE) RETURN_FALSE;
+		if (zend_parse_parameters(2, "zz", &link, &arg1) == FAILURE) RETURN_FALSE;
 	} else {
 		WRONG_PARAM_COUNT;
 	}
+
+	FBIRD_GET_LINK(link, ib_link);
+	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
 
 	// Check if arg1 is a stream or blob resource
 	if (arg1 && Z_TYPE_P(arg1) == IS_RESOURCE) {
@@ -966,10 +974,11 @@ PHP_FUNCTION(fbird_blob_create_stream)
 
 	RESET_ERRMSG;
 
-	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "|r", &link)) {
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "|z!", &link)) {
 		RETURN_FALSE;
 	}
 
+	FBIRD_GET_LINK(link, ib_link);
 	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
 
 	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));

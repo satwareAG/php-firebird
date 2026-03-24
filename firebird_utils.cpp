@@ -44,7 +44,7 @@ namespace string_utils {
 }
 
 namespace {
-    std::optional<unsigned> get_client_version_impl(void* master_ptr) noexcept {
+    std::optional<unsigned> get_client_version_impl(fbc_master_t* master_ptr) noexcept {
         if (!master_ptr) {
             return std::nullopt;
         }
@@ -75,7 +75,7 @@ namespace {
         }
     };
 
-    std::optional<ISC_TIME> encode_time_impl(void* master_ptr, const TimeComponents& components) noexcept {
+    std::optional<ISC_TIME> encode_time_impl(fbc_master_t* master_ptr, const TimeComponents& components) noexcept {
         if (!master_ptr || !components.is_valid()) {
             return std::nullopt;
         }
@@ -105,7 +105,7 @@ namespace {
         }
     };
 
-    std::optional<ISC_DATE> encode_date_impl(void* master_ptr, const DateComponents& components) noexcept {
+    std::optional<ISC_DATE> encode_date_impl(fbc_master_t* master_ptr, const DateComponents& components) noexcept {
         if (!master_ptr || !components.is_valid()) {
             return std::nullopt;
         }
@@ -143,7 +143,7 @@ namespace {
     };
 
     std::optional<DecodedTimestampTz> decode_timestamp_tz_impl(
-        void* master_ptr, const ISC_TIMESTAMP_TZ* timestampTz) noexcept {
+        fbc_master_t *master_ptr, const ISC_TIMESTAMP_TZ* timestampTz) noexcept {
 
         if (!master_ptr || !timestampTz) {
             return std::nullopt;
@@ -182,7 +182,7 @@ namespace {
         }
     }
 
-    int insert_field_info_modern(void* master_ptr, ISC_STATUS* status_vec,
+    int insert_field_info_modern(fbc_master_t *master_ptr, ISC_STATUS* status_vec,
                                 bool is_output_var, int field_num, zval* target_array,
                                 Firebird::IStatement* statement) noexcept {
         try {
@@ -223,7 +223,7 @@ namespace {
         }
     }
 
-    int insert_aliases_modern(void* master_ptr, ISC_STATUS* status_vec, fbird_query* ib_query,
+    int insert_aliases_modern(fbc_master_t *master_ptr, ISC_STATUS* status_vec, fbird_query* ib_query,
                              Firebird::IStatement* statement) noexcept {
         try {
             FirebirdMasterWrapper master(master_ptr);
@@ -273,7 +273,18 @@ namespace {
 #include "src/cpp/fb_core.hpp"
 #include "src/cpp/fb_connection.hpp"
 
+extern "C" void fbird_set_shutdown_active(int active) {
+    fb::g_shutdown_active = (active != 0);
+}
+
 namespace fb {
+
+std::atomic<bool> g_shutdown_active(false);
+std::atomic<bool> g_process_exiting(false);
+
+extern "C" void _fbird_process_exit_handler(void) {
+    g_process_exiting = true;
+}
 
 /**
  * Implementation of getMaster() - retrieves the global IMaster instance
@@ -283,7 +294,10 @@ namespace fb {
  * PHP extension's global state.
  */
 Firebird::IMaster* getMaster() noexcept {
-    // During MSHUTDOWN, the Firebird client library may already be released.
+    // During MSHUTDOWN or RSHUTDOWN, or process exit, the Firebird client library may already be released.
+    if (g_shutdown_active || g_process_exiting) {
+        return nullptr;
+    }
     // Return nullptr to prevent dangling pointer access in persistent connection
     // destructors (fixes pconnect shutdown SIGSEGV — Issue #50, #51).
     if (IBG(in_mshutdown)) {
@@ -291,26 +305,26 @@ Firebird::IMaster* getMaster() noexcept {
     }
     // IBG(master_instance) is defined in php_fbird_includes.h
     // It's stored as void* for C compatibility
-    return static_cast<Firebird::IMaster*>(IBG(master_instance));
+    return reinterpret_cast<Firebird::IMaster*>(IBG(master_instance));
 }
 
 } // namespace fb
 
 /* Returns the client version. 0 bytes are minor version, 1 bytes are major version. */
-extern "C" unsigned fbu_get_client_version(void *master_ptr)
+extern "C" unsigned fbu_get_client_version(fbc_master_t *master_ptr)
 {
     auto version = get_client_version_impl(master_ptr);
     return version.value_or(0);
 }
 
-extern "C" ISC_TIME fbu_encode_time(void *master_ptr, unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions)
+extern "C" ISC_TIME fbu_encode_time(fbc_master_t *master_ptr, unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions)
 {
     TimeComponents components{hours, minutes, seconds, fractions};
     auto result = encode_time_impl(master_ptr, components);
     return result.value_or(0);
 }
 
-extern "C" ISC_DATE fbu_encode_date(void *master_ptr, unsigned year, unsigned month, unsigned day)
+extern "C" ISC_DATE fbu_encode_date(fbc_master_t *master_ptr, unsigned year, unsigned month, unsigned day)
 {
     DateComponents components{year, month, day};
     auto result = encode_date_impl(master_ptr, components);
@@ -331,7 +345,7 @@ extern "C" ISC_STATUS fba_array_lookup_bounds(ISC_STATUS *status_vector,
         relation_name, field_name, desc);
 }
 
-extern "C" ISC_TIMESTAMP fbu_encode_timestamp(void *master_ptr, unsigned year, unsigned month, unsigned day,
+extern "C" ISC_TIMESTAMP fbu_encode_timestamp(fbc_master_t *master_ptr, unsigned year, unsigned month, unsigned day,
     unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions)
 {
     ISC_TIMESTAMP result = {0, 0};
@@ -363,7 +377,7 @@ extern "C" ISC_TIMESTAMP fbu_encode_timestamp(void *master_ptr, unsigned year, u
     }
 }
 
-extern "C" void fbu_decode_time(void *master_ptr, ISC_TIME time,
+extern "C" void fbu_decode_time(fbc_master_t *master_ptr, ISC_TIME time,
     unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions)
 {
     // Initialize outputs to zero for safety
@@ -398,7 +412,7 @@ extern "C" void fbu_decode_time(void *master_ptr, ISC_TIME time,
     }
 }
 
-extern "C" void fbu_decode_date(void *master_ptr, ISC_DATE date,
+extern "C" void fbu_decode_date(fbc_master_t *master_ptr, ISC_DATE date,
     unsigned* year, unsigned* month, unsigned* day)
 {
     // Initialize outputs to zero for safety
@@ -431,7 +445,7 @@ extern "C" void fbu_decode_date(void *master_ptr, ISC_DATE date,
     }
 }
 
-extern "C" void fbu_decode_timestamp(void *master_ptr, const ISC_TIMESTAMP* timestamp,
+extern "C" void fbu_decode_timestamp(fbc_master_t *master_ptr, const ISC_TIMESTAMP* timestamp,
     unsigned* year, unsigned* month, unsigned* day,
     unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions)
 {
@@ -485,8 +499,8 @@ static void fbu_copy_status(const ISC_STATUS* from, ISC_STATUS* to, size_t maxLe
     copy_status_vector(from, maxLength, to, maxLength);
 }
 
-extern "C" void* fbc_connect(
-    void* master_ptr,
+extern "C" fbc_connection_t* fbc_connect(
+    fbc_master_t *master_ptr,
     const char* database, size_t db_len,
     const char* user, size_t user_len,
     const char* password, size_t password_len,
@@ -503,7 +517,7 @@ extern "C" void* fbc_connect(
     }
 
     try {
-        auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+        auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
 
         // Build connection parameters
         fb::ConnectionParams params;
@@ -527,7 +541,7 @@ extern "C" void* fbc_connect(
         }
 
         // Move to heap and return as opaque pointer
-        return reinterpret_cast<void*>(new fb::Connection(std::move(conn)));
+        return reinterpret_cast<fbc_connection_t*>(new fb::Connection(std::move(conn)));
 
     } catch (const fb::Exception& e) {
         // Copy error status from exception to output status vector
@@ -545,7 +559,7 @@ extern "C" void* fbc_connect(
     }
 }
 
-extern "C" int fbc_disconnect(void* connection, ISC_STATUS* status_vector) {
+extern "C" int fbc_disconnect(fbc_connection_t *connection, ISC_STATUS* status_vector) {
     if (!connection) {
         return 0;
     }
@@ -571,7 +585,7 @@ extern "C" int fbc_disconnect(void* connection, ISC_STATUS* status_vector) {
     }
 }
 
-extern "C" int fbc_drop_database(void* connection, ISC_STATUS* status_vector) {
+extern "C" int fbc_drop_database(fbc_connection_t *connection, ISC_STATUS* status_vector) {
     if (!connection) {
         return -1;
     }
@@ -598,8 +612,8 @@ extern "C" int fbc_drop_database(void* connection, ISC_STATUS* status_vector) {
     }
 }
 
-extern "C" void* fbc_create_database(
-    void* master_ptr,
+extern "C" fbc_connection_t* fbc_create_database(
+    fbc_master_t *master_ptr,
     const char* create_sql,
     unsigned dialect,
     ISC_STATUS* status_vector
@@ -614,7 +628,7 @@ extern "C" void* fbc_create_database(
     }
 
     try {
-        auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+        auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
 
         // Get IUtil interface for executeCreateDatabase
         Firebird::IUtil* util = master->getUtilInterface();
@@ -676,7 +690,7 @@ extern "C" void* fbc_create_database(
         );
 
         // Move to heap and return as opaque pointer (compatible with fbc_get_attachment)
-        return reinterpret_cast<void*>(new fb::Connection(std::move(conn)));
+        return reinterpret_cast<fbc_connection_t*>(new fb::Connection(std::move(conn)));
 
     } catch (const fb::Exception& e) {
         if (status_vector) {
@@ -698,23 +712,21 @@ extern "C" void* fbc_create_database(
     }
 }
 
-extern "C" void* fbc_get_attachment(void* connection) {
+extern "C" uintptr_t fbc_get_attachment_64(fbc_connection_t *connection) {
     if (!connection) {
-        return nullptr;
+        return 0;
     }
     auto* conn = reinterpret_cast<fb::Connection*>(connection);
-    return conn->get();  // Returns IAttachment*
+    return reinterpret_cast<uintptr_t>(conn->get());
 }
 
-extern "C" void* fbc_get_legacy_handle_ptr(void* connection) {
-    if (!connection) {
-        return nullptr;
-    }
-    auto* conn = reinterpret_cast<fb::Connection*>(connection);
-    return conn->getLegacyHandlePtr();
+extern "C" void* fbc_get_legacy_handle_ptr(fbc_connection_t *connection) {
+    /* Legacy handles are no longer supported in OO mode.
+     * Functions needing legacy handles must be refactored to use OO API. */
+    return nullptr;
 }
 
-extern "C" int fbc_is_connected(void* connection) {
+extern "C" int fbc_is_connected(fbc_connection_t *connection) {
     if (!connection) {
         return 0;
     }
@@ -722,7 +734,7 @@ extern "C" int fbc_is_connected(void* connection) {
     return conn->isConnected() ? 1 : 0;
 }
 
-extern "C" int fbc_ping(void* master_ptr, void* connection, ISC_STATUS* status_vector) {
+extern "C" int fbc_ping(fbc_master_t *master_ptr, fbc_connection_t *connection, ISC_STATUS* status_vector) {
     if (!master_ptr || !connection) {
         return 0;
     }
@@ -747,7 +759,7 @@ extern "C" int fbc_ping(void* master_ptr, void* connection, ISC_STATUS* status_v
     return ok;
 }
 
-extern "C" unsigned fbc_get_server_version(void* connection) {
+extern "C" unsigned fbc_get_server_version(fbc_connection_t *connection) {
     if (!connection) {
         return 0;
     }
@@ -757,20 +769,25 @@ extern "C" unsigned fbc_get_server_version(void* connection) {
 
 #include "src/cpp/fb_transaction.hpp"
 
-extern "C" void* fbt_start(
-    void* master_ptr,
-    void* attachment_ptr,
+extern "C" uintptr_t fbt_start_64(
+    fbc_master_t *master_ptr,
+    uintptr_t attachment_ptr,
     unsigned tpb_len,
     const unsigned char* tpb,
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !attachment_ptr) {
-        return nullptr;
+        if (status_vector) {
+            status_vector[0] = 1;
+            status_vector[1] = isc_bad_db_handle;
+            status_vector[2] = isc_arg_end;
+        }
+        return 0;
     }
 
     try {
-        auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-        auto* attachment = static_cast<Firebird::IAttachment*>(attachment_ptr);
+        auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+        auto* attachment = reinterpret_cast<Firebird::IAttachment*>(attachment_ptr);
 
         // Create transaction using factory method
         auto trans = fb::Transaction::start(master, attachment, tpb_len, tpb);
@@ -779,11 +796,11 @@ extern "C" void* fbt_start(
             if (status_vector) {
                 trans.copyLastStatus(status_vector, ISC_STATUS_LENGTH);
             }
-            return nullptr;
+            return 0;
         }
 
         // Move to heap and return as opaque pointer
-        return reinterpret_cast<void*>(new fb::Transaction(std::move(trans)));
+        return reinterpret_cast<uintptr_t>(new fb::Transaction(std::move(trans)));
 
     } catch (const fb::Exception& e) {
         // Copy error status from exception to output status vector
@@ -812,7 +829,7 @@ extern "C" void* fbt_start(
     }
 }
 
-extern "C" int fbt_commit(void* transaction, ISC_STATUS* status_vector) {
+extern "C" int fbt_commit(fbt_transaction_t *transaction, ISC_STATUS* status_vector) {
     if (!transaction) {
         return 0;
     }
@@ -845,7 +862,7 @@ extern "C" int fbt_commit(void* transaction, ISC_STATUS* status_vector) {
     }
 }
 
-extern "C" int fbt_rollback(void* transaction, ISC_STATUS* status_vector) {
+extern "C" int fbt_rollback(fbt_transaction_t *transaction, ISC_STATUS* status_vector) {
     if (!transaction) {
         return 0;
     }
@@ -876,7 +893,7 @@ extern "C" int fbt_rollback(void* transaction, ISC_STATUS* status_vector) {
     }
 }
 
-extern "C" int fbt_commit_retaining(void* transaction, ISC_STATUS* status_vector) {
+extern "C" int fbt_commit_retaining(fbt_transaction_t *transaction, ISC_STATUS* status_vector) {
     if (!transaction) {
         return -1;
     }
@@ -904,7 +921,7 @@ extern "C" int fbt_commit_retaining(void* transaction, ISC_STATUS* status_vector
     }
 }
 
-extern "C" int fbt_rollback_retaining(void* transaction, ISC_STATUS* status_vector) {
+extern "C" int fbt_rollback_retaining(fbt_transaction_t *transaction, ISC_STATUS* status_vector) {
     if (!transaction) {
         return -1;
     }
@@ -932,7 +949,7 @@ extern "C" int fbt_rollback_retaining(void* transaction, ISC_STATUS* status_vect
     }
 }
 
-extern "C" int fbt_is_active(void* transaction) {
+extern "C" int fbt_is_active(fbt_transaction_t *transaction) {
     if (!transaction) {
         return 0;
     }
@@ -940,15 +957,15 @@ extern "C" int fbt_is_active(void* transaction) {
     return trans->isActive() ? 1 : 0;
 }
 
-extern "C" void* fbt_get_handle(void* transaction) {
-    if (!transaction) {
+extern "C" void* fbt_get_handle_64(uintptr_t transaction_ptr) {
+    if (!transaction_ptr) {
         return nullptr;
     }
-    auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
+    auto* trans = reinterpret_cast<fb::Transaction*>(transaction_ptr);
     return trans->get();  // Returns ITransaction*
 }
 
-extern "C" void fbt_free(void* transaction) {
+extern "C" void fbt_free(fbt_transaction_t *transaction) {
     if (transaction) {
         // Use rollbackNoThrow to safely clean up without throwing
         auto* trans = reinterpret_cast<fb::Transaction*>(transaction);
@@ -958,8 +975,8 @@ extern "C" void fbt_free(void* transaction) {
 }
 
 extern "C" int fbt_get_info(
-    void* master_ptr,
-    void* transaction_ptr,
+    fbc_master_t *master_ptr,
+    fbt_transaction_t *transaction_ptr,
     unsigned items_length,
     const unsigned char* items,
     unsigned buffer_length,
@@ -975,8 +992,8 @@ extern "C" int fbt_get_info(
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* transaction = reinterpret_cast<Firebird::ITransaction*>(transaction_ptr);
 
     try {
         Firebird::IStatus* fb_status = master->getStatus();
@@ -1008,8 +1025,8 @@ extern "C" int fbt_get_info(
 }
 
 extern "C" int fbc_get_info(
-    void* master_ptr,
-    void* attachment_ptr,
+    fbc_master_t *master_ptr,
+    void *attachment_ptr,
     unsigned items_length,
     const unsigned char* items,
     unsigned buffer_length,
@@ -1025,8 +1042,8 @@ extern "C" int fbc_get_info(
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* attachment = static_cast<Firebird::IAttachment*>(attachment_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* attachment = reinterpret_cast<Firebird::IAttachment*>(attachment_ptr);
 
     try {
         Firebird::IStatus* fb_status = master->getStatus();
@@ -1060,10 +1077,10 @@ extern "C" int fbc_get_info(
 
 #if FB_API_VER >= 40
 /* Decodes a time with time zone into its time components. */
-extern "C" void fbu_decode_time_tz(void *master_ptr, const ISC_TIME_TZ* time_tz, unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions,
+extern "C" void fbu_decode_time_tz(fbc_master_t *master_ptr, const ISC_TIME_TZ* time_tz, unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions,
    unsigned time_zone_buffer_length, char* time_zone_buffer)
 {
-	auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+	auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
 	Firebird::IUtil* util = master->getUtilInterface();
 	Firebird::IStatus* fb_status = master->getStatus();
 	Firebird::CheckStatusWrapper status(fb_status);
@@ -1072,7 +1089,7 @@ extern "C" void fbu_decode_time_tz(void *master_ptr, const ISC_TIME_TZ* time_tz,
 }
 
 /* Decodes a timestamp with time zone into its date and time components */
-extern "C" void fbu_decode_timestamp_tz(void *master_ptr, const ISC_TIMESTAMP_TZ* timestamp_tz, // NOLINT(bugprone-easily-swappable-parameters)
+extern "C" void fbu_decode_timestamp_tz(fbc_master_t *master_ptr, const ISC_TIMESTAMP_TZ* timestamp_tz, // NOLINT(bugprone-easily-swappable-parameters)
 	unsigned* year, unsigned* month, unsigned* day,
 	unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions,
 	unsigned time_zone_buffer_length, char* time_zone_buffer) // NOLINT(readability-function-cognitive-complexity)
@@ -1113,29 +1130,29 @@ extern "C" void fbu_decode_timestamp_tz(void *master_ptr, const ISC_TIMESTAMP_TZ
     }
 }
 
-extern "C" int fbu_insert_aliases(void *master_ptr, ISC_STATUS* status, fbird_query *ib_query, void *statement_ptr)
+extern "C" int fbu_insert_aliases(fbc_master_t *master_ptr, ISC_STATUS* status, fbird_query *ib_query, fbs_statement_t *statement_ptr)
 {
     if (master_ptr == nullptr || ib_query == nullptr || statement_ptr == nullptr) {
         return -1;
     }
 
-    auto* statement = static_cast<Firebird::IStatement*>(statement_ptr);
+    auto* statement = reinterpret_cast<Firebird::IStatement*>(statement_ptr);
     return insert_aliases_modern(master_ptr, status, ib_query, statement);
 }
 
-extern "C" int fbu_insert_field_info(void *master_ptr, ISC_STATUS* status, int is_outvar, int num,
-	zval *into_array, void *statement_ptr)
+extern "C" int fbu_insert_field_info(fbc_master_t *master_ptr, ISC_STATUS* status, int is_outvar, int num,
+	zval *into_array, fbs_statement_t *statement_ptr)
 {
     if (master_ptr == nullptr || into_array == nullptr || statement_ptr == nullptr) {
         return -1;
     }
 
-    auto* statement = static_cast<Firebird::IStatement*>(statement_ptr);
+    auto* statement = reinterpret_cast<Firebird::IStatement*>(statement_ptr);
     return insert_field_info_modern(master_ptr, status, is_outvar != 0, num, into_array, statement);
 }
 
 /* Encode time with timezone */
-extern "C" int fbu_encode_time_tz(void *master_ptr, ISC_TIME_TZ* time_tz,
+extern "C" int fbu_encode_time_tz(fbc_master_t *master_ptr, ISC_TIME_TZ* time_tz,
 	unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions,
 	const char* time_zone)
 {
@@ -1144,7 +1161,7 @@ extern "C" int fbu_encode_time_tz(void *master_ptr, ISC_TIME_TZ* time_tz,
     }
 
     try {
-        auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+        auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
         Firebird::IUtil* util = master->getUtilInterface();
         Firebird::IStatus* fb_status = master->getStatus();
         Firebird::CheckStatusWrapper status(fb_status);
@@ -1161,12 +1178,12 @@ extern "C" int fbu_encode_time_tz(void *master_ptr, ISC_TIME_TZ* time_tz,
 }
 
 /* Convert INT128 to string */
-extern "C" int fbu_int128_to_string(void *master_ptr, const void *value, int scale,
+extern "C" int fbu_int128_to_string(fbc_master_t *master_ptr, const void *value, int scale,
 	char *buffer, unsigned buffer_length)
 {
     if (!master_ptr || !value || !buffer || buffer_length == 0) return -1;
     try {
-        auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+        auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
         Firebird::IStatus* fb_status = master->getStatus();
         Firebird::CheckStatusWrapper status(fb_status);
         Firebird::IUtil* util = master->getUtilInterface();
@@ -1181,12 +1198,12 @@ extern "C" int fbu_int128_to_string(void *master_ptr, const void *value, int sca
 }
 
 /* Convert DECFLOAT(16) to string */
-extern "C" int fbu_decfloat16_to_string(void *master_ptr, const void *value,
+extern "C" int fbu_decfloat16_to_string(fbc_master_t *master_ptr, const void *value,
 	char *buffer, unsigned buffer_length)
 {
     if (!master_ptr || !value || !buffer || buffer_length == 0) return -1;
     try {
-        auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+        auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
         Firebird::IStatus* fb_status = master->getStatus();
         Firebird::CheckStatusWrapper status(fb_status);
         Firebird::IUtil* util = master->getUtilInterface();
@@ -1201,12 +1218,12 @@ extern "C" int fbu_decfloat16_to_string(void *master_ptr, const void *value,
 }
 
 /* Convert DECFLOAT(34) to string */
-extern "C" int fbu_decfloat34_to_string(void *master_ptr, const void *value,
+extern "C" int fbu_decfloat34_to_string(fbc_master_t *master_ptr, const void *value,
 	char *buffer, unsigned buffer_length)
 {
     if (!master_ptr || !value || !buffer || buffer_length == 0) return -1;
     try {
-        auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+        auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
         Firebird::IStatus* fb_status = master->getStatus();
         Firebird::CheckStatusWrapper status(fb_status);
         Firebird::IUtil* util = master->getUtilInterface();
@@ -1221,7 +1238,7 @@ extern "C" int fbu_decfloat34_to_string(void *master_ptr, const void *value,
 }
 
 /* Encode timestamp with timezone */
-extern "C" int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* timestamp_tz,
+extern "C" int fbu_encode_timestamp_tz(fbc_master_t *master_ptr, ISC_TIMESTAMP_TZ* timestamp_tz,
 	unsigned year, unsigned month, unsigned day,
 	unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions,
 	const char* time_zone)
@@ -1231,7 +1248,7 @@ extern "C" int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* times
     }
 
     try {
-        auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+        auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
         Firebird::IUtil* util = master->getUtilInterface();
         Firebird::IStatus* fb_status = master->getStatus();
         Firebird::CheckStatusWrapper status(fb_status);
@@ -1252,10 +1269,10 @@ extern "C" int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* times
 
 #include "src/cpp/fb_statement.hpp"
 
-extern "C" void* fbs_prepare(
-    void* master_ptr,
-    void* attachment_ptr,
-    void* transaction_ptr,
+extern "C" fbs_statement_t* fbs_prepare(
+    fbc_master_t *master_ptr,
+    void *attachment_ptr,
+    fbt_transaction_t *transaction_ptr,
     const char* sql,
     unsigned sql_length,
     unsigned dialect,
@@ -1282,9 +1299,9 @@ extern "C" void* fbs_prepare(
         return nullptr;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* attachment = static_cast<Firebird::IAttachment*>(attachment_ptr);
-    auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* attachment = reinterpret_cast<Firebird::IAttachment*>(attachment_ptr);
+    auto* transaction = reinterpret_cast<Firebird::ITransaction*>(transaction_ptr);
 
     // Allocate wrapper on heap
     auto* wrapper = new (std::nothrow) fb::StatementWrapper();
@@ -1302,17 +1319,17 @@ extern "C" void* fbs_prepare(
         return nullptr;
     }
 
-    return wrapper;
+    return reinterpret_cast<fbs_statement_t*>(wrapper);
 }
 
 extern "C" int fbs_execute(
-    void* master_ptr,
-    void* statement_ptr,
-    void* transaction_ptr,
-    void* in_msg,
-    void* in_metadata,
-    void* out_msg,
-    void* out_metadata,
+    fbc_master_t *master_ptr,
+    fbs_statement_t *statement_ptr,
+    fbt_transaction_t *transaction_ptr,
+    void *in_msg,
+    void *in_metadata,
+    void *out_msg,
+    void *out_metadata,
     ISC_STATUS* status_vector
 ) {
     if (status_vector) {
@@ -1329,9 +1346,9 @@ extern "C" int fbs_execute(
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
-    auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = reinterpret_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* transaction = reinterpret_cast<Firebird::ITransaction*>(transaction_ptr);
     auto* in_meta = static_cast<Firebird::IMessageMetadata*>(in_metadata);
     auto* out_meta = static_cast<Firebird::IMessageMetadata*>(out_metadata);
 
@@ -1339,11 +1356,11 @@ extern "C" int fbs_execute(
 }
 
 extern "C" int fbs_open_cursor(
-    void* master_ptr,
-    void* statement_ptr,
-    void* transaction_ptr,
-    void* in_msg,
-    void* in_metadata,
+    fbc_master_t *master_ptr,
+    fbs_statement_t *statement_ptr,
+    fbt_transaction_t *transaction_ptr,
+    void *in_msg,
+    void *in_metadata,
     unsigned cursor_flags,
     ISC_STATUS* status_vector
 ) {
@@ -1361,18 +1378,18 @@ extern "C" int fbs_open_cursor(
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
-    auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = reinterpret_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* transaction = reinterpret_cast<Firebird::ITransaction*>(transaction_ptr);
     auto* in_meta = static_cast<Firebird::IMessageMetadata*>(in_metadata);
 
     return wrapper->openCursor(master, transaction, in_msg, in_meta, cursor_flags, status_vector) ? 1 : 0;
 }
 
 extern "C" int fbs_fetch(
-    void* master_ptr,
-    void* statement_ptr,
-    void* out_msg,
+    fbc_master_t *master_ptr,
+    fbs_statement_t *statement_ptr,
+    void *out_msg,
     ISC_STATUS* status_vector
 ) {
     if (status_vector) {
@@ -1389,68 +1406,68 @@ extern "C" int fbs_fetch(
         return -1;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = reinterpret_cast<fb::StatementWrapper*>(statement_ptr);
 
     return wrapper->fetchNext(master, out_msg, status_vector);
 }
 
-extern "C" int fbs_fetch_prior(void* master_ptr, void* statement_ptr, void* out_msg, ISC_STATUS* status_vector) {
+extern "C" int fbs_fetch_prior(fbc_master_t *master_ptr, fbs_statement_t *statement_ptr, void *out_msg, ISC_STATUS* status_vector) {
     if (!master_ptr || !statement_ptr) return -1;
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = reinterpret_cast<fb::StatementWrapper*>(statement_ptr);
     return wrapper->fetchPrior(master, out_msg, status_vector);
 }
 
-extern "C" int fbs_fetch_first(void* master_ptr, void* statement_ptr, void* out_msg, ISC_STATUS* status_vector) {
+extern "C" int fbs_fetch_first(fbc_master_t *master_ptr, fbs_statement_t *statement_ptr, void *out_msg, ISC_STATUS* status_vector) {
     if (!master_ptr || !statement_ptr) return -1;
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = reinterpret_cast<fb::StatementWrapper*>(statement_ptr);
     return wrapper->fetchFirst(master, out_msg, status_vector);
 }
 
-extern "C" int fbs_fetch_last(void* master_ptr, void* statement_ptr, void* out_msg, ISC_STATUS* status_vector) {
+extern "C" int fbs_fetch_last(fbc_master_t *master_ptr, fbs_statement_t *statement_ptr, void *out_msg, ISC_STATUS* status_vector) {
     if (!master_ptr || !statement_ptr) return -1;
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = reinterpret_cast<fb::StatementWrapper*>(statement_ptr);
     return wrapper->fetchLast(master, out_msg, status_vector);
 }
 
-extern "C" int fbs_fetch_absolute(void* master_ptr, void* statement_ptr, int position, void* out_msg, ISC_STATUS* status_vector) {
+extern "C" int fbs_fetch_absolute(fbc_master_t *master_ptr, fbs_statement_t *statement_ptr, int position, void *out_msg, ISC_STATUS* status_vector) {
     if (!master_ptr || !statement_ptr) return -1;
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = reinterpret_cast<fb::StatementWrapper*>(statement_ptr);
     return wrapper->fetchAbsolute(master, position, out_msg, status_vector);
 }
 
-extern "C" int fbs_fetch_relative(void* master_ptr, void* statement_ptr, int offset, void* out_msg, ISC_STATUS* status_vector) {
+extern "C" int fbs_fetch_relative(fbc_master_t *master_ptr, fbs_statement_t *statement_ptr, int offset, void *out_msg, ISC_STATUS* status_vector) {
     if (!master_ptr || !statement_ptr) return -1;
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = reinterpret_cast<fb::StatementWrapper*>(statement_ptr);
     return wrapper->fetchRelative(master, offset, out_msg, status_vector);
 }
 
-extern "C" int fbs_close_cursor(void* statement_ptr, ISC_STATUS* status_vector) {
+extern "C" int fbs_close_cursor(fbs_statement_t *statement_ptr, ISC_STATUS* status_vector) {
     if (!statement_ptr) {
         return 1;  // Already closed
     }
 
-    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* wrapper = reinterpret_cast<fb::StatementWrapper*>(statement_ptr);
     return wrapper->closeCursor(status_vector) ? 1 : 0;
 }
 
-extern "C" int fbs_free(void* statement_ptr, ISC_STATUS* status_vector) {
+extern "C" int fbs_free(fbs_statement_t *statement_ptr, ISC_STATUS* status_vector) {
     if (!statement_ptr) {
         return 1;  // Already freed
     }
 
-    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* wrapper = reinterpret_cast<fb::StatementWrapper*>(statement_ptr);
     bool result = wrapper->free(status_vector);
     delete wrapper;
     return result ? 1 : 0;
 }
 
-extern "C" unsigned fbs_get_type(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector) {
+extern "C" unsigned fbs_get_type(fbc_master_t *master_ptr, fbs_statement_t *statement_ptr, ISC_STATUS* status_vector) {
     if (status_vector) {
         status_vector[0] = 1;
         status_vector[1] = 0;
@@ -1459,24 +1476,24 @@ extern "C" unsigned fbs_get_type(void* master_ptr, void* statement_ptr, ISC_STAT
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = reinterpret_cast<fb::StatementWrapper*>(statement_ptr);
 
     return wrapper->getType(master, status_vector);
 }
 
-extern "C" ISC_UINT64 fbs_get_affected_records(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector) {
+extern "C" ISC_UINT64 fbs_get_affected_records(fbc_master_t *master_ptr, fbs_statement_t *statement_ptr, ISC_STATUS* status_vector) {
     if (!master_ptr || !statement_ptr) {
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = reinterpret_cast<fb::StatementWrapper*>(statement_ptr);
 
     return wrapper->getAffectedRecords(master, status_vector);
 }
 
-extern "C" void* fbs_get_input_metadata(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector) {
+extern "C" void* fbs_get_input_metadata(fbc_master_t *master_ptr, fbs_statement_t *statement_ptr, ISC_STATUS* status_vector) {
     if (status_vector) {
         status_vector[0] = 1;
         status_vector[1] = 0;
@@ -1485,13 +1502,13 @@ extern "C" void* fbs_get_input_metadata(void* master_ptr, void* statement_ptr, I
         return nullptr;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = reinterpret_cast<fb::StatementWrapper*>(statement_ptr);
 
     return wrapper->getInputMetadata(master, status_vector);
 }
 
-extern "C" void* fbs_get_output_metadata(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector) {
+extern "C" void* fbs_get_output_metadata(fbc_master_t *master_ptr, fbs_statement_t *statement_ptr, ISC_STATUS* status_vector) {
     if (status_vector) {
         status_vector[0] = 1;
         status_vector[1] = 0;
@@ -1500,40 +1517,40 @@ extern "C" void* fbs_get_output_metadata(void* master_ptr, void* statement_ptr, 
         return nullptr;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = reinterpret_cast<fb::StatementWrapper*>(statement_ptr);
 
     return wrapper->getOutputMetadata(master, status_vector);
 }
 
-extern "C" void* fbs_get_statement(void* statement_ptr) {
+extern "C" void* fbs_get_statement(fbs_statement_t *statement_ptr) {
     if (!statement_ptr) {
         return nullptr;
     }
 
-    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* wrapper = reinterpret_cast<fb::StatementWrapper*>(statement_ptr);
     return wrapper->getStatement();
 }
 
-extern "C" int fbs_is_prepared(void* statement_ptr) {
+extern "C" int fbs_is_prepared(fbs_statement_t *statement_ptr) {
     if (!statement_ptr) {
         return 0;
     }
 
-    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* wrapper = reinterpret_cast<fb::StatementWrapper*>(statement_ptr);
     return wrapper->isPrepared() ? 1 : 0;
 }
 
-extern "C" int fbs_is_cursor_open(void* statement_ptr) {
+extern "C" int fbs_is_cursor_open(fbs_statement_t *statement_ptr) {
     if (!statement_ptr) {
         return 0;
     }
 
-    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* wrapper = reinterpret_cast<fb::StatementWrapper*>(statement_ptr);
     return wrapper->isCursorOpen() ? 1 : 0;
 }
 
-extern "C" int fbs_set_cursor_name(void* master_ptr, void* statement_ptr, const char* cursor_name, ISC_STATUS* status_vector) {
+extern "C" int fbs_set_cursor_name(fbc_master_t *master_ptr, fbs_statement_t *statement_ptr, const char* cursor_name, ISC_STATUS* status_vector) {
     if (!master_ptr || !statement_ptr || !cursor_name) {
         if (status_vector) {
             status_vector[0] = 1;
@@ -1544,8 +1561,8 @@ extern "C" int fbs_set_cursor_name(void* master_ptr, void* statement_ptr, const 
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = reinterpret_cast<fb::StatementWrapper*>(statement_ptr);
 
     try {
         Firebird::ThrowStatusWrapper status(master->getStatus());
@@ -1582,9 +1599,9 @@ extern "C" int fbs_set_cursor_name(void* master_ptr, void* statement_ptr, const 
 }
 
 extern "C" ISC_INT64 fbs_execute_singleton_int64(
-    void* master_ptr,
-    void* statement_ptr,
-    void* transaction_ptr,
+    fbc_master_t *master_ptr,
+    fbs_statement_t *statement_ptr,
+    fbt_transaction_t *transaction_ptr,
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !statement_ptr || !transaction_ptr) {
@@ -1597,9 +1614,9 @@ extern "C" ISC_INT64 fbs_execute_singleton_int64(
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
-    auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = reinterpret_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* transaction = reinterpret_cast<Firebird::ITransaction*>(transaction_ptr);
 
     Firebird::CheckStatusWrapper status(master->getStatus());
 
@@ -1657,7 +1674,7 @@ extern "C" ISC_INT64 fbs_execute_singleton_int64(
     return result;
 }
 
-extern "C" unsigned fbs_get_input_count(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector) {
+extern "C" unsigned fbs_get_input_count(fbc_master_t *master_ptr, fbs_statement_t *statement_ptr, ISC_STATUS* status_vector) {
     if (status_vector) {
         status_vector[0] = 1;
         status_vector[1] = 0;
@@ -1666,8 +1683,8 @@ extern "C" unsigned fbs_get_input_count(void* master_ptr, void* statement_ptr, I
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = reinterpret_cast<fb::StatementWrapper*>(statement_ptr);
 
     auto* metadata = wrapper->getInputMetadata(master, status_vector);
     if (!metadata) {
@@ -1681,7 +1698,7 @@ extern "C" unsigned fbs_get_input_count(void* master_ptr, void* statement_ptr, I
     return count;
 }
 
-extern "C" unsigned fbs_get_output_count(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector) {
+extern "C" unsigned fbs_get_output_count(fbc_master_t *master_ptr, fbs_statement_t *statement_ptr, ISC_STATUS* status_vector) {
     if (status_vector) {
         status_vector[0] = 1;
         status_vector[1] = 0;
@@ -1690,8 +1707,8 @@ extern "C" unsigned fbs_get_output_count(void* master_ptr, void* statement_ptr, 
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = reinterpret_cast<fb::StatementWrapper*>(statement_ptr);
 
     auto* metadata = wrapper->getOutputMetadata(master, status_vector);
     if (!metadata) {
@@ -1752,7 +1769,7 @@ extern "C" ISC_STATUS fbe_wait_for_event(ISC_STATUS* status_vector, void* db_han
         buffer_length, event_buffer, result_buffer);
 }
 
-extern "C" ISC_STATUS fbe_wait_for_event_oo(ISC_STATUS* status_vector, void* attachment_ptr,
+extern "C" ISC_STATUS fbe_wait_for_event_oo(ISC_STATUS* status_vector, void *attachment_ptr,
                                              unsigned short buffer_length,
                                              unsigned char* event_buffer,
                                              unsigned char* result_buffer)
@@ -1765,7 +1782,7 @@ extern "C" ISC_STATUS fbe_wait_for_event_oo(ISC_STATUS* status_vector, void* att
         }
         return isc_bad_db_handle;
     }
-    auto* attachment = static_cast<Firebird::IAttachment*>(attachment_ptr);
+    auto* attachment = reinterpret_cast<Firebird::IAttachment*>(attachment_ptr);
     /* Get a legacy isc_db_handle from the OO API attachment */
     ISC_STATUS_ARRAY local_status = {0};
     isc_db_handle handle = 0;
@@ -1796,9 +1813,9 @@ extern "C" void fbe_event_counts(ISC_ULONG* result_counts, unsigned short buffer
 #include "src/cpp/fb_array.hpp"
 
 extern "C" int fba_get_slice(
-    void* master_ptr,
-    void* attachment_ptr,
-    void* transaction_ptr,
+    fbc_master_t *master_ptr,
+    void *attachment_ptr,
+    fbt_transaction_t *transaction_ptr,
     ISC_QUAD* array_id,
     const ISC_ARRAY_DESC* desc,
     void* buffer,
@@ -1814,9 +1831,9 @@ extern "C" int fba_get_slice(
         return 1;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* attachment = static_cast<Firebird::IAttachment*>(attachment_ptr);
-    auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* attachment = reinterpret_cast<Firebird::IAttachment*>(attachment_ptr);
+    auto* transaction = reinterpret_cast<Firebird::ITransaction*>(transaction_ptr);
 
     bool result = fb::ArrayUtils::getSlice(
         master,
@@ -1833,9 +1850,9 @@ extern "C" int fba_get_slice(
 }
 
 extern "C" int fba_put_slice(
-    void* master_ptr,
-    void* attachment_ptr,
-    void* transaction_ptr,
+    fbc_master_t *master_ptr,
+    void *attachment_ptr,
+    fbt_transaction_t *transaction_ptr,
     ISC_QUAD* array_id,
     const ISC_ARRAY_DESC* desc,
     const void* buffer,
@@ -1851,9 +1868,9 @@ extern "C" int fba_put_slice(
         return 1;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* attachment = static_cast<Firebird::IAttachment*>(attachment_ptr);
-    auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* attachment = reinterpret_cast<Firebird::IAttachment*>(attachment_ptr);
+    auto* transaction = reinterpret_cast<Firebird::ITransaction*>(transaction_ptr);
 
     bool result = fb::ArrayUtils::putSlice(
         master,
@@ -1870,9 +1887,9 @@ extern "C" int fba_put_slice(
 }
 
 extern "C" int fba_lookup_bounds(
-    void* master_ptr,
-    void* attachment_ptr,
-    void* transaction_ptr,
+    fbc_master_t *master_ptr,
+    void *attachment_ptr,
+    fbt_transaction_t *transaction_ptr,
     const char* relation_name,
     const char* field_name,
     ISC_ARRAY_DESC* desc,
@@ -1910,9 +1927,9 @@ extern "C" int fba_lookup_bounds(
      * It can be extended to multi-dimensional arrays later.
      */
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* attachment = static_cast<Firebird::IAttachment*>(attachment_ptr);
-    auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* attachment = reinterpret_cast<Firebird::IAttachment*>(attachment_ptr);
+    auto* transaction = reinterpret_cast<Firebird::ITransaction*>(transaction_ptr);
 
     try {
         Firebird::IStatus* raw_status = master->getStatus();
@@ -2438,10 +2455,10 @@ extern "C" int fba_lookup_bounds(
 
 // Non-inline implementations needed for C linkage (inline functions in headers
 // don't get proper linkage when called from C code)
-extern "C" void* fbb_create(
-    void* master_ptr,
-    void* attachment_ptr,
-    void* transaction_ptr,
+extern "C" fbb_blob_t* fbb_create(
+    fbc_master_t *master_ptr,
+    void *attachment_ptr,
+    fbt_transaction_t *transaction_ptr,
     ISC_QUAD* blob_id,
     unsigned bpb_length,
     const unsigned char* bpb,
@@ -2456,9 +2473,9 @@ extern "C" void* fbb_create(
         return nullptr;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* attachment = static_cast<Firebird::IAttachment*>(attachment_ptr);
-    auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* attachment = reinterpret_cast<Firebird::IAttachment*>(attachment_ptr);
+    auto* transaction = reinterpret_cast<Firebird::ITransaction*>(transaction_ptr);
 
     auto* wrapper = new (std::nothrow) fb::BlobWrapper();
     if (!wrapper) {
@@ -2479,13 +2496,13 @@ extern "C" void* fbb_create(
     // Copy the generated blob_id back to caller
     *blob_id = wrapper->getBlobId();
 
-    return wrapper;
+    return reinterpret_cast<fbb_blob_t*>(wrapper);
 }
 
-extern "C" void* fbb_open(
-    void* master_ptr,
-    void* attachment_ptr,
-    void* transaction_ptr,
+extern "C" fbb_blob_t* fbb_open(
+    fbc_master_t *master_ptr,
+    void *attachment_ptr,
+    fbt_transaction_t *transaction_ptr,
     const ISC_QUAD* blob_id,
     unsigned bpb_length,
     const unsigned char* bpb,
@@ -2500,9 +2517,9 @@ extern "C" void* fbb_open(
         return nullptr;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* attachment = static_cast<Firebird::IAttachment*>(attachment_ptr);
-    auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* attachment = reinterpret_cast<Firebird::IAttachment*>(attachment_ptr);
+    auto* transaction = reinterpret_cast<Firebird::ITransaction*>(transaction_ptr);
 
     auto* wrapper = new (std::nothrow) fb::BlobWrapper();
     if (!wrapper) {
@@ -2519,12 +2536,12 @@ extern "C" void* fbb_open(
         return nullptr;
     }
 
-    return wrapper;
+    return reinterpret_cast<fbb_blob_t*>(wrapper);
 }
 
 extern "C" int fbb_put_segment(
-    void* master_ptr,
-    void* blob_wrapper,
+    fbc_master_t *master_ptr,
+    fbb_blob_t *blob_wrapper,
     unsigned length,
     const void* buffer,
     ISC_STATUS* status_vector
@@ -2538,15 +2555,15 @@ extern "C" int fbb_put_segment(
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = reinterpret_cast<fb::BlobWrapper*>(blob_wrapper);
 
     return wrapper->putSegment(master, length, buffer, status_vector) ? 1 : 0;
 }
 
 extern "C" int fbb_get_segment(
-    void* master_ptr,
-    void* blob_wrapper,
+    fbc_master_t *master_ptr,
+    fbb_blob_t *blob_wrapper,
     unsigned buffer_length,
     void* buffer,
     unsigned* actual_length,
@@ -2561,13 +2578,13 @@ extern "C" int fbb_get_segment(
         return -1;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = reinterpret_cast<fb::BlobWrapper*>(blob_wrapper);
 
     return wrapper->getSegment(master, buffer_length, buffer, actual_length, status_vector);
 }
 
-extern "C" int fbb_close(void* master_ptr, void* blob_wrapper, ISC_STATUS* status_vector) {
+extern "C" int fbb_close(fbc_master_t *master_ptr, fbb_blob_t *blob_wrapper, ISC_STATUS* status_vector) {
     if (!master_ptr || !blob_wrapper) {
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
@@ -2577,13 +2594,13 @@ extern "C" int fbb_close(void* master_ptr, void* blob_wrapper, ISC_STATUS* statu
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = reinterpret_cast<fb::BlobWrapper*>(blob_wrapper);
 
     return wrapper->close(master, status_vector) ? 1 : 0;
 }
 
-extern "C" int fbb_seek(void* master_ptr, void* blob_wrapper, int whence, int offset,
+extern "C" int fbb_seek(fbc_master_t *master_ptr, fbb_blob_t *blob_wrapper, int whence, int offset,
                         int* result_position, ISC_STATUS* status_vector) {
     if (!master_ptr || !blob_wrapper) {
         if (status_vector) {
@@ -2594,13 +2611,13 @@ extern "C" int fbb_seek(void* master_ptr, void* blob_wrapper, int whence, int of
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = reinterpret_cast<fb::BlobWrapper*>(blob_wrapper);
 
     return wrapper->seek(master, whence, offset, result_position, status_vector) ? 1 : 0;
 }
 
-extern "C" int fbb_cancel(void* master_ptr, void* blob_wrapper, ISC_STATUS* status_vector) {
+extern "C" int fbb_cancel(fbc_master_t *master_ptr, fbb_blob_t *blob_wrapper, ISC_STATUS* status_vector) {
     if (!master_ptr || !blob_wrapper) {
         if (status_vector) {
             status_vector[0] = isc_arg_gds;
@@ -2610,15 +2627,15 @@ extern "C" int fbb_cancel(void* master_ptr, void* blob_wrapper, ISC_STATUS* stat
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = reinterpret_cast<fb::BlobWrapper*>(blob_wrapper);
 
     return wrapper->cancel(master, status_vector) ? 1 : 0;
 }
 
 extern "C" int fbb_get_info(
-    void* master_ptr,
-    void* blob_wrapper,
+    fbc_master_t *master_ptr,
+    fbb_blob_t *blob_wrapper,
     unsigned items_length,
     const unsigned char* items,
     unsigned buffer_length,
@@ -2634,33 +2651,33 @@ extern "C" int fbb_get_info(
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = reinterpret_cast<fb::BlobWrapper*>(blob_wrapper);
 
     return wrapper->getInfo(master, items_length, items, buffer_length, buffer, status_vector) ? 1 : 0;
 }
 
-extern "C" void fbb_get_blob_id(void* blob_wrapper, ISC_QUAD* blob_id) {
+extern "C" void fbb_get_blob_id(fbb_blob_t *blob_wrapper, ISC_QUAD* blob_id) {
     if (!blob_wrapper || !blob_id) return;
-    auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
+    auto* wrapper = reinterpret_cast<fb::BlobWrapper*>(blob_wrapper);
     *blob_id = wrapper->getBlobId();
 }
 
-extern "C" int fbb_is_open(void* blob_wrapper) {
+extern "C" int fbb_is_open(fbb_blob_t *blob_wrapper) {
     if (!blob_wrapper) return 0;
-    auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
+    auto* wrapper = reinterpret_cast<fb::BlobWrapper*>(blob_wrapper);
     return wrapper->isOpen() ? 1 : 0;
 }
 
-extern "C" void* fbb_get_handle(void* blob_wrapper) {
+extern "C" void* fbb_get_handle(fbb_blob_t *blob_wrapper) {
     if (!blob_wrapper) return nullptr;
-    auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
+    auto* wrapper = reinterpret_cast<fb::BlobWrapper*>(blob_wrapper);
     return wrapper->getBlob();
 }
 
-extern "C" void fbb_free(void* blob_wrapper) {
+extern "C" void fbb_free(fbb_blob_t *blob_wrapper) {
     if (!blob_wrapper) return;
-    auto* wrapper = static_cast<fb::BlobWrapper*>(blob_wrapper);
+    auto* wrapper = reinterpret_cast<fb::BlobWrapper*>(blob_wrapper);
     delete wrapper;
 }
 
@@ -2671,10 +2688,10 @@ extern "C" void fbb_free(void* blob_wrapper) {
  * message buffers and extracting field values during fetch operations.
  * ============================================================================= */
 
-extern "C" unsigned fbm_get_message_length(void* master_ptr, void* metadata_ptr) {
+extern "C" unsigned fbm_get_message_length(fbc_master_t *master_ptr, void* metadata_ptr) {
     if (!master_ptr || !metadata_ptr) return 0;
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
     Firebird::CheckStatusWrapper status(master->getStatus());
@@ -2682,10 +2699,10 @@ extern "C" unsigned fbm_get_message_length(void* master_ptr, void* metadata_ptr)
     return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : length;
 }
 
-extern "C" unsigned fbm_get_count(void* master_ptr, void* metadata_ptr) {
+extern "C" unsigned fbm_get_count(fbc_master_t *master_ptr, void* metadata_ptr) {
     if (!master_ptr || !metadata_ptr) return 0;
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
     Firebird::CheckStatusWrapper status(master->getStatus());
@@ -2693,10 +2710,10 @@ extern "C" unsigned fbm_get_count(void* master_ptr, void* metadata_ptr) {
     return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : count;
 }
 
-extern "C" unsigned fbm_get_offset(void* master_ptr, void* metadata_ptr, unsigned index) {
+extern "C" unsigned fbm_get_offset(fbc_master_t *master_ptr, void* metadata_ptr, unsigned index) {
     if (!master_ptr || !metadata_ptr) return 0;
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
     Firebird::CheckStatusWrapper status(master->getStatus());
@@ -2704,10 +2721,10 @@ extern "C" unsigned fbm_get_offset(void* master_ptr, void* metadata_ptr, unsigne
     return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : offset;
 }
 
-extern "C" unsigned fbm_get_null_offset(void* master_ptr, void* metadata_ptr, unsigned index) {
+extern "C" unsigned fbm_get_null_offset(fbc_master_t *master_ptr, void* metadata_ptr, unsigned index) {
     if (!master_ptr || !metadata_ptr) return 0;
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
     Firebird::CheckStatusWrapper status(master->getStatus());
@@ -2715,10 +2732,10 @@ extern "C" unsigned fbm_get_null_offset(void* master_ptr, void* metadata_ptr, un
     return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : offset;
 }
 
-extern "C" unsigned fbm_get_type(void* master_ptr, void* metadata_ptr, unsigned index) {
+extern "C" unsigned fbm_get_type(fbc_master_t *master_ptr, void* metadata_ptr, unsigned index) {
     if (!master_ptr || !metadata_ptr) return 0;
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
     Firebird::CheckStatusWrapper status(master->getStatus());
@@ -2726,10 +2743,10 @@ extern "C" unsigned fbm_get_type(void* master_ptr, void* metadata_ptr, unsigned 
     return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : type;
 }
 
-extern "C" unsigned fbm_get_subtype(void* master_ptr, void* metadata_ptr, unsigned index) {
+extern "C" unsigned fbm_get_subtype(fbc_master_t *master_ptr, void* metadata_ptr, unsigned index) {
     if (!master_ptr || !metadata_ptr) return 0;
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
     Firebird::CheckStatusWrapper status(master->getStatus());
@@ -2737,10 +2754,10 @@ extern "C" unsigned fbm_get_subtype(void* master_ptr, void* metadata_ptr, unsign
     return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : subtype;
 }
 
-extern "C" unsigned fbm_get_length(void* master_ptr, void* metadata_ptr, unsigned index) {
+extern "C" unsigned fbm_get_length(fbc_master_t *master_ptr, void* metadata_ptr, unsigned index) {
     if (!master_ptr || !metadata_ptr) return 0;
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
     Firebird::CheckStatusWrapper status(master->getStatus());
@@ -2748,10 +2765,10 @@ extern "C" unsigned fbm_get_length(void* master_ptr, void* metadata_ptr, unsigne
     return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : length;
 }
 
-extern "C" int fbm_get_scale(void* master_ptr, void* metadata_ptr, unsigned index) {
+extern "C" int fbm_get_scale(fbc_master_t *master_ptr, void* metadata_ptr, unsigned index) {
     if (!master_ptr || !metadata_ptr) return 0;
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
     Firebird::CheckStatusWrapper status(master->getStatus());
@@ -2759,10 +2776,10 @@ extern "C" int fbm_get_scale(void* master_ptr, void* metadata_ptr, unsigned inde
     return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : scale;
 }
 
-extern "C" unsigned fbm_get_charset(void* master_ptr, void* metadata_ptr, unsigned index) {
+extern "C" unsigned fbm_get_charset(fbc_master_t *master_ptr, void* metadata_ptr, unsigned index) {
     if (!master_ptr || !metadata_ptr) return 0;
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
     Firebird::CheckStatusWrapper status(master->getStatus());
@@ -2770,10 +2787,10 @@ extern "C" unsigned fbm_get_charset(void* master_ptr, void* metadata_ptr, unsign
     return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : charset;
 }
 
-extern "C" const char* fbm_get_field(void* master_ptr, void* metadata_ptr, unsigned index) {
+extern "C" const char* fbm_get_field(fbc_master_t *master_ptr, void* metadata_ptr, unsigned index) {
     if (!master_ptr || !metadata_ptr) return nullptr;
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
     Firebird::CheckStatusWrapper status(master->getStatus());
@@ -2781,10 +2798,10 @@ extern "C" const char* fbm_get_field(void* master_ptr, void* metadata_ptr, unsig
     return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? nullptr : name;
 }
 
-extern "C" const char* fbm_get_alias(void* master_ptr, void* metadata_ptr, unsigned index) {
+extern "C" const char* fbm_get_alias(fbc_master_t *master_ptr, void* metadata_ptr, unsigned index) {
     if (!master_ptr || !metadata_ptr) return nullptr;
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
     Firebird::CheckStatusWrapper status(master->getStatus());
@@ -2792,10 +2809,10 @@ extern "C" const char* fbm_get_alias(void* master_ptr, void* metadata_ptr, unsig
     return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? nullptr : alias;
 }
 
-extern "C" const char* fbm_get_relation(void* master_ptr, void* metadata_ptr, unsigned index) {
+extern "C" const char* fbm_get_relation(fbc_master_t *master_ptr, void* metadata_ptr, unsigned index) {
     if (!master_ptr || !metadata_ptr) return nullptr;
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
 
     Firebird::CheckStatusWrapper status(master->getStatus());
@@ -2817,7 +2834,7 @@ extern "C" void fbm_release(void* metadata_ptr) {
  * ============================================================================= */
 
 extern "C" unsigned char* fbxpb_build_tpb(
-    void* master_ptr,
+    fbc_master_t *master_ptr,
     zend_long trans_flags,
     zend_long lock_timeout,
     unsigned* buffer_length,
@@ -2835,7 +2852,7 @@ extern "C" unsigned char* fbxpb_build_tpb(
     *buffer_length = 0;
 
     try {
-        auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+        auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
         Firebird::IStatus* raw_status = master->getStatus();
         Firebird::CheckStatusWrapper status(raw_status);
         Firebird::IUtil* util = master->getUtilInterface();
@@ -2977,8 +2994,8 @@ extern "C" void fbxpb_free_tpb(unsigned char* buffer) {
  * ============================================================================= */
 
 extern "C" int fbt_get_limbo_transactions(
-    void* master_ptr,
-    void* attachment_ptr,
+    fbc_master_t *master_ptr,
+    void *attachment_ptr,
     ISC_INT64* trans_ids,
     unsigned max_ids,
     ISC_STATUS* status_vector
@@ -2992,8 +3009,8 @@ extern "C" int fbt_get_limbo_transactions(
         return -1;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* attachment = static_cast<Firebird::IAttachment*>(attachment_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* attachment = reinterpret_cast<Firebird::IAttachment*>(attachment_ptr);
 
     try {
         Firebird::IStatus* raw_status = master->getStatus();
@@ -3088,23 +3105,23 @@ extern "C" int fbt_get_limbo_transactions(
     }
 }
 
-extern "C" void* fbt_reconnect(
-    void* master_ptr,
-    void* attachment_ptr,
+extern "C" uintptr_t fbt_reconnect_64(
+    fbc_master_t *master_ptr,
+    uintptr_t attachment_ptr,
     ISC_INT64 trans_id,
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !attachment_ptr) {
         if (status_vector) {
-            status_vector[0] = isc_arg_gds;
+            status_vector[0] = 1;
             status_vector[1] = isc_bad_db_handle;
             status_vector[2] = isc_arg_end;
         }
-        return nullptr;
+        return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* attachment = static_cast<Firebird::IAttachment*>(attachment_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* attachment = reinterpret_cast<Firebird::IAttachment*>(attachment_ptr);
 
     try {
         Firebird::IStatus* raw_status = master->getStatus();
@@ -3138,7 +3155,7 @@ extern "C" void* fbt_reconnect(
             status_vector[1] = 0;
         }
 
-        return trans_wrapper;
+        return reinterpret_cast<uintptr_t>(trans_wrapper);
 
     } catch (const Firebird::FbException& e) {
         if (status_vector) {
@@ -3185,8 +3202,8 @@ namespace {
 }
 
 extern "C" void* fbbatch_create(
-    void* master_ptr,
-    void* statement_ptr,
+    fbc_master_t *master_ptr,
+    fbs_statement_t *statement_ptr,
     unsigned buffer_size,
     ISC_STATUS* status_vector
 ) {
@@ -3199,8 +3216,8 @@ extern "C" void* fbbatch_create(
         return nullptr;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* statement = static_cast<Firebird::IStatement*>(statement_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* statement = reinterpret_cast<Firebird::IStatement*>(statement_ptr);
 
     try {
         Firebird::IStatus* raw_status = master->getStatus();
@@ -3275,7 +3292,7 @@ extern "C" void* fbbatch_create(
             status_vector[1] = 0;
         }
 
-        return wrapper;
+        return reinterpret_cast<fbb_blob_t*>(wrapper);
 
     } catch (const Firebird::FbException& e) {
         if (status_vector) {
@@ -3299,7 +3316,7 @@ extern "C" void* fbbatch_create(
 }
 
 extern "C" int fbbatch_add(
-    void* master_ptr,
+    fbc_master_t *master_ptr,
     void* batch_wrapper,
     unsigned count,
     const void* in_buffer,
@@ -3314,7 +3331,7 @@ extern "C" int fbbatch_add(
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
     auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
 
     if (!wrapper->batch) {
@@ -3369,9 +3386,9 @@ extern "C" int fbbatch_add(
 }
 
 extern "C" int fbbatch_execute(
-    void* master_ptr,
+    fbc_master_t *master_ptr,
     void* batch_wrapper,
-    void* transaction_ptr,
+    fbt_transaction_t *transaction_ptr,
     unsigned* total_processed,
     unsigned* error_count,
     ISC_STATUS* status_vector
@@ -3385,9 +3402,9 @@ extern "C" int fbbatch_execute(
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
     auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
-    auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
+    auto* transaction = reinterpret_cast<Firebird::ITransaction*>(transaction_ptr);
 
     if (!wrapper->batch) {
         if (status_vector) {
@@ -3471,7 +3488,7 @@ extern "C" int fbbatch_execute(
 }
 
 extern "C" int fbbatch_cancel(
-    void* master_ptr,
+    fbc_master_t *master_ptr,
     void* batch_wrapper,
     ISC_STATUS* status_vector
 ) {
@@ -3484,7 +3501,7 @@ extern "C" int fbbatch_cancel(
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
     auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
 
     if (!wrapper->batch) {
@@ -3537,7 +3554,7 @@ extern "C" int fbbatch_cancel(
 }
 
 extern "C" int fbbatch_close(
-    void* master_ptr,
+    fbc_master_t *master_ptr,
     void* batch_wrapper,
     ISC_STATUS* status_vector
 ) {
@@ -3553,7 +3570,7 @@ extern "C" int fbbatch_close(
 
     if (wrapper->batch) {
         if (master_ptr) {
-            auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+            auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
             try {
                 Firebird::IStatus* raw_status = master->getStatus();
                 Firebird::CheckStatusWrapper status(raw_status);
@@ -3576,7 +3593,7 @@ extern "C" int fbbatch_close(
 }
 
 extern "C" void* fbbatch_get_metadata(
-    void* master_ptr,
+    fbc_master_t *master_ptr,
     void* batch_wrapper,
     ISC_STATUS* status_vector
 ) {
@@ -3600,7 +3617,7 @@ extern "C" void* fbbatch_get_metadata(
         return nullptr;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
 
     try {
         Firebird::IStatus* raw_status = master->getStatus();
@@ -3644,7 +3661,7 @@ extern "C" void* fbbatch_get_metadata(
 }
 
 extern "C" unsigned fbbatch_get_blob_alignment(
-    void* master_ptr,
+    fbc_master_t *master_ptr,
     void* batch_wrapper,
     ISC_STATUS* status_vector
 ) {
@@ -3668,7 +3685,7 @@ extern "C" unsigned fbbatch_get_blob_alignment(
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
 
     try {
         Firebird::IStatus* raw_status = master->getStatus();
@@ -3716,7 +3733,7 @@ extern "C" unsigned fbbatch_get_blob_alignment(
  * ============================================================================= */
 
 extern "C" int fbbatch_add_blob(
-    void* master_ptr,
+    fbc_master_t *master_ptr,
     void* batch_wrapper,
     unsigned length,
     const void* data,
@@ -3734,7 +3751,7 @@ extern "C" int fbbatch_add_blob(
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
     auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
 
     if (!wrapper->batch) {
@@ -3797,7 +3814,7 @@ extern "C" int fbbatch_add_blob(
 }
 
 extern "C" int fbbatch_append_blob_data(
-    void* master_ptr,
+    fbc_master_t *master_ptr,
     void* batch_wrapper,
     unsigned length,
     const void* data,
@@ -3812,7 +3829,7 @@ extern "C" int fbbatch_append_blob_data(
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
     auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
 
     if (!wrapper->batch) {
@@ -3867,7 +3884,7 @@ extern "C" int fbbatch_append_blob_data(
 }
 
 extern "C" int fbbatch_add_blob_stream(
-    void* master_ptr,
+    fbc_master_t *master_ptr,
     void* batch_wrapper,
     unsigned length,
     const void* data,
@@ -3882,7 +3899,7 @@ extern "C" int fbbatch_add_blob_stream(
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
     auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
 
     if (!wrapper->batch) {
@@ -3950,7 +3967,7 @@ extern "C" int fbbatch_add_blob_stream(
 }
 
 extern "C" int fbbatch_register_blob(
-    void* master_ptr,
+    fbc_master_t *master_ptr,
     void* batch_wrapper,
     const ISC_QUAD* existing_blob,
     ISC_QUAD* batch_blob_id,
@@ -3965,7 +3982,7 @@ extern "C" int fbbatch_register_blob(
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
     auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
 
     if (!wrapper->batch) {
@@ -4021,7 +4038,7 @@ extern "C" int fbbatch_register_blob(
 }
 
 extern "C" int fbbatch_set_default_bpb(
-    void* master_ptr,
+    fbc_master_t *master_ptr,
     void* batch_wrapper,
     unsigned bpb_length,
     const unsigned char* bpb,
@@ -4036,7 +4053,7 @@ extern "C" int fbbatch_set_default_bpb(
         return 0;
     }
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
     auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
 
     if (!wrapper->batch) {
@@ -4105,9 +4122,9 @@ extern "C" int fbbatch_set_default_bpb(
  * ============================================================================= */
 
 extern "C" int fbbatch_execute_detailed(
-    void* master_ptr,
+    fbc_master_t *master_ptr,
     void* batch_wrapper,
-    void* transaction_ptr,
+    fbt_transaction_t *transaction_ptr,
     fbbatch_completion_result* result,
     ISC_STATUS* status_vector
 ) {
@@ -4126,9 +4143,9 @@ extern "C" int fbbatch_execute_detailed(
     result->error_count = 0;
     result->errors = nullptr;
 
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
     auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
-    auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
+    auto* transaction = reinterpret_cast<Firebird::ITransaction*>(transaction_ptr);
 
     if (!wrapper->batch) {
         if (status_vector) {
@@ -4323,3 +4340,58 @@ extern "C" void fbbatch_free_result(fbbatch_completion_result* result) {
 }
 
 #endif // FB_API_VER >= 40 (IBatch API)
+
+extern "C" {
+
+/* Helper function to get human-readable name for resource types.
+ * Used by FB_VALIDATE_*_EX macros for TypeError messages. */
+const char *_fbird_res_type_name(int type) {
+	if (type == le_link)  return "connection";
+	if (type == le_plink) return "persistent connection";
+	if (type == le_trans) return "transaction";
+	if (type == le_query) return "query/result";
+#if FB_API_VER >= 40
+	if (type == le_batch) return "batch";
+#endif
+	/* For static resource types defined in other files, return generic name */
+	return "resource";
+}
+
+void fbp_error_ex(long level, const char *msg, ...)
+{
+	va_list ap;
+	char buf[1024] = {0};
+
+	va_start(ap, msg);
+
+	/* vsnprintf NUL terminates the buf and writes at most n-1 chars+NUL */
+	vsnprintf(buf, sizeof(buf), msg, ap);
+	va_end(ap);
+
+	php_error(level, "%s", buf);
+}
+
+#if PHP_DEBUG
+void fbp_dump_buffer(int len, const unsigned char *buffer)
+{
+	int i;
+	for (i = 0; i < len; i++) {
+		if(buffer[i] < 32 || buffer[i] > 126)
+			php_printf("0x%02x ", buffer[i]);
+		else
+			php_printf(" [%c] ", buffer[i]);
+		if(i % 16 == 15)php_printf("\n");
+	}
+	if(i > 0)php_printf("\n");
+}
+
+void fbp_dump_buffer_raw(int len, const unsigned char *buffer)
+{
+	int i;
+	for (i = 0; i < len; i++) {
+		php_printf("%c", buffer[i]);
+	}
+}
+#endif
+
+}

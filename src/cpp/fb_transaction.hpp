@@ -398,9 +398,9 @@ extern "C" {
  * @param status_vector Output status vector for errors
  * @return Pointer to fb::Transaction object, or NULL on failure
  */
-void* fbt_start(
-    void* master_ptr,
-    void* attachment_ptr,
+fbt_transaction_t* fbt_start(
+    fbc_master_t* master_ptr,
+    fba_attachment_t* attachment_ptr,
     unsigned tpb_len,
     const unsigned char* tpb,
     ISC_STATUS* status_vector
@@ -413,7 +413,7 @@ void* fbt_start(
  * @param status_vector Output status vector for errors
  * @return 0 on success, non-zero on failure
  */
-int fbt_commit(void* transaction, ISC_STATUS* status_vector);
+int fbt_commit(fbt_transaction_t* transaction, ISC_STATUS* status_vector);
 
 /**
  * Rollback a transaction created with fbt_start().
@@ -422,7 +422,7 @@ int fbt_commit(void* transaction, ISC_STATUS* status_vector);
  * @param status_vector Output status vector for errors
  * @return 0 on success, non-zero on failure
  */
-int fbt_rollback(void* transaction, ISC_STATUS* status_vector);
+int fbt_rollback(fbt_transaction_t* transaction, ISC_STATUS* status_vector);
 
 /**
  * Commit with retaining (keeps transaction context).
@@ -431,7 +431,7 @@ int fbt_rollback(void* transaction, ISC_STATUS* status_vector);
  * @param status_vector Output status vector for errors
  * @return 0 on success, non-zero on failure
  */
-int fbt_commit_retaining(void* transaction, ISC_STATUS* status_vector);
+int fbt_commit_retaining(fbt_transaction_t* transaction, ISC_STATUS* status_vector);
 
 /**
  * Rollback with retaining (keeps transaction context).
@@ -440,7 +440,7 @@ int fbt_commit_retaining(void* transaction, ISC_STATUS* status_vector);
  * @param status_vector Output status vector for errors
  * @return 0 on success, non-zero on failure
  */
-int fbt_rollback_retaining(void* transaction, ISC_STATUS* status_vector);
+int fbt_rollback_retaining(fbt_transaction_t* transaction, ISC_STATUS* status_vector);
 
 /**
  * Check if a transaction is active.
@@ -448,7 +448,7 @@ int fbt_rollback_retaining(void* transaction, ISC_STATUS* status_vector);
  * @param transaction Pointer returned by fbt_start()
  * @return 1 if active, 0 if not
  */
-int fbt_is_active(void* transaction);
+int fbt_is_active(fbt_transaction_t* transaction);
 
 /**
  * Get the ITransaction pointer from a transaction wrapper.
@@ -456,7 +456,7 @@ int fbt_is_active(void* transaction);
  * @param transaction Pointer returned by fbt_start()
  * @return Raw ITransaction pointer, or NULL
  */
-void* fbt_get_handle(void* transaction);
+void* fbt_get_handle(fbt_transaction_t* transaction);
 
 /**
  * Free a transaction wrapper without commit/rollback (for abnormal cleanup).
@@ -464,7 +464,7 @@ void* fbt_get_handle(void* transaction);
  *
  * @param transaction Pointer returned by fbt_start()
  */
-void fbt_free(void* transaction);
+void fbt_free(fbt_transaction_t* transaction);
 
 #ifdef __cplusplus
 } // extern "C"

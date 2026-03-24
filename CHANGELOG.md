@@ -30,6 +30,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **firebird_utils rewrite**: Complete modernization of C++ bridge layer for v10 API
+  - Opaque handle structs (`fb_opaque_connection_t`, `fb_opaque_transaction_t`, `fb_opaque_statement_t`, `fb_opaque_batch_t`) replacing raw `void*` parameters
+  - New safe bridge functions (`fbc_get_attachment_safe`, `fbt_start_safe`, `fbt_reconnect_safe`, `fbt_get_handle_safe`) with null-check guards
+  - Batch API redesigned for Firebird 4.0+ `IBatch` interface (new `fbbatch_create`/`add_row`/`execute`/`free` replacing old wrapper)
+  - `fbu_decode_timestamp` now takes `ISC_TIMESTAMP` by value instead of pointer
+  - `fbu_int128_to_string`, `fbu_decfloat16_to_string`, `fbu_decfloat34_to_string` return `void` with `size_t` buffer size
+  - Removed 3700+ lines of legacy code (old `BatchWrapper` class, old batch functions, redundant `extern "C"` block)
+
 ---
 
 ## [8.3.0] - 2026-03-23

@@ -21,6 +21,14 @@ extern "C" {
  * This GUARANTEES 64-bit pointer safety across the C/C++ boundary. */
 typedef struct { uintptr_t p; } fb_ptr_t;
 
+/* Typed opaque handle structs for C/C++ boundary type safety.
+ * These replace void* in function signatures, catching misuse at compile time.
+ * The actual struct definitions live in firebird_utils.cpp (C++ only). */
+typedef struct fb_opaque_connection_s fb_opaque_connection_t;
+typedef struct fb_opaque_transaction_s fb_opaque_transaction_t;
+typedef struct fb_opaque_statement_s fb_opaque_statement_t;
+typedef struct fb_opaque_batch_s fb_opaque_batch_t;
+
 /* Bridge Functions - use fb_ptr_t return type to avoid any 32-bit truncation */
 fb_ptr_t fbc_get_attachment_safe(fbc_connection_t *connection);
 fb_ptr_t fbt_start_safe(
@@ -36,7 +44,7 @@ fb_ptr_t fbt_reconnect_safe(
     ISC_INT64 trans_id,
     ISC_STATUS* status_vector
 );
-void* fbt_get_handle_safe(fb_ptr_t transaction_ptr);
+fb_opaque_transaction_t* fbt_get_handle_safe(fb_ptr_t transaction_ptr);
 
 const char *_fbird_res_type_name(int type);
 void fbp_error_ex(long level, const char *msg, ...);
@@ -70,7 +78,7 @@ void fbu_decode_timestamp(fbc_master_t *master_ptr, ISC_TIMESTAMP timestamp,
     unsigned* year, unsigned* month, unsigned* day,
     unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions);
 
-void* fbc_connect(
+fb_opaque_connection_t* fbc_connect(
     fbc_master_t *master_ptr,
     const char* database, size_t database_len,
     const char* user, size_t user_len,
@@ -98,7 +106,7 @@ unsigned fbc_get_server_version(fbc_connection_t *connection);
 
 int fbc_get_info(
     fbc_master_t *master_ptr,
-    void *attachment_ptr,
+    fb_opaque_connection_t *attachment_ptr,
     unsigned items_length,
     const unsigned char* items,
     unsigned buffer_length,
@@ -115,7 +123,7 @@ void fbt_free(fbt_transaction_t *transaction);
 
 int fbt_get_info(
     fbc_master_t *master_ptr,
-    void *transaction_ptr,
+    fb_opaque_transaction_t *transaction_ptr,
     unsigned items_length,
     const unsigned char* items,
     unsigned buffer_length,
@@ -125,16 +133,16 @@ int fbt_get_info(
 
 int fbt_get_limbo_transactions(
     fbc_master_t *master_ptr,
-    void *attachment_ptr,
+    fb_opaque_connection_t *attachment_ptr,
     ISC_INT64* trans_ids,
     unsigned max_ids,
     ISC_STATUS* status_vector
 );
 
-void* fbs_prepare(
+fb_opaque_statement_t* fbs_prepare(
     fbc_master_t *master_ptr,
-    void *attachment_ptr,
-    void *transaction_ptr,
+    fb_opaque_connection_t *attachment_ptr,
+    fb_opaque_transaction_t *transaction_ptr,
     const char* sql,
     unsigned sql_length,
     unsigned dialect,
@@ -187,32 +195,32 @@ const char* fbm_get_field(fbc_master_t *master_ptr, void* metadata_ptr, unsigned
 const char* fbm_get_relation(fbc_master_t *master_ptr, void* metadata_ptr, unsigned index);
 
 /* Array API Functions */
-int fba_lookup_bounds_oo(fbc_master_t *master_ptr, void *attachment_ptr, void *transaction_ptr,
+int fba_lookup_bounds_oo(fbc_master_t *master_ptr, fb_opaque_connection_t *attachment_ptr, fb_opaque_transaction_t *transaction_ptr,
     const char* relation_name, const char* field_name, ISC_ARRAY_DESC *desc, ISC_STATUS* status_vector);
-int fba_get_slice_oo(fbc_master_t *master_ptr, void *attachment_ptr, void *transaction_ptr,
+int fba_get_slice_oo(fbc_master_t *master_ptr, fb_opaque_connection_t *attachment_ptr, fb_opaque_transaction_t *transaction_ptr,
     ISC_QUAD *blob_id, ISC_ARRAY_DESC *desc, void *buffer, unsigned buffer_length, ISC_STATUS* status_vector);
-int fba_put_slice_oo(fbc_master_t *master_ptr, void *attachment_ptr, void *transaction_ptr,
+int fba_put_slice_oo(fbc_master_t *master_ptr, fb_opaque_connection_t *attachment_ptr, fb_opaque_transaction_t *transaction_ptr,
     ISC_QUAD *blob_id, ISC_ARRAY_DESC *desc, void *buffer, unsigned buffer_length, ISC_STATUS* status_vector);
 
 /* Batch API Functions (Firebird 4.0+) */
 #if FB_API_VER >= 40
-void* fbbatch_create(fbc_master_t *master_ptr, void *attachment_ptr, void *transaction_ptr,
+fb_opaque_batch_t* fbbatch_create(fbc_master_t *master_ptr, fb_opaque_connection_t *attachment_ptr, fb_opaque_transaction_t *transaction_ptr,
     unsigned sql_length, const char* sql, unsigned dialect, unsigned bpb_length,
     const unsigned char* bpb, ISC_STATUS* status_vector);
-int fbbatch_add_row(fbc_master_t *master_ptr, void *batch_ptr, void *row_msg,
+int fbbatch_add_row(fbc_master_t *master_ptr, fb_opaque_batch_t *batch_ptr, void *row_msg,
     void *row_metadata, ISC_STATUS* status_vector);
-int fbbatch_execute(fbc_master_t *master_ptr, void *batch_ptr, ISC_STATUS* status_vector);
-void fbbatch_free(void *batch_ptr);
-int fbbatch_cancel(void *batch_ptr);
-unsigned fbbatch_get_row_count(void *batch_ptr);
-void* fbbatch_get_metadata(fbc_master_t *master_ptr, void *batch_ptr, ISC_STATUS* status_vector);
-void* fbbatch_get_errors(fbc_master_t *master_ptr, void *batch_ptr, ISC_STATUS* status_vector);
-unsigned fbbatch_get_blob_alignment(fbc_master_t *master_ptr, void *batch_ptr, ISC_STATUS* status_vector);
-int fbbatch_append_blob_data(fbc_master_t *master_ptr, void *batch_ptr, unsigned length,
+int fbbatch_execute(fbc_master_t *master_ptr, fb_opaque_batch_t *batch_ptr, ISC_STATUS* status_vector);
+void fbbatch_free(fb_opaque_batch_t *batch_ptr);
+int fbbatch_cancel(fb_opaque_batch_t *batch_ptr);
+unsigned fbbatch_get_row_count(fb_opaque_batch_t *batch_ptr);
+void* fbbatch_get_metadata(fbc_master_t *master_ptr, fb_opaque_batch_t *batch_ptr, ISC_STATUS* status_vector);
+void* fbbatch_get_errors(fbc_master_t *master_ptr, fb_opaque_batch_t *batch_ptr, ISC_STATUS* status_vector);
+unsigned fbbatch_get_blob_alignment(fbc_master_t *master_ptr, fb_opaque_batch_t *batch_ptr, ISC_STATUS* status_vector);
+int fbbatch_append_blob_data(fbc_master_t *master_ptr, fb_opaque_batch_t *batch_ptr, unsigned length,
     const void* buffer, ISC_STATUS* status_vector);
-int fbbatch_add_blob_stream(fbc_master_t *master_ptr, void *batch_ptr, php_stream *stream,
+int fbbatch_add_blob_stream(fbc_master_t *master_ptr, fb_opaque_batch_t *batch_ptr, php_stream *stream,
     ISC_STATUS* status_vector);
-int fbbatch_set_default_bpb(fbc_master_t *master_ptr, void *batch_ptr, unsigned bpb_length,
+int fbbatch_set_default_bpb(fbc_master_t *master_ptr, fb_opaque_batch_t *batch_ptr, unsigned bpb_length,
     const unsigned char* bpb, ISC_STATUS* status_vector);
 #endif
 

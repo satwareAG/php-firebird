@@ -20,6 +20,32 @@ typedef struct fbsvc_service_t fbsvc_service_t;
 
 #define TPB_MAX_SIZE 128
 
+/* Fetch/create flags */
+#define PHP_FBIRD_FETCH_BLOBS       1
+#define PHP_FBIRD_FETCH_ARRAYS      2
+#define PHP_FBIRD_CREATE            32
+#define PHP_FBIRD_UNIXTIME          4
+#define PHP_FBIRD_FETCH_DATE_OBJ    8
+
+/* Blob I/O direction */
+#define BLOB_INPUT                  1
+#define BLOB_OUTPUT                 0
+
+/* Blob defaults */
+#define FBIRD_BLOB_SEG              8192
+#define BLOB_ID_LEN                 8
+
+/* Message/error buffer sizes */
+#define MAX_ERRMSG                  512
+#define METADATALENGTH              256
+
+/* Default datetime formats */
+#define IB_DEF_DATE_FMT             "%Y-%m-%d"
+#define IB_DEF_TIME_FMT             "%H:%M:%S"
+
+/* Makes an ISC_INT64 literal (for fbird_result.c) */
+#define LL_LIT(x)  ((ISC_INT64)(x))
+
 /* Transaction parameter bitmasks (PHP-specific values, NOT isc_tpb_*) */
 #define PHP_FBIRD_DEFAULT            0
 #define PHP_FBIRD_WRITE              1
@@ -153,10 +179,18 @@ typedef struct {
 	char *tpb_ptr;
 } fbird_teb_t;
 
+/* fbird_array: PHP-level array binding descriptor */
+typedef struct {
+	ISC_ARRAY_DESC ar_desc;
+	short el_type;
+	short el_size;
+	ISC_LONG ar_size;
+} fbird_array;
+
 ZEND_BEGIN_MODULE_GLOBALS(fbird)
 	void *master_instance;
 	zend_resource *default_link;
-	char errmsg[512];
+	char errmsg[MAX_ERRMSG];
 	long sql_code;
 	ISC_STATUS status[ISC_STATUS_LENGTH];
 	long num_links, num_persistent;
@@ -169,6 +203,12 @@ ZEND_BEGIN_MODULE_GLOBALS(fbird)
 	char *timeformat;
 	int in_mshutdown;
 	int exception_mode;
+	long blob_segment_size;
+	void *get_master_interface;
+	unsigned client_version;
+	int client_major_version;
+	int client_minor_version;
+	pid_t init_pid;
 ZEND_END_MODULE_GLOBALS(fbird)
 
 ZEND_EXTERN_MODULE_GLOBALS(fbird)
@@ -176,6 +216,79 @@ ZEND_EXTERN_MODULE_GLOBALS(fbird)
 #define IBG(v) ZEND_MODULE_GLOBALS_ACCESSOR(fbird, v)
 #define IB_STATUS (IBG(status))
 #define RESET_ERRMSG do { IBG(errmsg)[0] = '\0'; IBG(sql_code) = 0; } while (0)
+
+/* Resource type IDs (defined in firebird.c) */
+extern int le_link;
+extern int le_plink;
+extern int le_trans;
+extern int le_result;
+extern int le_query;
+extern int le_blob;
+extern int le_batch;
+extern int le_event;
+extern int le_service;
+
+/* Resource type name strings (defined in firebird.c) */
+#define LE_LINK   "Firebird Connection"
+#define LE_PLINK  "Firebird Persistent Connection"
+#define LE_TRANS  "Firebird Transaction"
+#define LE_QUERY  "Firebird Query"
+#define LE_BLOB   "Firebird Blob"
+#define LE_BATCH  "Firebird Batch"
+#define LE_EVENT  "Firebird Event"
+#define LE_SVC    "Firebird Service"
+
+/* Forward declarations */
+PHPAPI void _php_fbird_error(zval *zval, const char *file, int lineno);
+PHPAPI void _php_fbird_module_error(const char *msg);
+PHPAPI int _php_fbird_blob_get(zval *return_value, fbird_blob *blob_handle, long blen, int blen_ind TSRMLS_DC);
+PHPAPI void _php_fbird_quad_to_string(char *result, ISC_QUAD *qid);
+PHPAPI void _php_fbird_string_to_quad(ISC_QUAD *qid, const char *str);
+PHPAPI int _php_fbird_arr_zval(zval *arr, fbird_array *ib_array, ISC_QUAD *qd, fbird_db_link *link, fbird_transaction *trans TSRMLS_DC);
+PHPAPI int _php_fbird_bind_array(zval *arr, fbird_array *ib_array, ISC_QUAD *qd TSRMLS_DC);
+PHPAPI void _php_fbird_def_trans(IBG_UNUSED fbc_master_t *master_ptr, unsigned short *tpb_len, unsigned char *tpb, zend_long trans_params TSRMLS_DC);
+PHPAPI fbird_db_link *_fbird_get_link_from_obj(zend_object *obj);
+
+/* Validation macros */
+#define FBIRD_VALIDATE_LINK_EX(link, id) do { \
+	if (!link) { \
+		php_error_docref(NULL, E_WARNING, "%ld is not a valid " LE_LINK " link resource", id); \
+		RETURN_FALSE; \
+	} \
+	if (link->hash_key[0] != 0 && getpid() != link->created_pid) { \
+		php_error_docref(NULL, E_WARNING, "link resource from another process"); \
+		RETURN_FALSE; \
+	} \
+} while (0)
+
+#define FBIRD_VALIDATE_TRANS_EX(trans, id) do { \
+	if (!trans) { \
+		php_error_docref(NULL, E_WARNING, "%ld is not a valid " LE_TRANS " link resource", id); \
+		RETURN_FALSE; \
+	} \
+} while (0)
+
+#define FBIRD_VALIDATE_QUERY_EX(query, id) do { \
+	if (!query) { \
+		php_error_docref(NULL, E_WARNING, "%ld is not a valid " LE_QUERY " link resource", id); \
+		RETURN_FALSE; \
+	} \
+} while (0)
+
+#define FBIRD_GET_LINK(link, id_zval) \
+	(link = (fbird_db_link *)zend_fetch_resource(Z_RES_P(id_zval), LE_LINK, le_link))
+
+#define PHP_FBIRD_LINK_TRANS(link, trans) \
+	{ link = NULL; trans = NULL; }
+
+#ifdef PHP_DEBUG
+#define FBDEBUG(fmt, ...) php_printf("FBDEBUG: " fmt "\n", ##__VA_ARGS__)
+#else
+#define FBDEBUG(fmt, ...) do {} while (0)
+#endif
+
+/* Master interface callback type (used in firebird.c) */
+typedef void (*fb_get_master_interface_t)(void);
 
 #ifdef __cplusplus
 extern "C" {

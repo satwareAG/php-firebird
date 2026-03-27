@@ -15,6 +15,7 @@
 #include "php_fbird_includes.h"
 #include "php_fbird_connection.h"
 #include "firebird_utils.h"
+#include "fbird_classes.h"
 
 /* ISC_TEB is defined in php_fbird_includes.h */
 
@@ -493,6 +494,23 @@ static void _php_fbird_close_resource(zend_resource *link_res)
 	}
 }
 
+/* Helper: extract zend_resource* from either a resource zval or a Firebird\Connection object.
+ * Returns NULL if the zval is neither. */
+static zend_resource *_php_fbird_res_from_zval(zval *zv)
+{
+	if (zv == NULL) return NULL;
+	ZVAL_DEREF(zv);
+	if (Z_TYPE_P(zv) == IS_RESOURCE) {
+		return Z_RES_P(zv);
+	}
+	if (Z_TYPE_P(zv) == IS_OBJECT &&
+		instanceof_function(Z_OBJCE_P(zv), fbird_connection_ce)) {
+		/* Extract the connection resource from the Firebird\Connection object */
+		return fbird_connection_get_resource(Z_OBJ_P(zv));
+	}
+	return NULL;
+}
+
 PHP_FUNCTION(fbird_close)
 {
 	zval *link_arg = NULL;
@@ -501,7 +519,8 @@ PHP_FUNCTION(fbird_close)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|r!", &link_arg) == FAILURE) {
+	/* Accept resource OR Firebird\Connection object (Issue #120) */
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|z!", &link_arg) == FAILURE) {
 		return;
 	}
 
@@ -515,8 +534,11 @@ PHP_FUNCTION(fbird_close)
 			RETURN_FALSE;
 		}
 	} else {
-		/* Explicit link path */
-		link_res = Z_RES_P(link_arg);
+		/* Explicit link path: accept resource or Connection object */
+		link_res = _php_fbird_res_from_zval(link_arg);
+		if (link_res == NULL) {
+			RETURN_FALSE;
+		}
 		is_default_link = (IBG(default_link) == link_res);
 	}
 
@@ -664,17 +686,20 @@ PHP_FUNCTION(fbird_drop_db)
 		RETURN_TRUE;
 	}
 
-	/* Original resource-based path */
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|r", &link_arg) == FAILURE) {
+	/* Original resource-based path: also accept Firebird\Connection object (Issue #120) */
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|z!", &link_arg) == FAILURE) {
 		return;
 	}
 
-	if (ZEND_NUM_ARGS() == 0) {
+	if (ZEND_NUM_ARGS() == 0 || link_arg == NULL) {
 		link_res = IBG(default_link);
 		CHECK_LINK(link_res);
 		IBG(default_link) = NULL;
 	} else {
-		link_res = Z_RES_P(link_arg);
+		link_res = _php_fbird_res_from_zval(link_arg);
+		if (link_res == NULL) {
+			RETURN_FALSE;
+		}
 	}
 
 	ib_link = (fbird_db_link *)zend_fetch_resource2(link_res, LE_LINK, le_link, le_plink);

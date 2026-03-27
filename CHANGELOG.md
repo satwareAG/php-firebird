@@ -31,6 +31,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ASAN (PHP 8.3, Firebird 4.0): PASS - no sanitizer errors (asan_basic, blob_operations, transaction_stress)
 - Valgrind (PHP 8.3, Firebird 4.0): definitely lost: 0 bytes; remaining reachable/suppressed from PHP dynamic linker only
 
+### Added
+- **PDO Batch DML**: `PDO::exec()` now accepts semicolon-separated multi-statement SQL — each statement is executed individually, affected rows are summed, rollback on any failure. New test: `tests/pdo_fbird/pdo_fbird_batch_dml.phpt` (PASS)
+- **`firebird_utils_typed.h`**: Type-safe opaque struct wrappers for all internal C API handles (`fbc_connection_t`, `fbt_transaction_t`, `fbs_statement_t`, `fbb_blob_t`, and 8 additional handle types) — zero runtime overhead via inline functions
+
+### Changed
+- **`fbird_connect()` / `fbird_pconnect()`**: Now return `Firebird\Connection` objects (typed) — the Layer 2 OOP class wraps the internal connection. `instanceof Firebird\Connection` is true.
+- **README.md**: Fixed stale "Current Version: 7.3.5" text to 10.0.0
+
+### Removed
+- **`FBIRD_API_MODE_LEGACY` dead code**: Removed unused legacy enum value and `FBIRD_REQUIRE_LEGACY_*` guard macros from `src/php_fbird_compat.h` (dead code, all connections use OO API)
+- **`get_statement_interface` dead global**: Removed from `php_fbird_includes.h` and `firebird.c` — was loaded via `dlsym()` at MINIT but never called (all statements use `fbs_prepare()`)
+- **`implementation_plan.md`**: Deleted (completed, superseded by CHANGELOG)
+
 ## [9.0.0] - 2026-03-23
 
 ### Added

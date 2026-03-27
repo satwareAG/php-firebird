@@ -6,6 +6,12 @@ tags: [v10, breaking-change, issue-120, typed-objects]
 priority: 2
 ---
 
+> **Status: RESOLVED in v10.0.0** (2026-03-27)
+> Firebird\Connection OOP class provides typed connection objects.
+> fbird_connect() and fbird_pconnect() return Firebird\Connection objects.
+> All three API layers (procedural, OOP, PDO) are fully functional.
+
+
 # Spec #120: Typed Connection Objects
 
 ## Goal

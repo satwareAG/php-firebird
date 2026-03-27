@@ -963,6 +963,39 @@ static const zend_function_entry fbird_connection_methods[] = {
 };
 
 /* -----------------------------------------------------------------------
+ * fbird_connection_get_resource() — extract zend_resource* from a
+ *   Firebird\Connection internal object. Returns NULL if no resource set.
+ * --------------------------------------------------------------------- */
+zend_resource *fbird_connection_get_resource(zend_object *obj)
+{
+	fbird_connection_obj *intern = fbird_connection_from_obj(obj);
+	return intern ? intern->conn_res : NULL;
+}
+
+/* -----------------------------------------------------------------------
+ * fbird_setup_connection_object() — glue from procedural fbird_connect()
+ *                                   to Firebird\Connection OOP object
+ *
+ * Called from _php_fbird_connect() after registering the resource to wrap
+ * the raw resource in a typed Firebird\Connection object.
+ * The resource stays in EG(regular_list) — we only store a weak ref.
+ * --------------------------------------------------------------------- */
+void fbird_setup_connection_object(zval *return_value, zend_resource *res)
+{
+	/* Issue #120: Replace any existing content in return_value with a typed
+	 * Firebird\Connection object wrapping the given resource as a weak ref.
+	 *
+	 * The resource must remain alive independently (via IBG(default_link) or
+	 * EG(regular_list) refs). We use zval_ptr_dtor to release any prior zval
+	 * content (e.g. the resource zval set by RETVAL_RES / RETURN_RES). */
+	zval_ptr_dtor(return_value);
+	object_init_ex(return_value, fbird_connection_ce);
+	fbird_connection_obj *intern = Z_FBIRD_CONNECTION_P(return_value);
+	/* Weak reference: EG(regular_list)/IBG(default_link) own the resource */
+	intern->conn_res = res;
+}
+
+/* -----------------------------------------------------------------------
  * Registration entry point called from PHP_MINIT_FUNCTION(fbird)
  * --------------------------------------------------------------------- */
 void fbird_register_classes(void)

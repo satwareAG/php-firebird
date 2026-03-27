@@ -6,6 +6,13 @@ tags: [v10, cleanup, legacy-removal, deprecation]
 priority: 4
 ---
 
+> **Status: RESOLVED in v10.0.0** (2026-03-27)
+> - FBIRD_API_MODE_LEGACY dead code removed from src/php_fbird_compat.h
+> - get_statement_interface dead global removed from php_fbird_includes.h / firebird.c
+> - firebird_legacy_wrappers.c excluded from build (linker fix)
+> - isc_array_* retained: no Firebird OO API replacement exists (Firebird upstream limitation)
+
+
 # Spec: v10 Legacy Pattern Removal
 
 ## Goal

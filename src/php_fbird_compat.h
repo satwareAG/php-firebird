@@ -15,17 +15,7 @@
 
 #include "php_fbird_includes.h"
 
-/*
- * API Mode Enumeration
- *
- * Explicit tagging of which API path should be used for operations.
- * This is NOT stored in structs yet (future enhancement) but can be
- * derived from the presence of OO API pointers.
- */
-typedef enum fbird_api_mode {
-    FBIRD_API_MODE_LEGACY = 0,  /* Use isc_* functions with legacy handles */
-    FBIRD_API_MODE_OO = 1       /* Use fb*_* wrapper functions with OO API pointers */
-} fbird_api_mode;
+
 
 /*
  * Mode Detection Helpers
@@ -77,38 +67,7 @@ static inline int fbird_query_is_oo(const fbird_query* q)
     return q->fbs_statement != NULL;
 }
 
-/**
- * Get the API mode for a database link.
- *
- * @param link Database link to check
- * @return FBIRD_API_MODE_OO or FBIRD_API_MODE_LEGACY
- */
-static inline fbird_api_mode fbird_get_link_mode(const fbird_db_link* link)
-{
-    return fbird_link_is_oo(link) ? FBIRD_API_MODE_OO : FBIRD_API_MODE_LEGACY;
-}
 
-/**
- * Get the API mode for a transaction.
- *
- * @param trans Transaction to check
- * @return FBIRD_API_MODE_OO or FBIRD_API_MODE_LEGACY
- */
-static inline fbird_api_mode fbird_get_trans_mode(const fbird_transaction* trans)
-{
-    return fbird_trans_is_oo(trans) ? FBIRD_API_MODE_OO : FBIRD_API_MODE_LEGACY;
-}
-
-/**
- * Get the API mode for a query.
- *
- * @param q Query to check
- * @return FBIRD_API_MODE_OO or FBIRD_API_MODE_LEGACY
- */
-static inline fbird_api_mode fbird_get_query_mode(const fbird_query* q)
-{
-    return fbird_query_is_oo(q) ? FBIRD_API_MODE_OO : FBIRD_API_MODE_LEGACY;
-}
 
 /*
  * Typed Accessors for OO API Pointers
@@ -159,48 +118,7 @@ static inline void* fbird_get_statement(const fbird_query* q)
     return q->fbs_statement;
 }
 
-/*
- * Guard Macros
- *
- * These macros help prevent calling legacy APIs with OO API handles.
- * Use at the start of functions that must not be called on OO API objects.
- */
 
-/**
- * Guard: Require legacy link.
- * Returns FAILURE and sets error if link is OO API.
- */
-#define FBIRD_REQUIRE_LEGACY_LINK(link, func_name) \
-    do { \
-        if (fbird_link_is_oo(link)) { \
-            _php_fbird_module_error(func_name " is not supported for OO API connections"); \
-            return FAILURE; \
-        } \
-    } while(0)
-
-/**
- * Guard: Require legacy transaction.
- * Returns FAILURE and sets error if transaction is OO API.
- */
-#define FBIRD_REQUIRE_LEGACY_TRANS(trans, func_name) \
-    do { \
-        if (fbird_trans_is_oo(trans)) { \
-            _php_fbird_module_error(func_name " is not supported for OO API transactions"); \
-            return FAILURE; \
-        } \
-    } while(0)
-
-/**
- * Guard: Require legacy query.
- * Returns FAILURE and sets error if query is OO API.
- */
-#define FBIRD_REQUIRE_LEGACY_QUERY(query, func_name) \
-    do { \
-        if (fbird_query_is_oo(query)) { \
-            _php_fbird_module_error(func_name " is not supported for OO API queries"); \
-            return FAILURE; \
-        } \
-    } while(0)
 
 /**
  * Guard: Require OO API link.

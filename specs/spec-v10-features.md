@@ -28,8 +28,17 @@ have requested since v8.
 
 - Firebird 4.0+ supports `DECFLOAT(16)` and `DECFLOAT(34)` SQL types
 - Firebird 4.0+ supports `INT128` SQL type
+- Firebird 5.0+ native `INT128` support (FB_INT128 struct)
 - Extension treats both as unknown blobs or returns corrupted values
 - Existing test `datatype_int128.phpt` exists but may be incomplete
+
+### Firebird Client API Version Gates (FB_API_VER)
+
+| Version | FB_API_VER | Key Changes |
+|---------|------------|-------------|
+| Firebird 3.0 | 30 | `isc_dsql_sql_info` new codes, wire protocol compression |
+| Firebird 4.0 | 40 | Timezone support, `isc_blob_set_data`, `isc_blob_get_data` |
+| Firebird 5.0 | 50 | `INT128` native type, Protocol v16, parallel backup/restore |
 
 ### Target State
 
@@ -37,10 +46,15 @@ have requested since v8.
 |----------|-----------|------------|-------|
 | `DECFLOAT(16)` | `blr_dec_float` | `string` | Full precision, no float conversion |
 | `DECFLOAT(34)` | `blr_dec64` | `string` | Full precision |
-| `INT128` | `blr_int128` | `string` | PHP int overflows at 64-bit |
+| `INT128` | `blr_int128` | `string` | PHP int overflows at 64-bit (FB 5.0 native) |
+
+#### Firebird 5.0 INT128 SQLType Codes
+- `INT128`: 600 (nullable: 601)
+- `INT128` (scaled/Numeric): 610/611, 620/621
 
 Implementation in `fbird_result.c`:
 - Detect `blr_dec_float`, `blr_dec64`, `blr_int128` in result column parsing
+- Handle `XSQLVAR.sqltype` codes 600-621 for Firebird 5.0
 - Convert to string via `sprintf` with appropriate format
 - No `DECIMAL`/`NUMERIC` change (those already work via `fbird_query_bind.c`)
 

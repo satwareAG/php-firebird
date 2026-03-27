@@ -41,11 +41,13 @@ These wrappers convert between resource handles and OO objects. After #120 (type
 objects), they become unnecessary because the object IS the handle.
 
 Action: Delete all `legacy_handle_*` functions. Call sites use object directly.
+Research (docs/research/firebird-client-api-v5.md) confirms all Firebird handles are `void*` pointers, simplifying direct object storage.
 
 ### Event Modernization
 
 Current: `fbe_*` wrappers in legacy_wrappers.c call `isc_*` directly.
 Target: `fbird_events.c` calls `isc_*` directly, removing the indirection.
+Firebird Events API uses `isc_event_counts`, `isc_que_events`, and `isc_cancel_events` (array-based, no complex structs), making direct calls straightforward.
 
 ```c
 // Before: fbe_event_block(...) -> malloc -> isc_event_block(...)

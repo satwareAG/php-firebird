@@ -54,6 +54,8 @@ the v1 API signatures removed from `firebird_utils.h` during the v2 migration.
 Pattern: `(fbc_master_t* master, ..., ISC_STATUS* status)` - master unused but kept for compat.
 `fbb_blob_t` is opaque wrapper around `isc_blob_handle`.
 
+**Optimization Note**: Firebird 4.0+ provides `isc_blob_set_data` and `isc_blob_get_data` for streaming. v10.1 should consider migrating `fbb_put_segment` and `fbb_get_segment` to these for improved performance when `FB_API_VER >= 40`.
+
 ### Service (fbsvc_\*)
 
 | Wrapper | Calls |

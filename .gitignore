@@ -99,6 +99,8 @@ coverage.info
 /coverage.info
 /reports
 yaml.loT
+*.loT
+docs/plans/v10-test-report.txt
 
 # Static Analysis Artifacts
 compile_commands.json

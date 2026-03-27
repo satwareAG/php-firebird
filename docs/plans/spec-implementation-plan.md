@@ -157,3 +157,20 @@ spec-132 ──────────────>  spec-120 ─────�
 | void* elimination scope creep | Phase 2 delayed | Wrapper header approach limits blast radius |
 | Typed objects break PDO | Phase 1 regression | Test PDO early in 1B |
 | FB 4.0 SKIPIF gaps | Tests fail on FB 3.0 | Check FB version in all new tests |
+
+## Branch Consolidation (2026-03-27)
+
+All v10.0.0 development branches consolidated into single `dev/v10` branch.
+
+**Merged branches:**
+1. `v10.0.0-modernization` - VERSION bump to 10.0.0-dev (clean merge)
+2. `fix/v10-p0-legacy-handle-events` - build fixes, utils rewrite (clean merge)
+3. `origin/feat/fix-transaction-class-conflict` - transaction class conflict fix (1 conflict in `src/cpp/fb_connection.hpp`, resolved via `--theirs`)
+4. `origin/fix/ci-composer-install` - CI composer install fix (clean merge, auto-merged `.github/workflows/coverage.yml`)
+
+**Test results:** BUILD FAILURE - extension did not compile. No tests ran.
+- PASS: 0, FAIL: 0, SKIP: 0
+- Root cause: C compilation errors in `fbird_result.c`, `fbird_blobs.c`, `fbird_query_exec.c` - API signature mismatches between v10 modernized headers and legacy C call sites (e.g., `_php_fbird_error()` missing required args, `fbb_free` implicit declaration, `FBIRD_VALIDATE_QUERY_EX` macro arity mismatch)
+- Full report: `docs/plans/v10-test-report.txt`
+
+**Status:** `dev/v10` branch created locally. Not pushed. Build failures are expected - these are pre-existing issues from the modernization work that need to be resolved in subsequent development.

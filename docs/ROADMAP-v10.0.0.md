@@ -1,5 +1,7 @@
 # ROADMAP v10.0.0 — The Final Modernization
 
+> **Note**: All v10 branches consolidated into `dev/v10` on 2026-03-27. See `docs/plans/v10-branch-consolidation-plan.md`.
+
 **Created:** 2026-03-24
 **Milestone:** [v10.0.0](https://github.com/satwareAG/php-firebird/milestone/7)
 **Baseline:** v9.0.0 — 247/247 tests passing (100%)

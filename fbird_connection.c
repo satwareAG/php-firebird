@@ -524,6 +524,12 @@ PHP_FUNCTION(fbird_close)
 		return;
 	}
 
+	/* Type enforcement: only resource, Firebird\Connection object, or null accepted */
+	if (link_arg != NULL && Z_TYPE_P(link_arg) != IS_RESOURCE && Z_TYPE_P(link_arg) != IS_OBJECT) {
+		zend_argument_type_error(1, "must be of type resource or null, %s given", zend_zval_type_name(link_arg));
+		RETURN_THROWS();
+	}
+
 	/* Determine which link to close */
 	if (ZEND_NUM_ARGS() == 0 || link_arg == NULL) {
 		/* Default link path */
@@ -691,7 +697,18 @@ PHP_FUNCTION(fbird_drop_db)
 		return;
 	}
 
-	if (ZEND_NUM_ARGS() == 0 || link_arg == NULL) {
+	/* Type enforcement: resource only when explicit arg given (NULL = TypeError, no arg = default link) */
+	if (ZEND_NUM_ARGS() >= 1) {
+		if (link_arg == NULL) {
+			zend_argument_type_error(1, "must be of type resource, null given");
+			RETURN_THROWS();
+		} else if (Z_TYPE_P(link_arg) != IS_RESOURCE && Z_TYPE_P(link_arg) != IS_OBJECT) {
+			zend_argument_type_error(1, "must be of type resource, %s given", zend_zval_type_name(link_arg));
+			RETURN_THROWS();
+		}
+	}
+
+	if (ZEND_NUM_ARGS() == 0) {
 		link_res = IBG(default_link);
 		CHECK_LINK(link_res);
 		IBG(default_link) = NULL;

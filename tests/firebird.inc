@@ -79,7 +79,13 @@ function init_db()
 	);
 
 	// Debug: report initialization attempt and any errors
-	$test_db = @fbird_query(FBIRD_CREATE, $sql);
+	// Note: @ suppresses PHP warnings/notices but NOT exceptions. When fbird.enable_exceptions=1,
+	// Firebird errors become Firebird\Exception - we must catch those explicitly.
+	try {
+		$test_db = @fbird_query(FBIRD_CREATE, $sql);
+	} catch (\Throwable $e) {
+		$test_db = false;
+	}
 	if ($test_db === false) {
 		// Get error before it's cleared
 		$err = fbird_errmsg();
@@ -88,7 +94,11 @@ function init_db()
 			$test_base, $user, $password,
 			($charset = ini_get('fbird.default_charset')) ? $charset : 'NONE'
 		);
-		$test_db = @fbird_query(FBIRD_CREATE, $sql2);
+		try {
+			$test_db = @fbird_query(FBIRD_CREATE, $sql2);
+		} catch (\Throwable $e) {
+			$test_db = false;
+		}
 		if ($test_db === false) {
 			// Still failed - write debug info to stderr
 			$err2 = fbird_errmsg();

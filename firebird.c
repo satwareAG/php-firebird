@@ -21,9 +21,6 @@
 #include <stdbool.h>
 #include <time.h>
 #include <math.h>
-#ifndef PHP_WIN32
-#include <dlfcn.h>
-#endif
 #include "firebird_utils.h"
 #include "fbird_datetime.h"
 #include "fbird_classes.h"
@@ -632,6 +629,23 @@ int le_link, le_plink, le_trans;
 int le_batch;
 #endif
 
+/* Helper function to get human-readable name for resource types.
+ * Used by FBIRD_VALIDATE_*_EX macros for TypeError messages.
+ * Note: Only handles globally-visible resource types; local types
+ * (le_blob, le_event) will return "resource". */
+const char *_fbird_res_type_name(int type) {
+	if (type == le_link)  return "connection";
+	if (type == le_plink) return "persistent connection";
+	if (type == le_trans) return "transaction";
+	if (type == le_query) return "query/result";
+#if FB_API_VER >= 40
+	if (type == le_batch) return "batch";
+#endif
+	/* For static resource types defined in other files, return generic name */
+	return "resource";
+}
+
+
 /* Fill ib_link and trans with the correct database link and transaction. */
 static PHP_INI_DISP(php_fbird_password_displayer_cb)
 {
@@ -870,8 +884,6 @@ PHP_MINIT_FUNCTION(fbird)
 
 	fbird_register_classes();
 
-	atexit(_fbird_process_exit_handler);
-
 	php_fbird_query_minit(INIT_FUNC_ARGS_PASSTHRU);
 	php_fbird_blobs_minit(INIT_FUNC_ARGS_PASSTHRU);
 	php_fbird_events_minit(INIT_FUNC_ARGS_PASSTHRU);
@@ -923,18 +935,12 @@ PHP_MSHUTDOWN_FUNCTION(fbird)
 /* {{{ PHP_RINIT_FUNCTION */
 PHP_RINIT_FUNCTION(fbird)
 {
-	IBG(in_mshutdown) = 0;
-	fbird_set_shutdown_active(0);
 	return SUCCESS;
 }
 /* }}} */
 
 PHP_RSHUTDOWN_FUNCTION(fbird)
 {
-	/* Set shutdown flag immediately at start of request shutdown.
-	 * Any Firebird objects destroyed after this will skip detach() calls. */
-	fbird_set_shutdown_active(1);
-	IBG(in_mshutdown) = 1;
 	IBG(num_links) = IBG(num_persistent);
 	IBG(default_link)= NULL;
 
@@ -965,7 +971,6 @@ PHP_MINFO_FUNCTION(fbird)
 	php_info_print_table_row(2, "Compile-time Client Library Version", s);
 
 #if defined(__GNUC__) || defined(PHP_WIN32)
-	typedef void (*info_func_t)(char *);
 	do {
 		info_func_t info_func = NULL;
 #ifdef __GNUC__
@@ -988,6 +993,168 @@ PHP_MINFO_FUNCTION(fbird)
 
 	DISPLAY_INI_ENTRIES();
 
+}
+
+
+#if PHP_DEBUG
+void fbp_dump_buffer(int len, const unsigned char *buffer)
+{
+	int i;
+	for (i = 0; i < len; i++) {
+		if(buffer[i] < 32 || buffer[i] > 126)
+			php_printf("0x%02x ", buffer[i]);
+		else
+			php_printf(" [%c] ", buffer[i]);
+		if(i % 16 == 15)php_printf("\n");
+	}
+	if(i > 0)php_printf("\n");
+}
+
+void fbp_dump_buffer_raw(int len, const unsigned char *buffer)
+{
+	int i;
+	for (i = 0; i < len; i++) {
+		php_printf("%c", buffer[i]);
+	}
+}
+#endif
+
+void fbp_error_ex(long level, const char *msg, ...)
+{
+	va_list ap;
+	char buf[1024] = {0};
+
+	va_start(ap, msg);
+
+	/* vsnprintf NUL terminates the buf and writes at most n-1 chars+NUL */
+	vsnprintf(buf, sizeof(buf), msg, ap);
+	va_end(ap);
+
+	// IBG(sql_code) = -999; /* no SQL error */
+
+	php_error(level, "%s", buf);
+}
+
+/* Limbo Transaction Functions (Two-Phase Commit Recovery) */
+PHP_FUNCTION(fbird_get_limbo_transactions)
+{
+	zval *link_arg = NULL;
+	zend_long max_count = 100;
+	fbird_db_link *ib_link;
+	ISC_INT64 *trans_ids;
+	int count, i;
+	void *attachment;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|z!l", &link_arg, &max_count) == FAILURE) {
+		return;
+	}
+
+	if (max_count < 1 || max_count > 10000) {
+		php_error_docref(NULL, E_WARNING, "max_count must be between 1 and 10000");
+		RETURN_FALSE;
+	}
+
+	if (link_arg == NULL) {
+		ib_link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), LE_LINK, le_link, le_plink);
+	} else {
+		FBIRD_VALIDATE_LINK_EX(link_arg, 1, ib_link);
+	}
+
+	if (!ib_link) {
+		RETURN_FALSE;
+	}
+
+	if (ib_link->fbc_connection == NULL) {
+		_php_fbird_module_error("Connection has no OO API handle");
+		RETURN_FALSE;
+	}
+
+	attachment = fbc_get_attachment(ib_link->fbc_connection);
+	if (attachment == NULL) {
+		_php_fbird_module_error("Failed to get attachment from connection");
+		RETURN_FALSE;
+	}
+
+	trans_ids = (ISC_INT64 *)safe_emalloc(sizeof(ISC_INT64), (size_t)max_count, 0);
+
+	count = fbt_get_limbo_transactions(IBG(master_instance), attachment, trans_ids,
+		(unsigned)max_count, IB_STATUS);
+
+	if (count < 0) {
+		efree(trans_ids);
+		_php_fbird_error();
+		RETURN_FALSE;
+	}
+
+	array_init(return_value);
+	for (i = 0; i < count; i++) {
+		add_next_index_long(return_value, (zend_long)trans_ids[i]);
+	}
+
+	efree(trans_ids);
+}
+
+PHP_FUNCTION(fbird_reconnect_transaction)
+{
+	zval *link_arg;
+	zend_long trans_id;
+	fbird_db_link *ib_link;
+	fbird_transaction *ib_trans;
+	void *attachment;
+	void *reconnected_trans;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zl", &link_arg, &trans_id) == FAILURE) {
+		return;
+	}
+
+	FBIRD_VALIDATE_LINK_EX(link_arg, 1, ib_link);
+	if (!ib_link) {
+		RETURN_FALSE;
+	}
+
+	if (ib_link->fbc_connection == NULL) {
+		_php_fbird_module_error("Connection has no OO API handle");
+		RETURN_FALSE;
+	}
+
+	attachment = fbc_get_attachment(ib_link->fbc_connection);
+	if (attachment == NULL) {
+		_php_fbird_module_error("Failed to get attachment from connection");
+		RETURN_FALSE;
+	}
+
+	reconnected_trans = fbt_reconnect(IBG(master_instance), attachment, trans_id, IB_STATUS);
+	if (reconnected_trans == NULL) {
+		_php_fbird_error();
+		RETURN_FALSE;
+	}
+
+	/* Allocate and initialize transaction structure */
+	ib_trans = (fbird_transaction *)safe_emalloc(1, sizeof(fbird_transaction), 0);
+	ib_trans->fbt_transaction = reconnected_trans;
+	ib_trans->link_cnt = 1;
+	ib_trans->affected_rows = 0;
+	ib_trans->db_link[0] = ib_link;
+
+	/* Link into connection's transaction list */
+	if (ib_link->tr_list == NULL) {
+		ib_link->tr_list = (fbird_tr_list *)emalloc(sizeof(fbird_tr_list));
+		ib_link->tr_list->trans = NULL;
+		ib_link->tr_list->next = NULL;
+	}
+
+	fbird_tr_list **l;
+	for (l = &ib_link->tr_list; *l != NULL; l = &(*l)->next);
+	*l = (fbird_tr_list *)emalloc(sizeof(fbird_tr_list));
+	(*l)->trans = ib_trans;
+	(*l)->next = NULL;
+
+	RETVAL_RES(zend_register_resource(ib_trans, le_trans));
+	Z_TRY_ADDREF_P(return_value);
 }
 
 #endif /* HAVE_FIREBIRD */

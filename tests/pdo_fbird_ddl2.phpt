@@ -5,7 +5,11 @@ pdo_fbird: DDL — sequences, views, stored procedures
 if (!extension_loaded('firebird')) die('skip firebird not loaded');
 if (!in_array('fbird', PDO::getAvailableDrivers())) die('skip pdo_fbird not available');
 require_once __DIR__ . '/pdo_fbird.inc';
-try { pdo_fbird_connect(); } catch (Throwable $e) { die('skip cannot connect: ' . $e->getMessage()); }
+try { $pdo = pdo_fbird_connect(); } catch (Throwable $e) { die('skip cannot connect: ' . $e->getMessage()); }
+/* ALTER SEQUENCE RESTART WITH semantics changed in Firebird 4.0:
+   FB3: RESTART WITH n → next value = n+1; FB4+: RESTART WITH n → next value = n */
+$v = $pdo->getAttribute(PDO::ATTR_SERVER_VERSION);
+if (floatval($v) < 4.0) die('skip requires Firebird 4.0+ (ALTER SEQUENCE RESTART semantics)');
 ?>
 --FILE--
 <?php

@@ -768,7 +768,8 @@ static int pdo_fbird_handle_get_attribute(pdo_dbh_t *dbh, zend_long attr, zval *
 		case PDO_ATTR_SERVER_INFO: {
 			unsigned v = fbc_get_server_version(H->fbc_conn);
 			char buf[32];
-			snprintf(buf, sizeof(buf), "%u.0", v / 10);
+			/* v is 0x0300/0x0400/0x0500 — major version in upper byte */
+			snprintf(buf, sizeof(buf), "%u.0", v >> 8);
 			ZVAL_STRING(val, buf);
 			return 1;
 		}

@@ -28,16 +28,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Test Results
 - 247/247 pass (100%), 8 skipped, 0 failed on PHP 8.4 / Firebird 4.0
 
-## [Unreleased]
+## [10.0.0] - 2026-03-27
+
+### Added
+- `fbird_get_limbo_transactions()` - list in-doubt (limbo) transaction IDs for two-phase commit recovery
+- `fbird_reconnect_transaction()` - reconnect to a limbo transaction by ID for manual resolution
+- `fbird_last_insert_id()` - retrieve current generator value without incrementing (sequence name required)
+- `fbird_connection_info()` - procedural API for connection metadata (issue #124)
+- Full TBuilder fluent transaction parameter builder (`Firebird\TBuilder` class)
+- BLOB stream wrapper classes (`Firebird\BlobStream`)
+- `fbird_set_shutdown_active()` / `fbird_set_shutdown_active_oo()` - safe MSHUTDOWN guard
+- `fbird_trans_start()` with comprehensive TPB array options and table reservation
+- `fbird_savepoint()`, `fbird_rollback_savepoint()`, `fbird_release_savepoint()` - savepoint support
+- Scrollable cursor support (`FBIRD_FETCH_PRIOR`, `FBIRD_FETCH_FIRST`, `FBIRD_FETCH_LAST`, `FBIRD_FETCH_ABSOLUTE`, `FBIRD_FETCH_RELATIVE`)
+- `fbird_batch_add_blob_stream()`, `fbird_batch_append_blob_data()`, `fbird_batch_set_default_bpb()`
+- `Firebird\Batch`, `Firebird\BatchResult`, `Firebird\BatchError` OOP batch classes
+- PDO Firebird driver (`pdo_fbird`) integrated directly into the extension
+- 15+ new test files covering coverage paths, issue regressions, and PDO integration
+- `docs/ROADMAP-v10.0.0.md` and `docs/ROADMAP-2026-03-23.md` execution plans
 
 ### Changed
-- **firebird_utils rewrite**: Complete modernization of C++ bridge layer for v10 API
-  - Opaque handle structs (`fb_opaque_connection_t`, `fb_opaque_transaction_t`, `fb_opaque_statement_t`, `fb_opaque_batch_t`) replacing raw `void*` parameters
-  - New safe bridge functions (`fbc_get_attachment_safe`, `fbt_start_safe`, `fbt_reconnect_safe`, `fbt_get_handle_safe`) with null-check guards
-  - Batch API redesigned for Firebird 4.0+ `IBatch` interface (new `fbbatch_create`/`add_row`/`execute`/`free` replacing old wrapper)
-  - `fbu_decode_timestamp` now takes `ISC_TIMESTAMP` by value instead of pointer
-  - `fbu_int128_to_string`, `fbu_decfloat16_to_string`, `fbu_decfloat34_to_string` return `void` with `size_t` buffer size
-  - Removed 3700+ lines of legacy code (old `BatchWrapper` class, old batch functions, redundant `extern "C"` block)
+- **Build system**: `firebird_legacy_wrappers.c` excluded from compilation - all symbols retained in `firebird_utils.cpp` (resolves 19 duplicate-definition linker errors)
+- `firebird_utils.cpp` C++ bridge layer retained as authoritative implementation foundation
+- `fbird_classes.c` - expanded OOP wrapper coverage for all connection/transaction/statement/result types
+- Minimum PHP version remains 8.1+; Firebird 3.0+ required
+
+### Fixed
+- Linker errors from duplicate symbol definitions between `firebird_legacy_wrappers.c` and `firebird_utils.cpp`
+- Missing `PHP_FUNCTION` bodies for `fbird_gen_id` and `fbird_last_insert_id` (restored from v9 baseline)
+- Extension load failure (`undefined symbol: zif_fbird_gen_id`) on PHP startup
 
 ---
 
@@ -958,7 +977,13 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.3.5...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.0.0...HEAD
+[10.0.0]: https://github.com/satwareAG/php-firebird/compare/v9.0.0...v10.0.0
+[9.0.0]: https://github.com/satwareAG/php-firebird/compare/v8.3.0...v9.0.0
+[8.3.0]: https://github.com/satwareAG/php-firebird/compare/v8.2.0...v8.3.0
+[8.2.0]: https://github.com/satwareAG/php-firebird/compare/v8.1.0...v8.2.0
+[8.1.0]: https://github.com/satwareAG/php-firebird/compare/v8.0.0...v8.1.0
+[8.0.0]: https://github.com/satwareAG/php-firebird/compare/v7.3.5...v8.0.0
 [7.3.5]: https://github.com/satwareAG/php-firebird/compare/v7.3.4...v7.3.5
 [7.3.4]: https://github.com/satwareAG/php-firebird/compare/v7.3.3...v7.3.4
 [7.3.3]: https://github.com/satwareAG/php-firebird/compare/v7.3.2...v7.3.3

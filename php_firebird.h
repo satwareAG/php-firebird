@@ -25,7 +25,7 @@ extern zend_module_entry firebird_module_entry;
 /* Numeric version for the FBIRD_VER constant (two-digit style like FB_API_VER).
  * This is a simplified value; for full version info use PHP_FIREBIRD_VERSION_STRING. */
 #ifndef PHP_FIREBIRD_VER
-#  define PHP_FIREBIRD_VER 90  /* 9.x series */
+#  define PHP_FIREBIRD_VER 100  /* 10.x series */
 #endif
 
 PHP_MINIT_FUNCTION(fbird);

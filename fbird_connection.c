@@ -15,6 +15,7 @@
 #include "php_fbird_includes.h"
 #include "php_fbird_connection.h"
 #include "firebird_utils.h"
+#include "fbird_classes.h"
 
 /* ISC_TEB is defined in php_fbird_includes.h */
 
@@ -493,6 +494,23 @@ static void _php_fbird_close_resource(zend_resource *link_res)
 	}
 }
 
+/* Helper: extract zend_resource* from either a resource zval or a Firebird\Connection object.
+ * Returns NULL if the zval is neither. */
+static zend_resource *_php_fbird_res_from_zval(zval *zv)
+{
+	if (zv == NULL) return NULL;
+	ZVAL_DEREF(zv);
+	if (Z_TYPE_P(zv) == IS_RESOURCE) {
+		return Z_RES_P(zv);
+	}
+	if (Z_TYPE_P(zv) == IS_OBJECT &&
+		instanceof_function(Z_OBJCE_P(zv), fbird_connection_ce)) {
+		/* Extract the connection resource from the Firebird\Connection object */
+		return fbird_connection_get_resource(Z_OBJ_P(zv));
+	}
+	return NULL;
+}
+
 PHP_FUNCTION(fbird_close)
 {
 	zval *link_arg = NULL;
@@ -501,8 +519,15 @@ PHP_FUNCTION(fbird_close)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|r!", &link_arg) == FAILURE) {
+	/* Accept resource OR Firebird\Connection object (Issue #120) */
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|z!", &link_arg) == FAILURE) {
 		return;
+	}
+
+	/* Type enforcement: only resource, Firebird\Connection object, or null accepted */
+	if (link_arg != NULL && Z_TYPE_P(link_arg) != IS_RESOURCE && Z_TYPE_P(link_arg) != IS_OBJECT) {
+		zend_argument_type_error(1, "must be of type resource or null, %s given", zend_zval_type_name(link_arg));
+		RETURN_THROWS();
 	}
 
 	/* Determine which link to close */
@@ -515,8 +540,11 @@ PHP_FUNCTION(fbird_close)
 			RETURN_FALSE;
 		}
 	} else {
-		/* Explicit link path */
-		link_res = Z_RES_P(link_arg);
+		/* Explicit link path: accept resource or Connection object */
+		link_res = _php_fbird_res_from_zval(link_arg);
+		if (link_res == NULL) {
+			RETURN_FALSE;
+		}
 		is_default_link = (IBG(default_link) == link_res);
 	}
 
@@ -664,9 +692,20 @@ PHP_FUNCTION(fbird_drop_db)
 		RETURN_TRUE;
 	}
 
-	/* Original resource-based path */
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|r", &link_arg) == FAILURE) {
+	/* Original resource-based path: also accept Firebird\Connection object (Issue #120) */
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|z!", &link_arg) == FAILURE) {
 		return;
+	}
+
+	/* Type enforcement: resource only when explicit arg given (NULL = TypeError, no arg = default link) */
+	if (ZEND_NUM_ARGS() >= 1) {
+		if (link_arg == NULL) {
+			zend_argument_type_error(1, "must be of type resource, null given");
+			RETURN_THROWS();
+		} else if (Z_TYPE_P(link_arg) != IS_RESOURCE && Z_TYPE_P(link_arg) != IS_OBJECT) {
+			zend_argument_type_error(1, "must be of type resource, %s given", zend_zval_type_name(link_arg));
+			RETURN_THROWS();
+		}
 	}
 
 	if (ZEND_NUM_ARGS() == 0) {
@@ -674,7 +713,10 @@ PHP_FUNCTION(fbird_drop_db)
 		CHECK_LINK(link_res);
 		IBG(default_link) = NULL;
 	} else {
-		link_res = Z_RES_P(link_arg);
+		link_res = _php_fbird_res_from_zval(link_arg);
+		if (link_res == NULL) {
+			RETURN_FALSE;
+		}
 	}
 
 	ib_link = (fbird_db_link *)zend_fetch_resource2(link_res, LE_LINK, le_link, le_plink);

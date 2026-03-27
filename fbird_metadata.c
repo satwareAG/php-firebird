@@ -154,6 +154,11 @@ void _php_fbird_field_info(zval *return_value, fbird_query *ib_query, int is_out
 			case SQL_INT64:
 				precision = 18;
 				break;
+#if FB_API_VER >= 40
+			case SQL_INT128:
+				precision = 38;
+				break;
+#endif
 			default:
 				break;
 		}
@@ -187,6 +192,17 @@ void _php_fbird_field_info(zval *return_value, fbird_query *ib_query, int is_out
 			case SQL_INT64:
 				s = "BIGINT";
 				break;
+#if FB_API_VER >= 40
+			case SQL_INT128:
+				s = "INT128";
+				break;
+			case SQL_DEC16:
+				s = "DECFLOAT(16)";
+				break;
+			case SQL_DEC34:
+				s = "DECFLOAT(34)";
+				break;
+#endif
 			case SQL_TIMESTAMP:
 				s = "TIMESTAMP";
 				break;

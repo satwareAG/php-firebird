@@ -204,7 +204,13 @@ static bool pdo_fbird_handle_preparer(pdo_dbh_t *dbh, zend_string *sql,
 }
 /* }}} */
 
-/* {{{ pdo_fbird_handle_doer */
+/* {{{ pdo_fbird_handle_doer
+ * Execute one or more semicolon-separated DML statements via PDO::exec().
+ * Statements are split on ';' outside single-quoted string literals
+ * (simple state machine — no double-quote or comment awareness needed for DML).
+ * Affected rows are summed across all statements.
+ * On any failure the transaction is rolled back and -1 is returned.
+ */
 static zend_long pdo_fbird_handle_doer(pdo_dbh_t *dbh, const zend_string *sql)
 {
 	pdo_fbird_db_handle *H = (pdo_fbird_db_handle *)dbh->driver_data;
@@ -220,33 +226,103 @@ static zend_long pdo_fbird_handle_doer(pdo_dbh_t *dbh, const zend_string *sql)
 	void *att = fbc_get_attachment(H->fbc_conn);
 	void *tr  = fbt_get_handle(H->fbt_trans);
 
-	ISC_STATUS_ARRAY st = {0};
-	void *fbs = fbs_prepare(IBG(master_instance), att, tr,
-		ZSTR_VAL(sql), (unsigned)ZSTR_LEN(sql), H->dialect, st);
-	if (!fbs) {
-		memcpy(H->status, st, sizeof(ISC_STATUS_ARRAY));
-		pdo_fbird_error(dbh);
-		return -1;
+	const char *src     = ZSTR_VAL(sql);
+	size_t      src_len = ZSTR_LEN(sql);
+
+	zend_long total_affected = 0;
+	int        had_statements = 0;
+
+	/* State machine: split on ';' outside single-quoted literals.
+	 * We do NOT try to handle comments or double-quoted identifiers here;
+	 * for batch DML this is intentionally simple per spec. */
+	int    in_quote  = 0;   /* inside '...' literal */
+	size_t stmt_start = 0;  /* start of current statement in src */
+
+	for (size_t i = 0; i <= src_len; i++) {
+		char c = (i < src_len) ? src[i] : ';'; /* virtual ';' at end */
+
+		if (in_quote) {
+			if (c == '\'') {
+				/* Check for escaped quote ''' */
+				if (i + 1 < src_len && src[i + 1] == '\'') {
+					i++; /* skip second quote */
+				} else {
+					in_quote = 0;
+				}
+			}
+			continue;
+		}
+
+		if (c == '\'') {
+			in_quote = 1;
+			continue;
+		}
+
+		if (c == ';') {
+			/* Extract statement [stmt_start, i) and trim whitespace */
+			size_t len = i - stmt_start;
+			const char *p = src + stmt_start;
+			/* ltrim */
+			while (len > 0 && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')) {
+				p++; len--;
+			}
+			/* rtrim */
+			while (len > 0 && (p[len-1] == ' ' || p[len-1] == '\t' ||
+				               p[len-1] == '\r' || p[len-1] == '\n')) {
+				len--;
+			}
+
+			stmt_start = i + 1;
+
+			if (len == 0) {
+				/* empty segment — skip */
+				continue;
+			}
+
+			had_statements = 1;
+
+			ISC_STATUS_ARRAY st = {0};
+			void *fbs = fbs_prepare(IBG(master_instance), att, tr,
+				p, (unsigned)len, H->dialect, st);
+			if (!fbs) {
+				memcpy(H->status, st, sizeof(ISC_STATUS_ARRAY));
+				pdo_fbird_error(dbh);
+				/* Rollback on failure */
+				fbt_rollback(H->fbt_trans, H->status);
+				fbt_free(H->fbt_trans);
+				H->fbt_trans = NULL;
+				return -1;
+			}
+
+			int rc = fbs_execute(IBG(master_instance), fbs, tr,
+				NULL, NULL, NULL, NULL, st);
+			if (!rc) {
+				memcpy(H->status, st, sizeof(ISC_STATUS_ARRAY));
+				fbs_free(fbs, st);
+				pdo_fbird_error(dbh);
+				/* Rollback on failure */
+				fbt_rollback(H->fbt_trans, H->status);
+				fbt_free(H->fbt_trans);
+				H->fbt_trans = NULL;
+				return -1;
+			}
+
+			zend_long affected = (zend_long)fbs_get_affected_records(
+				IBG(master_instance), fbs, st);
+			fbs_free(fbs, st);
+			total_affected += (affected >= 0 ? affected : 0);
+		}
 	}
 
-	int rc = fbs_execute(IBG(master_instance), fbs, tr,
-		NULL, NULL, NULL, NULL, st);
-	if (!rc) {
-		memcpy(H->status, st, sizeof(ISC_STATUS_ARRAY));
-		fbs_free(fbs, st);
-		pdo_fbird_error(dbh);
-		return -1;
+	if (!had_statements) {
+		return 0;
 	}
-
-	zend_long affected = (zend_long)fbs_get_affected_records(
-		IBG(master_instance), fbs, st);
-	fbs_free(fbs, st);
 
 	if (H->autocommit && !H->in_manually_transaction) {
 		fbt_commit_retaining(H->fbt_trans, H->status);
 	}
 
-	return affected >= 0 ? affected : 0;
+	return total_affected;
 }
 /* }}} */
 
@@ -768,7 +844,8 @@ static int pdo_fbird_handle_get_attribute(pdo_dbh_t *dbh, zend_long attr, zval *
 		case PDO_ATTR_SERVER_INFO: {
 			unsigned v = fbc_get_server_version(H->fbc_conn);
 			char buf[32];
-			snprintf(buf, sizeof(buf), "%u.0", v / 10);
+			/* v is 0x0300/0x0400/0x0500 — major version in upper byte */
+			snprintf(buf, sizeof(buf), "%u.0", v >> 8);
 			ZVAL_STRING(val, buf);
 			return 1;
 		}

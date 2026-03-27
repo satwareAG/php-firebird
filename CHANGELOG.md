@@ -5,6 +5,45 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.0.0] - 2026-03-27
+
+### Fixed
+- **Build system**: removed `firebird_legacy_wrappers.c` from `PHP_NEW_EXTENSION()` compilation - resolves 19 duplicate-definition linker errors between `firebird_legacy_wrappers.c` and `firebird_utils.cpp`
+- Restored `PHP_FUNCTION` bodies for `fbird_gen_id` and `fbird_last_insert_id` from v9.0.0 baseline (previously replaced with TODO stubs in dev branch)
+- Extension load failure (`undefined symbol: zif_fbird_gen_id`) on PHP startup
+- **PDO server version string** (`PDO::ATTR_SERVER_VERSION`): replaced `v / 10` with `v >> 8` in `pdo_fbird_driver.c` — Firebird encodes versions as `0x0300/0x0400/0x0500`, so integer division returned 76/102/128 instead of 3/4/5
+- **`pdo_fbird_ddl2` SKIPIF**: `ALTER SEQUENCE ... RESTART WITH N` semantics changed in Firebird 4.0 (next value = N, not N+1); test now skips on Firebird 3.x to avoid false failures
+
+### Test Matrix (12 targets: PHP 8.2/8.3/8.4/8.5 × Firebird 3.0/4.0/5.0)
+- PHP 8.2 + Firebird 3.0: 2 FAIL (pdo_fbird_bind_config, pdo_fbird_ddl2 - version check ran with pre-fix binary)
+- PHP 8.2 + Firebird 4.0: 254/262 PASS, 0 FAIL, 8 skipped
+- PHP 8.2 + Firebird 5.0: 252/262 PASS, 0 FAIL, 10 skipped
+- PHP 8.3 + Firebird 3.0: 2 FAIL (same pre-fix binary - fixed in PHP 8.4+ containers)
+- PHP 8.3 + Firebird 4.0: 254/262 PASS, 0 FAIL, 8 skipped
+- PHP 8.3 + Firebird 5.0: PASS, 0 FAIL
+- PHP 8.4 + Firebird 3.0: PASS, 0 FAIL (fix verified)
+- PHP 8.4 + Firebird 4.0: PASS, 0 FAIL
+- PHP 8.4 + Firebird 5.0: PASS, 0 FAIL
+- PHP 8.5 + Firebird 3.0: PASS, 0 FAIL
+- PHP 8.5 + Firebird 4.0: PASS, 0 FAIL
+- PHP 8.5 + Firebird 5.0: PASS, 0 FAIL
+- Stubs: 89/89 functions in sync
+- ASAN (PHP 8.3, Firebird 4.0): PASS - no sanitizer errors (asan_basic, blob_operations, transaction_stress)
+- Valgrind (PHP 8.3, Firebird 4.0): definitely lost: 0 bytes; remaining reachable/suppressed from PHP dynamic linker only
+
+### Added
+- **PDO Batch DML**: `PDO::exec()` now accepts semicolon-separated multi-statement SQL — each statement is executed individually, affected rows are summed, rollback on any failure. New test: `tests/pdo_fbird/pdo_fbird_batch_dml.phpt` (PASS)
+- **`firebird_utils_typed.h`**: Type-safe opaque struct wrappers for all internal C API handles (`fbc_connection_t`, `fbt_transaction_t`, `fbs_statement_t`, `fbb_blob_t`, and 8 additional handle types) — zero runtime overhead via inline functions
+
+### Changed
+- **`fbird_connect()` / `fbird_pconnect()`**: Now return `Firebird\Connection` objects (typed) — the Layer 2 OOP class wraps the internal connection. `instanceof Firebird\Connection` is true.
+- **README.md**: Fixed stale "Current Version: 7.3.5" text to 10.0.0
+
+### Removed
+- **`FBIRD_API_MODE_LEGACY` dead code**: Removed unused legacy enum value and `FBIRD_REQUIRE_LEGACY_*` guard macros from `src/php_fbird_compat.h` (dead code, all connections use OO API)
+- **`get_statement_interface` dead global**: Removed from `php_fbird_includes.h` and `firebird.c` — was loaded via `dlsym()` at MINIT but never called (all statements use `fbs_prepare()`)
+- **`implementation_plan.md`**: Deleted (completed, superseded by CHANGELOG)
+
 ## [9.0.0] - 2026-03-23
 
 ### Added
@@ -28,7 +67,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Test Results
 - 247/247 pass (100%), 8 skipped, 0 failed on PHP 8.4 / Firebird 4.0
 
-## [Unreleased]
 
 ---
 
@@ -949,7 +987,13 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v7.3.5...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.0.0...HEAD
+[10.0.0]: https://github.com/satwareAG/php-firebird/compare/v9.0.0...v10.0.0
+[9.0.0]: https://github.com/satwareAG/php-firebird/compare/v8.3.0...v9.0.0
+[8.3.0]: https://github.com/satwareAG/php-firebird/compare/v8.2.0...v8.3.0
+[8.2.0]: https://github.com/satwareAG/php-firebird/compare/v8.1.0...v8.2.0
+[8.1.0]: https://github.com/satwareAG/php-firebird/compare/v8.0.0...v8.1.0
+[8.0.0]: https://github.com/satwareAG/php-firebird/compare/v7.3.5...v8.0.0
 [7.3.5]: https://github.com/satwareAG/php-firebird/compare/v7.3.4...v7.3.5
 [7.3.4]: https://github.com/satwareAG/php-firebird/compare/v7.3.3...v7.3.4
 [7.3.3]: https://github.com/satwareAG/php-firebird/compare/v7.3.2...v7.3.3

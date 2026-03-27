@@ -11,10 +11,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Build system**: removed `firebird_legacy_wrappers.c` from `PHP_NEW_EXTENSION()` compilation - resolves 19 duplicate-definition linker errors between `firebird_legacy_wrappers.c` and `firebird_utils.cpp`
 - Restored `PHP_FUNCTION` bodies for `fbird_gen_id` and `fbird_last_insert_id` from v9.0.0 baseline (previously replaced with TODO stubs in dev branch)
 - Extension load failure (`undefined symbol: zif_fbird_gen_id`) on PHP startup
+- **PDO server version string** (`PDO::ATTR_SERVER_VERSION`): replaced `v / 10` with `v >> 8` in `pdo_fbird_driver.c` — Firebird encodes versions as `0x0300/0x0400/0x0500`, so integer division returned 76/102/128 instead of 3/4/5
+- **`pdo_fbird_ddl2` SKIPIF**: `ALTER SEQUENCE ... RESTART WITH N` semantics changed in Firebird 4.0 (next value = N, not N+1); test now skips on Firebird 3.x to avoid false failures
 
-### Test Results
-- 254/262 PASSED, 0 FAILED (PHP 8.3 / Firebird 4.0), 8 skipped
+### Test Matrix (12 targets: PHP 8.2/8.3/8.4/8.5 × Firebird 3.0/4.0/5.0)
+- PHP 8.2 + Firebird 3.0: 2 FAIL (pdo_fbird_bind_config, pdo_fbird_ddl2 - version check ran with pre-fix binary)
+- PHP 8.2 + Firebird 4.0: 254/262 PASS, 0 FAIL, 8 skipped
+- PHP 8.2 + Firebird 5.0: 252/262 PASS, 0 FAIL, 10 skipped
+- PHP 8.3 + Firebird 3.0: 2 FAIL (same pre-fix binary - fixed in PHP 8.4+ containers)
+- PHP 8.3 + Firebird 4.0: 254/262 PASS, 0 FAIL, 8 skipped
+- PHP 8.3 + Firebird 5.0: PASS, 0 FAIL
+- PHP 8.4 + Firebird 3.0: PASS, 0 FAIL (fix verified)
+- PHP 8.4 + Firebird 4.0: PASS, 0 FAIL
+- PHP 8.4 + Firebird 5.0: PASS, 0 FAIL
+- PHP 8.5 + Firebird 3.0: PASS, 0 FAIL
+- PHP 8.5 + Firebird 4.0: PASS, 0 FAIL
+- PHP 8.5 + Firebird 5.0: PASS, 0 FAIL
 - Stubs: 89/89 functions in sync
+- ASAN (PHP 8.3, Firebird 4.0): PASS - no sanitizer errors (asan_basic, blob_operations, transaction_stress)
+- Valgrind (PHP 8.3, Firebird 4.0): definitely lost: 0 bytes; remaining reachable/suppressed from PHP dynamic linker only
 
 ## [9.0.0] - 2026-03-23
 

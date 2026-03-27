@@ -140,6 +140,7 @@ dist/
 # Generated artifacts
 fuzz_report.sarif
 test_array
+nonexistent_path_xyz
 
 # Cline AI agent config (project-local, not for public repos)
 .clinerules/

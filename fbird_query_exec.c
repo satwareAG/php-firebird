@@ -997,7 +997,7 @@ PHP_FUNCTION(fbird_query)
 			query = Z_STRVAL_P(arg);
 			bind_start = i + 1;
 			break;
-		} else if (Z_TYPE_P(arg) == IS_RESOURCE || Z_TYPE_P(arg) == IS_OBJECT) {
+		} else if (Z_TYPE_P(arg) == IS_RESOURCE) {
 			/* Identify resource type */
 			if (!trans && !link) {
 				trans = (fbird_transaction *)zend_fetch_resource_ex(arg, NULL, le_trans);
@@ -1005,21 +1005,13 @@ PHP_FUNCTION(fbird_query)
 					trans_arg = arg;
 					trans_res = Z_RES_P(trans_arg);
 				} else {
-					if (Z_TYPE_P(arg) == IS_OBJECT) {
-						link = _fbird_get_link_from_obj(arg);
-					} else {
-						link = (fbird_db_link *)zend_fetch_resource_ex(arg, NULL, le_link);
-						if (!link) link = (fbird_db_link *)zend_fetch_resource_ex(arg, NULL, le_plink);
-					}
+					link = (fbird_db_link *)zend_fetch_resource_ex(arg, NULL, le_link);
+					if (!link) link = (fbird_db_link *)zend_fetch_resource_ex(arg, NULL, le_plink);
 					if (link) link_arg = arg;
 				}
 			} else if (trans && !link) {
-				if (Z_TYPE_P(arg) == IS_OBJECT) {
-					link = _fbird_get_link_from_obj(arg);
-				} else {
-					link = (fbird_db_link *)zend_fetch_resource_ex(arg, NULL, le_link);
-					if (!link) link = (fbird_db_link *)zend_fetch_resource_ex(arg, NULL, le_plink);
-				}
+				link = (fbird_db_link *)zend_fetch_resource_ex(arg, NULL, le_link);
+				if (!link) link = (fbird_db_link *)zend_fetch_resource_ex(arg, NULL, le_plink);
 				if (link) link_arg = arg;
 			} else if (link && !trans) {
 				trans = (fbird_transaction *)zend_fetch_resource_ex(arg, NULL, le_trans);
@@ -1076,7 +1068,9 @@ PHP_FUNCTION(fbird_query)
 
 	/* Resolve Link if missing */
 	if (!link && !trans) {
-		FBIRD_GET_LINK(NULL, link);
+		if (IBG(default_link)) {
+			link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), "Firebird link", le_link, le_plink);
+		}
 
 		/* If no link found, fail gracefully */
 		if (!link) {
@@ -1185,18 +1179,16 @@ PHP_FUNCTION(fbird_prepare)
 
 	/* Parse arguments */
 	i = 0;
-	if (Z_TYPE(args[i]) == IS_RESOURCE || Z_TYPE(args[i]) == IS_OBJECT) {
+	if (Z_TYPE(args[i]) == IS_RESOURCE) {
 		trans = (fbird_transaction *)zend_fetch_resource_ex(&args[i], NULL, le_trans);
 		if (trans) {
 			trans_arg = &args[i];
 			trans_res = Z_RES_P(trans_arg);
 			i++;
 		} else {
-			if (Z_TYPE(args[i]) == IS_OBJECT) {
-				link = _fbird_get_link_from_obj(&args[i]);
-			} else {
-				link = (fbird_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_link);
-				if (!link) link = (fbird_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_plink);
+			link = (fbird_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_link);
+			if (!link) {
+				link = (fbird_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_plink);
 			}
 			if (link) {
 				link_arg = &args[i];
@@ -1205,15 +1197,10 @@ PHP_FUNCTION(fbird_prepare)
 		}
 	}
 
-	if (i == 1 && i < argc && (Z_TYPE(args[i]) == IS_RESOURCE || Z_TYPE(args[i]) == IS_OBJECT)) {
+	if (i == 1 && i < argc && Z_TYPE(args[i]) == IS_RESOURCE) {
 		if (trans) {
-			fbird_db_link *l = NULL;
-			if (Z_TYPE(args[i]) == IS_OBJECT) {
-				l = _fbird_get_link_from_obj(&args[i]);
-			} else {
-				l = (fbird_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_link);
-				if (!l) l = (fbird_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_plink);
-			}
+			fbird_db_link *l = (fbird_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_link);
+			if (!l) l = (fbird_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_plink);
 			if (l) {
 				link = l;
 				link_arg = &args[i];
@@ -1239,7 +1226,9 @@ PHP_FUNCTION(fbird_prepare)
 	}
 
 	if (!link && !trans) {
-		FBIRD_GET_LINK(NULL, link);
+		if (IBG(default_link)) {
+			link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), "Firebird link", le_link, le_plink);
+		}
 		if (!link) {
 			efree(args);
 			_php_fbird_module_error("No default connection");
@@ -1411,7 +1400,13 @@ PHP_FUNCTION(fbird_affected_rows)
 		return;
 	}
 
-	FBIRD_GET_LINK(link_arg, link);
+	if (link_arg) {
+		FBIRD_VALIDATE_LINK_EX(link_arg, 1, link);
+	} else {
+		if (IBG(default_link)) {
+			link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), "Firebird link", le_link, le_plink);
+		}
+	}
 
 	if (!link) {
 		RETURN_FALSE;
@@ -1591,8 +1586,8 @@ PHP_FUNCTION(fbird_execute_auto)
     }
 
     /* Start autonomous transaction via OO API */
-    uintptr_t attachment = fbc_get_attachment_64(link->fbc_connection);
-    oo_trans = (fbt_transaction_t*)fbt_start_64(IBG(master_instance), attachment, 0, NULL, IB_STATUS);
+    void *attachment = fbc_get_attachment(link->fbc_connection);
+    oo_trans = fbt_start(IBG(master_instance), attachment, 0, NULL, IB_STATUS);
     if (!oo_trans) {
         _php_fbird_error();
         RETURN_FALSE;
@@ -1739,209 +1734,3 @@ PHP_FUNCTION(fbird_query_params_tx)
 }
 
 #endif /* HAVE_FIREBIRD */
-
-extern "C" {
-
-PHP_FUNCTION(fbird_gen_id)
-{
-	zval *link = NULL;
-	char query[128], *generator;
-	size_t gen_len;
-	zend_long inc = 1;
-	fbird_db_link *ib_link = NULL;
-	fbird_transaction *trans = NULL;
-	ISC_INT64 result = 0;
-	void *attachment = NULL;
-	void *transaction_ptr = NULL;
-	void *stmt = NULL;
-
-	RESET_ERRMSG;
-
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "s|lz!", &generator, &gen_len, &inc, &link) == FAILURE) {
-		return;
-	}
-
-	if (link == NULL) {
-		ib_link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), LE_LINK, le_link, le_plink);
-	} else if (Z_TYPE_P(link) == IS_RESOURCE) {
-		ib_link = (fbird_db_link *)zend_fetch_resource2_ex(link, LE_LINK, le_link, le_plink);
-	} else {
-		ib_link = _fbird_get_link(link);
-	}
-	if (!ib_link) {
-		php_error_docref(NULL, E_WARNING, "A link to the server could not be established");
-		RETURN_FALSE;
-	}
-
-	if (gen_len > 31) {
-		php_error_docref(NULL, E_WARNING, "Invalid generator name (length > 31 characters)");
-		RETURN_FALSE;
-	}
-
-	if (!is_valid_identifier(generator, gen_len)) {
-		php_error_docref(NULL, E_WARNING, "Invalid generator name (contains invalid characters)");
-		RETURN_FALSE;
-	}
-
-	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
-
-	/* OO API Only: Verify connection has OO API handle */
-	if (ib_link->fbc_connection == NULL) {
-		_php_fbird_module_error("Connection has no OO API handle");
-		RETURN_FALSE;
-	}
-
-	/* OO API Only: Verify transaction has OO API handle */
-	if (trans->fbt_transaction == NULL) {
-		_php_fbird_module_error("Transaction has no OO API handle");
-		RETURN_FALSE;
-	}
-
-	snprintf(query, sizeof(query), "SELECT GEN_ID(%s,%ld) FROM rdb$database", generator, inc);
-
-	/* Get attachment from connection */
-	attachment = fbc_get_attachment(ib_link->fbc_connection);
-	if (!attachment) {
-		_php_fbird_module_error("Failed to get attachment from connection");
-		RETURN_FALSE;
-	}
-
-	/* Get transaction handle */
-	transaction_ptr = fbt_get_handle(trans->fbt_transaction);
-	if (!transaction_ptr) {
-		_php_fbird_module_error("Failed to get transaction handle");
-		RETURN_FALSE;
-	}
-
-	/* Prepare the query via OO API */
-	stmt = fbs_prepare(IBG(master_instance), attachment, transaction_ptr,
-		query, (unsigned)strlen(query), SQL_DIALECT_CURRENT, IB_STATUS);
-	if (!stmt) {
-		_php_fbird_error();
-		RETURN_FALSE;
-	}
-
-	/* Execute the statement and fetch the result via OO API */
-	result = fbs_execute_singleton_int64(IBG(master_instance), stmt, transaction_ptr, IB_STATUS);
-
-	/* Check for errors (result 0 could be valid, check status) */
-	if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
-		_php_fbird_error();
-		fbs_free(stmt, IB_STATUS);
-		RETURN_FALSE;
-	}
-
-	/* Free the statement */
-	fbs_free(stmt, IB_STATUS);
-
-	/* don't return the generator value as a string unless it doesn't fit in a long */
-#if SIZEOF_ZEND_LONG < 8
-	if (result < ZEND_LONG_MIN || result > ZEND_LONG_MAX) {
-		char *res;
-		int l;
-
-		l = spprintf(&res, 0, "%" LL_MASK "d", result);
-		RETURN_STRINGL(res, l);
-	}
-#endif
-	RETURN_LONG((zend_long)result);
-}
-
-/* {{{ proto mixed fbird_last_insert_id(resource link_identifier [, string sequence])
-   Returns the last generated value for a sequence/generator without incrementing.
-   If sequence is omitted, returns false (Firebird has no implicit last-insert-id). */
-PHP_FUNCTION(fbird_last_insert_id)
-{
-	zval *link = NULL;
-	char *sequence = NULL;
-	size_t seq_len = 0;
-	fbird_db_link *ib_link = NULL;
-	fbird_transaction *trans = NULL;
-
-	RESET_ERRMSG;
-
-	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "z!|s", &link, &sequence, &seq_len)) {
-		RETURN_FALSE;
-	}
-
-	if (!sequence || seq_len == 0) {
-		/* Firebird has no implicit last-insert-id — sequence name is required */
-		php_error_docref(NULL, E_WARNING,
-			"Firebird requires a sequence/generator name to retrieve the last generated value");
-		RETURN_FALSE;
-	}
-
-	if (seq_len > 31) {
-		php_error_docref(NULL, E_WARNING, "Invalid sequence name (length > 31 characters)");
-		RETURN_FALSE;
-	}
-
-	if (link == NULL) {
-		ib_link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), LE_LINK, le_link, le_plink);
-	} else if (Z_TYPE_P(link) == IS_RESOURCE) {
-		ib_link = (fbird_db_link *)zend_fetch_resource2_ex(link, LE_LINK, le_link, le_plink);
-	} else {
-		ib_link = _fbird_get_link(link);
-	}
-	if (!ib_link) {
-		php_error_docref(NULL, E_WARNING, "A link to the server could not be established");
-		RETURN_FALSE;
-	}
-
-	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
-
-	if (ib_link->fbc_connection == NULL) {
-		_php_fbird_module_error("Connection has no OO API handle");
-		RETURN_FALSE;
-	}
-
-	if (trans->fbt_transaction == NULL) {
-		_php_fbird_module_error("Transaction has no OO API handle");
-		RETURN_FALSE;
-	}
-
-	char query[128];
-	snprintf(query, sizeof(query), "SELECT GEN_ID(%s,0) FROM rdb$database", sequence);
-
-	void *attachment = fbc_get_attachment(ib_link->fbc_connection);
-	if (!attachment) {
-		_php_fbird_module_error("Failed to get attachment from connection");
-		RETURN_FALSE;
-	}
-
-	void *transaction_ptr = fbt_get_handle(trans->fbt_transaction);
-	if (!transaction_ptr) {
-		_php_fbird_module_error("Failed to get transaction handle");
-		RETURN_FALSE;
-	}
-
-	void *stmt = fbs_prepare(IBG(master_instance), attachment, transaction_ptr,
-		query, (unsigned)strlen(query), SQL_DIALECT_CURRENT, IB_STATUS);
-	if (!stmt) {
-		_php_fbird_error();
-		RETURN_FALSE;
-	}
-
-	ISC_INT64 result = fbs_execute_singleton_int64(IBG(master_instance), stmt, transaction_ptr, IB_STATUS);
-
-	if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
-		_php_fbird_error();
-		fbs_free(stmt, IB_STATUS);
-		RETURN_FALSE;
-	}
-
-	fbs_free(stmt, IB_STATUS);
-
-#if SIZEOF_ZEND_LONG < 8
-	if (result < ZEND_LONG_MIN || result > ZEND_LONG_MAX) {
-		char *res;
-		int l;
-		l = spprintf(&res, 0, "%" LL_MASK "d", result);
-		RETURN_STRINGL(res, l);
-	}
-#endif
-	RETURN_LONG((zend_long)result);
-}
-/* }}} */
-
-}

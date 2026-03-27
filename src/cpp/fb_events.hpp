@@ -23,7 +23,6 @@
 
 #include <firebird/Interface.h>
 #include <ibase.h>
-#include "php_fbird_includes.h"
 #include <atomic>
 #include <cstring>
 #include <memory>
@@ -277,35 +276,35 @@ private:
  * ============================================================================= */
 extern "C" {
 
-int fbe_cancel(fbc_master_t* master_ptr, fbe_events_t* events_wrapper, ISC_STATUS* status_vector) {
+int fbe_cancel(void* master_ptr, void* events_wrapper, ISC_STATUS* status_vector) {
     if (!events_wrapper) return 0; // Nothing to cancel
     if (!master_ptr) return 1;
-    auto* wrapper = reinterpret_cast<fb::EventsWrapper*>(events_wrapper);
-    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::EventsWrapper*>(events_wrapper);
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     return wrapper->cancel(master, status_vector) ? 0 : 1;
 }
 
-void fbe_free(fbe_events_t* events_wrapper) {
+void fbe_free(void* events_wrapper) {
     if (!events_wrapper) return;
-    auto* wrapper = reinterpret_cast<fb::EventsWrapper*>(events_wrapper);
+    auto* wrapper = static_cast<fb::EventsWrapper*>(events_wrapper);
     delete wrapper;
 }
 
-int fbe_has_event_fired(fbe_events_t* events_wrapper) {
+int fbe_has_event_fired(void* events_wrapper) {
     if (!events_wrapper) return 0;
-    auto* wrapper = reinterpret_cast<fb::EventsWrapper*>(events_wrapper);
+    auto* wrapper = static_cast<fb::EventsWrapper*>(events_wrapper);
     return wrapper->hasEventOccurred() ? 1 : 0;
 }
 
-void fbe_reset_event_fired(fbe_events_t* events_wrapper) {
+void fbe_reset_event_fired(void* events_wrapper) {
     if (!events_wrapper) return;
-    auto* wrapper = reinterpret_cast<fb::EventsWrapper*>(events_wrapper);
+    auto* wrapper = static_cast<fb::EventsWrapper*>(events_wrapper);
     wrapper->resetEvent();
 }
 
-int fbe_is_queued(fbe_events_t* events_wrapper) {
+int fbe_is_queued(void* events_wrapper) {
     if (!events_wrapper) return 0;
-    auto* wrapper = reinterpret_cast<fb::EventsWrapper*>(events_wrapper);
+    auto* wrapper = static_cast<fb::EventsWrapper*>(events_wrapper);
     return wrapper->isActive() ? 1 : 0;
 }
 

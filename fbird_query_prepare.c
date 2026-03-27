@@ -259,7 +259,7 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link,
 	 * Uses IStatement interface via fbs_prepare() wrapper.
 	 * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
 	 */
-	fba_attachment_t *attachment_ptr = fbc_get_attachment(link->fbc_connection);
+	void *attachment_ptr = fbc_get_attachment(link->fbc_connection);
 	void *transaction_ptr = fbt_get_handle(trans->fbt_transaction);
 
 	if (!attachment_ptr || !transaction_ptr) {

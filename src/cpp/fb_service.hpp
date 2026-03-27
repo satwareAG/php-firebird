@@ -308,7 +308,7 @@ extern "C" {
 /**
  * Attach to the service manager using OO API.
  */
-fbsvc_service_t* fbsvc_attach(fbc_master_t* master_ptr,
+void* fbsvc_attach(void* master_ptr,
                           const char* service_name,
                           unsigned spb_length,
                           const unsigned char* spb,
@@ -323,7 +323,7 @@ fbsvc_service_t* fbsvc_attach(fbc_master_t* master_ptr,
         return nullptr;
     }
 
-    auto* master = reinterpret_cast<Firebird::IMaster*>(master_ptr);
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* wrapper = new (std::nothrow) fb::ServiceWrapper();
     if (!wrapper) {
         if (status_vector) {
@@ -339,13 +339,13 @@ fbsvc_service_t* fbsvc_attach(fbc_master_t* master_ptr,
         return nullptr;
     }
 
-    return reinterpret_cast<fbsvc_service_t*>(wrapper);
+    return wrapper;
 }
 
 /**
  * Detach from the service manager.
  */
-int fbsvc_detach(fbc_master_t* master_ptr, fbsvc_service_t* service_wrapper, ISC_STATUS* status_vector)
+int fbsvc_detach(void* master_ptr, void* service_wrapper, ISC_STATUS* status_vector)
 {
     (void)master_ptr; // Unused, kept for API consistency
 
@@ -353,15 +353,15 @@ int fbsvc_detach(fbc_master_t* master_ptr, fbsvc_service_t* service_wrapper, ISC
         return 1; // Already detached
     }
 
-    auto* wrapper = reinterpret_cast<fb::ServiceWrapper*>(service_wrapper);
+    auto* wrapper = static_cast<fb::ServiceWrapper*>(service_wrapper);
     return wrapper->detach(status_vector) ? 1 : 0;
 }
 
 /**
  * Start a service task.
  */
-int fbsvc_start(fbc_master_t* master_ptr,
-                       fbsvc_service_t* service_wrapper,
+int fbsvc_start(void* master_ptr,
+                       void* service_wrapper,
                        unsigned spb_length,
                        const unsigned char* spb,
                        ISC_STATUS* status_vector)
@@ -377,15 +377,15 @@ int fbsvc_start(fbc_master_t* master_ptr,
         return 0;
     }
 
-    auto* wrapper = reinterpret_cast<fb::ServiceWrapper*>(service_wrapper);
+    auto* wrapper = static_cast<fb::ServiceWrapper*>(service_wrapper);
     return wrapper->start(spb_length, spb, status_vector) ? 1 : 0;
 }
 
 /**
  * Query service status/results.
  */
-int fbsvc_query(fbc_master_t* master_ptr,
-                       fbsvc_service_t* service_wrapper,
+int fbsvc_query(void* master_ptr,
+                       void* service_wrapper,
                        unsigned send_length,
                        const unsigned char* send_items,
                        unsigned recv_length,
@@ -405,7 +405,7 @@ int fbsvc_query(fbc_master_t* master_ptr,
         return 0;
     }
 
-    auto* wrapper = reinterpret_cast<fb::ServiceWrapper*>(service_wrapper);
+    auto* wrapper = static_cast<fb::ServiceWrapper*>(service_wrapper);
     return wrapper->query(send_length, send_items, recv_length, recv_items,
                          buffer_length, buffer, status_vector) ? 1 : 0;
 }
@@ -413,23 +413,23 @@ int fbsvc_query(fbc_master_t* master_ptr,
 /**
  * Check if attached to service manager.
  */
-int fbsvc_is_attached(fbsvc_service_t* service_wrapper)
+int fbsvc_is_attached(void* service_wrapper)
 {
     if (!service_wrapper) {
         return 0;
     }
 
-    auto* wrapper = reinterpret_cast<fb::ServiceWrapper*>(service_wrapper);
+    auto* wrapper = static_cast<fb::ServiceWrapper*>(service_wrapper);
     return wrapper->isAttached() ? 1 : 0;
 }
 
 /**
  * Free service wrapper.
  */
-void fbsvc_free(fbsvc_service_t* service_wrapper)
+void fbsvc_free(void* service_wrapper)
 {
     if (service_wrapper) {
-        auto* wrapper = reinterpret_cast<fb::ServiceWrapper*>(service_wrapper);
+        auto* wrapper = static_cast<fb::ServiceWrapper*>(service_wrapper);
         delete wrapper;
     }
 }

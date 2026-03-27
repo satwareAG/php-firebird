@@ -269,6 +269,25 @@ int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 			}
 			*(ISC_TIME_TZ *)dest_var->sqldata = *(ISC_TIME_TZ *)src_var->sqldata;
 			break;
+
+		case SQL_INT128:
+		case SQL_DEC16:
+		case SQL_DEC34:
+			if (src_var->sqllen != dest_var->sqllen) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: %s length mismatch for field %d (dest=%d, src=%d)",
+					(dest_var->sqltype & ~1) == SQL_INT128 ? "INT128" : "DECFLOAT",
+					field_index, dest_var->sqllen, src_var->sqllen);
+				return FAILURE;
+			}
+			dest_var->sqldata = emalloc(dest_var->sqllen);
+			if (!dest_var->sqldata) {
+				_php_fbird_module_error("EXECUTE PROCEDURE: Failed to allocate %s data for field %d",
+					(dest_var->sqltype & ~1) == SQL_INT128 ? "INT128" : "DECFLOAT",
+					field_index);
+				return FAILURE;
+			}
+			memcpy(dest_var->sqldata, src_var->sqldata, dest_var->sqllen);
+			break;
 #endif
 
 		default:
@@ -453,7 +472,13 @@ int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query)
 			case SQL_DEC16:
 			case SQL_DEC34:
 				/* Copy the raw bytes - these are fixed-size types */
-				memcpy(dest, var->sqldata, meta_length);
+				if (var->sqllen == (ISC_SHORT)meta_length) {
+					memcpy(dest, var->sqldata, meta_length);
+				} else {
+					_php_fbird_module_error("Parameter %d: %s length mismatch",
+						i + 1, meta_type == SQL_INT128 ? "INT128" : "DECFLOAT");
+					return FAILURE;
+				}
 				break;
 #endif
 

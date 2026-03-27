@@ -6,7 +6,7 @@ tags: [v10, features, pdo, decfloat, int128]
 priority: 5
 ---
 
-> **Status: RESOLVED in v10.0.0** (2026-03-27)
+> **Status: RELEASED in v10.0.0** (2026-03-27)
 > - Part 1 (DECFLOAT/INT128): Verified complete — procedural and PDO APIs handle all types
 > - Part 2 (PDO Batch DML): Implemented in `pdo_fbird_driver.c` with state-machine SQL splitter
 > - Part 3 (Modern Defaults): Already complete in v9

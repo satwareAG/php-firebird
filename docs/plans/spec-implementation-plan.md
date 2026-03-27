@@ -174,3 +174,28 @@ All v10.0.0 development branches consolidated into single `dev/v10` branch.
 - Full report: `docs/plans/v10-test-report.txt`
 
 **Status:** `dev/v10` branch created locally. Not pushed. Build failures are expected - these are pre-existing issues from the modernization work that need to be resolved in subsequent development.
+
+## Release Outcome (2026-03-27) - ✅ COMPLETE
+
+All phases shipped to `satware-main` via PR #133. Tag `v10.0.0` pushed.
+
+> **Note**: The "Branch Consolidation" section above describes an intermediate working state
+> (2026-03-27 morning) when build failures existed. All issues were resolved before release.
+
+| Phase | Status | Shipped |
+|-------|--------|---------|
+| 0: Build Fix (#132) | ✅ RELEASED | `firebird_legacy_wrappers.h/.c`, `config.m4` |
+| 1A: Legacy Cleanup | ✅ RELEASED | `src/php_fbird_compat.h`, dead code removed |
+| 1B: Typed Objects (#120) | ✅ RELEASED | `Firebird\Connection`, `fbird_connect_typed_001.phpt` |
+| 2A: void* Elimination | ✅ RELEASED | `firebird_utils_typed.h` (12 typed structs) |
+| 2B: DECFLOAT/INT128 | ✅ RELEASED | `fbird_query_bind.c`, `fbird_metadata.c` |
+| 2C: PDO Batch | ✅ RELEASED | `pdo_fbird_driver.c`, `pdo_fbird_batch_dml.phpt` |
+| 3: Release | ✅ RELEASED | VERSION=10.0.0, CHANGELOG, README badge, stubs synced |
+
+**Final CI gate (all green):**
+- PHP 8.2/8.3/8.4/8.5 × Firebird 3.0/4.0/5.0: 12/12 ✅
+- ASan + UBSan + LeakSan: ✅
+- Windows NTS/TS × PHP 8.2/8.3/8.4/8.5: 8/8 ✅
+- PHPStan Level 8: ✅
+- Stubs sync (89/89): ✅
+- Code coverage: 54.7% ≥ 54% gate ✅

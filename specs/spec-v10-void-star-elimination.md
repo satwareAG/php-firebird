@@ -6,7 +6,7 @@ tags: [v10, type-safety, refactoring, firebird-utils]
 priority: 3
 ---
 
-> **Status: RESOLVED in v10.0.0** (2026-03-27)
+> **Status: RELEASED in v10.0.0** (2026-03-27)
 > firebird_utils_typed.h created with 12 typed opaque struct wrappers.
 > Call sites can migrate incrementally using the zero-overhead inline wrappers.
 

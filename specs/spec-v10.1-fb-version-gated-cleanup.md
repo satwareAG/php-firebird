@@ -2,7 +2,7 @@
 
 **Issues**: #139 (statement), #140 (ISC_TEB)
 **Milestone**: v10.1.0
-**Status**: Active
+**Status**: RELEASED in v10.1.0
 
 ## Goal
 

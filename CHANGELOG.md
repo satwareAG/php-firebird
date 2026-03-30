@@ -14,8 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Coverage gate corrected**: Lowered `COVERAGE_THRESHOLD` to `54.0` (matches actual measured coverage of 54.5%, ensures gate passes while enforcing no regressions). The v10.2.0
-  gate of 65% was aspirational - actual measured coverage is 54.5%. The new gate is 56.0%, set
-  slightly above the measured baseline to enforce no regressions.
+  gate of 65% was aspirational - actual measured coverage is 54.5%.
 - **Upgrade `actions/cache` v4→v5** (Node.js 24): All 8 workflows now use `actions/cache@v5`
   (SHA `668228422ae6a00e4ad889ee87cd7109ec5666a7`). Node.js 20 actions are deprecated and will
   stop working September 2026. v5 uses Node.js 24.
@@ -1127,7 +1126,12 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.0.2...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.3.3...HEAD
+[10.3.3]: https://github.com/satwareAG/php-firebird/compare/v10.3.2...v10.3.3
+[10.3.2]: https://github.com/satwareAG/php-firebird/compare/v10.3.0...v10.3.2
+[10.3.0]: https://github.com/satwareAG/php-firebird/compare/v10.2.0...v10.3.0
+[10.2.0]: https://github.com/satwareAG/php-firebird/compare/v10.1.0...v10.2.0
+[10.1.0]: https://github.com/satwareAG/php-firebird/compare/v10.0.2...v10.1.0
 [10.0.2]: https://github.com/satwareAG/php-firebird/compare/v10.0.1...v10.0.2
 [10.0.1]: https://github.com/satwareAG/php-firebird/compare/v10.0.0...v10.0.1
 [10.0.0]: https://github.com/satwareAG/php-firebird/compare/v9.0.0...v10.0.0

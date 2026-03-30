@@ -448,17 +448,25 @@ public:
                 if (fb_status) {
                     fb_status->init();
                     Firebird::CheckStatusWrapper cs(fb_status);
-                    result_set_->close(&cs);
-                    bool had_error = statusHasError(fb_status);
-                    if (had_error && status_vector) {
-                        copyStatusToVector(fb_status, status_vector);
+                    bool had_error = false;
+                    if (cursor_open_) {
+                        // Cursor still open on server: close() sends DSQL_close + release.
+                        // This is the key server-side RAM fix from #135.
+                        result_set_->close(&cs);
+                        had_error = statusHasError(fb_status);
+                        if (had_error && status_vector) {
+                            copyStatusToVector(fb_status, status_vector);
+                        }
+                    } else {
+                        // fetchNext() already returned EOF/error: server implicitly
+                        // closed the cursor. On Firebird 3.0, calling close() on an
+                        // already-closed result set causes a segfault (double-close,
+                        // see #137). Use release() — always safe, just decrements
+                        // the C++ interface refcount.
+                        result_set_->release();
                     }
                     // NOTE: do NOT call fb_status->dispose() here.
-                    // The CheckStatusWrapper (cs) destructor accesses fb_status
-                    // when it goes out of scope on return. Calling dispose() first
-                    // causes a use-after-free segfault on Firebird 3.0 (see #136).
-                    // IStatus lifetime is managed by IMaster; consistent with all
-                    // other methods in this class.
+                    // CheckStatusWrapper destructor accesses fb_status on scope exit.
                     result_set_ = nullptr;
                     cursor_open_ = false;
                     return !had_error;
@@ -517,9 +525,7 @@ public:
                         copyStatusToVector(fb_status, status_vector);
                     }
                     // NOTE: do NOT call fb_status->dispose() here.
-                    // Same reason as closeCursor(): CheckStatusWrapper (cs) destructor
-                    // accesses fb_status on return. Calling dispose() first causes a
-                    // use-after-free segfault on Firebird 3.0 (see #136).
+                    // CheckStatusWrapper destructor accesses fb_status on scope exit.
                     statement_ = nullptr;
                     prepared_ = false;
                     return !had_error;

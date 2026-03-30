@@ -511,27 +511,18 @@ public:
         }
 
         try {
-            // IStatement::free() frees the server-side prepared statement AND
-            // releases the interface (no separate release() needed afterwards).
-            Firebird::IMaster* master = Firebird::fb_get_master_interface();
-            if (master) {
-                Firebird::IStatus* fb_status = master->getStatus();
-                if (fb_status) {
-                    fb_status->init();
-                    Firebird::CheckStatusWrapper cs(fb_status);
-                    statement_->free(&cs);
-                    bool had_error = statusHasError(fb_status);
-                    if (had_error && status_vector) {
-                        copyStatusToVector(fb_status, status_vector);
-                    }
-                    // NOTE: do NOT call fb_status->dispose() here.
-                    // CheckStatusWrapper destructor accesses fb_status on scope exit.
-                    statement_ = nullptr;
-                    prepared_ = false;
-                    return !had_error;
-                }
-            }
-            // Fallback: just release (may not free server-side statement immediately)
+            // Use release() to decrement the C++ interface refcount.
+            //
+            // NOTE: IStatement::free() (DSQL_drop equivalent) was tried here to
+            // fix server-side RAM accumulation from DML queries (#135), but it
+            // causes a segfault on Firebird 3.0 during connection cleanup (#137).
+            // The IStatement::free() call appears to leave the server-side
+            // connection in an invalid state on FB 3.0 when the statement was
+            // associated with an active (uncommitted) transaction.
+            //
+            // The DML-specific #135 fix must be reimplemented with Firebird client
+            // version detection (fb_get_master_interface()->getVersion() >= 4).
+            // Until then, release() is the safe choice for all FB versions.
             statement_->release();
             statement_ = nullptr;
             prepared_ = false;

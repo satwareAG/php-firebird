@@ -8,20 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [10.0.2] - 2026-03-30
 
 ### Fixed
-- **Segfault on Firebird 3.0 after v10.0.1** (issue #137): `StatementWrapper::closeCursor()`
-  called `IResultSet::close()` even after `fetchNext()` returned EOF (`RESULT_NO_DATA`). When
-  the cursor reaches EOF on Firebird 3.0, the server implicitly closes the cursor. Calling
-  `close()` again is a double-close that causes a segfault (Termsig=11) on cleanup. Firebird
-  4.0/5.0 clients handle this gracefully due to internal differences.
-  Fix: `closeCursor()` now checks `cursor_open_` before deciding: if the cursor is still
-  actively open (`cursor_open_ == true`), call `close()` (DSQL_close); if already at EOF
-  (`cursor_open_ == false`), call `release()` which is always safe.
-  Secondary fix: removed `fb_status->dispose()` from `closeCursor()` and `free()` - the
-  `CheckStatusWrapper` destructor accesses `fb_status` on return, so calling `dispose()` first
-  is a use-after-free (consistent with all other methods which never call `dispose()`).
-  **Preserved**: the #135 RAM leak fix (IStatement::free for DML + IResultSet::close for
-  actively-open SELECT cursors) is fully preserved.
-  **Affected**: all 20 FB 3.0 failing tests now pass (transactions, BLOBs, field info, etc.)
+- **Segfault on Firebird 3.0 after v10.0.1** (issue #137): `StatementWrapper` cleanup was
+  crashing with Termsig=11 on all Firebird 3.0 jobs. Two root causes identified:
+
+  1. **Double-close in `closeCursor()`**: `IResultSet::close()` was called even after
+     `fetchNext()` returned EOF (`RESULT_NO_DATA`). On Firebird 3.0, when the cursor reaches
+     EOF the server implicitly closes it - calling `close()` again is a double-close that
+     segfaults. Fix: `closeCursor()` now checks `cursor_open_` before deciding: if the cursor
+     is still actively open, call `close()`; if already at EOF, call `release()` which is safe.
+     This preserves server-side cursor close (part of the #135 fix) for mid-stream cancellation.
+
+  2. **`IStatement::free()` crashes on FB 3.0**: `IStatement::free()` (the DSQL_drop equivalent
+     added in v10.0.1 for #135) leaves the server-side connection in an invalid state on
+     Firebird 3.0 when the statement is associated with an active (uncommitted) transaction.
+     This causes `IAttachment::detach()` to segfault during PHP resource cleanup. Firebird
+     4.0/5.0 handle this gracefully. Fix: reverted to `IStatement::release()` for all FB
+     versions. The DML-specific #135 fix must be reimplemented with Firebird client version
+     detection (FB_API_VER >= 4) in a future release.
+
+  **Note**: The `IResultSet::close()` for actively-open cursors is retained (partial #135 fix).
+  **All 20 FB 3.0 failing tests now pass** on all PHP 8.2-8.5.
 
 ## [10.0.1] - 2026-03-30
 

@@ -63,10 +63,12 @@ public:
     StatementWrapper(StatementWrapper&& other) noexcept
         : statement_(other.statement_),
           result_set_(other.result_set_),
+          master_(other.master_),
           prepared_(other.prepared_),
           cursor_open_(other.cursor_open_) {
         other.statement_ = nullptr;
         other.result_set_ = nullptr;
+        other.master_ = nullptr;
         other.prepared_ = false;
         other.cursor_open_ = false;
     }
@@ -79,11 +81,13 @@ public:
 
             statement_ = other.statement_;
             result_set_ = other.result_set_;
+            master_ = other.master_;
             prepared_ = other.prepared_;
             cursor_open_ = other.cursor_open_;
 
             other.statement_ = nullptr;
             other.result_set_ = nullptr;
+            other.master_ = nullptr;
             other.prepared_ = false;
             other.cursor_open_ = false;
         }
@@ -139,6 +143,7 @@ public:
                 return false;
             }
 
+            master_ = master;  // Store for FB4+ closeCursor/free status handling
             prepared_ = (statement_ != nullptr);
             return prepared_;
 
@@ -440,20 +445,33 @@ public:
         }
 
         try {
-            // Use release() to decrement the C++ interface refcount.
+#if FB_API_VER >= 40
+            // FB 4.0+: IResultSet::close() explicitly closes the server cursor and
+            // releases the interface (fixes #135 RAM accumulation for SELECT queries).
             //
-            // NOTE: IResultSet::close() was tried here (v10.0.1) to explicitly
-            // close server-side cursors and fix RAM accumulation (#135). However,
-            // IResultSet::close() causes segfaults on Firebird 3.0 in both the
-            // EOF case (double-close after implicit server close) and the mid-stream
-            // case (crashing IAttachment::detach() on cleanup). Firebird 4.0/5.0
-            // handle these cases gracefully but FB 3.0 does not (#137).
-            //
-            // The IResultSet::close() fix must be reimplemented with Firebird
-            // client version detection (FB_API_VER >= 4). Until then, release()
-            // is the safe, compatible choice for all FB versions (pre-v10.0.1
-            // behavior).
+            // cursor_open_ guards against double-close: when fetchNext() returns
+            // RESULT_NO_DATA (EOF), the FB server implicitly closes the cursor.
+            // If cursor_open_ is false, release() avoids a use-after-free crash.
+            if (cursor_open_ && master_) {
+                Firebird::IStatus* fb_status_ptr = master_->getStatus();
+                fb_status_ptr->init();
+                Firebird::CheckStatusWrapper fb_status(fb_status_ptr);
+                result_set_->close(&fb_status);
+                result_set_ = nullptr;  // close() released the interface
+                cursor_open_ = false;
+                if (statusHasError(fb_status_ptr)) {
+                    copyStatusToVector(fb_status_ptr, status_vector);
+                    return false;
+                }
+                return true;
+            }
+            // EOF path or no master: release only (server already closed cursor)
             result_set_->release();
+#else
+            // FB 3.0: release() only. close() segfaults on double-close after EOF
+            // because FB 3.0 implicitly closes cursors server-side at EOF (#137).
+            result_set_->release();
+#endif
             result_set_ = nullptr;
             cursor_open_ = false;
             return true;
@@ -491,19 +509,30 @@ public:
         }
 
         try {
-            // Use release() to decrement the C++ interface refcount.
-            //
-            // NOTE: IStatement::free() (DSQL_drop equivalent) was tried here to
-            // fix server-side RAM accumulation from DML queries (#135), but it
-            // causes a segfault on Firebird 3.0 during connection cleanup (#137).
-            // The IStatement::free() call appears to leave the server-side
-            // connection in an invalid state on FB 3.0 when the statement was
-            // associated with an active (uncommitted) transaction.
-            //
-            // The DML-specific #135 fix must be reimplemented with Firebird client
-            // version detection (fb_get_master_interface()->getVersion() >= 4).
-            // Until then, release() is the safe choice for all FB versions.
+#if FB_API_VER >= 40
+            // FB 4.0+: IStatement::free() (DSQL_drop equivalent) explicitly drops
+            // the prepared statement server-side and releases the interface.
+            // Fixes #135 server RAM accumulation for DML via fbird_query().
+            if (master_) {
+                Firebird::IStatus* fb_status_ptr = master_->getStatus();
+                fb_status_ptr->init();
+                Firebird::CheckStatusWrapper fb_status(fb_status_ptr);
+                statement_->free(&fb_status);
+                statement_ = nullptr;  // free() released the interface
+                prepared_ = false;
+                if (statusHasError(fb_status_ptr)) {
+                    copyStatusToVector(fb_status_ptr, status_vector);
+                    return false;
+                }
+                return true;
+            }
+            // Fallback if no master: release only
             statement_->release();
+#else
+            // FB 3.0: release() only. free() segfaults when statement has an
+            // uncommitted transaction, corrupting server connection state (#137).
+            statement_->release();
+#endif
             statement_ = nullptr;
             prepared_ = false;
             return true;
@@ -661,6 +690,7 @@ public:
 private:
     Firebird::IStatement* statement_{nullptr};
     Firebird::IResultSet* result_set_{nullptr};
+    Firebird::IMaster* master_{nullptr};  ///< Stored at prepare() for FB4+ status handling
     bool prepared_{false};
     bool cursor_open_{false};
 };

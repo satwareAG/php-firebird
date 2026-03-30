@@ -5,6 +5,33 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.1.0] - 2026-03-30
+
+### Fixed
+- **Server RAM leak on FB 4.0+ restored** (issues #139, #135): Re-implement `IStatement::free()`
+  and `IResultSet::close()` using compile-time version gating (`#if FB_API_VER >= 40`).
+  - `StatementWrapper::closeCursor()`: On FB 4.0+, calls `IResultSet::close()` when cursor is
+    still open (fixes #135 RAM accumulation for SELECT). Uses `release()` when cursor was already
+    at EOF (guards double-close: FB server implicitly closes cursor at EOF). On FB 3.0, uses
+    `release()` only (safe, prevents segfault from double-close #137).
+  - `StatementWrapper::free()`: On FB 4.0+, calls `IStatement::free()` (DSQL_drop equivalent,
+    drops prepared statement server-side, fixes #135 DML RAM accumulation). On FB 3.0, uses
+    `release()` only (prevents segfault from uncommitted-transaction state corruption #137).
+  - Added `master_` member to `StatementWrapper` (stored during `prepare()`) to provide
+    `IMaster::getStatus()` access for FB4+ OO API cleanup calls.
+  - **FB 3.0 behavior unchanged** - identical to v10.0.2 safe baseline.
+  - **FB 4.0/5.0**: Server RAM no longer grows unboundedly with repeated DML/SELECT calls.
+- **Removed ISC_TEB dead code from `fbird_trans()`** (issue #140): The `ISC_TEB` struct
+  allocation and `fbc_get_legacy_handle_ptr()` call were effectively dead code in the multi-db
+  branch (which returns "not yet supported" before `teb[]` could be used). Also fixed a
+  memory leak: `safe_emalloc'd` teb was not freed on all error paths. Replaced with a single
+  `unsigned short link0_tpb_len` local variable for the single-connection OO API path.
+
+### Added
+- `tests/fbird_query_stmt_release_002.phpt`: 500 DML + 50 SELECT statements on FB 4.0+,
+  verifying `IStatement::free()` and `IResultSet::close()` operate without error. Skips on
+  Firebird server < 4.0.
+
 ## [10.0.2] - 2026-03-30
 
 ### Fixed

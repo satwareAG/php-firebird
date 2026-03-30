@@ -8,6 +8,8 @@ priority: 1
 
 # v10.0.0 Implementation Plan
 
+> **Status**: COMPLETED 2026-03-30 — All items shipped in v10.0.0.
+
 ## Dependency Graph
 
 ```text

@@ -1,8 +1,8 @@
 # php-firebird — Project Brief
 
-**Version**: 7.2.0
-**Last Updated**: 2026-03-04
-**Status**: Stable — v7.2.0 Released
+**Version**: 10.0.0
+**Last Updated**: 2026-03-30
+**Status**: Stable — v10.0.0 Released
 
 ---
 
@@ -43,13 +43,14 @@ extension, renamed to `fbird_*` prefix. The `ibase_*` aliases were fully removed
 
 | Version | Date | Highlights |
 |---------|------|-----------|
+| **10.0.0** | 2026-03-30 | Major version bump: v10.0.0 stable release |
 | **7.2.0** | 2026-03-04 | Drop PHP 8.1, Firebird 2.5, `ibase_*` aliases removed |
 | 7.1.0 | 2026-03-04 | `fbird_query_params_tx()`, deprecation warnings for v7.2.0 changes |
 | 7.0.0 | 2026-02-xx | Major refactor: source split, coverage ≥80%, sanitizer-clean |
 
 ---
 
-## v7.2.0 Breaking Changes
+## v10.0.0 Breaking Changes
 
 | Change | Details |
 |--------|---------|
@@ -122,7 +123,7 @@ Firebird server (3.0 / 4.0 / 5.0)
 
 ---
 
-## v7.2.0 Success Criteria (All Met ✅)
+## v10.0.0 Success Criteria (All Met ✅)
 
 - [x] All tests pass on PHP 8.2–8.4 × Firebird 3.0–5.0
 - [x] Overall code coverage ≥ 80% (lcov)
@@ -130,9 +131,9 @@ Firebird server (3.0 / 4.0 / 5.0)
 - [x] `ibase_*` aliases fully removed
 - [x] PHP 8.1 support removed from CI and composer.json
 - [x] Firebird 2.5 removed from Docker/CI
-- [x] `v7.2.0` tagged and GitHub Release published
+- [x] `v10.0.0` tagged and GitHub Release published
 - [x] Windows DLLs built for PHP 8.2–8.5 NTS/TS
-- [x] Stubs `v7.2.0` tagged on Packagist
+- [x] Stubs `v10.0.0` tagged on Packagist
 
 ---
 
@@ -153,8 +154,9 @@ Each client version is tested independently because `FB_API_VER` determines whic
 
 ---
 
-## Next Development Focus (v7.3.0 / doctrine-firebird-driver)
+## Next Development Focus (v10.0.1 — RAM Leak Fix)
 
+- Fix RAM leak regression identified in issue #135 (v10.0.1 patch release)
 - doctrine-firebird-driver DBAL 4.x forward-compatibility (issue #78)
 - Simplify test suite now PHP 8.1 is dropped (issue #47 in doctrine repo)
 - v3.11.0 release: Configurable LIKE CAST Length (issue #20 in doctrine repo)

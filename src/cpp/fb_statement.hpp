@@ -424,7 +424,13 @@ public:
     }
 
     /**
-     * @brief Close the cursor
+     * @brief Close the cursor, releasing server-side cursor resources.
+     *
+     * Uses IResultSet::close() which explicitly closes the cursor on the server
+     * and then releases the interface (equivalent to isc_dsql_free_statement
+     * DSQL_close). Without this, the cursor stays open on the server until the
+     * attachment closes — causing excessive server RAM with repeated queries.
+     *
      * @return true on success
      */
     bool closeCursor(ISC_STATUS* status_vector) noexcept {
@@ -434,7 +440,26 @@ public:
         }
 
         try {
-            // Try to close properly, but always release
+            // IResultSet::close() closes the server-side cursor AND releases the
+            // interface (no separate release() needed afterwards).
+            Firebird::IMaster* master = Firebird::fb_get_master_interface();
+            if (master) {
+                Firebird::IStatus* fb_status = master->getStatus();
+                if (fb_status) {
+                    fb_status->init();
+                    Firebird::CheckStatusWrapper cs(fb_status);
+                    result_set_->close(&cs);
+                    bool had_error = statusHasError(fb_status);
+                    if (had_error && status_vector) {
+                        copyStatusToVector(fb_status, status_vector);
+                    }
+                    fb_status->dispose();
+                    result_set_ = nullptr;
+                    cursor_open_ = false;
+                    return !had_error;
+                }
+            }
+            // Fallback: just release (may not close cursor on server immediately)
             result_set_->release();
             result_set_ = nullptr;
             cursor_open_ = false;
@@ -453,7 +478,14 @@ public:
     }
 
     /**
-     * @brief Free/unprepare statement
+     * @brief Free/unprepare statement, releasing server-side prepared statement resources.
+     *
+     * Uses IStatement::free() which explicitly frees the prepared statement on the
+     * server and then releases the interface (equivalent to isc_dsql_free_statement
+     * DSQL_drop). Without this, the prepared statement accumulates in server memory
+     * for every fbird_query() DML call — causing excessive server RAM usage
+     * (see GitHub issue #135).
+     *
      * @return true on success
      */
     bool free(ISC_STATUS* status_vector) noexcept {
@@ -466,6 +498,26 @@ public:
         }
 
         try {
+            // IStatement::free() frees the server-side prepared statement AND
+            // releases the interface (no separate release() needed afterwards).
+            Firebird::IMaster* master = Firebird::fb_get_master_interface();
+            if (master) {
+                Firebird::IStatus* fb_status = master->getStatus();
+                if (fb_status) {
+                    fb_status->init();
+                    Firebird::CheckStatusWrapper cs(fb_status);
+                    statement_->free(&cs);
+                    bool had_error = statusHasError(fb_status);
+                    if (had_error && status_vector) {
+                        copyStatusToVector(fb_status, status_vector);
+                    }
+                    fb_status->dispose();
+                    statement_ = nullptr;
+                    prepared_ = false;
+                    return !had_error;
+                }
+            }
+            // Fallback: just release (may not free server-side statement immediately)
             statement_->release();
             statement_ = nullptr;
             prepared_ = false;

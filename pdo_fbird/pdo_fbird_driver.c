@@ -75,7 +75,7 @@ static void pdo_fbird_handle_closer(pdo_dbh_t *dbh)
 	if (!H) return;
 
 	if (H->fbt_trans) {
-		fbt_rollback(H->fbt_trans, H->status);
+		fbt_rollback(H->fbt_trans, NULL);
 		fbt_free(H->fbt_trans);
 		H->fbt_trans = NULL;
 	}
@@ -232,14 +232,40 @@ static zend_long pdo_fbird_handle_doer(pdo_dbh_t *dbh, const zend_string *sql)
 	zend_long total_affected = 0;
 	int        had_statements = 0;
 
+	/* Skip batch splitting for DDL and EXECUTE BLOCK which contain internal semicolons.
+	 * We check the start of the string (ignoring leading whitespace/comments). */
+	const char *scan = src;
+	while (scan < src + src_len && (*scan == ' ' || *scan == '\t' || *scan == '\r' || *scan == '\n')) {
+		scan++;
+	}
+	/* Check for DDL or EXECUTE BLOCK keywords */
+	bool skip_split = false;
+	if (scan < src + src_len) {
+		if (!strncasecmp(scan, "EXECUTE BLOCK", 13) ||
+			!strncasecmp(scan, "CREATE ", 7) ||
+			!strncasecmp(scan, "RECREATE ", 9) ||
+			!strncasecmp(scan, "ALTER ", 6) ||
+			!strncasecmp(scan, "SET TERM", 8)) {
+			skip_split = true;
+		}
+	}
+
 	/* State machine: split on ';' outside single-quoted literals.
 	 * We do NOT try to handle comments or double-quoted identifiers here;
 	 * for batch DML this is intentionally simple per spec. */
 	int    in_quote  = 0;   /* inside '...' literal */
 	size_t stmt_start = 0;  /* start of current statement in src */
 
-	for (size_t i = 0; i <= src_len; i++) {
-		char c = (i < src_len) ? src[i] : ';'; /* virtual ';' at end */
+	for (size_t i = 0; i <= (skip_split ? 0 : src_len); i++) {
+		/* If skip_split is true, we force a single "virtual" semicolon at the very end
+		 * of the original string on our first and only iteration. */
+		char c;
+		if (skip_split) {
+			c = ';';
+			i = src_len;
+		} else {
+			c = (i < src_len) ? src[i] : ';'; /* virtual ';' at end */
+		}
 
 		if (in_quote) {
 			if (c == '\'') {
@@ -280,6 +306,7 @@ static zend_long pdo_fbird_handle_doer(pdo_dbh_t *dbh, const zend_string *sql)
 			}
 
 			had_statements = 1;
+			printf("Executing statement: %s\n", p); fflush(stdout);
 
 			ISC_STATUS_ARRAY st = {0};
 			void *fbs = fbs_prepare(IBG(master_instance), att, tr,
@@ -288,7 +315,7 @@ static zend_long pdo_fbird_handle_doer(pdo_dbh_t *dbh, const zend_string *sql)
 				memcpy(H->status, st, sizeof(ISC_STATUS_ARRAY));
 				pdo_fbird_error(dbh);
 				/* Rollback on failure */
-				fbt_rollback(H->fbt_trans, H->status);
+				fbt_rollback(H->fbt_trans, NULL);
 				fbt_free(H->fbt_trans);
 				H->fbt_trans = NULL;
 				return -1;
@@ -298,10 +325,10 @@ static zend_long pdo_fbird_handle_doer(pdo_dbh_t *dbh, const zend_string *sql)
 				NULL, NULL, NULL, NULL, st);
 			if (!rc) {
 				memcpy(H->status, st, sizeof(ISC_STATUS_ARRAY));
-				fbs_free(fbs, st);
+				fbs_free(fbs, NULL);
 				pdo_fbird_error(dbh);
 				/* Rollback on failure */
-				fbt_rollback(H->fbt_trans, H->status);
+				fbt_rollback(H->fbt_trans, NULL);
 				fbt_free(H->fbt_trans);
 				H->fbt_trans = NULL;
 				return -1;
@@ -309,7 +336,7 @@ static zend_long pdo_fbird_handle_doer(pdo_dbh_t *dbh, const zend_string *sql)
 
 			zend_long affected = (zend_long)fbs_get_affected_records(
 				IBG(master_instance), fbs, st);
-			fbs_free(fbs, st);
+			fbs_free(fbs, NULL);
 			total_affected += (affected >= 0 ? affected : 0);
 		}
 	}
@@ -366,7 +393,7 @@ static bool pdo_fbird_handle_rollback(pdo_dbh_t *dbh)
 	pdo_fbird_db_handle *H = (pdo_fbird_db_handle *)dbh->driver_data;
 	if (!H->fbt_trans) return true;
 
-	fbt_rollback(H->fbt_trans, H->status);
+	fbt_rollback(H->fbt_trans, NULL);
 	fbt_free(H->fbt_trans);
 	H->fbt_trans = NULL;
 	H->in_manually_transaction = 0;

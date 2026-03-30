@@ -213,16 +213,6 @@ int fbc_ping(void* master_ptr, void* connection, ISC_STATUS* status_vector);
 void* fbc_get_attachment(void* connection);
 
 /**
- * Get a pointer to the legacy isc_db_handle stored inside the connection.
- * Required for isc_wait_for_event() and similar legacy APIs that need
- * a stable pointer to the handle (not the handle value itself).
- *
- * @param connection Pointer returned by fbc_connect()
- * @return Pointer to the internal isc_db_handle, or NULL
- */
-void* fbc_get_legacy_handle_ptr(void* connection);
-
-/**
  * Get the server version from a connection.
  *
  * @param connection Pointer returned by fbc_connect()
@@ -860,7 +850,7 @@ unsigned short fbe_event_block(unsigned char** event_buf, unsigned char** result
  * Replacement for isc_wait_for_event().
  *
  * @param status_vector  Output status vector
- * @param db_handle_ptr  Pointer to isc_db_handle (from fbc_get_legacy_handle_ptr())
+ * @param db_handle_ptr  Pointer to isc_db_handle
  * @param buffer_length  Length of event buffer
  * @param event_buffer   Event buffer (from fbe_event_block())
  * @param result_buffer  Result buffer (from fbe_event_block())

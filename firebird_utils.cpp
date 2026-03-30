@@ -706,14 +706,6 @@ extern "C" void* fbc_get_attachment(void* connection) {
     return conn->get();  // Returns IAttachment*
 }
 
-extern "C" void* fbc_get_legacy_handle_ptr(void* connection) {
-    if (!connection) {
-        return nullptr;
-    }
-    auto* conn = reinterpret_cast<fb::Connection*>(connection);
-    return conn->getLegacyHandlePtr();
-}
-
 extern "C" int fbc_is_connected(void* connection) {
     if (!connection) {
         return 0;

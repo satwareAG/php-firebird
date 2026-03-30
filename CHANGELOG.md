@@ -5,6 +5,32 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.2.0] - 2026-03-30
+
+### Changed
+- **Full legacy bridge removal** (issues #141, #142): `fbc_get_legacy_handle_ptr()` and the
+  underlying `legacy_handle_` field in `fb_connection.hpp` are fully removed. After v10.2.0,
+  zero legacy `isc_db_handle` bridge code exists in the extension.
+
+### Refactored
+- **Events OO migration** (issue #141): `fbird_events.c` migrated from `fbc_get_legacy_handle_ptr()`
+  + `fbe_wait_for_event()` to `fbc_get_attachment()` + `fbe_wait_for_event_oo()` at all 4 call sites
+  (`fbird_wait_event` init/actual and `fbird_poll_event` baseline/actual). The polling model
+  (synchronous `isc_wait_for_event`) is preserved - `fbe_wait_for_event_oo` uses `fb_get_database_handle()`
+  internally to obtain the legacy handle from `IAttachment*`, keeping the same thread-safety properties.
+- **Legacy bridge removed** (issue #142): Removed `fbc_get_legacy_handle_ptr()` declaration from
+  `firebird_utils.h`, implementation from `firebird_utils.cpp`, `getLegacyHandle()` /
+  `getLegacyHandlePtr()` methods from `src/cpp/fb_connection.hpp`, `legacy_handle_` field from
+  `fb_connection.hpp`, and the typed wrapper from `firebird_utils_typed.h`.
+
+### Added
+- `tests/fbird_events_error_001.phpt`: Tests event handler lifecycle (set, free, default link)
+  covering event error-handling code paths in `fbird_events.c`.
+
+### CI
+- **Coverage gate raised** (issue #143): `COVERAGE_THRESHOLD` in `.github/workflows/coverage.yml`
+  raised from `54.0` to `65.0`.
+
 ## [10.1.0] - 2026-03-30
 
 ### Fixed

@@ -174,22 +174,6 @@ public:
     }
 
     /**
-     * Get the legacy isc_db_handle for compatibility with existing code.
-     * @note This returns 0 for OO API connections; use get() instead.
-     * @deprecated Use get() for OO API access.
-     */
-    [[nodiscard]] isc_db_handle getLegacyHandle() const noexcept {
-        return legacy_handle_;
-    }
-
-    /**
-     * Get a pointer to the internal legacy handle (for APIs needing isc_db_handle*).
-     */
-    [[nodiscard]] isc_db_handle* getLegacyHandlePtr() noexcept {
-        return &legacy_handle_;
-    }
-
-    /**
      * Get version information for this connection's client library.
      */
     [[nodiscard]] const VersionInfo& getVersion() const noexcept {
@@ -299,7 +283,6 @@ private:
 
     AttachmentPtr attachment_;              ///< RAII-managed attachment
     Firebird::IMaster* master_ = nullptr;   ///< Master interface (not owned)
-    isc_db_handle legacy_handle_ = 0;       ///< Legacy handle (for compatibility)
     bool dropped_ = false;                  ///< True after dropDatabase() — attachment is invalid
     std::string database_path_;             ///< Database path for this connection
     unsigned short dialect_ = 3;            ///< SQL dialect
@@ -468,7 +451,6 @@ inline Connection::Connection(AttachmentPtr attachment,
                               unsigned version)
     : attachment_(std::move(attachment)),
       master_(master),
-      legacy_handle_(0),
       database_path_(std::move(database_path)),
       dialect_(dialect),
       version_(version),
@@ -482,7 +464,6 @@ inline Connection::~Connection() {
 inline Connection::Connection(Connection&& other) noexcept
     : attachment_(std::move(other.attachment_)),
       master_(other.master_),
-      legacy_handle_(other.legacy_handle_),
       database_path_(std::move(other.database_path_)),
       dialect_(other.dialect_),
       version_(other.version_),
@@ -490,7 +471,6 @@ inline Connection::Connection(Connection&& other) noexcept
       statement_timeout_ms_(other.statement_timeout_ms_),
       idle_timeout_sec_(other.idle_timeout_sec_) {
     other.master_ = nullptr;
-    other.legacy_handle_ = 0;
 }
 
 inline Connection& Connection::operator=(Connection&& other) noexcept {
@@ -498,7 +478,6 @@ inline Connection& Connection::operator=(Connection&& other) noexcept {
         detachNoThrow();
         attachment_ = std::move(other.attachment_);
         master_ = other.master_;
-        legacy_handle_ = other.legacy_handle_;
         database_path_ = std::move(other.database_path_);
         dialect_ = other.dialect_;
         version_ = other.version_;
@@ -506,7 +485,6 @@ inline Connection& Connection::operator=(Connection&& other) noexcept {
         statement_timeout_ms_ = other.statement_timeout_ms_;
         idle_timeout_sec_ = other.idle_timeout_sec_;
         other.master_ = nullptr;
-        other.legacy_handle_ = 0;
     }
     return *this;
 }

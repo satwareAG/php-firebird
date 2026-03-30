@@ -37,16 +37,6 @@
 #	endif
 #endif
 
-/* ISC_TEB compat: Firebird 4+ removed this from ibase.h but we use it
- * internally as a simple holder struct for tpb_len/tpb_ptr per connection. */
-#ifndef ISC_TEB
-typedef struct {
-	isc_db_handle *db_ptr;
-	short tpb_len;
-	char *tpb_ptr;
-} ISC_TEB;
-#endif
-
 /* CHECK_LINK macro — shared by firebird.c and fbird_connection.c */
 #define CHECK_LINK(link) { if ((link)==NULL) { \
 	php_error_docref(NULL, E_WARNING, "A link to the server could not be established"); \

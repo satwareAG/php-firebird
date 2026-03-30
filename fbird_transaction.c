@@ -679,7 +679,7 @@ PHP_FUNCTION(fbird_trans)
 		zend_long trans_argl = 0;
 		zend_long trans_timeout = 0;
 		char *tpb;
-		unsigned short link0_tpb_len = 0;  /* TPB len for first connection (replaces ISC_TEB) */
+		unsigned short link0_tpb_len = 0;  /* TPB len for first connection */
 		zval *args = NULL;
 
 		if (zend_parse_parameters(argn, "+", &args, &argn) == FAILURE) {

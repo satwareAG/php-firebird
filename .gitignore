@@ -148,3 +148,14 @@ nonexistent_path_xyz
 # Environment files (local secrets, not for public repos)
 .env
 docker/.env
+
+# Dev scratch files (local development artifacts, not for public repos)
+patch.php
+patch_cancel.php
+patch_commit.php
+patch_pdo.php
+pdo_fbird_patch.php
+restore.php
+run_events_test.php
+test_error.php
+.env.bak

@@ -5,6 +5,37 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.3.0] - 2026-03-30
+
+### Removed
+- **Dead legacy files** (issue #146): Deleted `firebird_legacy_wrappers.c` and `firebird_legacy_wrappers.h`
+  (370 LOC) — orphaned since v10.0.0 when they were removed from the build. Also removed the dead
+  `ISC_TEB` compat struct from `php_fbird_includes.h` (obsolete after v10.1.0 ISC_TEB removal) and
+  cleaned up stale comments in `fbird_connection.c` and `fbird_transaction.c`.
+- Dev scratch files added to `.gitignore`: `patch*.php`, `pdo_fbird_patch.php`, `restore.php`,
+  `run_events_test.php`, `test_error.php`, `.env.bak`.
+
+### CI/CD
+- **SHA pinning** (issue #147): All 8 workflows now pin every action to an immutable commit SHA
+  (with the tag as a human-readable comment). Eliminates supply-chain attack surface from mutable
+  tag references. Actions pinned: `actions/checkout@v5`, `actions/cache@v4/v5`,
+  `actions/upload-artifact@v4/v5`, `actions/download-artifact@v4/v5`,
+  `softprops/action-gh-release@v2`, `github/codeql-action@v3`, `shivammathur/setup-php@v2`,
+  `php/php-windows-builder@v1`, `danharrin/monorepo-split-github-action@v2.4.0`.
+- **Permissions hardening** (issue #147): Added `permissions: read-all` at workflow level to all
+  7 workflows that were missing it. Prevents accidental credential leakage via implicit full access.
+- **Reproducible runners** (issue #147): Replaced `runs-on: ubuntu-latest` → `runs-on: ubuntu-24.04`
+  across all 18 occurrences in 8 workflows. Eliminates non-determinism from rolling LTS upgrades.
+- **Firebird client caching** (issue #147): Added the 4-step caching pattern (Resolve→Cache→Download→
+  Install) to `coverage.yml` and `sanitizers.yml` (both jobs). These workflows previously re-downloaded
+  the 50 MB Firebird client tarball on every run. Cache key is `firebird-client-{version}-linux-x64`;
+  a new Firebird release automatically busts the cache.
+- **Path filters** (issue #147): Added `paths:` triggers to `ci.yml` and `coverage.yml` so pushes
+  touching only docs, YAML specs, or non-C files skip the 12-job matrix build.
+- **Concurrency group** (issue #147): Added `concurrency: cancel-in-progress: true` to `coverage.yml`
+  (sanitizers.yml and code-quality.yml already had it). Prevents duplicate runs from wasting runner
+  minutes.
+
 ## [10.2.0] - 2026-03-30
 
 ### Changed

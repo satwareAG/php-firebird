@@ -10,6 +10,8 @@ on:
     - cron: '0 0 * * 0'
 
 # Cancel in-progress runs for the same branch
+permissions: read-all
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -20,7 +22,7 @@ jobs:
   # ==========================================================================
   analyze-cpp:
     name: CodeQL C/C++
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container:
       image: php:8.3-cli-bookworm
 
@@ -31,7 +33,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Install build dependencies
         run: |
@@ -68,7 +70,7 @@ jobs:
           printf '\n' | /tmp/fb_install.sh || true
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@3b1a19a80ab047f35cbb237b5bd9bdc1e14f166c # v3
         with:
           languages: cpp
           # Use security-extended for comprehensive security analysis
@@ -100,7 +102,7 @@ jobs:
           make -j"$(nproc)"
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@3b1a19a80ab047f35cbb237b5bd9bdc1e14f166c # v3
         with:
           category: "/language:cpp"
 
@@ -109,7 +111,7 @@ jobs:
   # ==========================================================================
   analyze-php:
     name: CodeQL PHP
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     permissions:
       actions: read
@@ -118,10 +120,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@3b1a19a80ab047f35cbb237b5bd9bdc1e14f166c # v3
         with:
           languages: php
           queries: security-extended
@@ -136,6 +138,6 @@ jobs:
               - 'vendor/**'
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@3b1a19a80ab047f35cbb237b5bd9bdc1e14f166c # v3
         with:
           category: "/language:php"

@@ -679,7 +679,7 @@ PHP_FUNCTION(fbird_trans)
 		zend_long trans_argl = 0;
 		zend_long trans_timeout = 0;
 		char *tpb;
-		ISC_TEB *teb;
+		unsigned short link0_tpb_len = 0;  /* TPB len for first connection (replaces ISC_TEB) */
 		zval *args = NULL;
 
 		if (zend_parse_parameters(argn, "+", &args, &argn) == FAILURE) {
@@ -687,7 +687,6 @@ PHP_FUNCTION(fbird_trans)
 			RETURN_FALSE;
 		}
 
-		teb = (ISC_TEB *) safe_emalloc(sizeof(ISC_TEB),argn,0);
 		tpb = (char *) safe_emalloc(TPB_MAX_SIZE,argn,0);
 
 		/* enumerate all the arguments: assume every non-resource argument
@@ -697,19 +696,18 @@ PHP_FUNCTION(fbird_trans)
 			if (Z_TYPE(args[i]) == IS_RESOURCE) {
 
 				if ((ib_link[link_cnt] = (fbird_db_link *)zend_fetch_resource2_ex(&args[i], LE_LINK, le_link, le_plink)) == NULL) {
-					efree(teb);
 					efree(tpb);
 					efree(ib_link);
 					RETURN_FALSE;
 				}
 
-				/* copy the most recent modifier string into tbp[] */
+				/* copy the most recent modifier string into tpb[] */
 				memcpy(&tpb[TPB_MAX_SIZE * link_cnt], last_tpb, TPB_MAX_SIZE);
 
-				/* add a database handle to the TEB with the most recently specified set of modifiers */
-				teb[link_cnt].db_ptr = (isc_db_handle *)fbc_get_legacy_handle_ptr(ib_link[link_cnt]->fbc_connection);
-				teb[link_cnt].tpb_len = tpb_len;
-				teb[link_cnt].tpb_ptr = &tpb[TPB_MAX_SIZE * link_cnt];
+				/* save TPB length for this connection */
+				if (link_cnt == 0) {
+					link0_tpb_len = tpb_len;
+				}
 
 				++link_cnt;
 
@@ -742,7 +740,6 @@ PHP_FUNCTION(fbird_trans)
 			for (int j = 0; j < link_cnt; j++) {
 				if (ib_link[j]->fbc_connection == NULL) {
 					efree(tpb);
-					efree(teb);
 					efree(ib_link);
 					_php_fbird_module_error("Connection %d has no OO API handle", j);
 					RETURN_FALSE;
@@ -754,7 +751,6 @@ PHP_FUNCTION(fbird_trans)
 				void* attachment = fbc_get_attachment(ib_link[0]->fbc_connection);
 				if (attachment == NULL) {
 					efree(tpb);
-					efree(teb);
 					efree(ib_link);
 					_php_fbird_module_error("Failed to get attachment from OO API connection");
 					RETURN_FALSE;
@@ -763,14 +759,13 @@ PHP_FUNCTION(fbird_trans)
 				void* oo_trans = fbt_start(
 					IBG(master_instance),
 					attachment,
-					teb[0].tpb_len,
-					teb[0].tpb_len > 0 ? (const unsigned char*)teb[0].tpb_ptr : NULL,
+					link0_tpb_len,
+					link0_tpb_len > 0 ? (const unsigned char*)tpb : NULL,
 					IB_STATUS
 				);
 
 				if (oo_trans == NULL) {
 					efree(tpb);
-					efree(teb);
 					efree(ib_link);
 					_php_fbird_error();
 					RETURN_FALSE;
@@ -785,12 +780,10 @@ PHP_FUNCTION(fbird_trans)
 				ib_trans->fbt_transaction = oo_trans;
 
 				efree(tpb);
-				efree(teb);
 				goto register_trans;
 			} else {
 				/* Multi-database OO API transactions not yet supported */
 				efree(tpb);
-				efree(teb);
 				efree(ib_link);
 				_php_fbird_module_error("Multi-database transactions with OO API connections not yet supported");
 				RETURN_FALSE;
@@ -798,7 +791,6 @@ PHP_FUNCTION(fbird_trans)
 		}
 
 		efree(tpb);
-		efree(teb);
 	}
 
 	if (link_cnt == 0) {

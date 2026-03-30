@@ -440,39 +440,19 @@ public:
         }
 
         try {
-            // IResultSet::close() closes the server-side cursor AND releases the
-            // interface (no separate release() needed afterwards).
-            Firebird::IMaster* master = Firebird::fb_get_master_interface();
-            if (master) {
-                Firebird::IStatus* fb_status = master->getStatus();
-                if (fb_status) {
-                    fb_status->init();
-                    Firebird::CheckStatusWrapper cs(fb_status);
-                    bool had_error = false;
-                    if (cursor_open_) {
-                        // Cursor still open on server: close() sends DSQL_close + release.
-                        // This is the key server-side RAM fix from #135.
-                        result_set_->close(&cs);
-                        had_error = statusHasError(fb_status);
-                        if (had_error && status_vector) {
-                            copyStatusToVector(fb_status, status_vector);
-                        }
-                    } else {
-                        // fetchNext() already returned EOF/error: server implicitly
-                        // closed the cursor. On Firebird 3.0, calling close() on an
-                        // already-closed result set causes a segfault (double-close,
-                        // see #137). Use release() — always safe, just decrements
-                        // the C++ interface refcount.
-                        result_set_->release();
-                    }
-                    // NOTE: do NOT call fb_status->dispose() here.
-                    // CheckStatusWrapper destructor accesses fb_status on scope exit.
-                    result_set_ = nullptr;
-                    cursor_open_ = false;
-                    return !had_error;
-                }
-            }
-            // Fallback: just release (may not close cursor on server immediately)
+            // Use release() to decrement the C++ interface refcount.
+            //
+            // NOTE: IResultSet::close() was tried here (v10.0.1) to explicitly
+            // close server-side cursors and fix RAM accumulation (#135). However,
+            // IResultSet::close() causes segfaults on Firebird 3.0 in both the
+            // EOF case (double-close after implicit server close) and the mid-stream
+            // case (crashing IAttachment::detach() on cleanup). Firebird 4.0/5.0
+            // handle these cases gracefully but FB 3.0 does not (#137).
+            //
+            // The IResultSet::close() fix must be reimplemented with Firebird
+            // client version detection (FB_API_VER >= 4). Until then, release()
+            // is the safe, compatible choice for all FB versions (pre-v10.0.1
+            // behavior).
             result_set_->release();
             result_set_ = nullptr;
             cursor_open_ = false;

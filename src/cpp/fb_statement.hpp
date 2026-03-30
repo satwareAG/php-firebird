@@ -453,7 +453,12 @@ public:
                     if (had_error && status_vector) {
                         copyStatusToVector(fb_status, status_vector);
                     }
-                    fb_status->dispose();
+                    // NOTE: do NOT call fb_status->dispose() here.
+                    // The CheckStatusWrapper (cs) destructor accesses fb_status
+                    // when it goes out of scope on return. Calling dispose() first
+                    // causes a use-after-free segfault on Firebird 3.0 (see #136).
+                    // IStatus lifetime is managed by IMaster; consistent with all
+                    // other methods in this class.
                     result_set_ = nullptr;
                     cursor_open_ = false;
                     return !had_error;
@@ -511,7 +516,10 @@ public:
                     if (had_error && status_vector) {
                         copyStatusToVector(fb_status, status_vector);
                     }
-                    fb_status->dispose();
+                    // NOTE: do NOT call fb_status->dispose() here.
+                    // Same reason as closeCursor(): CheckStatusWrapper (cs) destructor
+                    // accesses fb_status on return. Calling dispose() first causes a
+                    // use-after-free segfault on Firebird 3.0 (see #136).
                     statement_ = nullptr;
                     prepared_ = false;
                     return !had_error;

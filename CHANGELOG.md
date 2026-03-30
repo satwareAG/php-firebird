@@ -5,6 +5,20 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.0.2] - 2026-03-30
+
+### Fixed
+- **Segfault on Firebird 3.0 after v10.0.1** (issue #136): `StatementWrapper::closeCursor()`
+  and `StatementWrapper::free()` called `fb_status->dispose()` on the `IStatus` object before
+  the `CheckStatusWrapper` destructor ran. The wrapper destructor accesses `fb_status` when it
+  goes out of scope on `return`, causing a use-after-free segfault on Firebird 3.0 client.
+  Firebird 4.0/5.0 clients were not affected due to differing internal memory handling.
+  Fix: removed both `fb_status->dispose()` calls, consistent with all other methods in the
+  class which never call dispose (IStatus lifetime is managed by IMaster).
+  **Affected tests (all FB 3.0)**: 20 tests now pass; includes transactions, BLOBs, field info,
+  OO wrappers, and others.
+  The #135 RAM leak fix (IStatement::free / IResultSet::close) is fully preserved.
+
 ## [10.0.1] - 2026-03-30
 
 ### Fixed
@@ -1002,7 +1016,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.0.1...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.0.2...HEAD
+[10.0.2]: https://github.com/satwareAG/php-firebird/compare/v10.0.1...v10.0.2
 [10.0.1]: https://github.com/satwareAG/php-firebird/compare/v10.0.0...v10.0.1
 [10.0.0]: https://github.com/satwareAG/php-firebird/compare/v9.0.0...v10.0.0
 [9.0.0]: https://github.com/satwareAG/php-firebird/compare/v8.3.0...v9.0.0

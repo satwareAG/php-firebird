@@ -7,6 +7,8 @@
 #include "config.h"
 #endif
 
+#ifdef HAVE_PDO_FBIRD
+
 #include "php.h"
 #include "zend_smart_str.h"
 #include "ext/pdo/php_pdo.h"
@@ -1231,3 +1233,5 @@ const pdo_driver_t pdo_fbird_driver = {
 	pdo_fbird_handle_factory
 };
 /* }}} */
+
+#endif /* HAVE_PDO_FBIRD */

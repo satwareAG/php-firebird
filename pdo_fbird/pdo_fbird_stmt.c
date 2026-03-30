@@ -7,6 +7,8 @@
 #include "config.h"
 #endif
 
+#ifdef HAVE_PDO_FBIRD
+
 #include "php.h"
 #include "ext/pdo/php_pdo.h"
 #include "ext/pdo/php_pdo_driver.h"
@@ -1033,3 +1035,5 @@ const struct pdo_stmt_methods pdo_fbird_stmt_methods = {
 	pdo_fbird_stmt_cursor_closer,
 };
 /* }}} */
+
+#endif /* HAVE_PDO_FBIRD */

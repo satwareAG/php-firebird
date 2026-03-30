@@ -5,6 +5,19 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.3.4] - 2026-03-30
+
+### Fixed
+- **Make PDO integration optional** (issue #150): The `pdo_fbird` source files were unconditionally
+  compiled into the firebird extension, causing an "undefined symbol: php_pdo_unregister_driver"
+  fatal error on Linux systems where `php-pdo` is not installed. Fixed with a two-layer defense:
+  1. `config.m4` now conditionally compiles `pdo_fbird/*.c` sources and declares the PDO extension
+     dependency only when `PHP_CHECK_PDO_INCLUDES` succeeds (i.e., PDO headers are available).
+  2. All four `pdo_fbird/*.c` files are wrapped with `#ifdef HAVE_PDO_FBIRD` / `#endif` guards as
+     belt-and-suspenders safety, ensuring PDO symbols are never referenced without PDO availability.
+  The firebird extension now loads cleanly on systems without PDO. When PDO is available, the
+  integrated `fbird:` PDO driver continues to work as before.
+
 ## [10.3.3] - 2026-03-30
 
 ### Fixed
@@ -1126,7 +1139,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.3.3...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.3.4...HEAD
+[10.3.4]: https://github.com/satwareAG/php-firebird/compare/v10.3.3...v10.3.4
 [10.3.3]: https://github.com/satwareAG/php-firebird/compare/v10.3.2...v10.3.3
 [10.3.2]: https://github.com/satwareAG/php-firebird/compare/v10.3.0...v10.3.2
 [10.3.0]: https://github.com/satwareAG/php-firebird/compare/v10.2.0...v10.3.0

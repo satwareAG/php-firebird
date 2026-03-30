@@ -1,5 +1,7 @@
 # ROADMAP v9.0.0 — API Modernization
 
+> **Status**: COMPLETED 2026-03-23 — All items shipped in v9.0.0.
+
 **Created:** 2026-03-23
 **Milestone:** [v9.0.0](https://github.com/satwareAG/php-firebird/milestone/6)
 **Baseline:** v8.3.0 — 241/241 tests passing (100%)

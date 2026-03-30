@@ -1,5 +1,7 @@
 # PHP Firebird Extension - Release Strategy (2025)
 
+> **Status**: COMPLETED 2026-03-30 — Release infrastructure operational for v10.0.1.
+
 ## Overview
 
 This document defines the distribution and release strategy for php-firebird,

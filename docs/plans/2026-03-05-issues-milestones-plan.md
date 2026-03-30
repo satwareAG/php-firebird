@@ -1,5 +1,7 @@
 # Implementation Plan: Issues, Milestones, and Project Hygiene
 
+> **Status**: COMPLETED 2026-03-30 — All issue and milestone hygiene tasks completed.
+
 **Created**: 2026-03-05
 **Author**: Jane Alesi / Cline
 **Scope**: php-firebird + doctrine-firebird-driver repositories

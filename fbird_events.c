@@ -198,8 +198,8 @@ PHP_FUNCTION(fbird_wait_event)
 	{
 		ISC_STATUS init_status[20];
 		ISC_ULONG init_counts[15];
-		void *db_handle_ptr = fbc_get_legacy_handle_ptr(ib_link->fbc_connection);
-		if (fbe_wait_for_event(init_status, db_handle_ptr, buffer_size, event_buffer, result_buffer)) {
+		void *attachment_ptr = fbc_get_attachment(ib_link->fbc_connection);
+		if (fbe_wait_for_event_oo(init_status, attachment_ptr, buffer_size, event_buffer, result_buffer)) {
 			/* Initial wait failed - likely connection issue */
 			_php_fbird_error();
 			_php_fbird_event_free(event_buffer, result_buffer);
@@ -210,8 +210,8 @@ PHP_FUNCTION(fbird_wait_event)
 
 	/* Now wait for actual events */
 	{
-		void *db_handle_ptr = fbc_get_legacy_handle_ptr(ib_link->fbc_connection);
-		if (fbe_wait_for_event(IB_STATUS, db_handle_ptr, buffer_size, event_buffer, result_buffer)) {
+		void *attachment_ptr = fbc_get_attachment(ib_link->fbc_connection);
+		if (fbe_wait_for_event_oo(IB_STATUS, attachment_ptr, buffer_size, event_buffer, result_buffer)) {
 			_php_fbird_error();
 			_php_fbird_event_free(event_buffer, result_buffer);
 			RETURN_FALSE;
@@ -403,9 +403,9 @@ PHP_FUNCTION(fbird_poll_event)
 	if (event->needs_reregistration) {
 		ISC_STATUS init_status[20];
 		ISC_ULONG init_counts[15];
-		void *db_handle_ptr = fbc_get_legacy_handle_ptr(event->link->fbc_connection);
+		void *attachment_ptr = fbc_get_attachment(event->link->fbc_connection);
 
-		if (fbe_wait_for_event(init_status, db_handle_ptr,
+		if (fbe_wait_for_event_oo(init_status, attachment_ptr,
 				event->buffer_size, event->event_buffer, event->result_buffer)) {
 			/* Initial wait failed - likely connection issue */
 			_php_fbird_error();
@@ -466,7 +466,7 @@ PHP_FUNCTION(fbird_poll_event)
 	 * Use isc_wait_for_event() synchronously.
 	 * This blocks until an event fires OR until interrupted by SIGALRM.
 	 */
-	wait_result = fbe_wait_for_event(IB_STATUS, fbc_get_legacy_handle_ptr(event->link->fbc_connection),
+	wait_result = fbe_wait_for_event_oo(IB_STATUS, fbc_get_attachment(event->link->fbc_connection),
 			event->buffer_size, event->event_buffer, event->result_buffer);
 
 #ifndef PHP_WIN32

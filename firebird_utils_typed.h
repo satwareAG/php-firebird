@@ -68,9 +68,6 @@ typedef struct fbc_attachment_t  { void *p; } fbc_attachment_t;
 /** ITransaction raw pointer (from fbt_get_handle()) */
 typedef struct fbt_handle_t      { void *p; } fbt_handle_t;
 
-/** Legacy isc_db_handle* wrapper (from fbc_get_legacy_handle_ptr()) */
-typedef struct fbc_legacy_handle_t { void *p; } fbc_legacy_handle_t;
-
 /** IMessageMetadata pointer (from fbs_get_{input,output}_metadata()) */
 typedef struct fbm_metadata_t    { void *p; } fbm_metadata_t;
 
@@ -198,12 +195,6 @@ static inline fbc_attachment_t fbc_get_attachment_typed(fbc_connection_t *conn) 
     fbc_attachment_t a;
     a.p = fbc_get_attachment(_FBTP(conn));
     return a;
-}
-
-static inline fbc_legacy_handle_t fbc_get_legacy_handle_ptr_typed(fbc_connection_t *conn) {
-    fbc_legacy_handle_t h;
-    h.p = fbc_get_legacy_handle_ptr(_FBTP(conn));
-    return h;
 }
 
 static inline unsigned fbc_get_server_version_typed(fbc_connection_t *conn) {
@@ -538,14 +529,6 @@ static inline int fbe_is_queued_typed(fbe_events_t *events) {
 
 static inline void fbe_free_typed(fbe_events_t *events) {
     fbe_free(_FBTP(events));
-}
-
-static inline ISC_STATUS fbe_wait_for_event_typed(
-        ISC_STATUS *sv, fbc_legacy_handle_t *db_handle,
-        unsigned short buffer_length,
-        unsigned char *event_buffer, unsigned char *result_buffer) {
-    return fbe_wait_for_event(sv, _FBTP(db_handle),
-                              buffer_length, event_buffer, result_buffer);
 }
 
 static inline ISC_STATUS fbe_wait_for_event_oo_typed(

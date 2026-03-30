@@ -17,8 +17,6 @@
 #include "firebird_utils.h"
 #include "fbird_classes.h"
 
-/* ISC_TEB is defined in php_fbird_includes.h */
-
 /* Fill ib_link and trans with the correct database link and transaction. */
 void _php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAMETERS,
 	zval *link_id, fbird_db_link **ib_link, fbird_transaction **trans)

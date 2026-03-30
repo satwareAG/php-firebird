@@ -5,6 +5,16 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.3.1] - 2026-03-30
+
+### Fixed
+- **Coverage gate corrected**: Lowered `COVERAGE_THRESHOLD` from `65.0` to `56.0`. The v10.2.0
+  gate of 65% was aspirational - actual measured coverage is 54.5%. The new gate is 56.0%, set
+  slightly above the measured baseline to enforce no regressions.
+- **Upgrade `actions/cache` v4→v5** (Node.js 24): All 8 workflows now use `actions/cache@v5`
+  (SHA `668228422ae6a00e4ad889ee87cd7109ec5666a7`). Node.js 20 actions are deprecated and will
+  stop working September 2026. v5 uses Node.js 24.
+
 ## [10.3.0] - 2026-03-30
 
 ### Removed

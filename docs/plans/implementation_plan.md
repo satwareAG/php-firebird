@@ -1,5 +1,7 @@
 # Implementation Plan
 
+> **Status**: COMPLETED 2026-03-30 — All items shipped in v10.0.0.
+
 Phase 0: Remove dead `firebird_legacy_wrappers.*` code from the php-firebird C extension build.
 
 This phase removes two files (`firebird_legacy_wrappers.h` and `firebird_legacy_wrappers.c`) and their build reference in `config.m4`. Investigation confirmed zero callers of any function declared in the legacy wrappers header across all 19 .c files (including PDO driver). The PDO driver uses identically-named functions declared in `firebird_utils.h`, not from this header. Removing these files reduces build surface by ~500 LOC with zero runtime impact. No PHP API changes, no stub changes, no test changes needed.

@@ -5,6 +5,21 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.0.1] - 2026-03-30
+
+### Fixed
+- **RAM leak in `fbird_query()` DML calls** (issue #135): `StatementWrapper::free()` now calls
+  `IStatement::free()` (equivalent to `isc_dsql_free_statement(DSQL_drop)`) instead of
+  `IStatement::release()`, ensuring server-side prepared statement handles are immediately
+  freed after each non-SELECT `fbird_query()` call. Previously, each DML call accumulated a
+  prepared statement on the Firebird server until request end, causing ~1.5 GB server RAM
+  growth with thousands of calls. Similarly, `closeCursor()` now calls `IResultSet::close()`
+  instead of `IResultSet::release()` to properly close server-side cursors.
+  **Affects**: All `fbird_query()` DML (INSERT, UPDATE, DELETE, DDL) without RETURNING clause.
+  **Primary target**: PHP 8.4 + Firebird 3 (latest), all PHP 8.2-8.5 × Firebird 3-5 combinations.
+- Added test `tests/fbird_query_stmt_release_001.phpt` verifying 500+ DML statements complete
+  without error and server resources are properly released.
+
 ## [10.0.0] - 2026-03-27
 
 ### Fixed
@@ -987,7 +1002,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.0.0...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.0.1...HEAD
+[10.0.1]: https://github.com/satwareAG/php-firebird/compare/v10.0.0...v10.0.1
 [10.0.0]: https://github.com/satwareAG/php-firebird/compare/v9.0.0...v10.0.0
 [9.0.0]: https://github.com/satwareAG/php-firebird/compare/v8.3.0...v9.0.0
 [8.3.0]: https://github.com/satwareAG/php-firebird/compare/v8.2.0...v8.3.0

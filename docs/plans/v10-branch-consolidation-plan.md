@@ -1,5 +1,7 @@
 # Implementation Plan
 
+> **Status**: COMPLETED 2026-03-30 — All items shipped in v10.0.0.
+
 [Overview]
 Consolidate all v10.0.0 development branches into a single `dev/v10` branch, run the full test suite (report-only), and update the SDD plan.
 

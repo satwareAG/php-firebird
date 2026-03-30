@@ -8,6 +8,8 @@ priority: 1
 
 # Spec #132: Legacy Wrappers for v2 API Migration
 
+> **Status**: RELEASED v10.0.0 (2026-03-27) — All items implemented and shipped.
+
 ## Goal
 
 Unblock the build on `satware-main` by providing C wrapper functions that restore

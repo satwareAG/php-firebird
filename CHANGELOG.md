@@ -26,7 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      versions. The DML-specific #135 fix must be reimplemented with Firebird client version
      detection (FB_API_VER >= 4) in a future release.
 
-  **Note**: The `IResultSet::close()` for actively-open cursors is retained (partial #135 fix).
+  **Note**: Both `StatementWrapper::closeCursor()` and `free()` now use `release()` -
+  identical to the pre-v10.0.1 behavior. The #135 RAM fixes (`IStatement::free()` and
+  `IResultSet::close()`) must be reimplemented with `FB_API_VER >= 4` version detection.
   **All 20 FB 3.0 failing tests now pass** on all PHP 8.2-8.5.
 
 ## [10.0.1] - 2026-03-30

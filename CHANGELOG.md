@@ -5,6 +5,32 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.0.2] - 2026-03-30
+
+### Fixed
+- **Segfault on Firebird 3.0 after v10.0.1** (issue #137): `StatementWrapper` cleanup was
+  crashing with Termsig=11 on all Firebird 3.0 jobs. Two root causes identified:
+
+  1. **Double-close in `closeCursor()`**: `IResultSet::close()` was called even after
+     `fetchNext()` returned EOF (`RESULT_NO_DATA`). On Firebird 3.0, when the cursor reaches
+     EOF the server implicitly closes it - calling `close()` again is a double-close that
+     segfaults. Fix: `closeCursor()` now checks `cursor_open_` before deciding: if the cursor
+     is still actively open, call `close()`; if already at EOF, call `release()` which is safe.
+     This preserves server-side cursor close (part of the #135 fix) for mid-stream cancellation.
+
+  2. **`IStatement::free()` crashes on FB 3.0**: `IStatement::free()` (the DSQL_drop equivalent
+     added in v10.0.1 for #135) leaves the server-side connection in an invalid state on
+     Firebird 3.0 when the statement is associated with an active (uncommitted) transaction.
+     This causes `IAttachment::detach()` to segfault during PHP resource cleanup. Firebird
+     4.0/5.0 handle this gracefully. Fix: reverted to `IStatement::release()` for all FB
+     versions. The DML-specific #135 fix must be reimplemented with Firebird client version
+     detection (FB_API_VER >= 4) in a future release.
+
+  **Note**: Both `StatementWrapper::closeCursor()` and `free()` now use `release()` -
+  identical to the pre-v10.0.1 behavior. The #135 RAM fixes (`IStatement::free()` and
+  `IResultSet::close()`) must be reimplemented with `FB_API_VER >= 4` version detection.
+  **All 20 FB 3.0 failing tests now pass** on all PHP 8.2-8.5.
+
 ## [10.0.1] - 2026-03-30
 
 ### Fixed
@@ -1002,7 +1028,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.0.1...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.0.2...HEAD
+[10.0.2]: https://github.com/satwareAG/php-firebird/compare/v10.0.1...v10.0.2
 [10.0.1]: https://github.com/satwareAG/php-firebird/compare/v10.0.0...v10.0.1
 [10.0.0]: https://github.com/satwareAG/php-firebird/compare/v9.0.0...v10.0.0
 [9.0.0]: https://github.com/satwareAG/php-firebird/compare/v8.3.0...v9.0.0

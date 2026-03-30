@@ -5,6 +5,11 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.3.3] - 2026-03-30
+
+### Fixed
+- **Upgrade `actions/upload-artifact` v4→v5** (Node.js 24): `ci.yml` was the last workflow using `upload-artifact@v4` (Node.js 20, deprecated June 2026). Now uses SHA `330a01c490aca151604b8cf639adc76d48f6c5d4`.
+
 ## [10.3.2] - 2026-03-30
 
 ### Fixed

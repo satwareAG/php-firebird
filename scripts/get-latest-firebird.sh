@@ -16,15 +16,16 @@ MAJOR_VERSION="${1:-5}"
 GITHUB_REPO="FirebirdSQL/firebird"
 GITHUB_API="https://api.github.com/repos/${GITHUB_REPO}"
 
-# Use GITHUB_TOKEN if available (prevents rate limiting in CI)
-CURL_OPTS="-s -f"
+# Build curl options as an array to avoid word-splitting issues with the
+# Authorization header value when GITHUB_TOKEN contains special characters.
+CURL_OPTS=(-s -f --retry 3 --retry-delay 5)
 if [ -n "${GITHUB_TOKEN:-}" ]; then
-    CURL_OPTS="${CURL_OPTS} -H \"Authorization: token ${GITHUB_TOKEN}\""
+    CURL_OPTS+=(-H "Authorization: token ${GITHUB_TOKEN}")
 fi
 
 # 1. Resolve latest tag for major version
 # Filters: start with 'v', match major version, exclude Beta/RC/Release candidates
-TAG=$(curl ${CURL_OPTS} "${GITHUB_API}/releases" | \
+TAG=$(curl "${CURL_OPTS[@]}" "${GITHUB_API}/releases" | \
     jq -r '.[].tag_name' | \
     grep -E "^v${MAJOR_VERSION}\." | \
     grep -vE "(Beta|RC|Release)" | \
@@ -36,7 +37,7 @@ if [ -z "${TAG}" ]; then
 fi
 
 # 2. Fetch release details to get assets
-RELEASE_JSON=$(curl ${CURL_OPTS} "${GITHUB_API}/releases/tags/${TAG}")
+RELEASE_JSON=$(curl "${CURL_OPTS[@]}" "${GITHUB_API}/releases/tags/${TAG}")
 
 # 3. Identify correct asset and download URL
 # FB 3/4 use amd64.tar.gz; FB 5 uses linux-x64.tar.gz

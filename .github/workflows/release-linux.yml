@@ -155,12 +155,48 @@ jobs:
           which patchelf || pip3 install patchelf
       
       - name: Install Firebird SDK
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Installing Firebird ${FB_VERSION}..."
           mkdir -p /opt/firebird/{lib,include/firebird}
-          
-          curl -fsSL "https://github.com/FirebirdSQL/firebird/releases/download/v${FB_VERSION}/Firebird-${FB_VERSION}.${FB_BUILD}-0-linux-x64.tar.gz" \
-            -o /tmp/firebird.tar.gz
+
+          FB_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_VERSION}/Firebird-${FB_VERSION}.${FB_BUILD}-0-linux-x64.tar.gz"
+          DELAY=10
+
+          for attempt in 1 2 3 4 5; do
+            echo "Downloading Firebird SDK (attempt ${attempt}/5)..."
+            if curl -fsSL \
+                --retry 3 --retry-delay 5 --retry-connrefused \
+                -H "Authorization: token ${GITHUB_TOKEN}" \
+                "${FB_URL}" -o /tmp/firebird.tar.gz; then
+              FSIZE=$(stat -c%s /tmp/firebird.tar.gz 2>/dev/null || echo "0")
+              if [ "${FSIZE}" -gt 8000000 ]; then
+                echo "Download succeeded (${FSIZE} bytes)"
+                break
+              fi
+              echo "File too small (${FSIZE} bytes), discarding"
+              rm -f /tmp/firebird.tar.gz
+            fi
+            # wget fallback
+            if wget -q --tries=3 --timeout=90 \
+                --header="Authorization: token ${GITHUB_TOKEN}" \
+                "${FB_URL}" -O /tmp/firebird.tar.gz; then
+              FSIZE=$(stat -c%s /tmp/firebird.tar.gz 2>/dev/null || echo "0")
+              if [ "${FSIZE}" -gt 8000000 ]; then
+                echo "wget download succeeded (${FSIZE} bytes)"
+                break
+              fi
+              rm -f /tmp/firebird.tar.gz
+            fi
+            [ "${attempt}" -lt 5 ] && echo "Sleeping ${DELAY}s..." && sleep "${DELAY}"
+            DELAY=$((DELAY * 2))
+          done
+
+          if [ ! -f /tmp/firebird.tar.gz ]; then
+            echo "ERROR: All download attempts failed for Firebird SDK" >&2
+            exit 1
+          fi
           
           mkdir -p /tmp/fb
           tar -xzf /tmp/firebird.tar.gz -C /tmp/fb --strip-components=1
@@ -213,14 +249,29 @@ jobs:
       - name: Determine PHP Full Version
         id: php-version
         run: |
-          # Map minor version to full version
-          case "${{ matrix.php }}" in
-            8.2) FULL_VERSION="8.2.28" ;;
-            8.3) FULL_VERSION="8.3.16" ;;
-            8.4) FULL_VERSION="8.4.4" ;;
-            8.5) FULL_VERSION="8.5.0" ;;
-            *) FULL_VERSION="${{ matrix.php }}.0" ;;
-          esac
+          MINOR="${{ matrix.php }}"
+
+          # Query php.net JSON API for the latest patch release of this minor.
+          # Falls back to known-good versions if the API is unavailable.
+          LATEST=$(curl -fsSL --retry 3 --retry-delay 5 \
+            "https://www.php.net/releases/index.php?json&version=${MINOR}" \
+            2>/dev/null | jq -r ".\"${MINOR}\".version // empty" 2>/dev/null || true)
+
+          if [ -n "${LATEST}" ] && [[ "${LATEST}" =~ ^${MINOR}\. ]]; then
+            echo "Resolved PHP ${MINOR} latest from php.net: ${LATEST}"
+            FULL_VERSION="${LATEST}"
+          else
+            echo "php.net API unavailable or returned unexpected data; using known-good fallback"
+            case "${MINOR}" in
+              8.2) FULL_VERSION="8.2.28" ;;
+              8.3) FULL_VERSION="8.3.16" ;;
+              8.4) FULL_VERSION="8.4.4" ;;
+              8.5) FULL_VERSION="8.5.0" ;;
+              *) FULL_VERSION="${MINOR}.0" ;;
+            esac
+            echo "Fallback version: ${FULL_VERSION}"
+          fi
+
           echo "full_version=${FULL_VERSION}" >> $GITHUB_OUTPUT
           echo "PHP full version: ${FULL_VERSION}"
       

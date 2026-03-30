@@ -112,7 +112,7 @@ jobs:
 
       - name: Cache Firebird 5 client tarball
         id: cache-firebird
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: /tmp/firebird-cache
           key: firebird-client-${{ steps.fb-version.outputs.fb_version }}-linux-x64
@@ -468,7 +468,7 @@ jobs:
 
       - name: Cache Firebird 5 client tarball
         id: cache-firebird
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: /tmp/firebird-cache
           key: firebird-client-${{ steps.fb-version.outputs.fb_version }}-linux-x64

@@ -6,6 +6,8 @@ on:
   workflow_dispatch:
 
 # Cancel in-progress runs for the same branch
+permissions: read-all
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -17,7 +19,7 @@ jobs:
   # ==========================================================================
   asan-ubsan:
     name: ASan + UBSan (PHP ${{ matrix.php-version }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     strategy:
       fail-fast: false
@@ -50,7 +52,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Install build dependencies
         run: |
@@ -94,33 +96,71 @@ jobs:
           rm -rf /var/lib/apt/lists/*
           docker-php-ext-install pcntl
 
-      - name: Install Firebird 5.0 client library
+      - name: Resolve Firebird 5 client version
+        id: fb-version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          chmod +x scripts/get-latest-firebird.sh
+          eval "$(./scripts/get-latest-firebird.sh 5)"
+          echo "fb_version=${FB_VERSION}"       >> "$GITHUB_OUTPUT"
+          echo "fb_url=${FB_URL}"               >> "$GITHUB_OUTPUT"
+          echo "fb_tarball=${FB_TARBALL}"       >> "$GITHUB_OUTPUT"
+          echo "fb_extract_dir=${FB_EXTRACT_DIR}" >> "$GITHUB_OUTPUT"
+          echo "Resolved: FB ${FB_VERSION} -> ${FB_TARBALL}"
+
+      - name: Cache Firebird 5 client tarball
+        id: cache-firebird
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: /tmp/firebird-cache
+          key: firebird-client-${{ steps.fb-version.outputs.fb_version }}-linux-x64
+
+      - name: Download Firebird 5 client tarball
+        if: steps.cache-firebird.outputs.cache-hit != 'true'
+        env:
+          FB_URL: ${{ steps.fb-version.outputs.fb_url }}
+          FB_TARBALL: ${{ steps.fb-version.outputs.fb_tarball }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          mkdir -p /tmp/firebird-cache
+          DEST="/tmp/firebird-cache/${FB_TARBALL}"
+          DELAY=10
+          for attempt in 1 2 3 4 5; do
+            echo "Downloading FB client (attempt ${attempt}/5)..."
+            if curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused \
+                -H "Authorization: token ${GITHUB_TOKEN}" \
+                "${FB_URL}" -o "${DEST}"; then
+              FSIZE=$(stat -c%s "${DEST}" 2>/dev/null || echo "0")
+              if [ "${FSIZE}" -gt 8000000 ]; then echo "Download OK (${FSIZE} bytes)"; break; fi
+              rm -f "${DEST}"
+            fi
+            if wget -q --tries=3 --timeout=90 \
+                --header="Authorization: token ${GITHUB_TOKEN}" \
+                "${FB_URL}" -O "${DEST}"; then
+              FSIZE=$(stat -c%s "${DEST}" 2>/dev/null || echo "0")
+              if [ "${FSIZE}" -gt 8000000 ]; then echo "wget OK (${FSIZE} bytes)"; break; fi
+              rm -f "${DEST}"
+            fi
+            [ "${attempt}" -lt 5 ] && sleep "$((DELAY * attempt))"
+          done
+          [ -f "${DEST}" ] || { echo "ERROR: Download failed" >&2; exit 1; }
+
+      - name: Install Firebird 5.0 client library
+        env:
+          FB_VERSION: ${{ steps.fb-version.outputs.fb_version }}
+          FB_TARBALL: ${{ steps.fb-version.outputs.fb_tarball }}
+          FB_EXTRACT_DIR: ${{ steps.fb-version.outputs.fb_extract_dir }}
         run: |
           set -eu
 
           FB_CLIENT_DIR="/opt/firebird-client"
           mkdir -p "${FB_CLIENT_DIR}"
 
-          # Resolve latest Firebird 5.x client dynamically
-          chmod +x scripts/get-latest-firebird.sh
-          eval "$(./scripts/get-latest-firebird.sh 5)"
-
-          echo "Installing Firebird ${FB_VERSION} client library..."
-          echo "URL: ${FB_URL}"
-
-          for attempt in 1 2 3 4 5; do
-            echo "Downloading FB client (attempt ${attempt}/5)..."
-            if curl -fsSL --retry 3 --retry-delay 5 "${FB_URL}" -o "/tmp/${FB_TARBALL}"; then
-              FSIZE=$(stat -c%s "/tmp/${FB_TARBALL}" 2>/dev/null || echo "0")
-              if [ "${FSIZE}" -gt 8000000 ]; then
-                break
-              fi
-              rm -f "/tmp/${FB_TARBALL}"
-            fi
-            sleep 10
-          done
+          cp "/tmp/firebird-cache/${FB_TARBALL}" "/tmp/${FB_TARBALL}"
+          echo "Installing Firebird ${FB_VERSION} client library from ${FB_TARBALL}..."
 
           cd /tmp
           tar xzf "${FB_TARBALL}"
@@ -343,7 +383,7 @@ jobs:
   # ==========================================================================
   lsan:
     name: LeakSanitizer (PHP 8.3)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     services:
       firebird:
@@ -368,7 +408,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Install build dependencies
         run: |
@@ -412,30 +452,64 @@ jobs:
           rm -rf /var/lib/apt/lists/*
           docker-php-ext-install pcntl
 
-      - name: Install Firebird 5.0 client library
+      - name: Resolve Firebird 5 client version
+        id: fb-version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          chmod +x scripts/get-latest-firebird.sh
+          eval "$(./scripts/get-latest-firebird.sh 5)"
+          echo "fb_version=${FB_VERSION}"       >> "$GITHUB_OUTPUT"
+          echo "fb_url=${FB_URL}"               >> "$GITHUB_OUTPUT"
+          echo "fb_tarball=${FB_TARBALL}"       >> "$GITHUB_OUTPUT"
+          echo "fb_extract_dir=${FB_EXTRACT_DIR}" >> "$GITHUB_OUTPUT"
+          echo "Resolved: FB ${FB_VERSION} -> ${FB_TARBALL}"
+
+      - name: Cache Firebird 5 client tarball
+        id: cache-firebird
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: /tmp/firebird-cache
+          key: firebird-client-${{ steps.fb-version.outputs.fb_version }}-linux-x64
+
+      - name: Download Firebird 5 client tarball
+        if: steps.cache-firebird.outputs.cache-hit != 'true'
+        env:
+          FB_URL: ${{ steps.fb-version.outputs.fb_url }}
+          FB_TARBALL: ${{ steps.fb-version.outputs.fb_tarball }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          mkdir -p /tmp/firebird-cache
+          DEST="/tmp/firebird-cache/${FB_TARBALL}"
+          DELAY=10
+          for attempt in 1 2 3 4 5; do
+            echo "Downloading FB client (attempt ${attempt}/5)..."
+            if curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused \
+                -H "Authorization: token ${GITHUB_TOKEN}" \
+                "${FB_URL}" -o "${DEST}"; then
+              FSIZE=$(stat -c%s "${DEST}" 2>/dev/null || echo "0")
+              if [ "${FSIZE}" -gt 8000000 ]; then echo "Download OK (${FSIZE} bytes)"; break; fi
+              rm -f "${DEST}"
+            fi
+            [ "${attempt}" -lt 5 ] && sleep "$((DELAY * attempt))"
+          done
+          [ -f "${DEST}" ] || { echo "ERROR: Download failed" >&2; exit 1; }
+
+      - name: Install Firebird 5.0 client library
+        env:
+          FB_VERSION: ${{ steps.fb-version.outputs.fb_version }}
+          FB_TARBALL: ${{ steps.fb-version.outputs.fb_tarball }}
+          FB_EXTRACT_DIR: ${{ steps.fb-version.outputs.fb_extract_dir }}
         run: |
           set -eu
 
           FB_CLIENT_DIR="/opt/firebird-client"
           mkdir -p "${FB_CLIENT_DIR}"
 
-          # Resolve latest Firebird 5.x client dynamically
-          chmod +x scripts/get-latest-firebird.sh
-          eval "$(./scripts/get-latest-firebird.sh 5)"
-
-          echo "Installing Firebird ${FB_VERSION} client library..."
-          echo "URL: ${FB_URL}"
-
-          for attempt in 1 2 3 4 5; do
-            if curl -fsSL --retry 3 --retry-delay 5 "${FB_URL}" -o "/tmp/${FB_TARBALL}"; then
-              FSIZE=$(stat -c%s "/tmp/${FB_TARBALL}" 2>/dev/null || echo "0")
-              if [ "${FSIZE}" -gt 8000000 ]; then break; fi
-              rm -f "/tmp/${FB_TARBALL}"
-            fi
-            sleep 10
-          done
+          cp "/tmp/firebird-cache/${FB_TARBALL}" "/tmp/${FB_TARBALL}"
+          echo "Installing Firebird ${FB_VERSION} client library from ${FB_TARBALL}..."
 
           cd /tmp
           tar xzf "${FB_TARBALL}"
@@ -661,7 +735,7 @@ jobs:
   # ==========================================================================
   sanitizer-summary:
     name: Sanitizer Summary
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [asan-ubsan, lsan]
     if: always()
 

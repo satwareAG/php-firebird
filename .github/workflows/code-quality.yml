@@ -7,6 +7,8 @@ on:
     branches: [main, master, satware-main]
 
 # Cancel in-progress runs for the same branch
+permissions: read-all
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -17,14 +19,14 @@ jobs:
   # ==========================================================================
   php-analysis:
     name: PHP Static Analysis
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@728c6c6b8cf02c2e48117716a91ee48313958a19 # v2
         with:
           php-version: '8.3'
           tools: composer:v2
@@ -35,7 +37,7 @@ jobs:
         run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
           key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock', '**/composer.json') }}
@@ -56,11 +58,11 @@ jobs:
   # ==========================================================================
   stubs-sync:
     name: Stubs Sync Check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Check stubs are in sync with firebird.c PHP_FE registrations
         run: |
@@ -72,11 +74,11 @@ jobs:
   # ==========================================================================
   c-analysis:
     name: C/C++ Static Analysis
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Install analysis tools
         run: |
@@ -191,11 +193,11 @@ jobs:
   # ==========================================================================
   secrets-scan:
     name: Secret Detection
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           fetch-depth: 0
 
@@ -227,7 +229,7 @@ jobs:
   # ==========================================================================
   quality-summary:
     name: Quality Gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [php-analysis, stubs-sync, c-analysis, secrets-scan]
     if: always()
 

@@ -46,16 +46,16 @@ jobs:
   # Reads PHP constraints from composer.json
   # ===========================================================================
   get-extension-matrix:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.extension-matrix.outputs.matrix }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Get the extension matrix
         id: extension-matrix
-        uses: php/php-windows-builder/extension-matrix@v1
+        uses: php/php-windows-builder/extension-matrix@c49dae50774b14e0f358d2efa65637b67f1104f6 # v1
         with:
           php-version-list: '8.2, 8.3, 8.4, 8.5'
           arch-list: 'x64'
@@ -75,7 +75,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Ensure VERSION file
         shell: pwsh
@@ -100,7 +100,7 @@ jobs:
           }
 
       - name: Cache Firebird SDK
-        uses: actions/cache@v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         id: cache-fb-sdk
         with:
           path: C:\firebird-sdk
@@ -125,7 +125,7 @@ jobs:
           echo "LDFLAGS=-L$sdkPath\lib" >> $env:GITHUB_ENV
 
       - name: Build Extension
-        uses: php/php-windows-builder/extension@v1
+        uses: php/php-windows-builder/extension@c49dae50774b14e0f358d2efa65637b67f1104f6 # v1
         with:
           php-version: ${{ matrix.php-version }}
           arch: ${{ matrix.arch }}
@@ -139,7 +139,7 @@ jobs:
   # ===========================================================================
   release:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: |
       github.event_name == 'release' ||
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
@@ -157,7 +157,7 @@ jobs:
           fi
 
       - name: Upload artifact to the release
-        uses: php/php-windows-builder/release@v1
+        uses: php/php-windows-builder/release@c49dae50774b14e0f358d2efa65637b67f1104f6 # v1
         with:
           release: ${{ steps.tag.outputs.tag }}
           token: ${{ secrets.GITHUB_TOKEN }}

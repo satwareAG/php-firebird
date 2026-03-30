@@ -14,19 +14,21 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions: read-all
+
 jobs:
   split:
     name: Split stubs/ to dedicated repository
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           fetch-depth: 0  # Full history required for subtree split
       
       - name: Split stubs directory
-        uses: danharrin/monorepo-split-github-action@v2.4.0
+        uses: danharrin/monorepo-split-github-action@19b2e0cbe3fe3de17309fd0fe95d4e05454f3ab3 # v2.4.0
         env:
           # PAT environment variable required by the action
           PAT: ${{ secrets.STUBS_REPO_TOKEN }}

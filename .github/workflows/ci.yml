@@ -2,7 +2,25 @@ name: CI
 
 on:
   push:
+    paths:
+      - '**.c'
+      - '**.cpp'
+      - '**.h'
+      - '**.hpp'
+      - 'tests/**'
+      - 'config.m4'
+      - 'config.w32'
+      - '.github/workflows/ci.yml'
   pull_request:
+    paths:
+      - '**.c'
+      - '**.cpp'
+      - '**.h'
+      - '**.hpp'
+      - 'tests/**'
+      - 'config.m4'
+      - 'config.w32'
+      - '.github/workflows/ci.yml'
   workflow_dispatch:
   schedule:
     - cron: '0 0 * * *'
@@ -10,6 +28,8 @@ on:
 # Cancel in-progress runs for the same ref when a new push arrives.
 # This avoids wasting runner minutes on stale builds while keeping
 # manual dispatches and scheduled nightly runs independent.
+permissions: read-all
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name != 'schedule' && github.event_name != 'workflow_dispatch' }}
@@ -17,7 +37,7 @@ concurrency:
 jobs:
   linux-matrix-build:
     name: PHP ${{ matrix.php-version }} / Firebird ${{ matrix.firebird-version }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     strategy:
       fail-fast: false
@@ -124,7 +144,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Ensure VERSION file
         run: |
@@ -213,7 +233,7 @@ jobs:
 
       - name: Cache Firebird client tarball
         id: cache-firebird
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: /tmp/firebird-cache
           # Key includes the exact resolved version so a new release busts the cache.
@@ -538,7 +558,7 @@ jobs:
           '
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: vendor
           key: composer-${{ hashFiles('composer.lock') }}
@@ -581,7 +601,7 @@ jobs:
 
       - name: Upload test failure diffs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: test-diffs-php${{ matrix.php-version }}-fb${{ matrix.firebird-version }}
           path: tests/**/*.diff

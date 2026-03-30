@@ -8,16 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [10.0.2] - 2026-03-30
 
 ### Fixed
-- **Segfault on Firebird 3.0 after v10.0.1** (issue #136): `StatementWrapper::closeCursor()`
-  and `StatementWrapper::free()` called `fb_status->dispose()` on the `IStatus` object before
-  the `CheckStatusWrapper` destructor ran. The wrapper destructor accesses `fb_status` when it
-  goes out of scope on `return`, causing a use-after-free segfault on Firebird 3.0 client.
-  Firebird 4.0/5.0 clients were not affected due to differing internal memory handling.
-  Fix: removed both `fb_status->dispose()` calls, consistent with all other methods in the
-  class which never call dispose (IStatus lifetime is managed by IMaster).
-  **Affected tests (all FB 3.0)**: 20 tests now pass; includes transactions, BLOBs, field info,
-  OO wrappers, and others.
-  The #135 RAM leak fix (IStatement::free / IResultSet::close) is fully preserved.
+- **Segfault on Firebird 3.0 after v10.0.1** (issue #137): `StatementWrapper::closeCursor()`
+  called `IResultSet::close()` even after `fetchNext()` returned EOF (`RESULT_NO_DATA`). When
+  the cursor reaches EOF on Firebird 3.0, the server implicitly closes the cursor. Calling
+  `close()` again is a double-close that causes a segfault (Termsig=11) on cleanup. Firebird
+  4.0/5.0 clients handle this gracefully due to internal differences.
+  Fix: `closeCursor()` now checks `cursor_open_` before deciding: if the cursor is still
+  actively open (`cursor_open_ == true`), call `close()` (DSQL_close); if already at EOF
+  (`cursor_open_ == false`), call `release()` which is always safe.
+  Secondary fix: removed `fb_status->dispose()` from `closeCursor()` and `free()` - the
+  `CheckStatusWrapper` destructor accesses `fb_status` on return, so calling `dispose()` first
+  is a use-after-free (consistent with all other methods which never call `dispose()`).
+  **Preserved**: the #135 RAM leak fix (IStatement::free for DML + IResultSet::close for
+  actively-open SELECT cursors) is fully preserved.
+  **Affected**: all 20 FB 3.0 failing tests now pass (transactions, BLOBs, field info, etc.)
 
 ## [10.0.1] - 2026-03-30
 

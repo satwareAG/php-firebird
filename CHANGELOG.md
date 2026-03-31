@@ -19,6 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Belt-and-suspenders: `~StatementWrapper()` destructor now calls `free()` (server-side drop) instead
   of just `release()` (client-side refcount decrement) as a safety net for abnormal destruction paths.
 
+### Tests
+- **Comprehensive resource lifecycle regression suite** (issue #135): Added 6 new `.phpt` tests
+  (gh135_stmt_leak_002 through _007) covering SELECT tight loops, parameterized queries, EXEC
+  PROCEDURE, DML RETURNING, error path cleanup, and mixed lifecycle scenarios (2120 total iterations
+  across all tests). Full codebase audit of all 19 `zend_register_resource()` call sites confirmed
+  no additional resource lifecycle bugs.
+- **Static analysis script** `scripts/analysis/check-resource-lifecycle.sh`: Scans all `.c` files
+  for resource registration, ownership transfer, and destructor patterns. Classifies each site as
+  return-to-userland, struct-field/caller-managed, or local. Exits 0 on current codebase.
+
 ## [10.3.4] - 2026-03-30
 
 ### Fixed

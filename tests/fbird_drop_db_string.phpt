@@ -33,3 +33,10 @@ echo "Done\n";
 created
 bool(true)
 Done
+
+--CLEAN--
+<?php
+require_once 'config.inc';
+// Database creation tests - DB dropped in --FILE-- section.
+// This --CLEAN-- is a safety net for crash recovery.
+?>

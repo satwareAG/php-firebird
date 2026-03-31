@@ -46,3 +46,13 @@ array(1) {
   ["V_INT128"]=>
   string(39) "170141183460469231731687303715884105727"
 }
+
+--CLEAN--
+<?php
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base, $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE TEST_DT");
+    @fbird_close($db);
+}
+?>

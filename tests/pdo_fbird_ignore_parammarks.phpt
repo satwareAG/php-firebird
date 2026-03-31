@@ -38,3 +38,11 @@ String colon: hello:world
 Cast: 123
 Where colon: test:value
 Done
+
+--CLEAN--
+<?php
+require_once __DIR__ . '/pdo_fbird.inc';
+$pdo = pdo_fbird_connect();
+@$pdo->exec("DROP TABLE ipm_test");
+unset($pdo);
+?>

@@ -135,3 +135,13 @@ TIME_TZ is NULL: yes
 TIMESTAMP_TZ is NULL: yes
 
 Done.
+
+--CLEAN--
+<?php
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base, $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE TZ_TEST");
+    @fbird_close($db);
+}
+?>

@@ -33,3 +33,11 @@ echo "Done\n";
 Update rowCount: 2
 Delete rowCount: 1
 Done
+
+--CLEAN--
+<?php
+require_once __DIR__ . '/pdo_fbird.inc';
+$pdo = pdo_fbird_connect();
+@$pdo->exec("DROP TABLE pdo_rc_test");
+unset($pdo);
+?>

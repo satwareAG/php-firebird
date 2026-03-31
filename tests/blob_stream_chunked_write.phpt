@@ -176,3 +176,13 @@ Testing with 65536 bytes:
   - Cleanup: closed
 
 Done!
+
+--CLEAN--
+<?php
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base, $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE test_stream_blob");
+    @fbird_close($db);
+}
+?>

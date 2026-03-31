@@ -39,3 +39,13 @@ array(3) {
   ["V_VARCHAR_UTF8_1"]=>
   string(3) "€"
 }
+
+--CLEAN--
+<?php
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base, $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE test_dt");
+    @fbird_close($db);
+}
+?>

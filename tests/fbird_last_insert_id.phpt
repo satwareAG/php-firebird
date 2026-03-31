@@ -44,3 +44,13 @@ after gen_id(1): 1
 last_insert_id: 1
 after gen_id(10): 11
 Done
+
+--CLEAN--
+<?php
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base, $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP GENERATOR test_seq_lid");
+    @fbird_close($db);
+}
+?>

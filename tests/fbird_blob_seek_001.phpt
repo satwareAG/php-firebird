@@ -192,3 +192,13 @@ Invalid whence correctly returned false
 
 === Cleanup ===
 Test completed successfully!
+
+--CLEAN--
+<?php
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base, $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE BLOB_SEEK_TEST");
+    @fbird_close($db);
+}
+?>

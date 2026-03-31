@@ -52,3 +52,13 @@ bool(false)
 Generator: %s
 last_insert_id: 1
 Done
+
+--CLEAN--
+<?php
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base, $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE test_id");
+    @fbird_close($db);
+}
+?>

@@ -104,3 +104,13 @@ OK: 100 execute_query error iterations - all resources cleaned up
 3. Testing fbird_query_params_tx error path...
 OK: 100 query_params_tx error iterations - all resources cleaned up
 Connection alive: yes
+
+--CLEAN--
+<?php
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base, $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE gh135_err_test");
+    @fbird_close($db);
+}
+?>

@@ -52,3 +52,13 @@ array(2) {
   ["F8"]=>
   NULL
 }
+
+--CLEAN--
+<?php
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base, $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE TTEST");
+    @fbird_close($db);
+}
+?>

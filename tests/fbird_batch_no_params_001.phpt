@@ -51,3 +51,13 @@ Error: fbird_batch_create(): statement has no input parameters; batch operations
 bool(false)
 bool(true)
 Done
+
+--CLEAN--
+<?php
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base, $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE batch_test_180");
+    @fbird_close($db);
+}
+?>

@@ -167,3 +167,13 @@ Rows inserted: 2
 PASS: Correct number of rows inserted (IBatch stopped at first error)
 %A
 === Test Complete ===
+
+--CLEAN--
+<?php
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base, $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE BATCH_ERROR_TEST");
+    @fbird_close($db);
+}
+?>

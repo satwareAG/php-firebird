@@ -47,3 +47,12 @@ df16: 3.14
 df34: 2.718
 i128_len: long
 Done
+
+--CLEAN--
+<?php
+require_once __DIR__ . '/pdo_fbird.inc';
+$pdo = pdo_fbird_connect();
+@$pdo->exec("DROP TABLE fb4_params");
+@$pdo->exec("DROP TABLE fb4_skip");
+unset($pdo);
+?>

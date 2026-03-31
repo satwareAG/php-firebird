@@ -32,3 +32,13 @@ object(stdClass)#%d (2) {
   ["CLIENT_NAME"]=>
   string(9) "Some name"
 }
+
+--CLEAN--
+<?php
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base, $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE test");
+    @fbird_close($db);
+}
+?>

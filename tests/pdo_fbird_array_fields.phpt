@@ -105,3 +105,11 @@ rows: 4
 row1 null: true
 row2 arr: true
 Done
+
+--CLEAN--
+<?php
+require_once __DIR__ . '/pdo_fbird.inc';
+$pdo = pdo_fbird_connect();
+@$pdo->exec("DROP TABLE pdo_arr_test");
+unset($pdo);
+?>

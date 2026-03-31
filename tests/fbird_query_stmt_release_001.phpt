@@ -78,3 +78,13 @@ echo "ok\n";
 ?>
 --EXPECT--
 ok
+
+--CLEAN--
+<?php
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base, $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE stmt_release_test");
+    @fbird_close($db);
+}
+?>

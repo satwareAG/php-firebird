@@ -41,3 +41,11 @@ Row 1: alpha, 1
 Row 2: beta, 2
 Multi: alpha, 1
 Done
+
+--CLEAN--
+<?php
+require_once __DIR__ . '/pdo_fbird.inc';
+$pdo = pdo_fbird_connect();
+@$pdo->exec("DROP TABLE pdo_named_test");
+unset($pdo);
+?>

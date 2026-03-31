@@ -44,3 +44,13 @@ fbird_close($conn);
 ?>
 --EXPECT--
 bool(true)
+
+--CLEAN--
+<?php
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base, $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE batch_bpb_test");
+    @fbird_close($db);
+}
+?>

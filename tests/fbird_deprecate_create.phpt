@@ -30,3 +30,10 @@ if ($caught) {
 --EXPECTF--
 DEPRECATED: fbird_query(): Passing FBIRD_CREATE to fbird_query() is deprecated, use fbird_create_database() instead
 Done
+
+--CLEAN--
+<?php
+require_once 'config.inc';
+// Database creation tests - DB dropped in --FILE-- section.
+// This --CLEAN-- is a safety net for crash recovery.
+?>

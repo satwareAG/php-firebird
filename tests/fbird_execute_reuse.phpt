@@ -48,3 +48,13 @@ bool(true)
 2: Bob
 3: Charlie
 Done
+
+--CLEAN--
+<?php
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base, $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE reuse_test");
+    @fbird_close($db);
+}
+?>

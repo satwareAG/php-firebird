@@ -58,3 +58,11 @@ exec2: 2,3
 destructor ok
 count: 3
 Done
+
+--CLEAN--
+<?php
+require_once __DIR__ . '/pdo_fbird.inc';
+$pdo = pdo_fbird_connect();
+@$pdo->exec("DROP TABLE cleanup_test");
+unset($pdo);
+?>

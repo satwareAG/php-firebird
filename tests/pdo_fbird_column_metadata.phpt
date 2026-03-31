@@ -56,3 +56,11 @@ active_type: boolean
 created_type: string
 alias: MY_ID,MY_NAME
 Done
+
+--CLEAN--
+<?php
+require_once __DIR__ . '/pdo_fbird.inc';
+$pdo = pdo_fbird_connect();
+@$pdo->exec("DROP TABLE colmeta_test");
+unset($pdo);
+?>

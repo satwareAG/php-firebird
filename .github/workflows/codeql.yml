@@ -106,38 +106,6 @@ jobs:
         with:
           category: "/language:cpp"
 
-  # ==========================================================================
-  # CodeQL Analysis for PHP (Wrapper classes)
-  # ==========================================================================
-  analyze-php:
-    name: CodeQL PHP
-    runs-on: ubuntu-24.04
-
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@3b1a19a80ab047f35cbb237b5bd9bdc1e14f166c # v3
-        with:
-          languages: php
-          queries: security-extended
-          # Analyze PHP wrapper classes and stubs; exclude generated/test code.
-          # NOTE: do NOT add a paths: block here - CodeQL auto-detects PHP files.
-          # Restricting to 'src/**' causes "Did not recognize the following
-          # languages: php" because src/ is primarily C/C++ with only a few .php
-          # files in src/Firebird/. Let CodeQL find all PHP naturally.
-          config: |
-            paths-ignore:
-              - 'tests/**'
-              - 'vendor/**'
-
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@3b1a19a80ab047f35cbb237b5bd9bdc1e14f166c # v3
-        with:
-          category: "/language:php"
+  # NOTE: CodeQL does not support PHP as an analysis language.
+  # PHP wrapper classes in src/Firebird/ are covered by PHPStan
+  # (see code-quality.yml) instead.

@@ -572,6 +572,58 @@ PHP_FUNCTION(fbird_close)
 	RETURN_TRUE;
 }
 
+/* {{{ _php_fbird_escape_single_quotes
+   Double every single-quote character in str to produce SQL-safe '' escaping.
+   Returns a new zend_string; caller must zend_string_release(). */
+static zend_string *_php_fbird_escape_single_quotes(const char *str, size_t len)
+{
+	/* Worst case: every character is a quote */
+	zend_string *result = zend_string_alloc(len * 2, 0);
+	char *dst = ZSTR_VAL(result);
+	size_t dst_len = 0;
+
+	for (size_t i = 0; i < len; i++) {
+		if (str[i] == '\'') {
+			dst[dst_len++] = '\'';
+			dst[dst_len++] = '\'';
+		} else {
+			dst[dst_len++] = str[i];
+		}
+	}
+	dst[dst_len] = '\0';
+	ZSTR_LEN(result) = dst_len;
+	return result;
+}
+/* }}} */
+
+/* Firebird character set allowlist for CREATE DATABASE.
+   Validated against Firebird 3.0/4.0/5.0 supported character sets. */
+static const char *valid_charsets[] = {
+	"NONE", "ASCII", "BIG_5", "CYRL", "DOS437", "DOS850", "DOS852",
+	"DOS857", "DOS860", "DOS861", "DOS863", "DOS865", "EUCJ_0208",
+	"GB_2312", "ISO8859_1", "ISO8859_2", "ISO8859_3", "ISO8859_4",
+	"ISO8859_5", "ISO8859_6", "ISO8859_7", "ISO8859_8", "ISO8859_9",
+	"ISO8859_13", "KSC_5601", "NEXT", "OCTETS", "SJIS_0208",
+	"TIS620", "UNICODE_FSS", "UTF8", "WIN1250", "WIN1251",
+	"WIN1252", "WIN1253", "WIN1254", "WIN1255", "WIN1256",
+	"WIN1257", "WIN1258", "KOI8R", "KOI8U", "WIN_PTBR",
+	"ISO8859_15", "GBK", "CP943C", "GB18030",
+	NULL
+};
+
+/* {{{ _php_fbird_is_valid_charset
+   Case-insensitive check of charset against the Firebird allowlist. */
+static int _php_fbird_is_valid_charset(const char *charset)
+{
+	for (const char **cs = valid_charsets; *cs != NULL; cs++) {
+		if (zend_binary_strcasecmp(charset, strlen(charset), *cs, strlen(*cs)) == 0) {
+			return 1;
+		}
+	}
+	return 0;
+}
+/* }}} */
+
 /* {{{ proto resource fbird_create_database(string $database [, string $username [, string $password [, string $charset [, int $page_size]]]])
    Create a new Firebird database and return a connection resource */
 PHP_FUNCTION(fbird_create_database)
@@ -581,7 +633,7 @@ PHP_FUNCTION(fbird_create_database)
 	zend_long page_size = 0;
 	unsigned short dialect = 3;
 	fbird_db_link *ib_link;
-	char create_sql[4096];
+	char *create_sql = NULL;
 
 	RESET_ERRMSG;
 
@@ -594,19 +646,50 @@ PHP_FUNCTION(fbird_create_database)
 		return;
 	}
 
-	/* Build CREATE DATABASE SQL */
-	int pos = snprintf(create_sql, sizeof(create_sql), "CREATE DATABASE '%s'", database);
+	/* Validate charset against allowlist to prevent SQL injection via
+	 * DEFAULT CHARACTER SET clause (unquoted identifier). */
+	if (charset && charset_len > 0 && !_php_fbird_is_valid_charset(charset)) {
+		php_error_docref(NULL, E_WARNING,
+			"Invalid character set name '%s'", charset);
+		RETURN_FALSE;
+	}
+
+	/* Escape single quotes in user-supplied strings to prevent SQL injection
+	 * in the CREATE DATABASE statement (C1 fix, issue #155). */
+	zend_string *esc_database = _php_fbird_escape_single_quotes(database, database_len);
+	zend_string *esc_username = NULL;
+	zend_string *esc_password = NULL;
+
+	/* Build CREATE DATABASE SQL dynamically with spprintf() to eliminate
+	 * fixed-size stack buffer overflow risk (M10 fix, issue #157). */
+	spprintf(&create_sql, 0, "CREATE DATABASE '%s'", ZSTR_VAL(esc_database));
+
 	if (username && username_len > 0) {
-		pos += snprintf(create_sql + pos, sizeof(create_sql) - pos, " USER '%s'", username);
+		char *tmp;
+		esc_username = _php_fbird_escape_single_quotes(username, username_len);
+		spprintf(&tmp, 0, "%s USER '%s'", create_sql, ZSTR_VAL(esc_username));
+		efree(create_sql);
+		create_sql = tmp;
 	}
 	if (password && password_len > 0) {
-		pos += snprintf(create_sql + pos, sizeof(create_sql) - pos, " PASSWORD '%s'", password);
+		char *tmp;
+		esc_password = _php_fbird_escape_single_quotes(password, password_len);
+		spprintf(&tmp, 0, "%s PASSWORD '%s'", create_sql, ZSTR_VAL(esc_password));
+		efree(create_sql);
+		create_sql = tmp;
 	}
 	if (page_size > 0) {
-		pos += snprintf(create_sql + pos, sizeof(create_sql) - pos, " PAGE_SIZE = %ld", (long)page_size);
+		char *tmp;
+		spprintf(&tmp, 0, "%s PAGE_SIZE = %ld", create_sql, (long)page_size);
+		efree(create_sql);
+		create_sql = tmp;
 	}
 	if (charset && charset_len > 0) {
-		pos += snprintf(create_sql + pos, sizeof(create_sql) - pos, " DEFAULT CHARACTER SET %s", charset);
+		char *tmp;
+		/* charset is already validated against allowlist above */
+		spprintf(&tmp, 0, "%s DEFAULT CHARACTER SET %s", create_sql, charset);
+		efree(create_sql);
+		create_sql = tmp;
 	}
 
 	void *create_result = fbc_create_database(
@@ -615,6 +698,16 @@ PHP_FUNCTION(fbird_create_database)
 		dialect,
 		IB_STATUS
 	);
+
+	/* Clean up dynamically allocated SQL and escaped strings */
+	efree(create_sql);
+	zend_string_release(esc_database);
+	if (esc_username) {
+		zend_string_release(esc_username);
+	}
+	if (esc_password) {
+		zend_string_release(esc_password);
+	}
 
 	if (!create_result) {
 		_php_fbird_error();

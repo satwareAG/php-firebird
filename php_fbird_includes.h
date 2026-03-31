@@ -237,6 +237,10 @@ typedef struct {
     void *fbbatch_wrapper;    /* OO API batch wrapper (from fbbatch_create()) */
     fbird_transaction *trans; /* Associated transaction */
     fbird_query *query;       /* Parent prepared statement */
+    zend_resource *query_res; /* Strong reference to query resource (Issue #185).
+                               * Prevents premature destruction of the IStatement*
+                               * when the PHP query variable goes out of scope
+                               * before fbird_batch_execute() is called. */
     void *in_metadata;        /* IMessageMetadata for input parameters */
     void *in_msg_buffer;      /* Message buffer for row data */
     unsigned in_msg_length;   /* Message buffer size */

@@ -942,7 +942,16 @@ PHP_RINIT_FUNCTION(fbird)
 PHP_RSHUTDOWN_FUNCTION(fbird)
 {
 	IBG(num_links) = IBG(num_persistent);
-	IBG(default_link)= NULL;
+
+	/* Properly release the default_link reference (Issue #183).
+	 * Previously this just set the pointer to NULL, orphaning the resource
+	 * reference (refcount never decremented). This caused the resource to
+	 * leak or trigger SIGSEGV during shutdown when the orphaned resource
+	 * was cleaned up with stale state. */
+	if (IBG(default_link)) {
+		zend_list_delete(IBG(default_link));
+		IBG(default_link) = NULL;
+	}
 
 	RESET_ERRMSG;
 

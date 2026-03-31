@@ -5,6 +5,20 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.3.5] - 2026-03-31
+
+### Fixed
+- **Server-side prepared statement leak in fbird_query() SELECT** (issue #135): Each `fbird_query()`
+  call that returned a result resource (SELECT, EXEC PROCEDURE, DML with RETURNING) accumulated a
+  server-side prepared statement that was never freed until PHP request shutdown. With thousands of
+  iterations (e.g. 125K SQL statements), this caused 1.5 GB+ Firebird server RAM growth. Root cause:
+  the internal parent `ib_query` resource was registered via `zend_register_resource()` but never
+  explicitly freed - only the child result resource was returned to userland. Fix: transfer statement
+  ownership (`owns_stmt_handle`) from the parent to the child result resource and `zend_list_delete()`
+  the parent immediately. Same fix applied to `fbird_execute_query()` and `fbird_query_params_tx()`.
+  Belt-and-suspenders: `~StatementWrapper()` destructor now calls `free()` (server-side drop) instead
+  of just `release()` (client-side refcount decrement) as a safety net for abnormal destruction paths.
+
 ## [10.3.4] - 2026-03-30
 
 ### Fixed
@@ -1139,7 +1153,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.3.4...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.3.5...HEAD
+[10.3.5]: https://github.com/satwareAG/php-firebird/compare/v10.3.4...v10.3.5
 [10.3.4]: https://github.com/satwareAG/php-firebird/compare/v10.3.3...v10.3.4
 [10.3.3]: https://github.com/satwareAG/php-firebird/compare/v10.3.2...v10.3.3
 [10.3.2]: https://github.com/satwareAG/php-firebird/compare/v10.3.0...v10.3.2

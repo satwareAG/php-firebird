@@ -44,15 +44,14 @@ public:
     StatementWrapper() noexcept = default;
 
     ~StatementWrapper() noexcept {
-        // Clean up cursor and statement
-        if (result_set_) {
-            result_set_->release();
-            result_set_ = nullptr;
-        }
-        if (statement_) {
-            statement_->release();
-            statement_ = nullptr;
-        }
+        // Use free() for proper server-side cleanup (closes cursor + drops
+        // prepared statement on FB 4.0+).  If free() was already called by
+        // fbs_free(), both pointers are nullptr and free() is a no-op.
+        // This is a safety net for abnormal destruction paths (e.g. stack
+        // unwinding, move-assignment displacement) where fbs_free() was
+        // never called.  Fixes GitHub issue #135 (belt-and-suspenders).
+        ISC_STATUS dummy[ISC_STATUS_LENGTH] = {0};
+        free(dummy);
     }
 
     // Non-copyable

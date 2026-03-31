@@ -785,6 +785,7 @@ jobs:
             libsqlite3-dev \
             libtommath1 \
             libtool \
+            libtsan2 \
             libxml2-dev \
             libzip-dev \
             llvm \

@@ -821,7 +821,7 @@ jobs:
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: /opt/php-tsan
-          key: php-tsan-zts-${{ steps.php-version.outputs.php_version }}-ubuntu2404-v2
+          key: php-tsan-zts-${{ steps.php-version.outputs.php_version }}-ubuntu2404-v3
 
       - name: Build PHP 8.3 with ZTS and ThreadSanitizer
         if: steps.cache-php.outputs.cache-hit != 'true'
@@ -857,8 +857,11 @@ jobs:
             LDFLAGS=""
 
           # Inject TSan flags into the generated Makefile (post-configure)
+          # CFLAGS_CLEAN: used for compiling .c files
+          # LDFLAGS: used for linking the final php binary (not EXTRA_LDFLAGS)
           sed -i 's/^CFLAGS_CLEAN = /CFLAGS_CLEAN = -fsanitize=thread /' Makefile
-          sed -i 's/^EXTRA_LDFLAGS = .*/EXTRA_LDFLAGS = -fsanitize=thread/' Makefile
+          sed -i '/^LDFLAGS = / s/$/ -fsanitize=thread/' Makefile
+          sed -i '/^EXTRA_LDFLAGS = / s/$/ -fsanitize=thread/' Makefile
 
           make -j"$(nproc)"
           sudo make install

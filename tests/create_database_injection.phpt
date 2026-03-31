@@ -47,15 +47,6 @@ var_dump($result);
 
 echo "Done\n";
 ?>
---CLEAN--
-<?php
-require("firebird.inc");
-// Clean up any databases that may have been created
-@fbird_drop_db(@fbird_connect($test_base . "_test'injection", $user, $password));
-@fbird_drop_db(@fbird_connect($test_base . "_inj2", $user, $password));
-@fbird_drop_db(@fbird_connect($test_base . "_inj3", $user, $password));
-@fbird_drop_db(@fbird_connect($test_base . "_inj4", $user, $password));
-?>
 --EXPECTF--
 Test 1: Single quote in database path
 %s

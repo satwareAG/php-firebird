@@ -55,5 +55,4 @@ Caught: Password exceeds maximum SPB length of 255 bytes
 Test 3: Long hostname
 Caught: Hostname exceeds maximum length
 Test 4: Normal credentials
-%s
-Done
+%ADone

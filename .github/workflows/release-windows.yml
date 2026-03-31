@@ -36,6 +36,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 env:
   FIREBIRD_SDK_CACHE_KEY: firebird-sdk-v2
@@ -163,3 +165,22 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           # Create draft release if it doesn't exist (for tag push)
           draft: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
+
+      - name: Download All Build Artifacts
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          path: artifacts
+
+      - name: Generate SLSA Provenance Attestations
+        run: |
+          echo "Generating SLSA provenance attestations for Windows artifacts..."
+          find artifacts -name "*.zip" -type f | while read -r artifact; do
+            echo "Attesting: $(basename "$artifact")"
+            gh attestation generate "$artifact" \
+              --repo "${{ github.repository }}" \
+              --signer github 2>&1 || echo "WARNING: Attestation failed for $(basename "$artifact")"
+          done
+          echo "Attestation generation complete."
+          echo "Verify with: gh attestation verify <artifact> --repo ${{ github.repository }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

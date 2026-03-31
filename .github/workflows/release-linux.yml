@@ -439,6 +439,14 @@ jobs:
           echo "Bundle files created:"
           ls -la dist/
       
+      - name: Generate SBOM (CycloneDX)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        with:
+          path: dist/${{ steps.bundle.outputs.bundle_name }}
+          format: cyclonedx-json
+          output-file: dist/${{ steps.bundle.outputs.bundle_name }}.sbom.cdx.json
+          artifact-name: ''
+
       - name: Upload Artifact
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
@@ -447,6 +455,7 @@ jobs:
             ${{ steps.bundle.outputs.bundle_file }}
             ${{ steps.bundle.outputs.bundle_file }}.sha256
             ${{ steps.bundle.outputs.bundle_file }}.md5
+            dist/${{ steps.bundle.outputs.bundle_name }}.sbom.cdx.json
           retention-days: 30
 
   # ===========================================================================
@@ -462,6 +471,8 @@ jobs:
     
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     
     steps:
       - name: Download All Artifacts
@@ -476,10 +487,11 @@ jobs:
           echo "Downloaded artifacts:"
           find artifacts -type f -name "*.tar.gz*" | head -20
           
-          # Collect all bundles
+          # Collect all bundles and SBOMs
           find artifacts -name "*.tar.gz" -exec cp {} release-assets/ \;
           find artifacts -name "*.sha256" -exec cp {} release-assets/ \;
           find artifacts -name "*.md5" -exec cp {} release-assets/ \;
+          find artifacts -name "*.sbom.cdx.json" -exec cp {} release-assets/ \;
           
           echo ""
           echo "Release assets:"
@@ -516,12 +528,27 @@ jobs:
           files: |
             release-assets/*.tar.gz
             release-assets/*.sha256
+            release-assets/*.sbom.cdx.json
             release-assets/CHECKSUMS-SHA256.txt
           fail_on_unmatched_files: false
           # Create draft release for tag push (immutable releases)
           draft: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate SLSA Provenance Attestations
+        run: |
+          echo "Generating SLSA provenance attestations for release artifacts..."
+          for artifact in release-assets/*.tar.gz; do
+            echo "Attesting: $(basename "$artifact")"
+            gh attestation generate "$artifact" \
+              --repo "${{ github.repository }}" \
+              --signer github 2>&1 || echo "WARNING: Attestation failed for $(basename "$artifact")"
+          done
+          echo "Attestation generation complete."
+          echo "Verify with: gh attestation verify <artifact> --repo ${{ github.repository }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ===========================================================================
   # Test Bundles on Multiple Distributions

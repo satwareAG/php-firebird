@@ -19,7 +19,8 @@ $config = [
     'output' => 'fuzz_report.sarif',
     'dsn' => 'localhost:/var/lib/firebird/data/test.fdb',
     'user' => 'SYSDBA',
-    'password' => 'masterkey'
+    'password' => 'masterkey',
+    'dictionary' => null,
 ];
 
 // Parse arguments
@@ -30,7 +31,56 @@ foreach ($argv as $arg) {
         $config['output'] = substr($arg, 9);
     } elseif (strpos($arg, '--dsn=') === 0) {
         $config['dsn'] = substr($arg, 6);
+    } elseif (strpos($arg, '--dictionary=') === 0) {
+        $config['dictionary'] = substr($arg, 13);
     }
+}
+
+// Auto-detect dictionary if not specified
+if ($config['dictionary'] === null) {
+    $defaultDict = __DIR__ . '/dictionary/sql.dict';
+    if (file_exists($defaultDict)) {
+        $config['dictionary'] = $defaultDict;
+    }
+}
+
+/**
+ * Load dictionary tokens from an AFL/libFuzzer-compatible dictionary file.
+ * Each line is a quoted token (quotes stripped) or a bare token.
+ * Lines starting with # and blank lines are skipped.
+ *
+ * @param string $path Path to dictionary file
+ * @return array<string> Parsed tokens
+ */
+function loadDictionary(string $path): array
+{
+    $tokens = [];
+    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if ($lines === false) {
+        echo "Warning: Could not read dictionary file: {$path}\n";
+        return [];
+    }
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '' || $line[0] === '#') {
+            continue;
+        }
+        // Strip surrounding quotes if present (AFL dict format)
+        if (strlen($line) >= 2 && $line[0] === '"' && $line[-1] === '"') {
+            $line = substr($line, 1, -1);
+        }
+        // Handle key=value format (e.g., "kw_select=\"SELECT\"")
+        if (str_contains($line, '=')) {
+            $line = substr($line, strpos($line, '=') + 1);
+            if (strlen($line) >= 2 && $line[0] === '"' && $line[-1] === '"') {
+                $line = substr($line, 1, -1);
+            }
+        }
+        if ($line !== '') {
+            $tokens[] = $line;
+        }
+    }
+    return $tokens;
 }
 
 // Initialize report
@@ -43,6 +93,13 @@ try {
     // Initialize harness
     $harness = new FuzzHarness($config['dsn'], $config['user'], $config['password']);
     
+    // Load dictionary tokens if available
+    if ($config['dictionary'] !== null) {
+        $tokens = loadDictionary($config['dictionary']);
+        $harness->dictionaryTokens = $tokens;
+        echo "Loaded " . count($tokens) . " dictionary tokens from {$config['dictionary']}\n";
+    }
+
     // Load default operations
     $harness->loadDefaultOperations();
     

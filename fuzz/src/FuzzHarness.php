@@ -3,6 +3,8 @@
 class FuzzHarness {
     private array $operations = [];
     private float $totalWeight = 0.0;
+    /** @var array<string> Dictionary tokens loaded from fuzz/dictionary/sql.dict */
+    public array $dictionaryTokens = [];
     public array $state = [
         'connections' => [],
         'transactions' => [],
@@ -261,5 +263,15 @@ class FuzzHarness {
     public function getRandomBlob() {
         if (empty($this->state['blobs'])) return null;
         return $this->state['blobs'][array_rand($this->state['blobs'])];
+    }
+
+    /**
+     * Get a random token from the loaded dictionary, or null if no dictionary loaded.
+     */
+    public function getRandomDictionaryToken(): ?string {
+        if (empty($this->dictionaryTokens)) {
+            return null;
+        }
+        return $this->dictionaryTokens[array_rand($this->dictionaryTokens)];
     }
 }

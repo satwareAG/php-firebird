@@ -6,6 +6,8 @@
 #include "config.h"
 #endif
 
+#ifdef HAVE_PDO_FBIRD
+
 #include "php.h"
 #include "ext/pdo/php_pdo_driver.h"
 #include "php_pdo_fbird_int.h"
@@ -70,3 +72,5 @@ int pdo_fbird_stmt_error(pdo_stmt_t *stmt)
 	_pdo_fbird_set_error_code(&stmt->error_code, S->status);
 	return 0;
 }
+
+#endif /* HAVE_PDO_FBIRD */

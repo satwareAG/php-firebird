@@ -2,7 +2,7 @@
 
 **Issues**: #141 (events), #142 (bridge removal), #143 (coverage)
 **Milestone**: v10.2.0
-**Status**: Active
+**Status**: RELEASED in v10.2.0
 **Depends on**: v10.1.0 merged
 
 ## Goal

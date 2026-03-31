@@ -7,6 +7,8 @@
 #include "config.h"
 #endif
 
+#ifdef HAVE_PDO_FBIRD
+
 #include "php.h"
 #include "php_ini.h"
 #include "ext/standard/info.h"
@@ -155,3 +157,5 @@ zend_module_entry pdo_fbird_module_entry = {
 #ifdef COMPILE_DL_PDO_FBIRD
 ZEND_GET_MODULE(pdo_fbird)
 #endif
+
+#endif /* HAVE_PDO_FBIRD */

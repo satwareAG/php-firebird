@@ -773,6 +773,7 @@ jobs:
             bison \
             build-essential \
             ca-certificates \
+            clang \
             curl \
             g++ \
             git \
@@ -785,7 +786,6 @@ jobs:
             libsqlite3-dev \
             libtommath1 \
             libtool \
-            libtsan2 \
             libxml2-dev \
             libzip-dev \
             llvm \
@@ -821,7 +821,7 @@ jobs:
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: /opt/php-tsan
-          key: php-tsan-zts-${{ steps.php-version.outputs.php_version }}-ubuntu2404-v4
+          key: php-tsan-zts-${{ steps.php-version.outputs.php_version }}-ubuntu2404-clang-v5
 
       - name: Build PHP 8.3 with ZTS and ThreadSanitizer
         if: steps.cache-php.outputs.cache-hit != 'true'
@@ -836,15 +836,16 @@ jobs:
           tar xzf php-src.tar.gz
           cd "php-${PHP_VERSION}"
 
-          # Build PHP with ZTS (thread safety) and TSan instrumentation
+          # Build PHP with ZTS (thread safety) and TSan instrumentation using Clang.
           # --disable-all: Minimal build to reduce compile time
           # --enable-zts: Enable Zend Thread Safety (required for TSan to be meaningful)
           # --enable-pcntl: Needed by some PHPT tests
           #
-          # IMPORTANT: Do NOT pass -fsanitize=thread to ./configure!
-          # configure compiles AND runs test programs. TSan runtime initialization
-          # fails in the GitHub Actions environment ("cannot run C compiled programs").
-          # Instead, configure with debug flags only, then inject TSan into the Makefile.
+          # IMPORTANT: Must use Clang for TSan - GCC TSan is broken on Ubuntu/Debian
+          # (segfaults during sanitizer_posix_libcdep.cpp signal handler setup).
+          # TSAN_OPTIONS=exitcode=0 prevents configure test programs from failing
+          # when TSan detects races in autoconf-generated test code.
+          export TSAN_OPTIONS="exitcode=0:halt_on_error=0"
           ./configure \
             --prefix=/opt/php-tsan \
             --enable-zts \
@@ -853,15 +854,10 @@ jobs:
             --enable-posix \
             --enable-session \
             --with-zlib \
-            CFLAGS="-g -O1 -fno-omit-frame-pointer" \
-            LDFLAGS=""
-
-          # Inject TSan flags into the generated Makefile (post-configure)
-          # CFLAGS_CLEAN: used for compiling .c files
-          # LDFLAGS: used for linking the final php binary (not EXTRA_LDFLAGS)
-          sed -i 's/^CFLAGS_CLEAN = /CFLAGS_CLEAN = -fsanitize=thread /' Makefile
-          sed -i '/^LDFLAGS = / s/$/ -fsanitize=thread/' Makefile
-          sed -i '/^EXTRA_LDFLAGS = / s/$/ -fsanitize=thread/' Makefile
+            CC=clang \
+            CXX=clang++ \
+            CFLAGS="-g -O1 -fno-omit-frame-pointer -fsanitize=thread" \
+            LDFLAGS="-fsanitize=thread"
 
           make -j"$(nproc)"
           sudo make install
@@ -1018,10 +1014,11 @@ jobs:
           export PATH="/opt/php-tsan/bin:$PATH"
           export LD_LIBRARY_PATH="/opt/firebird-client/lib:${LD_LIBRARY_PATH:-}"
 
+          # Use Clang to match PHP build (GCC TSan is broken on Ubuntu/Debian)
           SANITIZE_FLAGS="-fsanitize=thread -g -O1 -fno-omit-frame-pointer"
 
-          export CC=gcc
-          export CXX=g++
+          export CC=clang
+          export CXX=clang++
           export CFLAGS="-I/opt/firebird-client/include ${SANITIZE_FLAGS}"
           export CXXFLAGS="-I/opt/firebird-client/include ${SANITIZE_FLAGS}"
           export LDFLAGS="-L/opt/firebird-client/lib -fsanitize=thread"

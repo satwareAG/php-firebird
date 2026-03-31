@@ -4,8 +4,7 @@
 # TSan requires PHP built from source because:
 # 1. Official php:*-zts images don't include TSan instrumentation
 # 2. Both PHP and the extension must share the same TSan runtime
-# 3. -fsanitize=thread must be injected post-configure (configure runs
-#    test programs that fail under TSan)
+# 3. Must use Clang (GCC 12+ TSan is broken on Debian bookworm)
 #
 # Usage:
 #   docker compose build php83-tsan
@@ -16,17 +15,19 @@ FROM debian:bookworm-slim
 ARG PHP_VERSION=8.3.26
 
 # TSan runtime options
-ENV TSAN_OPTIONS="halt_on_error=0:second_deadlock_stack=1:history_size=4"
+ENV TSAN_OPTIONS="halt_on_error=0:second_deadlock_stack=1:history_size=4:exitcode=0"
 # Required for sanitizers to work correctly with PHP extensions
 ENV USE_ZEND_ALLOC=0
 ENV ZEND_DONT_UNLOAD_MODULES=1
 
 # Install build dependencies (PHP + Firebird client)
+# IMPORTANT: clang is required - GCC 12 TSan segfaults on Debian bookworm
 RUN apt-get update && apt-get install -y --no-install-recommends \
     autoconf \
     bison \
     build-essential \
     ca-certificates \
+    clang \
     curl \
     firebird-dev \
     g++ \
@@ -38,7 +39,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libreadline-dev \
     libsqlite3-dev \
     libtool \
-    libtsan2 \
     libxml2-dev \
     libzip-dev \
     pkg-config \
@@ -51,21 +51,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Download and compile PHP with ZTS + ThreadSanitizer
+# Download and compile PHP with ZTS + ThreadSanitizer using Clang
 RUN set -eu \
+    && export TSAN_OPTIONS="exitcode=0:halt_on_error=0" \
     && mkdir -p /usr/src/php && cd /usr/src/php \
     && curl -fsSL "https://www.php.net/distributions/php-${PHP_VERSION}.tar.gz" -o php-src.tar.gz \
     && tar xzf php-src.tar.gz \
     && cd "php-${PHP_VERSION}" \
     #
-    # Configure with ZTS but WITHOUT -fsanitize=thread.
-    # configure compiles AND runs test programs; TSan runtime init fails
-    # in constrained environments ("cannot run C compiled programs").
+    # Configure with Clang + ZTS + TSan flags passed natively.
+    # TSAN_OPTIONS=exitcode=0 prevents configure test programs from
+    # returning non-zero when TSan detects races in test code.
     #
-    #
-    # IMPORTANT: --disable-all is required. Do NOT add --enable-mbstring!
-    # mbstring uses IFUNC resolvers (resolve_wchar_utf16be) that run during
-    # dynamic linker relocation BEFORE TSan initializes, causing SIGSEGV.
+    # GCC 12 TSan is broken on Debian bookworm (segfaults during
+    # sanitizer_posix_libcdep.cpp signal handler setup). Clang works.
     #
     && ./configure \
         --prefix=/usr/local \
@@ -77,16 +76,10 @@ RUN set -eu \
         --enable-posix \
         --enable-session \
         --with-zlib \
-        CFLAGS="-g -O1 -fno-omit-frame-pointer" \
-        LDFLAGS="" \
-    #
-    # Post-configure: inject TSan flags into the generated Makefile.
-    # CFLAGS_CLEAN: compiles .c/.cpp files
-    # LDFLAGS + EXTRA_LDFLAGS: links the final php binary
-    #
-    && sed -i 's/^CFLAGS_CLEAN = /CFLAGS_CLEAN = -fsanitize=thread /' Makefile \
-    && sed -i '/^LDFLAGS = / s/$/ -fsanitize=thread/' Makefile \
-    && sed -i '/^EXTRA_LDFLAGS = / s/$/ -fsanitize=thread/' Makefile \
+        CC=clang \
+        CXX=clang++ \
+        CFLAGS="-g -O1 -fno-omit-frame-pointer -fsanitize=thread" \
+        LDFLAGS="-fsanitize=thread" \
     #
     && make -j"$(nproc)" \
     && make install \
@@ -96,11 +89,8 @@ RUN set -eu \
     # Cleanup source to reduce image size
     && rm -rf /usr/src/php
 
-# Verify ZTS + TSan in a separate layer.
-# TSan runtime may segfault inside BuildKit's constrained context.
-# Allow failure here - actual validation happens at container runtime.
-RUN php -v && php -i | grep -i "thread safety" \
-    || echo "⚠️  php -v failed in build context (TSan runtime init). Will verify at runtime."
+# Verify ZTS + TSan
+RUN php -v && php -i | grep -i "thread safety"
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer

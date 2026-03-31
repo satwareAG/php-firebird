@@ -125,6 +125,20 @@ PHP_FUNCTION(fbird_batch_create)
 		RETURN_FALSE;
 	}
 
+	/* Guard: batch operations require input parameters (Issue #180).
+	 * Calling createBatch() with msg_length=0 causes SIGFPE in libfbclient
+	 * (division by zero when computing row capacity from buffer size). */
+	{
+		unsigned input_count = fbs_get_input_count(
+			IBG(master_instance), ib_query->fbs_statement, IB_STATUS);
+		if (input_count == 0) {
+			_php_fbird_module_error("fbird_batch_create(): statement has no "
+				"input parameters; batch operations require parameterized "
+				"statements (e.g., INSERT ... VALUES (?, ?))");
+			RETURN_FALSE;
+		}
+	}
+
 	/* Create batch with default buffer size */
 	batch_wrapper = fbbatch_create(IBG(master_instance), stmt_ptr, 0, IB_STATUS);
 	if (!batch_wrapper) {

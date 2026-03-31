@@ -45,6 +45,42 @@ make -j$(nproc)
 # Output: PHP 8.3.26 (cli) (built: ...) (ZTS)
 ```
 
+## Docker BuildKit: Missing libclang-rt-dev
+
+When building PHP with Clang + TSan inside Docker BuildKit, `make`
+fails with exit 2 (linker error) if only the `clang` package is
+installed. On Debian bookworm, `clang` does NOT include the compiler-rt
+TSan runtime library (`libclang_rt.tsan-x86_64.a`).
+
+**Symptom**: Compile steps succeed (Clang inserts `__tsan_*` calls
+into .o files without the runtime), but the link step fails because
+`-fsanitize=thread` in LDFLAGS tells Clang to link with the TSan
+runtime which doesn't exist.
+
+**Fix**: Install `libclang-rt-dev` alongside `clang`:
+
+```dockerfile
+RUN apt-get install -y --no-install-recommends \
+    clang \
+    libclang-rt-dev \
+    ...
+```
+
+**Why CI works without it**: The GitHub Actions CI runs on ubuntu-24.04
+bare metal where `clang` + `llvm` packages pull in compiler-rt
+transitively, or the system has it pre-installed.
+
+**Docker BuildKit two-phase approach** (required because BuildKit's
+restricted seccomp profile blocks TSan-compiled test programs):
+
+1. Configure WITHOUT `-fsanitize=thread` (avoids configure exit 77)
+2. Post-configure: inject TSan via `sed` into Makefile's CFLAGS_CLEAN,
+   LDFLAGS, and EXTRA_LDFLAGS
+3. `make -j$(nproc)` succeeds with `libclang-rt-dev` installed
+
+Verified: PHP 8.3.26 (ZTS DEBUG) with Thread Safety enabled, built
+inside Docker BuildKit on 2026-03-31.
+
 ## Failed Approaches (for reference)
 
 1. **Post-configure sed injection with GCC**: Segfault
@@ -52,3 +88,4 @@ make -j$(nproc)
 3. **GCC without ZTS**: Same segfault
 4. **GCC with --disable-all (minimal PHP)**: Same segfault
 5. **Removing --enable-mbstring** (IFUNC resolver theory): Not the cause
+6. **Clang in Docker BuildKit without libclang-rt-dev**: make exit 2 (linker error)

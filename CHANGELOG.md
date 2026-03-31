@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `fbird_batch_no_params_001.phpt`: Verifies that `fbird_batch_create()` returns `false` for
   SELECT and DELETE statements without parameters, and succeeds for parameterized INSERT.
 
+### Docker
+- **Fix Docker TSan build**: Added `libclang-rt-dev` to `docker/php/Dockerfile-tsan` for Clang
+  compiler-rt TSan runtime. Without it, `make` fails with exit 2 (linker error) because the
+  `clang` package on Debian bookworm does not include `libclang_rt.tsan-x86_64.a`.
+
 ## [10.3.8] - 2026-03-31
 
 ### Fixed

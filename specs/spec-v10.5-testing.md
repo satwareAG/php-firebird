@@ -6,7 +6,7 @@ tags: [testing, fuzzing, tsan, macos, v10.5]
 priority: 7
 ---
 
-> **Status: OPEN** - Milestone v10.5.0
+> **Status: COMPLETE** - All issues closed 2026-03-31
 
 # Spec: v10.5.0 Testing Improvements
 
@@ -17,11 +17,11 @@ validation, improved fuzzing, and macOS build verification.
 
 ## Success Criteria
 
-- [ ] H6: All .phpt tests creating DB objects have `--CLEAN--` sections
-- [ ] M5: TSan job in sanitizers.yml with ZTS PHP build
-- [ ] M6: Fuzz dictionary with Firebird SQL keywords in `fuzz/dictionary/sql.dict`
-- [ ] M11: macOS CI job (build-only) in ci.yml
-- [ ] No test interdependencies on failed test artifacts
+- [x] H6: All .phpt tests creating DB objects have `--CLEAN--` sections
+- [x] M5: TSan job in sanitizers.yml with ZTS PHP build
+- [x] M6: Fuzz dictionary with Firebird SQL keywords in `fuzz/dictionary/sql.dict`
+- [x] M11: macOS CI job (build-only) in ci.yml
+- [x] No test interdependencies on failed test artifacts
 
 ## Part 1: H6 - PHPT --CLEAN-- Sections
 

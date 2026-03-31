@@ -719,7 +719,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development guidelines inclu
 
 ### Development Tools
 - **Static Analysis**: clang-tidy, Cppcheck
-- **Memory Safety**: AddressSanitizer, Valgrind
+- **Memory Safety**: AddressSanitizer, ThreadSanitizer (ZTS), Valgrind
 - **Debugging**: GDB/LLDB with PHP symbols
 - **IDE Support**: CLion, VS Code, Visual Studio
 

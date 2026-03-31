@@ -28,3 +28,11 @@ echo "ok\n";
 --EXPECT--
 COUNT=1
 ok
+
+--CLEAN--
+<?php
+require_once __DIR__ . '/pdo_fbird.inc';
+$pdo = pdo_fbird_connect();
+@$pdo->exec("DROP TABLE pdo_test3");
+unset($pdo);
+?>

@@ -60,3 +60,13 @@ type: array
 content: Hello from stream!
 Line 2 of blob data.
 Done
+
+--CLEAN--
+<?php
+require_once 'config.inc';
+$db = @fbird_connect($host . ':/firebird/data/test.fdb', $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE blob_stream_test");
+    @fbird_close($db);
+}
+?>

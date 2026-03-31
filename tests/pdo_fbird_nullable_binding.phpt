@@ -42,3 +42,11 @@ val: 42
 Insert with values: OK
 name: hello, val: 99
 Done
+
+--CLEAN--
+<?php
+require_once __DIR__ . '/pdo_fbird.inc';
+$pdo = pdo_fbird_connect();
+@$pdo->exec("DROP TABLE pdo_null_test");
+unset($pdo);
+?>

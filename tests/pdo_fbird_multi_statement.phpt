@@ -45,3 +45,11 @@ grp_A: 1,2
 grp_B: 3,4
 reexec: 3,4
 Done
+
+--CLEAN--
+<?php
+require_once __DIR__ . '/pdo_fbird.inc';
+$pdo = pdo_fbird_connect();
+@$pdo->exec("DROP TABLE multi_test");
+unset($pdo);
+?>

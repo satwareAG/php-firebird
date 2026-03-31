@@ -79,3 +79,13 @@ bool(true)
 bool(true)
 bool(true)
 done
+
+--CLEAN--
+<?php
+require_once 'config.inc';
+$db = @fbird_connect($host . ':/firebird/data/test.fdb', $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE OO_BATCH_TEST");
+    @fbird_close($db);
+}
+?>

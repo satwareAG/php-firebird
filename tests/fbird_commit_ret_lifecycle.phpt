@@ -65,3 +65,13 @@ bool(false)
 1: Alice
 2: Bob
 Done
+
+--CLEAN--
+<?php
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base, $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE cret_test");
+    @fbird_close($db);
+}
+?>

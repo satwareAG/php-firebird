@@ -47,3 +47,13 @@ after insert: 1
 after insert 2: 2
 bool(false)
 Done
+
+--CLEAN--
+<?php
+require_once __DIR__ . '/pdo_fbird.inc';
+$pdo = pdo_fbird_connect();
+@$pdo->exec("DROP TRIGGER test_lid_bi");
+@$pdo->exec("DROP TABLE test_lid");
+@$pdo->exec("DROP GENERATOR test_seq_pdo");
+unset($pdo);
+?>

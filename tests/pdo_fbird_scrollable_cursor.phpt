@@ -104,3 +104,12 @@ rel(-1): 2-beta
 rel(+2): 4-delta
 default_cursor: fwdonly
 Done
+
+--CLEAN--
+<?php
+require_once __DIR__ . '/pdo_fbird.inc';
+$pdo = pdo_fbird_connect();
+@$pdo->exec("DROP TABLE scroll_skip_test");
+@$pdo->exec("DROP TABLE scroll_test");
+unset($pdo);
+?>

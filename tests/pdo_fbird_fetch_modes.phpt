@@ -57,3 +57,11 @@ obj: 1-Alice
 col: Alice
 pairs: 1=Alice,2=Bob
 Done
+
+--CLEAN--
+<?php
+require_once __DIR__ . '/pdo_fbird.inc';
+$pdo = pdo_fbird_connect();
+@$pdo->exec("DROP TABLE fetch_test");
+unset($pdo);
+?>

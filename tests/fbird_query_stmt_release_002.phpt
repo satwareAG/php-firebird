@@ -99,3 +99,13 @@ echo "DONE\n";
 500 DML statements completed without error
 50 SELECT statements completed without error
 DONE
+
+--CLEAN--
+<?php
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base, $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE fbird_stmt_release_002");
+    @fbird_close($db);
+}
+?>

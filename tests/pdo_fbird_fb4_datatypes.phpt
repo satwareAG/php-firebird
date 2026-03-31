@@ -56,3 +56,11 @@ DEC16:  0
 DEC34:  0
 ---
 Done
+
+--CLEAN--
+<?php
+require_once __DIR__ . '/pdo_fbird.inc';
+$pdo = pdo_fbird_connect();
+@$pdo->exec("DROP TABLE fb4_types");
+unset($pdo);
+?>

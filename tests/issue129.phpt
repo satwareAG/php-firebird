@@ -37,3 +37,13 @@ fbird_close($conn);
 --EXPECTF--
 Attempting to use a PHP stream as a BLOB parameter...
 %A
+
+--CLEAN--
+<?php
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base, $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE test_blobs");
+    @fbird_close($db);
+}
+?>

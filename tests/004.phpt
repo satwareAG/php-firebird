@@ -180,3 +180,13 @@ fetch blob 3
 | contact core@php.net.                                                |
 +----------------------------------------------------------------------+
 end of test
+
+--CLEAN--
+<?php
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base, $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE test4");
+    @fbird_close($db);
+}
+?>

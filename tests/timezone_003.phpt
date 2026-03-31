@@ -133,3 +133,13 @@ Before rollback: TIME=23:59:59 UTC
 After rollback: TIME=08:15:30 America/Los_Angeles
 
 Done.
+
+--CLEAN--
+<?php
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base, $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE TZ_UPDATE_TEST");
+    @fbird_close($db);
+}
+?>

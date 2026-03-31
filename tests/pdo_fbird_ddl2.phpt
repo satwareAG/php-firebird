@@ -62,3 +62,14 @@ view dropped
 proc: 42
 proc dropped
 Done
+
+--CLEAN--
+<?php
+require_once __DIR__ . '/pdo_fbird.inc';
+$pdo = pdo_fbird_connect();
+@$pdo->exec("DROP VIEW ddl2_view");
+@$pdo->exec("DROP PROCEDURE ddl2_proc");
+@$pdo->exec("DROP TABLE ddl2_base");
+@$pdo->exec("DROP GENERATOR ddl2_seq");
+unset($pdo);
+?>

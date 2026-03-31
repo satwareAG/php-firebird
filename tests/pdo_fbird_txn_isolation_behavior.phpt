@@ -53,3 +53,11 @@ in-txn read: rc_updated
 after commit: rc_updated
 after rollback: rc_updated
 Done
+
+--CLEAN--
+<?php
+require_once __DIR__ . '/pdo_fbird.inc';
+$pdo = pdo_fbird_connect();
+@$pdo->exec("DROP TABLE txn_iso_beh");
+unset($pdo);
+?>

@@ -64,3 +64,13 @@ Insert successful
 Commit successful
 Test 2: Protected Read Lock
 Transaction started successfully
+
+--CLEAN--
+<?php
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base, $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE reservation_test");
+    @fbird_close($db);
+}
+?>

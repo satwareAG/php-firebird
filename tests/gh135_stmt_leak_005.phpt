@@ -94,3 +94,13 @@ fbird_close($db2);
 OK: 200 INSERT RETURNING iterations completed without error
 OK: all 200 rows present
 OK: 200 UPDATE RETURNING iterations completed without error
+
+--CLEAN--
+<?php
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base, $user, $password);
+if ($db) {
+    @fbird_query($db, "DROP TABLE gh135_dml_ret");
+    @fbird_close($db);
+}
+?>

@@ -38,3 +38,11 @@ dialect3: 42
 server_version: ok
 driver: fbird
 Done
+
+--CLEAN--
+<?php
+require_once __DIR__ . '/pdo_fbird.inc';
+$pdo = pdo_fbird_connect();
+@$pdo->exec("DROP TABLE dialect_Test");
+unset($pdo);
+?>

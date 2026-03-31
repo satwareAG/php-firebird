@@ -37,3 +37,11 @@ echo "Done\n";
 stream: Hello blob stream
 stream: Second blob content that is a bit longer to test streaming
 Done
+
+--CLEAN--
+<?php
+require_once __DIR__ . '/pdo_fbird.inc';
+$pdo = pdo_fbird_connect();
+@$pdo->exec("DROP TABLE blob_stream_test");
+unset($pdo);
+?>

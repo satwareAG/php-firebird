@@ -46,3 +46,11 @@ row1 content: Hello blob content
 row2 content is null: NULL
 stream content: Hello blob content
 Done
+
+--CLEAN--
+<?php
+require_once __DIR__ . '/pdo_fbird.inc';
+$pdo = pdo_fbird_connect();
+@$pdo->exec("DROP TABLE blob_test");
+unset($pdo);
+?>

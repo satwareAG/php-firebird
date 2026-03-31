@@ -55,3 +55,11 @@ After set true: yes
 Read in RO txn: 1
 Write in RO txn: blocked
 Done
+
+--CLEAN--
+<?php
+require_once __DIR__ . '/pdo_fbird.inc';
+$pdo = pdo_fbird_connect();
+@$pdo->exec("DROP TABLE wt_test");
+unset($pdo);
+?>

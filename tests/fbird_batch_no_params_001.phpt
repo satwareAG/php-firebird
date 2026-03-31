@@ -7,7 +7,7 @@ if (!function_exists('fbird_batch_create')) die("skip IBatch API not available (
 ?>
 --FILE--
 <?php
-require_once('config.inc');
+require_once('firebird.inc');
 require_once('common.inc');
 
 $conn = fbird_connect($test_base, $user, $password, $charset);

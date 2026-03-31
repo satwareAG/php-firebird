@@ -189,6 +189,22 @@ jobs:
           done
 
   # ==========================================================================
+  # Version Stamp Check (stubs @version must match VERSION file)
+  # ==========================================================================
+  version-stamps:
+    name: Version Stamps Check
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Check stubs @version tags match VERSION file
+        run: |
+          chmod +x scripts/check-version-stamps.sh
+          bash scripts/check-version-stamps.sh
+
+  # ==========================================================================
   # Secret Detection (Gitleaks CLI - no license required)
   # ==========================================================================
   secrets-scan:
@@ -230,7 +246,7 @@ jobs:
   quality-summary:
     name: Quality Gate
     runs-on: ubuntu-24.04
-    needs: [php-analysis, stubs-sync, c-analysis, secrets-scan]
+    needs: [php-analysis, stubs-sync, c-analysis, version-stamps, secrets-scan]
     if: always()
 
     steps:
@@ -239,11 +255,13 @@ jobs:
           echo "PHP Analysis: ${{ needs.php-analysis.result }}"
           echo "Stubs Sync: ${{ needs.stubs-sync.result }}"
           echo "C/C++ Analysis: ${{ needs.c-analysis.result }}"
+          echo "Version Stamps: ${{ needs.version-stamps.result }}"
           echo "Secrets Scan: ${{ needs.secrets-scan.result }}"
 
           if [ "${{ needs.php-analysis.result }}" = "failure" ] || \
              [ "${{ needs.stubs-sync.result }}" = "failure" ] || \
              [ "${{ needs.c-analysis.result }}" = "failure" ] || \
+             [ "${{ needs.version-stamps.result }}" = "failure" ] || \
              [ "${{ needs.secrets-scan.result }}" = "failure" ]; then
             echo "❌ Quality gate failed"
             exit 1

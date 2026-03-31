@@ -119,6 +119,20 @@ if test "$PHP_FIREBIRD" != "no"; then
   ])
   PHP_SUBST(FIREBIRD_SHARED_LIBADD)
 
+  dnl Compiler hardening flags (Issue #164)
+  FIREBIRD_CFLAGS=""
+  PHP_CHECK_GCC_ARG(-Wall, [FIREBIRD_CFLAGS="$FIREBIRD_CFLAGS -Wall"])
+  PHP_CHECK_GCC_ARG(-Wextra, [FIREBIRD_CFLAGS="$FIREBIRD_CFLAGS -Wextra"])
+  PHP_CHECK_GCC_ARG(-Wformat-security, [FIREBIRD_CFLAGS="$FIREBIRD_CFLAGS -Wformat-security"])
+  PHP_CHECK_GCC_ARG(-Wno-unused-parameter, [FIREBIRD_CFLAGS="$FIREBIRD_CFLAGS -Wno-unused-parameter"])
+  PHP_CHECK_GCC_ARG(-fstack-protector-strong, [FIREBIRD_CFLAGS="$FIREBIRD_CFLAGS -fstack-protector-strong"])
+
+  dnl Pin C standard to gnu17 (Issue #165)
+  PHP_CHECK_GCC_ARG(-std=gnu17, [FIREBIRD_CFLAGS="$FIREBIRD_CFLAGS -std=gnu17"])
+
+  dnl -D_FORTIFY_SOURCE=2 requires -O1 minimum (PHP defaults to -O2)
+  CFLAGS="$CFLAGS $FIREBIRD_CFLAGS -D_FORTIFY_SOURCE=2"
+
   PHP_REQUIRE_CXX()
   PHP_CXX_COMPILE_STDCXX([17], [mandatory], [PHP_FIREBIRD_STDCXX])
 

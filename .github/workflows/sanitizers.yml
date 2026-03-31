@@ -1014,17 +1014,23 @@ jobs:
           export PATH="/opt/php-tsan/bin:$PATH"
           export LD_LIBRARY_PATH="/opt/firebird-client/lib:${LD_LIBRARY_PATH:-}"
 
-          # Use Clang to match PHP build (GCC TSan is broken on Ubuntu/Debian)
-          SANITIZE_FLAGS="-fsanitize=thread -g -O1 -fno-omit-frame-pointer"
-
+          # Use Clang to match PHP build (GCC TSan is broken on Ubuntu/Debian).
+          # Configure WITHOUT TSan flags first (configure runs test programs that
+          # fail with TSan exit codes), then inject TSan via sed post-configure.
           export CC=clang
           export CXX=clang++
-          export CFLAGS="-I/opt/firebird-client/include ${SANITIZE_FLAGS}"
-          export CXXFLAGS="-I/opt/firebird-client/include ${SANITIZE_FLAGS}"
-          export LDFLAGS="-L/opt/firebird-client/lib -fsanitize=thread"
+          export CFLAGS="-I/opt/firebird-client/include -g -O1 -fno-omit-frame-pointer"
+          export CXXFLAGS="-I/opt/firebird-client/include -g -O1 -fno-omit-frame-pointer"
+          export LDFLAGS="-L/opt/firebird-client/lib"
 
           phpize
           ./configure --with-firebird=/opt/firebird-client
+
+          # Post-configure: inject TSan flags into the generated Makefile
+          sed -i 's/^CFLAGS_CLEAN = /CFLAGS_CLEAN = -fsanitize=thread /' Makefile
+          sed -i '/^LDFLAGS = / s/$/ -fsanitize=thread/' Makefile
+          sed -i '/^EXTRA_LDFLAGS = / s/$/ -fsanitize=thread/' Makefile
+
           make -j"$(nproc)"
 
           echo "Extension built with ThreadSanitizer + ZTS"

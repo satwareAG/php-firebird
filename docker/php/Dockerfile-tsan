@@ -1,0 +1,113 @@
+# PHP 8.3 with ZTS (Zend Thread Safety) + ThreadSanitizer
+# For local validation of thread safety before pushing to CI.
+#
+# TSan requires PHP built from source because:
+# 1. Official php:*-zts images don't include TSan instrumentation
+# 2. Both PHP and the extension must share the same TSan runtime
+# 3. Must use Clang (GCC 12+ TSan is broken on Debian bookworm)
+#
+# NOTE: Docker BuildKit cannot run TSan-compiled programs during build
+# (restricted seccomp/capabilities), so we use post-configure injection.
+# The resulting binary works correctly at container runtime.
+#
+# Usage:
+#   docker compose build php83-tsan
+#   docker compose run --rm php83-tsan bash -c "/ext/scripts/build.sh && /ext/scripts/test.sh"
+
+FROM debian:bookworm-slim
+
+ARG PHP_VERSION=8.3.26
+
+# TSan runtime options
+ENV TSAN_OPTIONS="halt_on_error=0:second_deadlock_stack=1:history_size=4:exitcode=0"
+# Required for sanitizers to work correctly with PHP extensions
+ENV USE_ZEND_ALLOC=0
+ENV ZEND_DONT_UNLOAD_MODULES=1
+
+# Install build dependencies (PHP + Firebird client)
+# IMPORTANT: clang is required - GCC 12 TSan segfaults on Debian bookworm
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    autoconf \
+    bison \
+    build-essential \
+    ca-certificates \
+    clang \
+    curl \
+    firebird-dev \
+    g++ \
+    git \
+    libicu-dev \
+    libncurses6 \
+    libonig-dev \
+    libpcre2-dev \
+    libreadline-dev \
+    libsqlite3-dev \
+    libtool \
+    libxml2-dev \
+    libzip-dev \
+    pkg-config \
+    re2c \
+    unzip \
+    vim \
+    wget \
+    zlib1g-dev \
+    && ln -s /usr/lib/x86_64-linux-gnu/libfbclient.so /usr/lib/libfbclient.so \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Download and compile PHP with ZTS + ThreadSanitizer using Clang
+# Two-phase approach required by Docker BuildKit:
+# 1. Configure WITHOUT TSan (BuildKit can't run TSan test programs)
+# 2. Inject TSan into Makefile post-configure, then compile with Clang
+RUN set -eu \
+    && mkdir -p /usr/src/php && cd /usr/src/php \
+    && curl -fsSL "https://www.php.net/distributions/php-${PHP_VERSION}.tar.gz" -o php-src.tar.gz \
+    && tar xzf php-src.tar.gz \
+    && cd "php-${PHP_VERSION}" \
+    #
+    # Phase 1: Configure with Clang but WITHOUT -fsanitize=thread.
+    # BuildKit's restricted execution environment cannot run TSan-compiled
+    # test programs (configure exit 77: "cannot run C compiled programs").
+    #
+    && ./configure \
+        --prefix=/usr/local \
+        --with-config-file-path=/usr/local/etc/php \
+        --enable-zts \
+        --enable-debug \
+        --disable-all \
+        --enable-pcntl \
+        --enable-posix \
+        --enable-session \
+        --with-zlib \
+        CC=clang \
+        CXX=clang++ \
+        CFLAGS="-g -O1 -fno-omit-frame-pointer" \
+        LDFLAGS="" \
+    #
+    # Phase 2: Inject TSan flags into the generated Makefile.
+    # CFLAGS_CLEAN: compiles .c/.cpp files with TSan
+    # LDFLAGS + EXTRA_LDFLAGS: links the final php binary with TSan
+    #
+    && sed -i 's/^CFLAGS_CLEAN = /CFLAGS_CLEAN = -fsanitize=thread /' Makefile \
+    && sed -i '/^LDFLAGS = / s/$/ -fsanitize=thread/' Makefile \
+    && sed -i '/^EXTRA_LDFLAGS = / s/$/ -fsanitize=thread/' Makefile \
+    #
+    && make -j"$(nproc)" \
+    && make install \
+    && mkdir -p /usr/local/etc/php \
+    && cp php.ini-development /usr/local/etc/php/php.ini \
+    #
+    # Cleanup source to reduce image size
+    && rm -rf /usr/src/php
+
+# Verify ZTS + TSan at runtime (BuildKit may still restrict TSan init).
+# Actual verification happens when container runs interactively.
+RUN php -v && php -i | grep -i "thread safety" \
+    || echo "⚠️  php -v failed in BuildKit context. Will verify at container runtime."
+
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+WORKDIR /ext
+
+CMD ["tail", "-f", "/dev/null"]

@@ -8,8 +8,12 @@ set -e
 # Example: ./test_matrix.sh php84-fb3-dev "" tests/fbird_blob_001.phpt
 # Example (all versions, specific test): ./test_matrix.sh "" "" tests/fbird_blob_001.phpt
 #
+# Sanitizer targets (not in default matrix - use explicitly):
+#   ./test_matrix.sh php83-tsan           # ThreadSanitizer + ZTS
+#   ./test_matrix.sh php83-asan           # AddressSanitizer
+#
 # Arguments:
-#   container_name   - PHP container to test (e.g., php82-dev, php83-dev, php84-dev, php84-fb3-dev, php85-dev, php85-fb5-dev)
+#   container_name   - PHP container to test (e.g., php82-dev, php83-tsan, php84-fb3-dev)
 #   firebird_server  - Target Firebird server (firebird30, firebird40, firebird50)
 #   test_files       - Optional specific test files to run
 
@@ -52,6 +56,7 @@ if [ -n "$1" ]; then
     TARGETS=("$1")
 else
     # Test all PHP containers across all supported Firebird client libraries (12 combinations)
+    # Sanitizer containers (php83-tsan, php83-asan) excluded by default - use explicitly
     TARGETS=(
         "php82-fb3-dev" "php82-dev" "php82-fb5-dev"
         "php83-fb3-dev" "php83-dev" "php83-fb5-dev"
@@ -68,11 +73,16 @@ auto_detect_firebird_server() {
         *-fb3-*)
             echo "firebird30"
             ;;
-        *-fb5-*)
+        *-fb5-*|*-tsan)
+            # TSan container defaults to firebird50
             echo "firebird50"
             ;;
+        *-asan)
+            # ASan container defaults to firebird40
+            echo "firebird40"
+            ;;
         *)
-            # Default containers use firebird40
+            # Default dev containers use firebird40
             echo ""
             ;;
     esac

@@ -68,7 +68,7 @@ Create `.github/dependabot.yml` for weekly GitHub Actions ecosystem updates.
 
 ### Current State
 
-Stubs have stale `@version` tags (`9.0.0`, `10.0.0`) instead of current `10.3.6`.
+Stubs have stale `@version` tags (`9.0.0`, `10.0.0`) instead of current `10.3.9`.
 
 ### Fix
 

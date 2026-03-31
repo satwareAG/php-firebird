@@ -227,6 +227,28 @@ services:
       - LD_LIBRARY_PATH=/opt/firebird/lib
     depends_on: [ firebird30 ]
 
+  # PHP 8.3 with ZTS + ThreadSanitizer
+  # Builds PHP from source with --enable-zts and -fsanitize=thread
+  # For local thread-safety validation (data race detection)
+  php83-tsan:
+    build:
+      context: php
+      dockerfile: Dockerfile-tsan
+    volumes:
+      - ..:/ext
+      - fb50-data:/firebird
+    working_dir: /ext
+    command: tail -f /dev/null
+    environment:
+      - FIREBIRD_HOST=firebird50
+      - FIREBIRD_DB_DIR=/firebird
+      - TZ=Europe/Berlin
+      - TSAN_OPTIONS=halt_on_error=0:second_deadlock_stack=1:history_size=4
+      - USE_ZEND_ALLOC=0
+      - ZEND_DONT_UNLOAD_MODULES=1
+    depends_on:
+      - firebird50
+
   # PHP 8.3 with AddressSanitizer
   # ASAN_OPTIONS, USE_ZEND_ALLOC, ZEND_DONT_UNLOAD_MODULES are set in Dockerfile-asan
   # with PHP-src compatible values (exitcode=139, abort_on_error=0)

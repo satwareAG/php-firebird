@@ -137,9 +137,17 @@ PHP_METHOD(FirebirdConnection, close)
 	ZEND_PARSE_PARAMETERS_NONE();
 	fbird_connection_obj *intern = Z_FBIRD_CONNECTION_P(ZEND_THIS);
 	if (intern->conn_res) {
+		/* Clear default_link BEFORE closing, to prevent dangling pointer (Issue #184).
+		 * When Connection::close() is called (e.g. by doctrine's TransactionManager),
+		 * _php_fbird_close_link() frees the fbird_db_link but previously didn't clear
+		 * IBG(default_link), leaving a dangling pointer that caused "Connection has no
+		 * OO API handle" errors on subsequent procedural API calls. */
+		if (!IBG(in_mshutdown) && IBG(default_link) == intern->conn_res) {
+			IBG(default_link) = NULL;
+		}
 		/* Close the resource (marks it invalid, triggers destructor) */
 		zend_list_close(intern->conn_res);
- 	intern->conn_res = NULL;
+		intern->conn_res = NULL;
 	}
 }
 

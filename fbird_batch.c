@@ -56,6 +56,14 @@ void _php_fbird_free_batch(zend_resource *rsrc)
 		batch->in_metadata = NULL;
 	}
 
+	/* Release strong reference to query resource (Issue #185).
+	 * This prevents the IStatement* from being freed while the batch
+	 * still holds a pointer to it. */
+	if (batch->query_res != NULL) {
+		zend_list_delete(batch->query_res);
+		batch->query_res = NULL;
+	}
+
 	efree(batch);
 }
 #endif /* FB_API_VER >= 40 */
@@ -139,6 +147,8 @@ PHP_FUNCTION(fbird_batch_create)
 	ib_batch->fbbatch_wrapper = batch_wrapper;
 	ib_batch->trans = trans;
 	ib_batch->query = ib_query;
+	ib_batch->query_res = Z_RES_P(query_arg);
+	GC_ADDREF(ib_batch->query_res);
 	ib_batch->in_metadata = metadata;
 	ib_batch->in_msg_length = msg_length;
 	ib_batch->in_msg_buffer = emalloc(msg_length);

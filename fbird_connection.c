@@ -60,7 +60,10 @@ void _php_fbird_commit_link(fbird_db_link *link)
 					int res = fbt_commit(p->trans->fbt_transaction, IB_STATUS);
 					fbt_free(p->trans->fbt_transaction);
 					p->trans->fbt_transaction = NULL;
-					if (res) {
+					/* Guard error reporting during MSHUTDOWN (Issue #183).
+					 * _php_fbird_error() accesses EG() globals which may be
+					 * destroyed during persistent connection cleanup. */
+					if (res && !IBG(in_mshutdown)) {
 						_php_fbird_error();
 					}
 				}
@@ -72,7 +75,7 @@ void _php_fbird_commit_link(fbird_db_link *link)
 					int res = fbt_rollback(p->trans->fbt_transaction, IB_STATUS);
 					fbt_free(p->trans->fbt_transaction);
 					p->trans->fbt_transaction = NULL;
-					if (res) {
+					if (res && !IBG(in_mshutdown)) {
 						_php_fbird_error();
 					}
 				}
@@ -119,6 +122,14 @@ void _php_fbird_close_link(zend_resource *rsrc)
 	 * Accessing link->created_pid with NULL pointer causes SIGSEGV at si_addr=0x4. */
 	if (link == NULL) {
 		return;
+	}
+
+	/* Clear default_link if this resource IS the default link (Issue #183, #184).
+	 * Without this, IBG(default_link) becomes a dangling pointer after the link
+	 * is freed, causing SIGSEGV when doctrine's TransactionManager later tries to
+	 * use the default link via procedural API paths. */
+	if (!IBG(in_mshutdown) && IBG(default_link) == rsrc) {
+		IBG(default_link) = NULL;
 	}
 
 #ifndef PHP_WIN32

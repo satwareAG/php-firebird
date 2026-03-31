@@ -5,6 +5,24 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.3.7] - 2026-03-31
+
+### Fixed
+- **SIGSEGV during shutdown with default connection** (issue #183): `_php_fbird_close_link()` did not
+  clear `IBG(default_link)` when destroying the default connection, leaving a dangling pointer that
+  caused a segfault in RSHUTDOWN or MSHUTDOWN. Fix: clear `default_link` in the resource destructor,
+  use `zend_list_delete()` (not `zend_list_close()`) in RSHUTDOWN for proper refcount release, and
+  guard `_php_fbird_commit_link()` error reporting against `in_mshutdown` to avoid accessing freed
+  executor globals.
+- **OO API Connection::close() loses default handle** (issue #184): `Connection::close()` called
+  `zend_list_close()` which triggered the resource destructor, but the `fbird_connection_obj.conn_res`
+  weak reference was not cleared, and `IBG(default_link)` was left dangling. Fix: clear `default_link`
+  before `zend_list_close()` in `Connection::close()`, then set `conn_res = NULL`.
+- **IBatch handle invalidated after query resource freed** (issue #185): `fbird_batch_create()` stored
+  the raw `fbird_query*` pointer without incrementing the query resource's refcount, allowing the
+  `IStatement*` to be freed while the batch still referenced it. Fix: store `query_res` with
+  `GC_ADDREF()` in `fbird_batch_create()` and release via `zend_list_delete()` in the batch destructor.
+
 ## [10.3.6] - 2026-03-31
 
 ### Fixed
@@ -1179,7 +1197,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.3.6...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.3.7...HEAD
+[10.3.7]: https://github.com/satwareAG/php-firebird/compare/v10.3.6...v10.3.7
 [10.3.6]: https://github.com/satwareAG/php-firebird/compare/v10.3.5...v10.3.6
 [10.3.5]: https://github.com/satwareAG/php-firebird/compare/v10.3.4...v10.3.5
 [10.3.4]: https://github.com/satwareAG/php-firebird/compare/v10.3.3...v10.3.4

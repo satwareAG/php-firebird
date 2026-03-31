@@ -26,9 +26,13 @@ echo "seq: $val\n";
 $pdo->exec("DROP SEQUENCE ddl2_seq");
 echo "seq dropped\n";
 
-/* View */
+/* View — DDL needs hard commit before DML can see new table metadata.
+ * In autocommit mode, Firebird uses commit_retaining which preserves
+ * the transaction snapshot; beginTransaction() forces a hard commit. */
 $pdo->exec("RECREATE TABLE ddl2_base (id INTEGER, name VARCHAR(30))");
+$pdo->beginTransaction();
 $pdo->exec("INSERT INTO ddl2_base VALUES (1, 'test')");
+$pdo->commit();
 try { $pdo->exec("DROP VIEW ddl2_view"); } catch (Throwable $e) {}
 $pdo->exec("CREATE VIEW ddl2_view AS SELECT id, name FROM ddl2_base WHERE id > 0");
 $stmt = $pdo->query("SELECT * FROM ddl2_view");

@@ -4,17 +4,11 @@ fbird_query: FB 4.0+ server-side statement cleanup via IStatement::free() and IR
 firebird
 --SKIPIF--
 <?php
-require_once 'config.inc';
-$conn = fbird_connect(FIREBIRD_TEST_DB, FIREBIRD_TEST_USER, FIREBIRD_TEST_PASS);
+include("skipif.inc");
+require("firebird.inc");
+$conn = fbird_connect($test_base, $user, $password);
 if (!$conn) die("skip: cannot connect to Firebird");
 $ver = fbird_server_info($conn, IBASE_SVC_SERVER_VERSION);
-// Skip on FB 3.0 client: this test verifies FB 4+ behaviour
-// FB_API_VER is compile-time; skip at runtime if server < 4
-if (preg_match('/^[Ww][Ii][Nn]|^[Uu][Ss][Ee]|LI-V3/', $ver ?? '')) {
-    fbird_close($conn);
-    die("skip: Firebird server < 4.0 (test targets FB 4+ resource cleanup)");
-}
-// Check version number: FB4 returns "LI-V4.x.y", FB5 returns "LI-V5.x.y" etc.
 if (preg_match('/LI-V(\d+)\./', $ver ?? '', $m) && (int)$m[1] < 4) {
     fbird_close($conn);
     die("skip: Firebird server version " . $m[1] . ".x < 4.0");
@@ -23,9 +17,9 @@ fbird_close($conn);
 ?>
 --FILE--
 <?php
-require_once 'config.inc';
+require("firebird.inc");
 
-$conn = fbird_connect(FIREBIRD_TEST_DB, FIREBIRD_TEST_USER, FIREBIRD_TEST_PASS);
+$conn = fbird_connect($test_base, $user, $password);
 if (!$conn) {
     echo "FAILED: connect\n";
     exit(1);

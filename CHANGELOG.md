@@ -5,6 +5,46 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.3.6] - 2026-03-31
+
+### Fixed
+- **Remove debug printf from PDO exec handler**: A stray `printf("Executing statement: ...")` in
+  `pdo_fbird_driver.c:311` corrupted stdout for all 28+ PDO tests. Also a potential buffer overread
+  since the statement pointer is not null-terminated at `len`. Removed.
+- **Fix BORKED test SKIPIF sections**: `fbird_events_error_001.phpt` and
+  `fbird_query_stmt_release_002.phpt` used undefined constants (`FIREBIRD_TEST_DB`, `FIREBIRD_TEST_USER`,
+  `FIREBIRD_TEST_PASS`) instead of the standard `firebird.inc` variables (`$test_base`, `$user`,
+  `$password`). Fixed to use standard includes.
+- **Fix savepoint test assertion**: `savepoint_001.phpt` used `--EXPECTF--` with trailing `%A` which
+  requires at least 1 character match but test output ends cleanly. Changed to `--EXPECT--`.
+- **Fix PDO DDL metadata refresh**: `pdo_fbird_ddl2.phpt` failed because `commit_retaining` in
+  autocommit mode does not refresh Firebird's metadata snapshot. Added explicit
+  `beginTransaction()`/`commit()` between DDL and DML to force a hard commit that refreshes metadata.
+
+## [10.3.5] - 2026-03-31
+
+### Fixed
+- **Server-side prepared statement leak in fbird_query() SELECT** (issue #135): Each `fbird_query()`
+  call that returned a result resource (SELECT, EXEC PROCEDURE, DML with RETURNING) accumulated a
+  server-side prepared statement that was never freed until PHP request shutdown. With thousands of
+  iterations (e.g. 125K SQL statements), this caused 1.5 GB+ Firebird server RAM growth. Root cause:
+  the internal parent `ib_query` resource was registered via `zend_register_resource()` but never
+  explicitly freed - only the child result resource was returned to userland. Fix: transfer statement
+  ownership (`owns_stmt_handle`) from the parent to the child result resource and `zend_list_delete()`
+  the parent immediately. Same fix applied to `fbird_execute_query()` and `fbird_query_params_tx()`.
+  Belt-and-suspenders: `~StatementWrapper()` destructor now calls `free()` (server-side drop) instead
+  of just `release()` (client-side refcount decrement) as a safety net for abnormal destruction paths.
+
+### Tests
+- **Comprehensive resource lifecycle regression suite** (issue #135): Added 6 new `.phpt` tests
+  (gh135_stmt_leak_002 through _007) covering SELECT tight loops, parameterized queries, EXEC
+  PROCEDURE, DML RETURNING, error path cleanup, and mixed lifecycle scenarios (2120 total iterations
+  across all tests). Full codebase audit of all 19 `zend_register_resource()` call sites confirmed
+  no additional resource lifecycle bugs.
+- **Static analysis script** `scripts/analysis/check-resource-lifecycle.sh`: Scans all `.c` files
+  for resource registration, ownership transfer, and destructor patterns. Classifies each site as
+  return-to-userland, struct-field/caller-managed, or local. Exits 0 on current codebase.
+
 ## [10.3.4] - 2026-03-30
 
 ### Fixed
@@ -1139,7 +1179,9 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.3.4...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.3.6...HEAD
+[10.3.6]: https://github.com/satwareAG/php-firebird/compare/v10.3.5...v10.3.6
+[10.3.5]: https://github.com/satwareAG/php-firebird/compare/v10.3.4...v10.3.5
 [10.3.4]: https://github.com/satwareAG/php-firebird/compare/v10.3.3...v10.3.4
 [10.3.3]: https://github.com/satwareAG/php-firebird/compare/v10.3.2...v10.3.3
 [10.3.2]: https://github.com/satwareAG/php-firebird/compare/v10.3.0...v10.3.2

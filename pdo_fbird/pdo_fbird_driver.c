@@ -308,7 +308,6 @@ static zend_long pdo_fbird_handle_doer(pdo_dbh_t *dbh, const zend_string *sql)
 			}
 
 			had_statements = 1;
-			printf("Executing statement: %s\n", p); fflush(stdout);
 
 			ISC_STATUS_ARRAY st = {0};
 			void *fbs = fbs_prepare(IBG(master_instance), att, tr,

@@ -1148,6 +1148,27 @@ PHP_FUNCTION(fbird_query)
 
 	if (Z_TYPE_P(return_value) != IS_RESOURCE) {
 	    zend_list_delete(ib_query->res);
+	} else {
+	    /* fbird_query() is one-shot prepare+execute. The parent ib_query is
+	     * internal and never exposed to the user. Transfer statement ownership
+	     * to the result resource so the parent can be freed immediately.
+	     * This prevents server-side prepared statement accumulation when
+	     * fbird_query() is called repeatedly (GitHub issue #135). */
+	    fbird_query *result_query = (fbird_query *)Z_RES_P(return_value)->ptr;
+	    if (result_query && result_query->parent == ib_query) {
+	        /* SELECT path: result shares parent's statement handle.
+	         * Transfer ownership so result frees it when done. */
+	        result_query->owns_stmt_handle = 1;
+	        result_query->parent = NULL;
+	        ib_query->child_head = NULL;
+	        ib_query->fbs_statement = NULL;
+	        ib_query->owns_stmt_handle = 0;
+	        ib_query->is_open = 0;
+	    }
+	    /* For EXEC PROCEDURE/DML RETURNING: result has parent=NULL and
+	     * fbs_statement=NULL already, so parent dtor will free the statement
+	     * via fbs_free() on its own fbs_statement pointer. */
+	    zend_list_delete(ib_query->res);
 	}
 
 	for (i = bind_start; i < argc; i++) {
@@ -1556,7 +1577,20 @@ PHP_FUNCTION(fbird_execute_query)
         RETURN_THROWS();
     }
 
-    /* ib_query stays alive: result_query->parent = ib_query (freed when result is freed) */
+    /* One-shot prepare+execute: transfer statement ownership to result and
+     * free the internal parent immediately (GitHub issue #135). */
+    {
+        fbird_query *result_query = (fbird_query *)Z_RES_P(return_value)->ptr;
+        if (result_query && result_query->parent == ib_query) {
+            result_query->owns_stmt_handle = 1;
+            result_query->parent = NULL;
+            ib_query->child_head = NULL;
+            ib_query->fbs_statement = NULL;
+            ib_query->owns_stmt_handle = 0;
+            ib_query->is_open = 0;
+        }
+        zend_list_delete(ib_query->res);
+    }
 }
 
 PHP_FUNCTION(fbird_execute_auto)
@@ -1726,11 +1760,22 @@ PHP_FUNCTION(fbird_query_params_tx)
         efree(bind_args);
     }
 
-    /* For non-SELECT results, the prepared statement resource is no longer needed */
+    /* One-shot prepare+execute: free parent immediately. For result resources,
+     * transfer statement ownership to prevent server-side leak (#135). */
     if (Z_TYPE_P(return_value) != IS_RESOURCE) {
         zend_list_delete(ib_query->res);
+    } else {
+        fbird_query *result_query = (fbird_query *)Z_RES_P(return_value)->ptr;
+        if (result_query && result_query->parent == ib_query) {
+            result_query->owns_stmt_handle = 1;
+            result_query->parent = NULL;
+            ib_query->child_head = NULL;
+            ib_query->fbs_statement = NULL;
+            ib_query->owns_stmt_handle = 0;
+            ib_query->is_open = 0;
+        }
+        zend_list_delete(ib_query->res);
     }
-    /* For SELECT: ib_query stays alive (result_query->parent = ib_query) */
 }
 
 #endif /* HAVE_FIREBIRD */

@@ -10,7 +10,7 @@ if (!function_exists('fbird_batch_create')) die("skip IBatch API not available (
 require_once('firebird.inc');
 require_once('common.inc');
 
-$conn = fbird_connect($test_base, $user, $password, $charset);
+$conn = fbird_connect($test_base, $user, $password);
 $tx = fbird_trans($conn);
 
 // Test 1: SELECT with no parameters must return false (not SIGFPE)

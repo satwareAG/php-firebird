@@ -3207,6 +3207,24 @@ extern "C" void* fbbatch_create(
             return nullptr;
         }
 
+        // Guard: reject zero-length input metadata (Issue #180).
+        // libfbclient's createBatch() divides buffer_bytes_size by msg_length
+        // internally, causing SIGFPE when msg_length == 0 (parameterless statements).
+        unsigned msgLen = inMetadata->getMessageLength(&status);
+        if (msgLen == 0) {
+            inMetadata->release();
+            if (status_vector) {
+                status_vector[0] = isc_arg_gds;
+                status_vector[1] = isc_wish_list;  // "feature not yet implemented"
+                status_vector[2] = isc_arg_string;
+                // Static string - safe to reference from status vector
+                status_vector[3] = (ISC_STATUS)(uintptr_t)
+                    "batch operations require statements with input parameters";
+                status_vector[4] = isc_arg_end;
+            }
+            return nullptr;
+        }
+
         // Use default buffer size if not specified (16MB is a good default)
         const unsigned buffer_bytes_size = (buffer_size == 0) ? (16U * 1024U * 1024U) : buffer_size;
 

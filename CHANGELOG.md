@@ -5,6 +5,22 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.3.9] - 2026-03-31
+
+### Fixed
+- **SIGFPE crash in `fbird_batch_create()` on parameterless statements** (issue #180): Calling
+  `fbird_batch_create()` on a prepared statement with zero input parameters (e.g., `SELECT 1`)
+  caused a SIGFPE (division by zero, exit code 136) inside `libfbclient`'s `IBatch::createBatch()`
+  which divides buffer size by message length (0). Fixed with defense-in-depth:
+  1. **L2 PHP guard** in `fbird_batch.c`: checks `fbs_get_input_count()` before calling the C++
+     layer; returns `false` with a clear error message if the statement has no input parameters.
+  2. **L1 C++ guard** in `firebird_utils.cpp`: checks `getMessageLength()` on input metadata
+     inside `fbbatch_create()`; returns `nullptr` with proper status vector if message length is 0.
+
+### Tests
+- `fbird_batch_no_params_001.phpt`: Verifies that `fbird_batch_create()` returns `false` for
+  SELECT and DELETE statements without parameters, and succeeds for parameterized INSERT.
+
 ## [10.3.8] - 2026-03-31
 
 ### Fixed
@@ -1197,7 +1213,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.3.8...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.3.9...HEAD
+[10.3.9]: https://github.com/satwareAG/php-firebird/compare/v10.3.8...v10.3.9
 [10.3.8]: https://github.com/satwareAG/php-firebird/compare/v10.3.7...v10.3.8
 [10.3.7]: https://github.com/satwareAG/php-firebird/compare/v10.3.6...v10.3.7
 [10.3.6]: https://github.com/satwareAG/php-firebird/compare/v10.3.5...v10.3.6

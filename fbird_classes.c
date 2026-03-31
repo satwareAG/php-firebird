@@ -850,6 +850,33 @@ PHP_METHOD(FirebirdService, __construct)
 		Z_PARAM_STRING(pass, pass_len)
 	ZEND_PARSE_PARAMETERS_END();
 
+	/* Validate input lengths to prevent SPB buffer overflow (C2 fix, issue #156).
+	 * The SPB uses single-byte length prefixes, so each field is limited to 255 bytes.
+	 * Total SPB layout: version(1) + current_version(1) + user_tag(1) + user_len(1)
+	 *                   + user_data + pass_tag(1) + pass_len(1) + pass_data
+	 * = 6 + user_len + pass_len bytes, must fit in buf[256]. */
+	if (user_len > 255) {
+		zend_throw_exception(fbird_service_exception_ce,
+			"Username exceeds maximum SPB length of 255 bytes", 0);
+		RETURN_THROWS();
+	}
+	if (pass_len > 255) {
+		zend_throw_exception(fbird_service_exception_ce,
+			"Password exceeds maximum SPB length of 255 bytes", 0);
+		RETURN_THROWS();
+	}
+	if (6 + user_len + pass_len > 256) {
+		zend_throw_exception(fbird_service_exception_ce,
+			"Combined credentials exceed SPB buffer capacity", 0);
+		RETURN_THROWS();
+	}
+	/* ":service_mgr" is 12 chars + NUL = 13 bytes reserved in loc[256] */
+	if (host_len > 256 - 13) {
+		zend_throw_exception(fbird_service_exception_ce,
+			"Hostname exceeds maximum length", 0);
+		RETURN_THROWS();
+	}
+
 	fbird_service_obj *intern = Z_FBIRD_SERVICE_P(ZEND_THIS);
 
 	/* Build SPB: user + password */

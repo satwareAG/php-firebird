@@ -21,8 +21,8 @@ if test "$PHP_FIREBIRD" != "no"; then
   AC_MSG_RESULT([$PHP_FIREBIRD_VERSION])
   AC_DEFINE_UNQUOTED([PHP_FIREBIRD_VERSION_STRING], ["$PHP_FIREBIRD_VERSION"], [PHP Firebird extension version])
 
-  dnl Check for minimum PHP version (8.1+)
-  AC_MSG_CHECKING([for minimum PHP version 8.1])
+  dnl Check for minimum PHP version (8.2+)
+  AC_MSG_CHECKING([for minimum PHP version 8.2])
   PHP_FIREBIRD_PHP_VERSION=`$PHP_CONFIG --version`
   old_IFS=$IFS
   IFS=.
@@ -30,8 +30,8 @@ if test "$PHP_FIREBIRD" != "no"; then
   IFS=$old_IFS
   php_major=$1
   php_minor=$2
-  if test "$php_major" -lt 8 -o \( "$php_major" -eq 8 -a "$php_minor" -lt 1 \); then
-    AC_MSG_ERROR([PHP Firebird extension requires PHP 8.1 or later. Current version: $PHP_FIREBIRD_PHP_VERSION])
+  if test "$php_major" -lt 8 -o \( "$php_major" -eq 8 -a "$php_minor" -lt 2 \); then
+    AC_MSG_ERROR([PHP Firebird extension requires PHP 8.2 or later. Current version: $PHP_FIREBIRD_PHP_VERSION])
   fi
   AC_MSG_RESULT([yes (PHP $PHP_FIREBIRD_PHP_VERSION)])
 

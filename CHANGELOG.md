@@ -5,7 +5,7 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [10.3.7] - 2026-03-31
+## [10.3.8] - 2026-03-31
 
 ### Fixed
 - **SIGSEGV during shutdown with default connection** (issue #183): `_php_fbird_close_link()` did not
@@ -1197,7 +1197,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.3.7...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.3.8...HEAD
+[10.3.8]: https://github.com/satwareAG/php-firebird/compare/v10.3.7...v10.3.8
 [10.3.7]: https://github.com/satwareAG/php-firebird/compare/v10.3.6...v10.3.7
 [10.3.6]: https://github.com/satwareAG/php-firebird/compare/v10.3.5...v10.3.6
 [10.3.5]: https://github.com/satwareAG/php-firebird/compare/v10.3.4...v10.3.5

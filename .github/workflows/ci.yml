@@ -614,3 +614,232 @@ jobs:
             find tests/ -name "*.diff" -exec echo "  {}" \;
             exit 1
           fi
+
+  # ==========================================================================
+  # macOS Build Verification (Issue #171)
+  # Build-only: no Firebird server available on GitHub macOS runners
+  # ==========================================================================
+  macos-build:
+    name: macOS ${{ matrix.arch }} (build-only)
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-latest
+            fb-pkg-suffix: macos-arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Ensure VERSION file
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "${GITHUB_REF#refs/tags/v}" > VERSION
+          elif [ ! -f VERSION ]; then
+            echo "0.0.0-unknown" > VERSION
+          fi
+
+      - name: Install PHP via Homebrew
+        run: |
+          set -eu
+          brew install php pkg-config autoconf
+          echo "PHP version: $(php -v | head -1)"
+          echo "phpize: $(which phpize)"
+
+      - name: Resolve Firebird macOS package version
+        id: fb-version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+
+          # Query the latest stable Firebird 5.x release
+          TAG=$(curl -s -f --retry 3 \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/FirebirdSQL/firebird/releases" | \
+            jq -r '.[].tag_name' | \
+            grep -E "^v5\." | \
+            grep -vE "(Beta|RC|Release)" | \
+            sort -V | tail -n 1)
+
+          if [ -z "${TAG}" ]; then
+            echo "ERROR: Could not resolve latest Firebird 5.x tag" >&2
+            exit 1
+          fi
+
+          # Get the .pkg asset URL for macOS
+          RELEASE_JSON=$(curl -s -f --retry 3 \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/FirebirdSQL/firebird/releases/tags/${TAG}")
+
+          PKG_NAME=$(echo "${RELEASE_JSON}" | \
+            jq -r '.assets[].name | select(test("${{ matrix.fb-pkg-suffix }}\\.pkg$"))' | head -1)
+          PKG_URL=$(echo "${RELEASE_JSON}" | \
+            jq -r ".assets[] | select(.name == \"${PKG_NAME}\") | .browser_download_url")
+
+          echo "fb_version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "fb_pkg_name=${PKG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "fb_pkg_url=${PKG_URL}" >> "$GITHUB_OUTPUT"
+          echo "Resolved: Firebird ${TAG} -> ${PKG_NAME}"
+
+      - name: Cache Firebird macOS package
+        id: cache-firebird
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        with:
+          path: /tmp/firebird-cache
+          key: firebird-client-${{ steps.fb-version.outputs.fb_version }}-${{ matrix.fb-pkg-suffix }}
+
+      - name: Download Firebird macOS package
+        if: steps.cache-firebird.outputs.cache-hit != 'true'
+        env:
+          FB_PKG_URL: ${{ steps.fb-version.outputs.fb_pkg_url }}
+          FB_PKG_NAME: ${{ steps.fb-version.outputs.fb_pkg_name }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          mkdir -p /tmp/firebird-cache
+          DEST="/tmp/firebird-cache/${FB_PKG_NAME}"
+
+          for attempt in 1 2 3; do
+            echo "Downloading Firebird .pkg (attempt ${attempt}/3)..."
+            if curl -fsSL --retry 3 --retry-delay 5 \
+                -H "Authorization: token ${GITHUB_TOKEN}" \
+                "${FB_PKG_URL}" -o "${DEST}"; then
+              FSIZE=$(stat -f%z "${DEST}" 2>/dev/null || echo "0")
+              if [ "${FSIZE}" -gt 1000000 ]; then
+                echo "Download OK (${FSIZE} bytes)"
+                break
+              fi
+              rm -f "${DEST}"
+            fi
+            sleep 10
+          done
+
+          [ -f "${DEST}" ] || { echo "ERROR: Download failed" >&2; exit 1; }
+
+      - name: Extract Firebird headers and libraries from .pkg
+        env:
+          FB_PKG_NAME: ${{ steps.fb-version.outputs.fb_pkg_name }}
+        run: |
+          set -eu
+
+          FB_CLIENT_DIR="/tmp/firebird-client"
+          mkdir -p "${FB_CLIENT_DIR}/include" "${FB_CLIENT_DIR}/lib"
+
+          # Expand the .pkg (flat package or distribution package)
+          PKG_EXPANDED="/tmp/firebird-expanded"
+          pkgutil --expand "/tmp/firebird-cache/${FB_PKG_NAME}" "${PKG_EXPANDED}"
+
+          echo "=== Package contents ==="
+          find "${PKG_EXPANDED}" -maxdepth 3 -type f | head -30
+
+          # Extract payload(s) - may be nested in component packages
+          EXTRACT_DIR="/tmp/firebird-payload"
+          mkdir -p "${EXTRACT_DIR}"
+
+          # Find all Payload files and extract them
+          find "${PKG_EXPANDED}" -name "Payload" | while read -r payload; do
+            echo "Extracting payload: ${payload}"
+            # macOS Payload files are gzipped cpio or xar archives
+            cd "${EXTRACT_DIR}"
+            # Try gzip+cpio first (common for .pkg)
+            if file "${payload}" | grep -q "gzip"; then
+              gunzip -c "${payload}" | cpio -idm 2>/dev/null || true
+            elif file "${payload}" | grep -q "cpio"; then
+              cpio -idm < "${payload}" 2>/dev/null || true
+            else
+              # Try as plain tar
+              tar xf "${payload}" 2>/dev/null || true
+            fi
+          done
+
+          echo "=== Extracted payload structure ==="
+          find "${EXTRACT_DIR}" -maxdepth 4 | head -40
+
+          # Locate Firebird framework headers and libraries
+          # Firebird installs to /Library/Frameworks/Firebird.framework/
+          FB_FRAMEWORK=$(find "${EXTRACT_DIR}" -path "*/Firebird.framework" -type d | head -1)
+
+          if [ -n "${FB_FRAMEWORK}" ]; then
+            echo "Found Firebird framework at: ${FB_FRAMEWORK}"
+
+            # Copy headers
+            if [ -d "${FB_FRAMEWORK}/Headers" ]; then
+              cp -a "${FB_FRAMEWORK}/Headers/"* "${FB_CLIENT_DIR}/include/"
+            elif [ -d "${FB_FRAMEWORK}/Versions/A/Headers" ]; then
+              cp -a "${FB_FRAMEWORK}/Versions/A/Headers/"* "${FB_CLIENT_DIR}/include/"
+            fi
+
+            # Copy libraries - look for dylibs in the framework
+            find "${FB_FRAMEWORK}" -name "*.dylib" -exec cp {} "${FB_CLIENT_DIR}/lib/" \;
+
+            # Also copy the framework binary itself as libfbclient if needed
+            if [ -f "${FB_FRAMEWORK}/Versions/A/Firebird" ]; then
+              cp "${FB_FRAMEWORK}/Versions/A/Firebird" "${FB_CLIENT_DIR}/lib/libfbclient.dylib" 2>/dev/null || true
+            fi
+          else
+            echo "WARNING: Firebird.framework not found, searching for loose files..."
+            # Fallback: search for ibase.h and libfbclient directly
+            find "${EXTRACT_DIR}" -name "ibase.h" -exec cp {} "${FB_CLIENT_DIR}/include/" \;
+            find "${EXTRACT_DIR}" -name "iberror.h" -exec cp {} "${FB_CLIENT_DIR}/include/" \;
+            find "${EXTRACT_DIR}" -name "libfbclient*" -exec cp {} "${FB_CLIENT_DIR}/lib/" \;
+          fi
+
+          echo "=== Firebird client directory ==="
+          ls -la "${FB_CLIENT_DIR}/include/" || echo "No headers"
+          ls -la "${FB_CLIENT_DIR}/lib/" || echo "No libraries"
+
+          # Verify we have ibase.h
+          if [ ! -f "${FB_CLIENT_DIR}/include/ibase.h" ]; then
+            echo "ERROR: ibase.h not found after extraction" >&2
+            echo "Full payload tree:"
+            find "${EXTRACT_DIR}" -type f | head -50
+            exit 1
+          fi
+
+          echo "Firebird client extracted successfully"
+
+      - name: Build PHP extension
+        run: |
+          set -eu
+
+          FB_CLIENT_DIR="/tmp/firebird-client"
+
+          export CFLAGS="-I${FB_CLIENT_DIR}/include"
+          export LDFLAGS="-L${FB_CLIENT_DIR}/lib"
+
+          echo "=== Building extension ==="
+          phpize
+          ./configure --with-firebird="${FB_CLIENT_DIR}"
+          make -j"$(sysctl -n hw.ncpu)"
+
+          echo "Extension built successfully"
+          ls -la modules/firebird.so
+          file modules/firebird.so
+
+      - name: Verify extension loads
+        run: |
+          set -eu
+
+          EXTENSION_PATH="$(pwd)/modules/firebird.so"
+
+          # Set library path for Firebird client
+          export DYLD_LIBRARY_PATH="/tmp/firebird-client/lib:${DYLD_LIBRARY_PATH:-}"
+
+          echo "=== Verifying extension ==="
+          php -d "extension=${EXTENSION_PATH}" -m 2>&1 | tee /tmp/modules.txt
+
+          if grep -qi firebird /tmp/modules.txt; then
+            echo "✅ Firebird extension loads successfully on macOS ${{ matrix.arch }}"
+          else
+            echo "❌ Firebird extension failed to load"
+            exit 1
+          fi
+
+          # Show extension info
+          php -d "extension=${EXTENSION_PATH}" -r "phpinfo(INFO_MODULES);" 2>&1 | \
+            sed -n '/^firebird$/,/^$/p' | head -20 || true

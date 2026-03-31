@@ -821,7 +821,7 @@ jobs:
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: /opt/php-tsan
-          key: php-tsan-zts-${{ steps.php-version.outputs.php_version }}-ubuntu2404-clang-v5
+          key: php-tsan-zts-${{ steps.php-version.outputs.php_version }}-ubuntu2404-clang-v6
 
       - name: Build PHP 8.3 with ZTS and ThreadSanitizer
         if: steps.cache-php.outputs.cache-hit != 'true'
@@ -853,6 +853,7 @@ jobs:
             --enable-pcntl \
             --enable-posix \
             --enable-session \
+            --enable-pdo \
             --with-zlib \
             CC=clang \
             CXX=clang++ \

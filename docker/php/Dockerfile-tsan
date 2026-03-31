@@ -26,6 +26,9 @@ ENV ZEND_DONT_UNLOAD_MODULES=1
 
 # Install build dependencies (PHP + Firebird client)
 # IMPORTANT: clang is required - GCC 12 TSan segfaults on Debian bookworm
+# IMPORTANT: libclang-rt-dev provides libclang_rt.tsan (compiler-rt TSan runtime)
+#   Without it, clang -fsanitize=thread compiles .o files but linking fails (make exit 2)
+#   because the clang package alone does NOT include the TSan runtime on Debian bookworm.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     autoconf \
     bison \
@@ -34,6 +37,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     clang \
     curl \
     firebird-dev \
+    libclang-rt-dev \
     g++ \
     git \
     libicu-dev \

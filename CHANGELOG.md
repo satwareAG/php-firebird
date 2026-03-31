@@ -5,6 +5,22 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.3.6] - 2026-03-31
+
+### Fixed
+- **Remove debug printf from PDO exec handler**: A stray `printf("Executing statement: ...")` in
+  `pdo_fbird_driver.c:311` corrupted stdout for all 28+ PDO tests. Also a potential buffer overread
+  since the statement pointer is not null-terminated at `len`. Removed.
+- **Fix BORKED test SKIPIF sections**: `fbird_events_error_001.phpt` and
+  `fbird_query_stmt_release_002.phpt` used undefined constants (`FIREBIRD_TEST_DB`, `FIREBIRD_TEST_USER`,
+  `FIREBIRD_TEST_PASS`) instead of the standard `firebird.inc` variables (`$test_base`, `$user`,
+  `$password`). Fixed to use standard includes.
+- **Fix savepoint test assertion**: `savepoint_001.phpt` used `--EXPECTF--` with trailing `%A` which
+  requires at least 1 character match but test output ends cleanly. Changed to `--EXPECT--`.
+- **Fix PDO DDL metadata refresh**: `pdo_fbird_ddl2.phpt` failed because `commit_retaining` in
+  autocommit mode does not refresh Firebird's metadata snapshot. Added explicit
+  `beginTransaction()`/`commit()` between DDL and DML to force a hard commit that refreshes metadata.
+
 ## [10.3.5] - 2026-03-31
 
 ### Fixed
@@ -1163,7 +1179,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.3.5...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.3.6...HEAD
+[10.3.6]: https://github.com/satwareAG/php-firebird/compare/v10.3.5...v10.3.6
 [10.3.5]: https://github.com/satwareAG/php-firebird/compare/v10.3.4...v10.3.5
 [10.3.4]: https://github.com/satwareAG/php-firebird/compare/v10.3.3...v10.3.4
 [10.3.3]: https://github.com/satwareAG/php-firebird/compare/v10.3.2...v10.3.3

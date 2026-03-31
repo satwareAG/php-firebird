@@ -1,13 +1,13 @@
 # Contributing to PHP Firebird Extension
 
-Thank you for your interest in contributing to the modernized PHP Firebird extension. This document outlines our development standards and processes for PHP 8.1+ and C++17 modernization.
+Thank you for your interest in contributing to the modernized PHP Firebird extension. This document outlines our development standards and processes for PHP 8.2+ and C++17 modernization.
 
 ## Development Standards (2025)
 
 ### Target Specifications
-- **PHP Version**: 8.1+ only (PHP 7 support dropped)
+- **PHP Version**: 8.2+ only (PHP 7 support dropped)
 - **C++ Standard**: C++17 (upgraded from C++11)
-- **Firebird Versions**: 2.5, 3.0, 4.0, 5.0+
+- **Firebird Versions**: 3.0, 4.0, 5.0+
 - **Build System**: GNU Autotools with cross-platform support
 
 ### Development Philosophy
@@ -95,7 +95,7 @@ make clean && phpize --clean
 
 ### 1. Setup and Branching
 ```bash
-git clone https://github.com/FirebirdSQL/php-firebird.git
+git clone https://github.com/satwareAG/php-firebird.git
 cd php-firebird
 git checkout -b feature/your-feature-name
 ```
@@ -296,8 +296,8 @@ See [MODERNIZATION_PLAN_FB3_TO_FB5.md](docs/development/MODERNIZATION_PLAN_FB3_T
 
 ### Testing Environments
 Use our Docker setup or test against:
-- PHP 8.1, 8.2, 8.3, 8.4, 8.5-dev
-- Firebird 2.5, 3.0, 4.0, 5.0+
+- PHP 8.2, 8.3, 8.4, 8.5-dev
+- Firebird 3.0, 4.0, 5.0+
 - Linux (Ubuntu, CentOS), Windows 10/11, macOS
 
 ## Performance Considerations

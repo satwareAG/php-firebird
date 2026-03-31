@@ -20,15 +20,17 @@ var_dump($result1);
 echo "Error: " . fbird_errmsg() . "\n";
 fbird_free_query($stmt1);
 
-// Test 2: DDL with no parameters must return false
-$stmt2 = fbird_prepare($conn, $tx, 'DELETE FROM RDB$TYPES WHERE 1=0');
+// Test 2: Parameterized INSERT must still work
+fbird_query($conn, $tx, 'CREATE TABLE batch_test_180 (id INTEGER, name VARCHAR(50))');
+fbird_commit_ret($tx);
+
+// Test 2a: Non-parameterized DML must return false
+$stmt2 = fbird_prepare($conn, $tx, 'DELETE FROM batch_test_180 WHERE 1=0');
 $result2 = @fbird_batch_create($stmt2);
 var_dump($result2);
 fbird_free_query($stmt2);
 
-// Test 3: Parameterized INSERT must still work
-fbird_query($conn, $tx, 'CREATE TABLE batch_test_180 (id INTEGER, name VARCHAR(50))');
-fbird_commit_ret($tx);
+// Test 3: Parameterized INSERT must work
 
 $stmt3 = fbird_prepare($conn, $tx, 'INSERT INTO batch_test_180 (id, name) VALUES (?, ?)');
 $batch = fbird_batch_create($stmt3);

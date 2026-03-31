@@ -453,7 +453,9 @@ if [ "$SKIP_BUILD" = false ]; then
         log_info "Running phpize..."
         phpize
         
-        log_info "Configuring..."
+        log_info "Configuring with LTO..."
+        export CFLAGS="${CFLAGS:-} -flto=auto"
+        export LDFLAGS="${LDFLAGS:-} -flto=auto"
         ./configure --with-firebird="${FB_ROOT}"
         
         log_info "Compiling..."

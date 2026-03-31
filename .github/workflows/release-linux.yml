@@ -339,7 +339,9 @@ jobs:
           # Clean any previous builds
           phpize --clean 2>/dev/null || true
           
-          # Build
+          # Build with LTO for optimized release binaries
+          export CFLAGS="${CFLAGS:-} -flto=auto"
+          export LDFLAGS="${LDFLAGS:-} -flto=auto"
           phpize
           ./configure --with-firebird="${FB_ROOT}"
           make -j$(nproc)

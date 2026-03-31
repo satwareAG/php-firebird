@@ -3,18 +3,13 @@ fbird_poll_event: error handling paths - dead handler, connection lost detection
 --EXTENSIONS--
 firebird
 --SKIPIF--
-<?php
-require_once 'config.inc';
-$conn = fbird_connect(FIREBIRD_TEST_DB, FIREBIRD_TEST_USER, FIREBIRD_TEST_PASS);
-if (!$conn) die("skip: cannot connect to Firebird");
-fbird_close($conn);
-?>
+<?php include("skipif.inc"); ?>
 --FILE--
 <?php
-require_once 'config.inc';
+require("firebird.inc");
 
 // Test 1: fbird_free_event_handler returns true on valid event
-$conn = fbird_connect(FIREBIRD_TEST_DB, FIREBIRD_TEST_USER, FIREBIRD_TEST_PASS);
+$conn = fbird_connect($test_base, $user, $password);
 if (!$conn) {
     echo "FAILED: connect\n";
     exit(1);
@@ -56,7 +51,7 @@ echo "event_handler_freed: true\n";
 
 // Test 3: fbird_wait_event with timeout-style (just verify function exists and runs)
 // We use a very short-lived test - just verify the function is callable
-$conn2 = fbird_connect(FIREBIRD_TEST_DB, FIREBIRD_TEST_USER, FIREBIRD_TEST_PASS);
+$conn2 = fbird_connect($test_base, $user, $password);
 if (!$conn2) {
     echo "FAILED: connect2\n";
     fbird_close($conn);
@@ -64,7 +59,7 @@ if (!$conn2) {
 }
 
 // Test that fbird_set_event_handler works with default link
-$default_conn = fbird_connect(FIREBIRD_TEST_DB, FIREBIRD_TEST_USER, FIREBIRD_TEST_PASS);
+$default_conn = fbird_connect($test_base, $user, $password);
 if ($default_conn) {
     $eh3 = fbird_set_event_handler($default_conn, function($event_name) {
         return false; // signal cancel

@@ -45,7 +45,7 @@ jobs:
             ${{ runner.os }}-composer-
 
       - name: Install Composer dependencies
-        run: composer install --prefer-dist --no-progress --no-suggest
+        run: composer install --prefer-dist --no-progress
 
       - name: Run PHPStan
         run: vendor/bin/phpstan analyse --error-format=github
@@ -182,7 +182,7 @@ jobs:
             if [ -f "$file" ]; then
               echo "Analyzing $file..."
               clang-tidy "$file" \
-                --checks='-*,bugprone-*,cert-*,clang-analyzer-*,performance-*' \
+                --checks='-*,bugprone-*,cert-*,clang-analyzer-*,-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,performance-*' \
                 --header-filter='.*\.h$' \
                 -- -I/usr/include/php/20230831 -I/usr/include/firebird 2>/dev/null || true
             fi

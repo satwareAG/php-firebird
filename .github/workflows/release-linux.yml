@@ -13,9 +13,10 @@
 # Build Matrix:
 #   - PHP 8.2, 8.3, 8.4, 8.5
 #   - NTS and ZTS variants
-#   - x86_64 architecture (aarch64 in future)
+#   - x86_64 and aarch64 architectures
 #
 # Best practices: Uses manylinux_2_28 for broad Linux compatibility
+# ARM64 builds use native GitHub ARM runners (ubuntu-24.04-arm)
 # =============================================================================
 
 name: Release (Linux)
@@ -107,12 +108,24 @@ jobs:
           for version in "${VERSIONS[@]}"; do
             version=$(echo "$version" | tr -d ' ')
             for variant in nts zts; do
-              if [ "$FIRST" = true ]; then
-                FIRST=false
-              else
-                MATRIX+=','
-              fi
-              MATRIX+="{\"php\":\"${version}\",\"variant\":\"${variant}\",\"arch\":\"x86_64\"}"
+              for arch in x86_64 aarch64; do
+                if [ "$FIRST" = true ]; then
+                  FIRST=false
+                else
+                  MATRIX+=','
+                fi
+                # Set arch-specific matrix fields
+                if [ "${arch}" = "aarch64" ]; then
+                  RUNNER="ubuntu-24.04-arm"
+                  CONTAINER="quay.io/pypa/manylinux_2_28_aarch64"
+                  FB_ARCH="linux-arm64"
+                else
+                  RUNNER="ubuntu-24.04"
+                  CONTAINER="quay.io/pypa/manylinux_2_28_x86_64"
+                  FB_ARCH="linux-x64"
+                fi
+                MATRIX+="{\"php\":\"${version}\",\"variant\":\"${variant}\",\"arch\":\"${arch}\",\"runner\":\"${RUNNER}\",\"container\":\"${CONTAINER}\",\"fb_arch\":\"${FB_ARCH}\"}"
+              done
             done
           done
           
@@ -126,9 +139,9 @@ jobs:
   # ===========================================================================
   build:
     needs: prepare
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
     container:
-      image: quay.io/pypa/manylinux_2_28_x86_64
+      image: ${{ matrix.container }}
     
     strategy:
       fail-fast: false
@@ -163,7 +176,7 @@ jobs:
           echo "Installing Firebird ${FB_VERSION}..."
           mkdir -p /opt/firebird/{lib,include/firebird}
 
-          FB_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_VERSION}/Firebird-${FB_VERSION}.${FB_BUILD}-0-linux-x64.tar.gz"
+          FB_URL="https://github.com/FirebirdSQL/firebird/releases/download/v${FB_VERSION}/Firebird-${FB_VERSION}.${FB_BUILD}-0-${{ matrix.fb_arch }}.tar.gz"
           DELAY=10
 
           for attempt in 1 2 3 4 5; do

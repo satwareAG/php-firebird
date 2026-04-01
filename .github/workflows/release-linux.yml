@@ -390,10 +390,10 @@ jobs:
           export FB_ROOT=/opt/firebird
           
           # Ensure Firebird libraries are discoverable regardless of PHP_LIBDIR (lib vs lib64)
-          # config.m4 uses $PHP_FIREBIRD/$PHP_LIBDIR which may be lib64 on x86_64 musl
-          if [ ! -e "${FB_ROOT}/lib64" ]; then
-            ln -sf lib "${FB_ROOT}/lib64"
-          fi
+          # config.m4 line 64 uses $PHP_FIREBIRD/$PHP_LIBDIR which may be lib64 on x86_64
+          # Force lib64 -> lib symlink (remove any pre-existing empty dir from source builds)
+          rm -rf "${FB_ROOT}/lib64" 2>/dev/null || true
+          ln -sf lib "${FB_ROOT}/lib64"
           
           echo "Building with:"
           php -v | head -1

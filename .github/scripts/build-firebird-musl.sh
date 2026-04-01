@@ -223,11 +223,18 @@ if [ -n "${FB_INCLUDE_DIR}" ]; then
   cp -r "${FB_INCLUDE_DIR}"/* "${FB_ROOT}/include/firebird/" 2>/dev/null || true
 fi
 
-# Also check gen/Release/firebird/include for generated headers
-GEN_INCLUDE=$(find /tmp/fb-src/gen -path "*/include" -type d -print -quit 2>/dev/null || true)
-if [ -n "${GEN_INCLUDE}" ]; then
+# Also check ALL gen include directories for generated headers
+# IMPORTANT: Do NOT use -print -quit here! gen/Debug/firebird/include may exist
+# but be empty, while gen/Release/firebird/include has the actual headers.
+for GEN_INCLUDE in $(find /tmp/fb-src/gen -path "*/include" -type d 2>/dev/null); do
   cp -n "${GEN_INCLUDE}"/*.h "${FB_ROOT}/include/" 2>/dev/null || true
   [ -d "${GEN_INCLUDE}/firebird" ] && cp -rn "${GEN_INCLUDE}/firebird/"* "${FB_ROOT}/include/firebird/" 2>/dev/null || true
+done
+
+# Fallback: if firebird/ibase.h is still missing, search the entire source tree
+if [ ! -f "${FB_ROOT}/include/firebird/ibase.h" ]; then
+  echo "  WARNING: firebird/ibase.h not found via gen/ copy, searching source tree..."
+  find /tmp/fb-src -name "ibase.h" -path "*/firebird/*" -exec cp -n {} "${FB_ROOT}/include/firebird/" \; 2>/dev/null || true
 fi
 
 # ---- Step 7: Verify installation ----
@@ -245,6 +252,13 @@ fi
 
 if [ ! -f "${FB_ROOT}/include/ibase.h" ]; then
   echo "ERROR: ibase.h not found at ${FB_ROOT}/include/" >&2
+  exit 1
+fi
+
+if [ ! -f "${FB_ROOT}/include/firebird/ibase.h" ]; then
+  echo "ERROR: firebird/ibase.h not found at ${FB_ROOT}/include/firebird/" >&2
+  echo "Contents of ${FB_ROOT}/include/firebird/:"
+  ls -la "${FB_ROOT}/include/firebird/" 2>/dev/null || echo "  (directory does not exist)"
   exit 1
 fi
 

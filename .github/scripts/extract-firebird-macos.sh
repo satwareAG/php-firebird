@@ -206,6 +206,36 @@ if [ -z "$FB_FRAMEWORK" ]; then
     FB_FRAMEWORK=$(find "$PKG_EXPANDED" -path "*/Firebird.framework" -type d 2>/dev/null | head -1)
 fi
 
+# If payload IS the framework content (has Versions/A/ structure) but no
+# Firebird.framework wrapper, create one. This happens when pkgutil
+# --expand-full extracts the payload directly.
+if [ -z "$FB_FRAMEWORK" ]; then
+    # Check in EXTRACT_DIR
+    if [ -d "$EXTRACT_DIR/Versions/A" ]; then
+        log_info "Detected bare framework structure in EXTRACT_DIR, wrapping..."
+        mkdir -p "$EXTRACT_DIR/Firebird.framework"
+        mv "$EXTRACT_DIR/Versions" "$EXTRACT_DIR/Firebird.framework/"
+        FB_FRAMEWORK="$EXTRACT_DIR/Firebird.framework"
+    fi
+    # Check in PKG_EXPANDED Payload directories
+    if [ -z "$FB_FRAMEWORK" ]; then
+        BARE_FW=$(find "$PKG_EXPANDED" -type d -name "Payload" 2>/dev/null | while read -r pdir; do
+            if [ -d "$pdir/Versions/A" ]; then echo "$pdir"; break; fi
+        done)
+        if [ -n "$BARE_FW" ]; then
+            log_info "Detected bare framework in expanded payload: $BARE_FW"
+            mkdir -p "$EXTRACT_DIR/Firebird.framework"
+            cp -a "$BARE_FW"/Versions "$EXTRACT_DIR/Firebird.framework/"
+            # Also copy top-level symlinks if present
+            for item in "$BARE_FW"/*; do
+                [ "$(basename "$item")" = "Versions" ] && continue
+                cp -a "$item" "$EXTRACT_DIR/Firebird.framework/" 2>/dev/null || true
+            done
+            FB_FRAMEWORK="$EXTRACT_DIR/Firebird.framework"
+        fi
+    fi
+fi
+
 if [ -z "$FB_FRAMEWORK" ]; then
     log_error "Firebird.framework not found in extracted payload"
     echo "Full payload tree:"

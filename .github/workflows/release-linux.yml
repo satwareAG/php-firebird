@@ -403,8 +403,19 @@ jobs:
           phpize --clean 2>/dev/null || true
           
           # Build with LTO for optimized release binaries
+          # -rpath-link helps the linker resolve DT_NEEDED transitive dependencies
+          # (e.g. libtommath.so needed by libfbclient.so) during configure link tests
           export CFLAGS="${CFLAGS:-} -flto=auto"
-          export LDFLAGS="${LDFLAGS:-} -flto=auto"
+          export LDFLAGS="${LDFLAGS:-} -flto=auto -Wl,-rpath-link,${FB_ROOT}/lib"
+          
+          # musl source-built libfbclient is a C++ library; PHP's configure tests
+          # link with cc (C compiler) so we must explicitly add -lstdc++ and the
+          # transitive deps that libfbclient.so DT_NEEDS.
+          if [ "${{ matrix.libc }}" = "musl" ]; then
+            export LIBS="-lstdc++ -lm"
+            echo "musl: added LIBS='${LIBS}' for C++ libfbclient linking"
+          fi
+          
           phpize
           ./configure --with-firebird="${FB_ROOT}"
           make -j$(nproc)

@@ -143,28 +143,54 @@ make -j"$(nproc)" 2>&1 || {
 echo ">>> Installing to ${FB_ROOT}..."
 mkdir -p "${FB_ROOT}/lib" "${FB_ROOT}/include/firebird"
 
-# Find and copy the built libfbclient
-# Use -quit to avoid SIGPIPE from find|head under set -euo pipefail
-LIBFB=$(find /tmp/fb-src -name "libfbclient.so*" -type f -print -quit)
-if [ -z "${LIBFB}" ]; then
-  # Try gen/ directory (common Firebird build output location)
-  LIBFB=$(find /tmp/fb-src/gen -name "libfbclient.so*" -type f -print -quit 2>/dev/null)
+# Find the Firebird build output lib directory
+# Firebird places all built libraries (libfbclient, libtommath, libtomcrypt, etc.)
+# in gen/Release/firebird/lib/
+FB_BUILD_LIB=$(find /tmp/fb-src/gen -path "*/firebird/lib" -type d -print -quit 2>/dev/null)
+if [ -z "${FB_BUILD_LIB}" ]; then
+  FB_BUILD_LIB=$(dirname "$(find /tmp/fb-src -name "libfbclient.so*" -type f -print -quit 2>/dev/null)")
 fi
 
-if [ -z "${LIBFB}" ]; then
-  echo "ERROR: libfbclient.so not found in build output" >&2
+if [ -z "${FB_BUILD_LIB}" ] || [ ! -d "${FB_BUILD_LIB}" ]; then
+  echo "ERROR: Firebird build lib directory not found" >&2
   echo "Build output structure:"
   find /tmp/fb-src/gen -name "*.so*" -type f 2>/dev/null | head -20
   exit 1
 fi
 
-echo "  Found: ${LIBFB}"
-cp -a "${LIBFB}" "${FB_ROOT}/lib/"
+echo "  Build lib dir: ${FB_BUILD_LIB}"
+echo "  Contents:"
+ls -la "${FB_BUILD_LIB}/"
 
-# Copy all versioned symlinks too
-LIBFB_DIR=$(dirname "${LIBFB}")
-for f in "${LIBFB_DIR}"/libfbclient.so*; do
+# Copy ALL shared libraries from the build output - not just libfbclient.
+# libfbclient.so has DT_NEEDED entries for libtommath.so, libtomcrypt.so, etc.
+# that were built from Firebird's bundled sources (--with-builtin-tommath/tomcrypt).
+# If we only copy libfbclient.so, the linker test in PHP's configure fails because
+# the transitive dependencies cannot be resolved.
+echo "  Copying all shared libraries from build lib dir..."
+for f in "${FB_BUILD_LIB}"/*.so*; do
   [ -e "$f" ] && cp -a "$f" "${FB_ROOT}/lib/" 2>/dev/null || true
+done
+
+# Also search for transitive dependencies (libtommath, libtomcrypt, etc.) that
+# may have been built in extern/ subdirectories via libtool (.libs/).
+# libfbclient.so has DT_NEEDED entries for these; without them the linker test
+# in PHP's configure will fail with "libfbclient not found".
+echo "  Searching for transitive dependency libraries..."
+for dep_lib in libtommath libtomcrypt; do
+  DEP_SO=$(find /tmp/fb-src -path "*/.libs/${dep_lib}.so*" -type f 2>/dev/null | head -1)
+  if [ -z "${DEP_SO}" ]; then
+    DEP_SO=$(find /tmp/fb-src -name "${dep_lib}.so*" -type f 2>/dev/null | head -1)
+  fi
+  if [ -n "${DEP_SO}" ]; then
+    DEP_DIR=$(dirname "${DEP_SO}")
+    echo "  Found ${dep_lib} in ${DEP_DIR}"
+    for f in "${DEP_DIR}"/${dep_lib}.so*; do
+      [ -e "$f" ] && cp -a "$f" "${FB_ROOT}/lib/" 2>/dev/null || true
+    done
+  else
+    echo "  ${dep_lib} not found as shared lib (may be statically linked)"
+  fi
 done
 
 # Ensure symlinks exist
@@ -210,6 +236,19 @@ if [ ! -f "${FB_ROOT}/include/ibase.h" ]; then
   echo "ERROR: ibase.h not found at ${FB_ROOT}/include/" >&2
   exit 1
 fi
+
+# Register library path with musl dynamic linker so that transitive dependencies
+# (libtommath.so, libtomcrypt.so) can be found during PHP configure link tests.
+# The GNU linker's -L flag does NOT resolve DT_NEEDED entries - only -rpath-link
+# or system paths work for that. On musl, /etc/ld-musl-*.path is the config file.
+MUSL_LD_PATH="/etc/ld-musl-${ARCH}.path"
+if [ ! -f "${MUSL_LD_PATH}" ] || ! grep -q "${FB_ROOT}/lib" "${MUSL_LD_PATH}" 2>/dev/null; then
+  echo "${FB_ROOT}/lib" >> "${MUSL_LD_PATH}"
+  echo "  Registered ${FB_ROOT}/lib in ${MUSL_LD_PATH}"
+fi
+
+# Also run ldconfig if available (glibc systems)
+ldconfig 2>/dev/null || true
 
 echo ""
 echo "=== Firebird ${FB_VERSION} client library built successfully for musl ==="

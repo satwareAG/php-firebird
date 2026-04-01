@@ -205,6 +205,10 @@ jobs:
           VARIANT="${{ matrix.variant }}"
           INSTALL_DIR="/opt/php/${{ matrix.php }}-${VARIANT}"
 
+          # Ensure /opt/php is writable (macOS runners don't allow unprivileged mkdir in /opt)
+          sudo mkdir -p /opt/php
+          sudo chown "$(whoami)" /opt/php
+
           echo "Building PHP ${FULL_VERSION} (${VARIANT})..."
 
           curl -fsSL "https://www.php.net/distributions/php-${FULL_VERSION}.tar.xz" \

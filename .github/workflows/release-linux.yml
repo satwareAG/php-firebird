@@ -334,6 +334,7 @@ jobs:
           echo "PHP full version: ${FULL_VERSION}"
       
       - name: Install PHP ${{ matrix.php }} (${{ matrix.variant }})
+        shell: bash
         run: |
           FULL_VERSION="${{ steps.php-version.outputs.full_version }}"
           VARIANT="${{ matrix.variant }}"

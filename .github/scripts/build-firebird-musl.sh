@@ -144,10 +144,11 @@ echo ">>> Installing to ${FB_ROOT}..."
 mkdir -p "${FB_ROOT}/lib" "${FB_ROOT}/include/firebird"
 
 # Find and copy the built libfbclient
-LIBFB=$(find /tmp/fb-src -name "libfbclient.so*" -type f | head -1)
+# Use -quit to avoid SIGPIPE from find|head under set -euo pipefail
+LIBFB=$(find /tmp/fb-src -name "libfbclient.so*" -type f -print -quit)
 if [ -z "${LIBFB}" ]; then
   # Try gen/ directory (common Firebird build output location)
-  LIBFB=$(find /tmp/fb-src/gen -name "libfbclient.so*" -type f 2>/dev/null | head -1)
+  LIBFB=$(find /tmp/fb-src/gen -name "libfbclient.so*" -type f -print -quit 2>/dev/null)
 fi
 
 if [ -z "${LIBFB}" ]; then
@@ -169,7 +170,7 @@ done
 # Ensure symlinks exist
 cd "${FB_ROOT}/lib"
 if [ ! -e libfbclient.so ]; then
-  REAL=$(ls libfbclient.so.* 2>/dev/null | head -1)
+  REAL=$(ls libfbclient.so.* 2>/dev/null | head -1 || true)
   [ -n "${REAL}" ] && ln -sf "${REAL}" libfbclient.so
 fi
 
@@ -180,13 +181,13 @@ find /tmp/fb-src -path "*/include/ibase.h" -exec cp {} "${FB_ROOT}/include/" \; 
 find /tmp/fb-src -path "*/include/iberror.h" -exec cp {} "${FB_ROOT}/include/" \; 2>/dev/null
 
 # Copy firebird subdirectory headers (Interface.h etc.)
-FB_INCLUDE_DIR=$(find /tmp/fb-src -path "*/include/firebird" -type d | head -1)
+FB_INCLUDE_DIR=$(find /tmp/fb-src -path "*/include/firebird" -type d -print -quit)
 if [ -n "${FB_INCLUDE_DIR}" ]; then
   cp -r "${FB_INCLUDE_DIR}"/* "${FB_ROOT}/include/firebird/" 2>/dev/null || true
 fi
 
 # Also check gen/Release/firebird/include for generated headers
-GEN_INCLUDE=$(find /tmp/fb-src/gen -path "*/include" -type d 2>/dev/null | head -1)
+GEN_INCLUDE=$(find /tmp/fb-src/gen -path "*/include" -type d -print -quit 2>/dev/null || true)
 if [ -n "${GEN_INCLUDE}" ]; then
   cp -n "${GEN_INCLUDE}"/*.h "${FB_ROOT}/include/" 2>/dev/null || true
   [ -d "${GEN_INCLUDE}/firebird" ] && cp -rn "${GEN_INCLUDE}/firebird/"* "${FB_ROOT}/include/firebird/" 2>/dev/null || true

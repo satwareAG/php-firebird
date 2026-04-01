@@ -514,6 +514,7 @@ jobs:
           ls -la dist/
       
       - name: Generate SBOM (CycloneDX)
+        continue-on-error: true  # sbom-action may fail in manylinux/musl containers
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
         with:
           path: dist/${{ steps.bundle.outputs.bundle_name }}

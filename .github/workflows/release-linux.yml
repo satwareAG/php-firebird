@@ -503,7 +503,7 @@ jobs:
           echo ""
           echo "2. lib/ directory contents:"
           if [ -d "${DIST_DIR}/lib" ]; then
-            ls -la "${DIST_DIR}/lib/" | head -20
+            ls -la "${DIST_DIR}/lib/" | head -20 || true
             echo "Total files: $(find "${DIST_DIR}/lib" -type f | wc -l)"
           else
             echo "ERROR: lib/ directory MISSING!"
@@ -530,7 +530,7 @@ jobs:
           
           echo ""
           echo "5. Tarball contents preview:"
-          tar -tzf "dist/${BUNDLE_NAME}.tar.gz" | head -30
+          tar -tzf "dist/${BUNDLE_NAME}.tar.gz" | head -30 || true
           
           echo "=== End bundle verification ==="
           

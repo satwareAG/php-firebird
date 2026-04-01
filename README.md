@@ -69,11 +69,23 @@ This extension provides three complementary API layers:
 > **⚠️ Firebird 3.0+ Client Library Required**: This extension requires the Firebird 3.0+ client library (fbclient) for building, as it uses the modern OO API (FB_API_VER >= 30). Supported server versions: 3.0, 4.0, 5.0+.
 
 ### Supported Platforms
-- Linux (Ubuntu 20.04+, Debian 11+, Rocky/AlmaLinux 8+, openSUSE 15.3+)
-- Windows 10/11 (Visual Studio 2019+)
-- macOS 10.15+ (Xcode 11+)
+- Linux x86_64 and ARM64/aarch64 (Ubuntu 20.04+, Debian 11+, Rocky/AlmaLinux 8+, openSUSE 15.3+)
+- Linux musl/Alpine (Alpine 3.18+, x86_64)
+- Windows 10/11 x64 (Visual Studio 2019+)
+- macOS arm64 (Apple Silicon, macOS 11+)
 
-> **Note**: glibc 2.28+ is required for precompiled binaries. PHP 8.2+ is required; use third-party repos if your distribution has an older default PHP version.
+> **Note**: glibc 2.28+ required for glibc precompiled binaries; musl 1.2+ for Alpine binaries. PHP 8.2+ is required.
+
+#### Precompiled Binary Matrix (v10.6.0+)
+
+| Platform | Architectures | PHP Versions | Variants | Bundles |
+|----------|--------------|--------------|----------|---------|
+| **Linux (glibc)** | x86_64, aarch64 | 8.2-8.5 | NTS, ZTS | 16 |
+| **Linux (musl)** | x86_64 | 8.2-8.5 | NTS, ZTS | 8 |
+| **macOS** | arm64 | 8.2-8.5 | NTS, ZTS | 8 |
+| **Windows** | x64 | 8.2-8.5 | NTS, TS | 8 |
+
+Download from the [Releases Page](https://github.com/satwareAG/php-firebird/releases).
 
 ## Quick Start
 
@@ -132,12 +144,21 @@ sudo make install
 echo "extension=firebird.so" | sudo tee /etc/php8/conf.d/firebird.ini
 ```
 
-#### Windows (Pre-compiled DLLs)
-We provide pre-compiled Windows DLLs for PHP 8.2-8.5 across multiple Firebird versions (3.0, 4.0, 5.0).
+#### Linux / macOS (Pre-compiled Bundles)
+Pre-compiled bundles include `firebird.so` with bundled Firebird client libraries (`$ORIGIN/lib/` RPATH).
 
 1. Go to the [Releases Page](https://github.com/satwareAG/php-firebird/releases).
-2. Download the DLL matching your PHP version, architecture (x64), thread safety (TS/NTS), and Firebird version.
-3. See the [Windows Installation Guide](docs/WINDOWS_INSTALLATION.md) for detailed instructions and troubleshooting.
+2. Download the bundle matching your platform, PHP version, and thread safety (NTS/ZTS).
+3. Extract: `tar -xzf php-firebird-*.tar.gz`
+4. Copy `firebird.so` and `lib/` to your PHP extension directory.
+5. Add `extension=firebird.so` to your `php.ini`.
+
+#### Windows (Pre-compiled DLLs)
+Pre-compiled Windows DLLs for PHP 8.2-8.5 (x64, NTS/TS).
+
+1. Go to the [Releases Page](https://github.com/satwareAG/php-firebird/releases).
+2. Download the `.zip` matching your PHP version and thread safety.
+3. See the [Windows Installation Guide](docs/WINDOWS_INSTALLATION.md) for detailed instructions.
 
 #### Windows (Manual Build)
 ```batch
@@ -909,7 +930,7 @@ See [EVENT_TIMEOUT_RFC.md](docs/development/EVENT_TIMEOUT_RFC.md) for implementa
 
 ## Version Compatibility
 
-### Current Version: 10.0.0 (Stable Release)
+### Current Version: 10.6.0 (Stable Release)
 
 **Supported PHP Versions:**
 - PHP 8.2 (fully supported, minimum)
@@ -932,17 +953,17 @@ See [EVENT_TIMEOUT_RFC.md](docs/development/EVENT_TIMEOUT_RFC.md) for implementa
 
 > **ℹ️ Firebird 2.5 Server**: Firebird 2.5 reached EOL in September 2020 and is no longer supported as of v7.2.0. Please migrate to Firebird 3.0+.
 
-### Precompiled Binaries (v7.0.0+)
+### Precompiled Binaries (v10.6.0+)
 
-Starting with v7.0.0, we provide precompiled Linux packages with bundled Firebird client libraries:
+Starting with v10.6.0, we provide 40 precompiled bundles across Linux (glibc + musl), macOS (arm64), and Windows:
 
 ```bash
-# Download from GitHub Releases
-wget https://github.com/satwareAG/php-firebird/releases/download/v7.0.0/php-firebird-7.0.0-php84-nts-linux-x86_64.tar.gz
+# Download from GitHub Releases (example: Linux x86_64 glibc)
+wget https://github.com/satwareAG/php-firebird/releases/download/v10.6.0/php-firebird-10.6.0-php84-nts-linux-x86_64.tar.gz
 
 # Extract to PHP extension directory
 EXTDIR=$(php -r 'echo ini_get("extension_dir");')
-sudo tar -xzf php-firebird-7.0.0-php84-nts-linux-x86_64.tar.gz -C "$EXTDIR" --strip-components=1
+sudo tar -xzf php-firebird-10.6.0-php84-nts-linux-x86_64.tar.gz -C "$EXTDIR" --strip-components=1
 
 # Enable and verify
 echo "extension=firebird.so" | sudo tee /etc/php/8.4/mods-available/firebird.ini

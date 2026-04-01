@@ -6,7 +6,7 @@ tags: [platform, arm64, musl, macos, v10.6]
 priority: 9
 ---
 
-> **Status: OPEN** - Milestone v10.6.0
+> **Status: COMPLETED** - Released v10.6.0 (2026-04-01) - 40 precompiled bundles across 4 platforms
 
 # Spec: v10.6.0 Platform Expansion
 
@@ -18,9 +18,9 @@ macOS platforms to cover growing server deployments.
 ## Success Criteria
 
 - [x] H7: ARM64 Linux precompiled `.so` bundles in GitHub Releases (PR #200, merged)
-- [ ] Alpine/musl-libc precompiled `.so` bundles
-- [ ] macOS universal binary (x86_64 + arm64) precompiled bundles
-- [ ] All bundles pass `scripts/verify-bundle.sh`
+- [x] Alpine/musl-libc precompiled `.so` bundles (PR #201, merged)
+- [x] macOS arm64 precompiled bundles (PR #203, merged) - x86_64 deferred (macos-13 EOL)
+- [x] All bundles pass `scripts/verify-bundle.sh`
 
 ## Part 1: H7 - ARM64 Linux Builds ✅
 
@@ -33,20 +33,22 @@ with arch-specific `runner`, `container`, `fb_arch` fields. Outputs 16 bundles
 
 - `.github/workflows/release-linux.yml` - ARM64 matrix entries added
 
-## Part 2: Alpine/musl-libc Builds
+## Part 2: Alpine/musl-libc Builds ✅
 
-Build against `musllinux_1_2` for Alpine Linux users. Requires static linking
-of Firebird client or musl-compatible shared libraries.
+**Implemented** (PR #201): `musllinux_1_2_x86_64` containers with Firebird
+built from source. 8 musl bundles (4 PHP × 2 variants × x86_64).
+musl+aarch64 excluded (GitHub JS Actions incompatible with Alpine on ARM64).
 
 ### Affected Files
 
 - `.github/workflows/release-linux.yml` - musl matrix entry
 - `docker/manylinux/` - Alpine/musl Dockerfile
 
-## Part 3: macOS Precompiled Builds
+## Part 3: macOS Precompiled Builds ✅
 
-Build universal binary (x86_64 + arm64) on macOS GitHub runners with Homebrew
-Firebird client. Distribute as `.dylib` bundles.
+**Implemented** (PR #203): `macos-14` (arm64) runners with Firebird SDK
+extracted from `.pkg`. 8 macOS arm64 bundles (4 PHP × 2 variants).
+macOS x86_64 deferred due to `macos-13` runner deprecation.
 
 ### Affected Files
 

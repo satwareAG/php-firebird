@@ -14,8 +14,10 @@
 #   - PHP 8.2, 8.3, 8.4, 8.5
 #   - NTS and ZTS variants
 #   - x86_64 and aarch64 architectures
+#   - glibc (manylinux_2_28) and musl (musllinux_1_2) libc variants
 #
-# Best practices: Uses manylinux_2_28 for broad Linux compatibility
+# Best practices: Uses manylinux_2_28 for broad glibc Linux compatibility
+# musllinux_1_2 for Alpine/musl Linux compatibility
 # ARM64 builds use native GitHub ARM runners (ubuntu-24.04-arm)
 # =============================================================================
 
@@ -63,7 +65,7 @@ jobs:
     
     steps:
       - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       
       - name: Get Extension Version
         id: get-version
@@ -109,22 +111,35 @@ jobs:
             version=$(echo "$version" | tr -d ' ')
             for variant in nts zts; do
               for arch in x86_64 aarch64; do
-                if [ "$FIRST" = true ]; then
-                  FIRST=false
-                else
-                  MATRIX+=','
-                fi
-                # Set arch-specific matrix fields
-                if [ "${arch}" = "aarch64" ]; then
-                  RUNNER="ubuntu-24.04-arm"
-                  CONTAINER="quay.io/pypa/manylinux_2_28_aarch64"
-                  FB_ARCH="linux-arm64"
-                else
-                  RUNNER="ubuntu-24.04"
-                  CONTAINER="quay.io/pypa/manylinux_2_28_x86_64"
-                  FB_ARCH="linux-x64"
-                fi
-                MATRIX+="{\"php\":\"${version}\",\"variant\":\"${variant}\",\"arch\":\"${arch}\",\"runner\":\"${RUNNER}\",\"container\":\"${CONTAINER}\",\"fb_arch\":\"${FB_ARCH}\"}"
+                for libc in glibc musl; do
+                  if [ "$FIRST" = true ]; then
+                    FIRST=false
+                  else
+                    MATRIX+=','
+                  fi
+                  # Set arch-specific and libc-specific matrix fields
+                  if [ "${libc}" = "musl" ]; then
+                    if [ "${arch}" = "aarch64" ]; then
+                      RUNNER="ubuntu-24.04-arm"
+                      CONTAINER="quay.io/pypa/musllinux_1_2_aarch64"
+                    else
+                      RUNNER="ubuntu-24.04"
+                      CONTAINER="quay.io/pypa/musllinux_1_2_x86_64"
+                    fi
+                    FB_ARCH="source"
+                  else
+                    if [ "${arch}" = "aarch64" ]; then
+                      RUNNER="ubuntu-24.04-arm"
+                      CONTAINER="quay.io/pypa/manylinux_2_28_aarch64"
+                      FB_ARCH="linux-arm64"
+                    else
+                      RUNNER="ubuntu-24.04"
+                      CONTAINER="quay.io/pypa/manylinux_2_28_x86_64"
+                      FB_ARCH="linux-x64"
+                    fi
+                  fi
+                  MATRIX+="{\"php\":\"${version}\",\"variant\":\"${variant}\",\"arch\":\"${arch}\",\"libc\":\"${libc}\",\"runner\":\"${RUNNER}\",\"container\":\"${CONTAINER}\",\"fb_arch\":\"${FB_ARCH}\"}"
+                done
               done
             done
           done
@@ -149,30 +164,51 @@ jobs:
     
     steps:
       - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       
       - name: Install Build Dependencies
         run: |
-          yum install -y \
-            re2-devel \
-            libtommath-devel \
-            libtomcrypt-devel \
-            libicu-devel \
-            ncurses-devel \
-            libxml2-devel \
-            sqlite-devel \
-            openssl-devel \
-            libcurl-devel \
-            zlib-devel \
-            oniguruma-devel
-          
-          # Ensure patchelf
-          which patchelf || pip3 install patchelf
+          if [ "${{ matrix.libc }}" = "musl" ]; then
+            # musllinux containers use apk (Alpine-based)
+            apk add --no-cache \
+              autoconf automake bison make gcc g++ git curl wget \
+              libtool libxml2-dev sqlite-dev openssl-dev zlib-dev \
+              curl-dev oniguruma-dev icu-dev icu-libs ncurses-dev \
+              linux-headers patchelf binutils file tar xz \
+              re2-dev libedit-dev coreutils bash perl \
+              libc-dev musl-dev jq
+          else
+            # manylinux containers use yum (AlmaLinux-based)
+            yum install -y \
+              re2-devel \
+              libtommath-devel \
+              libtomcrypt-devel \
+              libicu-devel \
+              ncurses-devel \
+              libxml2-devel \
+              sqlite-devel \
+              openssl-devel \
+              libcurl-devel \
+              zlib-devel \
+              oniguruma-devel
+            
+            # Ensure patchelf
+            which patchelf || pip3 install patchelf
+          fi
       
       - name: Install Firebird SDK
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          if [ "${{ matrix.fb_arch }}" = "source" ]; then
+            # musl: Build Firebird from source
+            echo "Building Firebird from source for musl..."
+            chmod +x .github/scripts/build-firebird-musl.sh
+            bash .github/scripts/build-firebird-musl.sh \
+              --arch "${{ matrix.arch }}" \
+              --fb-version "${FB_VERSION}" \
+              --fb-build "${FB_BUILD}"
+          else
           echo "Installing Firebird ${FB_VERSION}..."
           mkdir -p /opt/firebird/{lib,include/firebird}
 
@@ -260,6 +296,7 @@ jobs:
           ls -la /opt/firebird/lib/
           echo "Headers:"
           ls -la /opt/firebird/include/
+          fi
       
       - name: Determine PHP Full Version
         id: php-version
@@ -395,7 +432,29 @@ jobs:
           VARIANT="${{ matrix.variant }}"
           ARCH="${{ matrix.arch }}"
           
-          BUNDLE_NAME="php-firebird-${VERSION}-php${PHP_VER_SHORT}-${VARIANT}-linux-${ARCH}"
+          # Include musl suffix for musl builds to distinguish from glibc bundles
+          if [ "${{ matrix.libc }}" = "musl" ]; then
+            BUNDLE_NAME="php-firebird-${VERSION}-php${PHP_VER_SHORT}-${VARIANT}-linux-musl-${ARCH}"
+          else
+            BUNDLE_NAME="php-firebird-${VERSION}-php${PHP_VER_SHORT}-${VARIANT}-linux-${ARCH}"
+          fi
+          
+          # For musl builds, rename dist artifacts from build-precompiled.sh
+          # (which doesn't know about the musl suffix) to the correct name
+          if [ "${{ matrix.libc }}" = "musl" ]; then
+            OLD_NAME="php-firebird-${VERSION}-php${PHP_VER_SHORT}-${VARIANT}-linux-${ARCH}"
+            if [ -d "dist/${OLD_NAME}" ] && [ "${OLD_NAME}" != "${BUNDLE_NAME}" ]; then
+              echo "Renaming musl bundle: ${OLD_NAME} -> ${BUNDLE_NAME}"
+              mv "dist/${OLD_NAME}" "dist/${BUNDLE_NAME}"
+              # Re-create tarball with correct directory name
+              (cd dist && tar -czf "${BUNDLE_NAME}.tar.gz" "${BUNDLE_NAME}")
+              # Re-generate checksums
+              sha256sum "dist/${BUNDLE_NAME}.tar.gz" | awk '{print $1}' > "dist/${BUNDLE_NAME}.tar.gz.sha256"
+              md5sum "dist/${BUNDLE_NAME}.tar.gz" | awk '{print $1}' > "dist/${BUNDLE_NAME}.tar.gz.md5"
+              # Clean up old tarball/checksums
+              rm -f "dist/${OLD_NAME}.tar.gz" "dist/${OLD_NAME}.tar.gz.sha256" "dist/${OLD_NAME}.tar.gz.md5"
+            fi
+          fi
           
           echo "bundle_name=${BUNDLE_NAME}" >> $GITHUB_OUTPUT
           echo "bundle_file=dist/${BUNDLE_NAME}.tar.gz" >> $GITHUB_OUTPUT
@@ -463,7 +522,7 @@ jobs:
           artifact-name: ''
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: ${{ steps.bundle.outputs.bundle_name }}
           path: |
@@ -491,7 +550,7 @@ jobs:
     
     steps:
       - name: Download All Artifacts
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           path: artifacts
       
@@ -597,24 +656,31 @@ jobs:
             php: "82"
           - distro: fedora:41
             php: "83"
+          - distro: alpine:3.21
+            php: "83"
+            bundle_suffix: "musl"
 
     steps:
       - name: Download PHP ${{ matrix.php }} NTS Bundle
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
-          pattern: '*php${{ matrix.php }}-nts*'
+          pattern: '*php${{ matrix.php }}-nts*${{ matrix.bundle_suffix || "" }}*'
           path: bundle
       
       - name: Test on ${{ matrix.distro }}
         timeout-minutes: 10
         run: |
-          docker run --rm -v "$(pwd)/bundle:/bundle:ro" ${{ matrix.distro }} bash -c '
+          docker run --rm -v "$(pwd)/bundle:/bundle:ro" ${{ matrix.distro }} /bin/sh -c '
             set -e
             
             echo "=== Testing on ${{ matrix.distro }} ==="
             
-            # Install PHP and dependencies
-            if command -v apt-get &>/dev/null; then
+            # Install PHP and dependencies (plus bash for the rest of the script)
+            if command -v apk >/dev/null 2>&1; then
+              # Alpine Linux (musl)
+              apk add --no-cache bash php83 php83-cli patchelf binutils file grep
+              ln -sf /usr/bin/php83 /usr/bin/php 2>/dev/null || true
+            elif command -v apt-get >/dev/null 2>&1; then
               export DEBIAN_FRONTEND=noninteractive
               apt-get update
               apt-get install -y php-cli patchelf binutils file || apt-get install -y php-cli binutils file
@@ -683,7 +749,7 @@ jobs:
             # Check RPATH
             echo ""
             echo "=== Step 6: RPATH verification ==="
-            if command -v patchelf &>/dev/null; then
+            if command -v patchelf >/dev/null 2>&1; then
               RPATH=$(patchelf --print-rpath firebird.so 2>/dev/null || echo "FAILED")
               echo "RPATH from patchelf: $RPATH"
             fi
@@ -724,10 +790,11 @@ jobs:
             echo "Detected: PHP ${PHP_MAJOR}.${PHP_MINOR}"
             
             # Extract bundle PHP version from tarball filename (e.g., php83-nts -> 8.3)
-            BUNDLE_PHP_SHORT=$(basename "$TARBALL" | grep -oP "php\K[0-9]+" || echo "")
+            # Use sed instead of grep -oP for POSIX sh compatibility (Alpine)
+            BUNDLE_PHP_SHORT=$(basename "$TARBALL" | sed -n "s/.*php\([0-9][0-9]*\).*/\1/p")
             if [ -n "$BUNDLE_PHP_SHORT" ]; then
-              BUNDLE_PHP_MAJOR="${BUNDLE_PHP_SHORT:0:1}"
-              BUNDLE_PHP_MINOR="${BUNDLE_PHP_SHORT:1}"
+              BUNDLE_PHP_MAJOR=$(printf '%s' "$BUNDLE_PHP_SHORT" | cut -c1)
+              BUNDLE_PHP_MINOR=$(printf '%s' "$BUNDLE_PHP_SHORT" | cut -c2-)
             else
               echo "WARNING: Could not extract PHP version from tarball name"
               BUNDLE_PHP_MAJOR="8"
@@ -782,7 +849,7 @@ jobs:
               
               # Diagnose the specific error
               if echo "$LOAD_STDERR" | grep -q "cannot open shared object"; then
-                MISSING_LIB=$(echo "$LOAD_STDERR" | grep -oP "[^ ]+\.so[^ :]*" | head -1)
+                MISSING_LIB=$(echo "$LOAD_STDERR" | sed -n "s/.*\([^ ]*\.so[^ :]*\).*/\1/p" | head -1)
                 echo ""
                 echo ">>> DIAGNOSIS: Library loading failed - missing: $MISSING_LIB"
                 echo ">>> Check if SONAME symlink exists in lib/"

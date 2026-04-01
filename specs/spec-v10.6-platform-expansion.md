@@ -17,21 +17,21 @@ macOS platforms to cover growing server deployments.
 
 ## Success Criteria
 
-- [ ] H7: ARM64 Linux precompiled `.so` bundles in GitHub Releases
+- [x] H7: ARM64 Linux precompiled `.so` bundles in GitHub Releases (PR #200, merged)
 - [ ] Alpine/musl-libc precompiled `.so` bundles
 - [ ] macOS universal binary (x86_64 + arm64) precompiled bundles
 - [ ] All bundles pass `scripts/verify-bundle.sh`
 
-## Part 1: H7 - ARM64 Linux Builds
+## Part 1: H7 - ARM64 Linux Builds ✅
 
-Use QEMU emulation or native ARM64 runners in `release-linux.yml`.
-Target `manylinux_2_28` aarch64 with bundled Firebird client libraries.
+**Implemented** (PR #200): Native GitHub ARM runners (`ubuntu-24.04-arm`) with
+`manylinux_2_28_aarch64` containers. Matrix generates x86_64 + aarch64 entries
+with arch-specific `runner`, `container`, `fb_arch` fields. Outputs 16 bundles
+(4 PHP × 2 variants × 2 archs).
 
-### Affected Files
+### Affected Files (Modified)
 
-- `.github/workflows/release-linux.yml` - ARM64 matrix entry
-- `docker/manylinux/` - ARM64 Dockerfile
-- `scripts/build-precompiled.sh` - cross-compile support
+- `.github/workflows/release-linux.yml` - ARM64 matrix entries added
 
 ## Part 2: Alpine/musl-libc Builds
 

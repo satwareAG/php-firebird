@@ -146,7 +146,18 @@ mkdir -p "${FB_ROOT}/lib" "${FB_ROOT}/include/firebird"
 # Find the Firebird build output lib directory
 # Firebird places all built libraries (libfbclient, libtommath, libtomcrypt, etc.)
 # in gen/Release/firebird/lib/
-FB_BUILD_LIB=$(find /tmp/fb-src/gen -path "*/firebird/lib" -type d -print -quit 2>/dev/null)
+# IMPORTANT: gen/Debug/firebird/lib/ may also exist (empty). Prefer Release.
+FB_BUILD_LIB=""
+for candidate in Release Debug; do
+  _d="/tmp/fb-src/gen/${candidate}/firebird/lib"
+  if [ -d "${_d}" ] && ls "${_d}"/libfbclient.so* >/dev/null 2>&1; then
+    FB_BUILD_LIB="${_d}"
+    break
+  fi
+done
+if [ -z "${FB_BUILD_LIB}" ]; then
+  FB_BUILD_LIB=$(find /tmp/fb-src/gen -path "*/firebird/lib" -type d -print -quit 2>/dev/null)
+fi
 if [ -z "${FB_BUILD_LIB}" ]; then
   FB_BUILD_LIB=$(dirname "$(find /tmp/fb-src -name "libfbclient.so*" -type f -print -quit 2>/dev/null)")
 fi

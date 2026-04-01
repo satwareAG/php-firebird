@@ -389,6 +389,12 @@ jobs:
           export PATH="/opt/php/${{ matrix.php }}-${{ matrix.variant }}/bin:${PATH}"
           export FB_ROOT=/opt/firebird
           
+          # Ensure Firebird libraries are discoverable regardless of PHP_LIBDIR (lib vs lib64)
+          # config.m4 uses $PHP_FIREBIRD/$PHP_LIBDIR which may be lib64 on x86_64 musl
+          if [ ! -e "${FB_ROOT}/lib64" ]; then
+            ln -sf lib "${FB_ROOT}/lib64"
+          fi
+          
           echo "Building with:"
           php -v | head -1
           echo "Firebird: ${FB_ROOT}"

@@ -191,8 +191,13 @@ jobs:
       - name: Install Build Dependencies
         run: |
           # Install build tools via Homebrew (some already present on runners)
-          brew install autoconf automake libtool re2c bison pkg-config libiconv 2>/dev/null || true
+          brew install autoconf automake libtool re2c bison pkg-config libiconv icu4c 2>/dev/null || true
           echo "$(brew --prefix bison)/bin" >> $GITHUB_PATH
+          # icu4c is keg-only on Homebrew; PHP's --enable-intl needs pkg-config to find it
+          ICU_PREFIX="$(brew --prefix icu4c 2>/dev/null || echo "")"
+          if [ -n "${ICU_PREFIX}" ] && [ -d "${ICU_PREFIX}/lib/pkgconfig" ]; then
+            echo "PKG_CONFIG_PATH=${ICU_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH:-}" >> $GITHUB_ENV
+          fi
 
       - name: Build PHP ${{ matrix.php }} (${{ matrix.variant }})
         run: |

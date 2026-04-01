@@ -38,6 +38,7 @@ set -euo pipefail
 
 BUNDLE_PATH=""
 PHP_BINARY="php"
+PLATFORM=""
 RUN_CONNECTION_TEST=false
 FB_DSN=""
 FB_USER="SYSDBA"
@@ -175,6 +176,12 @@ if [ -z "$BUNDLE_PATH" ]; then
     exit 1
 fi
 
+# Auto-detect platform
+case "$(uname -s)" in
+    Darwin) PLATFORM="macos" ;;
+    *)      PLATFORM="linux" ;;
+esac
+
 # =============================================================================
 # Prepare Bundle Directory
 # =============================================================================
@@ -229,17 +236,22 @@ fi
 if [ -d "$BUNDLE_DIR/lib" ]; then
     log_pass "lib/ directory exists"
     
-    LIB_COUNT=$(find "$BUNDLE_DIR/lib" -name "*.so*" -type f | wc -l)
+    if [ "$PLATFORM" = "macos" ]; then
+        LIB_COUNT=$(find "$BUNDLE_DIR/lib" \( -name "*.dylib" -o -name "*.so" \) -type f | wc -l)
+    else
+        LIB_COUNT=$(find "$BUNDLE_DIR/lib" -name "*.so*" -type f | wc -l)
+    fi
     log_info "Found $LIB_COUNT library files in lib/"
 else
     log_fail "lib/ directory not found"
 fi
 
 # Check libfbclient
-if ls "$BUNDLE_DIR"/lib/libfbclient.so* &>/dev/null 2>&1; then
-    log_pass "libfbclient.so found"
+if ls "$BUNDLE_DIR"/lib/libfbclient.so* &>/dev/null 2>&1 || \
+   ls "$BUNDLE_DIR"/lib/libfbclient.dylib* &>/dev/null 2>&1; then
+    log_pass "libfbclient found"
 else
-    log_fail "libfbclient.so not found in lib/"
+    log_fail "libfbclient not found in lib/"
 fi
 
 # Check documentation
@@ -259,44 +271,66 @@ echo ""
 
 echo "--- Check 2: RPATH Configuration ---"
 
-if ! check_command patchelf; then
-    log_warn "patchelf not installed, skipping RPATH checks"
+if [ "$PLATFORM" = "macos" ]; then
+    # macOS: use otool to inspect load commands
+    RPATH_OUTPUT=$(otool -l "$BUNDLE_DIR/firebird.so" 2>/dev/null | grep -A2 "LC_RPATH" || true)
+    log_verbose "firebird.so LC_RPATH entries: $RPATH_OUTPUT"
+    
+    if echo "$RPATH_OUTPUT" | grep -q "@loader_path"; then
+        log_pass "firebird.so has @loader_path rpath"
+    else
+        log_warn "firebird.so missing @loader_path rpath"
+    fi
+    
+    # Check libfbclient dependency uses @rpath
+    FBCLIENT_DEP=$(otool -L "$BUNDLE_DIR/firebird.so" 2>/dev/null | grep libfbclient | awk '{print $1}' || true)
+    if [[ "$FBCLIENT_DEP" == @rpath/* ]]; then
+        log_pass "libfbclient linked via @rpath"
+    elif [ -n "$FBCLIENT_DEP" ]; then
+        log_warn "libfbclient linked as absolute path: $FBCLIENT_DEP"
+    fi
+    
+    # Check universal binary (if applicable)
+    if command -v lipo &>/dev/null; then
+        ARCHS=$(lipo -info "$BUNDLE_DIR/firebird.so" 2>/dev/null | sed 's/.*: //' || true)
+        log_info "Architecture(s): $ARCHS"
+    fi
 else
-    # Check firebird.so RPATH
-    EXT_RPATH=$(patchelf --print-rpath "$BUNDLE_DIR/firebird.so" 2>/dev/null || echo "")
-    log_verbose "firebird.so RPATH: $EXT_RPATH"
-    
-    if [[ "$EXT_RPATH" == *'$ORIGIN/lib'* ]] || [[ "$EXT_RPATH" == *'$ORIGIN'* ]]; then
-        log_pass "firebird.so RPATH contains \$ORIGIN"
+    if ! check_command patchelf; then
+        log_warn "patchelf not installed, skipping RPATH checks"
     else
-        log_fail "firebird.so RPATH should contain \$ORIGIN/lib (got: $EXT_RPATH)"
-    fi
-    
-    # Check if using DT_RPATH (--force-rpath) vs DT_RUNPATH
-    if readelf -d "$BUNDLE_DIR/firebird.so" 2>/dev/null | grep -q "RPATH"; then
-        log_pass "Using DT_RPATH (stronger precedence)"
-    elif readelf -d "$BUNDLE_DIR/firebird.so" 2>/dev/null | grep -q "RUNPATH"; then
-        log_warn "Using DT_RUNPATH (may be overridden by LD_LIBRARY_PATH)"
-    fi
-    
-    # Check library RPATHs
-    LIB_RPATH_ERRORS=0
-    for so in "$BUNDLE_DIR"/lib/*.so*; do
-        if [[ -f "$so" && ! -L "$so" ]]; then
-            LIB_RPATH=$(patchelf --print-rpath "$so" 2>/dev/null || echo "none")
-            log_verbose "$(basename "$so") RPATH: $LIB_RPATH"
-            
-            if [[ "$LIB_RPATH" != *'$ORIGIN'* ]] && [[ "$LIB_RPATH" != "none" ]] && [[ -n "$LIB_RPATH" ]]; then
-                log_verbose "Warning: $(basename "$so") has non-relative RPATH: $LIB_RPATH"
-                ((LIB_RPATH_ERRORS++))
-            fi
+        EXT_RPATH=$(patchelf --print-rpath "$BUNDLE_DIR/firebird.so" 2>/dev/null || echo "")
+        log_verbose "firebird.so RPATH: $EXT_RPATH"
+        
+        if [[ "$EXT_RPATH" == *'$ORIGIN/lib'* ]] || [[ "$EXT_RPATH" == *'$ORIGIN'* ]]; then
+            log_pass "firebird.so RPATH contains \$ORIGIN"
+        else
+            log_fail "firebird.so RPATH should contain \$ORIGIN/lib (got: $EXT_RPATH)"
         fi
-    done
-    
-    if [ "$LIB_RPATH_ERRORS" -eq 0 ]; then
-        log_pass "Bundled libraries have correct RPATH"
-    else
-        log_warn "$LIB_RPATH_ERRORS library(ies) have non-\$ORIGIN RPATH"
+        
+        if readelf -d "$BUNDLE_DIR/firebird.so" 2>/dev/null | grep -q "RPATH"; then
+            log_pass "Using DT_RPATH (stronger precedence)"
+        elif readelf -d "$BUNDLE_DIR/firebird.so" 2>/dev/null | grep -q "RUNPATH"; then
+            log_warn "Using DT_RUNPATH (may be overridden by LD_LIBRARY_PATH)"
+        fi
+        
+        LIB_RPATH_ERRORS=0
+        for so in "$BUNDLE_DIR"/lib/*.so*; do
+            if [[ -f "$so" && ! -L "$so" ]]; then
+                LIB_RPATH=$(patchelf --print-rpath "$so" 2>/dev/null || echo "none")
+                log_verbose "$(basename "$so") RPATH: $LIB_RPATH"
+                if [[ "$LIB_RPATH" != *'$ORIGIN'* ]] && [[ "$LIB_RPATH" != "none" ]] && [[ -n "$LIB_RPATH" ]]; then
+                    log_verbose "Warning: $(basename "$so") has non-relative RPATH: $LIB_RPATH"
+                    ((LIB_RPATH_ERRORS++))
+                fi
+            fi
+        done
+        
+        if [ "$LIB_RPATH_ERRORS" -eq 0 ]; then
+            log_pass "Bundled libraries have correct RPATH"
+        else
+            log_warn "$LIB_RPATH_ERRORS library(ies) have non-\$ORIGIN RPATH"
+        fi
     fi
 fi
 
@@ -308,43 +342,73 @@ echo ""
 
 echo "--- Check 3: Dependency Resolution ---"
 
-# Run ldd from within bundle directory to test $ORIGIN resolution
-MISSING_DEPS=""
-NOT_FOUND_COUNT=0
-
-if check_command ldd; then
-    # Change to bundle directory so $ORIGIN resolves correctly
-    pushd "$BUNDLE_DIR" > /dev/null
-    
-    LDD_OUTPUT=$(ldd firebird.so 2>&1 || true)
-    
-    popd > /dev/null
-    
-    log_verbose "ldd output:"
+if [ "$PLATFORM" = "macos" ]; then
+    # macOS: use otool -L
+    OTOOL_OUTPUT=$(otool -L "$BUNDLE_DIR/firebird.so" 2>&1 || true)
+    log_verbose "otool -L output:"
     if [ "$VERBOSE" = true ]; then
-        echo "$LDD_OUTPUT" | sed 's/^/  /'
+        echo "$OTOOL_OUTPUT" | sed 's/^/  /'
     fi
     
-    # Check for "not found" dependencies
-    MISSING_DEPS=$(echo "$LDD_OUTPUT" | grep "not found" || true)
-    
-    if [ -n "$MISSING_DEPS" ]; then
-        # Filter out expected system library mismatches (glibc version specific)
-        CRITICAL_MISSING=$(echo "$MISSING_DEPS" | grep -v "^$" || true)
-        NOT_FOUND_COUNT=$(echo "$CRITICAL_MISSING" | grep -c "not found" || echo 0)
-        
-        if [ "$NOT_FOUND_COUNT" -gt 0 ]; then
-            log_fail "Missing dependencies detected ($NOT_FOUND_COUNT):"
-            echo "$CRITICAL_MISSING" | sed 's/^/  /'
+    # Check all non-system, non-@rpath deps can be found
+    MISSING_COUNT=0
+    while IFS= read -r dep_line; do
+        dep_path=$(echo "$dep_line" | awk '{print $1}')
+        [ -z "$dep_path" ] && continue
+        # Skip @rpath/@loader_path (resolved at runtime) and system paths
+        [[ "$dep_path" == @* ]] && continue
+        [[ "$dep_path" == /usr/lib/* ]] && continue
+        [[ "$dep_path" == /System/* ]] && continue
+        if [ ! -f "$dep_path" ]; then
+            log_verbose "Dependency not at absolute path: $dep_path (expected via @rpath)"
+            ((MISSING_COUNT++)) || true
         fi
-    else
-        log_pass "All dependencies resolved"
-    fi
+    done <<< "$(echo "$OTOOL_OUTPUT" | tail -n +2)"
     
-    # List resolved dependencies
-    RESOLVED=$(echo "$LDD_OUTPUT" | grep "=> /" | wc -l)
-    BUNDLED=$(echo "$LDD_OUTPUT" | grep "\$ORIGIN" | wc -l || echo 0)
-    log_info "Resolved: $RESOLVED system, $BUNDLED bundled"
+    # For @rpath deps, verify the lib exists in bundle
+    RPATH_DEPS=$(echo "$OTOOL_OUTPUT" | tail -n +2 | awk '{print $1}' | grep "^@rpath/" || true)
+    RPATH_MISSING=0
+    for rdep in $RPATH_DEPS; do
+        local_name="${rdep#@rpath/}"
+        if [ ! -f "$BUNDLE_DIR/lib/$local_name" ]; then
+            log_fail "@rpath dependency not in bundle: $local_name"
+            ((RPATH_MISSING++))
+        fi
+    done
+    
+    if [ "$RPATH_MISSING" -eq 0 ]; then
+        log_pass "All @rpath dependencies found in bundle"
+    fi
+else
+    MISSING_DEPS=""
+    NOT_FOUND_COUNT=0
+    
+    if check_command ldd; then
+        pushd "$BUNDLE_DIR" > /dev/null
+        LDD_OUTPUT=$(ldd firebird.so 2>&1 || true)
+        popd > /dev/null
+        
+        log_verbose "ldd output:"
+        if [ "$VERBOSE" = true ]; then
+            echo "$LDD_OUTPUT" | sed 's/^/  /'
+        fi
+        
+        MISSING_DEPS=$(echo "$LDD_OUTPUT" | grep "not found" || true)
+        if [ -n "$MISSING_DEPS" ]; then
+            CRITICAL_MISSING=$(echo "$MISSING_DEPS" | grep -v "^$" || true)
+            NOT_FOUND_COUNT=$(echo "$CRITICAL_MISSING" | grep -c "not found" || echo 0)
+            if [ "$NOT_FOUND_COUNT" -gt 0 ]; then
+                log_fail "Missing dependencies detected ($NOT_FOUND_COUNT):"
+                echo "$CRITICAL_MISSING" | sed 's/^/  /'
+            fi
+        else
+            log_pass "All dependencies resolved"
+        fi
+        
+        RESOLVED=$(echo "$LDD_OUTPUT" | grep "=> /" | wc -l)
+        BUNDLED=$(echo "$LDD_OUTPUT" | grep "\$ORIGIN" | wc -l || echo 0)
+        log_info "Resolved: $RESOLVED system, $BUNDLED bundled"
+    fi
 fi
 
 echo ""
@@ -356,7 +420,11 @@ echo ""
 echo "--- Check 4: System Library Verification ---"
 
 # These should NOT be bundled (system libc)
-FORBIDDEN_LIBS=("libc.so" "libpthread.so" "libdl.so" "libm.so" "librt.so" "ld-linux")
+if [ "$PLATFORM" = "macos" ]; then
+    FORBIDDEN_LIBS=("libSystem.B.dylib" "libc++.1.dylib")
+else
+    FORBIDDEN_LIBS=("libc.so" "libpthread.so" "libdl.so" "libm.so" "librt.so" "ld-linux")
+fi
 
 for lib in "${FORBIDDEN_LIBS[@]}"; do
     if ls "$BUNDLE_DIR"/lib/"$lib"* &>/dev/null 2>&1; then
@@ -371,7 +439,8 @@ REQUIRED_LIBS=("libfbclient")
 OPTIONAL_LIBS=("libicuuc" "libicudata" "libtommath" "libtomcrypt")
 
 for lib in "${REQUIRED_LIBS[@]}"; do
-    if ls "$BUNDLE_DIR"/lib/"$lib".so* &>/dev/null 2>&1; then
+    if ls "$BUNDLE_DIR"/lib/"$lib".so* &>/dev/null 2>&1 || \
+       ls "$BUNDLE_DIR"/lib/"$lib".dylib* &>/dev/null 2>&1; then
         log_pass "Required library bundled: $lib"
     else
         log_fail "Required library missing: $lib"
@@ -379,7 +448,8 @@ for lib in "${REQUIRED_LIBS[@]}"; do
 done
 
 for lib in "${OPTIONAL_LIBS[@]}"; do
-    if ls "$BUNDLE_DIR"/lib/"$lib".so* &>/dev/null 2>&1; then
+    if ls "$BUNDLE_DIR"/lib/"$lib".so* &>/dev/null 2>&1 || \
+       ls "$BUNDLE_DIR"/lib/"$lib".dylib* &>/dev/null 2>&1; then
         log_pass "Optional library bundled: $lib"
     else
         log_warn "Optional library not bundled: $lib (may cause runtime issues)"

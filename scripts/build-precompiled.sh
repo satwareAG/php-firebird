@@ -42,11 +42,18 @@ set -euo pipefail
 PHP_VERSION=""
 VARIANT=""
 ARCH=""
+PLATFORM=""
 DRY_RUN=false
 SKIP_BUILD=false
 GENERATE_CHECKSUMS=true
 VERBOSE=false
 RUN_VERIFY=false
+
+# Auto-detect platform
+case "$(uname -s)" in
+    Darwin) PLATFORM="macos" ;;
+    *)      PLATFORM="linux" ;;
+esac
 
 # Auto-detect extension version
 if [ -f "VERSION" ]; then
@@ -68,21 +75,33 @@ FB_VERSION="5.0"
 FB_ROOT="${FB_ROOT:-/opt/firebird}"
 PHP_PREFIX="${PHP_PREFIX:-/opt/php}"
 
-# System libraries that should NOT be bundled (glibc and core system libs)
-SYSTEM_LIBS_WHITELIST=(
-    "linux-vdso.so"
-    "ld-linux"
-    "libc.so"
-    "libpthread.so"
-    "libdl.so"
-    "libm.so"
-    "librt.so"
-    "libresolv.so"
-    "libnsl.so"
-    "libcrypt.so"
-    "libgcc_s.so"
-    "libstdc++.so"
-)
+# System libraries that should NOT be bundled
+if [ "$PLATFORM" = "macos" ]; then
+    SYSTEM_LIBS_WHITELIST=(
+        "libSystem"
+        "libc++.1.dylib"
+        "libc++abi.dylib"
+        "libobjc.A.dylib"
+        "libz.1.dylib"
+        "/usr/lib/lib"
+        "/System/Library/"
+    )
+else
+    SYSTEM_LIBS_WHITELIST=(
+        "linux-vdso.so"
+        "ld-linux"
+        "libc.so"
+        "libpthread.so"
+        "libdl.so"
+        "libm.so"
+        "librt.so"
+        "libresolv.so"
+        "libnsl.so"
+        "libcrypt.so"
+        "libgcc_s.so"
+        "libstdc++.so"
+    )
+fi
 
 # Library search paths
 LIB_SEARCH_PATHS=(
@@ -157,6 +176,8 @@ is_system_lib() {
 # Find library in search paths
 find_library() {
     local lib_name="$1"
+    local ext_pattern="so"
+    [ "$PLATFORM" = "macos" ] && ext_pattern="dylib"
     
     for search_path in "${LIB_SEARCH_PATHS[@]}"; do
         # Try exact name
@@ -166,8 +187,9 @@ find_library() {
         fi
         
         # Try with wildcard for version suffixes
-        local base_name="${lib_name%.so*}"
-        for found in "${search_path}/${base_name}.so"*; do
+        local base_name="${lib_name%.${ext_pattern}*}"
+        base_name="${base_name%.so*}"  # Also strip .so if searching cross-platform
+        for found in "${search_path}/${base_name}.${ext_pattern}"* "${search_path}/${base_name}.so"*; do
             if [ -f "$found" ]; then
                 echo "$found"
                 return 0
@@ -230,19 +252,27 @@ bundle_library() {
             ln -sf "$real_name" "${dest_dir}/${lib_name}"
         fi
         
-        # CRITICAL: Create SONAME symlink (e.g., libfbclient.so.2 -> libfbclient.so.5.0.3)
-        # The extension links against the SONAME, not the versioned filename
-        local soname
-        soname=$(objdump -p "$real_path" 2>/dev/null | grep -E '^\s+SONAME' | awk '{print $2}' || true)
-        if [ -n "$soname" ] && [ "$soname" != "$real_name" ] && [ ! -e "${dest_dir}/${soname}" ]; then
-            ln -sf "$real_name" "${dest_dir}/${soname}"
-            log_verbose "${indent}  Created SONAME symlink: ${soname} -> ${real_name}"
-        fi
-        
-        # Also create .so symlink if needed (without version suffix)
-        local base="${lib_name%%.*}"
-        if [ ! -e "${dest_dir}/${base}.so" ]; then
-            ln -sf "$real_name" "${dest_dir}/${base}.so" 2>/dev/null || true
+        if [ "$PLATFORM" = "macos" ]; then
+            # macOS: Create install_name symlinks for dylibs
+            local base="${lib_name%%.*}"
+            if [ ! -e "${dest_dir}/${base}.dylib" ]; then
+                ln -sf "$real_name" "${dest_dir}/${base}.dylib" 2>/dev/null || true
+            fi
+        else
+            # CRITICAL: Create SONAME symlink (e.g., libfbclient.so.2 -> libfbclient.so.5.0.3)
+            # The extension links against the SONAME, not the versioned filename
+            local soname
+            soname=$(objdump -p "$real_path" 2>/dev/null | grep -E '^\s+SONAME' | awk '{print $2}' || true)
+            if [ -n "$soname" ] && [ "$soname" != "$real_name" ] && [ ! -e "${dest_dir}/${soname}" ]; then
+                ln -sf "$real_name" "${dest_dir}/${soname}"
+                log_verbose "${indent}  Created SONAME symlink: ${soname} -> ${real_name}"
+            fi
+            
+            # Also create .so symlink if needed (without version suffix)
+            local base="${lib_name%%.*}"
+            if [ ! -e "${dest_dir}/${base}.so" ]; then
+                ln -sf "$real_name" "${dest_dir}/${base}.so" 2>/dev/null || true
+            fi
         fi
     fi
     
@@ -253,7 +283,12 @@ bundle_library() {
     # Trace transitive dependencies (max depth 5)
     if [ "$depth" -lt 5 ]; then
         local deps
-        deps=$(ldd "$real_path" 2>/dev/null | grep "=> /" | awk '{print $3}' || true)
+        if [ "$PLATFORM" = "macos" ]; then
+            # macOS: otool -L lists linked libraries
+            deps=$(otool -L "$real_path" 2>/dev/null | tail -n +2 | awk '{print $1}' | grep -v "^@" || true)
+        else
+            deps=$(ldd "$real_path" 2>/dev/null | grep "=> /" | awk '{print $3}' || true)
+        fi
         
         for dep in $deps; do
             local dep_name
@@ -381,7 +416,7 @@ ARCH="${ARCH:-x86_64}"
 # =============================================================================
 
 PHP_VER_SHORT="${PHP_VERSION//.}"
-DIST_NAME="php-firebird-${EXT_VERSION}-php${PHP_VER_SHORT}-${VARIANT}-linux-${ARCH}"
+DIST_NAME="php-firebird-${EXT_VERSION}-php${PHP_VER_SHORT}-${VARIANT}-${PLATFORM}-${ARCH}"
 DIST_DIR="dist/${DIST_NAME}"
 
 # =============================================================================
@@ -402,9 +437,14 @@ echo ""
 
 # Check required tools
 check_command make
-check_command patchelf
 check_command tar
-check_command objdump
+if [ "$PLATFORM" = "macos" ]; then
+    check_command install_name_tool
+    check_command otool
+else
+    check_command patchelf
+    check_command objdump
+fi
 
 if [ "$SKIP_BUILD" = false ]; then
     check_command phpize
@@ -500,17 +540,24 @@ log_info "Bundling libraries with transitive dependencies..."
 
 # Find and bundle libfbclient
 FB_CLIENT=""
+if [ "$PLATFORM" = "macos" ]; then
+    FB_LIB_PATTERNS=("libfbclient.dylib" "libfbclient.dylib*")
+else
+    FB_LIB_PATTERNS=("libfbclient.so*")
+fi
 for path in "${LIB_SEARCH_PATHS[@]}"; do
-    for lib in "${path}"/libfbclient.so*; do
-        if [ -f "$lib" ]; then
-            FB_CLIENT="$lib"
-            break 2
-        fi
+    for pattern in "${FB_LIB_PATTERNS[@]}"; do
+        for lib in "${path}"/${pattern}; do
+            if [ -f "$lib" ]; then
+                FB_CLIENT="$lib"
+                break 3
+            fi
+        done
     done
 done
 
 if [ -z "$FB_CLIENT" ]; then
-    log_error "libfbclient.so not found!"
+    log_error "libfbclient not found!"
     exit 1
 fi
 
@@ -574,20 +621,47 @@ done
 log_info "Patching RPATH for main extension..."
 
 if [ "$DRY_RUN" = true ]; then
-    log_dry_run "Would run: patchelf --force-rpath --set-rpath '\$ORIGIN/lib' ${DIST_DIR}/firebird.so"
+    if [ "$PLATFORM" = "macos" ]; then
+        log_dry_run "Would run: install_name_tool -add_rpath @loader_path/lib ${DIST_DIR}/firebird.so"
+    else
+        log_dry_run "Would run: patchelf --force-rpath --set-rpath '\$ORIGIN/lib' ${DIST_DIR}/firebird.so"
+    fi
 else
-    patchelf --force-rpath --set-rpath '$ORIGIN/lib' "${DIST_DIR}/firebird.so"
+    if [ "$PLATFORM" = "macos" ]; then
+        # macOS: add @loader_path/lib rpath and rewrite libfbclient reference
+        install_name_tool -add_rpath @loader_path/lib "${DIST_DIR}/firebird.so" 2>/dev/null || true
+        # Rewrite libfbclient dependency to use @rpath
+        FBCLIENT_DEP=$(otool -L "${DIST_DIR}/firebird.so" 2>/dev/null | grep libfbclient | awk '{print $1}' | head -1 || true)
+        if [ -n "$FBCLIENT_DEP" ]; then
+            install_name_tool -change "$FBCLIENT_DEP" "@rpath/libfbclient.dylib" "${DIST_DIR}/firebird.so"
+            log_verbose "  Rewrote libfbclient dep: $FBCLIENT_DEP -> @rpath/libfbclient.dylib"
+        fi
+    else
+        patchelf --force-rpath --set-rpath '$ORIGIN/lib' "${DIST_DIR}/firebird.so"
+    fi
 fi
 
 log_info "Patching RPATH for bundled libraries..."
 if [ "$DRY_RUN" = false ]; then
-    for so in "${DIST_DIR}"/lib/*.so*; do
-        if [[ -f "$so" && ! -L "$so" ]]; then
-            # Libraries in lib/ need $ORIGIN to find each other
-            patchelf --force-rpath --set-rpath '$ORIGIN' "$so" 2>/dev/null || true
-            log_verbose "  Patched: $(basename "$so")"
-        fi
-    done
+    if [ "$PLATFORM" = "macos" ]; then
+        for dylib in "${DIST_DIR}"/lib/*.dylib; do
+            if [[ -f "$dylib" && ! -L "$dylib" ]]; then
+                # Set install_name to @rpath-relative for relocatability
+                local_name=$(basename "$dylib")
+                install_name_tool -id "@rpath/${local_name}" "$dylib" 2>/dev/null || true
+                install_name_tool -add_rpath @loader_path "$dylib" 2>/dev/null || true
+                log_verbose "  Patched: ${local_name}"
+            fi
+        done
+    else
+        for so in "${DIST_DIR}"/lib/*.so*; do
+            if [[ -f "$so" && ! -L "$so" ]]; then
+                # Libraries in lib/ need $ORIGIN to find each other
+                patchelf --force-rpath --set-rpath '$ORIGIN' "$so" 2>/dev/null || true
+                log_verbose "  Patched: $(basename "$so")"
+            fi
+        done
+    fi
 fi
 
 # =============================================================================
@@ -830,18 +904,27 @@ log_info "Verifying bundle..."
 
 if [ "$DRY_RUN" = false ]; then
     echo ""
-    echo "RPATH of firebird.so:"
-    patchelf --print-rpath "${DIST_DIR}/firebird.so"
+    if [ "$PLATFORM" = "macos" ]; then
+        echo "RPATH of firebird.so:"
+        otool -l "${DIST_DIR}/firebird.so" 2>/dev/null | grep -A2 "LC_RPATH" || echo "  (no rpath)"
 
-    echo ""
-    echo "Dependencies:"
-    (cd "${DIST_DIR}" && ldd firebird.so) || true
+        echo ""
+        echo "Dependencies:"
+        otool -L "${DIST_DIR}/firebird.so" || true
+    else
+        echo "RPATH of firebird.so:"
+        patchelf --print-rpath "${DIST_DIR}/firebird.so"
 
-    # Check for missing dependencies
-    MISSING=$(cd "${DIST_DIR}" && ldd firebird.so 2>&1 | grep "not found" || true)
-    if [ -n "${MISSING}" ]; then
-        log_warn "Some dependencies not found (may be OK if they're glibc system libs):"
-        echo "${MISSING}"
+        echo ""
+        echo "Dependencies:"
+        (cd "${DIST_DIR}" && ldd firebird.so) || true
+
+        # Check for missing dependencies
+        MISSING=$(cd "${DIST_DIR}" && ldd firebird.so 2>&1 | grep "not found" || true)
+        if [ -n "${MISSING}" ]; then
+            log_warn "Some dependencies not found (may be OK if they're glibc system libs):"
+            echo "${MISSING}"
+        fi
     fi
 
     echo ""

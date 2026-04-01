@@ -726,82 +726,11 @@ jobs:
           FB_PKG_NAME: ${{ steps.fb-version.outputs.fb_pkg_name }}
         run: |
           set -eu
-
-          FB_CLIENT_DIR="/tmp/firebird-client"
-          mkdir -p "${FB_CLIENT_DIR}/include" "${FB_CLIENT_DIR}/lib"
-
-          # Expand the .pkg (flat package or distribution package)
-          PKG_EXPANDED="/tmp/firebird-expanded"
-          pkgutil --expand "/tmp/firebird-cache/${FB_PKG_NAME}" "${PKG_EXPANDED}"
-
-          echo "=== Package contents ==="
-          find "${PKG_EXPANDED}" -maxdepth 3 -type f | head -30
-
-          # Extract payload(s) - may be nested in component packages
-          EXTRACT_DIR="/tmp/firebird-payload"
-          mkdir -p "${EXTRACT_DIR}"
-
-          # Find all Payload files and extract them
-          find "${PKG_EXPANDED}" -name "Payload" | while read -r payload; do
-            echo "Extracting payload: ${payload}"
-            # macOS Payload files are gzipped cpio or xar archives
-            cd "${EXTRACT_DIR}"
-            # Try gzip+cpio first (common for .pkg)
-            if file "${payload}" | grep -q "gzip"; then
-              gunzip -c "${payload}" | cpio -idm 2>/dev/null || true
-            elif file "${payload}" | grep -q "cpio"; then
-              cpio -idm < "${payload}" 2>/dev/null || true
-            else
-              # Try as plain tar
-              tar xf "${payload}" 2>/dev/null || true
-            fi
-          done
-
-          echo "=== Extracted payload structure ==="
-          find "${EXTRACT_DIR}" -maxdepth 4 | head -40
-
-          # Locate Firebird framework headers and libraries
-          # Firebird installs to /Library/Frameworks/Firebird.framework/
-          FB_FRAMEWORK=$(find "${EXTRACT_DIR}" -path "*/Firebird.framework" -type d | head -1)
-
-          if [ -n "${FB_FRAMEWORK}" ]; then
-            echo "Found Firebird framework at: ${FB_FRAMEWORK}"
-
-            # Copy headers
-            if [ -d "${FB_FRAMEWORK}/Headers" ]; then
-              cp -a "${FB_FRAMEWORK}/Headers/"* "${FB_CLIENT_DIR}/include/"
-            elif [ -d "${FB_FRAMEWORK}/Versions/A/Headers" ]; then
-              cp -a "${FB_FRAMEWORK}/Versions/A/Headers/"* "${FB_CLIENT_DIR}/include/"
-            fi
-
-            # Copy libraries - look for dylibs in the framework
-            find "${FB_FRAMEWORK}" -name "*.dylib" -exec cp {} "${FB_CLIENT_DIR}/lib/" \;
-
-            # Also copy the framework binary itself as libfbclient if needed
-            if [ -f "${FB_FRAMEWORK}/Versions/A/Firebird" ]; then
-              cp "${FB_FRAMEWORK}/Versions/A/Firebird" "${FB_CLIENT_DIR}/lib/libfbclient.dylib" 2>/dev/null || true
-            fi
-          else
-            echo "WARNING: Firebird.framework not found, searching for loose files..."
-            # Fallback: search for ibase.h and libfbclient directly
-            find "${EXTRACT_DIR}" -name "ibase.h" -exec cp {} "${FB_CLIENT_DIR}/include/" \;
-            find "${EXTRACT_DIR}" -name "iberror.h" -exec cp {} "${FB_CLIENT_DIR}/include/" \;
-            find "${EXTRACT_DIR}" -name "libfbclient*" -exec cp {} "${FB_CLIENT_DIR}/lib/" \;
-          fi
-
-          echo "=== Firebird client directory ==="
-          ls -la "${FB_CLIENT_DIR}/include/" || echo "No headers"
-          ls -la "${FB_CLIENT_DIR}/lib/" || echo "No libraries"
-
-          # Verify we have ibase.h
-          if [ ! -f "${FB_CLIENT_DIR}/include/ibase.h" ]; then
-            echo "ERROR: ibase.h not found after extraction" >&2
-            echo "Full payload tree:"
-            find "${EXTRACT_DIR}" -type f | head -50
-            exit 1
-          fi
-
-          echo "Firebird client extracted successfully"
+          chmod +x .github/scripts/extract-firebird-macos.sh
+          .github/scripts/extract-firebird-macos.sh \
+            --arch ${{ matrix.fb-pkg-suffix == 'macos-arm64' && 'arm64' || 'x64' }} \
+            --pkg-path "/tmp/firebird-cache/${FB_PKG_NAME}" \
+            --output /tmp/firebird-client
 
       - name: Build PHP extension
         run: |
@@ -815,11 +744,52 @@ jobs:
           echo "=== Building extension ==="
           phpize
           ./configure --with-firebird="${FB_CLIENT_DIR}"
+
+          # WORKAROUND: macOS uses case-insensitive APFS by default.
+          # Our VERSION file conflicts with the C++ standard <version> header
+          # because phpize adds -I. to the include path. Temporarily hide it
+          # during compilation (configure already read it via config.m4).
+          if [ -f VERSION ]; then
+            mv VERSION VERSION.bak
+            echo "Temporarily renamed VERSION to avoid C++ header conflict"
+          fi
+
           make -j"$(sysctl -n hw.ncpu)"
+
+          # Restore VERSION file
+          if [ -f VERSION.bak ]; then
+            mv VERSION.bak VERSION
+          fi
 
           echo "Extension built successfully"
           ls -la modules/firebird.so
           file modules/firebird.so
+
+      - name: Patch extension RPATH
+        run: |
+          set -eu
+
+          FB_CLIENT_DIR="/tmp/firebird-client"
+          EXTENSION_PATH="$(pwd)/modules/firebird.so"
+
+          # Fix libfbclient reference: the Firebird .pkg installs with a
+          # hardcoded install_name pointing to /Library/Frameworks/...
+          # Rewrite to use @rpath so the extension finds the bundled dylib.
+          FB_DYLIB_REF=$(otool -L "$EXTENSION_PATH" | grep -o '[^ ]*libfbclient[^ ]*' | head -1 || true)
+          if [ -n "$FB_DYLIB_REF" ] && [[ "$FB_DYLIB_REF" != @rpath/* ]]; then
+            echo "Rewriting libfbclient reference: $FB_DYLIB_REF -> @rpath/libfbclient.dylib"
+            install_name_tool -change "$FB_DYLIB_REF" "@rpath/libfbclient.dylib" "$EXTENSION_PATH"
+            install_name_tool -add_rpath "${FB_CLIENT_DIR}/lib" "$EXTENSION_PATH" 2>/dev/null || true
+          fi
+
+          # Also fix the bundled dylib's install_name
+          FB_DYLIB="${FB_CLIENT_DIR}/lib/libfbclient.dylib"
+          if [ -f "$FB_DYLIB" ]; then
+            install_name_tool -id "@rpath/libfbclient.dylib" "$FB_DYLIB" 2>/dev/null || true
+          fi
+
+          echo "=== RPATH verification ==="
+          otool -L "$EXTENSION_PATH"
 
       - name: Verify extension loads
         run: |
@@ -827,7 +797,7 @@ jobs:
 
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
 
-          # Set library path for Firebird client
+          # Set library path for Firebird client (belt and suspenders with RPATH)
           export DYLD_LIBRARY_PATH="/tmp/firebird-client/lib:${DYLD_LIBRARY_PATH:-}"
 
           echo "=== Verifying extension ==="

@@ -191,7 +191,7 @@ if [ -d "$PKG_EXPANDED" ]; then
 fi
 
 echo "=== Extracted payload structure ==="
-find "$EXTRACT_DIR" -maxdepth 5 -type f | head -40
+find "$EXTRACT_DIR" -maxdepth 5 -type f 2>/dev/null | head -40 || true
 
 # =============================================================================
 # Locate Firebird Framework
@@ -209,8 +209,8 @@ fi
 if [ -z "$FB_FRAMEWORK" ]; then
     log_error "Firebird.framework not found in extracted payload"
     echo "Full payload tree:"
-    find "$EXTRACT_DIR" -type f | head -60
-    find "$PKG_EXPANDED" -type f | head -60
+    find "$EXTRACT_DIR" -type f 2>/dev/null | head -60 || true
+    find "$PKG_EXPANDED" -type f 2>/dev/null | head -60 || true
     die "Cannot proceed without Firebird.framework"
 fi
 
@@ -349,7 +349,7 @@ echo ""
 
 if [ -d "$OUTPUT_DIR/include/firebird" ]; then
     echo "=== Nested headers (firebird/) ==="
-    find "$OUTPUT_DIR/include/firebird" -type f | head -10
+    find "$OUTPUT_DIR/include/firebird" -type f 2>/dev/null | head -10 || true
     echo ""
 fi
 

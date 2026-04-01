@@ -7,7 +7,7 @@
  * C extension. These are used by static analysis tools and IDEs.
  *
  * @package   php-firebird-stubs
- * @version   10.3.9
+ * @version   10.6.0
  * @author    satware AG <info@satware.com>
  * @copyright 2025 satware AG
  * @license   PHP-3.01 https://www.php.net/license/3_01.txt

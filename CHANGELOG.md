@@ -5,6 +5,35 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.6.0] - 2026-04-01
+
+### Added
+- **ARM64/aarch64 Linux precompiled builds** (PR #200, issue #172): Added native ARM64 support
+  to the Linux release workflow using `ubuntu-24.04-arm` runners and `manylinux_2_28_aarch64`
+  containers, doubling output from 8 to 16 Linux bundles.
+- **Alpine/musl-libc precompiled builds** (PR #201, issue #173): Added musl-libc dimension to
+  the Linux release matrix with Firebird client built from source in Alpine containers. Produces
+  32 Linux bundles total (4 PHP versions x 2 variants x 2 architectures x 2 libc).
+- **macOS universal binary builds** (PR #203, issue #174): New `release-macos.yml` workflow
+  producing PHP 8.2-8.5 x NTS/ZTS x arm64/x86_64 builds with universal binaries via `lipo`.
+  Includes SBOM generation and SLSA attestation. New `extract-firebird-macos.sh` script handles
+  Firebird SDK extraction from macOS `.pkg` with bare framework structure detection.
+- **macOS support in build/verify scripts**: `scripts/build-precompiled.sh` and
+  `scripts/verify-bundle.sh` updated with `install_name_tool`, `@loader_path`, `otool`
+  inspection, and `lipo` verification for macOS `.dylib` bundles.
+
+### Fixed
+- **release-linux.yml workflow parse error** (PR #202): Fixed YAML syntax error in the Linux
+  release workflow introduced during the Alpine/musl matrix expansion.
+- **SIGPIPE exit in extract-firebird-macos.sh**: `find|head` pipeline under `set -euo pipefail`
+  caused spurious SIGPIPE exits; fixed with `|| true` guard.
+- **Bare framework detection on macOS**: `pkgutil --expand` extracts `Payload/Versions/A/` not
+  `Firebird.framework/`; added detection for both layouts.
+- **VERSION file conflict on macOS**: Case-insensitive APFS resolved C++ `<version>` header to
+  our `VERSION` file; added workaround in macOS release workflow.
+- **libfbclient hardcoded install_name**: Rewrote `/Library/Frameworks/Firebird.framework/...`
+  to `@rpath/libfbclient.dylib` using `install_name_tool` for relocatable bundles.
+
 ## [10.3.9] - 2026-03-31
 
 ### Fixed
@@ -1218,7 +1247,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.3.9...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.6.0...HEAD
+[10.6.0]: https://github.com/satwareAG/php-firebird/compare/v10.3.9...v10.6.0
 [10.3.9]: https://github.com/satwareAG/php-firebird/compare/v10.3.8...v10.3.9
 [10.3.8]: https://github.com/satwareAG/php-firebird/compare/v10.3.7...v10.3.8
 [10.3.7]: https://github.com/satwareAG/php-firebird/compare/v10.3.6...v10.3.7

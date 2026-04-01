@@ -36,7 +36,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-satware-main": "10.3.x-dev"
+            "dev-satware-main": "10.6.x-dev"
         }
     }
 }

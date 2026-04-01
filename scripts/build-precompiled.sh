@@ -918,10 +918,10 @@ if [ "$DRY_RUN" = false ]; then
 
         echo ""
         echo "Dependencies:"
-        (cd "${DIST_DIR}" && ldd firebird.so) || true
+        (cd "${DIST_DIR}" && ldd firebird.so 2>&1 | head -30) || true
 
         # Check for missing dependencies
-        MISSING=$(cd "${DIST_DIR}" && ldd firebird.so 2>&1 | grep "not found" || true)
+        MISSING=$(cd "${DIST_DIR}" && ldd firebird.so 2>&1 | grep "not found" | head -10 || true)
         if [ -n "${MISSING}" ]; then
             log_warn "Some dependencies not found (may be OK if they're glibc system libs):"
             echo "${MISSING}"
@@ -933,7 +933,9 @@ if [ "$DRY_RUN" = false ]; then
     ls -la "${DIST_DIR}/"
     echo ""
     echo "Bundled libraries (${#BUNDLED_LIBS[@]} files):"
-    ls -la "${DIST_DIR}/lib/" 2>/dev/null || echo "  (none)"
+    ls -1 "${DIST_DIR}/lib/" 2>/dev/null | head -40 || echo "  (none)"
+    LIB_COUNT=$(find "${DIST_DIR}/lib/" -maxdepth 1 -type f 2>/dev/null | wc -l)
+    echo "  (${LIB_COUNT} files total)"
     
     # Size summary
     echo ""
@@ -950,7 +952,7 @@ log_info "Creating tarball..."
 if [ "$DRY_RUN" = true ]; then
     log_dry_run "Would create: dist/${DIST_NAME}.tar.gz"
 else
-    tar -czvf "dist/${DIST_NAME}.tar.gz" -C dist "${DIST_NAME}"
+    tar -czf "dist/${DIST_NAME}.tar.gz" -C dist "${DIST_NAME}"
 fi
 
 # =============================================================================

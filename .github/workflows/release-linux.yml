@@ -664,7 +664,7 @@ jobs:
       - name: Download PHP ${{ matrix.php }} NTS Bundle
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
-          pattern: '*php${{ matrix.php }}-nts*${{ matrix.bundle_suffix || "" }}*'
+          pattern: "*php${{ matrix.php }}-nts*${{ matrix.bundle_suffix || '' }}*"
           path: bundle
       
       - name: Test on ${{ matrix.distro }}

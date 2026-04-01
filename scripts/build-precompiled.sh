@@ -90,6 +90,7 @@ else
     SYSTEM_LIBS_WHITELIST=(
         "linux-vdso.so"
         "ld-linux"
+        "ld-musl"
         "libc.so"
         "libpthread.so"
         "libdl.so"
@@ -570,7 +571,7 @@ ICU_VERSION=""
 for path in "${LIB_SEARCH_PATHS[@]}"; do
     for icu in "${path}"/libicuuc.so.*; do
         if [ -f "$icu" ]; then
-            ICU_VERSION=$(echo "$icu" | grep -oP 'libicuuc\.so\.\K[0-9]+' | head -1)
+            ICU_VERSION=$(echo "$icu" | sed -n 's/.*libicuuc\.so\.\([0-9][0-9]*\).*/\1/p' | head -1)
             log_info "  Found ICU version: ${ICU_VERSION:-unknown}"
             bundle_library "$icu" "${DIST_DIR}/lib" 0
             break 2

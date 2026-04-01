@@ -253,9 +253,14 @@ fi
 # The GNU linker's -L flag does NOT resolve DT_NEEDED entries - only -rpath-link
 # or system paths work for that. On musl, /etc/ld-musl-*.path is the config file.
 MUSL_LD_PATH="/etc/ld-musl-${ARCH}.path"
-if [ ! -f "${MUSL_LD_PATH}" ] || ! grep -q "${FB_ROOT}/lib" "${MUSL_LD_PATH}" 2>/dev/null; then
+if [ ! -f "${MUSL_LD_PATH}" ]; then
+  # Create with default musl search paths PLUS our library path.
+  # musl replaces (not appends) defaults when this file exists.
+  printf '%s\n' "/lib" "/usr/local/lib" "/usr/lib" "${FB_ROOT}/lib" > "${MUSL_LD_PATH}"
+  echo "  Created ${MUSL_LD_PATH} with defaults + ${FB_ROOT}/lib"
+elif ! grep -q "${FB_ROOT}/lib" "${MUSL_LD_PATH}" 2>/dev/null; then
   echo "${FB_ROOT}/lib" >> "${MUSL_LD_PATH}"
-  echo "  Registered ${FB_ROOT}/lib in ${MUSL_LD_PATH}"
+  echo "  Appended ${FB_ROOT}/lib to existing ${MUSL_LD_PATH}"
 fi
 
 # Also run ldconfig if available (glibc systems)

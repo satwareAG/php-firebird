@@ -209,6 +209,9 @@ jobs:
           tar -xJf /tmp/php.tar.xz -C /tmp/php-src --strip-components=1
           cd /tmp/php-src
 
+          # Homebrew iconv is keg-only; PHP configure cannot find it without explicit path
+          ICONV_PREFIX="$(brew --prefix libiconv 2>/dev/null || echo "")"
+          
           CONFIGURE_OPTS=(
             "--prefix=${INSTALL_DIR}"
             "--enable-cli"
@@ -223,7 +226,11 @@ jobs:
             "--with-zlib"
             "--with-curl"
           )
-
+          
+          if [ -n "${ICONV_PREFIX}" ] && [ -d "${ICONV_PREFIX}" ]; then
+            CONFIGURE_OPTS+=("--with-iconv=${ICONV_PREFIX}")
+          fi
+          
           if [ "${VARIANT}" = "zts" ]; then
             CONFIGURE_OPTS+=("--enable-zts")
           fi

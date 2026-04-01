@@ -744,11 +744,52 @@ jobs:
           echo "=== Building extension ==="
           phpize
           ./configure --with-firebird="${FB_CLIENT_DIR}"
+
+          # WORKAROUND: macOS uses case-insensitive APFS by default.
+          # Our VERSION file conflicts with the C++ standard <version> header
+          # because phpize adds -I. to the include path. Temporarily hide it
+          # during compilation (configure already read it via config.m4).
+          if [ -f VERSION ]; then
+            mv VERSION VERSION.bak
+            echo "Temporarily renamed VERSION to avoid C++ header conflict"
+          fi
+
           make -j"$(sysctl -n hw.ncpu)"
+
+          # Restore VERSION file
+          if [ -f VERSION.bak ]; then
+            mv VERSION.bak VERSION
+          fi
 
           echo "Extension built successfully"
           ls -la modules/firebird.so
           file modules/firebird.so
+
+      - name: Patch extension RPATH
+        run: |
+          set -eu
+
+          FB_CLIENT_DIR="/tmp/firebird-client"
+          EXTENSION_PATH="$(pwd)/modules/firebird.so"
+
+          # Fix libfbclient reference: the Firebird .pkg installs with a
+          # hardcoded install_name pointing to /Library/Frameworks/...
+          # Rewrite to use @rpath so the extension finds the bundled dylib.
+          FB_DYLIB_REF=$(otool -L "$EXTENSION_PATH" | grep -o '[^ ]*libfbclient[^ ]*' | head -1 || true)
+          if [ -n "$FB_DYLIB_REF" ] && [[ "$FB_DYLIB_REF" != @rpath/* ]]; then
+            echo "Rewriting libfbclient reference: $FB_DYLIB_REF -> @rpath/libfbclient.dylib"
+            install_name_tool -change "$FB_DYLIB_REF" "@rpath/libfbclient.dylib" "$EXTENSION_PATH"
+            install_name_tool -add_rpath "${FB_CLIENT_DIR}/lib" "$EXTENSION_PATH" 2>/dev/null || true
+          fi
+
+          # Also fix the bundled dylib's install_name
+          FB_DYLIB="${FB_CLIENT_DIR}/lib/libfbclient.dylib"
+          if [ -f "$FB_DYLIB" ]; then
+            install_name_tool -id "@rpath/libfbclient.dylib" "$FB_DYLIB" 2>/dev/null || true
+          fi
+
+          echo "=== RPATH verification ==="
+          otool -L "$EXTENSION_PATH"
 
       - name: Verify extension loads
         run: |
@@ -756,7 +797,7 @@ jobs:
 
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
 
-          # Set library path for Firebird client
+          # Set library path for Firebird client (belt and suspenders with RPATH)
           export DYLD_LIBRARY_PATH="/tmp/firebird-client/lib:${DYLD_LIBRARY_PATH:-}"
 
           echo "=== Verifying extension ==="

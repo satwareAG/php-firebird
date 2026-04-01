@@ -112,6 +112,12 @@ jobs:
             for variant in nts zts; do
               for arch in x86_64 aarch64; do
                 for libc in glibc musl; do
+                  # Skip musl+aarch64: GitHub Actions JS actions (checkout, upload-artifact)
+                  # do not run inside Alpine containers on ARM64 runners.
+                  # See: "JavaScript Actions in Alpine containers are only supported on x64 Linux runners"
+                  if [ "${libc}" = "musl" ] && [ "${arch}" = "aarch64" ]; then
+                    continue
+                  fi
                   if [ "$FIRST" = true ]; then
                     FIRST=false
                   else

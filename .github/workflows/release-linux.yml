@@ -369,7 +369,14 @@ jobs:
           if [ "${VARIANT}" = "zts" ]; then
             CONFIGURE_OPTS+=("--enable-zts")
           fi
-          
+
+          # Disable JIT on musl: PHP's JIT uses @TLSGD relocations that are
+          # incompatible with musl's TLS implementation on ZTS builds.
+          # Error: "@TLSGD operator requires `%rdi' as dest register"
+          if [ "${{ matrix.libc }}" = "musl" ]; then
+            CONFIGURE_OPTS+=("--disable-opcache-jit")
+          fi
+
           ./configure "${CONFIGURE_OPTS[@]}"
           make -j$(nproc)
           make install

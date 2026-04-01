@@ -254,7 +254,21 @@ jobs:
           export LDFLAGS="${LDFLAGS:-} -L${FB_ROOT}/lib"
           phpize
           ./configure --with-firebird="${FB_ROOT}"
+
+          # WORKAROUND: macOS uses case-insensitive APFS by default.
+          # Our VERSION file conflicts with the C++ standard <version> header
+          # because phpize adds -I. to the include path. Temporarily hide it
+          # during compilation (configure already read it via config.m4).
+          if [ -f VERSION ]; then
+            mv VERSION VERSION.bak
+          fi
+
           make -j"$(sysctl -n hw.ncpu)"
+
+          # Restore VERSION file
+          if [ -f VERSION.bak ]; then
+            mv VERSION.bak VERSION
+          fi
 
           ls -la modules/firebird.so
           file modules/firebird.so

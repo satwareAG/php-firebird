@@ -1,13 +1,11 @@
 # Next Steps - php-firebird
 
-**Last Updated**: 2026-04-01
+**Last Updated**: 2026-04-02
 
 ## Immediate (v10.6.x)
 
-- [ ] Investigate 8 musl x86_64 build failures at "Create Bundle" step (rerun submitted, run 23851923952)
-- [ ] Investigate Windows release upload failure (rerun submitted, run 23851923945)
-- [ ] If musl reruns fail: inspect logs, fix in `build-precompiled.sh`, tag v10.6.1
-- [ ] Clean up `docker/musl-debug/` scratch directory (untracked)
+- [x] v10.6.1 released - musl bundle collision, zend_get_type_by_const portability, Windows release fix
+- [ ] Clean up `docker/musl-debug/` scratch directory (untracked) - cosmetic housekeeping
 
 ## v11.0 Modernization (Next Milestone)
 

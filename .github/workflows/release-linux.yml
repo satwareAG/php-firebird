@@ -682,21 +682,26 @@ jobs:
         include:
           - distro: ubuntu:24.04
             php: "83"
+            bundle_pattern: "*php83-nts-linux-x86_64*"
           - distro: ubuntu:25.04
             php: "84"
+            bundle_pattern: "*php84-nts-linux-x86_64*"
           - distro: debian:12
             php: "82"
+            bundle_pattern: "*php82-nts-linux-x86_64*"
           - distro: fedora:41
             php: "83"
+            bundle_pattern: "*php83-nts-linux-x86_64*"
           - distro: alpine:3.21
             php: "83"
             bundle_suffix: "musl"
+            bundle_pattern: "*php83-nts-linux-musl-x86_64*"
 
     steps:
       - name: Download PHP ${{ matrix.php }} NTS Bundle
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
-          pattern: "*php${{ matrix.php }}-nts*${{ matrix.bundle_suffix || '' }}*"
+          pattern: "${{ matrix.bundle_pattern }}"
           path: bundle
       
       - name: Test on ${{ matrix.distro }}

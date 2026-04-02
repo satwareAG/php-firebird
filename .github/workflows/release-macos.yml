@@ -3,7 +3,7 @@
 # =============================================================================
 #
 # Builds and publishes precompiled PHP extensions with bundled Firebird client
-# libraries for macOS (arm64 and x86_64), including universal binaries.
+# libraries for macOS (arm64, Apple Silicon only).
 #
 # Triggers:
 #   - Tag push (v[0-9]*.*) - immutable releases
@@ -13,9 +13,9 @@
 # Build Matrix:
 #   - PHP 8.2, 8.3, 8.4, 8.5
 #   - NTS and ZTS variants
-#   - arm64 (macos-14, M1) and x86_64 (macos-15, Intel) architectures
-#
-# Universal binaries are created by combining arm64 and x86_64 slices via lipo.
+#   - arm64 (macos-14, Apple Silicon) only
+#     Note: x86_64 (Intel) builds dropped - macos-13 deprecated, macos-14/15 are
+#     Apple Silicon only. Intel Macs cannot run macOS 15.
 # macOS bundles use install_name_tool + @loader_path instead of patchelf + $ORIGIN.
 # =============================================================================
 
@@ -100,20 +100,15 @@ jobs:
           for version in "${VERSIONS[@]}"; do
             version=$(echo "$version" | tr -d ' ')
             for variant in nts zts; do
-              for arch in arm64 x86_64; do
+              for arch in arm64; do
                 if [ "$FIRST" = true ]; then
                   FIRST=false
                 else
                   MATRIX+=','
                 fi
-                # Map arch to runner and Firebird .pkg suffix
-                if [ "${arch}" = "arm64" ]; then
-                  RUNNER="macos-14"
-                  FB_PKG_SUFFIX="macos-arm64"
-                else
-                  RUNNER="macos-15"
-                  FB_PKG_SUFFIX="macos-x64"
-                fi
+                # arm64 only - Apple Silicon (macos-14 runner)
+                RUNNER="macos-14"
+                FB_PKG_SUFFIX="macos-arm64"
                 MATRIX+="{\"php\":\"${version}\",\"variant\":\"${variant}\",\"arch\":\"${arch}\",\"runner\":\"${RUNNER}\",\"fb_pkg_suffix\":\"${FB_PKG_SUFFIX}\"}"
               done
             done
@@ -440,177 +435,14 @@ jobs:
             dist/${{ steps.bundle.outputs.bundle_name }}.sbom.cdx.json
           retention-days: 30
 
-  # ===========================================================================
-  # Create Universal Binaries (arm64 + x86_64 via lipo)
-  # ===========================================================================
-  universal:
-    needs: [prepare, build]
-    runs-on: macos-14
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - php: "8.2"
-            variant: nts
-          - php: "8.2"
-            variant: zts
-          - php: "8.3"
-            variant: nts
-          - php: "8.3"
-            variant: zts
-          - php: "8.4"
-            variant: nts
-          - php: "8.4"
-            variant: zts
-          - php: "8.5"
-            variant: nts
-          - php: "8.5"
-            variant: zts
 
-    steps:
-      - name: Download arm64 Bundle
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
-        with:
-          name: php-firebird-${{ needs.prepare.outputs.version }}-php${{ matrix.php == '8.2' && '82' || matrix.php == '8.3' && '83' || matrix.php == '8.4' && '84' || '85' }}-${{ matrix.variant }}-macos-arm64
-          path: arm64-bundle
-
-      - name: Download x86_64 Bundle
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
-        with:
-          name: php-firebird-${{ needs.prepare.outputs.version }}-php${{ matrix.php == '8.2' && '82' || matrix.php == '8.3' && '83' || matrix.php == '8.4' && '84' || '85' }}-${{ matrix.variant }}-macos-x86_64
-          path: x86_64-bundle
-
-      - name: Create Universal Binary
-        id: universal
-        run: |
-          VERSION="${{ needs.prepare.outputs.version }}"
-          PHP_VER="${{ matrix.php }}"
-          PHP_VER_SHORT="${PHP_VER//.}"
-          VARIANT="${{ matrix.variant }}"
-
-          ARM64_NAME="php-firebird-${VERSION}-php${PHP_VER_SHORT}-${VARIANT}-macos-arm64"
-          X64_NAME="php-firebird-${VERSION}-php${PHP_VER_SHORT}-${VARIANT}-macos-x86_64"
-          UNIVERSAL_NAME="php-firebird-${VERSION}-php${PHP_VER_SHORT}-${VARIANT}-macos-universal"
-
-          echo "Creating universal binary: ${UNIVERSAL_NAME}"
-
-          # Extract per-arch bundles
-          mkdir -p arm64-extracted x86_64-extracted
-          tar -xzf "arm64-bundle/${ARM64_NAME}.tar.gz" -C arm64-extracted --strip-components=1
-          tar -xzf "x86_64-bundle/${X64_NAME}.tar.gz" -C x86_64-extracted --strip-components=1
-
-          # Create universal bundle directory
-          DIST_DIR="dist/${UNIVERSAL_NAME}"
-          mkdir -p "${DIST_DIR}/lib"
-
-          # Combine firebird.so via lipo
-          echo "=== Creating universal firebird.so ==="
-          lipo -create \
-            arm64-extracted/firebird.so \
-            x86_64-extracted/firebird.so \
-            -output "${DIST_DIR}/firebird.so"
-          lipo -info "${DIST_DIR}/firebird.so"
-
-          # Combine libfbclient.dylib via lipo (if both architectures have it)
-          echo "=== Creating universal libfbclient.dylib ==="
-          ARM64_FBCLIENT=$(find arm64-extracted/lib -name "libfbclient*.dylib" ! -type l | head -1)
-          X64_FBCLIENT=$(find x86_64-extracted/lib -name "libfbclient*.dylib" ! -type l | head -1)
-
-          if [ -n "${ARM64_FBCLIENT}" ] && [ -n "${X64_FBCLIENT}" ]; then
-            lipo -create "${ARM64_FBCLIENT}" "${X64_FBCLIENT}" \
-              -output "${DIST_DIR}/lib/libfbclient.dylib"
-            lipo -info "${DIST_DIR}/lib/libfbclient.dylib"
-
-            # Set install name
-            install_name_tool -id "@rpath/libfbclient.dylib" "${DIST_DIR}/lib/libfbclient.dylib"
-          else
-            echo "WARNING: Could not find libfbclient.dylib for both architectures"
-            # Fall back to arm64 version
-            cp arm64-extracted/lib/libfbclient*.dylib "${DIST_DIR}/lib/" 2>/dev/null || true
-          fi
-
-          # Copy any other bundled dylibs (combine via lipo if present in both)
-          for arm_lib in arm64-extracted/lib/*.dylib; do
-            LIB_NAME=$(basename "$arm_lib")
-            [ "$LIB_NAME" = "libfbclient.dylib" ] && continue
-            [ -L "$arm_lib" ] && continue
-
-            X64_LIB="x86_64-extracted/lib/${LIB_NAME}"
-            if [ -f "$X64_LIB" ] && [ ! -L "$X64_LIB" ]; then
-              lipo -create "$arm_lib" "$X64_LIB" -output "${DIST_DIR}/lib/${LIB_NAME}" 2>/dev/null || \
-                cp "$arm_lib" "${DIST_DIR}/lib/${LIB_NAME}"
-            else
-              cp "$arm_lib" "${DIST_DIR}/lib/${LIB_NAME}"
-            fi
-          done
-
-          # Copy symlinks from arm64 bundle
-          for link in arm64-extracted/lib/*.dylib; do
-            [ -L "$link" ] || continue
-            LIB_NAME=$(basename "$link")
-            TARGET=$(readlink "$link")
-            [ ! -e "${DIST_DIR}/lib/${LIB_NAME}" ] && ln -sf "$TARGET" "${DIST_DIR}/lib/${LIB_NAME}" 2>/dev/null || true
-          done
-
-          # Copy docs
-          cp arm64-extracted/LICENSE "${DIST_DIR}/" 2>/dev/null || true
-          cat > "${DIST_DIR}/README.md" << EOF
-          # PHP Firebird Extension ${VERSION} - macOS Universal
-
-          Universal binary containing both arm64 (Apple Silicon) and x86_64 (Intel) slices.
-          Works on all modern Macs without Rosetta 2.
-
-          | Property | Value |
-          |----------|-------|
-          | **Extension Version** | ${VERSION} |
-          | **PHP Version** | ${PHP_VER} (${VARIANT}) |
-          | **Architecture** | Universal (arm64 + x86_64) |
-          | **Platform** | macOS |
-          EOF
-
-          # Verify universal binary
-          echo "=== Universal binary verification ==="
-          file "${DIST_DIR}/firebird.so"
-          lipo -info "${DIST_DIR}/firebird.so"
-          otool -L "${DIST_DIR}/firebird.so"
-
-          # Create tarball
-          tar -czvf "dist/${UNIVERSAL_NAME}.tar.gz" -C dist "${UNIVERSAL_NAME}"
-
-          # Checksums
-          cd dist
-          shasum -a 256 "${UNIVERSAL_NAME}.tar.gz" | awk '{print $1}' > "${UNIVERSAL_NAME}.tar.gz.sha256"
-          md5 -q "${UNIVERSAL_NAME}.tar.gz" > "${UNIVERSAL_NAME}.tar.gz.md5" 2>/dev/null || true
-          cd ..
-
-          echo "bundle_name=${UNIVERSAL_NAME}" >> $GITHUB_OUTPUT
-          echo "bundle_file=dist/${UNIVERSAL_NAME}.tar.gz" >> $GITHUB_OUTPUT
-
-      - name: Generate SBOM (CycloneDX)
-        continue-on-error: true  # sbom-action may fail on macOS runners
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
-        with:
-          path: dist/${{ steps.universal.outputs.bundle_name }}
-          format: cyclonedx-json
-          output-file: dist/${{ steps.universal.outputs.bundle_name }}.sbom.cdx.json
-          artifact-name: ''
-
-      - name: Upload Universal Artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        with:
-          name: ${{ steps.universal.outputs.bundle_name }}
-          path: |
-            ${{ steps.universal.outputs.bundle_file }}
-            ${{ steps.universal.outputs.bundle_file }}.sha256
-            ${{ steps.universal.outputs.bundle_file }}.md5
-            dist/${{ steps.universal.outputs.bundle_name }}.sbom.cdx.json
-          retention-days: 30
+  # (universal job removed - x86_64 builds dropped, arm64-only release)
 
   # ===========================================================================
   # Aggregate and Upload to Release
   # ===========================================================================
   release:
-    needs: [prepare, build, universal]
+    needs: [prepare, build]
     runs-on: ubuntu-24.04
     if: |
       github.event_name == 'release' ||
@@ -709,9 +541,6 @@ jobs:
           - runner: macos-14
             arch: arm64
             php_brew: php
-          - runner: macos-15
-            arch: x86_64
-            php_brew: php
 
     steps:
       - name: Install PHP via Homebrew
@@ -732,7 +561,6 @@ jobs:
 
           echo "=== Testing macOS ${{ matrix.arch }} bundle ==="
 
-          # Find a bundle tarball
           TARBALL=$(find bundle -name "*.tar.gz" | head -1)
           if [ -z "$TARBALL" ]; then
             echo "ERROR: No bundle tarball found"
@@ -742,7 +570,6 @@ jobs:
 
           echo "Testing: $TARBALL"
 
-          # Extract
           mkdir -p /tmp/test-bundle
           tar -xzf "$TARBALL" -C /tmp/test-bundle --strip-components=1
           cd /tmp/test-bundle
@@ -776,7 +603,6 @@ jobs:
           PHP_MINOR=$(php -r 'echo PHP_MINOR_VERSION;')
           echo "System PHP: ${PHP_MAJOR}.${PHP_MINOR}"
 
-          # Extract bundle PHP version from tarball name
           BUNDLE_PHP=$(basename "$TARBALL" | sed -n 's/.*php\([0-9][0-9]*\).*/\1/p')
           if [ -n "$BUNDLE_PHP" ]; then
             BUNDLE_MAJOR=$(printf '%s' "$BUNDLE_PHP" | cut -c1)
@@ -790,7 +616,6 @@ jobs:
             fi
           fi
 
-          # Try loading the extension
           LOAD_RESULT=$(php -d "extension=$(pwd)/firebird.so" -m 2>&1 || true)
           if echo "$LOAD_RESULT" | grep -qi "^firebird$"; then
             echo "[OK] Extension loaded successfully!"

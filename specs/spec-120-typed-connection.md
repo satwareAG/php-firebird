@@ -7,6 +7,7 @@ priority: 2
 ---
 
 > **Status: RELEASED in v10.0.0** (2026-03-27)
+> Criteria verified (2026-04-02): OOP connection migration is a v11 breaking change - all unchecked items deferred to v11 (#176 Resource-to-object migration).
 > Firebird\Connection OOP class provides typed connection objects.
 > fbird_connect() and fbird_pconnect() return Firebird\Connection objects.
 > All three API layers (procedural, OOP, PDO) are fully functional.

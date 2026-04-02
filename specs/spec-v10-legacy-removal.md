@@ -11,6 +11,7 @@ priority: 4
 > - get_statement_interface dead global removed from php_fbird_includes.h / firebird.c
 > - firebird_legacy_wrappers.c excluded from build (linker fix)
 > - isc_array_* retained: no Firebird OO API replacement exists (Firebird upstream limitation)
+> - Criteria 1 verified done (2026-04-02); criteria 2-5 deferred to v11 — tracked in spec-v11-modernization.md
 
 
 # Spec: v10 Legacy Pattern Removal
@@ -22,11 +23,11 @@ simplifying the codebase for long-term maintainability.
 
 ## Success Criteria
 
-- [ ] No `legacy_handle_*` functions remain in any `.c` file
-- [ ] Event system uses direct `isc_*` calls (no OO wrapper layer)
-- [ ] Multi-db transaction support simplified or removed (document decision)
-- [ ] All `@deprecated` internal functions removed or inlined
-- [ ] Build passes with zero deprecation warnings from our own code
+- [x] No `legacy_handle_*` functions remain in any `.c` file
+- [ ] Event system uses direct `isc_*` calls (no OO wrapper layer) *(v11 — #177)*
+- [ ] Multi-db transaction support simplified or removed (document decision) *(v11 — #176)*
+- [ ] All `@deprecated` internal functions removed or inlined *(v11)*
+- [ ] Build passes with zero deprecation warnings from our own code *(v11)*
 
 ## Current State
 

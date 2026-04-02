@@ -21,12 +21,12 @@ have requested since v8.
 
 ## Success Criteria
 
-- [ ] DECFLOAT (16/34) types return as `string` (no precision loss)
-- [ ] INT128 types return as `string` (PHP has no native int128)
-- [ ] PDO batch DML: `pdo_fbird` supports `exec()` with multiple statements
-- [ ] `fbird_field_info()` reports DECFLOAT and INT128 subtypes correctly
-- [ ] Stubs updated for all new type handling
-- [ ] Tests for DECFLOAT, INT128, and PDO batch DML
+- [x] DECFLOAT (16/34) types return as `string` (no precision loss)
+- [x] INT128 types return as `string` (PHP has no native int128)
+- [x] PDO batch DML: `pdo_fbird` supports `exec()` with multiple statements
+- [x] `fbird_field_info()` reports DECFLOAT and INT128 subtypes correctly
+- [x] Stubs updated for all new type handling
+- [x] Tests for DECFLOAT, INT128, and PDO batch DML
 
 ## Part 1: DECFLOAT/INT128 Types
 

@@ -9,6 +9,7 @@ priority: 3
 > **Status: RELEASED in v10.0.0** (2026-03-27)
 > firebird_utils_typed.h created with 12 typed opaque struct wrappers.
 > Call sites can migrate incrementally using the zero-overhead inline wrappers.
+> Criterion 1 (typed header) verified done (2026-04-02); criteria 2-5 (call-site migration) deferred to v11.
 
 
 # Spec: v10 void* Elimination
@@ -20,11 +21,11 @@ opaque struct pointers, providing compile-time type safety across all call sites
 
 ## Success Criteria
 
-- [ ] Forward-declared opaque structs: `fbc_connection_t`, `fbt_transaction_t`, `fbs_statement_t`, `fbb_blob_t`
-- [ ] All function signatures in `firebird_utils.h` use typed pointers instead of `void*`
-- [ ] All call sites in `fbird_*.c` and `pdo_fbird/*.c` compile without casts
-- [ ] Zero runtime behavior change
-- [ ] All tests pass
+- [x] Forward-declared opaque structs: `fbc_connection_t`, `fbt_transaction_t`, `fbs_statement_t`, `fbb_blob_t` *(in `firebird_utils_typed.h`)*
+- [ ] All function signatures in `firebird_utils.h` use typed pointers instead of `void*` *(v11 - call-site migration)*
+- [ ] All call sites in `fbird_*.c` and `pdo_fbird/*.c` compile without casts *(v11)*
+- [ ] Zero runtime behavior change *(v11)*
+- [ ] All tests pass *(v11)*
 
 ## Current State
 

@@ -163,8 +163,8 @@ cd "$WORK_DIR"
 # ---------------------------------------------------------------------------
 # Read extension version
 # ---------------------------------------------------------------------------
-if [ -f VERSION ]; then
-    EXT_VERSION=$(cat VERSION | tr -d '[:space:]')
+if [ -f VERSION.txt ]; then
+    EXT_VERSION=$(cat VERSION.txt | tr -d '[:space:]')
 else
     EXT_VERSION=$(grep -E '#define PHP_FIREBIRD_VERSION_STRING' php_firebird.h \
         | sed 's/.*"\([^"]*\)".*/\1/' | head -1 || echo "")
@@ -360,20 +360,7 @@ for PHP_MINOR in "${PHP_VER_LIST[@]}"; do
         phpize
         ./configure --with-firebird="${FB_ROOT}"
 
-        # WORKAROUND: macOS case-insensitive APFS: VERSION file conflicts with
-        # C++ <version> header because phpize adds -I. to include path.
-        # Temporarily hide it during compilation (configure already read it).
-        VERSION_BAK_DONE=false
-        if [ -f VERSION ]; then
-            mv VERSION VERSION.bak
-            VERSION_BAK_DONE=true
-        fi
-
         make -j"${NCPU}"
-
-        if [ "$VERSION_BAK_DONE" = true ] && [ -f VERSION.bak ]; then
-            mv VERSION.bak VERSION
-        fi
 
         log "Extension built:"
         ls -la modules/firebird.so

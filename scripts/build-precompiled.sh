@@ -56,8 +56,8 @@ case "$(uname -s)" in
 esac
 
 # Auto-detect extension version
-if [ -f "VERSION" ]; then
-    DETECTED_VERSION=$(cat VERSION | tr -d '[:space:]')
+if [ -f "VERSION.txt" ]; then
+    DETECTED_VERSION=$(cat VERSION.txt | tr -d '[:space:]')
 elif [ -f "php_firebird.h" ]; then
     # Look for PHP_FIREBIRD_VERSION_STRING (set by configure)
     # Use || true to prevent grep exit code 1 from failing under set -e

@@ -1,14 +1,20 @@
 # PHP Firebird Extension Versioning Strategy
 
-**Document Version:** 1.0  
-**Last Updated:** 2025-12-24  
-**Status:** Proposed
+**Document Version:** 1.1  
+**Last Updated:** 2026-04-02  
+**Status:** Implemented - strategy active since v10.0.0; version examples use v7.x for historical reference but all patterns apply to v10.x+ series
 
 ## Executive Summary
 
 This document outlines the versioning strategy for the `php-firebird` extension, transitioning from hardcoded version strings to dynamic Git-based version generation while maintaining reproducibility for release artifacts.
 
 ## Current State
+
+> **Note (2026-04-02):** The code block below shows the **old** hardcoded state that existed before v10.0.0.
+> The strategy described in this document has been fully implemented: `config.m4` reads from `git describe`
+> or the `VERSION` file, and `php_firebird.h` uses configure-injected macros with `0.0.0-unknown` fallbacks.
+
+**Historical state (pre-v10.0.0):**
 
 **Location:** `php_firebird.h` (lines 17-27)
 
@@ -392,7 +398,7 @@ fi
 4. Enforce via pre-commit hooks
 
 **Status:** Planned  
-**Target:** v7.2.0
+**Target:** v11.0 (CI version-consistency check, pre-commit enforcement)
 
 ### Phase 3: Automation Excellence
 
@@ -402,7 +408,7 @@ fi
 4. Release notes automation
 
 **Status:** Future enhancement  
-**Target:** v8.0.0
+**Target:** v11.x+ (automated PECL generation, version compatibility matrix)
 
 ## Testing Strategy
 

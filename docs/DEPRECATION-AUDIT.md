@@ -117,14 +117,16 @@
 
 ## Priority Summary
 
-| # | Pattern | Priority | Complexity | Blocked By |
-|---|---------|----------|------------|------------|
-| 8 | Shutdown crash (dangling master_) | **P0** | S | — |
-| 5 | FBIRD_API_MODE_LEGACY dead code | P1 | S | — |
-| 6 | get_statement_interface dead code | P1 | S | — |
-| 7 | void* opaque pointers | P1 | M | — |
-| 3 | ISC_TEB multi-db transactions | P1 | L | — |
-| 2 | fbc_get_legacy_handle_ptr bridge | P1 | M | #3, #9 (events) |
-| 1 | Legacy ISC handle fields | P1 | M | #2, #3 |
-| 9 | fbird_events.c legacy API | P1 | L | — |
-| 4 | isc_array_* calls | P2 | — | Firebird upstream |
+All P1 items are tracked in the **v11.0 - Modernization** milestone (due 2026-12-31).
+
+| # | Pattern | Priority | Complexity | GitHub Issue | Blocked By |
+|---|---------|----------|------------|--------------|------------|
+| 8 | Shutdown crash (dangling master_) | **P0** | S | FIXED (2026-03-23) | — |
+| 5 | FBIRD_API_MODE_LEGACY dead code | P1 | S | [#178](https://github.com/satwareAG/php-firebird/issues/178) | — |
+| 6 | get_statement_interface dead code | P1 | S | [#178](https://github.com/satwareAG/php-firebird/issues/178) | — |
+| 7 | void* opaque pointers | P1 | M | spec-v10-void-star-elimination.md (v11 migration) | — |
+| 3 | ISC_TEB multi-db transactions | P1 | L | [#176](https://github.com/satwareAG/php-firebird/issues/176) | — |
+| 2 | fbc_get_legacy_handle_ptr bridge | P1 | M | [#176](https://github.com/satwareAG/php-firebird/issues/176) | #3, events (#177) |
+| 1 | Legacy ISC handle fields | P1 | M | [#176](https://github.com/satwareAG/php-firebird/issues/176) | #2, #3 |
+| 9 | fbird_events.c legacy API | P1 | L | [#177](https://github.com/satwareAG/php-firebird/issues/177) | — |
+| 4 | isc_array_* calls | P2 | — | — | Firebird upstream |

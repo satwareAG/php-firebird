@@ -1,6 +1,9 @@
 # PHP Firebird Extension - Release Strategy (2025)
 
 > **Status**: COMPLETED 2026-03-30 — Release infrastructure operational for v10.0.1.
+> **Note (2026-04-02)**: Version examples throughout this document use v7.x for historical reasons.
+> Current release series is v10.6.x. The distribution patterns, naming conventions, and CI workflows
+> described here are still valid; substitute v10.x version strings where v7.x appears.
 
 ## Overview
 

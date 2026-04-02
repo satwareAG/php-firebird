@@ -5,16 +5,17 @@
 ## Immediate (v10.6.x)
 
 - [x] v10.6.1 released - musl bundle collision, zend_get_type_by_const portability, Windows release fix
-- [ ] Clean up `docker/musl-debug/` scratch directory (untracked) - cosmetic housekeeping
+- [x] `docker/musl-debug/` scratch directory removed (dir did not exist, confirmed 2026-04-02)
 
 ## v11.0 Modernization (Next Milestone)
 
-Tracked via GitHub issues #176-#179:
+Tracked via GitHub issues #175-#179 (milestone: v11.0 - Modernization, due 2026-12-31):
 
-- [ ] #176 - Modernization planning
-- [ ] #177 - Architecture improvements
-- [ ] #178 - API surface review
-- [ ] #179 - Documentation overhaul
+- [ ] #175 - [M2] Migrate all 84 procedural arginfo to typed return macros
+- [ ] #176 - [M3] Resource-to-object migration for Layer 1 procedural functions (breaking change)
+- [ ] #177 - [M12] Replace call_user_function() in OOP layer with direct C calls
+- [ ] #178 - [L3] Remove dead FB_API_VER < 30 code paths
+- [ ] #179 - [L2] Remove legacy gds32_ms fallback from config.w32
 
 ## Technical Debt
 

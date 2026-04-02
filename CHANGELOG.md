@@ -5,6 +5,24 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.6.1] - 2026-04-02
+
+### Fixed
+- **musl/Alpine test-bundles artifact collision** (CI fix): The `test-bundles` matrix used
+  pattern `*php83-nts*` which matched both glibc and musl bundles simultaneously, causing
+  wrong-libc `.so` files to be tested. Added explicit `bundle_pattern` per matrix entry so
+  each distro downloads exactly one bundle (e.g. `*php83-nts-linux-x86_64*` vs
+  `*php83-nts-linux-musl-x86_64*`).
+- **`zend_zval_type_name` undefined on Alpine PHP 8.3** (musl linker): Alpine's `php83`
+  package does not export `zend_zval_type_name`. Musl uses eager symbol resolution, so the
+  missing symbol caused an immediate load failure. Replaced all calls with the portable
+  macros `Z_TYPE_NAME_P()` / `Z_TYPE_NAME()` available in all PHP 8.x builds
+  (`fbird_connection.c`, `fbird_query_exec.c`).
+- **Windows release "already exists and is immutable" failure**: `php/php-windows-builder/release@v1`
+  attempted to create a new GitHub release even when Linux CI had already created it,
+  causing all 5 Windows runs to fail. Replaced with `actions/download-artifact` + direct
+  `gh release upload --clobber` so Windows DLLs are appended to the existing release.
+
 ## [10.6.0] - 2026-04-01
 
 ### Added
@@ -1247,7 +1265,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.6.0...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.6.1...HEAD
+[10.6.1]: https://github.com/satwareAG/php-firebird/compare/v10.6.0...v10.6.1
 [10.6.0]: https://github.com/satwareAG/php-firebird/compare/v10.3.9...v10.6.0
 [10.3.9]: https://github.com/satwareAG/php-firebird/compare/v10.3.8...v10.3.9
 [10.3.8]: https://github.com/satwareAG/php-firebird/compare/v10.3.7...v10.3.8

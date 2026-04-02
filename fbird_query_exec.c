@@ -1360,7 +1360,7 @@ PHP_FUNCTION(fbird_execute)
 	if (Z_TYPE(args[0]) != IS_RESOURCE) {
 		efree(args);
 		zend_argument_type_error(1, "must be a Firebird query resource, %s given",
-			zend_zval_type_name(&args[0]));
+			Z_TYPE_NAME(args[0]));
 		RETURN_THROWS();
 	}
 

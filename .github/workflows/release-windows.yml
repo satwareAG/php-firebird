@@ -158,18 +158,22 @@ jobs:
             echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Upload artifact to the release
-        uses: php/php-windows-builder/release@c49dae50774b14e0f358d2efa65637b67f1104f6 # v1
-        with:
-          release: ${{ steps.tag.outputs.tag }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # Create draft release if it doesn't exist (for tag push)
-          draft: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
-
       - name: Download All Build Artifacts
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           path: artifacts
+
+      - name: Upload Windows DLLs to GitHub Release
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          echo "Uploading Windows artifacts to release: $TAG"
+          find artifacts -name "*.zip" -type f | while read -r zip_file; do
+            echo "Uploading: $(basename "$zip_file")"
+            gh release upload "$TAG" "$zip_file" --clobber
+          done
+          echo "Upload complete."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate SLSA Provenance Attestations
         run: |

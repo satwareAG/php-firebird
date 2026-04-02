@@ -13,10 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wrong-libc `.so` files to be tested. Added explicit `bundle_pattern` per matrix entry so
   each distro downloads exactly one bundle (e.g. `*php83-nts-linux-x86_64*` vs
   `*php83-nts-linux-musl-x86_64*`).
-- **`zend_zval_type_name` undefined on Alpine PHP 8.3** (musl linker): Alpine's `php83`
-  package does not export `zend_zval_type_name`. Musl uses eager symbol resolution, so the
-  missing symbol caused an immediate load failure. Replaced all calls with the portable
-  macros `Z_TYPE_NAME_P()` / `Z_TYPE_NAME()` available in all PHP 8.x builds
+- **`zend_zval_type_name` / `Z_TYPE_NAME_P` undefined symbols** (musl + glibc linker):
+  Alpine's `php83` package does not export `zend_zval_type_name`; glibc PHP builds resolve
+  `Z_TYPE_NAME_P` lazily via RTLD_LAZY and fail at runtime. Replaced all calls with
+  `zend_get_type_by_const()`, a `static zend_always_inline` helper that generates no
+  external symbol - portable across all PHP 8.x builds and linker modes
   (`fbird_connection.c`, `fbird_query_exec.c`).
 - **Windows release "already exists and is immutable" failure**: `php/php-windows-builder/release@v1`
   attempted to create a new GitHub release even when Linux CI had already created it,

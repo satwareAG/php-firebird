@@ -715,16 +715,18 @@ jobs:
             # Install PHP and dependencies (plus bash for the rest of the script)
             if command -v apk >/dev/null 2>&1; then
               # Alpine Linux (musl)
-              apk add --no-cache bash php83 php83-cli patchelf binutils file grep
+              # php83-pdo required: firebird.so integrates pdo_fbird when built against PDO-enabled PHP
+              apk add --no-cache bash php83 php83-cli php83-pdo patchelf binutils file grep
               ln -sf /usr/bin/php83 /usr/bin/php 2>/dev/null || true
             elif command -v apt-get >/dev/null 2>&1; then
               export DEBIAN_FRONTEND=noninteractive
               apt-get update
-              apt-get install -y php-cli patchelf binutils file || apt-get install -y php-cli binutils file
+              apt-get install -y php-cli php-pdo patchelf binutils file || apt-get install -y php-cli binutils file
             elif command -v dnf &>/dev/null; then
               # Enable EPEL for patchelf on RHEL/AlmaLinux
               dnf install -y epel-release || true
-              dnf install -y php-cli patchelf binutils file || dnf install -y php-cli binutils file
+              # php-pdo required: firebird.so integrates pdo_fbird when built against PDO-enabled PHP
+              dnf install -y php-cli php-pdo patchelf binutils file || dnf install -y php-cli php-pdo binutils file
             elif command -v yum &>/dev/null; then
               yum install -y epel-release || true
               yum install -y php-cli patchelf binutils file || yum install -y php-cli binutils file || true

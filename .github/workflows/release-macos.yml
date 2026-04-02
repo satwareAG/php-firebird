@@ -13,7 +13,7 @@
 # Build Matrix:
 #   - PHP 8.2, 8.3, 8.4, 8.5
 #   - NTS and ZTS variants
-#   - arm64 (macos-14, M1) and x86_64 (macos-13, Intel) architectures
+#   - arm64 (macos-14, M1) and x86_64 (macos-15, Intel) architectures
 #
 # Universal binaries are created by combining arm64 and x86_64 slices via lipo.
 # macOS bundles use install_name_tool + @loader_path instead of patchelf + $ORIGIN.
@@ -111,7 +111,7 @@ jobs:
                   RUNNER="macos-14"
                   FB_PKG_SUFFIX="macos-arm64"
                 else
-                  RUNNER="macos-13"
+                  RUNNER="macos-15"
                   FB_PKG_SUFFIX="macos-x64"
                 fi
                 MATRIX+="{\"php\":\"${version}\",\"variant\":\"${variant}\",\"arch\":\"${arch}\",\"runner\":\"${RUNNER}\",\"fb_pkg_suffix\":\"${FB_PKG_SUFFIX}\"}"
@@ -709,7 +709,7 @@ jobs:
           - runner: macos-14
             arch: arm64
             php_brew: php
-          - runner: macos-13
+          - runner: macos-15
             arch: x86_64
             php_brew: php
 

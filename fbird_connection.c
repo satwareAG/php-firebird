@@ -531,7 +531,7 @@ PHP_FUNCTION(fbird_close)
 
 	/* Type enforcement: only resource, Firebird\Connection object, or null accepted */
 	if (link_arg != NULL && Z_TYPE_P(link_arg) != IS_RESOURCE && Z_TYPE_P(link_arg) != IS_OBJECT) {
-		zend_argument_type_error(1, "must be of type resource or null, %s given", Z_TYPE_NAME_P(link_arg));
+		zend_argument_type_error(1, "must be of type resource or null, %s given", zend_get_type_by_const(Z_TYPE_P(link_arg)));
 		RETURN_THROWS();
 	}
 
@@ -801,7 +801,7 @@ PHP_FUNCTION(fbird_drop_db)
 			zend_argument_type_error(1, "must be of type resource, null given");
 			RETURN_THROWS();
 		} else if (Z_TYPE_P(link_arg) != IS_RESOURCE && Z_TYPE_P(link_arg) != IS_OBJECT) {
-			zend_argument_type_error(1, "must be of type resource, %s given", Z_TYPE_NAME_P(link_arg));
+			zend_argument_type_error(1, "must be of type resource, %s given", zend_get_type_by_const(Z_TYPE_P(link_arg)));
 			RETURN_THROWS();
 		}
 	}

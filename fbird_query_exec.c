@@ -1358,9 +1358,10 @@ PHP_FUNCTION(fbird_execute)
 
 	/* Validate first argument is a query resource with proper error messages */
 	if (Z_TYPE(args[0]) != IS_RESOURCE) {
+		/* Capture type name BEFORE efree(args) to avoid use-after-free */
+		const char *arg_type = zend_get_type_by_const(Z_TYPE(args[0]));
 		efree(args);
-		zend_argument_type_error(1, "must be a Firebird query resource, %s given",
-			Z_TYPE_NAME(args[0]));
+		zend_argument_type_error(1, "must be a Firebird query resource, %s given", arg_type);
 		RETURN_THROWS();
 	}
 

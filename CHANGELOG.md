@@ -5,6 +5,14 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.6.2] - 2026-04-03
+
+### Fixed
+- **VERSION file renamed to VERSION.txt**: `config.m4` and all CI scripts updated to read
+  `VERSION.txt`; resolves shell portability issue in version detection step.
+- **CI version test hardening**: Shell script in version stamp CI check updated to use
+  `VERSION.txt`; prevents false-pass on missing version file.
+
 ## [10.6.1] - 2026-04-02
 
 ### Fixed
@@ -1266,7 +1274,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.6.1...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.6.2...HEAD
+[10.6.2]: https://github.com/satwareAG/php-firebird/compare/v10.6.1...v10.6.2
 [10.6.1]: https://github.com/satwareAG/php-firebird/compare/v10.6.0...v10.6.1
 [10.6.0]: https://github.com/satwareAG/php-firebird/compare/v10.3.9...v10.6.0
 [10.3.9]: https://github.com/satwareAG/php-firebird/compare/v10.3.8...v10.3.9

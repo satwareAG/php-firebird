@@ -31,3 +31,16 @@ These specs have been audited and confirmed open - implementation required in up
 
 - [ ] macOS x86_64 builds disabled (macos-13 runner deprecated) - evaluate macos-15 x86_64 when available
 - [ ] Coverage threshold still at 54% - target 65%+ with v11.0 test improvements
+
+## 2026-04-03 EOD - v10.6.2 Release Pipeline Status
+
+**Pending action**: When Release (Linux/macOS/Windows) pipelines complete (~35-45 min), publish:
+```bash
+gh release edit v10.6.2 --repo satwareAG/php-firebird --draft=false
+```
+
+**Known issues (documented)**:
+- `Split Stubs Package` run 23951976996 failed (race condition: branch+tag push fired simultaneously;
+  second run 23951972952 succeeded - stubs repo is correct)
+- `Linux Code Coverage` run 23951977009 failed (transient PHPT failure; no code changes
+  touching tests; rerrun triggered as 23951977009)

@@ -10,7 +10,7 @@ if (!extension_loaded('firebird')) die('skip firebird extension not loaded');
 require_once __DIR__ . '/config.inc';
 
 $extension_version = phpversion('firebird');
-$version_file = trim(file_get_contents(__DIR__ . '/../VERSION'));
+$version_file = trim(file_get_contents(__DIR__ . '/../VERSION.txt'));
 
 echo "Extension version: " . $extension_version . "\n";
 echo "VERSION file: " . $version_file . "\n";

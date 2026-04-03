@@ -147,14 +147,15 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Ensure VERSION file
+        shell: bash
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            echo "${GITHUB_REF#refs/tags/v}" > VERSION
-            echo "Updated VERSION file from tag: $(cat VERSION)"
-          elif [ ! -f VERSION ]; then
+            echo "${GITHUB_REF#refs/tags/v}" > VERSION.txt
+            echo "Updated VERSION file from tag: $(cat VERSION.txt)"
+          elif [ ! -f VERSION.txt ]; then
             VERSION=$(grep -E '#define PHP_FIREBIRD_VERSION_STRING' php_firebird.h | sed 's/.*"\([^"]*\)".*/\1/' | head -1)
-            echo "${VERSION:-7.0.0}" > VERSION
-            echo "Created VERSION file from header/default: $(cat VERSION)"
+            echo "${VERSION:-7.0.0}" > VERSION.txt
+            echo "Created VERSION file from header/default: $(cat VERSION.txt)"
           fi
 
       - name: Install system dependencies
@@ -638,9 +639,9 @@ jobs:
       - name: Ensure VERSION file
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            echo "${GITHUB_REF#refs/tags/v}" > VERSION
-          elif [ ! -f VERSION ]; then
-            echo "0.0.0-unknown" > VERSION
+            echo "${GITHUB_REF#refs/tags/v}" > VERSION.txt
+          elif [ ! -f VERSION.txt ]; then
+            echo "0.0.0-unknown" > VERSION.txt
           fi
 
       - name: Install PHP via Homebrew
@@ -749,16 +750,16 @@ jobs:
           # Our VERSION file conflicts with the C++ standard <version> header
           # because phpize adds -I. to the include path. Temporarily hide it
           # during compilation (configure already read it via config.m4).
-          if [ -f VERSION ]; then
-            mv VERSION VERSION.bak
-            echo "Temporarily renamed VERSION to avoid C++ header conflict"
+          if [ -f VERSION.txt ]; then
+            mv VERSION.txt VERSION.txt.bak
+            echo "Temporarily renamed VERSION.txt to avoid C++ header conflict"
           fi
 
           make -j"$(sysctl -n hw.ncpu)"
 
-          # Restore VERSION file
-          if [ -f VERSION.bak ]; then
-            mv VERSION.bak VERSION
+          # Restore VERSION.txt file
+          if [ -f VERSION.txt.bak ]; then
+            mv VERSION.txt.bak VERSION.txt
           fi
 
           echo "Extension built successfully"

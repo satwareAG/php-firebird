@@ -14,7 +14,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-VERSION_FILE="${ROOT_DIR}/VERSION"
+VERSION_FILE="${ROOT_DIR}/VERSION.txt"
 
 if [ ! -f "${VERSION_FILE}" ]; then
   echo "ERROR: VERSION file not found at ${VERSION_FILE}" >&2
@@ -65,4 +65,4 @@ if [ "${ERRORS}" -gt 0 ]; then
   exit 1
 fi
 
-echo "All stubs @version tags match VERSION file."
+echo "All stubs @version tags match VERSION.txt file."

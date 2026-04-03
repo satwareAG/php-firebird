@@ -1,11 +1,13 @@
 # Next Steps - php-firebird
 
-**Last Updated**: 2026-04-02
+**Last Updated**: 2026-04-03
 
 ## Immediate (v10.6.x)
 
 - [x] v10.6.1 released - musl bundle collision, zend_get_type_by_const portability, Windows release fix
 - [x] `docker/musl-debug/` scratch directory removed (dir did not exist, confirmed 2026-04-02)
+- [x] v10.6.2 tagged - current stable release on `v10.6.x` branch
+- [x] `doctrine-firebird-driver` issues #105 and #106 created and amended - FB 2.5-5.0 compatibility story, type mapping validation, PDO clarification, CI modernization (satwareAG/doctrine-firebird-driver team to action)
 
 ## v11.0 Modernization (Next Milestone)
 

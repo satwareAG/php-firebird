@@ -401,8 +401,18 @@ typedef void* (ISC_EXPORT *fb_get_master_interface_t)(void);
 /* Helper function prototype - implementation in firebird.c */
 const char *_fbird_res_type_name(int type);
 
-/* Validate connection resource (le_link or le_plink) */
+/* Validate connection resource (le_link or le_plink).
+ * M3: Also accepts Firebird\Connection objects (weak-ref to same resource). */
 #define FBIRD_VALIDATE_LINK_EX(zv, argnum, var) do { \
+	/* M3 object path: Firebird\Connection accepted alongside resources */ \
+	if (Z_TYPE_P(zv) == IS_OBJECT && \
+		instanceof_function(Z_OBJCE_P(zv), fbird_connection_ce)) { \
+		zend_resource *_cres = fbird_connection_get_resource(Z_OBJ_P(zv)); \
+		if (!_cres) { RETURN_FALSE; } \
+		var = (fbird_db_link *)_cres->ptr; \
+		if (!var) { RETURN_FALSE; } \
+		break; \
+	} \
 	int _res_type = Z_RES_TYPE_P(zv); \
 	if (_res_type != le_link && _res_type != le_plink) { \
 		if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
@@ -421,8 +431,18 @@ const char *_fbird_res_type_name(int type);
 	if (!var) { RETURN_FALSE; } \
 } while(0)
 
-/* Validate transaction resource (le_trans) */
+/* Validate transaction resource (le_trans).
+ * M3: Also accepts Firebird\Transaction objects (weak-ref to same resource). */
 #define FBIRD_VALIDATE_TRANS_EX(zv, argnum, var) do { \
+	/* M3 object path: Firebird\Transaction accepted alongside resources */ \
+	if (Z_TYPE_P(zv) == IS_OBJECT && \
+		instanceof_function(Z_OBJCE_P(zv), fbird_transaction_ce)) { \
+		zend_resource *_tres = fbird_transaction_get_resource(Z_OBJ_P(zv)); \
+		if (!_tres) { RETURN_FALSE; } \
+		var = (fbird_transaction *)_tres->ptr; \
+		if (!var) { RETURN_FALSE; } \
+		break; \
+	} \
 	int _res_type = Z_RES_TYPE_P(zv); \
 	if (_res_type != le_trans) { \
 		if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \

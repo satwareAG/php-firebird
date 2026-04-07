@@ -295,7 +295,8 @@ PHP_FUNCTION(fbird_trans_start)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|ra", &link_arg, &options_arg) == FAILURE) {
+	/* M3: "|z" so Firebird\Connection objects are accepted alongside resources */
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|za", &link_arg, &options_arg) == FAILURE) {
 		return;
 	}
 
@@ -306,7 +307,14 @@ PHP_FUNCTION(fbird_trans_start)
 	}
 
 	if (link_arg) {
-		ib_link = (fbird_db_link *)zend_fetch_resource2_ex(link_arg, LE_LINK, le_link, le_plink);
+		/* M3: object path for Firebird\Connection */
+		if (Z_TYPE_P(link_arg) == IS_OBJECT &&
+			instanceof_function(Z_OBJCE_P(link_arg), fbird_connection_ce)) {
+			zend_resource *cres = fbird_connection_get_resource(Z_OBJ_P(link_arg));
+			ib_link = cres ? (fbird_db_link *)cres->ptr : NULL;
+		} else {
+			ib_link = (fbird_db_link *)zend_fetch_resource2_ex(link_arg, LE_LINK, le_link, le_plink);
+		}
 	} else {
 		ib_link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), LE_LINK, le_link, le_plink);
 	}
@@ -600,12 +608,18 @@ PHP_FUNCTION(fbird_connection_info)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|r!", &link_arg) == FAILURE) {
+	/* M3: "|z!" so Firebird\Connection objects are accepted alongside resources */
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|z!", &link_arg) == FAILURE) {
 		return;
 	}
 
 	if (link_arg == NULL) {
 		ib_link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), LE_LINK, le_link, le_plink);
+	} else if (Z_TYPE_P(link_arg) == IS_OBJECT &&
+		instanceof_function(Z_OBJCE_P(link_arg), fbird_connection_ce)) {
+		/* M3: object path for Firebird\Connection */
+		zend_resource *cres = fbird_connection_get_resource(Z_OBJ_P(link_arg));
+		ib_link = cres ? (fbird_db_link *)cres->ptr : NULL;
 	} else {
 		ib_link = (fbird_db_link *)zend_fetch_resource2_ex(link_arg, LE_LINK, le_link, le_plink);
 	}

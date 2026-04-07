@@ -17,25 +17,57 @@
 #include "firebird_utils.h"
 #include "fbird_classes.h"
 
-/* Fill ib_link and trans with the correct database link and transaction. */
+/* Fill ib_link and trans with the correct database link and transaction.
+ * M3: Accepts both legacy zend_resource zvals and Firebird\Connection /
+ * Firebird\Transaction objects (weak-ref to the same internal resource). */
 void _php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAMETERS,
 	zval *link_id, fbird_db_link **ib_link, fbird_transaction **trans)
 {
 	FBDEBUG("Transaction or database link?");
-	if (Z_RES_P(link_id)->type == le_trans) {
+
+	/* Object path: Firebird\Transaction or Firebird\Connection */
+	if (Z_TYPE_P(link_id) == IS_OBJECT) {
+		if (instanceof_function(Z_OBJCE_P(link_id), fbird_transaction_ce)) {
+			FBDEBUG("IS_OBJECT: Firebird\\Transaction");
+			zend_resource *tres = fbird_transaction_get_resource(Z_OBJ_P(link_id));
+			if (!tres) {
+				_php_fbird_module_error("Invalid Firebird\\Transaction object");
+				return;
+			}
+			*trans = (fbird_transaction *)tres->ptr;
+			if ((*trans)->link_cnt > 1) {
+				_php_fbird_module_error("Link id is ambiguous: transaction spans multiple connections.");
+				return;
+			}
+			*ib_link = (*trans)->db_link[0];
+			return;
+		} else if (instanceof_function(Z_OBJCE_P(link_id), fbird_connection_ce)) {
+			FBDEBUG("IS_OBJECT: Firebird\\Connection");
+			zend_resource *cres = fbird_connection_get_resource(Z_OBJ_P(link_id));
+			if (!cres) {
+				_php_fbird_module_error("Invalid Firebird\\Connection object");
+				return;
+			}
+			*trans = NULL;
+			*ib_link = (fbird_db_link *)cres->ptr;
+			return;
+		}
+	}
+
+	/* Resource path: legacy le_trans or le_link/le_plink */
+	if (Z_TYPE_P(link_id) == IS_RESOURCE && Z_RES_P(link_id)->type == le_trans) {
 		/* Transaction resource: make sure it refers to one link only, then
 		   fetch it; database link is stored in ib_trans->db_link[]. */
-		FBDEBUG("Type is le_trans");
+		FBDEBUG("IS_RESOURCE: le_trans");
 		*trans = (fbird_transaction *)zend_fetch_resource_ex(link_id, LE_TRANS, le_trans);
 		if ((*trans)->link_cnt > 1) {
-			_php_fbird_module_error("Link id is ambiguous: transaction spans multiple connections."
-				);
+			_php_fbird_module_error("Link id is ambiguous: transaction spans multiple connections.");
 			return;
 		}
 		*ib_link = (*trans)->db_link[0];
 		return;
 	}
-	FBDEBUG("Type is le_[p]link or id not found");
+	FBDEBUG("IS_RESOURCE: le_[p]link or id not found");
 	/* Database link resource, use default transaction. */
 	*trans = NULL;
 	*ib_link = (fbird_db_link *)zend_fetch_resource2_ex(link_id, LE_LINK, le_link, le_plink);

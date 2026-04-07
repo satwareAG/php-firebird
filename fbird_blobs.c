@@ -148,6 +148,8 @@ static const php_stream_ops fbird_blob_stream_ops = {
 	NULL  /* set_option */
 };
 
+/* M3: changed "rs" to "zs" so Firebird\Connection/Transaction objects pass through
+ * to PHP_FBIRD_LINK_TRANS → _php_fbird_get_link_trans() which handles both types. */
 #define PARSE_PARAMETERS \
 	switch (ZEND_NUM_ARGS()) { \
 		default: \
@@ -158,7 +160,7 @@ static const php_stream_ops fbird_blob_stream_ops = {
 			} \
 			break; \
 		case 2: \
-			if (FAILURE == zend_parse_parameters(2, "rs", &link, &blob_id, &blob_id_len)) { \
+			if (FAILURE == zend_parse_parameters(2, "zs", &link, &blob_id, &blob_id_len)) { \
 				RETURN_FALSE; \
 			} \
 			break; \
@@ -424,7 +426,8 @@ PHP_FUNCTION(fbird_blob_create)
 
 	RESET_ERRMSG;
 
-	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "|r", &link)) {
+	/* M3: "|z" instead of "|r" so Firebird\Connection/Transaction objects are accepted */
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "|z", &link)) {
 		RETURN_FALSE;
 	}
 
@@ -432,7 +435,7 @@ PHP_FUNCTION(fbird_blob_create)
 
 	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
 	ib_blob->type = BLOB_INPUT;
-	ib_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
+	ib_blob->fbb_blob = NULL;  /* Phase 6: explicit fbird_blob init */
 
 	/*
 	 * Firebird 3.0+ OO API Blob Creation
@@ -467,7 +470,8 @@ PHP_FUNCTION(fbird_blob_create_seekable)
 
 	RESET_ERRMSG;
 
-	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "|r", &link)) {
+	/* M3: "|z" instead of "|r" so Firebird\Connection/Transaction objects are accepted */
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "|z", &link)) {
 		RETURN_FALSE;
 	}
 
@@ -478,7 +482,7 @@ PHP_FUNCTION(fbird_blob_create_seekable)
 	ib_blob->fbb_blob = NULL;
 
 	/*
-	 * Firebird 3.0+ OO API Blob Creation (Stream Mode)
+	 * Firebird 3.0+ OO API Blob Creation (Stream Mode - Seekable)
 	 *
 	 * Uses IBlob interface via fbb_create() wrapper with stream BPB.
 	 * Stream mode enables seeking via fbird_blob_seek().
@@ -966,7 +970,8 @@ PHP_FUNCTION(fbird_blob_create_stream)
 
 	RESET_ERRMSG;
 
-	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "|r", &link)) {
+	/* M3: "|z" instead of "|r" so Firebird\Connection/Transaction objects are accepted */
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "|z", &link)) {
 		RETURN_FALSE;
 	}
 

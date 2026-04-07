@@ -14,7 +14,7 @@
 
 Tracked via GitHub issues #175-#179 (milestone: v11.0 - Modernization, due 2026-12-31):
 
-- [ ] #175 - [M2] Migrate all 84 procedural arginfo to typed return macros
+- [x] #175 - [M2] Migrate all 84 procedural arginfo to typed return macros (CLOSED)
 - [ ] #176 - [M3] Resource-to-object migration for Layer 1 procedural functions (breaking change)
 - [ ] #177 - [M12] Replace call_user_function() in OOP layer with direct C calls
 - [ ] #178 - [L3] Remove dead FB_API_VER < 30 code paths

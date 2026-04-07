@@ -459,7 +459,7 @@ PHP_FUNCTION(fbird_blob_create)
 		RETURN_FALSE;
 	}
 
-	RETVAL_RES(zend_register_resource(ib_blob, le_blob));
+	fbird_setup_blob_object(return_value, zend_register_resource(ib_blob, le_blob));
 }
 
 PHP_FUNCTION(fbird_blob_create_seekable)
@@ -503,7 +503,7 @@ PHP_FUNCTION(fbird_blob_create_seekable)
 		RETURN_FALSE;
 	}
 
-	RETVAL_RES(zend_register_resource(ib_blob, le_blob));
+	fbird_setup_blob_object(return_value, zend_register_resource(ib_blob, le_blob));
 }
 
 PHP_FUNCTION(fbird_blob_open)
@@ -550,7 +550,7 @@ PHP_FUNCTION(fbird_blob_open)
 			break;
 		}
 
-		RETVAL_RES(zend_register_resource(ib_blob, le_blob));
+		fbird_setup_blob_object(return_value, zend_register_resource(ib_blob, le_blob));
 		return;
 
 	} while (0);
@@ -1124,7 +1124,7 @@ PHP_FUNCTION(fbird_blob_open_seekable)
 			break;
 		}
 
-		RETVAL_RES(zend_register_resource(ib_blob, le_blob));
+		fbird_setup_blob_object(return_value, zend_register_resource(ib_blob, le_blob));
 		return;
 
 	} while (0);

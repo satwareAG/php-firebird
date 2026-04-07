@@ -1,6 +1,6 @@
 # Next Steps - php-firebird
 
-**Last Updated**: 2026-04-07 (M3 Phase A-G implemented)
+**Last Updated**: 2026-04-07 (M3 Phase G Blob G1-G3 implemented)
 
 ## Immediate (v10.6.x)
 
@@ -21,7 +21,10 @@ Tracked via GitHub issues #175-#179 (milestone: v11.0 - Modernization, due 2026-
   - [x] Phase D (`508f75e`): fbird_trans/trans_start return Firebird\Transaction
   - [x] Phase E (`351d75d`): Dual-accept variadic loops in fbird_trans/query/prepare
   - [x] Phase F: fbird_query/execute/fetch return Firebird\ResultSet + dual-accept bridges (le_query → object)
-  - [ ] Phase G: fbird_blob_* return Firebird\Blob (le_blob → object)
+  - [x] Phase G: fbird_blob_* return Firebird\Blob (le_blob → object)
+    - [x] G1 (`3ddee6d`): Blob weak-ref infrastructure, FBIRD_VALIDATE_BLOB_EX macro
+    - [x] G2 (`5be2453`): Dual-accept all consuming blob functions
+    - [x] G3: fbird_blob_create/open/create_seekable/open_seekable return Firebird\Blob
   - [ ] Phase H: fbird_event_* return Firebird\Event (le_event → object)
   - [ ] Phase I: fbird_service_* return Firebird\Service (le_service → object)
   - [ ] Dual-accept sweep: fbird_commit/rollback/close/affected_rows accept objects too

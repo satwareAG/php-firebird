@@ -28,12 +28,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `FBIRD_VALIDATE_QUERY_EX` macro updated with `instanceof_function(fbird_resultset_ce)` guard.
   Added `fbird_resultset_get_resource()` and `fbird_setup_resultset_object()` helpers in
   `fbird_classes.c`. Included `fbird_classes.h` in `fbird_result.c` and `fbird_metadata.c`.
-- **[M3 Phase G]** `fbird_execute()` now returns a `Firebird\ResultSet` object for SELECT
-  queries (wraps the `le_query` result resource via `fbird_setup_resultset_object()`). Also
-  accepts `Firebird\ResultSet` as first argument (re-execute pattern). Updated
+- **[M3 Phase F/G ResultSet]** `fbird_execute()` now returns a `Firebird\ResultSet` object for
+  SELECT queries (wraps the `le_query` result resource via `fbird_setup_resultset_object()`).
+  Also accepts `Firebird\ResultSet` as first argument (re-execute pattern). Updated
   `_php_fbird_free_query_impl()` to accept `Firebird\ResultSet` objects. Updated stubs in
   `stubs/firebird-stubs.php` and `phpstan/fbird.stub.php` with new return types
   `\Firebird\ResultSet|int|bool` for `fbird_execute()` and `fbird_query()`.
+- **[M3 Phase G Blob G1]** `Firebird\Blob` infrastructure: `blob_res` weak-ref field added to
+  `fbird_blob_obj` struct; `fbird_blob_get_resource()` and `fbird_setup_blob_object()` helpers
+  added to `fbird_classes.c`/`fbird_classes.h`; `le_blob` promoted from static to extern;
+  `FBIRD_VALIDATE_BLOB_EX` macro added to `php_fbird_includes.h` (dual-accept: `le_blob`
+  resource OR `Firebird\Blob` object with `instanceof_function` guard). (`3ddee6d`)
+- **[M3 Phase G Blob G2]** All consuming blob functions accept both resource and object:
+  `fbird_blob_add`, `fbird_blob_get`, `fbird_blob_cancel`, `fbird_blob_close`,
+  `fbird_blob_seek` updated to `"z"` format + `FBIRD_VALIDATE_BLOB_EX`; `fbird_blob_info`
+  updated to `"zz"` for 2-arg case with `Firebird\Blob` object branch. Added
+  `#include "fbird_classes.h"` to `fbird_blobs.c`. (`5be2453`)
+- **[M3 Phase G Blob G3]** `fbird_blob_create()`, `fbird_blob_create_seekable()`,
+  `fbird_blob_open()`, and `fbird_blob_open_seekable()` now return `Firebird\Blob` objects
+  (via `fbird_setup_blob_object()`) instead of raw `resource(fbird blob)` handles. Underlying
+  `le_blob` resources kept alive internally; weak-ref stored in object's `blob_res` field.
 
 ### Breaking Changes (v11.0)
 - Return types of `fbird_connect()`, `fbird_pconnect()`, `fbird_create_database()`,

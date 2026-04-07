@@ -979,6 +979,141 @@ static const zend_function_entry fbird_service_methods[] = {
 	PHP_FE_END
 };
 
+/* -----------------------------------------------------------------------
+ * Phase A: Firebird\Event class skeleton
+ * No functional wiring yet — class registered, handlers defined.
+ * Actual event functions still use le_event resource until Phase H.
+ * --------------------------------------------------------------------- */
+zend_class_entry    *fbird_event_ce;
+static zend_object_handlers fbird_event_handlers;
+
+typedef struct {
+	fbird_event *event;
+	zend_object  std;
+} fbird_event_obj;
+
+static inline fbird_event_obj *fbird_event_from_obj(zend_object *obj)
+{
+	return (fbird_event_obj *)((char *)obj - XtOffsetOf(fbird_event_obj, std));
+}
+
+#define Z_FBIRD_EVENT_P(zv) fbird_event_from_obj(Z_OBJ_P(zv))
+
+static zend_object *fbird_event_create_obj(zend_class_entry *ce)
+{
+	fbird_event_obj *intern = zend_object_alloc(sizeof(fbird_event_obj), ce);
+	intern->event = NULL;
+	zend_object_std_init(&intern->std, ce);
+	object_properties_init(&intern->std, ce);
+	intern->std.handlers = &fbird_event_handlers;
+	return &intern->std;
+}
+
+static void fbird_event_free_obj(zend_object *obj)
+{
+	fbird_event_obj *intern = fbird_event_from_obj(obj);
+	if (intern->event) {
+		/* _php_fbird_free_event frees internal data but not the struct itself */
+		_php_fbird_free_event(intern->event);
+		efree(intern->event);
+		intern->event = NULL;
+	}
+	zend_object_std_dtor(obj);
+}
+
+void fbird_setup_event_object(zval *rv, fbird_event *ev)
+{
+	object_init_ex(rv, fbird_event_ce);
+	fbird_event_obj *intern = fbird_event_from_obj(Z_OBJ_P(rv));
+	intern->event = ev;
+}
+
+fbird_event *fbird_event_get_ptr(zend_object *obj)
+{
+	fbird_event_obj *intern = fbird_event_from_obj(obj);
+	return intern ? intern->event : NULL;
+}
+
+/* -----------------------------------------------------------------------
+ * Phase B: Firebird\Batch class skeleton (FB4+ only)
+ * No functional wiring yet — class registered, handlers defined.
+ * Actual batch functions still use le_batch resource until Phase H.
+ * --------------------------------------------------------------------- */
+zend_class_entry    *fbird_batch_ce;
+
+#if FB_API_VER >= 40
+static zend_object_handlers fbird_batch_handlers;
+
+typedef struct {
+	fbird_batch *batch;
+	zend_object  std;
+} fbird_batch_obj;
+
+static inline fbird_batch_obj *fbird_batch_from_obj(zend_object *obj)
+{
+	return (fbird_batch_obj *)((char *)obj - XtOffsetOf(fbird_batch_obj, std));
+}
+
+#define Z_FBIRD_BATCH_P(zv) fbird_batch_from_obj(Z_OBJ_P(zv))
+
+static zend_object *fbird_batch_create_obj(zend_class_entry *ce)
+{
+	fbird_batch_obj *intern = zend_object_alloc(sizeof(fbird_batch_obj), ce);
+	intern->batch = NULL;
+	zend_object_std_init(&intern->std, ce);
+	object_properties_init(&intern->std, ce);
+	intern->std.handlers = &fbird_batch_handlers;
+	return &intern->std;
+}
+
+static void fbird_batch_free_obj(zend_object *obj)
+{
+	fbird_batch_obj *intern = fbird_batch_from_obj(obj);
+	if (intern->batch) {
+		fbird_batch *batch = intern->batch;
+		/* Cancel and close the batch if still open */
+		if (batch->fbbatch_wrapper != NULL) {
+			fbbatch_cancel(IBG(master_instance), batch->fbbatch_wrapper, IB_STATUS);
+			fbbatch_close(IBG(master_instance), batch->fbbatch_wrapper, IB_STATUS);
+			batch->fbbatch_wrapper = NULL;
+		}
+		/* Free the input message buffer */
+		if (batch->in_msg_buffer != NULL) {
+			efree(batch->in_msg_buffer);
+			batch->in_msg_buffer = NULL;
+		}
+		efree(batch);
+		intern->batch = NULL;
+	}
+	zend_object_std_dtor(obj);
+}
+
+void fbird_setup_batch_object(zval *rv, fbird_batch *batch)
+{
+	object_init_ex(rv, fbird_batch_ce);
+	fbird_batch_obj *intern = fbird_batch_from_obj(Z_OBJ_P(rv));
+	intern->batch = batch;
+}
+
+fbird_batch *fbird_batch_get_ptr(zend_object *obj)
+{
+	fbird_batch_obj *intern = fbird_batch_from_obj(obj);
+	return intern ? intern->batch : NULL;
+}
+#else
+/* Stubs for builds without FB4+ batch API */
+void fbird_setup_batch_object(zval *rv, fbird_batch *batch)
+{
+	(void)rv; (void)batch;
+}
+
+fbird_batch *fbird_batch_get_ptr(zend_object *obj)
+{
+	(void)obj;
+	return NULL;
+}
+#endif /* FB_API_VER >= 40 */
+
 /* Define connection methods table here — after all methods are declared */
 static const zend_function_entry fbird_connection_methods[] = {
 	PHP_ME(FirebirdConnection, __construct,      arginfo_fbird_connection_construct,        ZEND_ACC_PUBLIC)
@@ -1099,4 +1234,28 @@ void fbird_register_classes(void)
 		sizeof(zend_object_handlers));
 	fbird_service_handlers.offset    = XtOffsetOf(fbird_service_obj, std);
 	fbird_service_handlers.free_obj  = fbird_service_free_obj;
+
+	/* Phase A: Firebird\Event (skeleton — no methods yet, wired in Phase H) */
+	INIT_CLASS_ENTRY(ce, "Firebird\\Event", NULL);
+	fbird_event_ce = zend_register_internal_class(&ce);
+	fbird_event_ce->create_object = fbird_event_create_obj;
+
+	memcpy(&fbird_event_handlers, zend_get_std_object_handlers(),
+		sizeof(zend_object_handlers));
+	fbird_event_handlers.offset   = XtOffsetOf(fbird_event_obj, std);
+	fbird_event_handlers.free_obj = fbird_event_free_obj;
+
+#if FB_API_VER >= 40
+	/* Phase B: Firebird\Batch (skeleton — no methods yet, wired in Phase H) */
+	INIT_CLASS_ENTRY(ce, "Firebird\\Batch", NULL);
+	fbird_batch_ce = zend_register_internal_class(&ce);
+	fbird_batch_ce->create_object = fbird_batch_create_obj;
+
+	memcpy(&fbird_batch_handlers, zend_get_std_object_handlers(),
+		sizeof(zend_object_handlers));
+	fbird_batch_handlers.offset   = XtOffsetOf(fbird_batch_obj, std);
+	fbird_batch_handlers.free_obj = fbird_batch_free_obj;
+#else
+	fbird_batch_ce = NULL;
+#endif /* FB_API_VER >= 40 */
 }

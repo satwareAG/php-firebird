@@ -85,4 +85,30 @@ static inline fbird_service_obj *fbird_service_from_obj(zend_object *obj)
 
 #define Z_FB_SERVICE_P(zv) fbird_service_from_obj(Z_OBJ_P(zv))
 
+/* Internal event object structure */
+typedef struct {
+	fbird_event *event;
+	zend_object  std;
+} fbird_event_obj;
+
+static inline fbird_event_obj *fbird_event_from_obj(zend_object *obj)
+{
+	return (fbird_event_obj *)((char *)obj - XtOffsetOf(fbird_event_obj, std));
+}
+
+#define Z_FB_EVENT_P(zv) fbird_event_from_obj(Z_OBJ_P(zv))
+
+/* Internal batch object structure */
+typedef struct {
+	fbird_batch *batch;
+	zend_object  std;
+} fbird_batch_obj;
+
+static inline fbird_batch_obj *fbird_batch_from_obj(zend_object *obj)
+{
+	return (fbird_batch_obj *)((char *)obj - XtOffsetOf(fbird_batch_obj, std));
+}
+
+#define Z_FB_BATCH_P(zv) fbird_batch_from_obj(Z_OBJ_P(zv))
+
 #endif /* FBIRD_CLASSES_INTERNAL_H */

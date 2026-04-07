@@ -5,16 +5,42 @@
 #define FBIRD_CLASSES_H
 
 #include "php.h"
+#include "php_fbird_includes.h"
 
 extern zend_class_entry *fbird_connection_ce;
+extern zend_class_entry *fbird_transaction_ce;
+extern zend_class_entry *fbird_statement_ce;
+extern zend_class_entry *fbird_resultset_ce;
+extern zend_class_entry *fbird_blob_ce;
+extern zend_class_entry *fbird_service_ce;
+extern zend_class_entry *fbird_event_ce;
+extern zend_class_entry *fbird_batch_ce;
 
 void fbird_register_classes(void);
 void fbird_setup_connection_object(zval *return_value, zend_resource *res);
+void fbird_setup_event_object(zval *rv, fbird_event *ev);
+#if FB_API_VER >= 40
+void fbird_setup_batch_object(zval *rv, fbird_batch *batch);
+#endif
 
 /**
  * Extract the zend_resource* from a Firebird\Connection object.
  * Returns NULL if obj is not a Firebird\Connection or has no resource.
  */
 zend_resource *fbird_connection_get_resource(zend_object *obj);
+
+/**
+ * Extract the fbird_event* from a Firebird\Event object.
+ * Returns NULL if obj is not a Firebird\Event.
+ */
+fbird_event *fbird_event_get_ptr(zend_object *obj);
+
+#if FB_API_VER >= 40
+/**
+ * Extract the fbird_batch* from a Firebird\Batch object.
+ * Returns NULL if obj is not a Firebird\Batch.
+ */
+fbird_batch *fbird_batch_get_ptr(zend_object *obj);
+#endif
 
 #endif /* FBIRD_CLASSES_H */

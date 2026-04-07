@@ -560,10 +560,10 @@ function fbird_trans_info(mixed $trans_handle): array|false {}
 /**
  * Create a blob for adding data.
  *
- * @param resource|null $link Database connection (optional, uses default)
- * @return resource|false Blob handle or false on error
+ * @param resource|\Firebird\Connection|null $link Database connection (optional, uses default)
+ * @return \Firebird\Blob|false Blob handle or false on error
  */
-function fbird_blob_create(mixed $link = null): mixed {}
+function fbird_blob_create(mixed $link = null): \Firebird\Blob|false {}
 
 /**
  * @param resource $blob
@@ -591,11 +591,11 @@ function fbird_blob_cancel(mixed $blob): bool {}
  * - fbird_blob_open(string $blob_id)
  * - fbird_blob_open(resource $link, string $blob_id)
  *
- * @param resource|string $link_or_blob_id Database connection or blob ID string
+ * @param resource|\Firebird\Connection|string $link_or_blob_id Database connection or blob ID string
  * @param string|null $blob_id Blob ID string when first arg is a connection
- * @return resource|false Blob handle or false on error
+ * @return \Firebird\Blob|false Blob handle or false on error
  */
-function fbird_blob_open(mixed $link_or_blob_id, ?string $blob_id = null): mixed {}
+function fbird_blob_open(mixed $link_or_blob_id, ?string $blob_id = null): \Firebird\Blob|false {}
 
 /**
  * @param resource $blob
@@ -639,17 +639,17 @@ function fbird_blob_create_stream(mixed $link = null): mixed {}
 function fbird_blob_open_stream(mixed $link_or_id, ?string $blob_id = null): mixed {}
 
 /**
- * @param resource|null $link
- * @return resource|false
+ * @param resource|\Firebird\Connection|null $link
+ * @return \Firebird\Blob|false
  */
-function fbird_blob_create_seekable(mixed $link = null): mixed {}
+function fbird_blob_create_seekable(mixed $link = null): \Firebird\Blob|false {}
 
 /**
- * @param resource|string $link_or_id
+ * @param resource|\Firebird\Connection|string $link_or_id
  * @param string|null $blob_id
- * @return resource|false
+ * @return \Firebird\Blob|false
  */
-function fbird_blob_open_seekable(mixed $link_or_id, ?string $blob_id = null): mixed {}
+function fbird_blob_open_seekable(mixed $link_or_id, ?string $blob_id = null): \Firebird\Blob|false {}
 
 /**
  * @param resource $blob

@@ -1,6 +1,6 @@
 # Next Steps - php-firebird
 
-**Last Updated**: 2026-04-07 (M12 implemented and closed)
+**Last Updated**: 2026-04-07 (M3 Phase A-E implemented)
 
 ## Immediate (v10.6.x)
 
@@ -16,6 +16,15 @@ Tracked via GitHub issues #175-#179 (milestone: v11.0 - Modernization, due 2026-
 
 - [x] #175 - [M2] Migrate all 84 procedural arginfo to typed return macros (CLOSED)
 - [ ] #176 - [M3] Resource-to-object migration for Layer 1 procedural functions (breaking change)
+  - [x] Phase A+B (`7f100f6`): Class skeletons - Firebird\Connection, \Transaction, \Event, \Batch
+  - [x] Phase C (`1b37219`): fbird_connect/pconnect/create_database return Firebird\Connection
+  - [x] Phase D (`508f75e`): fbird_trans/trans_start return Firebird\Transaction
+  - [x] Phase E (`351d75d`): Dual-accept variadic loops in fbird_trans/query/prepare
+  - [ ] Phase F: fbird_query/execute/fetch return Firebird\Result (le_result → object)
+  - [ ] Phase G: fbird_blob_* return Firebird\Blob (le_blob → object)
+  - [ ] Phase H: fbird_event_* return Firebird\Event (le_event → object)
+  - [ ] Phase I: fbird_service_* return Firebird\Service (le_service → object)
+  - [ ] Dual-accept sweep: fbird_commit/rollback/close/affected_rows accept objects too
 - [x] #177 - [M12] Replace call_user_function() in OOP layer with direct C calls (CLOSED)
 - [x] #178 - [L3] Remove dead FB_API_VER < 30 code paths (CLOSED)
 - [x] #179 - [L2] Remove legacy gds32_ms fallback from config.w32 (CLOSED)

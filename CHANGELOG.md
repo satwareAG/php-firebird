@@ -5,6 +5,28 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v11.0 M3 Resource-to-Object Migration
+
+### Added
+- **[M3 Phase A+B]** Skeleton class entries for `Firebird\Connection`, `Firebird\Transaction`,
+  `Firebird\Event`, and `Firebird\Batch` registered in the extension module init.
+- **[M3 Phase C]** `fbird_connect()`, `fbird_pconnect()`, and `fbird_create_database()` now
+  return `Firebird\Connection` opaque objects instead of raw `resource(Firebird link)` handles.
+  Underlying `le_link`/`le_plink` resources are kept alive internally (M3 conservative strategy);
+  all consuming functions use dual-accept bridge helpers with `instanceof_function` guards.
+- **[M3 Phase D]** `fbird_trans()` and `fbird_trans_start()` now return `Firebird\Transaction`
+  opaque objects instead of raw `resource(Firebird transaction)` handles. Underlying `le_trans`
+  resources kept alive internally via weak-ref pattern.
+- **[M3 Phase E]** Dual-accept variadic argument parsing for `fbird_trans()`, `fbird_query()`,
+  and `fbird_prepare()`: all three now accept both legacy `resource` args and new `Firebird\Connection`
+  / `Firebird\Transaction` objects in their variadic loops. Added `_php_fbird_link_from_zval()`
+  helper with `instanceof_function(fbird_connection_ce)` guard in `fbird_query_exec.c`.
+
+### Breaking Changes (v11.0)
+- Return types of `fbird_connect()`, `fbird_pconnect()`, `fbird_create_database()`,
+  `fbird_trans()`, and `fbird_trans_start()` changed from `resource` to `Firebird\*` objects.
+  Code using `is_resource($conn)` checks will need updating to `$conn instanceof Firebird\Connection`.
+
 ## [10.6.2] - 2026-04-03
 
 ### Fixed

@@ -1353,8 +1353,8 @@ PHP_FUNCTION(fbird_reconnect_transaction)
 	(*l)->trans = ib_trans;
 	(*l)->next = NULL;
 
-	RETVAL_RES(zend_register_resource(ib_trans, le_trans));
-	Z_TRY_ADDREF_P(return_value);
+	zend_resource *res = zend_register_resource(ib_trans, le_trans);
+	fbird_setup_transaction_object(return_value, res);
 }
 
 #endif /* HAVE_FIREBIRD */

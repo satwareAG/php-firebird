@@ -183,8 +183,9 @@ zend_class_entry    *fbird_transaction_ce;
 static zend_object_handlers fbird_transaction_handlers;
 
 typedef struct {
-	void        *fbt_trans;  /* fb::Transaction* from fbt_start() */
-	zend_object  std;
+	void          *fbt_trans;    /* owned: fb::Transaction* from fbt_start() */
+	zend_resource *trans_res;    /* weak ref: le_trans resource from fbird_trans() */
+	zend_object    std;
 } fbird_transaction_obj;
 
 static inline fbird_transaction_obj *fbird_transaction_from_obj(zend_object *obj)
@@ -198,6 +199,7 @@ static zend_object *fbird_transaction_create(zend_class_entry *ce)
 {
 	fbird_transaction_obj *intern = zend_object_alloc(sizeof(fbird_transaction_obj), ce);
 	intern->fbt_trans = NULL;
+	intern->trans_res = NULL;
 	zend_object_std_init(&intern->std, ce);
 	object_properties_init(&intern->std, ce);
 	intern->std.handlers = &fbird_transaction_handlers;
@@ -213,6 +215,8 @@ static void fbird_transaction_free(zend_object *obj)
 		fbt_free(intern->fbt_trans);
 		intern->fbt_trans = NULL;
 	}
+	/* trans_res is a weak ref — EG(regular_list) owns it; do NOT destroy here */
+	intern->trans_res = NULL;
 	zend_object_std_dtor(obj);
 }
 
@@ -225,10 +229,25 @@ PHP_METHOD(FirebirdTransaction, commit)
 	ZEND_PARSE_PARAMETERS_NONE();
 	fbird_transaction_obj *intern = Z_FBIRD_TRANSACTION_P(ZEND_THIS);
 	if (intern->fbt_trans) {
+		/* OOP-native path: fbt_trans owned directly */
 		ISC_STATUS sv[20];
 		fbt_commit(intern->fbt_trans, sv);
 		fbt_free(intern->fbt_trans);
 		intern->fbt_trans = NULL;
+	} else if (intern->trans_res) {
+		/* Procedural bridge: commit via le_trans resource */
+		fbird_transaction *trans = (fbird_transaction *)intern->trans_res->ptr;
+		if (trans && trans->fbt_transaction) {
+			ISC_STATUS sv[20];
+			int res = fbt_commit(trans->fbt_transaction, sv);
+			fbt_free(trans->fbt_transaction);
+			trans->fbt_transaction = NULL;  /* prevent double-free in destructor */
+			zend_list_delete(intern->trans_res);
+			intern->trans_res = NULL;
+			if (res && !IBG(in_mshutdown)) {
+				_php_fbird_error();
+			}
+		}
 	}
 }
 
@@ -241,10 +260,22 @@ PHP_METHOD(FirebirdTransaction, rollback)
 	ZEND_PARSE_PARAMETERS_NONE();
 	fbird_transaction_obj *intern = Z_FBIRD_TRANSACTION_P(ZEND_THIS);
 	if (intern->fbt_trans) {
+		/* OOP-native path: fbt_trans owned directly */
 		ISC_STATUS sv[20];
 		fbt_rollback(intern->fbt_trans, sv);
 		fbt_free(intern->fbt_trans);
 		intern->fbt_trans = NULL;
+	} else if (intern->trans_res) {
+		/* Procedural bridge: rollback via le_trans resource */
+		fbird_transaction *trans = (fbird_transaction *)intern->trans_res->ptr;
+		if (trans && trans->fbt_transaction) {
+			ISC_STATUS sv[20];
+			fbt_rollback(trans->fbt_transaction, sv);
+			fbt_free(trans->fbt_transaction);
+			trans->fbt_transaction = NULL;  /* prevent double-free in destructor */
+			zend_list_delete(intern->trans_res);
+			intern->trans_res = NULL;
+		}
 	}
 }
 
@@ -256,7 +287,14 @@ PHP_METHOD(FirebirdTransaction, isActive)
 {
 	ZEND_PARSE_PARAMETERS_NONE();
 	fbird_transaction_obj *intern = Z_FBIRD_TRANSACTION_P(ZEND_THIS);
-	RETURN_BOOL(intern->fbt_trans && fbt_is_active(intern->fbt_trans));
+	if (intern->fbt_trans) {
+		RETURN_BOOL(fbt_is_active(intern->fbt_trans));
+	}
+	if (intern->trans_res) {
+		fbird_transaction *trans = (fbird_transaction *)intern->trans_res->ptr;
+		RETURN_BOOL(trans && trans->fbt_transaction && fbt_is_active(trans->fbt_transaction));
+	}
+	RETURN_FALSE;
 }
 
 static const zend_function_entry fbird_transaction_methods[] = {
@@ -1156,6 +1194,33 @@ void fbird_setup_connection_object(zval *return_value, zend_resource *res)
 	fbird_connection_obj *intern = Z_FBIRD_CONNECTION_P(return_value);
 	/* Weak reference: EG(regular_list)/IBG(default_link) own the resource */
 	intern->conn_res = res;
+}
+
+/* -----------------------------------------------------------------------
+ * fbird_transaction_get_resource() — extract zend_resource* from a
+ *   Firebird\Transaction internal object. Returns NULL if no resource set.
+ * --------------------------------------------------------------------- */
+zend_resource *fbird_transaction_get_resource(zend_object *obj)
+{
+	fbird_transaction_obj *intern = fbird_transaction_from_obj(obj);
+	return intern ? intern->trans_res : NULL;
+}
+
+/* -----------------------------------------------------------------------
+ * fbird_setup_transaction_object() — glue from procedural fbird_trans()
+ *                                    to Firebird\Transaction OOP object
+ *
+ * Called from fbird_trans()/fbird_trans_start() after registering the
+ * resource, to wrap the raw le_trans resource in a Firebird\Transaction
+ * object. The resource stays in EG(regular_list) — we store only a weak ref.
+ * --------------------------------------------------------------------- */
+void fbird_setup_transaction_object(zval *return_value, zend_resource *res)
+{
+	zval_ptr_dtor(return_value);
+	object_init_ex(return_value, fbird_transaction_ce);
+	fbird_transaction_obj *intern = fbird_transaction_from_obj(Z_OBJ_P(return_value));
+	/* Weak reference: EG(regular_list) owns the resource */
+	intern->trans_res = res;
 }
 
 /* -----------------------------------------------------------------------

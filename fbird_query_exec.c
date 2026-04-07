@@ -25,9 +25,37 @@
 #include "php_fbird_query_bind.h"
 #include "php_fbird_query_array.h"
 #include "firebird_utils.h"
+#include "fbird_classes.h"
 #include "src/php_fbird_compat.h"
 
 /* le_query is defined in fbird_query_prepare.c */
+
+/* Helper: fetch fbird_transaction* and optional zend_resource* from either a
+ * le_trans resource zval or a Firebird\Transaction object zval.
+ * Sets *res_out (if non-NULL) to the underlying zend_resource*.
+ * Returns NULL if z does not hold a valid le_trans. */
+static fbird_transaction *_php_fbird_trans_from_zval(zval *z, zend_resource **res_out)
+{
+    if (!z) return NULL;
+    if (Z_TYPE_P(z) == IS_RESOURCE) {
+        fbird_transaction *t = (fbird_transaction *)zend_fetch_resource_ex(z, NULL, le_trans);
+        if (t && res_out) *res_out = Z_RES_P(z);
+        return t;
+    }
+    /* Only treat as Transaction object if it actually IS a Firebird\Transaction.
+     * Without this check, a Firebird\Connection object would be misinterpreted
+     * causing wrong memory access via fbird_transaction_get_resource(). */
+    if (Z_TYPE_P(z) == IS_OBJECT &&
+            instanceof_function(Z_OBJCE_P(z), fbird_transaction_ce)) {
+        zend_resource *res = fbird_transaction_get_resource(Z_OBJ_P(z));
+        if (res) {
+            fbird_transaction *t = (fbird_transaction *)zend_fetch_resource(res, "Firebird transaction", le_trans);
+            if (t && res_out) *res_out = res;
+            return t;
+        }
+    }
+    return NULL;
+}
 
 static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, zval *args, int bind_n)
 {
@@ -997,27 +1025,27 @@ PHP_FUNCTION(fbird_query)
 			query = Z_STRVAL_P(arg);
 			bind_start = i + 1;
 			break;
-		} else if (Z_TYPE_P(arg) == IS_RESOURCE) {
-			/* Identify resource type */
+		} else if (Z_TYPE_P(arg) == IS_RESOURCE || Z_TYPE_P(arg) == IS_OBJECT) {
+			/* Identify resource type - handle both resources and Transaction objects */
 			if (!trans && !link) {
-				trans = (fbird_transaction *)zend_fetch_resource_ex(arg, NULL, le_trans);
+				trans = _php_fbird_trans_from_zval(arg, &trans_res);
 				if (trans) {
 					trans_arg = arg;
-					trans_res = Z_RES_P(trans_arg);
-				} else {
+				} else if (Z_TYPE_P(arg) == IS_RESOURCE) {
 					link = (fbird_db_link *)zend_fetch_resource_ex(arg, NULL, le_link);
 					if (!link) link = (fbird_db_link *)zend_fetch_resource_ex(arg, NULL, le_plink);
 					if (link) link_arg = arg;
 				}
 			} else if (trans && !link) {
-				link = (fbird_db_link *)zend_fetch_resource_ex(arg, NULL, le_link);
-				if (!link) link = (fbird_db_link *)zend_fetch_resource_ex(arg, NULL, le_plink);
-				if (link) link_arg = arg;
+				if (Z_TYPE_P(arg) == IS_RESOURCE) {
+					link = (fbird_db_link *)zend_fetch_resource_ex(arg, NULL, le_link);
+					if (!link) link = (fbird_db_link *)zend_fetch_resource_ex(arg, NULL, le_plink);
+					if (link) link_arg = arg;
+				}
 			} else if (link && !trans) {
-				trans = (fbird_transaction *)zend_fetch_resource_ex(arg, NULL, le_trans);
+				trans = _php_fbird_trans_from_zval(arg, &trans_res);
 				if (trans) {
 					trans_arg = arg;
-					trans_res = Z_RES_P(trans_arg);
 				}
 			}
 		}
@@ -1198,15 +1226,14 @@ PHP_FUNCTION(fbird_prepare)
 		WRONG_PARAM_COUNT;
 	}
 
-	/* Parse arguments */
+	/* Parse arguments - accept both resources and Transaction objects */
 	i = 0;
-	if (Z_TYPE(args[i]) == IS_RESOURCE) {
-		trans = (fbird_transaction *)zend_fetch_resource_ex(&args[i], NULL, le_trans);
+	if (Z_TYPE(args[i]) == IS_RESOURCE || Z_TYPE(args[i]) == IS_OBJECT) {
+		trans = _php_fbird_trans_from_zval(&args[i], &trans_res);
 		if (trans) {
 			trans_arg = &args[i];
-			trans_res = Z_RES_P(trans_arg);
 			i++;
-		} else {
+		} else if (Z_TYPE(args[i]) == IS_RESOURCE) {
 			link = (fbird_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_link);
 			if (!link) {
 				link = (fbird_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_plink);
@@ -1218,21 +1245,24 @@ PHP_FUNCTION(fbird_prepare)
 		}
 	}
 
-	if (i == 1 && i < argc && Z_TYPE(args[i]) == IS_RESOURCE) {
+	if (i == 1 && i < argc && (Z_TYPE(args[i]) == IS_RESOURCE || Z_TYPE(args[i]) == IS_OBJECT)) {
 		if (trans) {
-			fbird_db_link *l = (fbird_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_link);
-			if (!l) l = (fbird_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_plink);
-			if (l) {
-				link = l;
-				link_arg = &args[i];
-				i++;
+			/* Already have a transaction; next arg could be a link (resource only) */
+			if (Z_TYPE(args[i]) == IS_RESOURCE) {
+				fbird_db_link *l = (fbird_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_link);
+				if (!l) l = (fbird_db_link *)zend_fetch_resource_ex(&args[i], NULL, le_plink);
+				if (l) {
+					link = l;
+					link_arg = &args[i];
+					i++;
+				}
 			}
 		} else if (link) {
-			fbird_transaction *t = (fbird_transaction *)zend_fetch_resource_ex(&args[i], NULL, le_trans);
+			/* Already have a link; next arg could be a transaction resource or object */
+			fbird_transaction *t = _php_fbird_trans_from_zval(&args[i], &trans_res);
 			if (t) {
 				trans = t;
 				trans_arg = &args[i];
-				trans_res = Z_RES_P(trans_arg);
 				i++;
 			}
 		}
@@ -1302,7 +1332,7 @@ PHP_FUNCTION(fbird_prepare_ex)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "rs|r!",
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "rs|z!",
 			&link_arg, &query, &query_len, &trans_arg) == FAILURE) {
 		return;
 	}
@@ -1317,12 +1347,9 @@ PHP_FUNCTION(fbird_prepare_ex)
 		RETURN_FALSE;
 	}
 
-	/* Resolve optional transaction */
+	/* Resolve optional transaction - accept both resource and Transaction object */
 	if (trans_arg) {
-		trans = (fbird_transaction *)zend_fetch_resource_ex(trans_arg, NULL, le_trans);
-		if (trans) {
-			trans_res = Z_RES_P(trans_arg);
-		}
+		trans = _php_fbird_trans_from_zval(trans_arg, &trans_res);
 	}
 
 	if (!trans) {

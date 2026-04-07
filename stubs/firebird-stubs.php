@@ -639,7 +639,7 @@ function fbird_param_info(mixed $query, int $param_number): array|false {}
  * @return resource|false Transaction resource
  * @since 7.0.0
  */
-function fbird_trans(mixed $link_or_flags = null, mixed ...$args): mixed {}
+function fbird_trans(mixed $link_or_flags = null, mixed ...$args): \Firebird\Transaction|false {}
 
 /**
  * Start a transaction with options.
@@ -649,7 +649,7 @@ function fbird_trans(mixed $link_or_flags = null, mixed ...$args): mixed {}
  * @return resource|false Transaction resource
  * @since 7.0.0
  */
-function fbird_trans_start(mixed $link, mixed $options = 0): mixed {}
+function fbird_trans_start(mixed $link, mixed $options = 0): \Firebird\Transaction|false {}
 
 /**
  * Commit a transaction.

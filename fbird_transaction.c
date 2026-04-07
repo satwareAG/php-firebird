@@ -15,6 +15,27 @@
 #include "php_fbird_transaction.h"
 #include "php_fbird_connection.h"
 #include "firebird_utils.h"
+#include "fbird_classes.h"
+
+/* -----------------------------------------------------------------------
+ * _php_fbird_trans_res_from_zval() - extract le_trans resource from a zval
+ *   that may be either a resource or a Firebird\Transaction IS_OBJECT.
+ *   Returns NULL if type is wrong or resource is not le_trans.
+ * --------------------------------------------------------------------- */
+static zend_resource *_php_fbird_trans_res_from_zval(zval *zv)
+{
+	if (!zv) return NULL;
+	ZVAL_DEREF(zv);
+	if (Z_TYPE_P(zv) == IS_RESOURCE) {
+		zend_resource *res = Z_RES_P(zv);
+		return (res->type == le_trans) ? res : NULL;
+	}
+	if (Z_TYPE_P(zv) == IS_OBJECT &&
+			instanceof_function(Z_OBJCE_P(zv), fbird_transaction_ce)) {
+		return fbird_transaction_get_resource(Z_OBJ_P(zv));
+	}
+	return NULL;
+}
 
 #define ROLLBACK    0
 #define COMMIT      1
@@ -348,8 +369,8 @@ PHP_FUNCTION(fbird_trans_start)
 	(*l)->trans = ib_trans;
 	(*l)->next = NULL;
 
-	RETVAL_RES(zend_register_resource(ib_trans, le_trans));
-	Z_TRY_ADDREF_P(return_value);
+	zend_resource *res = zend_register_resource(ib_trans, le_trans);
+	fbird_setup_transaction_object(return_value, res);
 }
 
 static void _php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAMETERS, const char *format)
@@ -363,7 +384,7 @@ static void _php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAMETERS, const char *
 
 	RESET_ERRMSG;
 
-	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "rs", &trans_arg, &name, &name_len)) {
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "zs", &trans_arg, &name, &name_len)) {
 		return;
 	}
 
@@ -372,7 +393,12 @@ static void _php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAMETERS, const char *
 		RETURN_FALSE;
 	}
 
-	trans = (fbird_transaction *)zend_fetch_resource_ex(trans_arg, LE_TRANS, le_trans);
+	zend_resource *sp_tres = _php_fbird_trans_res_from_zval(trans_arg);
+	if (!sp_tres) {
+		php_error_docref(NULL, E_WARNING, "Argument #1 must be a Firebird\\Transaction object or transaction resource");
+		RETURN_FALSE;
+	}
+	trans = (fbird_transaction *)sp_tres->ptr;
 	if (!trans) {
 		RETURN_FALSE;
 	}
@@ -474,11 +500,16 @@ PHP_FUNCTION(fbird_trans_info)
 
 	RESET_ERRMSG;
 
-	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "r", &trans_arg)) {
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "z", &trans_arg)) {
 		RETURN_FALSE;
 	}
 
-	trans = (fbird_transaction *)zend_fetch_resource_ex(trans_arg, LE_TRANS, le_trans);
+	zend_resource *ti_res = _php_fbird_trans_res_from_zval(trans_arg);
+	if (!ti_res) {
+		php_error_docref(NULL, E_WARNING, "Argument #1 must be a Firebird\\Transaction object or transaction resource");
+		RETURN_FALSE;
+	}
+	trans = (fbird_transaction *)ti_res->ptr;
 	if (!trans) {
 		RETURN_FALSE;
 	}
@@ -853,8 +884,8 @@ register_trans:
 		(*l)->next = NULL;
 	}
 	efree(ib_link);
-	RETVAL_RES(zend_register_resource(ib_trans, le_trans));
-	Z_TRY_ADDREF_P(return_value);
+	zend_resource *res = zend_register_resource(ib_trans, le_trans);
+	fbird_setup_transaction_object(return_value, res);
 }
 
 int _php_fbird_def_trans(fbird_db_link *ib_link, fbird_transaction **trans)
@@ -932,7 +963,7 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|r", &arg) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|z", &arg) == FAILURE) {
 		return;
 	}
 
@@ -945,8 +976,21 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 		}
 		trans = ib_link->tr_list->trans;
 	} else {
-		/* one id was passed, could be db or trans id */
-		if (Z_RES_P(arg)->type == le_trans) {
+		/* one id was passed - could be Firebird\Transaction object, le_trans resource, or db link */
+		ZVAL_DEREF(arg);
+		if (Z_TYPE_P(arg) == IS_OBJECT &&
+				instanceof_function(Z_OBJCE_P(arg), fbird_transaction_ce)) {
+			/* Firebird\Transaction object path */
+			zend_resource *tres = fbird_transaction_get_resource(Z_OBJ_P(arg));
+			if (!tres) {
+				_php_fbird_module_error("Firebird\\Transaction object has no active resource");
+				RETURN_FALSE;
+			}
+			trans = (fbird_transaction *)tres->ptr;
+			res_id = tres->handle;
+			arg = NULL; /* signal: don't use Z_RES_P(arg) for zend_list_delete below */
+		} else if (Z_TYPE_P(arg) == IS_RESOURCE &&
+				   Z_RES_P(arg)->type == le_trans) {
 			trans = (fbird_transaction *)zend_fetch_resource_ex(arg, LE_TRANS, le_trans);
 			res_id = Z_RES_P(arg)->handle;
 		} else {
@@ -997,8 +1041,10 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 		RETURN_FALSE;
 	}
 
-	/* Don't try to destroy implicitly opened transaction from list... */
-	if ((commit & RETAIN) == 0 && res_id != 0) {
+	/* Don't try to destroy implicitly opened transaction from list...
+	 * If arg was NULLed (object path), skip Z_RES_P - resource auto-freed via
+	 * trans->fbt_transaction=NULL above prevents double-free in destructor. */
+	if ((commit & RETAIN) == 0 && res_id != 0 && arg != NULL) {
 		zend_list_delete(Z_RES_P(arg));
 	}
 	RETURN_TRUE;

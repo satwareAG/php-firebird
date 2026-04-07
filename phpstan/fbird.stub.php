@@ -483,7 +483,7 @@ function fbird_param_info(mixed $query, int $param_number): array|false {}
  * @param mixed ...$args
  * @return resource|false
  */
-function fbird_trans(mixed $link_or_flags = null, mixed ...$args): mixed {}
+function fbird_trans(mixed $link_or_flags = null, mixed ...$args): \Firebird\Transaction|false {}
 
 /**
  * Start a transaction with options.
@@ -498,7 +498,7 @@ function fbird_trans(mixed $link_or_flags = null, mixed ...$args): mixed {}
  * @param int|array<string, array<string, int>|bool|int> $options Transaction options
  * @return resource|false Transaction handle or false on error
  */
-function fbird_trans_start(mixed $link, mixed $options = 0): mixed {}
+function fbird_trans_start(mixed $link, mixed $options = 0): \Firebird\Transaction|false {}
 
 /**
  * @param resource|null $link

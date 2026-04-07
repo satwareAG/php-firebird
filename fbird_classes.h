@@ -30,6 +30,18 @@ void fbird_setup_batch_object(zval *rv, fbird_batch *batch);
 zend_resource *fbird_connection_get_resource(zend_object *obj);
 
 /**
+ * Extract the zend_resource* from a Firebird\Transaction object.
+ * Returns NULL if obj is not a Firebird\Transaction or has no resource.
+ */
+zend_resource *fbird_transaction_get_resource(zend_object *obj);
+
+/**
+ * Wrap a le_trans zend_resource* in a Firebird\Transaction object.
+ * Stores the resource as a weak reference (EG(regular_list) owns it).
+ */
+void fbird_setup_transaction_object(zval *return_value, zend_resource *res);
+
+/**
  * Extract the fbird_event* from a Firebird\Event object.
  * Returns NULL if obj is not a Firebird\Event.
  */

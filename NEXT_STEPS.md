@@ -1,6 +1,6 @@
 # Next Steps - php-firebird
 
-**Last Updated**: 2026-04-07 (SOD spec audit)
+**Last Updated**: 2026-04-07 (M12 implemented and closed)
 
 ## Immediate (v10.6.x)
 
@@ -16,7 +16,7 @@ Tracked via GitHub issues #175-#179 (milestone: v11.0 - Modernization, due 2026-
 
 - [x] #175 - [M2] Migrate all 84 procedural arginfo to typed return macros (CLOSED)
 - [ ] #176 - [M3] Resource-to-object migration for Layer 1 procedural functions (breaking change)
-- [ ] #177 - [M12] Replace call_user_function() in OOP layer with direct C calls
+- [x] #177 - [M12] Replace call_user_function() in OOP layer with direct C calls (CLOSED)
 - [x] #178 - [L3] Remove dead FB_API_VER < 30 code paths (CLOSED)
 - [x] #179 - [L2] Remove legacy gds32_ms fallback from config.w32 (CLOSED)
 

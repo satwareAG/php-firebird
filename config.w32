@@ -22,7 +22,9 @@ if (PHP_FIREBIRD != 'no') {
     }
     AC_DEFINE('PHP_FIREBIRD_VERSION_STRING', version, 'PHP Firebird extension version');
 
-    // Check for Firebird client library and header
+    // Check for Firebird client library and header.
+    // Only fbclient_ms.lib (Firebird 3.0+) is supported.
+    // gds32_ms.lib (Firebird 1.x era) is not supported and was removed in #179.
     if (CHECK_LIB('fbclient_ms.lib', 'firebird', PHP_FIREBIRD + '\\lib') &&
         CHECK_HEADER_ADD_INCLUDE('ibase.h', 'CFLAGS_FIREBIRD', PHP_FIREBIRD + '\\include')) {
 

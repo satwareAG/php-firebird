@@ -18,7 +18,7 @@ Tracked via GitHub issues #175-#179 (milestone: v11.0 - Modernization, due 2026-
 - [ ] #176 - [M3] Resource-to-object migration for Layer 1 procedural functions (breaking change)
 - [ ] #177 - [M12] Replace call_user_function() in OOP layer with direct C calls
 - [x] #178 - [L3] Remove dead FB_API_VER < 30 code paths (CLOSED)
-- [ ] #179 - [L2] Remove legacy gds32_ms fallback from config.w32
+- [x] #179 - [L2] Remove legacy gds32_ms fallback from config.w32 (CLOSED)
 
 ## Open Implementation Specs
 

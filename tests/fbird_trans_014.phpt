@@ -23,7 +23,9 @@ test_fbird_trans_014_015();
 
 ?>
 --EXPECTF--
-resource(%d) of type (Firebird transaction)
-resource(%d) of type (Firebird transaction)
+object(Firebird\Transaction)#%d (0) {
+}
+object(Firebird\Transaction)#%d (0) {
+}
 bool(true)
 bool(false)

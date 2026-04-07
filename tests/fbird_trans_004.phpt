@@ -23,9 +23,11 @@ fbird_connect($test_base);
 
 ?>
 --EXPECTF--
-resource(%d) of type (Firebird transaction)
+object(Firebird\Transaction)#%d (0) {
+}
 bool(true)
-resource(%d) of type (Firebird transaction)
+object(Firebird\Transaction)#%d (0) {
+}
 
 Warning: fbird_query(): invalid transaction handle (expecting explicit transaction start)%s
 bool(false)

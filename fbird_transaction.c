@@ -742,6 +742,33 @@ PHP_FUNCTION(fbird_trans)
 
 				++link_cnt;
 
+			} else if (Z_TYPE(args[i]) == IS_OBJECT &&
+					instanceof_function(Z_OBJCE(args[i]), fbird_connection_ce)) {
+				/* Phase E: Accept Firebird\Connection objects as connection args.
+				 * Extract the underlying le_link resource and fetch fbird_db_link*. */
+				zend_resource *conn_res = fbird_connection_get_resource(Z_OBJ(args[i]));
+				if (!conn_res) {
+					efree(tpb);
+					efree(ib_link);
+					_php_fbird_module_error("Connection object has no valid resource");
+					RETURN_FALSE;
+				}
+				if ((ib_link[link_cnt] = (fbird_db_link *)zend_fetch_resource2(conn_res, LE_LINK, le_link, le_plink)) == NULL) {
+					efree(tpb);
+					efree(ib_link);
+					RETURN_FALSE;
+				}
+
+				/* copy the most recent modifier string into tpb[] */
+				memcpy(&tpb[TPB_MAX_SIZE * link_cnt], last_tpb, TPB_MAX_SIZE);
+
+				/* save TPB length for this connection */
+				if (link_cnt == 0) {
+					link0_tpb_len = tpb_len;
+				}
+
+				++link_cnt;
+
 			} else {
 
 				tpb_len = 0;

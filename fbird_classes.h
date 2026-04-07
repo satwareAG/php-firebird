@@ -54,6 +54,18 @@ zend_resource *fbird_resultset_get_resource(zend_object *obj);
 void fbird_setup_resultset_object(zval *return_value, zend_resource *res);
 
 /**
+ * Extract the zend_resource* from a Firebird\Blob object (M3 Phase G bridge).
+ * Returns NULL if no resource is set (OOP-native path).
+ */
+zend_resource *fbird_blob_get_resource(zend_object *obj);
+
+/**
+ * Wrap a le_blob zend_resource* in a Firebird\Blob object.
+ * Stores the resource as a weak reference (EG(regular_list) owns it).
+ */
+void fbird_setup_blob_object(zval *return_value, zend_resource *res);
+
+/**
  * Extract the fbird_event* from a Firebird\Event object.
  * Returns NULL if obj is not a Firebird\Event.
  */

@@ -54,7 +54,7 @@
 #define FBDEBUG(a)
 #endif
 
-extern int le_link, le_plink, le_trans, le_query;
+extern int le_link, le_plink, le_trans, le_query, le_blob;
 #if FB_API_VER >= 40
 extern int le_batch;
 #endif
@@ -512,6 +512,60 @@ const char *_fbird_res_type_name(int type);
 		} \
 	} \
 	var = (fbird_query *)zend_fetch_resource_ex(zv, LE_QUERY, le_query); \
+	if (!var) { RETURN_FALSE; } \
+} while(0)
+
+/* Validate blob resource (le_blob).
+ * M3 Phase G: Also accepts Firebird\Blob objects (weak-ref to same resource). */
+#define FBIRD_VALIDATE_BLOB_EX(zv, argnum, var) do { \
+	/* M3 object path: Firebird\Blob accepted alongside resources */ \
+	if (Z_TYPE_P(zv) == IS_OBJECT && \
+		instanceof_function(Z_OBJCE_P(zv), fbird_blob_ce)) { \
+		zend_resource *_bres = fbird_blob_get_resource(Z_OBJ_P(zv)); \
+		if (!_bres) { RETURN_FALSE; } \
+		var = (fbird_blob *)_bres->ptr; \
+		if (!var) { \
+			if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
+				zend_argument_type_error(argnum, \
+					"must be a valid (non-freed) Firebird blob resource or Firebird\\Blob"); \
+				RETURN_THROWS(); \
+			} \
+			php_error_docref(NULL, E_WARNING, \
+				"Argument #%d must be a valid (non-freed) Firebird blob resource or Firebird\\Blob", \
+				argnum); \
+			RETURN_FALSE; \
+		} \
+		break; \
+	} \
+	/* Must be IS_RESOURCE - anything else is a type error */ \
+	if (Z_TYPE_P(zv) != IS_RESOURCE) { \
+		if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
+			zend_argument_type_error(argnum, \
+				"must be a Firebird blob resource, %s given", \
+				zend_get_type_by_const(Z_TYPE_P(zv))); \
+			RETURN_THROWS(); \
+		} else { \
+			php_error_docref(NULL, E_WARNING, \
+				"Argument #%d must be a Firebird blob resource, %s given", \
+				argnum, zend_get_type_by_const(Z_TYPE_P(zv))); \
+			RETURN_FALSE; \
+		} \
+	} \
+	int _res_type_b = Z_RES_TYPE_P(zv); \
+	if (_res_type_b != le_blob) { \
+		if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
+			zend_argument_type_error(argnum, \
+				"must be a Firebird blob resource, %s resource given", \
+				_fbird_res_type_name(_res_type_b)); \
+			RETURN_THROWS(); \
+		} else { \
+			php_error_docref(NULL, E_WARNING, \
+				"Argument #%d must be a Firebird blob resource, %s resource given", \
+				argnum, _fbird_res_type_name(_res_type_b)); \
+			RETURN_FALSE; \
+		} \
+	} \
+	var = (fbird_blob *)zend_fetch_resource_ex(zv, LE_BLOB, le_blob); \
 	if (!var) { RETURN_FALSE; } \
 } while(0)
 

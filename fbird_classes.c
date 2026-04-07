@@ -593,9 +593,10 @@ zend_class_entry    *fbird_blob_ce;
 static zend_object_handlers fbird_blob_handlers;
 
 typedef struct {
-	void        *fbb_wrap;   /* BlobWrapper* from fbb_create/fbb_open */
-	ISC_QUAD     blob_id;    /* blob ID (set after create/close) */
-	zend_object  std;
+	void          *fbb_wrap;  /* BlobWrapper* from fbb_create/fbb_open (OOP-native path) */
+	ISC_QUAD       blob_id;   /* blob ID (set after create/close) */
+	zend_resource *blob_res;  /* M3 Phase G: weak ref to le_blob resource (procedural bridge) */
+	zend_object    std;
 } fbird_blob_obj;
 
 static inline fbird_blob_obj *fbird_blob_from_obj(zend_object *obj)
@@ -609,6 +610,7 @@ static zend_object *fbird_blob_create_obj(zend_class_entry *ce)
 {
 	fbird_blob_obj *intern = zend_object_alloc(sizeof(fbird_blob_obj), ce);
 	intern->fbb_wrap = NULL;
+	intern->blob_res = NULL;
 	memset(&intern->blob_id, 0, sizeof(ISC_QUAD));
 	zend_object_std_init(&intern->std, ce);
 	object_properties_init(&intern->std, ce);
@@ -625,7 +627,26 @@ static void fbird_blob_free_obj(zend_object *obj)
 		fbb_free(intern->fbb_wrap);
 		intern->fbb_wrap = NULL;
 	}
+	/* blob_res is a weak ref — EG(regular_list) owns it; do NOT destroy here */
+	intern->blob_res = NULL;
 	zend_object_std_dtor(obj);
+}
+
+/* M3 Phase G bridge helpers */
+zend_resource *fbird_blob_get_resource(zend_object *obj)
+{
+	fbird_blob_obj *intern = fbird_blob_from_obj(obj);
+	return intern ? intern->blob_res : NULL;
+}
+
+void fbird_setup_blob_object(zval *return_value, zend_resource *res)
+{
+	zval_ptr_dtor(return_value);
+	object_init_ex(return_value, fbird_blob_ce);
+	fbird_blob_obj *intern = fbird_blob_from_obj(Z_OBJ_P(return_value));
+	/* Add a reference so the resource stays alive while this object lives */
+	GC_ADDREF(res);
+	intern->blob_res = res;
 }
 
 /* Helper: get fbird_db_link from Firebird\Connection object */

@@ -172,7 +172,7 @@ static const unsigned char stream_bpb[] = {
 	isc_bpb_type, 1, isc_bpb_type_stream
 };
 
-static int le_blob;
+int le_blob;
 
 static void _php_fbird_free_blob(zend_resource *rsrc)
 {

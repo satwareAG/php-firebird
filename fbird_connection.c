@@ -271,28 +271,33 @@ int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **out_
     return SUCCESS;
 }
 
-void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
+/**
+ * Core connection logic extracted from _php_fbird_connect.
+ * Accepts plain C arguments (already parsed/defaulted by caller).
+ * Returns the new zend_resource* with appropriate refcount adjustments,
+ * or NULL on failure (error already set via _php_fbird_error()).
+ * Also applies INI-based defaults for empty args and manages IBG(default_link).
+ */
+zend_resource *_php_fbird_connect_link(
+	char *db,      size_t db_len,
+	char *user,    size_t user_len,
+	char *pass,    size_t pass_len,
+	char *charset, size_t charset_len,
+	zend_long buffers, zend_long dialect,
+	char *role,    size_t role_len,
+	zend_long flags, int persistent)
 {
-	char *c, hash[16], *args[] = { NULL, NULL, NULL, NULL, NULL };
+	char *c, hash[16], *args[] = { db, user, pass, charset, role };
 	int i;
-	size_t len[] = { 0, 0, 0, 0, 0 };
-	zend_long largs[] = { 0, 0, 0 };
-	zend_long flags = 0;
+	size_t len[] = { db_len, user_len, pass_len, charset_len, role_len };
+	zend_long largs[] = { buffers, dialect, 0 };
 	PHP_MD5_CTX hash_context;
 	zend_resource new_index_ptr, *le;
 	void *connection_ptr = NULL;
 	fbird_db_link *ib_link;
+	zend_resource *result_res = NULL;
 
-	RESET_ERRMSG;
-
-	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "|ssssllsll",
-			&args[DB], &len[DB], &args[USER], &len[USER], &args[PASS], &len[PASS],
-			&args[CSET], &len[CSET], &largs[BUF], &largs[DLECT], &args[ROLE], &len[ROLE],
-			&largs[SYNC], &flags)) {
-		RETURN_FALSE;
-	}
-
-	/* restrict to the server/db in the .ini if in safe mode */
+	/* Apply INI-based defaults for empty args */
 	if (!len[DB] && (c = INI_STR("fbird.default_db"))) {
 		args[DB] = c;
 		len[DB] = strlen(c);
@@ -326,7 +331,7 @@ void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 		zend_resource *xlink;
 
 		if (le->type != le_index_ptr) {
-			RETURN_FALSE;
+			return NULL;
 		}
 
 		xlink = (zend_resource*) le->ptr;
@@ -348,7 +353,7 @@ void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 					IBG(default_link) = xlink;
 				}
 				GC_ADDREF(xlink);
-				RETURN_RES(xlink);
+				return xlink;
 			}
 		} else {
 			zend_hash_str_del(&EG(regular_list), hash, sizeof(hash)-1);
@@ -361,12 +366,12 @@ void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 
 		if ((le = zend_hash_str_find_ptr(&EG(persistent_list), hash, sizeof(hash)-1)) != NULL) {
 			if (le->type != le_plink) {
-				RETURN_FALSE;
+				return NULL;
 			}
 			/* check if connection has timed out */
 			ib_link = (fbird_db_link *) le->ptr;
 			if (ib_link->fbc_connection && fbc_is_connected(ib_link->fbc_connection)) {
-				RETVAL_RES(zend_register_resource(ib_link, le_plink));
+				result_res = zend_register_resource(ib_link, le_plink);
 				break;
 			}
 			zend_hash_str_del(&EG(persistent_list), hash, sizeof(hash)-1);
@@ -376,30 +381,30 @@ void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 
 		if ((l = INI_INT("fbird.max_links")) != -1 && IBG(num_links) >= l) {
 			_php_fbird_module_error("Too many open links (%ld)", IBG(num_links));
-			RETURN_FALSE;
+			return NULL;
 		}
 
 		/* create the ib_link */
 		if (FAILURE == _php_fbird_attach_db(args, len, largs, &connection_ptr)) {
-			RETURN_FALSE;
+			return NULL;
 		}
 
 		/* use non-persistent if allowed number of persistent links is exceeded */
 		if (!persistent || ((l = INI_INT("fbird.max_persistent") != -1) && IBG(num_persistent) >= l)) {
 			ib_link = (fbird_db_link *) emalloc(sizeof(fbird_db_link));
-			RETVAL_RES(zend_register_resource(ib_link, le_link));
+			result_res = zend_register_resource(ib_link, le_link);
 		} else {
 			ib_link = (fbird_db_link *) malloc(sizeof(fbird_db_link));
 			if (!ib_link) {
-				RETURN_FALSE;
+				return NULL;
 			}
 
 			/* hash it up */
 			if (zend_register_persistent_resource(hash, sizeof(hash)-1, ib_link, le_plink) == NULL) {
 				free(ib_link);
-				RETURN_FALSE;
+				return NULL;
 			}
-			RETVAL_RES(zend_register_resource(ib_link, le_plink));
+			result_res = zend_register_resource(ib_link, le_plink);
 			++IBG(num_persistent);
 		}
 		ib_link->dialect = largs[DLECT] ? (unsigned short)largs[DLECT] : SQL_DIALECT_CURRENT;
@@ -422,16 +427,48 @@ void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 	} while (0);
 
 	/* add it to the hash */
-	new_index_ptr.ptr = (void *) Z_RES_P(return_value);
+	new_index_ptr.ptr = (void *) result_res;
 	new_index_ptr.type = le_index_ptr;
 	zend_hash_str_update_mem(&EG(regular_list), hash, sizeof(hash)-1,
 			(void *) &new_index_ptr, sizeof(zend_resource));
 	if (IBG(default_link)) {
 		zend_list_delete(IBG(default_link));
 	}
-	IBG(default_link) = Z_RES_P(return_value);
-	Z_TRY_ADDREF_P(return_value);
-	Z_TRY_ADDREF_P(return_value);
+	IBG(default_link) = result_res;
+	GC_ADDREF(result_res);  /* default_link ref */
+	GC_ADDREF(result_res);  /* caller ref */
+	return result_res;
+}
+
+void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
+{
+	char *args_db = NULL, *args_user = NULL, *args_pass = NULL;
+	char *args_cset = NULL, *args_role = NULL;
+	size_t len_db = 0, len_user = 0, len_pass = 0, len_cset = 0, len_role = 0;
+	zend_long buf = 0, dlect = 0, sync = 0, flags = 0;
+
+	RESET_ERRMSG;
+
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "|ssssllsll",
+			&args_db, &len_db, &args_user, &len_user, &args_pass, &len_pass,
+			&args_cset, &len_cset, &buf, &dlect, &args_role, &len_role,
+			&sync, &flags)) {
+		RETURN_FALSE;
+	}
+
+	zend_resource *res = _php_fbird_connect_link(
+		args_db,   len_db,
+		args_user, len_user,
+		args_pass, len_pass,
+		args_cset, len_cset,
+		buf, dlect,
+		args_role, len_role,
+		flags, persistent);
+	if (!res) {
+		RETURN_FALSE;
+	}
+	RETVAL_RES(res);
+	/* Z_TRY_ADDREF already done inside _php_fbird_connect_link */
 }
 
 PHP_FUNCTION(fbird_connect)

@@ -490,24 +490,19 @@ static int _php_fbird_arr_zval(zval *ar_zval, char *data, zend_ulong data_size,
 	return SUCCESS;
 }
 
-static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
+/**
+ * Core fetch logic extracted from _php_fbird_fetch_hash.
+ * Accepts an already-validated fbird_query* directly (no resource lookup).
+ * Sets return_value to array|false.
+ */
+void _php_fbird_fetch_hash_query(
+	fbird_query *ib_query,
+	int fetch_type,
+	zend_long flag,
+	zval *return_value)
 {
-	zval *res_arg, *result;
-	zend_long flag = 0;
+	zval *result;
 	zend_long i, array_cnt = 0;
-	fbird_query *ib_query;
-
-	RESET_ERRMSG;
-
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r|l", &res_arg, &flag)) {
-		RETURN_FALSE;
-	}
-
-	/* Validate first argument is a query resource with proper error messages */
-	FBIRD_VALIDATE_QUERY_EX(res_arg, 1, ib_query);
-	if (!ib_query) {
-		RETURN_FALSE;
-	}
 
 	/* Pure OO API: Check message buffer instead of XSQLDA */
 	if (ib_query->out_metadata == NULL || ib_query->out_msg_buffer == NULL ||
@@ -869,6 +864,27 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 	}
 
 	RETVAL_ARR(ht_ret);
+}
+
+static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
+{
+	zval *res_arg;
+	zend_long flag = 0;
+	fbird_query *ib_query;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r|l", &res_arg, &flag)) {
+		RETURN_FALSE;
+	}
+
+	/* Validate first argument is a query resource with proper error messages */
+	FBIRD_VALIDATE_QUERY_EX(res_arg, 1, ib_query);
+	if (!ib_query) {
+		RETURN_FALSE;
+	}
+
+	_php_fbird_fetch_hash_query(ib_query, fetch_type, flag, return_value);
 }
 
 PHP_FUNCTION(fbird_fetch_row)

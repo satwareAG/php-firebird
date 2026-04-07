@@ -24,7 +24,18 @@ void _php_fbird_alloc_ht_ind(fbird_query *ib_query);
 void _php_fbird_field_info(zval *return_value, fbird_query *ib_query, int is_outvar, int num);
 
 /* From fbird_result.c */
-/* (helpers if needed by others, currently mostly consumers) */
+/* Fetch type flags for _php_fbird_fetch_hash_query() — mirror FETCH_ROW/FETCH_ARRAY in fbird_result.c */
+#ifndef FBIRD_FETCH_ROW
+#  define FBIRD_FETCH_ROW   1
+#  define FBIRD_FETCH_ASSOC 2
+#endif
+
+/* Core fetch logic — callable from OOP layer without PHP string dispatch */
+void _php_fbird_fetch_hash_query(
+	fbird_query *ib_query,
+	int fetch_type,
+	zend_long flag,
+	zval *return_value);
 
 /* Helper for time conversion */
 time_t fbird_timegm_portable(struct tm *tm);

@@ -21,6 +21,8 @@
 #include "php_fbird_includes.h"
 #include "firebird_utils.h"
 #include "fbird_classes.h"
+#include "php_fbird_connection.h"
+#include "php_fbird_query_internal.h"
 
 /* -----------------------------------------------------------------------
  * B1: Sub-exception class entries
@@ -99,32 +101,25 @@ PHP_METHOD(FirebirdConnection, __construct)
 
 	fbird_connection_obj *intern = Z_FBIRD_CONNECTION_P(ZEND_THIS);
 
-	/* Use fbird_connect() to get a resource — it handles caching, persistent
-	 * connections, and owns the fbc_connection lifecycle. */
-	zval fn, retval;
-	zval args[7];
-	ZVAL_STRING(&fn, "fbird_connect");
-	ZVAL_STRINGL(&args[0], db,      db_len);
-	ZVAL_STRINGL(&args[1], user,    user_len);
-	ZVAL_STRINGL(&args[2], pass,    pass_len);
-	ZVAL_STRINGL(&args[3], charset, charset_len);
-	ZVAL_LONG(&args[4], buffers);
-	ZVAL_LONG(&args[5], dialect ? dialect : 3);
-	ZVAL_STRINGL(&args[6], role,    role_len);
-	call_user_function(NULL, NULL, &fn, &retval, 7, args);
-	zval_ptr_dtor(&fn);
-	for (int i = 0; i < 7; i++) zval_ptr_dtor(&args[i]);
-
-	if (Z_TYPE(retval) != IS_RESOURCE) {
-		zval_ptr_dtor(&retval);
+	RESET_ERRMSG;
+	zend_resource *res = _php_fbird_connect_link(
+		db,      db_len,
+		user,    user_len,
+		pass,    pass_len,
+		charset, charset_len,
+		buffers, dialect ? dialect : 3,
+		role,    role_len,
+		0 /* flags */, 0 /* non-persistent */);
+	if (!res) {
 		zend_throw_exception(fbird_connection_exception_ce,
 			"Failed to connect to Firebird database", 0);
 		return;
 	}
-
-	/* Store as weak reference — EG(regular_list) owns the resource lifetime */
-	intern->conn_res = Z_RES(retval);
-	zval_ptr_dtor(&retval); /* drops our zval ref but resource stays in regular_list */
+	/* Store as weak reference.
+	 * _php_fbird_connect_link returned res with 2 GC_ADDREFs: one for default_link,
+	 * one "caller ref". Drop the caller ref since we store only a weak pointer here. */
+	intern->conn_res = res;
+	GC_DELREF(res);  /* release the caller ref; default_link holds the resource alive */
 
 }
 
@@ -380,7 +375,8 @@ static void fbird_resultset_free(zend_object *obj)
 	zend_object_std_dtor(obj);
 }
 
-/* Helper: call a named PHP function with zval args, return result in retval */
+/* Helper: call a named PHP function with zval args, return result in retval.
+ * Still used by Statement::execute() and Connection::prepare(). */
 static int fbird_call_fn(const char *fname, zval *args, int argc, zval *retval)
 {
 	zval fn;
@@ -401,12 +397,9 @@ PHP_METHOD(FirebirdResultSet, fetch)
 	if (!intern->query_res) {
 		RETURN_FALSE;
 	}
-	zval res_zv, retval;
-	ZVAL_RES(&res_zv, intern->query_res);
-	GC_ADDREF(intern->query_res);
-	fbird_call_fn("fbird_fetch_assoc", &res_zv, 1, &retval);
-	zval_ptr_dtor(&res_zv);
-	ZVAL_COPY_VALUE(return_value, &retval);
+	fbird_query *ib_query = (fbird_query *) intern->query_res->ptr;
+	if (!ib_query) { RETURN_FALSE; }
+	_php_fbird_fetch_hash_query(ib_query, FBIRD_FETCH_ASSOC, 0, return_value);
 }
 
 /* Firebird\ResultSet::close(): void */

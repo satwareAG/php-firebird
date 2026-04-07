@@ -12,6 +12,7 @@
 #include "php_firebird.h"
 #include "php_fbird_includes.h"
 #include "firebird_utils.h"
+#include "fbird_classes.h"
 
 #define BLOB_CLOSE		1
 #define BLOB_CANCEL		2
@@ -565,15 +566,11 @@ PHP_FUNCTION(fbird_blob_add)
 
 	RESET_ERRMSG;
 
-	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "rz", &blob_arg, &string_arg)) {
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "zz", &blob_arg, &string_arg)) {
 		return;
 	}
 
-	ib_blob = (fbird_blob *)zend_fetch_resource_ex(blob_arg, NULL, le_blob);
-
-	if (!ib_blob) {
-		RETURN_FALSE;
-	}
+	FBIRD_VALIDATE_BLOB_EX(blob_arg, 1, ib_blob);
 
 	if (ib_blob->type != BLOB_INPUT) {
 		_php_fbird_module_error("BLOB is not open for input");
@@ -594,15 +591,11 @@ PHP_FUNCTION(fbird_blob_get)
 
 	RESET_ERRMSG;
 
-	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "rl", &blob_arg, &len_arg)) {
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "zl", &blob_arg, &len_arg)) {
 		return;
 	}
 
-	ib_blob = (fbird_blob *)zend_fetch_resource_ex(blob_arg, LE_BLOB, le_blob);
-
-	if (!ib_blob) {
-		RETURN_FALSE;
-	}
+	FBIRD_VALIDATE_BLOB_EX(blob_arg, 1, ib_blob);
 
 	if (ib_blob->type != BLOB_OUTPUT) {
 		_php_fbird_module_error("BLOB is not open for output");
@@ -621,15 +614,11 @@ static void _php_fbird_blob_end(INTERNAL_FUNCTION_PARAMETERS, int bl_end)
 
 	RESET_ERRMSG;
 
-	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "r", &blob_arg)) {
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "z", &blob_arg)) {
 		return;
 	}
 
-	ib_blob = (fbird_blob *)zend_fetch_resource_ex(blob_arg, NULL, le_blob);
-
-	if (!ib_blob) {
-		RETURN_FALSE;
-	}
+	FBIRD_VALIDATE_BLOB_EX(blob_arg, 1, ib_blob);
 
 	if (bl_end == BLOB_CLOSE) { /* return id here */
 
@@ -679,7 +668,14 @@ static void _php_fbird_blob_end(INTERNAL_FUNCTION_PARAMETERS, int bl_end)
 	 * Instead, close the resource so it becomes invalid for further use,
 	 * while letting normal zval lifetime management free it exactly once.
 	 */
-	zend_list_close(Z_RES_P(blob_arg));
+	/* Close the underlying resource so it becomes invalid for further use.
+	 * For objects, close via the resource pointer; for resources, use Z_RES_P. */
+	if (Z_TYPE_P(blob_arg) == IS_OBJECT) {
+		zend_resource *_close_res = fbird_blob_get_resource(Z_OBJ_P(blob_arg));
+		if (_close_res) { zend_list_close(_close_res); }
+	} else {
+		zend_list_close(Z_RES_P(blob_arg));
+	}
 }
 
 PHP_FUNCTION(fbird_blob_close)
@@ -710,12 +706,12 @@ PHP_FUNCTION(fbird_blob_info)
 	if (ZEND_NUM_ARGS() == 1) {
 		if (zend_parse_parameters(1, "z", &arg1) == FAILURE) RETURN_FALSE;
 	} else if (ZEND_NUM_ARGS() == 2) {
-		if (zend_parse_parameters(2, "rz", &link, &arg1) == FAILURE) RETURN_FALSE;
+		if (zend_parse_parameters(2, "zz", &link, &arg1) == FAILURE) RETURN_FALSE;
 	} else {
 		WRONG_PARAM_COUNT;
 	}
 
-	// Check if arg1 is a stream or blob resource
+	// Check if arg1 is a stream, blob resource, Firebird\Blob object, or blob ID string
 	if (arg1 && Z_TYPE_P(arg1) == IS_RESOURCE) {
 		stream = (php_stream *)zend_fetch_resource_ex(arg1, NULL, php_file_le_stream());
 		if (stream && stream->ops == &fbird_blob_stream_ops) {
@@ -729,6 +725,13 @@ PHP_FUNCTION(fbird_blob_info)
 			if (ext_blob) {
 				ib_blob = *ext_blob;
 			}
+		}
+	} else if (arg1 && Z_TYPE_P(arg1) == IS_OBJECT &&
+	           instanceof_function(Z_OBJCE_P(arg1), fbird_blob_ce)) {
+		zend_resource *_bres = fbird_blob_get_resource(Z_OBJ_P(arg1));
+		if (_bres && _bres->ptr) {
+			ext_blob = (fbird_blob *)_bres->ptr;
+			ib_blob = *ext_blob;
 		}
 	} else if (arg1 && Z_TYPE_P(arg1) == IS_STRING) {
 		blob_id = Z_STRVAL_P(arg1);
@@ -1140,7 +1143,7 @@ PHP_FUNCTION(fbird_blob_seek)
 
 	RESET_ERRMSG;
 
-	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "rl|l", &blob_arg, &offset, &whence)) {
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "zl|l", &blob_arg, &offset, &whence)) {
 		RETURN_FALSE;
 	}
 
@@ -1150,11 +1153,7 @@ PHP_FUNCTION(fbird_blob_seek)
 		RETURN_FALSE;
 	}
 
-	ib_blob = (fbird_blob *)zend_fetch_resource_ex(blob_arg, LE_BLOB, le_blob);
-
-	if (!ib_blob) {
-		RETURN_FALSE;
-	}
+	FBIRD_VALIDATE_BLOB_EX(blob_arg, 1, ib_blob);
 
 	/* Safety check: verify blob handle is valid */
 	if (!ib_blob->fbb_blob) {

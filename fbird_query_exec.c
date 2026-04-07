@@ -1385,12 +1385,14 @@ PHP_FUNCTION(fbird_execute)
 		WRONG_PARAM_COUNT;
 	}
 
-	/* Validate first argument is a query resource with proper error messages */
-	if (Z_TYPE(args[0]) != IS_RESOURCE) {
+	/* Validate first argument: query resource OR Firebird\ResultSet object */
+	if (Z_TYPE(args[0]) != IS_RESOURCE &&
+	    !(Z_TYPE(args[0]) == IS_OBJECT &&
+	      instanceof_function(Z_OBJCE(args[0]), fbird_resultset_ce))) {
 		/* Capture type name BEFORE efree(args) to avoid use-after-free */
 		const char *arg_type = zend_get_type_by_const(Z_TYPE(args[0]));
 		efree(args);
-		zend_argument_type_error(1, "must be a Firebird query resource, %s given", arg_type);
+		zend_argument_type_error(1, "must be a Firebird query resource or Firebird\\ResultSet, %s given", arg_type);
 		RETURN_THROWS();
 	}
 
@@ -1416,23 +1418,45 @@ PHP_FUNCTION(fbird_execute)
 		zval_ptr_dtor(&args[i]);
 	}
 	efree(args);
+
+	/* M3 Phase G: wrap le_query result in Firebird\ResultSet */
+	if (Z_TYPE_P(return_value) == IS_RESOURCE &&
+	    Z_RES_TYPE_P(return_value) == le_query) {
+		zend_resource *_res = Z_RES_P(return_value);
+		fbird_setup_resultset_object(return_value, _res);
+	}
 }
 
 void _php_fbird_free_query_impl(INTERNAL_FUNCTION_PARAMETERS, int as_result)
 {
 	zval *query_arg;
 	fbird_query *ib_query;
+	zend_resource *res;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r", &query_arg) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &query_arg) == FAILURE) {
 		return;
 	}
 
-	ib_query = (fbird_query *)zend_fetch_resource_ex(query_arg, "Firebird query", le_query);
+	/* M3 Phase G: Accept Firebird\ResultSet objects */
+	if (Z_TYPE_P(query_arg) == IS_OBJECT &&
+	    instanceof_function(Z_OBJCE_P(query_arg), fbird_resultset_ce)) {
+		res = fbird_resultset_get_resource(Z_OBJ_P(query_arg));
+		if (!res) {
+			RETURN_FALSE;
+		}
+	} else {
+		if (Z_TYPE_P(query_arg) != IS_RESOURCE) {
+			RETURN_FALSE;
+		}
+		res = Z_RES_P(query_arg);
+	}
+
+	ib_query = (fbird_query *)zend_fetch_resource(res, "Firebird query", le_query);
 	if (!ib_query) {
 		RETURN_FALSE;
 	}
 
-	zend_list_close(Z_RES_P(query_arg));
+	zend_list_close(res);
 	RETURN_TRUE;
 }
 

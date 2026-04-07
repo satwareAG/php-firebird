@@ -114,27 +114,27 @@ echo "\n=== All tests completed ===\n";
 ?>
 --EXPECTF--
 === Test 1: fbird_execute() with connection instead of query ===
-TypeError caught: fbird_execute(): Argument #1 ($query) must be a Firebird query/result resource, connection resource given
+TypeError caught: fbird_execute(): Argument #1 ($query) must be a Firebird query resource or Firebird\ResultSet, object given
 
 === Test 2: fbird_fetch_assoc() with connection instead of query ===
-TypeError caught: fbird_fetch_assoc(): Argument #1 ($result) must be a Firebird query/result resource, connection resource given
+TypeError caught: fbird_fetch_assoc(): Argument #1 ($result) must be a Firebird query/result resource, object given
 
 === Test 3: fbird_fetch_row() with transaction instead of query ===
-TypeError caught: fbird_fetch_row(): Argument #1 ($result) must be a Firebird query/result resource, transaction resource given
+TypeError caught: fbird_fetch_row(): Argument #1 ($result) must be a Firebird query/result resource, object given
 
 === Test 4: fbird_num_fields() with transaction instead of query ===
-TypeError caught: fbird_num_fields(): Argument #1 ($query_result) must be a Firebird query/result resource, transaction resource given
+TypeError caught: fbird_num_fields(): Argument #1 ($query_result) must be a Firebird query/result resource, object given
 
 === Test 5: fbird_field_info() with connection instead of query ===
-TypeError caught: fbird_field_info(): Argument #1 ($query_result) must be a Firebird query/result resource, connection resource given
+TypeError caught: fbird_field_info(): Argument #1 ($query_result) must be a Firebird query/result resource, object given
 
 === Test 6: fbird_num_params() with connection instead of query ===
-TypeError caught: fbird_num_params(): Argument #1 ($query) must be a Firebird query/result resource, connection resource given
+TypeError caught: fbird_num_params(): Argument #1 ($query) must be a Firebird query/result resource, object given
 
 === Test 7: fbird_param_info() with transaction instead of query ===
-TypeError caught: fbird_param_info(): Argument #1 ($query) must be a Firebird query/result resource, transaction resource given
+TypeError caught: fbird_param_info(): Argument #1 ($query) must be a Firebird query/result resource, object given
 
 === Test 8: fbird_name_result() with connection instead of query ===
-TypeError caught: fbird_name_result(): Argument #1 ($result) must be a Firebird query/result resource, connection resource given
+TypeError caught: fbird_name_result(): Argument #1 ($result) must be a Firebird query/result resource, object given
 
 === All tests completed ===

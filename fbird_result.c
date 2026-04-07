@@ -27,6 +27,7 @@
 #include "php_fbird_query_internal.h"
 #include "Zend/zend_smart_str.h"
 #include "firebird_utils.h"
+#include "fbird_classes.h"
 
 #define ISC_LONG_MIN    INT_MIN
 #define ISC_LONG_MAX    INT_MAX
@@ -874,7 +875,7 @@ static void _php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, int fetch_type)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r|l", &res_arg, &flag)) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z|l", &res_arg, &flag)) {
 		RETURN_FALSE;
 	}
 
@@ -915,7 +916,7 @@ PHP_FUNCTION(fbird_name_result)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "rs", &result_arg, &name_arg, &name_arg_len) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zs", &result_arg, &name_arg, &name_arg_len) == FAILURE) {
 		return;
 	}
 

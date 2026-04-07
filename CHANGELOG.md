@@ -21,6 +21,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `fbird_prepare()`: all three now accept both legacy `resource` args and new `Firebird\Connection`
   / `Firebird\Transaction` objects in their variadic loops. Added `_php_fbird_link_from_zval()`
   helper with `instanceof_function(fbird_connection_ce)` guard in `fbird_query_exec.c`.
+- **[M3 Phase F]** Dual-accept bridge for `Firebird\ResultSet` consuming functions:
+  `fbird_fetch_row()`, `fbird_fetch_assoc()`, `fbird_fetch_object()`, `fbird_name_result()`,
+  `fbird_field_info()`, `fbird_num_fields()`, `fbird_num_params()`, `fbird_param_info()`, and
+  `fbird_free_result()` all accept both legacy `le_query` resources and `Firebird\ResultSet` objects.
+  `FBIRD_VALIDATE_QUERY_EX` macro updated with `instanceof_function(fbird_resultset_ce)` guard.
+  Added `fbird_resultset_get_resource()` and `fbird_setup_resultset_object()` helpers in
+  `fbird_classes.c`. Included `fbird_classes.h` in `fbird_result.c` and `fbird_metadata.c`.
+- **[M3 Phase G]** `fbird_execute()` now returns a `Firebird\ResultSet` object for SELECT
+  queries (wraps the `le_query` result resource via `fbird_setup_resultset_object()`). Also
+  accepts `Firebird\ResultSet` as first argument (re-execute pattern). Updated
+  `_php_fbird_free_query_impl()` to accept `Firebird\ResultSet` objects. Updated stubs in
+  `stubs/firebird-stubs.php` and `phpstan/fbird.stub.php` with new return types
+  `\Firebird\ResultSet|int|bool` for `fbird_execute()` and `fbird_query()`.
 
 ### Breaking Changes (v11.0)
 - Return types of `fbird_connect()`, `fbird_pconnect()`, `fbird_create_database()`,

@@ -42,6 +42,18 @@ zend_resource *fbird_transaction_get_resource(zend_object *obj);
 void fbird_setup_transaction_object(zval *return_value, zend_resource *res);
 
 /**
+ * Extract the zend_resource* from a Firebird\ResultSet object.
+ * Returns NULL if obj is not a Firebird\ResultSet or has no resource.
+ */
+zend_resource *fbird_resultset_get_resource(zend_object *obj);
+
+/**
+ * Wrap a le_query zend_resource* in a Firebird\ResultSet object.
+ * Stores the resource as a weak reference (EG(regular_list) owns it).
+ */
+void fbird_setup_resultset_object(zval *return_value, zend_resource *res);
+
+/**
  * Extract the fbird_event* from a Firebird\Event object.
  * Returns NULL if obj is not a Firebird\Event.
  */

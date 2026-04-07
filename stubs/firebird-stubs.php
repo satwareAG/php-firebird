@@ -407,10 +407,10 @@ function fbird_last_insert_id(mixed $link_identifier, string $sequence): int|fal
  *
  * @param resource|string $link_or_query Connection/transaction or query string
  * @param mixed           ...$args       Additional arguments
- * @return resource|bool Result resource or bool for DML
+ * @return \Firebird\ResultSet|int|bool ResultSet object for SELECT, affected-row count for DML, false on error
  * @since 7.0.0
  */
-function fbird_query(mixed $link_or_query, mixed ...$args): mixed {}
+function fbird_query(mixed $link_or_query, mixed ...$args): \Firebird\ResultSet|int|bool {}
 
 /**
  * Prepare a SQL statement for later execution.
@@ -449,12 +449,12 @@ function fbird_prepare_ex(
 /**
  * Execute a prepared statement.
  *
- * @param resource $query     Prepared statement resource
+ * @param resource|\Firebird\ResultSet $query Prepared statement resource or ResultSet object
  * @param mixed    ...$bind_args Bind parameters
- * @return resource|bool Result resource or bool
+ * @return \Firebird\ResultSet|int|bool ResultSet object for SELECT, affected-row count for DML, false on error
  * @since 7.0.0
  */
-function fbird_execute(mixed $query, mixed ...$bind_args): mixed {}
+function fbird_execute(mixed $query, mixed ...$bind_args): \Firebird\ResultSet|int|bool {}
 
 /**
  * Execute a DML/DDL statement with parameters within an explicit transaction.

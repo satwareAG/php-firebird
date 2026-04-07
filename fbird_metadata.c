@@ -22,6 +22,7 @@
 #include "php_fbird_includes.h"
 #include "php_fbird_query_internal.h"
 #include "firebird_utils.h"
+#include "fbird_classes.h"
 
 #define ISC_LONG_MIN    INT_MIN
 #define ISC_LONG_MAX    INT_MAX
@@ -258,7 +259,7 @@ PHP_FUNCTION(fbird_field_info)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "rl", &result_arg, &field_arg) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zl", &result_arg, &field_arg) == FAILURE) {
 		return;
 	}
 
@@ -278,7 +279,7 @@ PHP_FUNCTION(fbird_num_params)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r", &result) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &result) == FAILURE) {
 		return;
 	}
 
@@ -303,7 +304,7 @@ PHP_FUNCTION(fbird_param_info)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "rl", &result_arg, &field_arg) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zl", &result_arg, &field_arg) == FAILURE) {
 		return;
 	}
 
@@ -323,7 +324,7 @@ PHP_FUNCTION(fbird_num_fields)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r", &result) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &result) == FAILURE) {
 		return;
 	}
 

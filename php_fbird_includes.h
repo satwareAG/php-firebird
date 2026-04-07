@@ -461,8 +461,42 @@ const char *_fbird_res_type_name(int type);
 	if (!var) { RETURN_FALSE; } \
 } while(0)
 
-/* Validate query/result resource (le_query) */
+/* Validate query/result resource (le_query).
+ * M3 Phase G: Also accepts Firebird\ResultSet objects (weak-ref to same resource). */
 #define FBIRD_VALIDATE_QUERY_EX(zv, argnum, var) do { \
+	/* M3 object path: Firebird\ResultSet accepted alongside resources */ \
+	if (Z_TYPE_P(zv) == IS_OBJECT && \
+		instanceof_function(Z_OBJCE_P(zv), fbird_resultset_ce)) { \
+		zend_resource *_qres = fbird_resultset_get_resource(Z_OBJ_P(zv)); \
+		if (!_qres) { RETURN_FALSE; } \
+		var = (fbird_query *)_qres->ptr; \
+		if (!var) { \
+			if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
+				zend_argument_type_error(argnum, \
+					"must be a valid (non-freed) Firebird query/result resource or Firebird\\ResultSet"); \
+				RETURN_THROWS(); \
+			} \
+			php_error_docref(NULL, E_WARNING, \
+				"Argument #%d must be a valid (non-freed) Firebird query/result resource or Firebird\\ResultSet", \
+				argnum); \
+			RETURN_FALSE; \
+		} \
+		break; \
+	} \
+	/* Must be IS_RESOURCE - anything else (object, array, etc.) is a type error */ \
+	if (Z_TYPE_P(zv) != IS_RESOURCE) { \
+		if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
+			zend_argument_type_error(argnum, \
+				"must be a Firebird query/result resource, %s given", \
+				zend_get_type_by_const(Z_TYPE_P(zv))); \
+			RETURN_THROWS(); \
+		} else { \
+			php_error_docref(NULL, E_WARNING, \
+				"Argument #%d must be a Firebird query/result resource, %s given", \
+				argnum, zend_get_type_by_const(Z_TYPE_P(zv))); \
+			RETURN_FALSE; \
+		} \
+	} \
 	int _res_type = Z_RES_TYPE_P(zv); \
 	if (_res_type != le_query) { \
 		if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \

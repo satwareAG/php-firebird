@@ -1,6 +1,6 @@
 # Next Steps - php-firebird
 
-**Last Updated**: 2026-04-07 (M3 Phase A-E implemented)
+**Last Updated**: 2026-04-07 (M3 Phase A-G implemented)
 
 ## Immediate (v10.6.x)
 
@@ -20,7 +20,7 @@ Tracked via GitHub issues #175-#179 (milestone: v11.0 - Modernization, due 2026-
   - [x] Phase C (`1b37219`): fbird_connect/pconnect/create_database return Firebird\Connection
   - [x] Phase D (`508f75e`): fbird_trans/trans_start return Firebird\Transaction
   - [x] Phase E (`351d75d`): Dual-accept variadic loops in fbird_trans/query/prepare
-  - [ ] Phase F: fbird_query/execute/fetch return Firebird\Result (le_result → object)
+  - [x] Phase F: fbird_query/execute/fetch return Firebird\ResultSet + dual-accept bridges (le_query → object)
   - [ ] Phase G: fbird_blob_* return Firebird\Blob (le_blob → object)
   - [ ] Phase H: fbird_event_* return Firebird\Event (le_event → object)
   - [ ] Phase I: fbird_service_* return Firebird\Service (le_service → object)

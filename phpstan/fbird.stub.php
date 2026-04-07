@@ -314,9 +314,9 @@ function fbird_last_insert_id(mixed $link_identifier, string $sequence): int|fal
 /**
  * @param resource|string $link_or_query
  * @param mixed ...$args
- * @return resource|bool
+ * @return \Firebird\ResultSet|int|bool
  */
-function fbird_query(mixed $link_or_query, mixed ...$args): mixed {}
+function fbird_query(mixed $link_or_query, mixed ...$args): \Firebird\ResultSet|int|bool {}
 
 /**
  * Prepare a SQL statement for later execution.
@@ -353,11 +353,11 @@ function fbird_prepare_ex(
 ): mixed {}
 
 /**
- * @param resource $query
+ * @param resource|\Firebird\ResultSet $query
  * @param mixed ...$bind_args
- * @return resource|bool
+ * @return \Firebird\ResultSet|int|bool
  */
-function fbird_execute(mixed $query, mixed ...$bind_args): mixed {}
+function fbird_execute(mixed $query, mixed ...$bind_args): \Firebird\ResultSet|int|bool {}
 
 /**
  * @param resource $trans_handle

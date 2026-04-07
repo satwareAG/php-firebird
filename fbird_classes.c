@@ -1224,6 +1224,35 @@ void fbird_setup_transaction_object(zval *return_value, zend_resource *res)
 }
 
 /* -----------------------------------------------------------------------
+ * fbird_resultset_get_resource() — extract zend_resource* from a
+ *   Firebird\ResultSet internal object. Returns NULL if no resource set.
+ * --------------------------------------------------------------------- */
+zend_resource *fbird_resultset_get_resource(zend_object *obj)
+{
+	fbird_resultset_obj *intern = fbird_resultset_from_obj(obj);
+	return intern ? intern->query_res : NULL;
+}
+
+/* -----------------------------------------------------------------------
+ * fbird_setup_resultset_object() — glue from procedural fbird_query() /
+ *                                   fbird_execute() to Firebird\ResultSet
+ *
+ * Called after registering the le_query resource to wrap it in a typed
+ * Firebird\ResultSet object. The resource stays in EG(regular_list) —
+ * we store only a weak reference (GC_ADDREF keeps it alive while object
+ * is alive; GC_DELREF releases when the object is destroyed).
+ * --------------------------------------------------------------------- */
+void fbird_setup_resultset_object(zval *return_value, zend_resource *res)
+{
+	zval_ptr_dtor(return_value);
+	object_init_ex(return_value, fbird_resultset_ce);
+	fbird_resultset_obj *intern = fbird_resultset_from_obj(Z_OBJ_P(return_value));
+	/* Add a reference so the resource stays alive while this object lives */
+	GC_ADDREF(res);
+	intern->query_res = res;
+}
+
+/* -----------------------------------------------------------------------
  * Registration entry point called from PHP_MINIT_FUNCTION(fbird)
  * --------------------------------------------------------------------- */
 void fbird_register_classes(void)

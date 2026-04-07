@@ -6,7 +6,7 @@ tags: [build-system, security, compiler, lto, v10.4]
 priority: 5
 ---
 
-> **Status: OPEN** - Milestone v10.4.x
+> **Status: RELEASED** - Shipped across v10.4.x (commit 99c7c0f), included in v10.6.2
 
 # Spec: v10.4.x Build Hardening
 
@@ -17,12 +17,12 @@ and elimination of unsafe internal patterns.
 
 ## Success Criteria
 
-- [ ] H4: config.m4 adds `-Wall -Wextra -D_FORTIFY_SOURCE=2 -fstack-protector-strong`
-- [ ] M1: C sources compile with explicit `-std=gnu17`
-- [ ] M8: Connection pointer passed via struct field instead of status vector abuse
-- [ ] L1: Release builds use `-flto=auto` for LTO optimization
-- [ ] Zero new compiler warnings after flag addition
-- [ ] All 274 tests pass with new flags
+- [x] H4: config.m4 adds `-Wall -Wextra -D_FORTIFY_SOURCE=2 -fstack-protector-strong`
+- [x] M1: C sources compile with explicit `-std=gnu17`
+- [x] M8: Connection pointer passed via struct field instead of status vector abuse
+- [x] L1: Release builds use `-flto=auto` for LTO optimization
+- [x] Zero new compiler warnings after flag addition
+- [x] All 274 tests pass with new flags
 
 ## Part 1: H4 - Compiler Hardening Flags
 

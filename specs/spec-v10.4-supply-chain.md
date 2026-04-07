@@ -6,7 +6,7 @@ tags: [supply-chain, sbom, signing, dependabot, v10.4]
 priority: 3
 ---
 
-> **Status: OPEN** - Milestone v10.4.0
+> **Status: RELEASED** - Shipped in v10.4.x, included in v10.6.2
 
 # Spec: v10.4.0 Supply Chain Hardening
 
@@ -17,11 +17,11 @@ requirements for distributed precompiled binaries.
 
 ## Success Criteria
 
-- [ ] H1: All release artifacts have GitHub SLSA provenance attestations
-- [ ] H2: CycloneDX SBOM generated for each precompiled bundle
-- [ ] H3: Dependabot auto-updates SHA-pinned GitHub Actions weekly
-- [ ] M4: Release script validates version stamps in stubs match VERSION file
-- [ ] Users can verify artifact authenticity via `gh attestation verify`
+- [x] H1: All release artifacts have GitHub SLSA provenance attestations
+- [x] H2: CycloneDX SBOM generated for each precompiled bundle
+- [x] H3: Dependabot auto-updates SHA-pinned GitHub Actions weekly
+- [x] M4: Release script validates version stamps in stubs match VERSION file
+- [x] Users can verify artifact authenticity via `gh attestation verify`
 
 ## Part 1: H1 - Artifact Signing
 

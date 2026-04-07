@@ -10,9 +10,9 @@
 #include <unistd.h>
 #endif
 
-/* Firebird 3.0+ required - compile-time check */
-#if !defined(FB_API_VER) || FB_API_VER < 30
-#error "Firebird 3.0 or later is required. Please install Firebird 3.0+ client libraries."
+/* Firebird 3.0+ required; FB_API_VER undefined means a missing or incompatible client library. */
+#ifndef FB_API_VER
+#error "FB_API_VER is not defined. Firebird 3.0+ client libraries are required."
 #endif
 
 /* Compatibility for older Firebird headers (pre-4.0) */

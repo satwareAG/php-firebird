@@ -21,7 +21,7 @@ This is a **breaking change** release.
 - [ ] M2: All 84 procedural arginfo declarations use typed return macros
 - [ ] M3: `fbird_connect()` returns `Firebird\Connection` object (not resource)
 - [ ] M12: OOP layer calls internal C functions directly (no `call_user_function`)
-- [ ] L3: All dead `FB_API_VER < 30` code paths removed
+- [x] L3: All dead `FB_API_VER < 30` code paths removed
 - [ ] L2: `gds32_ms` fallback removed from `config.w32`
 - [ ] Migration guide for v10.x to v11.0
 - [ ] All stubs updated for new return types

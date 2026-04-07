@@ -8,14 +8,7 @@
 extern "C" {
 #endif
 
-/* Firebird 3.0+ OO API Required
- *
- * This extension requires Firebird 3.0 or later. The modern OO API introduced
- * in Firebird 3.0 (FB_API_VER >= 30) is mandatory.
- */
-#if FB_API_VER < 30
-#error "This extension requires Firebird 3.0 or later (FB_API_VER >= 30). Legacy API is not supported."
-#endif
+/* Firebird 3.0+ OO API required; FB_API_VER >= 30 enforced at configure time via config.m4. */
 
 #include <ibase.h>
 #include "php_fbird_includes.h"

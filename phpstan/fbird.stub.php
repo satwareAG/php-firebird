@@ -239,7 +239,7 @@ const FBIRD_SVC_GET_USERS = 68;
  * @param int $dialect
  * @param string|null $role
  * @param int $flags
- * @return resource|false
+ * @return \Firebird\Connection|false
  */
 function fbird_connect(
     string $database,
@@ -250,7 +250,7 @@ function fbird_connect(
     int $dialect = 3,
     ?string $role = null,
     int $flags = 0
-): mixed {}
+): \Firebird\Connection|false {}
 
 /**
  * @param string $database
@@ -260,7 +260,7 @@ function fbird_connect(
  * @param int $buffers
  * @param int $dialect
  * @param string|null $role
- * @return resource|false
+ * @return \Firebird\Connection|false
  */
 function fbird_pconnect(
     string $database,
@@ -270,16 +270,16 @@ function fbird_pconnect(
     int $buffers = 0,
     int $dialect = 3,
     ?string $role = null
-): mixed {}
+): \Firebird\Connection|false {}
 
 /**
- * @param resource|null $connection
+ * @param \Firebird\Connection|null $connection
  * @return bool
  */
 function fbird_close(mixed $connection = null): bool {}
 
 /**
- * @param resource|null $connection
+ * @param \Firebird\Connection|null $connection
  * @return bool
  */
 function fbird_drop_db(mixed $connection = null): bool {}
@@ -290,7 +290,7 @@ function fbird_drop_db(mixed $connection = null): bool {}
  * @param string|null $password
  * @param string|null $charset
  * @param int|null $page_size
- * @return resource|false
+ * @return \Firebird\Connection|false
  */
 function fbird_create_database(
     string $database,
@@ -298,7 +298,7 @@ function fbird_create_database(
     ?string $password = null,
     ?string $charset = null,
     ?int $page_size = null
-): mixed {}
+): \Firebird\Connection|false {}
 
 /**
  * @param resource $link_identifier Connection resource

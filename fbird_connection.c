@@ -467,8 +467,11 @@ void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 	if (!res) {
 		RETURN_FALSE;
 	}
-	RETVAL_RES(res);
-	/* Z_TRY_ADDREF already done inside _php_fbird_connect_link */
+	/* Phase C: return Firebird\Connection object instead of raw resource.
+	 * fbird_setup_connection_object stores a weak ref; default_link owns the resource.
+	 * Release the "caller ref" that _php_fbird_connect_link added. */
+	fbird_setup_connection_object(return_value, res);
+	GC_DELREF(res);
 }
 
 PHP_FUNCTION(fbird_connect)
@@ -764,7 +767,18 @@ PHP_FUNCTION(fbird_create_database)
 	ib_link->event_head = NULL;
 	ib_link->fbc_connection = create_result;
 
-	RETVAL_RES(zend_register_resource(ib_link, le_link));
+	/* Phase C: register resource and wrap in Firebird\Connection object.
+	 * resource_list holds ref=1; set as default_link adds ref=2 (weak ref in object). */
+	{
+		zend_resource *cres = zend_register_resource(ib_link, le_link);
+		if (IBG(default_link)) {
+			zend_list_delete(IBG(default_link));
+		}
+		IBG(default_link) = cres;
+		GC_ADDREF(cres); /* default_link ref */
+		fbird_setup_connection_object(return_value, cres);
+		/* no GC_DELREF: no extra caller ref was taken */
+	}
 }
 /* }}} */
 

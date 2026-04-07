@@ -21,4 +21,4 @@ fbird_close($conn);
 ?>
 --EXPECTF--
 Connecting with fbird_connect()...
-Current behavior: Result is a resource
+Proposed behavior: Result is an object (Firebird\Connection)

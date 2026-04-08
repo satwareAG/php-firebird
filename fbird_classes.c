@@ -1211,18 +1211,6 @@ fbird_batch *fbird_batch_get_ptr(zend_object *obj)
 	fbird_batch_obj *intern = fbird_batch_from_obj(obj);
 	return intern ? intern->batch : NULL;
 }
-#else
-/* Stubs for builds without FB4+ batch API */
-void fbird_setup_batch_object(zval *rv, fbird_batch *batch)
-{
-	(void)rv; (void)batch;
-}
-
-fbird_batch *fbird_batch_get_ptr(zend_object *obj)
-{
-	(void)obj;
-	return NULL;
-}
 #endif /* FB_API_VER >= 40 */
 
 /* Define connection methods table here — after all methods are declared */

@@ -744,9 +744,9 @@ function fbird_wait_event(mixed $link_or_event, string ...$events): string|false
  * @param resource|callable $link_or_callback
  * @param callable|string $callback_or_event
  * @param string ...$events
- * @return resource|false
+ * @return \Firebird\Event|false
  */
-function fbird_set_event_handler(mixed $link_or_callback, mixed $callback_or_event, string ...$events): mixed {}
+function fbird_set_event_handler(mixed $link_or_callback, mixed $callback_or_event, string ...$events): \Firebird\Event|false {}
 
 /**
  * Poll for event occurrences (non-blocking).

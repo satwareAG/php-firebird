@@ -11,6 +11,7 @@
 
 #include "php_firebird.h"
 #include "php_fbird_includes.h"
+#include "fbird_classes.h"
 #include "firebird_utils.h"
 
 #ifndef PHP_WIN32
@@ -19,7 +20,7 @@
 #include <errno.h>
 #endif
 
-static int le_event;
+int le_event;
 
 /**
  * ============================================================================
@@ -338,8 +339,9 @@ PHP_FUNCTION(fbird_set_event_handler)
 	event->event_next = ib_link->event_head;
 	ib_link->event_head = event;
 
-	RETVAL_RES(zend_register_resource(event, le_event));
-	Z_TRY_ADDREF_P(return_value);
+	/* M3 Phase H3: return Firebird\Event object — object owns fbird_event* directly.
+	 * fbird_event_free_obj() will call _php_fbird_free_event() + efree() on GC. */
+	fbird_setup_event_object(return_value, event);
 }
 
 #ifndef PHP_WIN32
@@ -368,14 +370,12 @@ PHP_FUNCTION(fbird_poll_event)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r|l", &event_arg, &timeout_ms) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z|l", &event_arg, &timeout_ms) == FAILURE) {
 		RETURN_FALSE;
 	}
 
-	event = (fbird_event *)zend_fetch_resource_ex(event_arg, "Firebird event", le_event);
-	if (!event) {
-		RETURN_FALSE;
-	}
+	/* M3 Phase H: accept Firebird\Event objects alongside le_event resources */
+	FBIRD_VALIDATE_EVENT_EX(event_arg, 1, event);
 
 	/* Check if event handler is still valid */
 	if (event->state == DEAD) {
@@ -553,17 +553,20 @@ PHP_FUNCTION(fbird_free_event_handler)
 
 	RESET_ERRMSG;
 
-	if (SUCCESS == zend_parse_parameters(ZEND_NUM_ARGS(), "r", &event_arg)) {
+	if (SUCCESS == zend_parse_parameters(ZEND_NUM_ARGS(), "z", &event_arg)) {
 		fbird_event *event;
 
-		event = (fbird_event *)zend_fetch_resource_ex(event_arg, "Firebird event", le_event);
-		if (!event) {
-			RETURN_FALSE;
-		}
+		/* M3 Phase H: accept Firebird\Event objects alongside le_event resources */
+		FBIRD_VALIDATE_EVENT_EX(event_arg, 1, event);
 
 		event->state = DEAD;
 
-		zend_list_delete(Z_RES_P(event_arg));
+		/* Resource path: trigger destructor via zend_list_delete.
+		 * Object path: state = DEAD is sufficient; GC handles cleanup when
+		 * the Firebird\Event object goes out of scope. */
+		if (Z_TYPE_P(event_arg) == IS_RESOURCE) {
+			zend_list_delete(Z_RES_P(event_arg));
+		}
 		RETURN_TRUE;
 	} else {
 		RETURN_FALSE;

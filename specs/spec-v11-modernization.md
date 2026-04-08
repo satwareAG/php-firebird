@@ -26,9 +26,9 @@ This is a **breaking change** release.
   - [x] Phase E: Dual-accept variadic loops (fbird_trans/query/prepare)
   - [x] Phase F: `fbird_query/execute` return `Firebird\ResultSet`; dual-accept fetch functions
   - [x] Phase G: `fbird_blob_create/open/*` return `Firebird\Blob`; dual-accept blob functions
-  - [ ] Phase H: `fbird_set_event_handler/wait_event` return `Firebird\Event`
-  - [ ] Phase I: `fbird_service_attach` returns `Firebird\Service`
-  - [ ] Dual-accept sweep: fbird_commit/rollback/close/affected_rows accept objects
+  - [x] Phase H: `fbird_set_event_handler/wait_event` return `Firebird\Event`
+  - [x] Phase I: `fbird_service_attach` returns `Firebird\Service`
+  - [x] Dual-accept sweep: fbird_commit/rollback/close/affected_rows accept objects
 - [x] M12: OOP layer uses direct C calls (no `call_user_function`) (CLOSED #177)
 - [x] L3: All dead `FB_API_VER < 30` code paths removed (CLOSED #178)
 - [x] L2: `gds32_ms` fallback removed from `config.w32` (CLOSED #179)

@@ -48,11 +48,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `fbird_blob_open()`, and `fbird_blob_open_seekable()` now return `Firebird\Blob` objects
   (via `fbird_setup_blob_object()`) instead of raw `resource(fbird blob)` handles. Underlying
   `le_blob` resources kept alive internally; weak-ref stored in object's `blob_res` field.
+  Stubs updated: `stubs/firebird-stubs.php` and `phpstan/fbird.stub.php` return types changed
+  from `mixed` to `\Firebird\Blob|false`. (`dc2dde7`, `7761c40`)
 
 ### Breaking Changes (v11.0)
 - Return types of `fbird_connect()`, `fbird_pconnect()`, `fbird_create_database()`,
-  `fbird_trans()`, and `fbird_trans_start()` changed from `resource` to `Firebird\*` objects.
-  Code using `is_resource($conn)` checks will need updating to `$conn instanceof Firebird\Connection`.
+  `fbird_trans()`, `fbird_trans_start()`, `fbird_blob_create()`, `fbird_blob_open()`,
+  `fbird_blob_create_seekable()`, and `fbird_blob_open_seekable()` changed from `resource`
+  to `Firebird\*` objects. Code using `is_resource()` checks will need updating to
+  `$x instanceof Firebird\Connection` / `Firebird\Blob` etc.
 
 ## [10.6.2] - 2026-04-03
 

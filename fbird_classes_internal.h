@@ -74,6 +74,7 @@ static inline fbird_blob_obj *fbird_blob_from_obj(zend_object *obj)
 
 /* Internal service object structure */
 typedef struct {
+	zend_resource *svc_res;      /* weak ref to le_service when wrapped from procedural API */
 	fbsvc_service_t *fbsvc;   /* fbsvc_service pointer from fbsvc_attach() */
 	zend_object  std;
 } fbird_service_obj;

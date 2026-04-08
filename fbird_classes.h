@@ -18,6 +18,7 @@ extern zend_class_entry *fbird_batch_ce;
 
 void fbird_register_classes(void);
 void fbird_setup_connection_object(zval *return_value, zend_resource *res);
+void fbird_setup_service_object(zval *return_value, zend_resource *res);
 void fbird_setup_event_object(zval *rv, fbird_event *ev);
 #if FB_API_VER >= 40
 void fbird_setup_batch_object(zval *rv, fbird_batch *batch);
@@ -28,6 +29,12 @@ void fbird_setup_batch_object(zval *rv, fbird_batch *batch);
  * Returns NULL if obj is not a Firebird\Connection or has no resource.
  */
 zend_resource *fbird_connection_get_resource(zend_object *obj);
+
+/**
+ * Extract the zend_resource* from a Firebird\Service object.
+ * Returns NULL if obj is not a Firebird\Service or has no resource.
+ */
+zend_resource *fbird_service_get_resource(zend_object *obj);
 
 /**
  * Extract the zend_resource* from a Firebird\Transaction object.

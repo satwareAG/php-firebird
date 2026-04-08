@@ -6,7 +6,7 @@ tags: [modernization, arginfo, resource-to-object, breaking-change, v11]
 priority: 11
 ---
 
-> **Status: OPEN** - Milestone v11.0
+> **Status: IN PROGRESS** - Milestone v11.0 | M3 Phase G complete (2026-04-08)
 
 # Spec: v11.0 Modernization
 
@@ -18,13 +18,22 @@ This is a **breaking change** release.
 
 ## Success Criteria
 
-- [ ] M2: All 84 procedural arginfo declarations use typed return macros
-- [ ] M3: `fbird_connect()` returns `Firebird\Connection` object (not resource)
-- [ ] M12: OOP layer calls internal C functions directly (no `call_user_function`)
-- [x] L3: All dead `FB_API_VER < 30` code paths removed
-- [x] L2: `gds32_ms` fallback removed from `config.w32`
+- [x] M2: All 84 procedural arginfo declarations use typed return macros (CLOSED #175)
+- [ ] M3: Resource-to-object migration - procedural API returns `Firebird\*` objects (IN PROGRESS #176)
+  - [x] Phase A+B: Class skeletons (Connection, Transaction, Event, Batch)
+  - [x] Phase C: `fbird_connect/pconnect/create_database` return `Firebird\Connection`
+  - [x] Phase D: `fbird_trans/trans_start` return `Firebird\Transaction`
+  - [x] Phase E: Dual-accept variadic loops (fbird_trans/query/prepare)
+  - [x] Phase F: `fbird_query/execute` return `Firebird\ResultSet`; dual-accept fetch functions
+  - [x] Phase G: `fbird_blob_create/open/*` return `Firebird\Blob`; dual-accept blob functions
+  - [ ] Phase H: `fbird_set_event_handler/wait_event` return `Firebird\Event`
+  - [ ] Phase I: `fbird_service_attach` returns `Firebird\Service`
+  - [ ] Dual-accept sweep: fbird_commit/rollback/close/affected_rows accept objects
+- [x] M12: OOP layer uses direct C calls (no `call_user_function`) (CLOSED #177)
+- [x] L3: All dead `FB_API_VER < 30` code paths removed (CLOSED #178)
+- [x] L2: `gds32_ms` fallback removed from `config.w32` (CLOSED #179)
 - [ ] Migration guide for v10.x to v11.0
-- [ ] All stubs updated for new return types
+- [x] All stubs updated for new return types (Connection, Transaction, ResultSet, Blob done)
 
 ## Part 1: M2 - Arginfo Typed Returns
 
@@ -54,9 +63,11 @@ since PHP 8.1.
 
 ### Breaking Changes
 
-- `fbird_connect()` returns `Firebird\Connection` instead of `resource`
-- `fbird_trans()` returns `Firebird\Transaction` instead of `resource`
-- `is_resource()` checks will break - document `instanceof` alternative
+- `fbird_connect/pconnect/create_database` return `Firebird\Connection` instead of `resource`
+- `fbird_trans/trans_start` return `Firebird\Transaction` instead of `resource`
+- `fbird_query/execute` return `Firebird\ResultSet` for SELECT queries instead of `resource`
+- `fbird_blob_create/open/create_seekable/open_seekable` return `Firebird\Blob` instead of `resource`
+- `is_resource()` checks will break - use `instanceof Firebird\Connection` etc. instead
 
 ### Affected Files
 

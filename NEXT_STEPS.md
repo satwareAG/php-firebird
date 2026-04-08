@@ -1,6 +1,6 @@
 # Next Steps - php-firebird
 
-**Last Updated**: 2026-04-08 (M3 Phase H + Dual-accept sweep confirmed complete)
+**Last Updated**: 2026-04-08 EOD (M3 Phase I complete + CI fix pushed)
 
 ## Immediate (v10.6.x)
 
@@ -44,6 +44,31 @@ All previously open specs confirmed RELEASED and closed (2026-04-07 audit):
 
 - [ ] macOS x86_64 builds disabled (macos-13 runner deprecated) - evaluate macos-15 x86_64 when available
 - [ ] Coverage threshold still at 54% - target 65%+ with v11.0 test improvements
+
+## 2026-04-08 EOD - M3 Phase I + CI Fix
+
+**Branch**: `feat/20260408_morning_start` - ready for PR review.
+
+### Today's commits (HEAD → satware-main delta)
+
+- `83b4de6` fix(ci): remove dead fbird_batch stubs from #else block - FB3.0 build fix
+- `69edc28` docs: update README version badge and compatibility section to 10.6.2
+- `0d0de46` docs: update CHANGELOG for M3 Phase H + Phase I service migration
+- `8ec1e2a` fix(m3): fix remaining test failures for resource-to-object migration (#176)
+
+### CI status at EOD
+
+- Memory Sanitizers: PASS
+- CI: FAILING (triggered re-run with `83b4de6` fix) - check tomorrow AM
+- Linux Code Coverage: FAILING (likely same root cause - check after CI fix lands)
+- Root cause: `fbird_classes.c` `#else` stubs used `fbird_batch *` (undefined in FB3.0 headers)
+
+### Tomorrow morning
+
+1. Check CI status for `feat/20260408_morning_start` - expect green after `83b4de6`
+2. If CI green: open PR to merge into `satware-main`
+3. Next M3 phase: close issue #176 once PR merged
+4. Remaining active branches: `feat/175-typed-arginfo`, `feat/v11-dead-code-removal`, `wip/spec-implementation-security-hardening`
 
 ## 2026-04-07 - v10.6.2 Published
 

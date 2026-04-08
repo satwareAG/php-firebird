@@ -50,13 +50,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `le_blob` resources kept alive internally; weak-ref stored in object's `blob_res` field.
   Stubs updated: `stubs/firebird-stubs.php` and `phpstan/fbird.stub.php` return types changed
   from `mixed` to `\Firebird\Blob|false`. (`dc2dde7`, `7761c40`)
+- **[M3 Phase H]** `fbird_query()`, `fbird_execute()`, `fbird_prepare()`, and all result-
+  consuming functions completed the dual-accept sweep: all procedural functions throughout
+  the codebase now uniformly accept both legacy resources and the corresponding
+  `Firebird\*` objects via the established bridge helpers. No more raw `le_*` resource
+  format specifiers remain in any user-facing function parameter parsing.
+- **[M3 Phase I - Service API]** `fbird_service_attach()` now returns a `Firebird\Service`
+  object instead of a raw `resource(Firebird service)` handle. All service-consuming
+  procedural functions (`fbird_backup()`, `fbird_restore()`, `fbird_db_info()`,
+  `fbird_server_info()`, `fbird_add_user()`, `fbird_modify_user()`, `fbird_delete_user()`,
+  `fbird_maintenance()`, `fbird_service_detach()`) accept both legacy `resource` and
+  `Firebird\Service` objects via dual-accept bridge helpers
+  `_php_fbird_service_res_from_zval()` / `_php_fbird_service_from_zval()` in
+  `fbird_service.c`. Bridge infrastructure (`fbird_setup_service_object()`,
+  `fbird_service_get_resource()`, `svc_res` weak-ref field) added to `fbird_classes.c`,
+  `fbird_classes.h`, and `fbird_classes_internal.h`. Stubs updated in
+  `stubs/firebird-stubs.php` and `phpstan/fbird.stub.php`: `fbird_service_attach()` return
+  type changed from `mixed` to `\Firebird\Service|false`. All 14 service PHPTs pass; stubs
+  sync clean. **Phase I completes the M3 resource-to-object migration sweep.**
 
 ### Breaking Changes (v11.0)
 - Return types of `fbird_connect()`, `fbird_pconnect()`, `fbird_create_database()`,
   `fbird_trans()`, `fbird_trans_start()`, `fbird_blob_create()`, `fbird_blob_open()`,
-  `fbird_blob_create_seekable()`, and `fbird_blob_open_seekable()` changed from `resource`
-  to `Firebird\*` objects. Code using `is_resource()` checks will need updating to
-  `$x instanceof Firebird\Connection` / `Firebird\Blob` etc.
+  `fbird_blob_create_seekable()`, `fbird_blob_open_seekable()`, and
+  `fbird_service_attach()` changed from `resource` to `Firebird\*` objects. Code using
+  `is_resource()` checks will need updating to `$x instanceof Firebird\Connection` /
+  `Firebird\Blob` / `Firebird\Service` etc.
 
 ## [10.6.2] - 2026-04-03
 

@@ -5,7 +5,6 @@ firebird
 --SKIPIF--
 <?php
 include("skipif.inc");
-require("firebird.inc");
 $conn = fbird_connect($test_base, $user, $password);
 if (!$conn) die("skip: cannot connect to Firebird");
 $ver = fbird_server_info($conn, IBASE_SVC_SERVER_VERSION);

@@ -912,9 +912,16 @@ PHP_FUNCTION(fbird_blob_import)
 
 	RESET_ERRMSG;
 
-	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "r|r",
-			(ZEND_NUM_ARGS()-1) ? &link : &file, &file)) {
-		RETURN_FALSE;
+	/* M3: Accept Firebird\Connection object or legacy resource as first arg.
+	 * File (PHP stream) must still be a resource. */
+	if (ZEND_NUM_ARGS() == 1) {
+		if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "r", &file)) {
+			RETURN_FALSE;
+		}
+	} else {
+		if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(), "zr", &link, &file)) {
+			RETURN_FALSE;
+		}
 	}
 
 	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);

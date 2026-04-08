@@ -51,19 +51,19 @@ var_dump((int)$row[0] === 3);
 // Test 4: fbird_trans with ISOLATION LEVEL READ COMMITTED
 echo "Test 4: trans with READ COMMITTED isolation\n";
 $tr3 = fbird_trans(FBIRD_COMMITTED | FBIRD_REC_VERSION | FBIRD_WRITE, $dbh);
-var_dump($tr3 !== false && is_resource($tr3));
+var_dump($tr3 !== false);
 fbird_rollback($tr3);
 
 // Test 5: fbird_trans with SNAPSHOT (CONCURRENCY) isolation
 echo "Test 5: trans with SNAPSHOT isolation\n";
 $tr4 = fbird_trans(FBIRD_CONCURRENCY | FBIRD_WRITE, $dbh);
-var_dump($tr4 !== false && is_resource($tr4));
+var_dump($tr4 !== false);
 fbird_rollback($tr4);
 
 // Test 6: fbird_trans with READ ONLY
 echo "Test 6: trans with READ ONLY\n";
 $tr5 = fbird_trans(FBIRD_READ | FBIRD_CONCURRENCY, $dbh);
-var_dump($tr5 !== false && is_resource($tr5));
+var_dump($tr5 !== false);
 $q = fbird_query($tr5, 'SELECT COUNT(*) FROM TRANS_COV');
 $row = fbird_fetch_row($q);
 fbird_free_result($q);
@@ -73,7 +73,7 @@ fbird_rollback($tr5);
 // Test 7: fbird_trans with WAIT and WRITE
 echo "Test 7: trans with WAIT\n";
 $tr6 = fbird_trans(FBIRD_WAIT | FBIRD_WRITE | FBIRD_CONCURRENCY, $dbh);
-var_dump($tr6 !== false && is_resource($tr6));
+var_dump($tr6 !== false);
 fbird_rollback($tr6);
 
 // Test 8: Concurrent RC transactions

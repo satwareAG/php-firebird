@@ -74,13 +74,9 @@ var_dump(is_array($info2));
 
 fbird_close($db);
 
-// Test with closed connection (should fail with TypeError in PHP 8+)
-try {
-    $info3 = fbird_connection_info($db);
-    var_dump($info3);
-} catch (TypeError $e) {
-    echo "TypeError caught (expected)\n";
-}
+// Test with closed connection (should return false now that M3 accepts objects)
+$info3 = fbird_connection_info($db);
+var_dump($info3);
 
 echo "Done\n";
 ?>
@@ -93,5 +89,5 @@ ods_version > 0: YES
 sql_dialect valid: YES
 attachment_id > 0: YES
 bool(true)
-TypeError caught (expected)
+bool(false)
 Done

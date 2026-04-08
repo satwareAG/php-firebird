@@ -59,7 +59,9 @@ foreach ($sizes as $size) {
         continue;
     }
 
-    echo "  - Blob created (type: " . get_resource_type($blob) . ")\n";
+    // M3: fbird_blob_create() returns Firebird\Blob object (or legacy resource)
+    $blobType = is_resource($blob) ? get_resource_type($blob) : (is_object($blob) ? get_class($blob) : gettype($blob));
+    echo "  - Blob created (type: " . $blobType . ")\n";
 
     // Write in chunks (same pattern as doctrine-firebird-driver)
     $chunkSize = 8192;
@@ -140,7 +142,7 @@ Test: BLOB creation from PHP stream with chunked writes
 
 Testing with 100 bytes:
   - Stream created
-  - Blob created (type: Firebird blob)
+  - Blob created (type: Firebird\Blob)
   - Written 100 bytes in 1 chunks
   - Blob closed, ID: %s
   - SUCCESS: Data inserted and committed
@@ -148,7 +150,7 @@ Testing with 100 bytes:
 
 Testing with 8192 bytes:
   - Stream created
-  - Blob created (type: Firebird blob)
+  - Blob created (type: Firebird\Blob)
   - Written 8192 bytes in 1 chunks
   - Blob closed, ID: %s
   - SUCCESS: Data inserted and committed
@@ -156,7 +158,7 @@ Testing with 8192 bytes:
 
 Testing with 32768 bytes:
   - Stream created
-  - Blob created (type: Firebird blob)
+  - Blob created (type: Firebird\Blob)
   - Written 32768 bytes in 4 chunks
   - Blob closed, ID: %s
   - SUCCESS: Data inserted and committed
@@ -164,7 +166,7 @@ Testing with 32768 bytes:
 
 Testing with 65536 bytes:
   - Stream created
-  - Blob created (type: Firebird blob)
+  - Blob created (type: Firebird\Blob)
   - Written 65536 bytes in 8 chunks
   - Blob closed, ID: %s
   - SUCCESS: Data inserted and committed

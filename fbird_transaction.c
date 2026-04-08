@@ -1034,10 +1034,25 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 				   Z_RES_P(arg)->type == le_trans) {
 			trans = (fbird_transaction *)zend_fetch_resource_ex(arg, LE_TRANS, le_trans);
 			res_id = Z_RES_P(arg)->handle;
+		} else if (Z_TYPE_P(arg) == IS_OBJECT &&
+				instanceof_function(Z_OBJCE_P(arg), fbird_connection_ce)) {
+			/* M3: Firebird\Connection object — get underlying resource then default trans */
+			zend_resource *cres = fbird_connection_get_resource(Z_OBJ_P(arg));
+			if (!cres || !cres->ptr) {
+				_php_fbird_module_error("Firebird\\Connection object has no valid resource");
+				RETURN_FALSE;
+			}
+			ib_link = (fbird_db_link *)cres->ptr;
+			if (ib_link->tr_list == NULL || ib_link->tr_list->trans == NULL) {
+				_php_fbird_module_error("Firebird\\Connection object has no default transaction");
+				RETURN_FALSE;
+			}
+			trans = ib_link->tr_list->trans;
+			arg = NULL; /* prevent Z_RES_P(arg) usage below */
 		} else {
 			ib_link = (fbird_db_link *)zend_fetch_resource2_ex(arg, LE_LINK, le_link, le_plink);
 
-			if (ib_link->tr_list == NULL || ib_link->tr_list->trans == NULL) {
+			if (!ib_link || ib_link->tr_list == NULL || ib_link->tr_list->trans == NULL) {
 				/* this link doesn't have a default transaction */
 				_php_fbird_module_error("Link has no default transaction");
 				RETURN_FALSE;

@@ -304,6 +304,9 @@ static const zend_function_entry fbird_transaction_methods[] = {
 	PHP_FE_END
 };
 
+/* Forward declaration — fbird_call_fn is defined after B4 classes */
+static int fbird_call_fn(const char *fname, zval *args, int argc, zval *retval);
+
 /* Firebird\Connection::beginTransaction(): Firebird\Transaction */
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_connection_beginTransaction, 0, 0, 0)
 ZEND_END_ARG_INFO()
@@ -316,25 +319,19 @@ PHP_METHOD(FirebirdConnection, beginTransaction)
 		zend_throw_exception(fbird_connection_exception_ce, "Not connected", 0);
 		RETURN_THROWS();
 	}
-	fbird_db_link *link = (fbird_db_link *)intern->conn_res->ptr;
-	if (!link || !link->fbc_connection || !fbc_is_connected(link->fbc_connection)) {
-		zend_throw_exception(fbird_connection_exception_ce, "Not connected", 0);
-		RETURN_THROWS();
-	}
 
-	ISC_STATUS sv[20];
-	void *trans = fbt_start(IBG(master_instance),
-		fbc_get_attachment(link->fbc_connection),
-		0, NULL, sv);
-	if (!trans) {
-		_php_fbird_error();
+	/* Call fbird_trans($conn_res) so the returned Transaction has trans_res set.
+	 * This makes Connection::prepare() and other procedural bridge functions work. */
+	zval conn_zv;
+	ZVAL_RES(&conn_zv, intern->conn_res);
+	GC_ADDREF(intern->conn_res);
+	fbird_call_fn("fbird_trans", &conn_zv, 1, return_value);
+	zval_ptr_dtor(&conn_zv);
+
+	if (Z_TYPE_P(return_value) != IS_OBJECT) {
 		zend_throw_exception(fbird_connection_exception_ce, "Failed to start transaction", 0);
 		RETURN_THROWS();
 	}
-
-	object_init_ex(return_value, fbird_transaction_ce);
-	fbird_transaction_obj *tr = Z_FBIRD_TRANSACTION_P(return_value);
-	tr->fbt_trans = trans;
 }
 
 /* prepare() and B4 classes are defined below; methods table follows after */
@@ -534,44 +531,33 @@ PHP_METHOD(FirebirdConnection, prepare)
 	}
 
 	fbird_transaction_obj *tr = Z_FBIRD_TRANSACTION_P(tr_zv);
-	if (!tr->fbt_trans || !fbt_is_active(tr->fbt_trans)) {
+
+	/* Accept both OOP-native (fbt_trans set) and resource-backed (trans_res set) transactions.
+	 * beginTransaction() now creates resource-backed transactions via fbird_trans(). */
+	zend_resource *tr_res = NULL;
+	if (tr->trans_res && tr->trans_res->type > 0) {
+		/* Resource-backed transaction (from beginTransaction() or fbird_trans()) */
+		tr_res = tr->trans_res;
+	} else if (tr->fbt_trans && fbt_is_active(tr->fbt_trans)) {
+		/* OOP-native transaction — cannot pass fbt_trans directly to fbird_prepare(),
+		 * so this path is not supported for prepare(). Caller should use beginTransaction(). */
+		zend_throw_exception(fbird_connection_exception_ce,
+			"OOP-native transactions are not supported with prepare(); use beginTransaction()", 0);
+		RETURN_THROWS();
+	} else {
 		zend_throw_exception(fbird_connection_exception_ce, "Transaction not active", 0);
 		RETURN_THROWS();
 	}
 
-	if (!conn->conn_res) {
-		zend_throw_exception(fbird_connection_exception_ce,
-			"No connection resource available for prepare", 0);
-		RETURN_THROWS();
-	}
-
-	/* Get a transaction resource from the Firebird\Transaction object.
-	 * We need to start a matching resource-based transaction on the same conn_res.
-	 * Use fbird_trans() with the conn_res to get a compatible tr_res. */
-	zval conn_zv, tr_res_zv, retval;
-	ZVAL_RES(&conn_zv, conn->conn_res);
-	GC_ADDREF(conn->conn_res);
-
-	/* Start a resource-based transaction on the connection */
-	fbird_call_fn("fbird_trans", &conn_zv, 1, &tr_res_zv);
-	zval_ptr_dtor(&conn_zv);
-
-	if (Z_TYPE(tr_res_zv) != IS_RESOURCE) {
-		zval_ptr_dtor(&tr_res_zv);
-		zend_throw_exception(fbird_query_exception_ce,
-			"Failed to start transaction for prepare", 0);
-		RETURN_THROWS();
-	}
-
 	/* Call fbird_prepare($conn_res, $tr_res, $sql) */
-	zval prep_args[3];
+	zval prep_args[3], retval;
 	ZVAL_RES(&prep_args[0], conn->conn_res);
 	GC_ADDREF(conn->conn_res);
-	ZVAL_COPY(&prep_args[1], &tr_res_zv);
+	ZVAL_RES(&prep_args[1], tr_res);
+	GC_ADDREF(tr_res);
 	ZVAL_STRINGL(&prep_args[2], sql, sql_len);
 	fbird_call_fn("fbird_prepare", prep_args, 3, &retval);
 	for (int i = 0; i < 3; i++) zval_ptr_dtor(&prep_args[i]);
-	zval_ptr_dtor(&tr_res_zv);
 
 	if (Z_TYPE(retval) != IS_RESOURCE) {
 		zval_ptr_dtor(&retval);
@@ -676,8 +662,18 @@ PHP_METHOD(FirebirdBlob, create)
 		zend_throw_exception(fbird_connection_exception_ce, "Not connected", 0);
 		RETURN_THROWS();
 	}
+	/* Accept both OOP-native (fbt_trans) and resource-backed (trans_res) transactions */
 	fbird_transaction_obj *tr = Z_FBIRD_TRANSACTION_P(tr_zv);
-	if (!tr->fbt_trans || !fbt_is_active(tr->fbt_trans)) {
+	void *trans_ptr = NULL;
+	if (tr->fbt_trans && fbt_is_active(tr->fbt_trans)) {
+		trans_ptr = tr->fbt_trans;
+	} else if (tr->trans_res && tr->trans_res->type > 0) {
+		fbird_transaction *res_tr = (fbird_transaction *)tr->trans_res->ptr;
+		if (res_tr && res_tr->fbt_transaction && fbt_is_active(res_tr->fbt_transaction)) {
+			trans_ptr = res_tr->fbt_transaction;
+		}
+	}
+	if (!trans_ptr) {
 		zend_throw_exception(fbird_connection_exception_ce, "Transaction not active", 0);
 		RETURN_THROWS();
 	}
@@ -688,7 +684,7 @@ PHP_METHOD(FirebirdBlob, create)
 	ISC_STATUS sv[20];
 	blob->fbb_wrap = fbb_create(IBG(master_instance),
 		fbc_get_attachment(link->fbc_connection),
-		fbt_get_handle(tr->fbt_trans),
+		fbt_get_handle(trans_ptr),
 		&blob->blob_id, 0, NULL, sv);
 
 	if (!blob->fbb_wrap) {
@@ -721,8 +717,18 @@ PHP_METHOD(FirebirdBlob, open)
 		zend_throw_exception(fbird_connection_exception_ce, "Not connected", 0);
 		RETURN_THROWS();
 	}
+	/* Accept both OOP-native (fbt_trans) and resource-backed (trans_res) transactions */
 	fbird_transaction_obj *tr = Z_FBIRD_TRANSACTION_P(tr_zv);
-	if (!tr->fbt_trans || !fbt_is_active(tr->fbt_trans)) {
+	void *trans_ptr = NULL;
+	if (tr->fbt_trans && fbt_is_active(tr->fbt_trans)) {
+		trans_ptr = tr->fbt_trans;
+	} else if (tr->trans_res && tr->trans_res->type > 0) {
+		fbird_transaction *res_tr = (fbird_transaction *)tr->trans_res->ptr;
+		if (res_tr && res_tr->fbt_transaction && fbt_is_active(res_tr->fbt_transaction)) {
+			trans_ptr = res_tr->fbt_transaction;
+		}
+	}
+	if (!trans_ptr) {
 		zend_throw_exception(fbird_connection_exception_ce, "Transaction not active", 0);
 		RETURN_THROWS();
 	}
@@ -743,7 +749,7 @@ PHP_METHOD(FirebirdBlob, open)
 	ISC_STATUS sv[20];
 	blob->fbb_wrap = fbb_open(IBG(master_instance),
 		fbc_get_attachment(link->fbc_connection),
-		fbt_get_handle(tr->fbt_trans),
+		fbt_get_handle(trans_ptr),
 		&blob_id, 0, NULL, sv);
 
 	if (!blob->fbb_wrap) {
@@ -1407,8 +1413,10 @@ void fbird_register_classes(void)
 	fbird_event_handlers.free_obj = fbird_event_free_obj;
 
 #if FB_API_VER >= 40
-	/* Phase B: Firebird\Batch (skeleton — no methods yet, wired in Phase H) */
-	INIT_CLASS_ENTRY(ce, "Firebird\\Batch", NULL);
+	/* Phase B: Firebird\BatchHandle (skeleton resource wrapper — no methods)
+	 * Named BatchHandle to avoid conflict with the PHP-level Firebird\Batch fluent
+	 * wrapper defined in src/Firebird/Batch.php (M3 name resolution). */
+	INIT_CLASS_ENTRY(ce, "Firebird\\BatchHandle", NULL);
 	fbird_batch_ce = zend_register_internal_class(&ce);
 	fbird_batch_ce->create_object = fbird_batch_create_obj;
 

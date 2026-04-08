@@ -48,18 +48,23 @@ class Database
 {
     private mixed $resource;
     private bool $persistent;
+    private bool $owned;
     private string $database;
     private ?string $username;
 
     /**
      * Private constructor - use factory methods.
+     *
+     * @param bool $owned Whether this instance owns the resource and should close it on destruct.
+     *                    Set to false when wrapping an externally-managed resource (fromResource).
      */
-    private function __construct(mixed $resource, string $database, ?string $username, bool $persistent)
+    private function __construct(mixed $resource, string $database, ?string $username, bool $persistent, bool $owned = true)
     {
         $this->resource = $resource;
         $this->database = $database;
         $this->username = $username;
         $this->persistent = $persistent;
+        $this->owned = $owned;
     }
 
     /**
@@ -133,7 +138,10 @@ class Database
      */
     public static function fromResource(mixed $resource, string $database = ''): self
     {
-        return new self($resource, $database, null, false);
+        // $owned = false: the caller owns the resource; we must NOT close it in __destruct
+        // to avoid double-free when both this wrapper and the original Firebird\Connection
+        // are destroyed (M3 resource-to-object migration).
+        return new self($resource, $database, null, false, false);
     }
 
     /**
@@ -355,7 +363,7 @@ class Database
      */
     public function isConnected(): bool
     {
-        return $this->resource !== null && is_resource($this->resource);
+        return $this->resource !== null && (is_resource($this->resource) || $this->resource instanceof \Firebird\Connection);
     }
 
     /**
@@ -381,11 +389,14 @@ class Database
     }
 
     /**
-     * Destructor - closes non-persistent connections.
+     * Destructor - closes non-persistent connections that this instance owns.
+     *
+     * When created via fromResource(), $owned is false so we do NOT close here;
+     * the caller's Firebird\Connection object handles its own teardown.
      */
     public function __destruct()
     {
-        if ($this->resource !== null && !$this->persistent) {
+        if ($this->resource !== null && !$this->persistent && $this->owned) {
             @\fbird_close($this->resource);
         }
     }

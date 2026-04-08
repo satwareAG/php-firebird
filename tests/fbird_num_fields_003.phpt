@@ -11,4 +11,5 @@ var_dump(fbird_num_fields(1));
 
 ?>
 --EXPECTF--
-Fatal error: Uncaught TypeError: fbird_num_fields(): Argument #1 ($query_result) must be of type resource, int given in %a
+Warning: fbird_num_fields(): Argument #1 must be a Firebird query/result resource, int given in %s on line %d
+bool(false)

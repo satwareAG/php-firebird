@@ -260,7 +260,7 @@ PHP_FUNCTION(fbird_kill_attachment)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "rl", &link_arg, &attachment_id) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zl", &link_arg, &attachment_id) == FAILURE) {
 		return;
 	}
 
@@ -297,7 +297,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
 		"WHERE A.MON$ATTACHMENT_ID <> CURRENT_CONNECTION "
 		"AND S.MON$SQL_TEXT CONTAINING ?";
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "rs", &link_arg, &table_name, &table_name_len) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zs", &link_arg, &table_name, &table_name_len) == FAILURE) {
 		return;
 	}
 
@@ -482,7 +482,7 @@ PHP_FUNCTION(fbird_drop_table_force)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "rs", &link_arg, &table_name, &table_name_len) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zs", &link_arg, &table_name, &table_name_len) == FAILURE) {
 		return;
 	}
 

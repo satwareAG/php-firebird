@@ -54,8 +54,12 @@ try {
 
 // Test 4: fbird_execute with connection resource (wrong type)
 echo "Test 4: execute with connection resource\n";
-$r = @fbird_execute($dbh, 1, 'x');
-var_dump($r === false);
+try {
+    $r = @fbird_execute($dbh, 1, 'x');
+    var_dump($r === false);
+} catch (\TypeError $e) {
+    var_dump(true); // TypeError = invalid argument type rejected
+}
 
 // Test 5: CHAR truncation — value longer than column allows
 echo "Test 5: VARCHAR truncation (value longer than VARCHAR(20))\n";
@@ -78,7 +82,7 @@ var_dump((int)$n === 2);
 // fbird_num_params/fbird_param_info throw TypeError in PHP 8 with false (@ doesn't suppress)
 echo "Test 7: fbird_num_params on false\n";
 try {
-    $n = fbird_num_params(false);
+    $n = @fbird_num_params(false); // @ suppresses warning; TypeError still caught below
     var_dump($n === false || $n === null || $n === 0);
 } catch (\TypeError $e) {
     var_dump(true); // TypeError = invalid argument rejected
@@ -87,7 +91,7 @@ try {
 // Test 8: fbird_param_info on invalid statement
 echo "Test 8: fbird_param_info on false\n";
 try {
-    $info = fbird_param_info(false, 0);
+    $info = @fbird_param_info(false, 0); // @ suppresses warning; TypeError still caught below
     var_dump($info === false || $info === null);
 } catch (\TypeError $e) {
     var_dump(true); // TypeError = invalid argument rejected

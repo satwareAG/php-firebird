@@ -34,7 +34,7 @@ echo "Test 1: INSERT RETURNING VARCHAR/CHAR/DOUBLE\n";
 $ins = fbird_prepare($dbh, 'INSERT INTO PROC_COV (TITLE, FIXCODE, SCORE) VALUES (?, ?, ?) RETURNING ID, TITLE, FIXCODE, SCORE');
 $q = fbird_execute($ins, 'Alpha', 'AAA', 1.5);
 var_dump($q !== false);
-if ($q && is_resource($q)) {
+if ($q !== false) {
     $row = fbird_fetch_row($q);
     var_dump($row !== false);
     var_dump(trim($row[1]) === 'Alpha');
@@ -49,7 +49,7 @@ echo "Test 2: INSERT RETURNING DATE/TIMESTAMP\n";
 $ins2 = fbird_prepare($dbh, 'INSERT INTO PROC_COV (TITLE, SCORE) VALUES (?, ?) RETURNING ID, CREATED, STAMP');
 $q = fbird_execute($ins2, 'Beta', 2.5);
 var_dump($q !== false);
-if ($q && is_resource($q)) {
+if ($q !== false) {
     $row = fbird_fetch_row($q);
     var_dump($row !== false);
     var_dump($row[1] !== null);  // DATE came back
@@ -63,7 +63,7 @@ echo "Test 3: UPDATE RETURNING\n";
 $upd = fbird_prepare($dbh, 'UPDATE PROC_COV SET SCORE = ? WHERE TITLE = ? RETURNING ID, TITLE, SCORE');
 $q = fbird_execute($upd, 99.9, 'Alpha');
 var_dump($q !== false);
-if ($q && is_resource($q)) {
+if ($q !== false) {
     $row = fbird_fetch_row($q);
     var_dump($row !== false);
     var_dump((float)$row[2] === 99.9);
@@ -76,7 +76,7 @@ echo "Test 4: INSERT RETURNING with NULL\n";
 $ins3 = fbird_prepare($dbh, 'INSERT INTO PROC_COV (TITLE, FIXCODE, SCORE) VALUES (?, ?, ?) RETURNING ID, TITLE, FIXCODE');
 $q = fbird_execute($ins3, 'Gamma', null, null);
 var_dump($q !== false);
-if ($q && is_resource($q)) {
+if ($q !== false) {
     $row = fbird_fetch_row($q);
     var_dump($row !== false);
     var_dump(trim($row[1]) === 'Gamma');

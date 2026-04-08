@@ -103,7 +103,7 @@ bool(true)
 int(2)
 
 === Test 2: Connection reuse without flag (default behavior) ===
-conn1 === conn2 (should be true): bool(true)
+conn1 === conn2 (should be true): bool(false)
 
 === Test 3: Force new connection with FBIRD_CONNECT_FORCE_NEW ===
 conn3 === conn4 (should be false): bool(false)

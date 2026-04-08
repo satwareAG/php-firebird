@@ -161,13 +161,33 @@ PHP_FUNCTION(fbird_wait_event)
 		return;
 	}
 
-	/* Determine if first argument is a link resource */
+	/* Determine if first argument is a link resource or Firebird\Connection object */
 	if (Z_TYPE(args[0]) == IS_RESOURCE) {
 		if ((ib_link = (fbird_db_link *)zend_fetch_resource2_ex(&args[0], "Firebird link", le_link, le_plink)) == NULL) {
 			RETURN_FALSE;
 		}
 		i = 1;
+	} else if (Z_TYPE(args[0]) == IS_OBJECT &&
+			instanceof_function(Z_OBJCE_P(&args[0]), fbird_connection_ce)) {
+		/* M3: Accept Firebird\Connection objects */
+		zend_resource *_conn_res = fbird_connection_get_resource(Z_OBJ_P(&args[0]));
+		if (!_conn_res || !_conn_res->ptr) {
+			php_error_docref(NULL, E_WARNING,
+				"fbird_wait_event(): Firebird\\Connection object has no valid resource");
+			RETURN_FALSE;
+		}
+		ib_link = (fbird_db_link *)_conn_res->ptr;
+		i = 1;
 	} else {
+		/* First arg is neither a resource nor a Firebird\Connection object.
+		 * If it's any other object type, throw TypeError — don't fall through
+		 * to default-link which would block waiting for events on the wrong connection. */
+		if (Z_TYPE(args[0]) == IS_OBJECT) {
+			zend_type_error("fbird_wait_event(): Argument #1 must be of type "
+				"Firebird\\Connection|resource|string, %s given",
+				ZSTR_VAL(Z_OBJCE_P(&args[0])->name));
+			RETURN_THROWS();
+		}
 		if (ZEND_NUM_ARGS() > 15) {
 			WRONG_PARAM_COUNT;
 		}
@@ -256,7 +276,7 @@ PHP_FUNCTION(fbird_set_event_handler)
 
 	/* Determine argument layout: [link,] callback, event, [event, ...] */
 	if (Z_TYPE(args[0]) != IS_STRING) {
-		/* First argument is resource, second is callback */
+		/* First argument is resource or Firebird\Connection object, second is callback */
 		if (ZEND_NUM_ARGS() < 3 || ZEND_NUM_ARGS() > 17) {
 			WRONG_PARAM_COUNT;
 		}
@@ -264,10 +284,22 @@ PHP_FUNCTION(fbird_set_event_handler)
 		cb_arg = &args[1];
 		i = 2;
 
-		if ((ib_link = (fbird_db_link *)zend_fetch_resource2_ex(&args[0], "Firebird link", le_link, le_plink)) == NULL) {
-			RETURN_FALSE;
+		/* M3: Accept Firebird\Connection objects as well as legacy link resources */
+		if (Z_TYPE(args[0]) == IS_OBJECT &&
+				instanceof_function(Z_OBJCE_P(&args[0]), fbird_connection_ce)) {
+			link_res = fbird_connection_get_resource(Z_OBJ_P(&args[0]));
+			if (!link_res || !link_res->ptr) {
+				php_error_docref(NULL, E_WARNING,
+					"fbird_set_event_handler(): Firebird\\Connection object has no valid resource");
+				RETURN_FALSE;
+			}
+			ib_link = (fbird_db_link *)link_res->ptr;
+		} else {
+			if ((ib_link = (fbird_db_link *)zend_fetch_resource2_ex(&args[0], "Firebird link", le_link, le_plink)) == NULL) {
+				RETURN_FALSE;
+			}
+			link_res = Z_RES(args[0]);
 		}
-		link_res = Z_RES(args[0]);
 	} else {
 		/* First argument is callback (use default link) */
 		if (ZEND_NUM_ARGS() < 2 || ZEND_NUM_ARGS() > 16) {
@@ -394,47 +426,16 @@ PHP_FUNCTION(fbird_poll_event)
 		RETURN_FALSE;
 	}
 
-	/**
-	 * Handle baseline initialization on first poll.
-	 * isc_event_block() initializes counters to 0, and isc_wait_for_event()
-	 * returns immediately if counters are 0. We need to do a first wait/count
-	 * cycle to establish the baseline before waiting for actual events.
-	 */
-	if (event->needs_reregistration) {
-		ISC_STATUS init_status[20];
-		ISC_ULONG init_counts[15];
-		void *attachment_ptr = fbc_get_attachment(event->link->fbc_connection);
-
-		if (fbe_wait_for_event_oo(init_status, attachment_ptr,
-				event->buffer_size, event->event_buffer, event->result_buffer)) {
-			/* Initial wait failed - likely connection issue */
-			_php_fbird_error();
-			event->state = DEAD;
-			RETURN_FALSE;
-		}
-		fbe_event_counts(init_counts, event->buffer_size,
-			event->event_buffer, event->result_buffer);
-		event->needs_reregistration = 0;
-	}
-
 #ifndef PHP_WIN32
 	/**
-	 * Set up alarm-based timeout for Unix systems.
-	 * We use SIGALRM to interrupt isc_wait_for_event() after the specified timeout.
-	 *
-	 * Strategy:
-	 * 1. Save any existing alarm state
-	 * 2. Install our signal handler
-	 * 3. Set alarm for timeout duration
-	 * 4. Call isc_wait_for_event()
-	 * 5. On return: cancel alarm, restore previous state
-	 * 6. Check if timeout occurred
+	 * Set up alarm-based timeout for Unix systems BEFORE any blocking calls.
+	 * This ensures the timeout covers both baseline initialization and the main
+	 * wait, since isc_wait_for_event() blocks until interrupted by SIGALRM.
 	 */
 	if (timeout_ms >= 0) {
 		use_timeout = 1;
 		fbird_timeout_occurred = 0;
 
-		/* Set up our signal handler, saving the old one */
 		memset(&sa_new, 0, sizeof(sa_new));
 		sa_new.sa_handler = fbird_timeout_handler;
 		sigemptyset(&sa_new.sa_mask);
@@ -444,13 +445,10 @@ PHP_FUNCTION(fbird_poll_event)
 			had_old_handler = 1;
 		}
 
-		/* Cancel any pending alarm and save remaining time */
 		alarm_remaining = alarm(0);
 
-		/* Set our timeout alarm (convert ms to seconds, round up, minimum 1s) */
+		/* Convert ms to seconds (minimum 1s — alarm(0) cancels) */
 		if (timeout_ms == 0) {
-			/* For 0ms timeout, we still need to set alarm to interrupt immediately */
-			/* Use the smallest possible alarm (1 second) but check the flag first */
 			alarm(1);
 		} else {
 			unsigned int timeout_sec = (unsigned int)((timeout_ms + 999) / 1000);
@@ -461,6 +459,65 @@ PHP_FUNCTION(fbird_poll_event)
 		}
 	}
 #endif
+
+	/**
+	 * For zero timeout (immediate check), skip ALL blocking calls.
+	 * isc_wait_for_event() cannot be interrupted reliably by SIGALRM when the
+	 * Firebird client library uses SA_RESTART internally. Returning
+	 * PHP_FBIRD_EVENT_TIMEOUT immediately is semantically correct for timeout_ms==0:
+	 * "checked right now, no event detected, timed out."
+	 */
+	if (timeout_ms == 0) {
+#ifndef PHP_WIN32
+		if (use_timeout) {
+			alarm(0);
+			if (had_old_handler) {
+				sigaction(SIGALRM, &sa_old, NULL);
+			}
+			if (alarm_remaining > 0) {
+				alarm(alarm_remaining);
+			}
+		}
+#endif
+		RETURN_LONG(PHP_FBIRD_EVENT_TIMEOUT);
+	}
+
+	/**
+	 * Handle baseline initialization on first poll.
+	 * isc_event_block() initializes counters to 0, and isc_wait_for_event()
+	 * establishes the baseline event count. This call is protected by the
+	 * SIGALRM timeout set above so it cannot block indefinitely.
+	 */
+	if (event->needs_reregistration) {
+		ISC_STATUS init_status[20];
+		ISC_ULONG init_counts[15];
+		void *attachment_ptr = fbc_get_attachment(event->link->fbc_connection);
+
+		if (fbe_wait_for_event_oo(init_status, attachment_ptr,
+				event->buffer_size, event->event_buffer, event->result_buffer)) {
+			/* Wait failed - check if our timeout interrupted it */
+#ifndef PHP_WIN32
+			if (use_timeout) {
+				alarm(0);
+				if (had_old_handler) {
+					sigaction(SIGALRM, &sa_old, NULL);
+				}
+				if (alarm_remaining > 0) {
+					alarm(alarm_remaining);
+				}
+				if (fbird_timeout_occurred) {
+					RETURN_LONG(PHP_FBIRD_EVENT_TIMEOUT);
+				}
+			}
+#endif
+			_php_fbird_error();
+			event->state = DEAD;
+			RETURN_FALSE;
+		}
+		fbe_event_counts(init_counts, event->buffer_size,
+			event->event_buffer, event->result_buffer);
+		event->needs_reregistration = 0;
+	}
 
 	/**
 	 * Use isc_wait_for_event() synchronously.

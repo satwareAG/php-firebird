@@ -1,6 +1,6 @@
 # Next Steps - php-firebird
 
-**Last Updated**: 2026-04-07 (M3 Phase G Blob G1-G3 implemented)
+**Last Updated**: 2026-04-08 (M3 Phase H + Dual-accept sweep confirmed complete)
 
 ## Immediate (v10.6.x)
 
@@ -25,9 +25,9 @@ Tracked via GitHub issues #175-#179 (milestone: v11.0 - Modernization, due 2026-
     - [x] G1 (`3ddee6d`): Blob weak-ref infrastructure, FBIRD_VALIDATE_BLOB_EX macro
     - [x] G2 (`5be2453`): Dual-accept all consuming blob functions
     - [x] G3 (`dc2dde7`, `7761c40`): fbird_blob_create/open/create_seekable/open_seekable return Firebird\Blob; stubs updated
-  - [ ] Phase H: fbird_event_* return Firebird\Event (le_event → object)
+  - [x] Phase H: fbird_event_* return Firebird\Event (le_event → object)
   - [x] Phase I: fbird_service_* return Firebird\Service (le_service → object)
-  - [ ] Dual-accept sweep: fbird_commit/rollback/close/affected_rows accept objects too
+  - [x] Dual-accept sweep: fbird_commit/rollback/close/affected_rows accept objects too
 - [x] #177 - [M12] Replace call_user_function() in OOP layer with direct C calls (CLOSED)
 - [x] #178 - [L3] Remove dead FB_API_VER < 30 code paths (CLOSED)
 - [x] #179 - [L2] Remove legacy gds32_ms fallback from config.w32 (CLOSED)

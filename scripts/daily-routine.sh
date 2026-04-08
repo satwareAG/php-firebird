@@ -62,15 +62,76 @@ eod_command() {
     fi
 }
 
+morning_health_check() {
+    echo "============================================"
+    echo "  php-firebird — Morning Health Check"
+    echo "  $(date '+%Y-%m-%d %H:%M')"
+    echo "============================================"
+    echo ""
+    
+    echo "--- Git Status ---"
+    git fetch origin --quiet || echo "⚠️ Failed to fetch from origin"
+    local status
+    status="$(git status --short)"
+    if [ -n "$status" ]; then
+        echo "⚠️ Working directory is not clean:"
+        echo "$status"
+    else
+        echo "✅ Working directory clean"
+    fi
+    echo ""
+
+    echo "--- Docker Services ---"
+    if command -v docker >/dev/null 2>&1; then
+        docker compose ps || echo "⚠️ Cannot query docker services"
+    else
+        echo "⚠️ Docker is not installed or not in PATH"
+    fi
+    echo ""
+    
+    echo "--- Dependencies ---"
+    echo "✅ Assumed OK (Native extension, no composer.json required at root for compilation)"
+    echo ""
+}
+
+morning_full() {
+    echo "============================================"
+    echo "  php-firebird — Morning Protocol (15 Min)"
+    echo "  $(date '+%Y-%m-%d %H:%M')"
+    echo "============================================"
+    echo ""
+    
+    morning_health_check
+    
+    echo "--- Phase 3: Priorities ---"
+    echo "MoSCoW Top 3 Priorities:"
+    echo "1. [MUST] Implement #176 Phase I (Service migration to objects)"
+    echo "2. [MUST/SHOULD] Review PRs and check CI status"
+    echo "3. [SHOULD] Clean up technical debt"
+    echo ""
+    
+    echo "============================================"
+    echo "  Protocol complete. Starting deep work!"
+    echo "============================================"
+}
+
 case "${1:-}" in
     eod)
         eod_command
         ;;
+    health)
+        morning_health_check
+        ;;
+    morning-full|morning)
+        morning_full
+        ;;
     *)
-        echo "Usage: $0 eod"
+        echo "Usage: $0 {eod|health|morning|morning-full}"
         echo ""
         echo "Commands:"
-        echo "  eod   Run the End of Day protocol checklist"
+        echo "  eod            Run the End of Day protocol checklist"
+        echo "  health         Run the morning health check"
+        echo "  morning-full   Run the full 15-minute morning protocol"
         exit 1
         ;;
 esac

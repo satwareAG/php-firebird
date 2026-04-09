@@ -64,8 +64,7 @@ class Database
         ?string $username,
         bool $persistent,
         bool $owned = true
-    )
-    {
+    ) {
         $this->resource = $resource;
         $this->database = $database;
         $this->username = $username;

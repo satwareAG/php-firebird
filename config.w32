@@ -1,5 +1,5 @@
 // config.w32 - Windows build configuration for php-firebird extension
-// PHP 8.1+ required, Firebird 3.0+ required
+// PHP 8.2+ required, Firebird 3.0+ required
 
 ARG_WITH('firebird', 'Firebird database support', 'no');
 

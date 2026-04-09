@@ -44,6 +44,12 @@ var_dump($err === null || is_string($err));
 $code = Database::getLastErrorCode();
 var_dump($code === null || is_int($code));
 
+// Explicit cleanup: free dependent objects before connection to avoid shutdown segfault
+unset($res2, $result, $stmt, $info);
+unset($db);          // owned=false: Database wrapper released, no fbird_close called
+@fbird_close($_raw_conn); // explicitly close via PHP function — removes from extension global list
+$_raw_conn = null;   // C destructor now sees closed handle, skips double-detach
+
 echo "done\n";
 ?>
 --EXPECT--

@@ -23,4 +23,5 @@ int(2)
 
 Warning: fbird_prepare(): Dynamic SQL Error SQL error code = -%d Column unknown X At line %d, column %d %s
 
-Fatal error: Uncaught TypeError: fbird_num_params(): Argument #1 ($query) must be of type resource, %a
+Warning: fbird_num_params(): Argument #1 must be a Firebird query/result resource, bool given in %s on line %d
+bool(false)

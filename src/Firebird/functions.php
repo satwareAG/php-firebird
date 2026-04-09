@@ -44,7 +44,7 @@ function fbird_query_params(mixed $link, string $sql, array $params = []): mixed
  *   fbird_query($link, $trans, $sql, ...$params)
  *
  * @param resource $link
- * @param resource $transaction
+ * @param \Firebird\Transaction|resource $transaction
  * @param array<int, mixed> $params
  * @return resource|int|bool
  */
@@ -89,7 +89,7 @@ function fbird_execute_params(mixed $statement, array $params = []): mixed
  * - fbird_trans($flags|FBIRD_WAIT|FBIRD_LOCK_TIMEOUT, $timeout, $link)
  *
  * @param resource $link
- * @return resource|false
+ * @return \Firebird\Transaction|false
  */
 function fbird_trans_begin(mixed $link, int $flags = FBIRD_DEFAULT, ?int $lockTimeout = null): mixed
 {
@@ -104,7 +104,7 @@ function fbird_trans_begin(mixed $link, int $flags = FBIRD_DEFAULT, ?int $lockTi
 
     $args[] = $link;
 
-    /** @var resource|false $result */
+    /** @var \Firebird\Transaction|false $result */
     $result = \call_user_func_array('fbird_trans', $args);
 
     return $result;

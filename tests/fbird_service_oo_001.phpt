@@ -15,7 +15,7 @@ $host = getenv('FIREBIRD_HOST') ?: 'localhost';
 
 // Attach via service API (internally uses fbsvc_attach OO bridge)
 $svc = fbird_service_attach($host, 'SYSDBA', 'masterkey');
-var_dump(is_resource($svc));
+var_dump($svc instanceof \Firebird\Service);
 
 // Query server version via isc_info_svc_server_version
 $info = fbird_server_info($svc, FBIRD_SVC_SERVER_VERSION);

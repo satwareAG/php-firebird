@@ -1334,19 +1334,29 @@ PHP_FUNCTION(fbird_prepare_ex)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "rs|z!",
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zs|z!",
 			&link_arg, &query, &query_len, &trans_arg) == FAILURE) {
 		return;
 	}
 
-	/* Resolve link */
-	link = (fbird_db_link *)zend_fetch_resource_ex(link_arg, NULL, le_link);
-	if (!link) {
-		link = (fbird_db_link *)zend_fetch_resource_ex(link_arg, NULL, le_plink);
-	}
-	if (!link) {
-		_php_fbird_module_error("First argument must be a Firebird connection resource");
-		RETURN_FALSE;
+	/* Resolve link: accept both legacy resource and Firebird\Connection object */
+	if (Z_TYPE_P(link_arg) == IS_OBJECT &&
+	    instanceof_function(Z_OBJCE_P(link_arg), fbird_connection_ce)) {
+		zend_resource *cres = fbird_connection_get_resource(Z_OBJ_P(link_arg));
+		if (!cres || !cres->ptr) {
+			_php_fbird_module_error("Firebird\\Connection object has no valid resource");
+			RETURN_FALSE;
+		}
+		link = (fbird_db_link *)cres->ptr;
+	} else {
+		link = (fbird_db_link *)zend_fetch_resource_ex(link_arg, NULL, le_link);
+		if (!link) {
+			link = (fbird_db_link *)zend_fetch_resource_ex(link_arg, NULL, le_plink);
+		}
+		if (!link) {
+			_php_fbird_module_error("First argument must be a Firebird connection resource");
+			RETURN_FALSE;
+		}
 	}
 
 	/* Resolve optional transaction - accept both resource and Transaction object */
@@ -1385,14 +1395,15 @@ PHP_FUNCTION(fbird_execute)
 		WRONG_PARAM_COUNT;
 	}
 
-	/* Validate first argument: query resource OR Firebird\ResultSet object */
+	/* Validate first argument: query resource OR Firebird\ResultSet object.
+	 * Throw TypeError for wrong types (consistent with other fbird_* functions). */
 	if (Z_TYPE(args[0]) != IS_RESOURCE &&
 	    !(Z_TYPE(args[0]) == IS_OBJECT &&
 	      instanceof_function(Z_OBJCE(args[0]), fbird_resultset_ce))) {
 		/* Capture type name BEFORE efree(args) to avoid use-after-free */
 		const char *arg_type = zend_get_type_by_const(Z_TYPE(args[0]));
+		zend_type_error("fbird_execute(): Argument #1 ($query) must be a Firebird query resource or Firebird\\ResultSet, %s given", arg_type);
 		efree(args);
-		zend_argument_type_error(1, "must be a Firebird query resource or Firebird\\ResultSet, %s given", arg_type);
 		RETURN_THROWS();
 	}
 

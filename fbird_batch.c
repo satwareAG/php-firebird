@@ -11,6 +11,7 @@
 
 #include "php_ini.h"
 #include "php_firebird.h"
+#include "fbird_classes.h"
 #include "php_fbird_includes.h"
 #include "php_fbird_batch.h"
 #include "fbird_datetime.h"
@@ -89,11 +90,12 @@ PHP_FUNCTION(fbird_batch_create)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r|r!", &query_arg, &trans_arg) == FAILURE) {
+	/* M3: "z|z!" instead of "r|r!" to accept Firebird\ResultSet/Transaction objects */
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z|z!", &query_arg, &trans_arg) == FAILURE) {
 		return;
 	}
 
-	ib_query = (fbird_query *)zend_fetch_resource_ex(query_arg, LE_QUERY, le_query);
+	FBIRD_VALIDATE_QUERY_EX(query_arg, 1, ib_query);
 	if (!ib_query) {
 		RETURN_FALSE;
 	}
@@ -105,7 +107,7 @@ PHP_FUNCTION(fbird_batch_create)
 
 	/* Get transaction - either from parameter or from query's default */
 	if (trans_arg != NULL) {
-		trans = (fbird_transaction *)zend_fetch_resource_ex(trans_arg, LE_TRANS, le_trans);
+		FBIRD_VALIDATE_TRANS_EX(trans_arg, 2, trans);
 		if (!trans) {
 			RETURN_FALSE;
 		}
@@ -161,8 +163,15 @@ PHP_FUNCTION(fbird_batch_create)
 	ib_batch->fbbatch_wrapper = batch_wrapper;
 	ib_batch->trans = trans;
 	ib_batch->query = ib_query;
-	ib_batch->query_res = Z_RES_P(query_arg);
-	GC_ADDREF(ib_batch->query_res);
+	/* M3: query_arg may be a Firebird\ResultSet object or a legacy resource */
+	if (Z_TYPE_P(query_arg) == IS_OBJECT) {
+		ib_batch->query_res = fbird_resultset_get_resource(Z_OBJ_P(query_arg));
+	} else {
+		ib_batch->query_res = Z_RES_P(query_arg);
+	}
+	if (ib_batch->query_res) {
+		GC_ADDREF(ib_batch->query_res);
+	}
 	ib_batch->in_metadata = metadata;
 	ib_batch->in_msg_length = msg_length;
 	ib_batch->in_msg_buffer = emalloc(msg_length);

@@ -54,7 +54,7 @@
 #define FBDEBUG(a)
 #endif
 
-extern int le_link, le_plink, le_trans, le_query, le_blob;
+extern int le_link, le_plink, le_trans, le_query, le_blob, le_event;
 #if FB_API_VER >= 40
 extern int le_batch;
 #endif
@@ -568,5 +568,28 @@ const char *_fbird_res_type_name(int type);
 	var = (fbird_blob *)zend_fetch_resource_ex(zv, LE_BLOB, le_blob); \
 	if (!var) { RETURN_FALSE; } \
 } while(0)
+
+/* Validate event handle (le_event resource OR Firebird\Event object).
+ * M3 Phase H: Firebird\Event objects own fbird_event* directly (no resource indirection).
+ * Callers must #include "fbird_classes.h" before using this macro. */
+#define FBIRD_VALIDATE_EVENT_EX(zv, argnum, var) do { \
+	if (Z_TYPE_P(zv) == IS_OBJECT && \
+		instanceof_function(Z_OBJCE_P(zv), fbird_event_ce)) { \
+		(var) = fbird_event_get_ptr(Z_OBJ_P(zv)); \
+		if (!(var) || (var)->state == DEAD) { \
+			zend_argument_type_error((argnum), \
+				"must be a valid (non-freed) Firebird\\Event"); \
+			RETURN_THROWS(); \
+		} \
+		break; \
+	} \
+	if (Z_TYPE_P(zv) != IS_RESOURCE) { \
+		zend_argument_type_error((argnum), \
+			"must be of type Firebird\\Event or resource"); \
+		RETURN_THROWS(); \
+	} \
+	(var) = (fbird_event *)zend_fetch_resource_ex((zv), LE_EVENT, le_event); \
+	if (!(var)) { RETURN_FALSE; } \
+} while (0)
 
 #endif /* PHP_FBIRD_INCLUDES_H */

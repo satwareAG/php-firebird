@@ -1,6 +1,6 @@
 # Next Steps - php-firebird
 
-**Last Updated**: 2026-04-07 (M3 Phase G Blob G1-G3 implemented)
+**Last Updated**: 2026-04-09 AM (PHPStan fix pushed - PR #215 ready for review)
 
 ## Immediate (v10.6.x)
 
@@ -25,9 +25,9 @@ Tracked via GitHub issues #175-#179 (milestone: v11.0 - Modernization, due 2026-
     - [x] G1 (`3ddee6d`): Blob weak-ref infrastructure, FBIRD_VALIDATE_BLOB_EX macro
     - [x] G2 (`5be2453`): Dual-accept all consuming blob functions
     - [x] G3 (`dc2dde7`, `7761c40`): fbird_blob_create/open/create_seekable/open_seekable return Firebird\Blob; stubs updated
-  - [ ] Phase H: fbird_event_* return Firebird\Event (le_event → object)
-  - [ ] Phase I: fbird_service_* return Firebird\Service (le_service → object)
-  - [ ] Dual-accept sweep: fbird_commit/rollback/close/affected_rows accept objects too
+  - [x] Phase H: fbird_event_* return Firebird\Event (le_event → object)
+  - [x] Phase I: fbird_service_* return Firebird\Service (le_service → object)
+  - [x] Dual-accept sweep: fbird_commit/rollback/close/affected_rows accept objects too
 - [x] #177 - [M12] Replace call_user_function() in OOP layer with direct C calls (CLOSED)
 - [x] #178 - [L3] Remove dead FB_API_VER < 30 code paths (CLOSED)
 - [x] #179 - [L2] Remove legacy gds32_ms fallback from config.w32 (CLOSED)
@@ -44,6 +44,50 @@ All previously open specs confirmed RELEASED and closed (2026-04-07 audit):
 
 - [ ] macOS x86_64 builds disabled (macos-13 runner deprecated) - evaluate macos-15 x86_64 when available
 - [ ] Coverage threshold still at 54% - target 65%+ with v11.0 test improvements
+
+## 2026-04-09 AM - PHPStan Code Quality Fix
+
+**Branch**: `feat/20260408_morning_start` - PR #215 open, CI running.
+
+### PHPStan errors fixed (`f615a61`)
+
+- `phpstan/firebird-event.stub.php`: removed duplicate `Firebird\Event` / `Firebird\Exception`
+  declarations (both already in `stubs/firebird-classes.php` which is also a PHPStan stubFile)
+- `src/Firebird/functions.php`: updated `fbird_query_params_tx()` `@param $transaction` to
+  `\Firebird\Transaction|resource` (dual-accept bridge - callers pass objects post-M3)
+- `src/Firebird/functions.php`: updated `fbird_trans_begin()` `@return`/`@var` to
+  `\Firebird\Transaction|false` (stale `resource|false` annotation from pre-M3)
+
+### Next actions
+
+1. Confirm Code Quality CI green for `f615a61`
+2. Merge PR #215 into `satware-main`
+3. Close issue #176
+
+## 2026-04-08 EOD - M3 Phase I + CI Fix
+
+**Branch**: `feat/20260408_morning_start` - ready for PR review.
+
+### Today's commits (HEAD → satware-main delta)
+
+- `83b4de6` fix(ci): remove dead fbird_batch stubs from #else block - FB3.0 build fix
+- `69edc28` docs: update README version badge and compatibility section to 10.6.2
+- `0d0de46` docs: update CHANGELOG for M3 Phase H + Phase I service migration
+- `8ec1e2a` fix(m3): fix remaining test failures for resource-to-object migration (#176)
+
+### CI status at EOD
+
+- Memory Sanitizers: PASS
+- CI: FAILING (triggered re-run with `83b4de6` fix) - check tomorrow AM
+- Linux Code Coverage: FAILING (likely same root cause - check after CI fix lands)
+- Root cause: `fbird_classes.c` `#else` stubs used `fbird_batch *` (undefined in FB3.0 headers)
+
+### Tomorrow morning
+
+1. Check CI status for `feat/20260408_morning_start` - expect green after `83b4de6`
+2. If CI green: open PR to merge into `satware-main`
+3. Next M3 phase: close issue #176 once PR merged
+4. Remaining active branches: `feat/175-typed-arginfo`, `feat/v11-dead-code-removal`, `wip/spec-implementation-security-hardening`
 
 ## 2026-04-07 - v10.6.2 Published
 

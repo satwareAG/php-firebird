@@ -2,29 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Firebird;
-
-/**
- * Stub for extension-provided `Firebird\Event` class.
- *
- * The C extension may return either a resource or an instance of this class
- * from event-related APIs. This stub exists for static analysis only.
- */
-final class Event
-{
-}
-
-/**
- * Stub for extension-provided `Firebird\Exception` class.
- *
- * PDO-style exception for Firebird errors when exception mode is enabled.
- */
-class Exception extends \Exception
-{
-    /**
-     * Get SQLSTATE error code
-     *
-     * @return string 5-character SQLSTATE code (e.g., "42000", "HY000")
-     */
-    public function getSqlState(): string {}
-}
+// Firebird\Event and Firebird\Exception are declared in stubs/firebird-classes.php
+// which is also loaded as a PHPStan stub file. Duplicate declarations here cause
+// "Class declared multiple times" errors. This file is retained for historical
+// reasons but all class stubs have been consolidated into firebird-classes.php.

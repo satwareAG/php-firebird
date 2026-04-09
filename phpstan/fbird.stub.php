@@ -386,7 +386,7 @@ function fbird_execute_auto(mixed $link_identifier, string $query, ?array $param
 /**
  * Execute a parameterized query with explicit link and transaction.
  * @param resource $link_identifier Connection resource
- * @param resource $trans_handle Transaction resource
+ * @param \Firebird\Transaction|resource $trans_handle Transaction object or legacy resource
  * @param string $query SQL statement
  * @param array<mixed>|null $params Bind parameters
  * @return resource|int|false
@@ -481,7 +481,7 @@ function fbird_param_info(mixed $query, int $param_number): array|false {}
 /**
  * @param resource|int|null $link_or_flags
  * @param mixed ...$args
- * @return resource|false
+ * @return \Firebird\Transaction|false
  */
 function fbird_trans(mixed $link_or_flags = null, mixed ...$args): \Firebird\Transaction|false {}
 
@@ -496,7 +496,7 @@ function fbird_trans(mixed $link_or_flags = null, mixed ...$args): \Firebird\Tra
  *
  * @param resource $link Database connection
  * @param int|array<string, array<string, int>|bool|int> $options Transaction options
- * @return resource|false Transaction handle or false on error
+ * @return \Firebird\Transaction|false Transaction handle or false on error
  */
 function fbird_trans_start(mixed $link, mixed $options = 0): \Firebird\Transaction|false {}
 
@@ -744,9 +744,9 @@ function fbird_wait_event(mixed $link_or_event, string ...$events): string|false
  * @param resource|callable $link_or_callback
  * @param callable|string $callback_or_event
  * @param string ...$events
- * @return resource|false
+ * @return \Firebird\Event|false
  */
-function fbird_set_event_handler(mixed $link_or_callback, mixed $callback_or_event, string ...$events): mixed {}
+function fbird_set_event_handler(mixed $link_or_callback, mixed $callback_or_event, string ...$events): \Firebird\Event|false {}
 
 /**
  * Poll for event occurrences (non-blocking).
@@ -771,18 +771,18 @@ function fbird_free_event_handler(mixed $event): bool {}
  * @param string $host
  * @param string $username
  * @param string $password
- * @return resource|false
+ * @return \Firebird\Service|false
  */
-function fbird_service_attach(string $host, string $username, string $password): mixed {}
+function fbird_service_attach(string $host, string $username, string $password): \Firebird\Service|false {}
 
 /**
- * @param resource $service
+ * @param \Firebird\Service $service
  * @return bool
  */
 function fbird_service_detach(mixed $service): bool {}
 
 /**
- * @param resource $service
+ * @param \Firebird\Service $service
  * @param string $source
  * @param string $dest
  * @param int $options
@@ -792,7 +792,7 @@ function fbird_service_detach(mixed $service): bool {}
 function fbird_backup(mixed $service, string $source, string $dest, int $options = 0, bool $verbose = false): mixed {}
 
 /**
- * @param resource $service
+ * @param \Firebird\Service $service
  * @param string $source
  * @param string $dest
  * @param int $options
@@ -802,7 +802,7 @@ function fbird_backup(mixed $service, string $source, string $dest, int $options
 function fbird_restore(mixed $service, string $source, string $dest, int $options = 0, bool $verbose = false): mixed {}
 
 /**
- * @param resource $service
+ * @param \Firebird\Service $service
  * @param string $db
  * @param int $action
  * @param int $argument
@@ -811,7 +811,7 @@ function fbird_restore(mixed $service, string $source, string $dest, int $option
 function fbird_maintain_db(mixed $service, string $db, int $action, int $argument = 0): bool {}
 
 /**
- * @param resource $service
+ * @param \Firebird\Service $service
  * @param string $db
  * @param int $action
  * @param int $argument
@@ -820,7 +820,7 @@ function fbird_maintain_db(mixed $service, string $db, int $action, int $argumen
 function fbird_db_info(mixed $service, string $db, int $action, int $argument = 0): string|false {}
 
 /**
- * @param resource $service
+ * @param \Firebird\Service $service
  * @param int $action
  * @return string|false
  */
@@ -831,7 +831,7 @@ function fbird_server_info(mixed $service, int $action): string|false {}
 // ============================================================================
 
 /**
- * @param resource $service
+ * @param \Firebird\Service $service
  * @param string $username
  * @param string $password
  * @param string|null $first_name
@@ -849,7 +849,7 @@ function fbird_add_user(
 ): bool {}
 
 /**
- * @param resource $service
+ * @param \Firebird\Service $service
  * @param string $username
  * @param string $password
  * @param string|null $first_name
@@ -867,7 +867,7 @@ function fbird_modify_user(
 ): bool {}
 
 /**
- * @param resource $service
+ * @param \Firebird\Service $service
  * @param string $username
  * @return bool
  */

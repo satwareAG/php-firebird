@@ -12,6 +12,7 @@
 #include "php_firebird.h"
 #include "php_fbird_includes.h"
 #include "firebird_utils.h"
+#include "fbird_classes.h"
 
 typedef struct {
 	char *hostname;
@@ -21,6 +22,30 @@ typedef struct {
 } fbird_service;
 
 static int le_service;
+
+static zend_resource *_php_fbird_service_res_from_zval(zval *zv)
+{
+	if (zv == NULL) {
+		return NULL;
+	}
+	ZVAL_DEREF(zv);
+	if (Z_TYPE_P(zv) == IS_RESOURCE) {
+		return Z_RES_P(zv);
+	}
+	if (Z_TYPE_P(zv) == IS_OBJECT && instanceof_function(Z_OBJCE_P(zv), fbird_service_ce)) {
+		return fbird_service_get_resource(Z_OBJ_P(zv));
+	}
+	return NULL;
+}
+
+static fbird_service *_php_fbird_service_from_zval(zval *zv)
+{
+	zend_resource *svc_res = _php_fbird_service_res_from_zval(zv);
+	if (!svc_res) {
+		return NULL;
+	}
+	return (fbird_service *) svc_res->ptr;
+}
 
 static void _php_fbird_free_service(zend_resource *rsrc)
 {
@@ -147,14 +172,13 @@ static void _php_fbird_user(INTERNAL_FUNCTION_PARAMETERS, char operation)
 	RESET_ERRMSG;
 
 	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS(),
-			(operation == isc_action_svc_delete_user) ? "rs" : "rss|sss",
+			(operation == isc_action_svc_delete_user) ? "zs" : "zss|sss",
 			&res, &args[0], &args_len[0], &args[1], &args_len[1], &args[2], &args_len[2],
 			&args[3], &args_len[3], &args[4], &args_len[4])) {
 		RETURN_FALSE;
 	}
 
-	svm = (fbird_service *)zend_fetch_resource_ex(res, "Firebird service manager handle",
-		le_service);
+	svm = _php_fbird_service_from_zval(res);
 	if (!svm) {
 		RETURN_FALSE;
 	}
@@ -282,22 +306,30 @@ PHP_FUNCTION(fbird_service_attach)
 		RETURN_FALSE;
 	}
 
-	RETVAL_RES(zend_register_resource(svm, le_service));
-	Z_TRY_ADDREF_P(return_value);
-	svm->res = Z_RES_P(return_value);
+	{
+		zend_resource *svc_res = zend_register_resource(svm, le_service);
+		svm->res = svc_res;
+		fbird_setup_service_object(return_value, svc_res);
+	}
 }
 
 PHP_FUNCTION(fbird_service_detach)
 {
 	zval *res;
+	zend_resource *svc_res;
 
 	RESET_ERRMSG;
 
-	if (SUCCESS != zend_parse_parameters(ZEND_NUM_ARGS(), "r", &res)) {
+	if (SUCCESS != zend_parse_parameters(ZEND_NUM_ARGS(), "z", &res)) {
 		RETURN_FALSE;
 	}
 
-	zend_list_delete(Z_RES_P(res));
+	svc_res = _php_fbird_service_res_from_zval(res);
+	if (!svc_res) {
+		RETURN_FALSE;
+	}
+
+	zend_list_delete(svc_res);
 
 	RETURN_TRUE;
 }
@@ -470,13 +502,12 @@ static void _php_fbird_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operati
 
 	RESET_ERRMSG;
 
-	if (SUCCESS != zend_parse_parameters(ZEND_NUM_ARGS(), "rss|lb",
+	if (SUCCESS != zend_parse_parameters(ZEND_NUM_ARGS(), "zss|lb",
 			&res, &db, &dblen, &bk, &bklen, &opts, &verbose)) {
 		RETURN_FALSE;
 	}
 
-	svm = (fbird_service *)zend_fetch_resource_ex(res,
-		"Firebird service manager handle", le_service);
+	svm = _php_fbird_service_from_zval(res);
 	if (!svm) {
 		RETURN_FALSE;
 	}
@@ -525,19 +556,17 @@ static void _php_fbird_service_action(INTERNAL_FUNCTION_PARAMETERS, char svc_act
 	zval *res;
 	char buf[128], *db;
 	size_t dblen;
+	zend_long action = 0, argument = 0;
 	int spb_len;
-	zend_long action, argument = 0;
 	fbird_service *svm;
-
 	RESET_ERRMSG;
 
-	if (SUCCESS != zend_parse_parameters(ZEND_NUM_ARGS(), "rsl|l",
+	if (SUCCESS != zend_parse_parameters(ZEND_NUM_ARGS(), "zsl|l",
 			&res, &db, &dblen, &action, &argument)) {
 		RETURN_FALSE;
 	}
 
-	svm = (fbird_service *)zend_fetch_resource_ex(res,
-		"Firebird service manager handle", le_service);
+	svm = _php_fbird_service_from_zval(res);
 	if (!svm) {
 		RETURN_FALSE;
 	}
@@ -633,12 +662,11 @@ PHP_FUNCTION(fbird_server_info)
 
 	RESET_ERRMSG;
 
-	if (SUCCESS != zend_parse_parameters(ZEND_NUM_ARGS(), "rl", &res, &action)) {
+	if (SUCCESS != zend_parse_parameters(ZEND_NUM_ARGS(), "zl", &res, &action)) {
 		RETURN_FALSE;
 	}
 
-	svm = (fbird_service *)zend_fetch_resource_ex(res,
-		"Firebird service manager handle", le_service);
+	svm = _php_fbird_service_from_zval(res);
 	if (!svm) {
 		RETURN_FALSE;
 	}

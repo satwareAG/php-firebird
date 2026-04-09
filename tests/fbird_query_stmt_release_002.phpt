@@ -5,15 +5,7 @@ firebird
 --SKIPIF--
 <?php
 include("skipif.inc");
-require("firebird.inc");
-$conn = fbird_connect($test_base, $user, $password);
-if (!$conn) die("skip: cannot connect to Firebird");
-$ver = fbird_server_info($conn, IBASE_SVC_SERVER_VERSION);
-if (preg_match('/LI-V(\d+)\./', $ver ?? '', $m) && (int)$m[1] < 4) {
-    fbird_close($conn);
-    die("skip: Firebird server version " . $m[1] . ".x < 4.0");
-}
-fbird_close($conn);
+if (get_fb_version() < 4.0) die("skip: Firebird server version < 4.0");
 ?>
 --FILE--
 <?php

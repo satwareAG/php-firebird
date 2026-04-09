@@ -1,5 +1,5 @@
 --TEST--
-Bug: var_export returns NULL for valid resources
+M3: fbird_execute() returns Firebird\ResultSet object (var_dump and var_export)
 --SKIPIF--
 <?php include("skipif.inc"); ?>
 --FILE--
@@ -23,5 +23,7 @@ fbird_commit($trans);
 fbird_close($x);
 ?>
 --EXPECTF--
-Dump: resource(%d) of type (Firebird query)
-Export: NULL
+Dump: object(Firebird\ResultSet)#%d (%d) {
+}
+Export: \Firebird\ResultSet::__set_state(array(
+))

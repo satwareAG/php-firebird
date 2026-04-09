@@ -958,7 +958,7 @@ function fbird_wait_event(mixed $link_or_event, string ...$events): string|false
  * @return resource|false Event handler or false
  * @since 7.0.0
  */
-function fbird_set_event_handler(mixed $link_or_callback, mixed $callback_or_event, string ...$events): mixed {}
+function fbird_set_event_handler(mixed $link_or_callback, mixed $callback_or_event, string ...$events): \Firebird\Event|false {}
 
 /**
  * Poll for events (non-blocking).
@@ -989,15 +989,15 @@ function fbird_free_event_handler(mixed $event): bool {}
  * @param string $host     Host name (e.g. "localhost")
  * @param string $username Username
  * @param string $password Password
- * @return resource|false Service handle or false
+ * @return Firebird\Service|false Service handle or false
  * @since 7.0.0
  */
-function fbird_service_attach(string $host, string $username, string $password): mixed {}
+function fbird_service_attach(string $host, string $username, string $password): Firebird\Service|false {}
 
 /**
  * Detach from the service manager.
  *
- * @param resource $service Service handle
+ * @param Firebird\Service $service Service handle
  * @return bool True on success
  * @since 7.0.0
  */
@@ -1006,7 +1006,7 @@ function fbird_service_detach(mixed $service): bool {}
 /**
  * Backup a database.
  *
- * @param resource $service Service handle
+ * @param Firebird\Service $service Service handle
  * @param string   $source  Source database path
  * @param string   $dest    Destination backup file path
  * @param int      $options Backup options (FBIRD_BKP_*)
@@ -1019,7 +1019,7 @@ function fbird_backup(mixed $service, string $source, string $dest, int $options
 /**
  * Restore a database.
  *
- * @param resource $service Service handle
+ * @param Firebird\Service $service Service handle
  * @param string   $source  Source backup file path
  * @param string   $dest    Destination database path
  * @param int      $options Restore options (FBIRD_RES_*)
@@ -1032,7 +1032,7 @@ function fbird_restore(mixed $service, string $source, string $dest, int $option
 /**
  * Perform database maintenance.
  *
- * @param resource $service  Service handle
+ * @param Firebird\Service $service  Service handle
  * @param string   $db       Database path
  * @param int      $action   Maintenance action (FBIRD_PRP_* or FBIRD_RPR_*)
  * @param int      $argument Action argument
@@ -1044,7 +1044,7 @@ function fbird_maintain_db(mixed $service, string $db, int $action, int $argumen
 /**
  * Get database information via service manager.
  *
- * @param resource $service  Service handle
+ * @param Firebird\Service $service  Service handle
  * @param string   $db       Database path
  * @param int      $action   Information action
  * @param int      $argument Action argument
@@ -1056,7 +1056,7 @@ function fbird_db_info(mixed $service, string $db, int $action, int $argument = 
 /**
  * Get server information via service manager.
  *
- * @param resource $service Service handle
+ * @param Firebird\Service $service Service handle
  * @param int      $action  Information action (FBIRD_SVC_*)
  * @return string|false Information string or false
  * @since 7.0.0
@@ -1070,7 +1070,7 @@ function fbird_server_info(mixed $service, int $action): string|false {}
 /**
  * Add a user to the Firebird security database.
  *
- * @param resource    $service     Service handle
+ * @param Firebird\Service $service     Service handle
  * @param string      $username    Username
  * @param string      $password    Password
  * @param string|null $first_name  First name
@@ -1091,7 +1091,7 @@ function fbird_add_user(
 /**
  * Modify a user in the Firebird security database.
  *
- * @param resource    $service     Service handle
+ * @param Firebird\Service $service     Service handle
  * @param string      $username    Username
  * @param string      $password    Password
  * @param string|null $first_name  First name
@@ -1112,7 +1112,7 @@ function fbird_modify_user(
 /**
  * Delete a user from the Firebird security database.
  *
- * @param resource $service  Service handle
+ * @param Firebird\Service $service  Service handle
  * @param string   $username Username
  * @return bool True on success
  * @since 7.0.0
@@ -1328,13 +1328,3 @@ function fbird_drop_table_force(mixed $link_or_trans, string $table_name): bool 
 // Note: Classes in the Firebird namespace are defined in a separate file
 // to comply with PHP namespace rules.
 // See: firebird-classes.php
-
-      __exit_code__=$?
-      echo "___JVMSPAWN_STATE_MARKER___"
-      echo "___PWD___"
-      pwd
-      echo "___ENV___"
-      env
-      echo "___JOBS___"
-      jobs -p
-      exit $__exit_code__

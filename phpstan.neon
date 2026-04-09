@@ -10,6 +10,7 @@ parameters:
     stubFiles:
         - phpstan/fbird.stub.php
         - phpstan/firebird-event.stub.php
+        - stubs/firebird-classes.php
 
     # Ensure PHPStan actually scans the stub file for symbol discovery.
     # (Without this, extension functions may be resolved only via reflection,
@@ -17,6 +18,7 @@ parameters:
     scanFiles:
         - phpstan/fbird.stub.php
         - phpstan/firebird-event.stub.php
+        - stubs/firebird-classes.php
 
     # Bootstrap files to define extension constants
     bootstrapFiles:

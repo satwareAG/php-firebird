@@ -58,7 +58,13 @@ class Database
      * @param bool $owned Whether this instance owns the resource and should close it on destruct.
      *                    Set to false when wrapping an externally-managed resource (fromResource).
      */
-    private function __construct(mixed $resource, string $database, ?string $username, bool $persistent, bool $owned = true)
+    private function __construct(
+        mixed $resource,
+        string $database,
+        ?string $username,
+        bool $persistent,
+        bool $owned = true
+    )
     {
         $this->resource = $resource;
         $this->database = $database;
@@ -363,7 +369,8 @@ class Database
      */
     public function isConnected(): bool
     {
-        return $this->resource !== null && (is_resource($this->resource) || $this->resource instanceof \Firebird\Connection);
+        return $this->resource !== null
+            && (is_resource($this->resource) || $this->resource instanceof \Firebird\Connection);
     }
 
     /**

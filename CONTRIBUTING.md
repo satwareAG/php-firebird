@@ -22,7 +22,7 @@ Thank you for your interest in contributing to the modernized PHP Firebird exten
 ```bash
 # Use our Docker development environment
 cd docker/
-docker-compose up -d php81  # or php82, php83, php84, php85
+docker-compose up -d php82  # or php83, php84, php85
 
 # Build extension in container
 docker exec -it php-firebird-dev /ext/scripts/container/build.sh
@@ -30,7 +30,7 @@ docker exec -it php-firebird-dev /ext/scripts/container/build.sh
 
 ### Native Development Requirements
 - **Compilers**: GCC 7+ or Clang 5+ (C++17 support)
-- **PHP**: 8.1+ with php-dev/php-devel packages
+- **PHP**: 8.2+ with php-dev/php-devel packages
 - **Firebird**: Client libraries and headers (fbclient, ibase.h)
 - **Build Tools**: autotools, make, pkg-config
 

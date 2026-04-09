@@ -6,7 +6,7 @@ tags: [modernization, arginfo, resource-to-object, breaking-change, v11]
 priority: 11
 ---
 
-> **Status: IN PROGRESS** - Milestone v11.0 | M3 Phase G complete (2026-04-08)
+> **Status: COMPLETE** - All code criteria met (2026-04-09). Migration guide published (docs/MIGRATION-v10-to-v11.md).
 
 # Spec: v11.0 Modernization
 
@@ -19,7 +19,7 @@ This is a **breaking change** release.
 ## Success Criteria
 
 - [x] M2: All 84 procedural arginfo declarations use typed return macros (CLOSED #175)
-- [ ] M3: Resource-to-object migration - procedural API returns `Firebird\*` objects (IN PROGRESS #176)
+- [x] M3: Resource-to-object migration - procedural API returns `Firebird\*` objects (CLOSED #176, PR #215)
   - [x] Phase A+B: Class skeletons (Connection, Transaction, Event, Batch)
   - [x] Phase C: `fbird_connect/pconnect/create_database` return `Firebird\Connection`
   - [x] Phase D: `fbird_trans/trans_start` return `Firebird\Transaction`
@@ -32,7 +32,7 @@ This is a **breaking change** release.
 - [x] M12: OOP layer uses direct C calls (no `call_user_function`) (CLOSED #177)
 - [x] L3: All dead `FB_API_VER < 30` code paths removed (CLOSED #178)
 - [x] L2: `gds32_ms` fallback removed from `config.w32` (CLOSED #179)
-- [ ] Migration guide for v10.x to v11.0
+- [x] Migration guide for v10.x to v11.0 (docs/MIGRATION-v10-to-v11.md, closed #216)
 - [x] All stubs updated for new return types (Connection, Transaction, ResultSet, Blob done)
 
 ## Part 1: M2 - Arginfo Typed Returns

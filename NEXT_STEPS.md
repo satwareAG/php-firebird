@@ -1,6 +1,6 @@
 # Next Steps - php-firebird
 
-**Last Updated**: 2026-04-09 AM (PHPStan fix pushed - PR #215 ready for review)
+**Last Updated**: 2026-04-09 PM (PR #215 merged, v11.0.0 release prep in progress)
 
 ## Immediate (v10.6.x)
 
@@ -15,7 +15,7 @@
 Tracked via GitHub issues #175-#179 (milestone: v11.0 - Modernization, due 2026-12-31):
 
 - [x] #175 - [M2] Migrate all 84 procedural arginfo to typed return macros (CLOSED)
-- [ ] #176 - [M3] Resource-to-object migration for Layer 1 procedural functions (breaking change)
+- [x] #176 - [M3] Resource-to-object migration for Layer 1 procedural functions (MERGED via PR #215)
   - [x] Phase A+B (`7f100f6`): Class skeletons - Firebird\Connection, \Transaction, \Event, \Batch
   - [x] Phase C (`1b37219`): fbird_connect/pconnect/create_database return Firebird\Connection
   - [x] Phase D (`508f75e`): fbird_trans/trans_start return Firebird\Transaction
@@ -45,24 +45,13 @@ All previously open specs confirmed RELEASED and closed (2026-04-07 audit):
 - [ ] macOS x86_64 builds disabled (macos-13 runner deprecated) - evaluate macos-15 x86_64 when available
 - [ ] Coverage threshold still at 54% - target 65%+ with v11.0 test improvements
 
-## 2026-04-09 AM - PHPStan Code Quality Fix
+## 2026-04-09 AM - PHPStan Code Quality Fix (COMPLETE)
 
-**Branch**: `feat/20260408_morning_start` - PR #215 open, CI running.
+**PR #215 merged** (squash, ff84b3a). M3 Phases A-I complete. #176 closed.
 
-### PHPStan errors fixed (`f615a61`)
-
-- `phpstan/firebird-event.stub.php`: removed duplicate `Firebird\Event` / `Firebird\Exception`
-  declarations (both already in `stubs/firebird-classes.php` which is also a PHPStan stubFile)
-- `src/Firebird/functions.php`: updated `fbird_query_params_tx()` `@param $transaction` to
-  `\Firebird\Transaction|resource` (dual-accept bridge - callers pass objects post-M3)
-- `src/Firebird/functions.php`: updated `fbird_trans_begin()` `@return`/`@var` to
-  `\Firebird\Transaction|false` (stale `resource|false` annotation from pre-M3)
-
-### Next actions
-
-1. Confirm Code Quality CI green for `f615a61`
-2. Merge PR #215 into `satware-main`
-3. Close issue #176
+- PHPStan stub fixes: duplicate class declarations removed, `@return`/`@param` updated for M3
+- PHPCS fix: `Database.php` constructor `) {` on same line (PSR-12)
+- Stale open PRs #209/#210/#211 rebased and merged (v11 housekeeping)
 
 ## 2026-04-08 EOD - M3 Phase I + CI Fix
 

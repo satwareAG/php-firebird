@@ -386,7 +386,7 @@ function fbird_execute_auto(mixed $link_identifier, string $query, ?array $param
 /**
  * Execute a parameterized query with explicit link and transaction.
  * @param resource $link_identifier Connection resource
- * @param resource $trans_handle Transaction resource
+ * @param \Firebird\Transaction|resource $trans_handle Transaction object or legacy resource
  * @param string $query SQL statement
  * @param array<mixed>|null $params Bind parameters
  * @return resource|int|false
@@ -481,7 +481,7 @@ function fbird_param_info(mixed $query, int $param_number): array|false {}
 /**
  * @param resource|int|null $link_or_flags
  * @param mixed ...$args
- * @return resource|false
+ * @return \Firebird\Transaction|false
  */
 function fbird_trans(mixed $link_or_flags = null, mixed ...$args): \Firebird\Transaction|false {}
 
@@ -496,7 +496,7 @@ function fbird_trans(mixed $link_or_flags = null, mixed ...$args): \Firebird\Tra
  *
  * @param resource $link Database connection
  * @param int|array<string, array<string, int>|bool|int> $options Transaction options
- * @return resource|false Transaction handle or false on error
+ * @return \Firebird\Transaction|false Transaction handle or false on error
  */
 function fbird_trans_start(mixed $link, mixed $options = 0): \Firebird\Transaction|false {}
 

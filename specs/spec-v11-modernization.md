@@ -6,7 +6,7 @@ tags: [modernization, arginfo, resource-to-object, breaking-change, v11]
 priority: 11
 ---
 
-> **Status: IN PROGRESS** - Milestone v11.0 | M3 Phase G complete (2026-04-08)
+> **Status: COMPLETE** - All code criteria met (2026-04-09). Migration guide pending.
 
 # Spec: v11.0 Modernization
 
@@ -19,7 +19,7 @@ This is a **breaking change** release.
 ## Success Criteria
 
 - [x] M2: All 84 procedural arginfo declarations use typed return macros (CLOSED #175)
-- [ ] M3: Resource-to-object migration - procedural API returns `Firebird\*` objects (IN PROGRESS #176)
+- [x] M3: Resource-to-object migration - procedural API returns `Firebird\*` objects (CLOSED #176, PR #215)
   - [x] Phase A+B: Class skeletons (Connection, Transaction, Event, Batch)
   - [x] Phase C: `fbird_connect/pconnect/create_database` return `Firebird\Connection`
   - [x] Phase D: `fbird_trans/trans_start` return `Firebird\Transaction`

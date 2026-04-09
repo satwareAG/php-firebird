@@ -5,7 +5,7 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v11.0 M3 Resource-to-Object Migration
+## [11.0.0] - 2026-04-09
 
 ### Added
 - **[M3 Phase A+B]** Skeleton class entries for `Firebird\Connection`, `Firebird\Transaction`,
@@ -68,6 +68,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `stubs/firebird-stubs.php` and `phpstan/fbird.stub.php`: `fbird_service_attach()` return
   type changed from `mixed` to `\Firebird\Service|false`. All 14 service PHPTs pass; stubs
   sync clean. **Phase I completes the M3 resource-to-object migration sweep.**
+
+### Documentation
+- **Migration guide**: `docs/MIGRATION-v10-to-v11.md` — comprehensive before/after examples for
+  all 6 object type changes, `instanceof` reference table, and PHPStan stubs setup. Closes #216.
 
 ### Breaking Changes (v11.0)
 - Return types of `fbird_connect()`, `fbird_pconnect()`, `fbird_create_database()`,
@@ -1346,7 +1350,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v10.6.2...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v11.0.0...HEAD
+[11.0.0]: https://github.com/satwareAG/php-firebird/compare/v10.6.2...v11.0.0
 [10.6.2]: https://github.com/satwareAG/php-firebird/compare/v10.6.1...v10.6.2
 [10.6.1]: https://github.com/satwareAG/php-firebird/compare/v10.6.0...v10.6.1
 [10.6.0]: https://github.com/satwareAG/php-firebird/compare/v10.3.9...v10.6.0

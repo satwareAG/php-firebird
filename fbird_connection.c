@@ -222,6 +222,13 @@ void _php_fbird_close_plink(zend_resource *rsrc)
 		return;
 	}
 
+	/* Clear default_link if this resource IS the default link (Issue #183, #184).
+	 * Mirrors _php_fbird_close_link: persistent resources can also be the default
+	 * link and must clear IBG(default_link) when destroyed to prevent dangling ptr. */
+	if (!IBG(in_mshutdown) && IBG(default_link) == rsrc) {
+		IBG(default_link) = NULL;
+	}
+
 #ifndef PHP_WIN32
 	/* Fork-safety check (Issue #22, #36): Skip cleanup if we're in a forked child.
 	 * Two-level check for both module-level and connection-level fork detection. */
@@ -630,19 +637,20 @@ PHP_FUNCTION(fbird_close)
 		RETURN_FALSE;
 	}
 
-	/* Handle default link management BEFORE closing resource
-	 * Special handling for explicit links that are also the default */
-	if (is_default_link) {
-		if (link_arg != NULL) {
-			/* When closing explicit link that's also default, only clear if
-			 * resource's reference count will drop to zero */
-			if (GC_REFCOUNT(link_res) <= 2) {
-				_php_fbird_adopt_new_default_link(link_res);
-			}
-		} else {
-			/* Default link path - always clear default */
-			_php_fbird_adopt_new_default_link(link_res);
-		}
+	/* Handle default link management BEFORE closing resource.
+	 * For the explicit-arg case do NOT pre-clear: the resource destructors
+	 * (_php_fbird_close_link / _php_fbird_close_plink) clear IBG(default_link)
+	 * when the resource is actually freed.
+	 *
+	 * Pre-clearing in the explicit-arg path caused a regression (Issue #202):
+	 * when fbird_close($pcon1) is called and pcon1 == default_link but another
+	 * Connection object ($pcon2) wraps the same persistent resource, zend_list_delete
+	 * only decrements the refcount without destroying it. Pre-clearing default_link
+	 * here leaves it NULL even though pcon2's connection is still alive. */
+	if (is_default_link && link_arg == NULL) {
+		/* No-arg path: pre-clear because zend_list_delete on a persistent
+		 * connection won't trigger the destructor. */
+		_php_fbird_adopt_new_default_link(link_res);
 	}
 
 	/* Optimized resource cleanup */

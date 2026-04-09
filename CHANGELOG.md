@@ -5,6 +5,16 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Documentation
+- Added `docs/QA-REPORT-v11.0.0.md` - Comprehensive 5-dimensional quality audit report (4 Critical, 34 Warnings, 25 Info) produced by parallel sub-agent swarm
+- Added `specs/spec-v11.0.1-hotfixes.md` - SDD spec for P0 critical fixes (README badge, arginfo regression, broken link)
+- Added `specs/spec-v11.1-quality-hardening.md` - SDD spec for P1/P2 CI security and quality hardening
+- Added `specs/spec-v12-oop-completion.md` - SDD spec for P3 OOP API completion and test coverage
+- Fixed README version badge (10.6.2 -> 11.0.0) and stale version references throughout
+- Fixed broken `EVENT_TIMEOUT_RFC.md` link in README, replaced with valid `OO_WRAPPER_IMPLEMENTATION.md` target
+
 ## [11.0.0] - 2026-04-09
 
 ### Added

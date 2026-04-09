@@ -3,7 +3,7 @@
 [![CI](https://github.com/satwareAG/php-firebird/actions/workflows/ci.yml/badge.svg)](https://github.com/satwareAG/php-firebird/actions/workflows/ci.yml)
 [![License: PHP-3.01](https://img.shields.io/badge/License-PHP--3.01-blue.svg)](LICENSE)
 [![PHP 8.2+](https://img.shields.io/badge/PHP-8.2%2B-8892BF.svg)](https://www.php.net/)
-[![Version](https://img.shields.io/badge/version-10.6.2-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-11.0.0-blue.svg)](CHANGELOG.md)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/satwareAG/php-firebird)
 
 A high-performance PHP extension providing native connectivity to Firebird databases. This modernized version targets PHP 8.2+ with C++17 standards and comprehensive development tooling.
@@ -76,7 +76,7 @@ This extension provides three complementary API layers:
 
 > **Note**: glibc 2.28+ required for glibc precompiled binaries; musl 1.2+ for Alpine binaries. PHP 8.2+ is required.
 
-#### Precompiled Binary Matrix (v10.6.0+)
+#### Precompiled Binary Matrix (v11.0.0+)
 
 | Platform | Architectures | PHP Versions | Variants | Bundles |
 |----------|--------------|--------------|----------|---------|
@@ -926,11 +926,11 @@ fbird_close($conn);
 | `fiber` | `FiberEventPoller` | 1ms | amphp/amp ^3.0 |
 | `auto` | Auto-detect | Varies | Best available |
 
-See [EVENT_TIMEOUT_RFC.md](docs/development/EVENT_TIMEOUT_RFC.md) for implementation details.
+See the [EventPoller documentation](docs/OO_WRAPPER_IMPLEMENTATION.md) for implementation details.
 
 ## Version Compatibility
 
-### Current Version: 10.6.2 (Stable Release)
+### Current Version: 11.0.0 (Stable Release)
 
 **Supported PHP Versions:**
 - PHP 8.2 (fully supported, minimum)
@@ -953,17 +953,17 @@ See [EVENT_TIMEOUT_RFC.md](docs/development/EVENT_TIMEOUT_RFC.md) for implementa
 
 > **ℹ️ Firebird 2.5 Server**: Firebird 2.5 reached EOL in September 2020 and is no longer supported as of v7.2.0. Please migrate to Firebird 3.0+.
 
-### Precompiled Binaries (v10.6.0+)
+### Precompiled Binaries (v11.0.0+)
 
-Starting with v10.6.0, we provide 40 precompiled bundles across Linux (glibc + musl), macOS (arm64), and Windows:
+Starting with v11.0.0, we provide 40 precompiled bundles across Linux (glibc + musl), macOS (arm64), and Windows:
 
 ```bash
 # Download from GitHub Releases (example: Linux x86_64 glibc)
-wget https://github.com/satwareAG/php-firebird/releases/download/v10.6.0/php-firebird-10.6.0-php84-nts-linux-x86_64.tar.gz
+wget https://github.com/satwareAG/php-firebird/releases/download/v11.0.0/php-firebird-11.0.0-php84-nts-linux-x86_64.tar.gz
 
 # Extract to PHP extension directory
 EXTDIR=$(php -r 'echo ini_get("extension_dir");')
-sudo tar -xzf php-firebird-10.6.0-php84-nts-linux-x86_64.tar.gz -C "$EXTDIR" --strip-components=1
+sudo tar -xzf php-firebird-11.0.0-php84-nts-linux-x86_64.tar.gz -C "$EXTDIR" --strip-components=1
 
 # Enable and verify
 echo "extension=firebird.so" | sudo tee /etc/php/8.4/mods-available/firebird.ini

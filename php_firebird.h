@@ -55,8 +55,6 @@ PHP_FUNCTION(fbird_execute_query);
 PHP_FUNCTION(fbird_execute_auto);
 PHP_FUNCTION(fbird_query_params_tx);
 
-PHP_FUNCTION(fbird_timefmt);
-
 PHP_FUNCTION(fbird_gen_id);
 PHP_FUNCTION(fbird_last_insert_id);
 PHP_FUNCTION(fbird_num_fields);

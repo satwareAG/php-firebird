@@ -156,6 +156,13 @@ typedef struct event {
 	void *fbe_events;
 } fbird_event;
 
+typedef struct {
+	char *hostname;
+	char *username;
+	zend_resource *res;
+	void *fbsvc_service; /* OO API ServiceWrapper* */
+} fbird_service;
+
 /* sql variables union
  * used for convert and binding input variables
  */

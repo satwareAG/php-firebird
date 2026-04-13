@@ -14,13 +14,6 @@
 #include "firebird_utils.h"
 #include "fbird_classes.h"
 
-typedef struct {
-	char *hostname;
-	char *username;
-	zend_resource *res;
-	void *fbsvc_service; /* OO API ServiceWrapper* */
-} fbird_service;
-
 static int le_service;
 
 static zend_resource *_php_fbird_service_res_from_zval(zval *zv)

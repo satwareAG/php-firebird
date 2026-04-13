@@ -831,7 +831,7 @@ PHP_FUNCTION(fbird_drop_db)
 	int drop_result;
 	char *database = NULL, *username = NULL, *password = NULL;
 	size_t database_len = 0, username_len = 0, password_len = 0;
-	zend_bool string_mode = 0;
+	bool string_mode = false;
 
 	RESET_ERRMSG;
 

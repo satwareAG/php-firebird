@@ -497,7 +497,7 @@ static void _php_fbird_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operati
 	char *db, *bk, buf[200];
 	size_t dblen, bklen, spb_len;
 	zend_long opts = 0;
-	zend_bool verbose = 0;
+	bool verbose = false;
 	fbird_service *svm;
 
 	RESET_ERRMSG;

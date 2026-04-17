@@ -35,6 +35,19 @@ missingIncludeSystem
 preprocessorErrorDirective:php_fbird_includes.h
 
 # -----------------------------------------------------
+# External header false positives
+# -----------------------------------------------------
+# Zend's EMPTY_SWITCH_DEFAULT_CASE() macro expands to __builtin_unreachable()
+# which cppcheck cannot evaluate - reports missing return on unreachable path
+# Triggered via fbird_transaction.c -> zend_compile.h:413
+missingReturn:*Zend/zend_compile.h
+
+# Firebird SDK Interface.h uses throw; to rethrow current exception inside
+# a status-conversion wrapper - only called from catch blocks higher up the
+# call stack, but cppcheck cannot verify cross-function exception flow
+rethrowNoCurrentException:*firebird/Interface.h
+
+# -----------------------------------------------------
 # Notes:
 # - Line numbers may need adjustment if source files change significantly
 # - To regenerate line numbers after code changes, run cppcheck and update

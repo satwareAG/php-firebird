@@ -1,1 +1,1 @@
-scripts/daily-routine.sh
+daily-routine.sh

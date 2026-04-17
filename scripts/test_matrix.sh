@@ -29,6 +29,31 @@ DOCKER_DIR="$PROJECT_ROOT/docker"
 
 echo -e "${BLUE}=== PHP Firebird Test Matrix ===${NC}"
 
+# Helper: clean test artifacts left by run-tests.php
+# These files accumulate between runs and can cause stale results or confusion.
+clean_test_artifacts() {
+    local cleaned=0
+    for dir in tests pdo_fbird/tests; do
+        if [ -d "$PROJECT_ROOT/$dir" ]; then
+            cleaned=$(( cleaned + $(find "$PROJECT_ROOT/$dir" -maxdepth 1 \
+                \( -name '*.diff' -o -name '*.out' -o -name '*.exp' \
+                   -o -name '*.log' -o -name '*.php' -o -name '*.sh' \
+                   -o -name '*.mem' \) \
+                -not -name 'common.inc' -not -name 'config.inc' \
+                2>/dev/null | wc -l) ))
+            find "$PROJECT_ROOT/$dir" -maxdepth 1 \
+                \( -name '*.diff' -o -name '*.out' -o -name '*.exp' \
+                   -o -name '*.log' -o -name '*.php' -o -name '*.sh' \
+                   -o -name '*.mem' \) \
+                -not -name 'common.inc' -not -name 'config.inc' \
+                -delete 2>/dev/null || true
+        fi
+    done
+    if [ "$cleaned" -gt 0 ]; then
+        echo -e "${YELLOW}Cleaned $cleaned test artifact(s) from previous run${NC}"
+    fi
+}
+
 # 1. Check Prerequisites
 if ! command -v docker >/dev/null 2>&1; then
     echo -e "${RED}Error: docker is not installed.${NC}"
@@ -119,8 +144,15 @@ fi
 FAILED_CONTAINERS=()
 PASSED_CONTAINERS=()
 
+# Clean stale test artifacts before starting the matrix
+echo -e "${BLUE}>> Cleaning test artifacts from previous runs${NC}"
+clean_test_artifacts
+
 for CONTAINER in "${TARGETS[@]}"; do
     echo -e "\n${BLUE}>> Testing Target: $CONTAINER${NC}"
+
+    # Clean test artifacts between container runs to prevent cross-contamination
+    clean_test_artifacts
 
     # Verify container state
     if [ -z "$(docker compose ps -q $CONTAINER)" ]; then
@@ -179,6 +211,10 @@ for CONTAINER in "${TARGETS[@]}"; do
         FAILED_CONTAINERS+=("$CONTAINER")
     fi
 done
+
+# Final cleanup after all containers have run
+echo -e "\n${BLUE}>> Final artifact cleanup${NC}"
+clean_test_artifacts
 
 echo -e "\n${BLUE}=== Test Matrix Summary ===${NC}"
 echo -e "Passed (${#PASSED_CONTAINERS[@]}): ${PASSED_CONTAINERS[*]}"

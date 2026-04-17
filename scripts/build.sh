@@ -20,6 +20,12 @@ if [ -f Makefile ]; then
     phpize --clean 2>/dev/null || true
 fi
 
+# Explicitly remove autoconf/configure artifacts in case phpize --clean failed.
+# Stale config.h from a different PHP version causes silent build mismatches.
+rm -f configure config.h config.h.in config.log config.status config.nice \
+     Makefile Makefile.fragments Makefile.global Makefile.objects \
+     build/shtool config.cache libtool 2>/dev/null || true
+
 # Clean any standalone pdo_fbird build artifacts — pdo_fbird is compiled
 # as part of the unified firebird.so via config.m4.  A leftover
 # pdo_fbird/config.h from a standalone build defines COMPILE_DL_PDO_FBIRD

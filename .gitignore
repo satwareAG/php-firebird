@@ -78,12 +78,21 @@ tests/*.log
 tests/*.out
 tests/*.php
 tests/*.sh
+tests/*.mem
 tests/**/*.diff
 tests/**/*.exp
 tests/**/*.log
 tests/**/*.out
 tests/**/*.php
 tests/**/*.sh
+tests/**/*.mem
+pdo_fbird/tests/*.diff
+pdo_fbird/tests/*.exp
+pdo_fbird/tests/*.log
+pdo_fbird/tests/*.out
+pdo_fbird/tests/*.php
+pdo_fbird/tests/*.sh
+pdo_fbird/tests/*.mem
 *.dep
 
 # Fuzzer artifacts

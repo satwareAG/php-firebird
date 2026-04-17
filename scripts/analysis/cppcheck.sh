@@ -49,6 +49,17 @@ INCLUDE_PATHS=(
 echo "PHP Include Dir: $PHP_INCLUDE_DIR"
 echo "PHP API Version: $PHP_API_VERSION"
 
+# External header false positive suppressions (absolute paths from compile_commands.json)
+# - missingReturn: Zend EMPTY_SWITCH_DEFAULT_CASE() expands to __builtin_unreachable()
+# - rethrowNoCurrentException: Firebird SDK throw; rethrow pattern in catch wrapper
+EXTERNAL_HEADER_SUPPRESSIONS=()
+PHP_INCLUDE=$(php-config --include-dir 2>/dev/null || echo "/usr/local/include/php")
+EXTERNAL_HEADER_SUPPRESSIONS+=(
+    "--suppress=missingReturn:${PHP_INCLUDE}/Zend/zend_compile.h"
+    "--suppress=rethrowNoCurrentException:/opt/firebird/include/firebird/Interface.h"
+    "--suppress=rethrowNoCurrentException:/usr/include/firebird/Interface.h"
+)
+
 # Run analysis with appropriate method
 if [ -f compile_commands.json ]; then
     echo "Using compile_commands.json for whole-program analysis..."
@@ -56,6 +67,7 @@ if [ -f compile_commands.json ]; then
         --project=compile_commands.json \
         --cppcheck-build-dir="$CPPCHECK_CACHE" \
         --suppressions-list=.cppcheck-suppressions \
+        "${EXTERNAL_HEADER_SUPPRESSIONS[@]}" \
         --std=c17 \
         --std=c++17 \
         --enable=warning,performance,portability \
@@ -74,6 +86,7 @@ else
         "${INCLUDE_PATHS[@]}" \
         --cppcheck-build-dir="$CPPCHECK_CACHE" \
         --suppressions-list=.cppcheck-suppressions \
+        "${EXTERNAL_HEADER_SUPPRESSIONS[@]}" \
         --std=c17 \
         --std=c++17 \
         --enable=warning,performance,portability \

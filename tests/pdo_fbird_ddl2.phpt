@@ -7,8 +7,10 @@ if (!in_array('fbird', PDO::getAvailableDrivers())) die('skip pdo_fbird not avai
 require_once __DIR__ . '/pdo_fbird.inc';
 try { $pdo = pdo_fbird_connect(); } catch (Throwable $e) { die('skip cannot connect: ' . $e->getMessage()); }
 /* ALTER SEQUENCE RESTART WITH semantics changed in Firebird 4.0:
-   FB3: RESTART WITH n → next value = n+1; FB4+: RESTART WITH n → next value = n */
-$v = $pdo->getAttribute(PDO::ATTR_SERVER_VERSION);
+   FB3: RESTART WITH n → next value = n+1; FB4+: RESTART WITH n → next value = n
+   Note: PDO::ATTR_SERVER_VERSION returns the *client library* version, not the server.
+   Use ENGINE_VERSION system context to detect the actual server version. */
+$v = $pdo->query("SELECT rdb\$get_context('SYSTEM', 'ENGINE_VERSION') FROM RDB\$DATABASE")->fetchColumn();
 if (floatval($v) < 4.0) die('skip requires Firebird 4.0+ (ALTER SEQUENCE RESTART semantics)');
 ?>
 --FILE--
@@ -66,7 +68,7 @@ Done
 --CLEAN--
 <?php
 require_once __DIR__ . '/pdo_fbird.inc';
-$pdo = pdo_fbird_connect();
+$pdo = pdo_fbird_connect([PDO::ATTR_ERRMODE => PDO::ERRMODE_SILENT]);
 @$pdo->exec("DROP VIEW ddl2_view");
 @$pdo->exec("DROP PROCEDURE ddl2_proc");
 @$pdo->exec("DROP TABLE ddl2_base");

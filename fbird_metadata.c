@@ -28,10 +28,10 @@
 #define ISC_LONG_MAX    INT_MAX
 
 /* Forward declarations */
-static zend_bool _php_fbird_infer_returning_prefix(const char *sql, size_t index, char *out, size_t out_len);
-static zend_bool _php_fbird_infer_returning_full_alias(const char *sql, size_t index, char *out, size_t out_len);
-static zend_bool _php_fbird_returning_token_alias(const char *sql, size_t index, char *out, size_t out_len);
-static zend_bool _php_fbird_sql_has_returning(const char *sql);
+static bool _php_fbird_infer_returning_prefix(const char *sql, size_t index, char *out, size_t out_len);
+static bool _php_fbird_infer_returning_full_alias(const char *sql, size_t index, char *out, size_t out_len);
+static bool _php_fbird_returning_token_alias(const char *sql, size_t index, char *out, size_t out_len);
+static bool _php_fbird_sql_has_returning(const char *sql);
 
 void _php_fbird_insert_alias(HashTable *ht, const char *alias)
 {
@@ -458,7 +458,7 @@ void _php_fbird_alloc_ht_ind(fbird_query *ib_query)
 /* Parse the RETURNING list and extract a qualifier prefix (OLD./NEW.) for the
  * k-th expression, if present. Returns 1 when detected and writes uppercased
  * qualifier including trailing dot into out; otherwise returns 0. */
-static zend_bool _php_fbird_infer_returning_prefix(const char *sql, size_t index, char *out, size_t out_len)
+static bool _php_fbird_infer_returning_prefix(const char *sql, size_t index, char *out, size_t out_len)
 {
     if (!sql || !out || out_len < 5) { /* needs space for "OLD."/"NEW." */
         return 0;
@@ -521,7 +521,7 @@ static zend_bool _php_fbird_infer_returning_prefix(const char *sql, size_t index
  * expression is qualified with OLD./NEW. Returns 1 and writes the alias
  * (e.g., "OLD.I") into out when detected; otherwise returns 0. This is a
  * simple tokenizer aimed at test cases with unquoted identifiers. */
-static zend_bool _php_fbird_infer_returning_full_alias(const char *sql, size_t index, char *out, size_t out_len)
+static bool _php_fbird_infer_returning_full_alias(const char *sql, size_t index, char *out, size_t out_len)
 {
     if (!sql || !out || out_len < 6) {
         return 0;
@@ -589,7 +589,7 @@ static zend_bool _php_fbird_infer_returning_full_alias(const char *sql, size_t i
  * contains a qualifier (e.g., OLD.I or NEW.C), write it as-is (uppercased
  * qualifier plus original column part) into out and return 1. If token has
  * no qualifier, return 0 so caller can fallback to base alias. */
-static zend_bool _php_fbird_returning_token_alias(const char *sql, size_t index, char *out, size_t out_len)
+static bool _php_fbird_returning_token_alias(const char *sql, size_t index, char *out, size_t out_len)
 {
     if (!sql || !out || out_len < 6) return 0;
 
@@ -644,7 +644,7 @@ static zend_bool _php_fbird_returning_token_alias(const char *sql, size_t index,
 }
 
 /* Case-insensitive probe for the word RETURNING in the SQL text. */
-static zend_bool _php_fbird_sql_has_returning(const char *sql)
+static bool _php_fbird_sql_has_returning(const char *sql)
 {
     if (!sql) return 0;
     const char *p = sql;

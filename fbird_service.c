@@ -14,13 +14,6 @@
 #include "firebird_utils.h"
 #include "fbird_classes.h"
 
-typedef struct {
-	char *hostname;
-	char *username;
-	zend_resource *res;
-	void *fbsvc_service; /* OO API ServiceWrapper* */
-} fbird_service;
-
 static int le_service;
 
 static zend_resource *_php_fbird_service_res_from_zval(zval *zv)
@@ -497,7 +490,7 @@ static void _php_fbird_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operati
 	char *db, *bk, buf[200];
 	size_t dblen, bklen, spb_len;
 	zend_long opts = 0;
-	zend_bool verbose = 0;
+	bool verbose = false;
 	fbird_service *svm;
 
 	RESET_ERRMSG;

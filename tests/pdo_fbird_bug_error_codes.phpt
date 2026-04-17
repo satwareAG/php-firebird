@@ -65,7 +65,7 @@ Done
 --CLEAN--
 <?php
 require_once __DIR__ . '/pdo_fbird.inc';
-$pdo = pdo_fbird_connect();
+$pdo = pdo_fbird_connect([PDO::ATTR_ERRMODE => PDO::ERRMODE_SILENT]);
 @$pdo->exec("DROP TABLE err_test");
 unset($pdo);
 ?>

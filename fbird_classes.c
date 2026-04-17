@@ -865,12 +865,7 @@ static const zend_function_entry fbird_blob_methods[] = {
 zend_class_entry    *fbird_service_ce;
 static zend_object_handlers fbird_service_handlers;
 
-typedef struct {
-	char *hostname;
-	char *username;
-	zend_resource *res;
-	void *fbsvc_service; /* OO API ServiceWrapper* */
-} fbird_service_rsrc;
+/* fbird_service typedef is in php_fbird_includes.h */
 
 typedef struct {
 	zend_resource *svc_res;  /* weak ref to le_service when wrapped from procedural API */
@@ -927,7 +922,7 @@ void fbird_setup_service_object(zval *return_value, zend_resource *res)
 	object_init_ex(return_value, fbird_service_ce);
 	fbird_service_obj *intern = Z_FBIRD_SERVICE_P(return_value);
 	intern->svc_res = res;
-	intern->fbsvc = res && res->ptr ? ((fbird_service_rsrc *)res->ptr)->fbsvc_service : NULL;
+	intern->fbsvc = res && res->ptr ? ((fbird_service *)res->ptr)->fbsvc_service : NULL;
 }
 
 /* Firebird\Service::__construct(string $host, string $user, string $pass) */
@@ -976,7 +971,7 @@ PHP_METHOD(FirebirdService, __construct)
 
 	fbird_service_obj *intern = Z_FBIRD_SERVICE_P(ZEND_THIS);
 	if (intern->svc_res && intern->svc_res->ptr) {
-		intern->fbsvc = ((fbird_service_rsrc *)intern->svc_res->ptr)->fbsvc_service;
+		intern->fbsvc = ((fbird_service *)intern->svc_res->ptr)->fbsvc_service;
 	}
 
 	/* Build SPB: user + password */
@@ -1040,7 +1035,7 @@ PHP_METHOD(FirebirdService, isAttached)
 	ZEND_PARSE_PARAMETERS_NONE();
 	fbird_service_obj *intern = Z_FBIRD_SERVICE_P(ZEND_THIS);
 	if (intern->svc_res && intern->svc_res->ptr) {
-		intern->fbsvc = ((fbird_service_rsrc *)intern->svc_res->ptr)->fbsvc_service;
+		intern->fbsvc = ((fbird_service *)intern->svc_res->ptr)->fbsvc_service;
 	}
 	RETURN_BOOL(intern->fbsvc && fbsvc_is_attached(intern->fbsvc));
 }
@@ -1054,7 +1049,7 @@ PHP_METHOD(FirebirdService, getServerVersion)
 	ZEND_PARSE_PARAMETERS_NONE();
 	fbird_service_obj *intern = Z_FBIRD_SERVICE_P(ZEND_THIS);
 	if (intern->svc_res && intern->svc_res->ptr) {
-		intern->fbsvc = ((fbird_service_rsrc *)intern->svc_res->ptr)->fbsvc_service;
+		intern->fbsvc = ((fbird_service *)intern->svc_res->ptr)->fbsvc_service;
 	}
 	if (!intern->fbsvc) {
 		zend_throw_exception(fbird_service_exception_ce, "Not attached", 0);

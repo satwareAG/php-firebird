@@ -93,7 +93,7 @@ ZEND_BEGIN_MODULE_GLOBALS(fbird)
 	int client_minor_version;
 	pid_t init_pid;                 /* PID at initialization for fork-safety detection */
 	int exception_mode;             /* Exception mode: 0=SILENT (default), 1=THROW */
-	zend_bool in_mshutdown;         /* Flag: 1 during MSHUTDOWN to prevent EG() access */
+	bool in_mshutdown;         /* Flag: true during MSHUTDOWN to prevent EG() access */
 ZEND_END_MODULE_GLOBALS(fbird)
 
 ZEND_EXTERN_MODULE_GLOBALS(fbird)
@@ -156,6 +156,13 @@ typedef struct event {
 	void *fbe_events;
 } fbird_event;
 
+typedef struct {
+	char *hostname;
+	char *username;
+	zend_resource *res;
+	void *fbsvc_service; /* OO API ServiceWrapper* */
+} fbird_service;
+
 /* sql variables union
  * used for convert and binding input variables
  */
@@ -208,7 +215,7 @@ typedef struct _ib_query {
      * in the destructor. Result resources created for SELECT reuse the parent's
      * statement handle and must NOT drop it to avoid invalidating the prepared
      * statement (fixes: tests/006.phpt, tests/bug45373.phpt, etc.). */
-    zend_bool owns_stmt_handle;
+    bool owns_stmt_handle;
     /* Parent/children linkage to allow invalidating dependent results when the
      * prepared statement is freed (ensures TypeError on use-after-free, as
      * expected by tests/use_after_free-002.phpt). */

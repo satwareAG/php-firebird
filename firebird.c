@@ -337,13 +337,12 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_modify_user, 0, 3, _IS_BOO
 	ZEND_ARG_INFO(0, last_name)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_delete_user, 0, 3, _IS_BOOL, 0)
+/* fbird_delete_user($svc, $user_name): service-based user deletion does not
+ * require a password (the service handle carries the privilege). The C
+ * implementation parses "zs" (exactly 2 args). See specs/spec-v11.0.1-hotfixes.md HF-3. */
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_delete_user, 0, 2, _IS_BOOL, 0)
 	ZEND_ARG_INFO(0, service_handle)
 	ZEND_ARG_INFO(0, user_name)
-	ZEND_ARG_INFO(0, password)
-	ZEND_ARG_INFO(0, first_name)
-	ZEND_ARG_INFO(0, middle_name)
-	ZEND_ARG_INFO(0, last_name)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_service_attach, 0, 0, MAY_BE_RESOURCE|MAY_BE_FALSE)

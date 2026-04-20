@@ -117,16 +117,19 @@
 
 ## Priority Summary
 
-All P1 items are tracked in the **v11.0 - Modernization** milestone (due 2026-12-31).
+> **Status (2026-04-20)**: All P1 items tracked below under issues #176, #177, #178 have
+> **SHIPPED in v11.0.0** (tag `v11.0.0`, commit `ff84b3a`, 2026-04-09 via PR #215).
+> Issues #176, #177, #178 are CLOSED. Remaining P2 item (#4, `isc_array_*`) depends on
+> Firebird upstream and is documented as permanent Firebird-API-level legacy.
 
-| # | Pattern | Priority | Complexity | GitHub Issue | Blocked By |
-|---|---------|----------|------------|--------------|------------|
-| 8 | Shutdown crash (dangling master_) | **P0** | S | FIXED (2026-03-23) | — |
-| 5 | FBIRD_API_MODE_LEGACY dead code | P1 | S | [#178](https://github.com/satwareAG/php-firebird/issues/178) | — |
-| 6 | get_statement_interface dead code | P1 | S | [#178](https://github.com/satwareAG/php-firebird/issues/178) | — |
-| 7 | void* opaque pointers | P1 | M | spec-v10-void-star-elimination.md (v11 migration) | — |
-| 3 | ISC_TEB multi-db transactions | P1 | L | [#176](https://github.com/satwareAG/php-firebird/issues/176) | — |
-| 2 | fbc_get_legacy_handle_ptr bridge | P1 | M | [#176](https://github.com/satwareAG/php-firebird/issues/176) | #3, events (#177) |
-| 1 | Legacy ISC handle fields | P1 | M | [#176](https://github.com/satwareAG/php-firebird/issues/176) | #2, #3 |
-| 9 | fbird_events.c legacy API | P1 | L | [#177](https://github.com/satwareAG/php-firebird/issues/177) | — |
-| 4 | isc_array_* calls | P2 | — | — | Firebird upstream |
+| # | Pattern | Priority | Complexity | GitHub Issue | Status |
+|---|---------|----------|------------|--------------|--------|
+| 8 | Shutdown crash (dangling master_) | **P0** | S | FIXED (2026-03-23) | SHIPPED (v10.x) |
+| 5 | FBIRD_API_MODE_LEGACY dead code | P1 | S | [#178](https://github.com/satwareAG/php-firebird/issues/178) | **SHIPPED in v11.0.0** (CLOSED) |
+| 6 | get_statement_interface dead code | P1 | S | [#178](https://github.com/satwareAG/php-firebird/issues/178) | **SHIPPED in v11.0.0** (CLOSED) |
+| 7 | void* opaque pointers | P1 | M | spec-v10-void-star-elimination.md | **SHIPPED in v11.0.0** |
+| 3 | ISC_TEB multi-db transactions | P1 | L | [#176](https://github.com/satwareAG/php-firebird/issues/176) | **SHIPPED in v11.0.0** (CLOSED, PR #215) |
+| 2 | fbc_get_legacy_handle_ptr bridge | P1 | M | [#176](https://github.com/satwareAG/php-firebird/issues/176) | **SHIPPED in v11.0.0** (CLOSED, PR #215) |
+| 1 | Legacy ISC handle fields | P1 | M | [#176](https://github.com/satwareAG/php-firebird/issues/176) | **SHIPPED in v11.0.0** (CLOSED, PR #215) |
+| 9 | fbird_events.c legacy API | P1 | L | [#177](https://github.com/satwareAG/php-firebird/issues/177) | **SHIPPED in v11.0.0** (CLOSED) |
+| 4 | isc_array_* calls | P2 | — | — | Permanent legacy (Firebird upstream dependency) |

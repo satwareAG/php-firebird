@@ -1,5 +1,11 @@
 # Implementation Plan
 
+> **Status: COMPLETE** — All items (M2, M3, M12) shipped in v11.0.0 (tag `v11.0.0`,
+> commit `ff84b3a`, 2026-04-09 via PR #215). Issues #175, #176, #177, #178, #179 are CLOSED.
+> This document is retained as historical reference; TBD markers below were resolved during
+> implementation — the shipped struct layouts are documented in `fbird_classes.h` and
+> `php_fbird_includes.h`.
+
 [Overview]
 Modernize php-firebird extension API for v11.0 with typed arginfo, call_user_function elimination, and resource-to-object migration.
 
@@ -30,9 +36,9 @@ No new PHP-visible types are introduced; existing Firebird\* class objects repla
 | `Firebird\Transaction` | `fbird_transaction_obj { void *fbt_trans; zend_object std; }` | Direct OO API pointer |
 | `Firebird\Statement` | `fbird_statement_obj { zend_resource *query_res; zend_object std; }` | Wraps le_result resource |
 | `Firebird\ResultSet` | `fbird_resultset_obj { zend_resource *query_res; zend_object std; }` | Wraps le_result resource |
-| `Firebird\Blob` | `fbird_blob_obj { ... }` | TBD |
-| `Firebird\Service` | `fbird_service_obj { ... }` | TBD |
-| `Firebird\EventPoller` | `fbird_event_obj { ... }` | TBD |
+| `Firebird\Blob` | `fbird_blob_obj { fbird_blob *blob; zend_object std; }` | Shipped v11.0.0 — Phase G (`dc2dde7`, `7761c40`) |
+| `Firebird\Service` | `fbird_service_obj { fbird_service *svc; zend_object std; }` | Shipped v11.0.0 — Phase I |
+| `Firebird\EventPoller` | `fbird_event_obj { fbird_event *evt; zend_object std; }` | Shipped v11.0.0 — Phase H |
 
 ### Arginfo Return Type Mapping (from stubs)
 
@@ -161,8 +167,8 @@ No new classes needed; existing Firebird\* classes become the return type of pro
 | `Firebird\Transaction` | Already uses direct OO pointer | Minimal changes |
 | `Firebird\Statement` | Embeds query data directly | `fbird_statement_obj` embeds `fbird_result` instead of `zend_resource *query_res` |
 | `Firebird\ResultSet` | Embeds query data directly | Same pattern |
-| `Firebird\Blob` | Embeds blob data directly | TBD based on struct analysis |
-| `Firebird\Service` | Embeds service data directly | TBD |
+| `Firebird\Blob` | Embeds blob data directly | Shipped v11.0.0 — see `fbird_classes.h` / `fbird_blobs.c` |
+| `Firebird\Service` | Embeds service data directly | Shipped v11.0.0 — see `fbird_service.c` Phase I |
 
 ### Object Extraction Macro (new, php_fbird_includes.h)
 

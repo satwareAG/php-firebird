@@ -7,13 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [11.0.1] - 2026-04-20
+
+### Fixed
+- **[HF-3]** `fbird_delete_user()` arginfo regression: declaration required 3 parameters
+  (`service_handle`, `user_name`, `password`) while the C implementation parses only
+  `"zs"` (2 params). Every valid 2-arg call threw `ArgumentCountError: Too few arguments
+  (2 passed and at least 3 expected)`. Arginfo corrected to require exactly 2 parameters,
+  matching the stubs (`fbird.stub.php`, `firebird-stubs.php`). (`firebird.c:340`)
+
+### Tests
+- Added `tests/fbird_service_delete_user_argcount.phpt` — reflection-based regression
+  guard verifying `fbird_delete_user` arginfo has exactly 2 required parameters and
+  no `password` entry.
+
 ### Documentation
 - Added `docs/QA-REPORT-v11.0.0.md` - Comprehensive 5-dimensional quality audit report (4 Critical, 34 Warnings, 25 Info) produced by parallel sub-agent swarm
 - Added `specs/spec-v11.0.1-hotfixes.md` - SDD spec for P0 critical fixes (README badge, arginfo regression, broken link)
 - Added `specs/spec-v11.1-quality-hardening.md` - SDD spec for P1/P2 CI security and quality hardening
 - Added `specs/spec-v12-oop-completion.md` - SDD spec for P3 OOP API completion and test coverage
-- Fixed README version badge (10.6.2 -> 11.0.0) and stale version references throughout
-- Fixed broken `EVENT_TIMEOUT_RFC.md` link in README, replaced with valid `OO_WRAPPER_IMPLEMENTATION.md` target
+- Fixed README version badge (10.6.2 -> 11.0.0) and stale version references throughout (HF-1)
+- Fixed broken `EVENT_TIMEOUT_RFC.md` link in README, replaced with valid `OO_WRAPPER_IMPLEMENTATION.md` target (HF-2)
+- Updated `NEXT_STEPS.md` header to reflect v11.0.0 RELEASED; archived stale 2026-04-08 EOD work log (HF-4)
+- Updated `docs/DEPRECATION-AUDIT.md` Priority Summary — issues #176, #177, #178 marked CLOSED/SHIPPED in v11.0.0 (HF-4)
+- Added `Status: COMPLETE` banner to `implementation_plan.md`; resolved 5 `TBD` markers for `Firebird\Blob`, `Firebird\Service`, `Firebird\EventPoller` struct strategies (HF-4)
 
 ## [11.0.0] - 2026-04-09
 

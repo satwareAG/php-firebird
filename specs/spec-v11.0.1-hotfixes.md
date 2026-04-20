@@ -6,7 +6,9 @@ tags: [hotfix, regression, documentation, arginfo, v11.0.1]
 priority: 0
 ---
 
-> **Status: ACTIVE** — v11.0.1 patch targeting QA audit findings D1, D2, D3, C1, D4, D5, D7.
+> **Status: IN REVIEW (2026-04-20)** — HF-1/HF-2 already landed on `satware-main`;
+> HF-3 arginfo regression fixed on `hotfix/v11.0.1`; HF-4 doc updates applied.
+> v11.0.1 patch targeting QA audit findings D1, D2, D3, C1, D4, D5, D7.
 
 # Spec: v11.0.1 Hotfixes
 
@@ -30,35 +32,35 @@ development releases. This spec does not introduce new features or breaking chan
 
 ### HF-1: README version badge and "Current Version" section updated
 
-- [ ] `README.md:6` badge URL updated from `version-10.6.2-blue.svg` to `version-11.0.0-blue.svg`
-- [ ] `README.md:933` section header updated to reference v11.0.0
-- [ ] `README.md:962` wget download URL updated to v11.0.0 tarball
-- [ ] `README.md:966` tarball filename updated to v11.0.0
-- [ ] No remaining `10.6.2` version references in README.md (verified by `grep -n 10.6.2 README.md`)
+- [x] `README.md:6` badge URL updated from `version-10.6.2-blue.svg` to `version-11.0.0-blue.svg`
+- [x] `README.md:933` section header updated to reference v11.0.0
+- [x] `README.md:962` wget download URL updated to v11.0.0 tarball
+- [x] `README.md:966` tarball filename updated to v11.0.0
+- [x] No remaining `10.6.2` version references in README.md (verified by `grep -n 10.6.2 README.md`)
 
 ### HF-2: Broken link to EVENT_TIMEOUT_RFC.md removed or replaced
 
-- [ ] `README.md:929` link to `docs/development/EVENT_TIMEOUT_RFC.md` is resolved
-- [ ] Either the file exists at that path OR the link is replaced with a note/redirect
-- [ ] All internal `[*](docs/*.md)` links in README verified with `find docs/ -name '*.md'` crosscheck
-- [ ] No 404-producing local links remain in README.md
+- [x] `README.md:929` link to `docs/development/EVENT_TIMEOUT_RFC.md` is resolved (replaced with link to `docs/OO_WRAPPER_IMPLEMENTATION.md`)
+- [x] Either the file exists at that path OR the link is replaced with a note/redirect
+- [x] All internal `[*](docs/*.md)` links in README verified
+- [x] No 404-producing local links remain in README.md
 
 ### HF-3: `fbird_delete_user` arginfo regression fixed
 
-- [ ] `firebird.c:340` arginfo updated to require **2** parameters (not 3)
-- [ ] `fbird_delete_user($svc, 'username')` succeeds without "Too few arguments" error
-- [ ] `fbird_delete_user($svc, 'username', 'password')` still accepted (backward compatibility — extra arg ignored by C implementation)
-- [ ] New test `fbird_service_delete_user_argcount.phpt` verifies 2-arg call succeeds
-- [ ] `php --re fbird | grep -A3 delete_user` shows `required: 2`
+- [x] `firebird.c:340` arginfo updated to require **2** parameters (not 3)
+- [x] `fbird_delete_user($svc, 'username')` succeeds without "Too few arguments" error
+- [x] `fbird_delete_user($svc, 'username', 'password')` — NOTE: arginfo now declares max 2 params; passing a 3rd arg will trigger a PHP warning. The C impl never consumed a password, and the stubs (`fbird.stub.php`, `firebird-stubs.php`) already declare only 2 args, so there was no documented 3-arg contract to preserve.
+- [x] New test `fbird_service_delete_user_argcount.phpt` verifies arginfo via Reflection (2 required, 2 total, no `password`)
+- [x] `php --re fbird | grep -A3 delete_user` shows `required: 2`
 
 ### HF-4: Stale documentation updated to reflect v11.0.0 release
 
-- [ ] `NEXT_STEPS.md` header updated from "v11.0.0 release prep in progress" to "v11.0.0 RELEASED (2026-04-09)"
-- [ ] `NEXT_STEPS.md` stale "Tomorrow morning" work-log section from 2026-04-08 removed or archived
-- [ ] `NEXT_STEPS.md` FAILING CI notes removed (CI is green for v11.0.0)
-- [ ] `docs/DEPRECATION-AUDIT.md` issues #176, #177, #178 marked CLOSED/SHIPPED with v11.0.0 reference
-- [ ] `docs/plans/implementation_plan.md` receives `> **Status: COMPLETE** — All items shipped in v11.0.0 (2026-04-09)` banner
-- [ ] `docs/plans/implementation_plan.md` all 5 stale TBD markers resolved (Blob/Service/EventPoller struct strategies documented as shipped)
+- [x] `NEXT_STEPS.md` header updated from "v11.0.0 release prep in progress" to "v11.0.0 RELEASED (2026-04-09)"
+- [x] `NEXT_STEPS.md` stale "Tomorrow morning" work-log section from 2026-04-08 archived
+- [x] `NEXT_STEPS.md` FAILING CI notes removed (CI is green for v11.0.0)
+- [x] `docs/DEPRECATION-AUDIT.md` issues #176, #177, #178 marked CLOSED/SHIPPED with v11.0.0 reference
+- [x] `implementation_plan.md` (root; spec path `docs/plans/implementation_plan.md` obsolete) receives `> **Status: COMPLETE** — All items shipped in v11.0.0 (2026-04-09)` banner
+- [x] `implementation_plan.md` 5 stale TBD markers resolved (Blob/Service/EventPoller struct strategies documented as shipped in Phases G/H/I)
 
 ---
 

@@ -1,0 +1,251 @@
+Building PHP Firebird extension...
+find . -name \*.gcno -o -name \*.gcda | xargs rm -f
+find . -name \*.lo -o -name \*.o -o -name \*.dep | xargs rm -f
+find . -name \*.la -o -name \*.a | xargs rm -f
+find . -name \*.so | xargs rm -f
+find . -name .libs -a -type d|xargs rm -rf
+rm -f libphp.la        modules/* libs/*
+rm -f ext/opcache/jit/ir/gen_ir_fold_hash
+rm -f ext/opcache/jit/ir/minilua
+rm -f ext/opcache/jit/ir/ir_fold_hash.h
+rm -f ext/opcache/jit/ir/ir_emit_x86.h
+rm -f ext/opcache/jit/ir/ir_emit_aarch64.h
+Cleaning..
+Configuring for:
+PHP Api Version:         20230831
+Zend Module Api No:      20230831
+Zend Extension Api No:   420230831
+Using system Firebird at /usr
+checking for grep that handles long lines and -e... /usr/bin/grep
+checking for egrep... /usr/bin/grep -E
+checking for a sed that does not truncate output... /usr/bin/sed
+checking for pkg-config... /usr/bin/pkg-config
+checking pkg-config is at least version 0.9.0... yes
+checking for cc... cc
+checking whether the C compiler works... yes
+checking for C compiler default output file name... a.out
+checking for suffix of executables... 
+checking whether we are cross compiling... no
+checking for suffix of object files... o
+checking whether the compiler supports GNU C... yes
+checking whether cc accepts -g... yes
+checking for cc option to enable C11 features... none needed
+checking how to run the C preprocessor... cc -E
+checking for egrep -e... (cached) /usr/bin/grep -E
+checking for icc... no
+checking for suncc... no
+checking for system library directory... lib
+checking if compiler supports -Wl,-rpath,... yes
+checking build system type... x86_64-pc-linux-gnu
+checking host system type... x86_64-pc-linux-gnu
+checking target system type... x86_64-pc-linux-gnu
+checking for PHP prefix... /usr/local
+checking for PHP includes... -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib
+checking for PHP extension directory... /usr/local/lib/php/extensions/no-debug-non-zts-20230831
+checking for PHP installed headers prefix... /usr/local/include/php
+checking if debug is enabled... no
+checking if zts is enabled... no
+checking for gawk... no
+checking for nawk... nawk
+checking if nawk is broken... no
+checking for Firebird support... yes, shared
+checking for php-firebird version... 11.0.0
+checking for minimum PHP version 8.2... yes (PHP 8.3.30)
+checking for fb_config... /usr/bin/fb_config
+checking for isc_detach_database in -lfbclient... yes
+checking for PDO includes... /usr/local/include/php/ext
+checking whether C compiler accepts -Wall... yes
+checking whether C compiler accepts -Wextra... yes
+checking whether C compiler accepts -Wformat-security... yes
+checking whether C compiler accepts -Wno-unused-parameter... yes
+checking whether C compiler accepts -fstack-protector-strong... yes
+checking whether C compiler accepts -std=gnu17... yes
+checking for g++... g++
+checking whether the compiler supports GNU C++... yes
+checking whether g++ accepts -g... yes
+checking for g++ option to enable C++11 features... none needed
+checking how to run the C++ preprocessor... g++ -E
+checking whether g++ supports C++17 features with -std=c++17... yes
+checking for a sed that does not truncate output... /usr/bin/sed
+checking for ld used by cc... /usr/bin/ld
+checking if the linker (/usr/bin/ld) is GNU ld... yes
+checking for /usr/bin/ld option to reload object files... -r
+checking for BSD-compatible nm... /usr/bin/nm -B
+checking whether ln -s works... yes
+checking how to recognize dependent libraries... pass_all
+checking for stdio.h... yes
+checking for stdlib.h... yes
+checking for string.h... yes
+checking for inttypes.h... yes
+checking for stdint.h... yes
+checking for strings.h... yes
+checking for sys/stat.h... yes
+checking for sys/types.h... yes
+checking for unistd.h... yes
+checking for dlfcn.h... yes
+checking how to run the C++ preprocessor... g++ -E
+checking the maximum length of command line arguments... 1572864
+checking command to parse /usr/bin/nm -B output from cc object... ok
+checking for objdir... .libs
+checking for ar... ar
+checking for ranlib... ranlib
+checking for strip... strip
+checking if cc supports -fno-rtti -fno-exceptions... no
+checking for cc option to produce PIC... -fPIC
+checking if cc PIC flag -fPIC works... yes
+checking if cc static flag -static works... yes
+checking if cc supports -c -o file.o... yes
+checking whether the cc linker (/usr/bin/ld -m elf_x86_64) supports shared libraries... yes
+checking whether -lc should be explicitly linked in... no
+checking dynamic linker characteristics... GNU/Linux ld.so
+checking how to hardcode library paths into programs... immediate
+checking whether stripping libraries is possible... yes
+checking if libtool supports shared libraries... yes
+checking whether to build shared libraries... yes
+checking whether to build static libraries... no
+
+creating libtool
+appending configuration tag "CXX" to libtool
+checking for ld used by g++... /usr/bin/ld -m elf_x86_64
+checking if the linker (/usr/bin/ld -m elf_x86_64) is GNU ld... yes
+checking whether the g++ linker (/usr/bin/ld -m elf_x86_64) supports shared libraries... yes
+checking for g++ option to produce PIC... -fPIC
+checking if g++ PIC flag -fPIC works... yes
+checking if g++ static flag -static works... yes
+checking if g++ supports -c -o file.o... yes
+checking whether the g++ linker (/usr/bin/ld -m elf_x86_64) supports shared libraries... yes
+checking dynamic linker characteristics... GNU/Linux ld.so
+(cached) (cached) checking how to hardcode library paths into programs... immediate
+configure: patching config.h.in
+configure: creating ./config.status
+config.status: creating config.h
+STOP_ON_WARN=true: build will fail on any compiler warning
+/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/firebird.c -o firebird.lo  -MMD -MF firebird.dep -MT firebird.lo
+/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_error.c -o fbird_error.lo  -MMD -MF fbird_error.dep -MT fbird_error.lo
+/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_connection.c -o fbird_connection.lo  -MMD -MF fbird_connection.dep -MT fbird_connection.lo
+/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_transaction.c -o fbird_transaction.lo  -MMD -MF fbird_transaction.dep -MT fbird_transaction.lo
+/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_batch.c -o fbird_batch.lo  -MMD -MF fbird_batch.dep -MT fbird_batch.lo
+/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_query_exec.c -o fbird_query_exec.lo  -MMD -MF fbird_query_exec.dep -MT fbird_query_exec.lo
+/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_query_prepare.c -o fbird_query_prepare.lo  -MMD -MF fbird_query_prepare.dep -MT fbird_query_prepare.lo
+/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_query_bind.c -o fbird_query_bind.lo  -MMD -MF fbird_query_bind.dep -MT fbird_query_bind.lo
+/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_query_array.c -o fbird_query_array.lo  -MMD -MF fbird_query_array.dep -MT fbird_query_array.lo
+/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_datetime.c -o fbird_datetime.lo  -MMD -MF fbird_datetime.dep -MT fbird_datetime.lo
+/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_result.c -o fbird_result.lo  -MMD -MF fbird_result.dep -MT fbird_result.lo
+/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_metadata.c -o fbird_metadata.lo  -MMD -MF fbird_metadata.dep -MT fbird_metadata.lo
+/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_service.c -o fbird_service.lo  -MMD -MF fbird_service.dep -MT fbird_service.lo
+/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_events.c -o fbird_events.lo  -MMD -MF fbird_events.dep -MT fbird_events.lo
+/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_blobs.c -o fbird_blobs.lo  -MMD -MF fbird_blobs.dep -MT fbird_blobs.lo
+/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_inspection.c -o fbird_inspection.lo  -MMD -MF fbird_inspection.dep -MT fbird_inspection.lo
+mkdir .libs
+mkdir .libs
+mkdir: cannot create directory '.libs': File exists
+ cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/usr/include/firebird -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_metadata.c -MMD -MF fbird_metadata.dep -MT fbird_metadata.lo  -fPIC -DPIC -o .libs/fbird_metadata.o
+ cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/usr/include/firebird -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_connection.c -MMD -MF fbird_connection.dep -MT fbird_connection.lo  -fPIC -DPIC -o .libs/fbird_connection.o
+ cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/usr/include/firebird -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_query_bind.c -MMD -MF fbird_query_bind.dep -MT fbird_query_bind.lo  -fPIC -DPIC -o .libs/fbird_query_bind.o
+ cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/usr/include/firebird -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_transaction.c -MMD -MF fbird_transaction.dep -MT fbird_transaction.lo  -fPIC -DPIC -o .libs/fbird_transaction.o
+ cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/usr/include/firebird -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_error.c -MMD -MF fbird_error.dep -MT fbird_error.lo  -fPIC -DPIC -o .libs/fbird_error.o
+ cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/usr/include/firebird -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_query_array.c -MMD -MF fbird_query_array.dep -MT fbird_query_array.lo  -fPIC -DPIC -o .libs/fbird_query_array.o
+ cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/usr/include/firebird -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_query_prepare.c -MMD -MF fbird_query_prepare.dep -MT fbird_query_prepare.lo  -fPIC -DPIC -o .libs/fbird_query_prepare.o
+ cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/usr/include/firebird -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_batch.c -MMD -MF fbird_batch.dep -MT fbird_batch.lo  -fPIC -DPIC -o .libs/fbird_batch.o
+ cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/usr/include/firebird -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_service.c -MMD -MF fbird_service.dep -MT fbird_service.lo  -fPIC -DPIC -o .libs/fbird_service.o
+ cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/usr/include/firebird -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_datetime.c -MMD -MF fbird_datetime.dep -MT fbird_datetime.lo  -fPIC -DPIC -o .libs/fbird_datetime.o
+ cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/usr/include/firebird -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_events.c -MMD -MF fbird_events.dep -MT fbird_events.lo  -fPIC -DPIC -o .libs/fbird_events.o
+ cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/usr/include/firebird -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_blobs.c -MMD -MF fbird_blobs.dep -MT fbird_blobs.lo  -fPIC -DPIC -o .libs/fbird_blobs.o
+ cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/usr/include/firebird -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_inspection.c -MMD -MF fbird_inspection.dep -MT fbird_inspection.lo  -fPIC -DPIC -o .libs/fbird_inspection.o
+ cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/usr/include/firebird -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_result.c -MMD -MF fbird_result.dep -MT fbird_result.lo  -fPIC -DPIC -o .libs/fbird_result.o
+ cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/usr/include/firebird -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_query_exec.c -MMD -MF fbird_query_exec.dep -MT fbird_query_exec.lo  -fPIC -DPIC -o .libs/fbird_query_exec.o
+ cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/usr/include/firebird -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/firebird.c -MMD -MF firebird.dep -MT firebird.lo  -fPIC -DPIC -o .libs/firebird.o
+/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_classes.c -o fbird_classes.lo  -MMD -MF fbird_classes.dep -MT fbird_classes.lo
+/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/pdo_fbird/pdo_fbird.c -o pdo_fbird/pdo_fbird.lo  -MMD -MF pdo_fbird/pdo_fbird.dep -MT pdo_fbird/pdo_fbird.lo
+/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/pdo_fbird/pdo_fbird_driver.c -o pdo_fbird/pdo_fbird_driver.lo  -MMD -MF pdo_fbird/pdo_fbird_driver.dep -MT pdo_fbird/pdo_fbird_driver.lo
+/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/pdo_fbird/pdo_fbird_stmt.c -o pdo_fbird/pdo_fbird_stmt.lo  -MMD -MF pdo_fbird/pdo_fbird_stmt.dep -MT pdo_fbird/pdo_fbird_stmt.lo
+/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/pdo_fbird/pdo_fbird_error.c -o pdo_fbird/pdo_fbird_error.lo  -MMD -MF pdo_fbird/pdo_fbird_error.dep -MT pdo_fbird/pdo_fbird_error.lo
+/bin/bash /ext/libtool --tag=CXX --mode=compile g++ -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2   -std=c++17 -c /ext/firebird_utils.cpp -o firebird_utils.lo  -MMD -MF firebird_utils.dep -MT firebird_utils.lo
+ cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/usr/include/firebird -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_classes.c -MMD -MF fbird_classes.dep -MT fbird_classes.lo  -fPIC -DPIC -o .libs/fbird_classes.o
+mkdir pdo_fbird/.libs
+ cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/usr/include/firebird -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/pdo_fbird/pdo_fbird.c -MMD -MF pdo_fbird/pdo_fbird.dep -MT pdo_fbird/pdo_fbird.lo  -fPIC -DPIC -o pdo_fbird/.libs/pdo_fbird.o
+ cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/usr/include/firebird -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/pdo_fbird/pdo_fbird_driver.c -MMD -MF pdo_fbird/pdo_fbird_driver.dep -MT pdo_fbird/pdo_fbird_driver.lo  -fPIC -DPIC -o pdo_fbird/.libs/pdo_fbird_driver.o
+ cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/usr/include/firebird -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/pdo_fbird/pdo_fbird_stmt.c -MMD -MF pdo_fbird/pdo_fbird_stmt.dep -MT pdo_fbird/pdo_fbird_stmt.lo  -fPIC -DPIC -o pdo_fbird/.libs/pdo_fbird_stmt.o
+ cc -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/usr/include/firebird -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/pdo_fbird/pdo_fbird_error.c -MMD -MF pdo_fbird/pdo_fbird_error.dep -MT pdo_fbird/pdo_fbird_error.lo  -fPIC -DPIC -o pdo_fbird/.libs/pdo_fbird_error.o
+ g++ -I. -I/ext -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/usr/include/firebird -DHAVE_CONFIG_H -g -O2 -std=c++17 -c /ext/firebird_utils.cpp -MMD -MF firebird_utils.dep -MT firebird_utils.lo  -fPIC -DPIC -o .libs/firebird_utils.o
+/bin/bash /ext/libtool --tag=CXX --mode=link g++ -shared -I/ext/include -I/ext/main -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib  -I/usr/include/firebird -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wformat-security -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE    -o firebird.la -export-dynamic -avoid-version -prefer-pic -module -rpath /ext/modules  firebird.lo fbird_error.lo fbird_connection.lo fbird_transaction.lo fbird_batch.lo fbird_query_exec.lo fbird_query_prepare.lo fbird_query_bind.lo fbird_query_array.lo fbird_datetime.lo fbird_result.lo fbird_metadata.lo fbird_service.lo fbird_events.lo fbird_blobs.lo fbird_inspection.lo fbird_classes.lo pdo_fbird/pdo_fbird.lo pdo_fbird/pdo_fbird_driver.lo pdo_fbird/pdo_fbird_stmt.lo pdo_fbird/pdo_fbird_error.lo firebird_utils.lo -lfbclient
+g++ -shared -nostdlib /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o  .libs/firebird.o .libs/fbird_error.o .libs/fbird_connection.o .libs/fbird_transaction.o .libs/fbird_batch.o .libs/fbird_query_exec.o .libs/fbird_query_prepare.o .libs/fbird_query_bind.o .libs/fbird_query_array.o .libs/fbird_datetime.o .libs/fbird_result.o .libs/fbird_metadata.o .libs/fbird_service.o .libs/fbird_events.o .libs/fbird_blobs.o .libs/fbird_inspection.o .libs/fbird_classes.o pdo_fbird/.libs/pdo_fbird.o pdo_fbird/.libs/pdo_fbird_driver.o pdo_fbird/.libs/pdo_fbird_stmt.o pdo_fbird/.libs/pdo_fbird_error.o .libs/firebird_utils.o  -lfbclient -L/usr/lib/gcc/x86_64-linux-gnu/14 -L/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu -L/usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib -L/lib/x86_64-linux-gnu -L/lib/../lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-linux-gnu/14/../../.. -lstdc++ -lm -lc -lgcc_s /usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o  -Wl,-soname -Wl,firebird.so -o .libs/firebird.so
+creating firebird.la
+(cd .libs && rm -f firebird.la && ln -s ../firebird.la firebird.la)
+/bin/bash /ext/libtool --tag=CXX --mode=install cp ./firebird.la /ext/modules
+cp ./.libs/firebird.so /ext/modules/firebird.so
+cp ./.libs/firebird.lai /ext/modules/firebird.la
+PATH="$PATH:/sbin" ldconfig -n /ext/modules
+----------------------------------------------------------------------
+Libraries have been installed in:
+   /ext/modules
+
+If you ever happen to want to link against installed libraries
+in a given directory, LIBDIR, you must either use libtool, and
+specify the full pathname of the library, or use the `-LLIBDIR'
+flag during linking and do at least one of the following:
+   - add LIBDIR to the `LD_LIBRARY_PATH' environment variable
+     during execution
+   - add LIBDIR to the `LD_RUN_PATH' environment variable
+     during linking
+   - use the `-Wl,--rpath -Wl,LIBDIR' linker flag
+   - have your system administrator add LIBDIR to `/etc/ld.so.conf'
+
+See any operating system documentation about shared libraries for
+more information, such as the ld(1) and ld.so(8) manual pages.
+----------------------------------------------------------------------
+
+Build complete.
+Don't forget to run 'make test'.
+
+Build completed. Extension is available at: /ext/modules/firebird.so
+Firebird client library: /usr
+Note: pdo_fbird PDO driver is integrated into firebird.so (no separate build needed)
+Testing PHP Firebird extension...
+PHP Version: 8.3.30
+Extension loaded: YES
+Extension version: 11.0.0
+Running tests...
+
+=====================================================================
+PHP         : /usr/local/bin/php 
+PHP_SAPI    : cli
+PHP_VERSION : 8.3.30
+ZEND_VERSION: 4.3.30
+PHP_OS      : Linux - Linux 929b4d0ad0c1 6.12.77-1-MANJARO #1 SMP PREEMPT_DYNAMIC Fri, 13 Mar 2026 18:47:31 +0000 x86_64
+INI actual  : /ext
+More .INIs  :  
+---------------------------------------------------------------------
+PHP         : /usr/local/bin/php-cgi 
+PHP_SAPI    : cgi-fcgi
+PHP_VERSION : 8.3.30
+ZEND_VERSION: 4.3.30
+PHP_OS      : Linux - Linux 929b4d0ad0c1 6.12.77-1-MANJARO #1 SMP PREEMPT_DYNAMIC Fri, 13 Mar 2026 18:47:31 +0000 x86_64
+INI actual  : /ext
+More .INIs  : 
+--------------------------------------------------------------------- 
+---------------------------------------------------------------------
+PHP         : /usr/local/bin/phpdbg 
+PHP_SAPI    : phpdbg
+PHP_VERSION : 8.3.30
+ZEND_VERSION: 4.3.30
+PHP_OS      : Linux - Linux 929b4d0ad0c1 6.12.77-1-MANJARO #1 SMP PREEMPT_DYNAMIC Fri, 13 Mar 2026 18:47:31 +0000 x86_64
+INI actual  : /ext
+More .INIs  : 
+---------------------------------------------------------------------
+CWD         : /ext
+Extra dirs  : 
+VALGRIND    : Not used
+=====================================================================
+Running selected tests.
+TEST 1/1 [tests/fbird_pconnect_001.phpt][1;32mPASS[0m fbird_pconnect() - persistent connection test [tests/fbird_pconnect_001.phpt] 
+=====================================================================
+Number of tests :     1                 1
+Tests skipped   :     0 (  0.0%) --------
+Tests warned    :     0 (  0.0%) (  0.0%)
+Tests failed    :     0 (  0.0%) (  0.0%)
+Tests passed    :     1 (100.0%) (100.0%)
+---------------------------------------------------------------------
+Time taken      :     1 seconds
+=====================================================================
+Testing complete.

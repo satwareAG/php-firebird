@@ -1,0 +1,3 @@
+Building PHP Firebird extension...
+find . -name \*.gcno -o -name \*.gcda | xargs rm -f
+find . -name \*.lo -o -name \*.o -o -name \*.dep | xargs rm -f

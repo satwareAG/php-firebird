@@ -1,137 +1,132 @@
 #!/usr/bin/env bash
-# daily-routine.sh — EOD protocol automation for php-firebird
-# Usage: bash scripts/daily-routine.sh eod
+# morning-health-check.sh — IPADP L3 Ecosystem Health Check
+#
+# Standards: https://git.satware.ai/satware.ai/wiki/specs/rfc-interproject-agentic-development.md
+# Part of Spec 006: Morning Start Protocol
 set -euo pipefail
 
 REPO_ROOT="${REPO_ROOT:-"$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"}"
+METADATA="${REPO_ROOT}/specs/metadata.json"
 
-eod_command() {
-    echo "============================================"
-    echo "  php-firebird — End of Day Protocol"
-    echo "  $(date '+%Y-%m-%d %H:%M')"
-    echo "============================================"
-    echo ""
+# --- Color helpers ---
+if [[ -t 1 ]]; then
+  RED='\033[0;31m'
+  GREEN='\033[0;32m'
+  YELLOW='\033[0;33m'
+  BLUE='\033[0;34m'
+  NC='\033[0m'
+else
+  RED='' GREEN='' YELLOW='' BLUE='' NC=''
+fi
 
-    # 1. Branch & last commit
-    local branch
-    branch="$(git -C "$REPO_ROOT" branch --show-current)"
-    local last_commit
-    last_commit="$(git -C "$REPO_ROOT" log --oneline -1)"
-    echo "Branch : $branch"
-    echo "Commit : $last_commit"
-    echo ""
+info()  { echo -e "${GREEN}[INFO]${NC}  $*"; }
+warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
+fail()  { echo -e "${RED}[FAIL]${NC}  $*"; }
+section() { echo -e "\n${BLUE}=== $* ===${NC}"; }
 
-    # 2. Git hygiene check
-    echo "--- Git Status ---"
-    local dirty
-    dirty="$(git -C "$REPO_ROOT" status --short)"
-    if [ -n "$dirty" ]; then
-        echo "⚠️  Uncommitted changes detected:"
-        echo "$dirty"
-        echo ""
-        echo "ACTION REQUIRED: commit or stash before EOD."
-    else
-        echo "✅ Working directory clean"
+# --- Base Directory Enforcement ---
+ensure_base_dirs() {
+  for dir in "$HOME/external" "$HOME/internal"; do
+    if [[ ! -d "$dir" ]]; then
+      info "Creating directory: $dir"
+      mkdir -p "$dir"
     fi
-    echo ""
-
-    # 3. EOD Master Checklist
-    echo "--- EOD Master Checklist ---"
-    echo "[ ] Validation  : All tests pass and linters are clean"
-    echo "[ ] Hygiene     : Temporary files deleted, stale branches pruned"
-    echo "[ ] Docs        : README, CHANGELOG, and NEXT_STEPS.md updated"
-    echo "[ ] Git         : All work committed and pushed to remote"
-    echo "[ ] Knowledge   : Learnings captured, Workflows updated if needed"
-    echo "[ ] Cleanup     : Dev services stopped, temporary files cleared"
-    echo ""
-
-    # 4. Workflow references
-    echo "--- Workflow References ---"
-    echo "  Workflows/eod.hygiene-git.standards.md"
-    echo "  Workflows/eod.knowledge-documentation.md"
-    echo "  Workflows/eod.ops-automation.md"
-    echo ""
-
-    echo "============================================"
-    echo "  Review checklist above and mark items ✅"
-    echo "============================================"
-
-    # Exit non-zero if dirty so CI/scripts can detect it
-    if [ -n "$dirty" ]; then
-        exit 1
-    fi
+  done
 }
 
-morning_health_check() {
-    echo "============================================"
-    echo "  php-firebird — Morning Health Check"
-    echo "  $(date '+%Y-%m-%d %H:%M')"
-    echo "============================================"
-    echo ""
-    
-    echo "--- Git Status ---"
-    git fetch origin --quiet || echo "⚠️ Failed to fetch from origin"
-    local status
-    status="$(git status --short)"
-    if [ -n "$status" ]; then
-        echo "⚠️ Working directory is not clean:"
-        echo "$status"
+section "IPADP Morning Health Check"
+echo "Date: $(date '+%Y-%m-%d %H:%M')"
+echo "Root: ${REPO_ROOT}"
+
+# Ensure IPADP standard directory layout
+ensure_base_dirs
+
+# --- 1. Forge Connectivity ---
+section "Forge Connectivity"
+FORGES=("gh:GitHub" "glab:GitLab" "tea:Gitea")
+for forge_entry in "${FORGES[@]}"; do
+  cli="${forge_entry%%:*}"
+  name="${forge_entry#*:}"
+  if command -v "$cli" >/dev/null 2>&1; then
+    if "$cli" auth status >/dev/null 2>&1 || [[ "$cli" == "tea" && "$(tea login ls >/dev/null 2>&1; echo $?)" == 0 ]]; then
+      info "✅ $name ($cli) authenticated"
     else
-        echo "✅ Working directory clean"
+      warn "⚠️ $name ($cli) NOT authenticated"
     fi
-    echo ""
+  else
+    warn "❌ $name ($cli) NOT installed"
+  fi
+done
 
-    echo "--- Docker Services ---"
-    if command -v docker >/dev/null 2>&1; then
-        docker compose ps || echo "⚠️ Cannot query docker services"
-    else
-        echo "⚠️ Docker is not installed or not in PATH"
-    fi
-    echo ""
-    
-    echo "--- Dependencies ---"
-    echo "✅ Assumed OK (Native extension, no composer.json required at root for compilation)"
-    echo ""
-}
+# --- 2. Local Health ---
+section "Local Health"
+if [[ -d "${REPO_ROOT}/.git" ]]; then
+  info "Checking git status..."
+  git -C "${REPO_ROOT}" fetch origin --quiet || warn "Failed to fetch origin"
+  dirty="$(git -C "${REPO_ROOT}" status --short)"
+  if [[ -n "$dirty" ]]; then
+    warn "⚠️ Uncommitted changes detected:"
+    echo "$dirty"
+  else
+    info "✅ Working directory clean"
+  fi
+else
+  warn "Not a git repository"
+fi
 
-morning_full() {
-    echo "============================================"
-    echo "  php-firebird — Morning Protocol (15 Min)"
-    echo "  $(date '+%Y-%m-%d %H:%M')"
-    echo "============================================"
-    echo ""
-    
-    morning_health_check
-    
-    echo "--- Phase 3: Priorities ---"
-    echo "MoSCoW Top 3 Priorities:"
-    echo "1. [MUST] Implement #176 Phase I (Service migration to objects)"
-    echo "2. [MUST/SHOULD] Review PRs and check CI status"
-    echo "3. [SHOULD] Clean up technical debt"
-    echo ""
-    
-    echo "============================================"
-    echo "  Protocol complete. Starting deep work!"
-    echo "============================================"
-}
+if command -v docker >/dev/null 2>&1; then
+  info "Checking docker services..."
+  if docker compose ps >/dev/null 2>&1; then
+    docker compose ps --format "table {{.Service}}\t{{.Status}}"
+  else
+    info "No docker compose services defined/running"
+  fi
+fi
 
-case "${1:-}" in
-    eod)
-        eod_command
-        ;;
-    health)
-        morning_health_check
-        ;;
-    morning-full|morning)
-        morning_full
-        ;;
-    *)
-        echo "Usage: $0 {eod|health|morning|morning-full}"
-        echo ""
-        echo "Commands:"
-        echo "  eod            Run the End of Day protocol checklist"
-        echo "  health         Run the morning health check"
-        echo "  morning-full   Run the full 15-minute morning protocol"
-        exit 1
-        ;;
-esac
+# --- 3. IPADP Spec Currency ---
+section "IPADP Spec Currency"
+if [[ -f "$METADATA" ]]; then
+  info "Parsing metadata: $METADATA"
+  
+  # Extract upstream dependencies and check local paths
+  mapfile -t dependencies < <(jq -r '.upstream | to_entries[] | "\(.key)|\(.value.local_path)"' "$METADATA" 2>/dev/null || true)
+  
+  if [[ ${#dependencies[@]} -gt 0 ]]; then
+    for dep in "${dependencies[@]}"; do
+      name="${dep%%|*}"
+      path="${dep#*|}"
+      
+      # Expand ~ if present
+      eval_path="${path//\~/$HOME}"
+      
+      if [[ -d "$eval_path" ]]; then
+        info "✅ Upstream $name found at $path"
+        # Check if upstream spec is newer (placeholder for version check)
+        # In a full implementation, we would compare hashes or version fields
+      else
+        warn "❌ Upstream $name MISSING at $path"
+        warn "   Action: cd $(dirname "$eval_path") && [forge_cli] clone ..."
+      fi
+    done
+  else
+    info "No upstream dependencies defined in metadata.json"
+  fi
+else
+  warn "metadata.json missing at $METADATA"
+fi
+
+# --- 4. Privacy Check (Phase 2) ---
+section "Privacy Validation"
+PRIVACY_SCRIPT="${REPO_ROOT}/scripts/check-privacy-leaks.sh"
+if [[ -f "$PRIVACY_SCRIPT" ]]; then
+  if bash "$PRIVACY_SCRIPT" "${REPO_ROOT}"; then
+    info "✅ Privacy validation passed"
+  else
+    warn "❌ Privacy violations detected!"
+  fi
+else
+  info "Privacy check script not found, skipping."
+fi
+
+section "Morning Start Complete"
+echo "Ready for deep work."

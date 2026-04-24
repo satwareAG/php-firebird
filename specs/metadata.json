@@ -1,0 +1,40 @@
+{
+  "name": "php-firebird",
+  "version": "11.0.0",
+  "sdd_source": "https://github.com/satwareAG/spec-kit",
+  "forge": "github",
+  "visibility": "public",
+  "local_path": "~/external/php-firebird",
+  "ipadp": {
+    "project_number": 1,
+    "conformance_level": "L3",
+    "issue_tracker": "https://github.com/satwareAG/php-firebird/issues/254",
+    "rfc_location": "<internal>/wiki/specs/rfc-interproject-agentic-development.md"
+  },
+  "upstream": {
+    "spec-kit": {
+      "url": "https://github.com/satwareAG/spec-kit",
+      "forge": "github",
+      "local_path": "~/external/spec-kit",
+      "role": "methodology-provider"
+    }
+  },
+  "downstream": {
+    "doctrine-firebird-driver": {
+      "url": "https://github.com/satwareAG/doctrine-firebird-driver",
+      "forge": "github",
+      "local_path": "~/external/doctrine-firebird-driver",
+      "visibility": "public",
+      "role": "primary DBAL consumer"
+    },
+    "satag-amicron-entity-bundle": {
+      "forge": "gitlab",
+      "local_path": "~/internal/satag-amicron-entity-bundle",
+      "visibility": "private",
+      "role": "Symfony entity layer"
+    }
+  },
+  "morning_protocol": {
+    "scripts": "scripts/"
+  }
+}

@@ -52,6 +52,7 @@ RUN mkdir -p /usr/src/php && \
         --enable-mbstring \
         --with-readline \
         --enable-pcntl \
+        --enable-pdo \
     && make -j$(nproc) \
     && make install \
     && mkdir -p /usr/local/etc/php \

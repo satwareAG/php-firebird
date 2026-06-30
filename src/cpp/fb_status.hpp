@@ -334,6 +334,77 @@ private:
 };
 
 /**
+ * RAII wrapper for Firebird::CheckStatusWrapper with automatic IStatus lifecycle
+ * management. Mirrors the ThrowingStatusWrapper pattern but for non-throwing
+ * (CheckStatusWrapper) status handling.
+ *
+ * Replaces the manual getStatus()/dispose() pattern that was duplicated across
+ * Connection methods and prone to IStatus leaks on error/exception paths.
+ *
+ * Usage:
+ *   CheckStatusScope status(master);
+ *   attachment->detach(status.get());
+ *   if (status.hasError()) { ... }
+ *   // IStatus disposed automatically by destructor
+ */
+class CheckStatusScope {
+public:
+    /**
+     * Construct from IMaster. Allocates a new IStatus that will be disposed
+     * on destruction. If master is null, status() and get() return null.
+     */
+    explicit CheckStatusScope(Firebird::IMaster* master)
+        : status_(master ? master->getStatus() : nullptr),
+          wrapper_(status_) {}
+
+    ~CheckStatusScope() {
+        if (status_) {
+            status_->dispose();
+        }
+    }
+
+    // Non-copyable, non-movable (CheckStatusWrapper holds pointer to IStatus)
+    CheckStatusScope(const CheckStatusScope&) = delete;
+    CheckStatusScope& operator=(const CheckStatusScope&) = delete;
+    CheckStatusScope(CheckStatusScope&&) = delete;
+    CheckStatusScope& operator=(CheckStatusScope&&) = delete;
+
+    /**
+     * Get the CheckStatusWrapper for Firebird API calls.
+     * Returns null if constructed with a null master.
+     */
+    [[nodiscard]] Firebird::CheckStatusWrapper* get() noexcept {
+        return status_ ? &wrapper_ : nullptr;
+    }
+
+    /**
+     * Get the raw IStatus pointer (e.g., for Exception construction).
+     * Returns null if constructed with a null master.
+     */
+    [[nodiscard]] Firebird::IStatus* status() noexcept { return status_; }
+
+    /**
+     * Check if the status contains errors (FB 4.0+ compatible).
+     * Uses statusHasError() which checks STATE_ERRORS flag.
+     */
+    [[nodiscard]] bool hasError() const noexcept {
+        return fb::statusHasError(status_);
+    }
+
+    /**
+     * Check if the status contains any data (errors or warnings).
+     * Uses statusHasData() which checks STATE_ERRORS | STATE_WARNINGS.
+     */
+    [[nodiscard]] bool hasData() const noexcept {
+        return fb::statusHasData(status_);
+    }
+
+private:
+    Firebird::IStatus* status_;
+    Firebird::CheckStatusWrapper wrapper_;
+};
+
+/**
  * Check a status and throw if there's an error.
  * Utility function for quick error checking.
  */

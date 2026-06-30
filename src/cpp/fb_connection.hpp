@@ -568,12 +568,19 @@ inline bool Connection::detachNoThrow() noexcept {
             master = master_;
         }
         if (master) {
-            // Use CheckStatusWrapper for Firebird template API
-            Firebird::IStatus* raw_status = master->getStatus();
-            Firebird::CheckStatusWrapper check_status(raw_status);
-            attachment_->detach(&check_status);
-            // Use hasData() for FB3 compatibility (see Connection::create comment)
-            if (check_status.hasData()) {
+            // Liveness check: if the DB was dropped by another connection
+            // (e.g., test harness cleanup_db()), the server-side attachment
+            // is dead. Calling detach() on it SIGSEGVs on FB 3.0 (issue #260).
+            // The dropped_ flag only covers same-connection dropDatabase().
+            if (!pingAttachment(master)) {
+                attachment_.reset();
+                return true;
+            }
+
+            // Attachment is alive — safe to detach
+            CheckStatusScope status(master);
+            attachment_->detach(status.get());
+            if (status.hasError()) {
                 attachment_.reset();
                 return false;
             }

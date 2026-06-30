@@ -5,10 +5,10 @@ firebird
 --SKIPIF--
 <?php
 // Include firebird test helpers
-include __DIR__ . '/../skipif.inc';
-// Skip in CI - coverage test with environment-dependent output
-if (getenv('CI') || getenv('GITHUB_ACTIONS')) {
-    die('skip Coverage test skipped in CI - output varies by environment');
+require __DIR__ . '/../skipif.inc';
+// Skip in CI/Docker - coverage test with environment-dependent output
+if (getenv('CI') || getenv('GITHUB_ACTIONS') || getenv('FIREBIRD_HOST')) {
+    die('skip Coverage test skipped in CI/remote - output varies by environment');
 }
 ?>
 --FILE--
@@ -19,15 +19,12 @@ if (getenv('CI') || getenv('GITHUB_ACTIONS')) {
 
 echo "=== Event Handling Error Tests ===\n\n";
 
-require_once __DIR__ . '/../config.inc';
+require_once __DIR__ . '/../firebird.inc';
 
-// Get database connection for tests that need it
-$host = getenv('FIREBIRD_HOST') ?: 'firebird40';
-$user = getenv('FIREBIRD_USER') ?: 'SYSDBA';
-$password = getenv('FIREBIRD_PASSWORD') ?: 'masterkey';
-$dbname = getenv('FIREBIRD_DATABASE') ?: '/firebird/data/test.fdb';
+// firebird.inc provides $test_base, $user, $password (via config.inc),
+// creates the test database via init_db(), and registers cleanup_db().
 
-$conn = fbird_connect("$host:$dbname", $user, $password);
+$conn = fbird_connect($test_base, $user, $password);
 
 // Test 1: fbird_wait_event() - Too few arguments
 echo "1. fbird_wait_event() with too few arguments:\n";

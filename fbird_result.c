@@ -492,6 +492,132 @@ static int _php_fbird_arr_zval(zval *ar_zval, char *data, zend_ulong data_size,
 }
 
 /**
+ * Fetch BLOB field contents into result zval.
+ *
+ * Opens the blob, reads its data into result, then closes and frees the blob.
+ * On SUCCESS (return SUCCESS): result is populated, blob is closed and freed.
+ * On FAILURE (return FAILURE): error message is set via _php_fbird_error() or
+ *   _php_fbird_module_error(), result may have been partially populated
+ *   (caller owns and must release it via ht_ret cleanup), blob is best-effort
+ *   closed and freed.
+ */
+static int _php_fbird_fetch_blob_field(
+	fbird_query *ib_query,
+	void *field_data,
+	zval *result)
+{
+	fbird_blob blob_handle;
+	zend_ulong max_len = 0;
+
+	memset(&blob_handle, 0, sizeof(blob_handle));
+	blob_handle.type = BLOB_OUTPUT;
+	blob_handle.bl_qd = *(ISC_QUAD *)field_data;
+	blob_handle.fbb_blob = NULL;
+
+	/* Validate OO API connection and transaction */
+	if (!ib_query->link || !ib_query->link->fbc_connection) {
+		_php_fbird_module_error("OO API connection required to fetch BLOB contents");
+		return FAILURE;
+	}
+	if (!ib_query->trans || !ib_query->trans->fbt_transaction) {
+		_php_fbird_module_error("OO API transaction required to fetch BLOB contents");
+		return FAILURE;
+	}
+
+	void *attachment_ptr = fbc_get_attachment(ib_query->link->fbc_connection);
+	void *transaction_ptr = fbt_get_handle(ib_query->trans->fbt_transaction);
+	if (!attachment_ptr || !transaction_ptr) {
+		_php_fbird_module_error("Invalid OO API attachment/transaction for BLOB fetch");
+		return FAILURE;
+	}
+
+	/* Open the blob */
+	blob_handle.fbb_blob = fbb_open(
+		IBG(master_instance),
+		attachment_ptr,
+		transaction_ptr,
+		&blob_handle.bl_qd,
+		0,
+		NULL,
+		IB_STATUS
+	);
+	if (!blob_handle.fbb_blob) {
+		_php_fbird_error();
+		return FAILURE;
+	}
+
+	/* From here on, blob is open — all error paths must goto blob_cleanup */
+
+	/* Determine total length via getInfo so we can allocate exact buffer. */
+	static unsigned char bl_items[] = { isc_info_blob_total_length };
+	unsigned char bl_info[32];
+
+	if (fbb_get_info(
+			IBG(master_instance),
+			blob_handle.fbb_blob,
+			sizeof(bl_items),
+			bl_items,
+			sizeof(bl_info),
+			bl_info,
+			IB_STATUS
+		) == 0) {
+		_php_fbird_error();
+		goto blob_cleanup;
+	}
+
+	for (unsigned j = 0; j < sizeof(bl_info); ) {
+		unsigned short item_len;
+		unsigned char item = bl_info[j++];
+
+		if (item == isc_info_end || item == isc_info_truncated ||
+			item == isc_info_error || j >= sizeof(bl_info)) {
+			_php_fbird_module_error("Could not determine BLOB size (internal error)");
+			goto blob_cleanup;
+		}
+
+		item_len = (unsigned short)isc_vax_integer((char *)&bl_info[j], 2);
+
+		if (item == isc_info_blob_total_length) {
+			max_len = (zend_ulong)isc_vax_integer((char *)&bl_info[j + 2], item_len);
+			break;
+		}
+		j += item_len + 2;
+	}
+
+	if (max_len == 0) {
+		ZVAL_STRING(result, "");
+	} else {
+		/*
+		 * SAFETY: _php_fbird_blob_get() expects max_len bytes of data plus a trailing NUL.
+		 * It uses zend_string_alloc(max_len, ...) semantics (len+1) internally.
+		 *
+		 * If getInfo reports total_length == max_len, we must ensure the reader side
+		 * has room for the terminator and does not overwrite Zend heap metadata.
+		 */
+		if (SUCCESS != _php_fbird_blob_get(result, &blob_handle, max_len)) {
+			goto blob_cleanup;
+		}
+	}
+
+	/* Success path: close and free */
+	if (fbb_close(IBG(master_instance), blob_handle.fbb_blob, IB_STATUS) == 0) {
+		_php_fbird_error();
+		fbb_free(blob_handle.fbb_blob);
+		return FAILURE;
+	}
+	fbb_free(blob_handle.fbb_blob);
+	return SUCCESS;
+
+blob_cleanup:
+	/* Best-effort close + free on error.
+	 * fbb_close is safe to call even if the blob was already closed internally
+	 * (BlobWrapper::close() nulls blob_ on failure, subsequent calls return true). */
+	fbb_close(IBG(master_instance), blob_handle.fbb_blob, IB_STATUS);
+	fbb_free(blob_handle.fbb_blob);
+	return FAILURE;
+}
+
+/**
  * Core fetch logic extracted from _php_fbird_fetch_hash.
  * Accepts an already-validated fbird_query* directly (no resource lookup).
  * Sets return_value to array|false.
@@ -637,106 +763,9 @@ void _php_fbird_fetch_hash_query(
 				break;
 			case SQL_BLOB:
 				if (flag & PHP_FBIRD_FETCH_BLOBS) { /* fetch blob contents into hash */
-
-					fbird_blob blob_handle;
-					zend_ulong max_len = 0;
-
-					memset(&blob_handle, 0, sizeof(blob_handle));
-					blob_handle.type = BLOB_OUTPUT;
-					blob_handle.bl_qd = *(ISC_QUAD *)field_data;
-					blob_handle.fbb_blob = NULL;
-
-					if (!ib_query->link || !ib_query->link->fbc_connection) {
-						_php_fbird_module_error("OO API connection required to fetch BLOB contents");
+					if (FAILURE == _php_fbird_fetch_blob_field(ib_query, field_data, result)) {
 						goto _php_fbird_fetch_error;
 					}
-					if (!ib_query->trans || !ib_query->trans->fbt_transaction) {
-						_php_fbird_module_error("OO API transaction required to fetch BLOB contents");
-						goto _php_fbird_fetch_error;
-					}
-
-					void *attachment_ptr = fbc_get_attachment(ib_query->link->fbc_connection);
-					void *transaction_ptr = fbt_get_handle(ib_query->trans->fbt_transaction);
-					if (!attachment_ptr || !transaction_ptr) {
-						_php_fbird_module_error("Invalid OO API attachment/transaction for BLOB fetch");
-						goto _php_fbird_fetch_error;
-					}
-
-					blob_handle.fbb_blob = fbb_open(
-						IBG(master_instance),
-						attachment_ptr,
-						transaction_ptr,
-						&blob_handle.bl_qd,
-						0,
-						NULL,
-						IB_STATUS
-					);
-					if (!blob_handle.fbb_blob) {
-						_php_fbird_error();
-						goto _php_fbird_fetch_error;
-					}
-
-					/* Keep legacy handle pointer in sync for blob helpers. */
-
-					/* Determine total length via getInfo so we can allocate exact buffer. */
-					static unsigned char bl_items[] = { isc_info_blob_total_length };
-					unsigned char bl_info[32];
-
-					if (fbb_get_info(
-							IBG(master_instance),
-							blob_handle.fbb_blob,
-							sizeof(bl_items),
-							bl_items,
-							sizeof(bl_info),
-							bl_info,
-							IB_STATUS
-						) == 0) {
-						_php_fbird_error();
-						goto _php_fbird_fetch_error;
-					}
-
-					for (unsigned j = 0; j < sizeof(bl_info); ) {
-						unsigned short item_len;
-						unsigned char item = bl_info[j++];
-
-						if (item == isc_info_end || item == isc_info_truncated ||
-							item == isc_info_error || j >= sizeof(bl_info)) {
-							_php_fbird_module_error("Could not determine BLOB size (internal error)");
-							goto _php_fbird_fetch_error;
-						}
-
-						item_len = (unsigned short)isc_vax_integer((char *)&bl_info[j], 2);
-
-						if (item == isc_info_blob_total_length) {
-							max_len = (zend_ulong)isc_vax_integer((char *)&bl_info[j + 2], item_len);
-							break;
-						}
-						j += item_len + 2;
-					}
-
-					if (max_len == 0) {
-						ZVAL_STRING(result, "");
-					} else {
-						/*
-						 * SAFETY: _php_fbird_blob_get() expects max_len bytes of data plus a trailing NUL.
-						 * It uses zend_string_alloc(max_len, ...) semantics (len+1) internally.
-						 *
-						 * If getInfo reports total_length == max_len, we must ensure the reader side
-						 * has room for the terminator and does not overwrite Zend heap metadata.
-						 */
-						if (SUCCESS != _php_fbird_blob_get(result, &blob_handle, max_len)) {
-							goto _php_fbird_fetch_error;
-						}
-					}
-
-					/* fbb_close returns 1 on success, 0 on error */
-					if (fbb_close(IBG(master_instance), blob_handle.fbb_blob, IB_STATUS) == 0) {
-						_php_fbird_error();
-						goto _php_fbird_fetch_error;
-					}
-					fbb_free(blob_handle.fbb_blob);
-					blob_handle.fbb_blob = NULL;
-
 				} else { /* blob id only */
 					ISC_QUAD bl_qd = *(ISC_QUAD *) field_data;
 					ZVAL_NEW_STR(result, _php_fbird_quad_to_string(bl_qd));

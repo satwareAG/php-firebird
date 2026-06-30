@@ -377,23 +377,20 @@ inline Connection Connection::create(Firebird::IMaster* master,
     // Create database string (must be null-terminated)
     std::string db_string(params.database);
 
-    // Create CheckStatusWrapper for attach operation (required by Firebird template API)
-    Firebird::IStatus* raw_status = master->getStatus();
-    Firebird::CheckStatusWrapper check_status(raw_status);
-
     // Attach to database using OO API
+    CheckStatusScope status(master);
     Firebird::IAttachment* raw_attachment = provider->attachDatabase(
-        &check_status,
+        status.get(),
         db_string.c_str(),
         dpb.getBufferLength(),
         dpb.getBuffer()
     );
 
-    // Note: Use hasData() instead of isDirty() for FB3 compatibility.
+    // Note: Use hasError() instead of isDirty() for FB3 compatibility.
     // In FB3, isDirty() returns true even on success (it means "status was touched").
-    // hasData() correctly checks for actual errors (STATE_ERRORS flag).
-    if (check_status.hasData() || !raw_attachment) {
-        throw Exception(raw_status);
+    // hasError() correctly checks for actual errors (STATE_ERRORS flag).
+    if (status.hasError() || !raw_attachment) {
+        throw Exception(status.status());
     }
 
     // Detect client version
@@ -626,11 +623,9 @@ inline bool Connection::setStatementTimeout(unsigned int milliseconds) noexcept 
     }
 
     try {
-        // Use CheckStatusWrapper for Firebird template API
-        Firebird::IStatus* raw_status = master_->getStatus();
-        Firebird::CheckStatusWrapper check_status(raw_status);
-        attachment_->setStatementTimeout(&check_status, milliseconds);
-        if (!check_status.isDirty()) {
+        CheckStatusScope status(master_);
+        attachment_->setStatementTimeout(status.get(), milliseconds);
+        if (!status.hasError()) {
             statement_timeout_ms_ = milliseconds;
             return true;
         }
@@ -650,11 +645,9 @@ inline bool Connection::setIdleTimeout(unsigned int seconds) noexcept {
     }
 
     try {
-        // Use CheckStatusWrapper for Firebird template API
-        Firebird::IStatus* raw_status = master_->getStatus();
-        Firebird::CheckStatusWrapper check_status(raw_status);
-        attachment_->setIdleTimeout(&check_status, seconds);
-        if (!check_status.isDirty()) {
+        CheckStatusScope status(master_);
+        attachment_->setIdleTimeout(status.get(), seconds);
+        if (!status.hasError()) {
             idle_timeout_sec_ = seconds;
             return true;
         }

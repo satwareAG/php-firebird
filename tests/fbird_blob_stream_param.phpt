@@ -3,17 +3,17 @@ fbird_execute() with PHP stream as BLOB parameter
 --SKIPIF--
 <?php
 if (!extension_loaded('firebird')) die('skip firebird not loaded');
-require_once __DIR__ . '/config.inc';
-$dsn = $host . ':/firebird/data/test.fdb';
+require_once __DIR__ . '/firebird.inc';
+$dsn = $test_base;
 $c = @fbird_connect($dsn, $user, $password);
 if (!$c) die('skip cannot connect');
 fbird_close($c);
 ?>
 --FILE--
 <?php
-require_once __DIR__ . '/config.inc';
+require_once __DIR__ . '/firebird.inc';
 
-$dsn = $host . ':/firebird/data/test.fdb';
+$dsn = $test_base;
 $conn = fbird_connect($dsn, $user, $password);
 
 /* Create test table */
@@ -63,8 +63,8 @@ Done
 
 --CLEAN--
 <?php
-require_once 'config.inc';
-$db = @fbird_connect($host . ':/firebird/data/test.fdb', $user, $password);
+require_once 'firebird.inc';
+$db = @fbird_connect($test_base);
 if ($db) {
     @fbird_query($db, "DROP TABLE blob_stream_test");
     @fbird_close($db);

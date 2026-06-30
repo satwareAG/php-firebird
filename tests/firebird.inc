@@ -30,12 +30,17 @@ if ($password) {
 
 if ($fbDbDirEnv !== false && $fbDbDirEnv !== '') {
 	$dbDir = rtrim($fbDbDirEnv, '/');
-	$tmp   = @tempnam($dbDir, 'php_fbird_test_');
-	if ($tmp === false) {
-		// FIREBIRD_DB_DIR may be on remote server, fall back to local /tmp
-		$tmp = tempnam(sys_get_temp_dir(), 'php_fbird_test_');
-	}
-	@unlink($tmp);
+	/*
+	 * Generate a unique database file name WITHOUT creating a client-side file.
+	 * The previous tempnam() approach created a file on the PHP host's filesystem,
+	 * which fails when PHP runs on the host and Firebird runs in a container
+	 * (host path != server path). The Firebird server creates the DB file when
+	 * CREATE DATABASE executes, so we only need the name string.
+	 *
+	 * Per-test unique names eliminate test isolation bugs: each test gets its
+	 * own database, so leftover state from one test cannot affect another.
+	 */
+	$tmp = $dbDir . '/php_fbird_test_' . bin2hex(random_bytes(8));
 	$test_base = !empty($host) ? $host . ':' . $tmp : $tmp;
 } elseif ($fbDbPathEnv !== false && $fbDbPathEnv !== '') {
 	$test_base = !empty($host) ? $host . ':' . $fbDbPathEnv : $fbDbPathEnv;
@@ -100,25 +105,32 @@ function init_db()
 			$test_db = false;
 		}
 		if ($test_db === false) {
-			// Still failed - write debug info to stderr
+			// DB might pre-exist (crashed prior run with same unique name —
+			// astronomically unlikely with bin2hex(random_bytes(8)) but defensive).
+			// Try connecting to the existing DB and recreate test1.
 			$err2 = fbird_errmsg();
-			// Only output debug info when TEST_DEBUG is set (avoids polluting normal test output)
-			if (getenv('TEST_DEBUG')) {
-				fwrite(STDERR, "DEBUG init_db() failed:\n");
-				fwrite(STDERR, "  test_base: $test_base\n");
-				fwrite(STDERR, "  user: $user\n");
-				fwrite(STDERR, "  CREATE SCHEMA error: $err\n");
-				fwrite(STDERR, "  CREATE DATABASE error: $err2\n");
+			$test_db = @fbird_connect($test_base);
+			if ($test_db === false) {
+				// Only output debug info when TEST_DEBUG is set (avoids polluting normal test output)
+				if (getenv('TEST_DEBUG')) {
+					fwrite(STDERR, "DEBUG init_db() failed:\n");
+					fwrite(STDERR, "  test_base: $test_base\n");
+					fwrite(STDERR, "  user: $user\n");
+					fwrite(STDERR, "  CREATE SCHEMA error: $err\n");
+					fwrite(STDERR, "  CREATE DATABASE error: $err2\n");
+					fwrite(STDERR, "  connect error: " . fbird_errmsg() . "\n");
+				}
+				return;
 			}
-			// Return without creating tables - database doesn't exist
-			return;
 		}
 	}
 
+	// RECREATE TABLE drops+creates atomically (FB 2.0+). Handles both fresh DB
+	// and pre-existing DB from a crashed run without separate DROP TABLE.
 	$tr = fbird_trans($test_db);
-	fbird_query($tr,"create table test1 (i integer, c varchar(100))");
+	fbird_query($tr, "RECREATE TABLE test1 (i integer, c varchar(100))");
 	fbird_commit_ret($tr);
-	fbird_query($tr,"insert into test1(i, c) values(1, 'test table not created with isql')");
+	fbird_query($tr, "insert into test1(i, c) values(1, 'test table not created with isql')");
 	fbird_commit($tr);
 	fbird_close($test_db);
 }
@@ -128,12 +140,20 @@ function cleanup_db()
 	global $test_base;
 
 	/*
-	 * During SKIPIF and normal shutdown, the test harness may attempt to drop
-	 * the test database while other transactions are still active. That can
-	 * lead to lock time-out warnings, which in SKIPIF context cause tests to
-	 * be BORKed ("invalid output from SKIPIF"). We ignore failures here to
-	 * keep the test output clean; any leftover database will be cleaned up on
-	 * subsequent runs once no transactions are holding locks.
+	 * Per-test unique database names (FIREBIRD_DB_DIR mode) mean leftover
+	 * databases do not affect other tests — isolation is guaranteed by name,
+	 * not by drop. The drop here is a best-effort cleanup.
+	 *
+	 * CRITICAL: cleanup_db() runs as a user shutdown function (before MSHUTDOWN
+	 * where persistent connections are destroyed). If fbird_drop_db() succeeds
+	 * while a persistent connection (fbird_pconnect) is still attached, the
+	 * subsequent _php_fbird_close_plink() in MSHUTDOWN will SIGSEGV on FB 3.0
+	 * because it calls fbc_disconnect() on a dead attachment (issue #260).
+	 *
+	 * Mitigation: attempt the drop, but never let it corrupt the shutdown path.
+	 * The liveness guard in _php_fbird_close_plink() (Phase 2) is the second
+	 * line of defense. Here we just try and ignore failures — the unique name
+	 * means no isolation issue if the drop fails.
 	 */
 	if ($r = @fbird_connect($test_base)) {
 		@fbird_drop_db($r);

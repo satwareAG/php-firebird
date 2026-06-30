@@ -289,6 +289,22 @@ private:
     VersionInfo version_{VersionInfo::FB30}; ///< Client library version
     mutable StatusWrapper last_status_{static_cast<Firebird::IStatus*>(nullptr)}; ///< Last error status
 
+    /**
+     * Probe the server-side attachment with a lightweight getInfo() roundtrip.
+     *
+     * Used by detachNoThrow() to verify the attachment is alive before
+     * calling detach(). If the database was dropped by another connection
+     * (e.g., test harness cleanup_db()), the server-side attachment is dead
+     * and calling detach() on it SIGSEGVs on FB 3.0 (issue #260).
+     *
+     * The dropped_ flag only covers same-connection dropDatabase(); this
+     * method covers the cross-connection drop scenario.
+     *
+     * @param master Master interface for status allocation (must not be null)
+     * @return true if attachment responds, false if dead or unreachable
+     */
+    bool pingAttachment(Firebird::IMaster* master) noexcept;
+
     // Timeout settings (FB 4.0+)
     unsigned int statement_timeout_ms_ = 0;
     unsigned int idle_timeout_sec_ = 0;
@@ -361,23 +377,20 @@ inline Connection Connection::create(Firebird::IMaster* master,
     // Create database string (must be null-terminated)
     std::string db_string(params.database);
 
-    // Create CheckStatusWrapper for attach operation (required by Firebird template API)
-    Firebird::IStatus* raw_status = master->getStatus();
-    Firebird::CheckStatusWrapper check_status(raw_status);
-
     // Attach to database using OO API
+    CheckStatusScope status(master);
     Firebird::IAttachment* raw_attachment = provider->attachDatabase(
-        &check_status,
+        status.get(),
         db_string.c_str(),
         dpb.getBufferLength(),
         dpb.getBuffer()
     );
 
-    // Note: Use hasData() instead of isDirty() for FB3 compatibility.
+    // Note: Use hasError() instead of isDirty() for FB3 compatibility.
     // In FB3, isDirty() returns true even on success (it means "status was touched").
-    // hasData() correctly checks for actual errors (STATE_ERRORS flag).
-    if (check_status.hasData() || !raw_attachment) {
-        throw Exception(raw_status);
+    // hasError() correctly checks for actual errors (STATE_ERRORS flag).
+    if (status.hasError() || !raw_attachment) {
+        throw Exception(status.status());
     }
 
     // Detect client version
@@ -499,18 +512,33 @@ inline void Connection::detach() {
         return;
     }
 
-    // Use CheckStatusWrapper for Firebird template API
-    Firebird::IStatus* raw_status = master_->getStatus();
-    Firebird::CheckStatusWrapper check_status(raw_status);
-    attachment_->detach(&check_status);
+    CheckStatusScope status(master_);
+    attachment_->detach(status.get());
 
-    // Use hasData() for FB3 compatibility (see Connection::create comment)
-    if (check_status.hasData()) {
+    if (status.hasError()) {
         last_status_ = StatusWrapper(master_);
-        throw Exception(raw_status);
+        throw Exception(status.status());
     }
 
     attachment_.reset();
+}
+
+inline bool Connection::pingAttachment(Firebird::IMaster* master) noexcept {
+    if (!attachment_ || !master) {
+        return false;
+    }
+
+    try {
+        CheckStatusScope status(master);
+        unsigned char info_request[] = { isc_info_ods_version };
+        unsigned char info_buffer[32] = {0};
+        attachment_->getInfo(status.get(),
+                             sizeof(info_request), info_request,
+                             sizeof(info_buffer), info_buffer);
+        return !status.hasError();
+    } catch (...) {
+        return false;
+    }
 }
 
 inline bool Connection::detachNoThrow() noexcept {
@@ -534,12 +562,19 @@ inline bool Connection::detachNoThrow() noexcept {
             master = master_;
         }
         if (master) {
-            // Use CheckStatusWrapper for Firebird template API
-            Firebird::IStatus* raw_status = master->getStatus();
-            Firebird::CheckStatusWrapper check_status(raw_status);
-            attachment_->detach(&check_status);
-            // Use hasData() for FB3 compatibility (see Connection::create comment)
-            if (check_status.hasData()) {
+            // Liveness check: if the DB was dropped by another connection
+            // (e.g., test harness cleanup_db()), the server-side attachment
+            // is dead. Calling detach() on it SIGSEGVs on FB 3.0 (issue #260).
+            // The dropped_ flag only covers same-connection dropDatabase().
+            if (!pingAttachment(master)) {
+                attachment_.reset();
+                return true;
+            }
+
+            // Attachment is alive — safe to detach
+            CheckStatusScope status(master);
+            attachment_->detach(status.get());
+            if (status.hasError()) {
                 attachment_.reset();
                 return false;
             }
@@ -563,14 +598,11 @@ inline void Connection::dropDatabase() {
         throw Exception("Master interface not available");
     }
 
-    // Use CheckStatusWrapper for Firebird template API
-    Firebird::IStatus* raw_status = master_->getStatus();
-    Firebird::CheckStatusWrapper check_status(raw_status);
-    attachment_->dropDatabase(&check_status);
+    CheckStatusScope status(master_);
+    attachment_->dropDatabase(status.get());
 
-    // Use hasData() for FB3 compatibility (see Connection::create comment)
-    if (check_status.hasData()) {
-        throw Exception(raw_status);
+    if (status.hasError()) {
+        throw Exception(status.status());
     }
 
     // After drop, the attachment is invalid — mark dropped so detachNoThrow() skips detach()
@@ -591,11 +623,9 @@ inline bool Connection::setStatementTimeout(unsigned int milliseconds) noexcept 
     }
 
     try {
-        // Use CheckStatusWrapper for Firebird template API
-        Firebird::IStatus* raw_status = master_->getStatus();
-        Firebird::CheckStatusWrapper check_status(raw_status);
-        attachment_->setStatementTimeout(&check_status, milliseconds);
-        if (!check_status.isDirty()) {
+        CheckStatusScope status(master_);
+        attachment_->setStatementTimeout(status.get(), milliseconds);
+        if (!status.hasError()) {
             statement_timeout_ms_ = milliseconds;
             return true;
         }
@@ -615,11 +645,9 @@ inline bool Connection::setIdleTimeout(unsigned int seconds) noexcept {
     }
 
     try {
-        // Use CheckStatusWrapper for Firebird template API
-        Firebird::IStatus* raw_status = master_->getStatus();
-        Firebird::CheckStatusWrapper check_status(raw_status);
-        attachment_->setIdleTimeout(&check_status, seconds);
-        if (!check_status.isDirty()) {
+        CheckStatusScope status(master_);
+        attachment_->setIdleTimeout(status.get(), seconds);
+        if (!status.hasError()) {
             idle_timeout_sec_ = seconds;
             return true;
         }

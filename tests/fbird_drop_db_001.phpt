@@ -5,9 +5,10 @@ fbird_drop_db(): Basic test
 --FILE--
 <?php
 
-require("config.inc");
+require("firebird.inc");
 
-unlink($file = tempnam(sys_get_temp_dir(),"php_fbird_test"));
+$db_dir = getenv("FIREBIRD_DB_DIR") ?: sys_get_temp_dir();
+$file = $db_dir . "/php_fbird_drop_" . bin2hex(random_bytes(4));
 if(!empty($host))$file = "$host:$file";
 
 $db = fbird_query(FBIRD_CREATE,
@@ -25,7 +26,7 @@ bool(true)
 
 --CLEAN--
 <?php
-require_once 'config.inc';
+require_once 'firebird.inc';
 // Database creation tests - DB dropped in --FILE-- section.
 // This --CLEAN-- is a safety net for crash recovery.
 ?>

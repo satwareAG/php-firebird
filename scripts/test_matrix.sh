@@ -35,17 +35,21 @@ clean_test_artifacts() {
     local cleaned=0
     for dir in tests pdo_fbird/tests; do
         if [ -d "$PROJECT_ROOT/$dir" ]; then
-            cleaned=$(( cleaned + $(find "$PROJECT_ROOT/$dir" -maxdepth 1 \
+            cleaned=$(( cleaned + $(find "$PROJECT_ROOT/$dir" \
                 \( -name '*.diff' -o -name '*.out' -o -name '*.exp' \
                    -o -name '*.log' -o -name '*.php' -o -name '*.sh' \
                    -o -name '*.mem' \) \
                 -not -name 'common.inc' -not -name 'config.inc' \
+                -not -name 'firebird.inc' -not -name 'functions.inc' \
+                -not -name 'skipif.inc' \
                 2>/dev/null | wc -l) ))
-            find "$PROJECT_ROOT/$dir" -maxdepth 1 \
+            find "$PROJECT_ROOT/$dir" \
                 \( -name '*.diff' -o -name '*.out' -o -name '*.exp' \
                    -o -name '*.log' -o -name '*.php' -o -name '*.sh' \
                    -o -name '*.mem' \) \
                 -not -name 'common.inc' -not -name 'config.inc' \
+                -not -name 'firebird.inc' -not -name 'functions.inc' \
+                -not -name 'skipif.inc' \
                 -delete 2>/dev/null || true
         fi
     done

@@ -3,18 +3,20 @@ fbird_drop_db() with connection string instead of resource
 --SKIPIF--
 <?php
 if (!extension_loaded('firebird')) die('skip firebird not loaded');
-require_once __DIR__ . '/config.inc';
-$dsn = $host . ':/firebird/data/test.fdb';
-$c = @fbird_connect($dsn, $user, $password);
+require_once __DIR__ . '/firebird.inc';
+$c = @fbird_connect($test_base, $user, $password);
 if (!$c) die('skip cannot connect');
 fbird_close($c);
 ?>
 --FILE--
 <?php
-require_once __DIR__ . '/config.inc';
+require_once __DIR__ . '/firebird.inc';
 
-$db_path = '/firebird/data/test_drop_str_' . getmypid() . '.fdb';
-$dsn = $host . ':' . $db_path;
+// Generate a unique DB path in the same directory as $test_base
+$db_dir = getenv('FIREBIRD_DB_DIR') ?: '/tmp';
+$db_dir = rtrim($db_dir, '/');
+$db_path = $db_dir . '/php_fbird_dropstr_' . bin2hex(random_bytes(4)) . '.fdb';
+$dsn = (!empty($host) ? $host . ':' : '') . $db_path;
 
 /* Create a database to drop */
 $conn = fbird_create_database($dsn, $user, $password);
@@ -36,7 +38,7 @@ Done
 
 --CLEAN--
 <?php
-require_once 'config.inc';
+require_once 'firebird.inc';
 // Database creation tests - DB dropped in --FILE-- section.
 // This --CLEAN-- is a safety net for crash recovery.
 ?>

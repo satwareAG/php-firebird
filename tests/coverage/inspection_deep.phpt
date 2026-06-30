@@ -5,11 +5,12 @@ firebird
 --SKIPIF--
 <?php
 // Include firebird test helpers
-include __DIR__ . '/../skipif.inc';
-// Skip in CI or Docker - coverage test with environment-dependent output
-// fbird_kill_attachment() with PHP_INT_MAX blocks indefinitely in containers
-if (getenv('CI') || getenv('GITHUB_ACTIONS') || file_exists('/.dockerenv')) {
-    die('skip Coverage test skipped in CI/Docker - fbird_kill_attachment blocks');
+require __DIR__ . '/../skipif.inc';
+// fbird_kill_attachment() with PHP_INT_MAX blocks indefinitely when the
+// Firebird server runs in a container or on a remote host (issue #261).
+// Skip whenever FIREBIRD_HOST is set (indicates remote/container topology).
+if (getenv('FIREBIRD_HOST')) {
+    die('skip fbird_kill_attachment blocks on remote/containerized servers (issue #261)');
 }
 ?>
 --FILE--
@@ -25,21 +26,12 @@ if (getenv('CI') || getenv('GITHUB_ACTIONS') || file_exists('/.dockerenv')) {
 
 echo "=== Inspection Error Tests ===\n\n";
 
-require_once __DIR__ . '/../config.inc';
+require_once __DIR__ . '/../firebird.inc';
 
-// Get database connection
-$host = getenv('FIREBIRD_HOST') ?: 'localhost';
-$port = getenv('FIREBIRD_PORT') ?: '3050';
-$dbname = getenv('FIREBIRD_DATABASE') ?: '/firebird/data/test.fdb';
-$host = getenv('FIREBIRD_HOST') ?: 'firebird40';
-$username = getenv('FIREBIRD_USER') ?: 'SYSDBA';
-$password = getenv('FIREBIRD_PASSWORD') ?: 'masterkey';
+// firebird.inc provides $test_base, $user, $password (via config.inc),
+// creates the test database via init_db(), and registers cleanup_db().
 
-$conn = fbird_connect(
-    "$host/$port:$dbname",
-    $username,
-    $password
-);
+$conn = fbird_connect($test_base, $user, $password);
 
 if (!$conn) {
     die("SKIP: Could not connect to Firebird\n");

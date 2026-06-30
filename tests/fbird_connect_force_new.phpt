@@ -7,8 +7,7 @@ firebird
 --FILE--
 <?php
 
-require("config.inc");
-require("functions.inc");
+require("firebird.inc");
 
 $host = getenv('FIREBIRD_HOST') ?: 'localhost';
 $dbDir = getenv('FIREBIRD_DB_DIR') ?: '/tmp';
@@ -118,7 +117,7 @@ Done.
 
 --CLEAN--
 <?php
-require_once 'config.inc';
+require_once 'firebird.inc';
 // Database creation tests - DB dropped in --FILE-- section.
 // This --CLEAN-- is a safety net for crash recovery.
 ?>

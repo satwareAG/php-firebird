@@ -289,6 +289,22 @@ private:
     VersionInfo version_{VersionInfo::FB30}; ///< Client library version
     mutable StatusWrapper last_status_{static_cast<Firebird::IStatus*>(nullptr)}; ///< Last error status
 
+    /**
+     * Probe the server-side attachment with a lightweight getInfo() roundtrip.
+     *
+     * Used by detachNoThrow() to verify the attachment is alive before
+     * calling detach(). If the database was dropped by another connection
+     * (e.g., test harness cleanup_db()), the server-side attachment is dead
+     * and calling detach() on it SIGSEGVs on FB 3.0 (issue #260).
+     *
+     * The dropped_ flag only covers same-connection dropDatabase(); this
+     * method covers the cross-connection drop scenario.
+     *
+     * @param master Master interface for status allocation (must not be null)
+     * @return true if attachment responds, false if dead or unreachable
+     */
+    bool pingAttachment(Firebird::IMaster* master) noexcept;
+
     // Timeout settings (FB 4.0+)
     unsigned int statement_timeout_ms_ = 0;
     unsigned int idle_timeout_sec_ = 0;
@@ -511,6 +527,24 @@ inline void Connection::detach() {
     }
 
     attachment_.reset();
+}
+
+inline bool Connection::pingAttachment(Firebird::IMaster* master) noexcept {
+    if (!attachment_ || !master) {
+        return false;
+    }
+
+    try {
+        CheckStatusScope status(master);
+        unsigned char info_request[] = { isc_info_ods_version };
+        unsigned char info_buffer[32] = {0};
+        attachment_->getInfo(status.get(),
+                             sizeof(info_request), info_request,
+                             sizeof(info_buffer), info_buffer);
+        return !status.hasError();
+    } catch (...) {
+        return false;
+    }
 }
 
 inline bool Connection::detachNoThrow() noexcept {

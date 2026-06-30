@@ -2,12 +2,12 @@
 fbird_version: verify extension version information
 --SKIPIF--
 <?php
-require_once __DIR__ . '/config.inc';
+require_once __DIR__ . '/firebird.inc';
 if (!extension_loaded('firebird')) die('skip firebird extension not loaded');
 ?>
 --FILE--
 <?php
-require_once __DIR__ . '/config.inc';
+require_once __DIR__ . '/firebird.inc';
 
 $extension_version = phpversion('firebird');
 $version_file = trim(file_get_contents(__DIR__ . '/../VERSION.txt'));

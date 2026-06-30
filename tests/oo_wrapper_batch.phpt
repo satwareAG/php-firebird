@@ -3,13 +3,14 @@ Firebird\Batch userland wrapper: fromQuery, add, execute, getRowCount, isExecute
 --SKIPIF--
 <?php
 if (!extension_loaded('firebird')) die('skip firebird extension not loaded');
-require_once __DIR__ . '/config.inc';
+require_once __DIR__ . '/firebird.inc';
 if (!@fbird_connect($test_base, $user, $password)) die('skip cannot connect to Firebird');
 if (!function_exists('fbird_batch_create')) die('skip IBatch API requires Firebird 4.0+');
+if (get_fb_version() < 4.0) die('skip IBatch API requires Firebird 4.0+ server');
 ?>
 --FILE--
 <?php
-require_once __DIR__ . '/config.inc';
+require_once __DIR__ . '/firebird.inc';
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use Firebird\Batch;
@@ -82,9 +83,8 @@ done
 
 --CLEAN--
 <?php
-require_once 'config.inc';
-$db = @fbird_connect($host . ':/firebird/data/test.fdb', $user, $password);
-if ($db) {
+require_once 'firebird.inc';
+if ($db = @fbird_connect($test_base)) {
     @fbird_query($db, "DROP TABLE OO_BATCH_TEST");
     @fbird_close($db);
 }

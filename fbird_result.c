@@ -590,8 +590,14 @@ void _php_fbird_fetch_hash_query(
 	 *
 	 * Uses fbm_* helpers to get field metadata and extract data from the
 	 * message buffer that was populated by fbs_fetch().
+	 *
+	 * Use external HashPosition for iteration (PHP 8.1+ recommended pattern).
+	 * ht_ret is a zend_array_dup() copy, so internal-pointer writes would be
+	 * safe here, but _ex variants are the modern standard and prevent future
+	 * regressions if the duplication is ever removed.
 	 */
-	zend_hash_internal_pointer_reset(ht_ret);
+	HashPosition pos;
+	zend_hash_internal_pointer_reset_ex(ht_ret, &pos);
 	for(i = 0; i < ib_query->out_fields_count; ++i) {
 		/* Get field metadata via OO API */
 		unsigned field_offset = fbm_get_offset(IBG(master_instance), ib_query->out_metadata, (unsigned)i);
@@ -607,7 +613,7 @@ void _php_fbird_fetch_hash_query(
 		ISC_SHORT *null_indicator = (ISC_SHORT *)(msg_buffer + null_offset);
 
 		/* Get current slot via iterator (insertion order matches field order) */
-		result = zend_hash_get_current_data(ht_ret);
+		result = zend_hash_get_current_data_ex(ht_ret, &pos);
 		if (!result) {
 			/* Should not happen — hash has exactly out_fields_count entries */
 			break;
@@ -617,7 +623,7 @@ void _php_fbird_fetch_hash_query(
 		bool is_null_field = (*null_indicator != 0);
 
 		if (is_null_field) {
-			zend_hash_move_forward(ht_ret);
+			zend_hash_move_forward_ex(ht_ret, &pos);
 			continue;
 		}
 
@@ -861,7 +867,7 @@ void _php_fbird_fetch_hash_query(
 				RETURN_FALSE;
 		} /* switch */
 
-		zend_hash_move_forward(ht_ret);
+		zend_hash_move_forward_ex(ht_ret, &pos);
 	}
 
 	RETVAL_ARR(ht_ret);

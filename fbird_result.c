@@ -863,8 +863,9 @@ void _php_fbird_fetch_hash_query(
 					ZVAL_NEW_STR(result, _php_fbird_quad_to_string(ar_qd));
 				}
 				break;
-			_php_fbird_fetch_error:
-				RETURN_FALSE;
+		_php_fbird_fetch_error:
+			zend_array_release(ht_ret);
+			RETURN_FALSE;
 		} /* switch */
 
 		zend_hash_move_forward_ex(ht_ret, &pos);

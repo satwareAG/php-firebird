@@ -524,7 +524,7 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 	BIND_BUF *buf = ib_query->bind_buf;
 	XSQLDA *sqlda = ib_query->in_sqlda;
 
-	int i, array_cnt = 0, rv = SUCCESS;
+	int i, rv = SUCCESS;
 
 	for (i = 0; i < sqlda->sqld; ++i) { /* bound vars */
 
@@ -571,7 +571,6 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 			case IS_NULL:
 					buf[i].nullind = -1;
 
-				if ((var->sqltype & ~1) == SQL_ARRAY) ++array_cnt;
 
 				continue;
 		}

@@ -287,8 +287,6 @@ PHP_FUNCTION(fbird_trans_start)
 	zval *link_arg = NULL, *options_arg = NULL;
 	fbird_db_link *ib_link;
 	fbird_transaction *ib_trans;
-	void *tr_handle = 0;
-	ISC_STATUS result;
 	char last_tpb[TPB_MAX_SIZE];
 	unsigned short tpb_len = 0;
 	zend_long trans_timeout = 0;
@@ -604,7 +602,6 @@ PHP_FUNCTION(fbird_connection_info)
 	};
 	char res_buf[512];
 	char *p;
-	ISC_STATUS status[ISC_STATUS_LENGTH];
 
 	RESET_ERRMSG;
 
@@ -712,8 +709,6 @@ PHP_FUNCTION(fbird_trans)
 	char last_tpb[TPB_MAX_SIZE];
 	fbird_db_link **ib_link = NULL;
 	fbird_transaction *ib_trans;
-	void *tr_handle = 0;
-	ISC_STATUS result = 0;
 
 	RESET_ERRMSG;
 
@@ -843,8 +838,6 @@ PHP_FUNCTION(fbird_trans)
 					RETURN_FALSE;
 				}
 
-				tr_handle = fbt_get_handle(oo_trans);
-
 				/* Allocate and register transaction with OO API wrapper */
 				ib_trans = (fbird_transaction *) safe_emalloc(link_cnt-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
 				ib_trans->link_cnt = link_cnt;
@@ -897,7 +890,6 @@ PHP_FUNCTION(fbird_trans)
 			efree(ib_link);
 			RETURN_FALSE;
 		}
-		tr_handle = fbt_get_handle(oo_trans);
 
 		/* Allocate and register transaction with OO API wrapper */
 		ib_trans = (fbird_transaction *) safe_emalloc(link_cnt-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));

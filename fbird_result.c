@@ -629,7 +629,7 @@ void _php_fbird_fetch_hash_query(
 	zval *return_value)
 {
 	zval *result;
-	zend_long i, array_cnt = 0;
+	zend_long i;
 
 	/* Pure OO API: Check message buffer instead of XSQLDA */
 	if (ib_query->out_metadata == NULL || ib_query->out_msg_buffer == NULL ||

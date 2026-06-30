@@ -515,15 +515,12 @@ inline void Connection::detach() {
         return;
     }
 
-    // Use CheckStatusWrapper for Firebird template API
-    Firebird::IStatus* raw_status = master_->getStatus();
-    Firebird::CheckStatusWrapper check_status(raw_status);
-    attachment_->detach(&check_status);
+    CheckStatusScope status(master_);
+    attachment_->detach(status.get());
 
-    // Use hasData() for FB3 compatibility (see Connection::create comment)
-    if (check_status.hasData()) {
+    if (status.hasError()) {
         last_status_ = StatusWrapper(master_);
-        throw Exception(raw_status);
+        throw Exception(status.status());
     }
 
     attachment_.reset();
@@ -604,14 +601,11 @@ inline void Connection::dropDatabase() {
         throw Exception("Master interface not available");
     }
 
-    // Use CheckStatusWrapper for Firebird template API
-    Firebird::IStatus* raw_status = master_->getStatus();
-    Firebird::CheckStatusWrapper check_status(raw_status);
-    attachment_->dropDatabase(&check_status);
+    CheckStatusScope status(master_);
+    attachment_->dropDatabase(status.get());
 
-    // Use hasData() for FB3 compatibility (see Connection::create comment)
-    if (check_status.hasData()) {
-        throw Exception(raw_status);
+    if (status.hasError()) {
+        throw Exception(status.status());
     }
 
     // After drop, the attachment is invalid — mark dropped so detachNoThrow() skips detach()

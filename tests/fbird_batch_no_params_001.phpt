@@ -2,8 +2,16 @@
 fbird_batch_create() rejects statement with no input parameters (Issue #180)
 --SKIPIF--
 <?php
-include("skipif.inc");
-if (!function_exists('fbird_batch_create')) die("skip IBatch API not available (requires FB_API_VER >= 40)");
+require __DIR__ . '/skipif.inc';
+if (!extension_loaded('firebird')) {
+    die('skip firebird extension not loaded');
+}
+if (!function_exists('fbird_batch_create')) {
+    die('skip IBatch API (fbird_batch_create) not available in this build');
+}
+if (get_fb_version() < 4.0) {
+    die('skip IBatch API requires Firebird 4.0+');
+}
 ?>
 --FILE--
 <?php

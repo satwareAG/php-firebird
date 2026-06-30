@@ -46,14 +46,25 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size,
 		int i;
 		zval *subval = val;
 
-		if (Z_TYPE_P(val) == IS_ARRAY) {
-			zend_hash_internal_pointer_reset(Z_ARRVAL_P(val));
+		/*
+		 * Use external HashPosition for iteration instead of the HashTable's
+		 * internal pointer. The internal-pointer functions (_reset, _move_forward)
+		 * write to ht->nInternalPointer, which SIGSEGVs when opcache.protect_memory=1
+		 * marks the shared memory page as read-only (e.g., JIT-cached arrays).
+		 *
+		 * The _ex variants use a stack-local HashPosition and never write to the
+		 * HashTable structure. This is the PHP 8.1+ recommended pattern.
+		 */
+		HashPosition pos;
+		bool is_array = (Z_TYPE_P(val) == IS_ARRAY);
+		if (is_array) {
+			zend_hash_internal_pointer_reset_ex(Z_ARRVAL_P(val), &pos);
 		}
 
 		for (i = 0; i < dim_len; ++i) {
 
-			if (Z_TYPE_P(val) == IS_ARRAY &&
-				(subval = zend_hash_get_current_data(Z_ARRVAL_P(val))) == NULL)
+			if (is_array &&
+				(subval = zend_hash_get_current_data_ex(Z_ARRVAL_P(val), &pos)) == NULL)
 			{
 				subval = pnull_val;
 			}
@@ -64,14 +75,12 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size,
 			}
 			buf += slice_size;
 
-			if (Z_TYPE_P(val) == IS_ARRAY) {
-				zend_hash_move_forward(Z_ARRVAL_P(val));
+			if (is_array) {
+				zend_hash_move_forward_ex(Z_ARRVAL_P(val), &pos);
 			}
 		}
 
-		if (Z_TYPE_P(val) == IS_ARRAY) {
-			zend_hash_internal_pointer_reset(Z_ARRVAL_P(val));
-		}
+		/* No reset needed: we used an external position, not ht->nInternalPointer. */
 
 	} else {
 		/* expect a single value */

@@ -82,6 +82,7 @@ RUN set -eu \
         --enable-pcntl \
         --enable-posix \
         --enable-session \
+        --enable-pdo \
         --with-zlib \
         CC=clang \
         CXX=clang++ \

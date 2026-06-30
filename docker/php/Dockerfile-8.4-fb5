@@ -21,7 +21,7 @@ RUN ln -sf /opt/firebird/lib/libfbclient.so /usr/lib/libfbclient.so \
     && ln -sf /opt/firebird/lib/libfbclient.so.2 /usr/lib/libfbclient.so.2 \
     && ln -sf /opt/firebird/include /usr/include/firebird \
     && echo "/opt/firebird/lib" > /etc/ld.so.conf.d/firebird.conf \
-    && ldconfig && docker-php-ext-install pcntl
+    && ldconfig && docker-php-ext-install pdo pcntl
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

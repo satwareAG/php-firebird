@@ -35,18 +35,25 @@ clean_test_artifacts() {
     local cleaned=0
     for dir in tests pdo_fbird/tests; do
         if [ -d "$PROJECT_ROOT/$dir" ]; then
+            # Pass 1: recursive for unambiguous artifact extensions
             cleaned=$(( cleaned + $(find "$PROJECT_ROOT/$dir" \
                 \( -name '*.diff' -o -name '*.out' -o -name '*.exp' \
-                   -o -name '*.log' -o -name '*.php' -o -name '*.sh' \
-                   -o -name '*.mem' \) \
+                   -o -name '*.log' -o -name '*.mem' \) \
+                2>/dev/null | wc -l) ))
+            find "$PROJECT_ROOT/$dir" \
+                \( -name '*.diff' -o -name '*.out' -o -name '*.exp' \
+                   -o -name '*.log' -o -name '*.mem' \) \
+                -delete 2>/dev/null || true
+            # Pass 2: top-level only for *.php and *.sh
+            # (protects tracked source files in subdirs like tests/sanitizer/)
+            cleaned=$(( cleaned + $(find "$PROJECT_ROOT/$dir" -maxdepth 1 \
+                \( -name '*.php' -o -name '*.sh' \) \
                 -not -name 'common.inc' -not -name 'config.inc' \
                 -not -name 'firebird.inc' -not -name 'functions.inc' \
                 -not -name 'skipif.inc' \
                 2>/dev/null | wc -l) ))
-            find "$PROJECT_ROOT/$dir" \
-                \( -name '*.diff' -o -name '*.out' -o -name '*.exp' \
-                   -o -name '*.log' -o -name '*.php' -o -name '*.sh' \
-                   -o -name '*.mem' \) \
+            find "$PROJECT_ROOT/$dir" -maxdepth 1 \
+                \( -name '*.php' -o -name '*.sh' \) \
                 -not -name 'common.inc' -not -name 'config.inc' \
                 -not -name 'firebird.inc' -not -name 'functions.inc' \
                 -not -name 'skipif.inc' \
@@ -73,11 +80,20 @@ export CURRENT_UID=$(id -u)
 export CURRENT_GID=$(id -g)
 
 # Bring up containers (ensure up-to-date)
-# We use --wait to ensure healthchecks pass before testing (if configured)
-# But php-dev containers typically default to running state.
-if ! docker compose up -d --remove-orphans; then
-    echo -e "${RED}Failed to start Docker environment.${NC}"
-    exit 1
+# When a specific container is requested ($1), start only that container
+# and its dependencies (Docker Compose handles depends_on automatically).
+# When no container is specified (full matrix), start all services.
+if [ -n "$1" ]; then
+    echo -e "${BLUE}Starting container: $1 (+ dependencies)${NC}"
+    if ! docker compose up -d "$1"; then
+        echo -e "${RED}Failed to start Docker environment for $1.${NC}"
+        exit 1
+    fi
+else
+    if ! docker compose up -d --remove-orphans; then
+        echo -e "${RED}Failed to start Docker environment.${NC}"
+        exit 1
+    fi
 fi
 
 # 3. Define Targets

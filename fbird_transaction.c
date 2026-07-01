@@ -318,6 +318,7 @@ PHP_FUNCTION(fbird_trans_start)
 	}
 
 	if (!ib_link) {
+		php_error_docref(NULL, E_WARNING, "Invalid database link");
 		RETURN_FALSE;
 	}
 
@@ -633,6 +634,7 @@ PHP_FUNCTION(fbird_connection_info)
 	}
 
 	if (!ib_link) {
+		php_error_docref(NULL, E_WARNING, "Invalid database link");
 		RETURN_FALSE;
 	}
 

@@ -617,12 +617,14 @@ PHP_FUNCTION(fbird_close)
 		is_default_link = true;
 
 		if (link_res == NULL) {
+			php_error_docref(NULL, E_WARNING, "No default connection to close");
 			RETURN_FALSE;
 		}
 	} else {
 		/* Explicit link path: accept resource or Connection object */
 		link_res = _php_fbird_res_from_zval(link_arg);
 		if (link_res == NULL) {
+			php_error_docref(NULL, E_WARNING, "Argument #1 must be a valid Firebird connection resource or Firebird\\Connection object");
 			RETURN_FALSE;
 		}
 		is_default_link = (IBG(default_link) == link_res);

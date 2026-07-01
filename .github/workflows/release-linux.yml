@@ -63,6 +63,7 @@ jobs:
     steps:
       - name: Check required workflows passed on this commit
         run: |
+          set +e
           set -u
           SHA="${{ github.sha }}"
           MAX_WAIT=1080   # 18 minutes

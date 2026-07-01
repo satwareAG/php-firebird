@@ -512,6 +512,10 @@ static void _php_fbird_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operati
 		(char)opts,(char)(opts >> 8), (char)(opts >> 16), (char)(opts >> 24));
 
 	if (verbose) {
+		if (spb_len >= sizeof(buf)) {
+			_php_fbird_module_error("Internal error: SPB buffer overflow for verbose flag");
+			RETURN_FALSE;
+		}
 		buf[spb_len++] = isc_spb_verbose;
 	}
 

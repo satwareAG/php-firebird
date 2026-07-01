@@ -513,7 +513,9 @@ extern "C" void* fbc_connect(
         if (charset && charset_len > 0) params.charset = std::string_view(charset, charset_len);
         if (role && role_len > 0) params.role = std::string_view(role, role_len);
         params.dialect = static_cast<unsigned short>(dialect);
-        // Note: num_buffers and force_write could be added to DPB in future
+        if (num_buffers > 0) {
+            params.num_buffers = static_cast<unsigned short>(num_buffers);
+        }
 
         // Create connection using factory method
         auto conn = fb::Connection::create(master, params);

@@ -570,12 +570,24 @@ static int _php_fbird_fetch_blob_field(
 		unsigned char item = bl_info[j++];
 
 		if (item == isc_info_end || item == isc_info_truncated ||
-			item == isc_info_error || j >= sizeof(bl_info)) {
+			item == isc_info_error) {
 			_php_fbird_module_error("Could not determine BLOB size (internal error)");
 			goto blob_cleanup;
 		}
 
+		/* Bounds-check: need 2 bytes for the length field */
+		if (j + 2 > sizeof(bl_info)) {
+			_php_fbird_module_error("BLOB info buffer truncated (internal error)");
+			goto blob_cleanup;
+		}
+
 		item_len = (unsigned short)isc_vax_integer((char *)&bl_info[j], 2);
+
+		/* Bounds-check: need item_len bytes for the value field */
+		if (j + 2 + item_len > sizeof(bl_info)) {
+			_php_fbird_module_error("BLOB info buffer truncated (internal error)");
+			goto blob_cleanup;
+		}
 
 		if (item == isc_info_blob_total_length) {
 			max_len = (zend_ulong)isc_vax_integer((char *)&bl_info[j + 2], item_len);

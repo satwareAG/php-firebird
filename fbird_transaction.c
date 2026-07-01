@@ -540,10 +540,21 @@ PHP_FUNCTION(fbird_trans_info)
 
 	array_init(return_value);
 
-	while (*p != isc_info_end && p < res_buf + sizeof(res_buf)) {
+	const char *end = res_buf + sizeof(res_buf);
+	while (p < end && *p != isc_info_end) {
 		unsigned char item = *p++;
+
+		/* Bounds-check: need 2 bytes for the length field */
+		if (p + 2 > end) {
+			break;
+		}
 		unsigned short len = (unsigned short)isc_vax_integer(p, 2);
 		p += 2;
+
+		/* Bounds-check: need len bytes for the value field */
+		if (p + len > end) {
+			break;
+		}
 
 		switch (item) {
 			case isc_info_tra_id:
@@ -647,10 +658,21 @@ PHP_FUNCTION(fbird_connection_info)
 	array_init(return_value);
 	p = res_buf;
 
-	while (*p != isc_info_end && p < res_buf + sizeof(res_buf)) {
+	const char *end = res_buf + sizeof(res_buf);
+	while (p < end && *p != isc_info_end) {
 		unsigned char item = *p++;
+
+		/* Bounds-check: need 2 bytes for the length field */
+		if (p + 2 > end) {
+			break;
+		}
 		unsigned short len = (unsigned short)isc_vax_integer(p, 2);
 		p += 2;
+
+		/* Bounds-check: need len bytes for the value field */
+		if (p + len > end) {
+			break;
+		}
 
 		switch (item) {
 			case isc_info_reads:

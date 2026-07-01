@@ -1070,8 +1070,17 @@ PHP_METHOD(FirebirdService, getServerVersion)
 	}
 
 	char *result = res_buf;
-	if (*result == isc_info_svc_server_version) {
+	const char *end = res_buf + sizeof(res_buf);
+	if (result < end && *result == isc_info_svc_server_version) {
+		/* Bounds-check: need 2 bytes for the length field (result+1, result+2) */
+		if (result + 3 > end) {
+			RETURN_STRING("");
+		}
 		int len = isc_vax_integer(result + 1, 2);
+		/* Bounds-check: need len bytes for the value, and len must be non-negative */
+		if (len < 0 || result + 3 + len > end) {
+			RETURN_STRING("");
+		}
 		RETURN_STRINGL(result + 3, len);
 	}
 	RETURN_STRING("");

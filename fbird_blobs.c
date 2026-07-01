@@ -691,7 +691,6 @@ PHP_FUNCTION(fbird_blob_cancel)
 PHP_FUNCTION(fbird_blob_info)
 {
 	char *blob_id = NULL;
-	size_t blob_id_len;
 	zval *link = NULL, *arg1 = NULL;
 	fbird_db_link *ib_link;
 	fbird_transaction *trans = NULL;
@@ -735,7 +734,6 @@ PHP_FUNCTION(fbird_blob_info)
 		}
 	} else if (arg1 && Z_TYPE_P(arg1) == IS_STRING) {
 		blob_id = Z_STRVAL_P(arg1);
-		blob_id_len = Z_STRLEN_P(arg1);
 	} else {
 		// Invalid argument type
 		php_error_docref(NULL, E_WARNING, "Expected blob ID string or blob stream resource");
@@ -902,7 +900,6 @@ PHP_FUNCTION(fbird_blob_echo)
 PHP_FUNCTION(fbird_blob_import)
 {
 	zval *link = NULL, *file;
-	int size;
 	unsigned b;
 	fbird_blob ib_blob = { 0, {0, 0}, NULL };
 	fbird_db_link *ib_link;
@@ -947,7 +944,7 @@ PHP_FUNCTION(fbird_blob_import)
 			break;
 		}
 
-		for (size = 0; (b = (unsigned)php_stream_read(stream, bl_data, sizeof(bl_data))) > 0; size += b) {
+		for (; (b = (unsigned)php_stream_read(stream, bl_data, sizeof(bl_data))) > 0; ) {
 			/* fbb_put_segment returns 1 on success, 0 on error */
 			if (fbb_put_segment(IBG(master_instance), ib_blob.fbb_blob, b, bl_data, IB_STATUS) == 0) {
 				fbb_cancel(IBG(master_instance), ib_blob.fbb_blob, IB_STATUS);

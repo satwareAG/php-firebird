@@ -131,7 +131,6 @@ static int _fbird_drop_table(fbird_db_link *link, fbird_transaction *trans, cons
 	void *stmt = NULL;
 	void *attachment = NULL;
 	void *transaction = NULL;
-	int result = FAILURE;
 
 	/* OO API Only: Require fbc_connection */
 	if (!link->fbc_connection) {

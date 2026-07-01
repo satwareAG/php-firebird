@@ -565,6 +565,8 @@ static int _php_fbird_fetch_blob_field(
 		goto blob_cleanup;
 	}
 
+	bool found_length = false;
+
 	for (unsigned j = 0; j < sizeof(bl_info); ) {
 		unsigned short item_len;
 		unsigned char item = bl_info[j++];
@@ -591,9 +593,15 @@ static int _php_fbird_fetch_blob_field(
 
 		if (item == isc_info_blob_total_length) {
 			max_len = (zend_ulong)isc_vax_integer((char *)&bl_info[j + 2], item_len);
+			found_length = true;
 			break;
 		}
 		j += item_len + 2;
+	}
+
+	if (!found_length) {
+		_php_fbird_module_error("Could not determine BLOB total length");
+		goto blob_cleanup;
 	}
 
 	if (max_len == 0) {

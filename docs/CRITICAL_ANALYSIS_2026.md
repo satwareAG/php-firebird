@@ -1,5 +1,9 @@
 # php-firebird Critical Analysis - March 2026
 
+> **Update 2026-07-01**: 18 of 24 recommendations shipped in v11.0.0-v11.0.1.
+> Remaining: L1 (LTO), H6 (--CLEAN-- sweep, tracked in #245), M6 (fuzz dictionary),
+> M8 (pointer smuggling audit). See checkboxes below for per-item status.
+
 Post-v10.3.6 comprehensive review against 2026 best practices for PHP extension
 development, C/C++ Linux development, and cross-platform distribution.
 
@@ -428,46 +432,46 @@ is a good distribution pattern.
 
 ### Phase 1: Security (v10.3.7 - Immediate)
 
-- [ ] **C1**: Fix SQL injection in `fbird_create_database()` - escape quotes
-- [ ] **C2**: Fix SPB buffer overflow in `Firebird\Service::__construct()` - bounds check
-- [ ] **M10**: Replace `create_sql[4096]` with `spprintf` dynamic allocation
-- [ ] **H5**: Update CONTRIBUTING.md (wrong repo URL, wrong PHP/FB versions)
-- [ ] **M7**: Fix config.m4 PHP version check (8.1 -> 8.2)
+- [x] **C1**: Fix SQL injection in `fbird_create_database()` - escape quotes
+- [x] **C2**: Fix SPB buffer overflow in `Firebird\Service::__construct()` - bounds check
+- [x] **M10**: Replace `create_sql[4096]` with `spprintf` dynamic allocation
+- [x] **H5**: Update CONTRIBUTING.md (wrong repo URL, wrong PHP/FB versions)
+- [x] **M7**: Fix config.m4 PHP version check (8.1 -> 8.2)
 
 ### Phase 2: Supply Chain (v10.4.0 - Next Minor)
 
-- [ ] **H1**: Add artifact signing (`gh attestation generate`) to release workflows
-- [ ] **H2**: Add SBOM generation (`syft`) to release workflows
-- [ ] **H3**: Add `.github/dependabot.yml` for action updates
-- [ ] **M4**: Automate version stamp sync in stubs during release
+- [x] **H1**: Add artifact signing (`gh attestation generate`) to release workflows
+- [x] **H2**: Add SBOM generation (`syft`) to release workflows
+- [x] **H3**: Add `.github/dependabot.yml` for action updates
+- [x] **M4**: Automate version stamp sync in stubs during release
 
 ### Phase 3: Build Hardening (v10.4.x)
 
-- [ ] **H4**: Add `-Wall -Wextra -D_FORTIFY_SOURCE=2 -fstack-protector-strong`
-- [ ] **M1**: Pin C standard to `-std=gnu17`
+- [x] **H4**: Add `-Wall -Wextra -D_FORTIFY_SOURCE=2 -fstack-protector-strong`
+- [x] **M1**: Pin C standard to `-std=gnu17`
 - [ ] **M8**: Replace pointer smuggling with proper output parameter
 - [ ] **L1**: Add LTO for release builds (`-flto=auto`)
 
 ### Phase 4: Testing (v10.5.0)
 
-- [ ] **H6**: Add `--CLEAN--` sections to all .phpt tests (start with coverage + PDO)
-- [ ] **M5**: Add TSan job for ZTS builds
+- [ ] **H6**: Add `--CLEAN--` sections to all .phpt tests (start with coverage + PDO) - tracked in #245
+- [x] **M5**: Add TSan job for ZTS builds
 - [ ] **M6**: Create fuzz dictionary for Firebird SQL
-- [ ] **M11**: Add macOS CI job (build-only)
+- [x] **M11**: Add macOS CI job (build-only)
 
 ### Phase 5: Platform Expansion (v10.6.0 or v11.0)
 
-- [ ] **H7**: Add ARM64 Linux precompiled builds
-- [ ] Add Alpine/musl-libc builds
+- [x] **H7**: Add ARM64 Linux precompiled builds
+- [x] Add Alpine/musl-libc builds
 - [ ] Add macOS precompiled builds (universal binary)
 
 ### Phase 6: Modernization (v11.0 - Next Major)
 
-- [ ] **M2**: Migrate all 84 arginfo declarations to typed variants
-- [ ] **M3**: Begin resource-to-object migration for Layer 1
-- [ ] **M12**: Replace `call_user_function()` in OOP layer with direct C calls
-- [ ] **L3**: Remove dead `FB_API_VER < 30` code paths
-- [ ] **L2**: Remove `gds32_ms` fallback from config.w32
+- [x] **M2**: Migrate all 84 arginfo declarations to typed variants
+- [x] **M3**: Begin resource-to-object migration for Layer 1
+- [x] **M12**: Replace `call_user_function()` in OOP layer with direct C calls
+- [x] **L3**: Remove dead `FB_API_VER < 30` code paths
+- [x] **L2**: Remove `gds32_ms` fallback from config.w32
 
 ---
 

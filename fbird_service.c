@@ -157,7 +157,7 @@ static void _php_fbird_user(INTERNAL_FUNCTION_PARAMETERS, char operation)
 	    isc_spb_sec_firstname, isc_spb_sec_middlename, isc_spb_sec_lastname };
 	char buf[128], *args[] = { NULL, NULL, NULL, NULL, NULL };
 	size_t args_len[] = { 0, 0, 0, 0, 0 };
-	int i;
+	size_t i;
 	unsigned short spb_len = 1;
 	zval *res;
 	fbird_service *svm;
@@ -183,7 +183,7 @@ static void _php_fbird_user(INTERNAL_FUNCTION_PARAMETERS, char operation)
 			int chunk = slprintf(&buf[spb_len], sizeof(buf) - spb_len, "%c%c%c%s",
 				user_flags[i], (char)args_len[i], (char)(args_len[i] >> 8), args[i]);
 
-			if ((spb_len + chunk) > sizeof(buf) || chunk <= 0) {
+			if (chunk <= 0 || (size_t)spb_len + (size_t)chunk > sizeof(buf)) {
 				_php_fbird_module_error("Internal error: insufficient buffer space for SPB (%d)", spb_len);
 				RETURN_FALSE;
 			}
@@ -619,7 +619,7 @@ options_argument:
 		}
 	}
 
-	if (spb_len > sizeof(buf) || spb_len == -1) {
+	if (spb_len < 0 || (size_t)spb_len > sizeof(buf)) {
 		_php_fbird_module_error("Internal error: insufficient buffer space for SPB (%d)", spb_len);
 		RETURN_FALSE;
 	}

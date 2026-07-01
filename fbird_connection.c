@@ -327,7 +327,7 @@ zend_resource *_php_fbird_connect_link(
 	zend_long flags, int persistent)
 {
 	char *c, hash[16], *args[] = { db, user, pass, charset, role };
-	int i;
+	size_t i;
 	size_t len[] = { db_len, user_len, pass_len, charset_len, role_len };
 	zend_long largs[] = { buffers, dialect, 0 };
 	PHP_MD5_CTX hash_context;

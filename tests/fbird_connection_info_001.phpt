@@ -80,7 +80,7 @@ var_dump($info3);
 
 echo "Done\n";
 ?>
---EXPECT--
+--EXPECTF--
 bool(true)
 All expected keys present
 All values are integers
@@ -89,5 +89,7 @@ ods_version > 0: YES
 sql_dialect valid: YES
 attachment_id > 0: YES
 bool(true)
+
+Warning: fbird_connection_info(): Invalid database link in %s on line %d
 bool(false)
 Done

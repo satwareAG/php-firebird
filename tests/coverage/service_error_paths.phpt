@@ -87,7 +87,7 @@ if ($svc3) {
 
 echo "Done\n";
 ?>
---EXPECT--
+--EXPECTF--
 Test 1: Auth failure
 bool(true)
 bool(true)
@@ -104,6 +104,8 @@ bool(true)
 Test 7: server_info with invalid resource
 bool(true)
 Test 8: detach with invalid resource
+
+Warning: fbird_service_detach(): %s in %s on line %d
 bool(true)
 Test 9: Double detach (NULL handle guard)
 no crash

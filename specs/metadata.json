@@ -1,6 +1,6 @@
 {
   "name": "php-firebird",
-  "version": "11.0.0",
+  "version": "11.0.1",
   "sdd_source": "https://github.com/satwareAG/spec-kit",
   "forge": "github",
   "visibility": "public",
@@ -8,7 +8,7 @@
   "ipadp": {
     "project_number": 1,
     "conformance_level": "L3",
-    "issue_tracker": "https://github.com/satwareAG/php-firebird/issues/254",
+    "issue_tracker": "https://github.com/satwareAG/php-firebird/issues",
     "rfc_location": "<internal>/wiki/specs/rfc-interproject-agentic-development.md"
   },
   "upstream": {

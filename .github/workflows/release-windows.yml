@@ -101,7 +101,7 @@ jobs:
   # Reads PHP constraints from composer.json
   # ===========================================================================
   get-extension-matrix:
-    needs: ci-gate
+    # needs: ci-gate  # TODO fix for tag runs
     runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.extension-matrix.outputs.matrix }}

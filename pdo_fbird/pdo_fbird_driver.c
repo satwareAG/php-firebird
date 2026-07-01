@@ -643,6 +643,19 @@ static bool pdo_fbird_handle_set_attribute(pdo_dbh_t *dbh, zend_long attr, zval 
 		case PDO_FBIRD_ATTR_DIALECT:
 			H->dialect = (int)zval_get_long(val);
 			return true;
+		case PDO_FBIRD_ATTR_PAGE_BUFFERS:
+			if (H->fbc_conn) {
+				pdo_raise_impl_error(dbh, NULL, "IM001",
+					"FBIRD_ATTR_PAGE_BUFFERS is read-only after connection; set via DSN page_buffers=N");
+				return false;
+			}
+			if (zval_get_long(val) < 0) {
+				pdo_raise_impl_error(dbh, NULL, "HY000",
+					"FBIRD_ATTR_PAGE_BUFFERS must be a non-negative integer");
+				return false;
+			}
+			H->num_buffers = (int)zval_get_long(val);
+			return true;
 		case PDO_FBIRD_ATTR_CHARSET:
 			if (H->charset) efree(H->charset);
 			H->charset = estrdup(Z_STRVAL_P(val));
@@ -908,6 +921,9 @@ static int pdo_fbird_handle_get_attribute(pdo_dbh_t *dbh, zend_long attr, zval *
 			return 1;
 		case PDO_FBIRD_ATTR_DIALECT:
 			ZVAL_LONG(val, H->dialect);
+			return 1;
+		case PDO_FBIRD_ATTR_PAGE_BUFFERS:
+			ZVAL_LONG(val, H->num_buffers);
 			return 1;
 		case PDO_FBIRD_ATTR_CHARSET:
 			ZVAL_STRING(val, H->charset ? H->charset : "");
@@ -1200,6 +1216,7 @@ static int pdo_fbird_handle_factory(pdo_dbh_t *dbh, zval *driver_options)
 			else if (!strcasecmp(key, "charset")) snprintf(charset, sizeof(charset), "%s", v);
 			else if (!strcasecmp(key, "role"))    snprintf(role,    sizeof(role),    "%s", v);
 			else if (!strcasecmp(key, "dialect")) dialect = atoi(v);
+			else if (!strcasecmp(key, "page_buffers")) H->num_buffers = atoi(v);
 		}
 		tok = strtok_r(NULL, ";", &saveptr);
 	}
@@ -1221,7 +1238,7 @@ static int pdo_fbird_handle_factory(pdo_dbh_t *dbh, zval *driver_options)
 		dbh->password  ? dbh->password  : "", dbh->password  ? strlen(dbh->password)  : 0,
 		charset[0] ? charset : NULL,           charset[0] ? strlen(charset) : 0,
 		role[0]    ? role    : NULL,           role[0]    ? strlen(role)    : 0,
-		0,       /* num_buffers */
+		H->num_buffers,  /* page buffers (0 = server default) */
 		dialect,
 		-1,      /* force_write: not set */
 		H->status

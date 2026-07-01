@@ -19,17 +19,17 @@
 #   full     - Standard + Valgrind memory analysis + UBSan
 #   security - Full + Gitleaks secret scanning
 #   fuzz     - Run fuzzing (without ASan due to PHP compatibility issues)
-#   matrix   - Test across PHP 8.1/FB3 (oldest) and PHP 8.5/FB5 (newest)
+#   matrix   - Test across PHP 8.2/FB3 (oldest) and PHP 8.5/FB5 (newest)
 #
 # Matrix Testing:
 #   The 'matrix' mode runs the full test suite across:
-#     - php81-fb3-dev (PHP 8.1 + Firebird 3.0) - oldest supported
+#     - php82-fb3-dev (PHP 8.2 + Firebird 3.0) - oldest supported
 #     - php85-fb5-dev (PHP 8.5 + Firebird 5.0) - newest supported
 #
 # Examples:
 #   ./scripts/qa.sh --mode fast                    # Quick static analysis
 #   ./scripts/qa.sh --mode matrix                  # Test oldest + newest combinations
-#   ./scripts/qa.sh --valgrind --container php81-fb3-dev  # Valgrind on PHP 8.1/FB3
+#   ./scripts/qa.sh --valgrind --container php82-fb3-dev  # Valgrind on PHP 8.2/FB3
 #   ./scripts/qa.sh --valgrind --container php85-fb5-dev  # Valgrind on PHP 8.5/FB5
 #   ./scripts/qa.sh --asan                         # ASan with php83-asan container
 
@@ -123,7 +123,7 @@ if [ "$MODE" == "matrix" ]; then
     
     # Matrix configurations: container:firebird_server:description
     MATRIX_CONFIGS=(
-        "php81-fb3-dev:firebird30:PHP 8.1 + Firebird 3.0 (oldest)"
+        "php82-fb3-dev:firebird30:PHP 8.2 + Firebird 3.0 (oldest)"
         "php84-fb3-dev:firebird30:PHP 8.4 + Firebird 3.0 (amicron-platform)"
         "php85-fb5-dev:firebird50:PHP 8.5 + Firebird 5.0 (newest)"
     )

@@ -27,8 +27,21 @@ if (!defined('FBIRD_DEFAULT')) {
     /** Force new connection (bypass connection reuse) */
     define('FBIRD_CONNECT_FORCE_NEW', 2);
 
-    /** Extension version */
-    define('FBIRD_VER', 10);
+    /** Extension version (100 for 10.x+ series) */
+    define('FBIRD_VER', 100);
+
+    // ========================================================================
+    // EXCEPTION MODE CONSTANTS
+    // ========================================================================
+
+    /** Exception mode: suppress errors (default) */
+    define('FBIRD_EXCEPTION_MODE_SILENT', 0);
+
+    /** Exception mode: throw exceptions on errors */
+    define('FBIRD_EXCEPTION_MODE_THROW', 1);
+
+    /** Exception mode: backward-compatible alias for SILENT (default) */
+    define('FBIRD_EXCEPTION_MODE_COMPAT', 0);
 
     // ========================================================================
     // FETCH FLAGS

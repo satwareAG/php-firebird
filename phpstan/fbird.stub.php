@@ -25,8 +25,8 @@ const FBIRD_CREATE = 0;
 /** Force new connection (bypass connection reuse) */
 const FBIRD_CONNECT_FORCE_NEW = 2;
 
-/** Extension version */
-const FBIRD_VER = 10;
+/** Extension version (100 for 10.x+ series) */
+const FBIRD_VER = 100;
 
 // ============================================================================
 // EXCEPTION MODE CONSTANTS
@@ -37,6 +37,9 @@ const FBIRD_EXCEPTION_MODE_SILENT = 0;
 
 /** Exception mode: throw exceptions on errors */
 const FBIRD_EXCEPTION_MODE_THROW = 1;
+
+/** Exception mode: backward-compatible alias for SILENT (default) */
+const FBIRD_EXCEPTION_MODE_COMPAT = 0;
 
 // ============================================================================
 // FETCH FLAGS

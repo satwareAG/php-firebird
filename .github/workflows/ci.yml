@@ -569,7 +569,12 @@ jobs:
         run: |
           # Download composer binary only if not already present
           if ! command -v composer >/dev/null 2>&1; then
-            curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+            EXPECTED_SIGNATURE="$(curl -sS https://composer.github.io/installer.sig)"
+            curl -sS https://getcomposer.org/installer -o /tmp/composer-setup.php
+            ACTUAL_SIGNATURE="$(php -r "echo hash_file('sha384', '/tmp/composer-setup.php');")"
+            [ "$EXPECTED_SIGNATURE" = "$ACTUAL_SIGNATURE" ] || { echo "ERROR: Invalid Composer installer signature"; exit 1; }
+            php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer
+            rm -f /tmp/composer-setup.php
           fi
           composer install --prefer-dist --no-progress --no-interaction
 

@@ -64,10 +64,13 @@ jobs:
           set -eu
 
           # Download and install Firebird 5.0 for client libraries
-          FB_SCRIPT_URL="https://raw.githubusercontent.com/IBSurgeon/firebirdlinuxinstall/refs/heads/main/fb_vanilla-50.sh"
+          # Pinned to specific commit SHA for supply-chain safety (issue #223).
+          # Update by changing the SHA after reviewing the script at:
+          # https://github.com/IBSurgeon/firebirdlinuxinstall/commit/<NEW_SHA>
+          FB_SCRIPT_URL="https://raw.githubusercontent.com/IBSurgeon/firebirdlinuxinstall/4a0b76a957c9ba75da1307c8ee5f9ccfc6f823c9/fb_vanilla-50.sh"
           curl -fsSL "${FB_SCRIPT_URL}" -o /tmp/fb_install.sh
           chmod +x /tmp/fb_install.sh
-          printf '\n' | /tmp/fb_install.sh || true
+          printf '\n' | /tmp/fb_install.sh
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1

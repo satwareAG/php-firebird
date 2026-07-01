@@ -63,7 +63,7 @@ jobs:
     steps:
       - name: Check required workflows passed on this commit
         run: |
-          set -euo pipefail
+          set -u
           SHA="${{ github.sha }}"
           MAX_WAIT=1080   # 18 minutes
           INTERVAL=30
@@ -78,11 +78,11 @@ jobs:
 
             for wf in "${REQUIRED[@]}"; do
               RESULT=$(gh run list --workflow "$wf" --commit "$SHA" --limit 1 \
-                --json status,conclusion 2>/dev/null | jq '.[0] // empty')
-              STATUS=$(echo "$RESULT" | jq -r '.status // "not_found"')
-              CONCLUSION=$(echo "$RESULT" | jq -r '.conclusion // ""')
+                --json status,conclusion 2>/dev/null | jq '.[0] // empty' || true)
+              STATUS=$(echo "$RESULT" | jq -r '.status // "not_found"' || true)
+              CONCLUSION=$(echo "$RESULT" | jq -r '.conclusion // ""' || true)
 
-              if [ "$STATUS" = "not_found" ]; then
+              if [ "$STATUS" = "not_found" ] || [ -z "$STATUS" ]; then
                 echo "  $wf: not found (waiting)"
                 ALL_DONE=false
               elif [ "$STATUS" != "completed" ]; then
@@ -98,10 +98,10 @@ jobs:
 
             if [ "$ALL_DONE" = "true" ]; then
               if [ "$ALL_PASSED" = "true" ]; then
-                echo "✓ All required CI workflows passed"
+                echo "All required CI workflows passed"
                 exit 0
               else
-                echo "✗ One or more required CI workflows failed"
+                echo "One or more required CI workflows failed"
                 exit 1
               fi
             fi
@@ -111,7 +111,7 @@ jobs:
             ELAPSED=$((ELAPSED + INTERVAL))
           done
 
-          echo "✗ Timeout waiting for CI workflows to complete"
+          echo "Timeout waiting for CI workflows to complete"
           exit 1
         env:
           GH_TOKEN: ${{ github.token }}

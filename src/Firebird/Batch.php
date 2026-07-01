@@ -297,7 +297,7 @@ final class Batch
     /**
      * Get the underlying batch resource.
      *
-     * @return resource|null The batch resource or null if cancelled
+     * @return \Firebird\BatchHandle|resource|null The batch handle or null if cancelled
      */
     public function getResource(): mixed
     {

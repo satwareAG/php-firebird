@@ -397,7 +397,7 @@ fi
 3. Remove manual version from `php_firebird.h` (keep fallbacks)
 4. Enforce via pre-commit hooks
 
-**Status:** Planned  
+**Status:** Implemented (v11.0.0)
 **Target:** v11.0 (CI version-consistency check, pre-commit enforcement)
 
 ### Phase 3: Automation Excellence

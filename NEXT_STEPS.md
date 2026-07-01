@@ -1,9 +1,10 @@
 # Next Steps - php-firebird
 
-**Last Updated**: 2026-04-20 (v11.0.0 RELEASED 2026-04-09; v11.0.1 hotfixes in flight)
+**Last Updated**: 2026-07-01 (v11.0.1 QA hardening complete; 203 tests pass, 0 warnings)
 
-> **Status**: v11.0.0 shipped (tag `v11.0.0`, commit `ff84b3a`). CI is green across all pipelines.
-> v11.0.1 hotfix release prep is tracked in `specs/spec-v11.0.1-hotfixes.md` (#218-#222).
+> **Status**: v11.0.0 shipped (tag `v11.0.0`, commit `ff84b3a`). v11.0.1 QA audit bugs all closed
+> (16 PRs merged, compiler warnings 25→0, memory safety fixes across blob/transaction/service layers).
+> Remaining open work tracked in GitHub issues.
 
 ## Immediate (v10.6.x)
 
@@ -65,3 +66,31 @@ v11.0.0 tagged and released on 2026-04-09. Full work log archived in git history
 
 Release published live: https://github.com/satwareAG/php-firebird/releases/tag/v10.6.2
 Issue #213 closed. All pipelines (Linux/macOS/Windows/Stubs/Coverage/Sanitizers) completed successfully.
+
+---
+
+## Forward Roadmap (v11.x+)
+
+### v11.1.0 - Quality and Security Hardening (in progress)
+
+All QA audit bugs closed. Remaining items in milestone:
+
+- [ ] #233 - Complete M3 migration: `fbird_batch_create` returns `Firebird\BatchHandle` (last RETVAL_RES)
+
+### v12.0.0 - OOP API Completion
+
+- [ ] #252 - Typed return annotations for all 163 procedural arginfos and 9 OOP method arginfos
+- [ ] #250 - Implement `Firebird\Event` class methods (Phase H completion)
+- [ ] #244 - Expand OOP API test coverage from 13% to >50%
+- [ ] #245 - Add `--CLEAN--` sections to all state-modifying tests (164 files)
+- [ ] #246 - Update 12 test files from `is_resource()` to `instanceof Firebird\*` dual-bridge
+- [ ] #249 - OOP-aware helper functions in `tests/common.inc`
+
+### Backlog (unscheduled)
+
+- [ ] #257 - Windows builds missing DLLs for some PHP versions
+- [ ] #258 - `php_pdo_unregister_driver` undefined symbol on Rocky Linux (#150 regression)
+- [ ] L1 - Add LTO for release builds (`-flto=auto`)
+- [ ] M6 - Create fuzz dictionary for Firebird SQL
+- [ ] M8 - Replace pointer smuggling in `IBG(status[])` with proper output parameter
+- [ ] macOS precompiled universal binary builds

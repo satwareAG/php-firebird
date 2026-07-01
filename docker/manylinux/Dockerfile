@@ -32,8 +32,8 @@ LABEL description="PHP Firebird extension builder on manylinux_2_28 (glibc 2.28)
 ARG FB_VERSION=5.0.3
 ARG FB_BUILD=1683-0
 
-# PHP versions to build (PHP 8.1+ only)
-ARG PHP_VERSIONS="8.1.34 8.2.30 8.3.30 8.4.17 8.5.2"
+# PHP versions to build (PHP 8.2+ only)
+ARG PHP_VERSIONS="8.2.32 8.3.32 8.4.23 8.5.8"
 
 # Extension branch
 ARG EXT_BRANCH=feature/dev-7.0.0

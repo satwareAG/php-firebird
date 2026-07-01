@@ -1,13 +1,13 @@
 # For building linux-x64 release binaries
-# PHP 8.1+ minimum (no 7.x or 8.0 support)
-FROM debian:bookworm
+# PHP 8.2+ minimum (no 7.x, 8.0, or 8.1 support)
+FROM debian:bookworm@sha256:30482e873082e906a4908c10529180aefb6f77620aea7404b909829fadc5d168
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y \
     build-essential autoconf bison re2c wget tar git patchelf libtommath1
 
-# Download php (PHP 8.1+ only)
-ARG php_vers="8.1.33 8.2.29 8.3.26 8.4.13 8.5.0RC2"
+# Download php (PHP 8.2+ only)
+ARG php_vers="8.2.32 8.3.32 8.4.23 8.5.8"
 RUN --mount=type=cache,target=/usr/src \
     cd /usr/src && \
     set -e && \

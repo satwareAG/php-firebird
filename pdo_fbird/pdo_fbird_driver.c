@@ -470,7 +470,8 @@ static char *_pdo_fbird_service_query_line(pdo_dbh_t *dbh, char info_action)
 	}
 
 	char *result = res_buf;
-	while (*result != isc_info_end) {
+	const char *end = res_buf + sizeof(res_buf);
+	while (result < end && *result != isc_info_end) {
 		switch (*result++) {
 			case isc_info_svc_server_version:
 			case isc_info_svc_implementation:
@@ -478,7 +479,15 @@ static char *_pdo_fbird_service_query_line(pdo_dbh_t *dbh, char info_action)
 			case isc_info_svc_get_env_lock:
 			case isc_info_svc_get_env_msg:
 			case isc_info_svc_user_dbpath: {
+				/* Bounds-check: need 2 bytes for the length field */
+				if (result + 2 > end) {
+					return NULL;
+				}
 				int len = isc_vax_integer(result, 2);
+				/* Bounds-check: need len bytes for the value, and len must be non-negative */
+				if (len < 0 || result + 2 + len > end) {
+					return NULL;
+				}
 				char *str = emalloc(len + 1);
 				memcpy(str, result + 2, len);
 				str[len] = '\0';
@@ -510,12 +519,23 @@ static char *_pdo_fbird_service_query_lines(pdo_dbh_t *dbh)
 		}
 
 		char *result = res_buf;
+		const char *end = res_buf + sizeof(res_buf);
 		int done = 0;
-		while (*result != isc_info_end && !done) {
+		while (result < end && *result != isc_info_end && !done) {
 			switch (*result++) {
 				case isc_info_svc_line: {
+					/* Bounds-check: need 2 bytes for the length field */
+					if (result + 2 > end) {
+						done = 1;
+						break;
+					}
 					int len = isc_vax_integer(result, 2);
 					if (len == 0) { done = 1; break; }
+					/* Bounds-check: need len bytes for the value, and len must be non-negative */
+					if (len < 0 || result + 2 + len > end) {
+						done = 1;
+						break;
+					}
 					result += 2;
 					smart_str_appendl(&output, result, len);
 					smart_str_appendc(&output, '\n');

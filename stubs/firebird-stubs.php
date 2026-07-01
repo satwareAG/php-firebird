@@ -1196,7 +1196,7 @@ function fbird_reconnect_transaction(mixed $link_identifier, int $transaction_id
  *
  * @param resource      $query            Prepared statement
  * @param resource|null $trans_identifier Transaction handle
- * @return resource|false Batch handle or false
+ * @return \Firebird\BatchHandle|resource|false Batch handle or false
  * @since 9.0.0
  */
 function fbird_batch_create(mixed $query, mixed $trans_identifier = null): mixed {}

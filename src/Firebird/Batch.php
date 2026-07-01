@@ -59,9 +59,9 @@ use RuntimeException;
 final class Batch
 {
     /**
-     * The underlying batch resource from \fbird_batch_create().
+     * The underlying batch handle from \fbird_batch_create().
      *
-     * @var resource|null
+     * @var \Firebird\BatchHandle|resource|null
      */
     private mixed $resource;
 
@@ -85,7 +85,7 @@ final class Batch
     /**
      * Private constructor - use factory methods.
      *
-     * @param resource $resource Batch resource
+     * @param \Firebird\BatchHandle|resource $resource Batch handle
      */
     private function __construct(mixed $resource)
     {
@@ -128,7 +128,8 @@ final class Batch
      */
     public static function fromResource(mixed $resource): self
     {
-        if (!is_resource($resource)) {
+        // M3: Accept both legacy resources and Firebird\BatchHandle objects
+        if (!is_resource($resource) && !($resource instanceof \Firebird\BatchHandle)) {
             throw new RuntimeException('Invalid batch resource');
         }
 
@@ -149,7 +150,7 @@ final class Batch
     {
         $this->ensureNotExecuted();
         $this->ensureValidResource();
-        assert(is_resource($this->resource));
+        assert($this->isValidBatchHandle());
 
         $result = \fbird_batch_add($this->resource, ...$params);
         if ($result === false) {
@@ -174,7 +175,7 @@ final class Batch
     {
         $this->ensureNotExecuted();
         $this->ensureValidResource();
-        assert(is_resource($this->resource));
+        assert($this->isValidBatchHandle());
 
         $result = \fbird_batch_execute($this->resource);
         if ($result === false) {
@@ -197,7 +198,7 @@ final class Batch
      */
     public function cancel(): void
     {
-        if ($this->resource !== null && is_resource($this->resource)) {
+        if ($this->isValidBatchHandle()) {
             \fbird_batch_cancel($this->resource);
         }
         $this->resource = null;
@@ -219,7 +220,7 @@ final class Batch
     {
         $this->ensureNotExecuted();
         $this->ensureValidResource();
-        assert(is_resource($this->resource));
+        assert($this->isValidBatchHandle());
 
         $blobIdStr = \fbird_batch_add_blob($this->resource, $data, $type);
         if ($blobIdStr === false) {
@@ -247,7 +248,7 @@ final class Batch
     {
         $this->ensureNotExecuted();
         $this->ensureValidResource();
-        assert(is_resource($this->resource));
+        assert($this->isValidBatchHandle());
 
         $blobIdStr = \fbird_batch_register_blob($this->resource, (string) $existingBlob);
         if ($blobIdStr === false) {
@@ -271,7 +272,7 @@ final class Batch
     public function getBlobAlignment(): int
     {
         $this->ensureValidResource();
-        assert(is_resource($this->resource));
+        assert($this->isValidBatchHandle());
 
         $alignment = \fbird_batch_get_blob_alignment($this->resource);
         if ($alignment === false) {
@@ -296,7 +297,7 @@ final class Batch
     /**
      * Get the underlying batch resource.
      *
-     * @return resource|null The batch resource or null if cancelled
+     * @return \Firebird\BatchHandle|resource|null The batch handle or null if cancelled
      */
     public function getResource(): mixed
     {
@@ -342,9 +343,23 @@ final class Batch
      */
     private function ensureValidResource(): void
     {
-        if ($this->resource === null || !is_resource($this->resource)) {
+        if ($this->resource === null) {
             throw new RuntimeException('Batch resource is no longer valid');
         }
+        // M3: fbird_batch_create() returns Firebird\BatchHandle object.
+        // Accept both legacy resources and new objects.
+        if (!is_resource($this->resource) && !($this->resource instanceof \Firebird\BatchHandle)) {
+            throw new RuntimeException('Batch resource is no longer valid');
+        }
+    }
+
+    /**
+     * Check if the internal batch handle is valid (resource or BatchHandle object).
+     */
+    private function isValidBatchHandle(): bool
+    {
+        return $this->resource !== null
+            && (is_resource($this->resource) || $this->resource instanceof \Firebird\BatchHandle);
     }
 
     /**
@@ -358,7 +373,7 @@ final class Batch
             'rowCount' => $this->rowCount,
             'executed' => $this->executed,
             'blobCount' => count($this->blobIds),
-            'hasResource' => $this->resource !== null && is_resource($this->resource),
+            'hasResource' => $this->isValidBatchHandle(),
         ];
     }
 

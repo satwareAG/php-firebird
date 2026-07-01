@@ -7,7 +7,7 @@
  * C extension. These are used by static analysis tools and IDEs.
  *
  * @package   php-firebird-stubs
- * @version   11.0.0
+ * @version   11.0.1
  * @author    satware AG <info@satware.com>
  * @copyright 2025 satware AG
  * @license   PHP-3.01 https://www.php.net/license/3_01.txt
@@ -220,4 +220,15 @@ class Service
      * @throws Exception
      */
     public function getServerVersion(): string { return ''; }
+}
+
+/**
+ * Opaque batch handle returned by fbird_batch_create().
+ *
+ * This is an internal opaque object wrapping a Firebird IBatch resource.
+ * It is not the same as the userland Firebird\Batch wrapper class.
+ * @since 11.0.0
+ */
+final class BatchHandle
+{
 }

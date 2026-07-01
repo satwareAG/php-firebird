@@ -10,7 +10,7 @@
  * This stub file does not contain any implementation.
  *
  * @package   php-firebird-stubs
- * @version   11.0.0
+ * @version   11.0.1
  * @author    satware AG <info@satware.com>
  * @copyright 2025-2026 satware AG
  * @license   PHP-3.01 https://www.php.net/license/3_01.txt
@@ -1196,7 +1196,7 @@ function fbird_reconnect_transaction(mixed $link_identifier, int $transaction_id
  *
  * @param resource      $query            Prepared statement
  * @param resource|null $trans_identifier Transaction handle
- * @return resource|false Batch handle or false
+ * @return \Firebird\BatchHandle|resource|false Batch handle or false
  * @since 9.0.0
  */
 function fbird_batch_create(mixed $query, mixed $trans_identifier = null): mixed {}
@@ -1204,7 +1204,7 @@ function fbird_batch_create(mixed $query, mixed $trans_identifier = null): mixed
 /**
  * Add a row of parameters to the batch.
  *
- * @param resource $batch  Batch handle
+ * @param mixed $batch  Batch handle
  * @param mixed    ...$args Parameters matching the statement
  * @return bool True on success
  * @since 9.0.0
@@ -1214,7 +1214,7 @@ function fbird_batch_add(mixed $batch, mixed ...$args): bool {}
 /**
  * Create an inline BLOB in batch context.
  *
- * @param resource $batch Batch handle
+ * @param mixed $batch Batch handle
  * @param string   $data  BLOB data
  * @param int      $type  BLOB type
  * @return string|false BLOB ID or false
@@ -1225,7 +1225,7 @@ function fbird_batch_add_blob(mixed $batch, string $data, int $type = 0): string
 /**
  * Register an existing BLOB for batch use.
  *
- * @param resource $batch   Batch handle
+ * @param mixed $batch   Batch handle
  * @param string   $blob_id BLOB ID
  * @return string|false Batch BLOB ID or false
  * @since 9.0.0
@@ -1235,7 +1235,7 @@ function fbird_batch_register_blob(mixed $batch, string $blob_id): string|false 
 /**
  * Execute the batch.
  *
- * @param resource $batch Batch handle
+ * @param mixed $batch Batch handle
  * @return array{total_processed: int, success_count: int, error_count: int}|false Results or false
  * @since 9.0.0
  */
@@ -1244,7 +1244,7 @@ function fbird_batch_execute(mixed $batch): array|false {}
 /**
  * Cancel the batch without executing.
  *
- * @param resource $batch Batch handle
+ * @param mixed $batch Batch handle
  * @return bool True on success
  * @since 9.0.0
  */
@@ -1255,7 +1255,7 @@ function fbird_batch_cancel(mixed $batch): bool {}
  *
  * Only available with Firebird 4.0+.
  *
- * @param resource $batch Batch resource
+ * @param mixed $batch Batch resource
  * @return int|false Alignment in bytes, or false on error
  * @since 9.0.0
  */
@@ -1264,7 +1264,7 @@ function fbird_batch_get_blob_alignment(mixed $batch): int|false {}
 /**
  * Append a chunk of data to the BLOB currently being constructed in the batch.
  *
- * @param resource $batch Batch resource
+ * @param mixed $batch Batch resource
  * @param string $data Binary chunk
  * @return bool TRUE on success, FALSE on failure
  * @since 9.0.0
@@ -1274,7 +1274,7 @@ function fbird_batch_append_blob_data(mixed $batch, string $data): bool {}
 /**
  * Add BLOB data to the batch using the IBatch addBlobStream protocol.
  *
- * @param resource $batch Batch resource
+ * @param mixed $batch Batch resource
  * @param string $data Binary BLOB stream data
  * @return bool TRUE on success, FALSE on failure
  * @since 9.0.0
@@ -1284,7 +1284,7 @@ function fbird_batch_add_blob_stream(mixed $batch, string $data): bool {}
 /**
  * Set the default BLOB Property Block (BPB) for all BLOBs in this batch.
  *
- * @param resource $batch Batch resource
+ * @param mixed $batch Batch resource
  * @param string $bpb Raw binary BPB data
  * @return bool TRUE on success, FALSE on failure
  * @since 9.0.0

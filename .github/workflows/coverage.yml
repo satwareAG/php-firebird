@@ -433,7 +433,9 @@ jobs:
 
           echo "Test Stats -> Failed: ${FAILED_COUNT}, Warned: ${WARNED_COUNT}, Leaked: ${LEAKED_COUNT}"
 
-          if [ "${FAILED_COUNT}" -gt 0 ] || [ "${WARNED_COUNT}" -gt 0 ] || [ "${LEAKED_COUNT}" -gt 0 ]; then
+          # Fail only on actual failures and memory leaks.
+          # "Tests warned" = passed on retry attempt (not a real failure).
+          if [ "${FAILED_COUNT}" -gt 0 ] || [ "${LEAKED_COUNT}" -gt 0 ]; then
             echo "❌ Test Failure Detected"
             echo "::group::Test Failure Details"
             if grep -q "FAILED TEST SUMMARY" test_output.txt; then

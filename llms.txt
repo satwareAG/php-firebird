@@ -1,0 +1,31 @@
+# php-firebird
+
+> Modernized PHP 8.2+ extension providing native connectivity to Firebird SQL databases (3.0, 4.0, 5.0+). High-performance replacement for legacy ext/interbase, written in C/C++17 using the modern Firebird OO API.
+
+## Build & Test
+- [AGENTS.md](AGENTS.md): Agent context - architecture layers, SDD workflow, build system
+- [scripts/build.sh](scripts/build.sh): Build extension (phpize + configure)
+- [scripts/qa.sh](scripts/qa.sh): QA matrix runner (PHP 8.2-8.5 x FB 3.0-5.0)
+- [tests/firebird.inc](tests/firebird.inc): Test harness with per-test DB isolation
+- [VERSION.txt](VERSION.txt): Current version (11.0.1)
+
+## Architecture
+- Layer 1 (Procedural): `fbird_*` functions in `*.c` files
+- Layer 2 (OOP): `Firebird\*` classes in `fbird_classes.c`, `src/`
+- Layer 3 (PDO): `pdo_fbird` driver in `pdo_fbird/`
+
+## Key Source Files
+- [firebird.c](firebird.c): Zend module entry point, constant registration
+- [firebird_utils.cpp](firebird_utils.cpp): Modern Firebird OO API wrapper
+- [fbird_result.c](fbird_result.c): Result fetching and blob handling
+- [php_firebird.h](php_firebird.h): Public API declarations, version macros
+
+## Specs & Planning
+- [specs/metadata.json](specs/metadata.json): IPADP dependency graph and project metadata
+- [NEXT_STEPS.md](NEXT_STEPS.md): Roadmap and release status
+- [docs/VERSIONING_STRATEGY.md](docs/VERSIONING_STRATEGY.md): Versioning policy
+
+## Stubs (IDE/phpstan)
+- [stubs/firebird-stubs.php](stubs/firebird-stubs.php): Procedural API constants and signatures
+- [phpstan/fbird.stub.php](phpstan/fbird.stub.php): PHPStan stub file
+- [phpstan/fbird-bootstrap.php](phpstan/fbird-bootstrap.php): PHPStan runtime constant bootstrap

@@ -174,10 +174,10 @@ jobs:
             --inline-suppr \
             *.c *.cpp
 
-      - name: Run clang-tidy (informational)
-        continue-on-error: true
+      - name: Run clang-tidy (informational, non-blocking per-file due to PHP header noise)
         run: |
-          # Run clang-tidy on C files (informational, not blocking)
+          # clang-tidy output is informational; PHP headers generate unavoidable
+          # warnings. Per-file `|| true` prevents blocking on those. Review logs manually.
           for file in *.c *.cpp; do
             if [ -f "$file" ]; then
               echo "Analyzing $file..."

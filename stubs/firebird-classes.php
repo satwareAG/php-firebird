@@ -221,3 +221,14 @@ class Service
      */
     public function getServerVersion(): string { return ''; }
 }
+
+/**
+ * Opaque batch handle returned by fbird_batch_create().
+ *
+ * This is an internal opaque object wrapping a Firebird IBatch resource.
+ * It is not the same as the userland Firebird\Batch wrapper class.
+ * @since 11.0.0
+ */
+final class BatchHandle
+{
+}

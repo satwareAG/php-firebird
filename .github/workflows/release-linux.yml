@@ -78,7 +78,7 @@ jobs:
             ALL_PASSED=true
 
             for wf in "${REQUIRED[@]}"; do
-              RESULT=$(gh run list --workflow "$wf" --commit "$SHA" --limit 1 \
+              RESULT=$(gh run list --workflow "$wf" --branch "$GITHUB_REF_NAME" --limit 1 \
                 --json status,conclusion 2>/dev/null | jq '.[0] // empty' || true)
               STATUS=$(echo "$RESULT" | jq -r '.status // "not_found"' || true)
               CONCLUSION=$(echo "$RESULT" | jq -r '.conclusion // ""' || true)

@@ -27,11 +27,10 @@
       "visibility": "public",
       "role": "primary DBAL consumer"
     },
-    "satag-amicron-entity-bundle": {
+    "_private_downstream": {
       "forge": "gitlab",
-      "local_path": "~/internal/satag-amicron-entity-bundle",
       "visibility": "private",
-      "role": "Symfony entity layer"
+      "role": "Symfony entity layer (name redacted - private repo)"
     }
   },
   "morning_protocol": {

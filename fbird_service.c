@@ -591,12 +591,14 @@ unknown_option:
 			case isc_spb_rpr_validate_db:
 			case isc_spb_rpr_sweep_db:
 				svc_action = isc_action_svc_repair;
+			/* fall through */
 
 			case isc_spb_prp_activate:
 			case isc_spb_prp_db_online:
 options_argument:
 				argument |= action;
 				action = isc_spb_options;
+			/* fall through */
 
 			case isc_spb_prp_page_buffers:
 			case isc_spb_prp_sweep_interval:

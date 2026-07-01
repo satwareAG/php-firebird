@@ -277,10 +277,6 @@ void _php_fbird_close_plink(zend_resource *rsrc)
 
 enum connect_args { DB = 0, USER = 1, PASS = 2, CSET = 3, ROLE = 4, BUF = 0, DLECT = 1, SYNC = 2 };
 
-static char const dpb_args[] = {
-	0, isc_dpb_user_name, isc_dpb_password, isc_dpb_lc_ctype, isc_dpb_sql_role_name, 0
-};
-
 int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **out_connection)
 {
     void* connection = NULL;

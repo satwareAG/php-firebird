@@ -30,7 +30,6 @@
 /* Forward declarations */
 static bool _php_fbird_infer_returning_prefix(const char *sql, size_t index, char *out, size_t out_len);
 static bool _php_fbird_infer_returning_full_alias(const char *sql, size_t index, char *out, size_t out_len);
-static bool _php_fbird_returning_token_alias(const char *sql, size_t index, char *out, size_t out_len);
 static bool _php_fbird_sql_has_returning(const char *sql);
 
 void _php_fbird_insert_alias(HashTable *ht, const char *alias)
@@ -400,10 +399,10 @@ int _php_fbird_alloc_ht_aliases(fbird_query *ib_query)
 		} else if (ib_query->out_sqlda) {
 			/* Fallback to XSQLDA (limited to 31 chars) */
 			XSQLVAR *var = &ib_query->out_sqlda->sqlvar[i];
-			if (var->aliasname && var->aliasname[0]) {
+			if (var->aliasname[0]) {
 				base_alias = var->aliasname;
 			}
-			if (var->sqlname && var->sqlname[0]) {
+			if (var->sqlname[0]) {
 				base_field = var->sqlname;
 			}
 		}
@@ -572,64 +571,6 @@ static bool _php_fbird_infer_returning_full_alias(const char *sql, size_t index,
                     }
                 }
                 return 0;
-            }
-            i++;
-            if (*s == '\0' || *s == ';') break;
-            s++;
-            while (*s && (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r')) s++;
-            tok_start = s;
-        } else {
-            s++;
-        }
-    }
-    return 0;
-}
-
-/* Extract the raw token for the k-th RETURNING expression. If the token
- * contains a qualifier (e.g., OLD.I or NEW.C), write it as-is (uppercased
- * qualifier plus original column part) into out and return 1. If token has
- * no qualifier, return 0 so caller can fallback to base alias. */
-static bool _php_fbird_returning_token_alias(const char *sql, size_t index, char *out, size_t out_len)
-{
-    if (!sql || !out || out_len < 6) return 0;
-
-    const char *p = sql;
-    const char *ret = NULL;
-    while (*p) {
-        if (strncasecmp(p, "returning", 9) == 0) { ret = p + 9; break; }
-        p++;
-    }
-    if (!ret) return 0;
-
-    size_t i = 0;
-    const char *s = ret;
-    while (*s && (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r')) s++;
-
-    const char *tok_start = s;
-    for (;;) {
-        if (*s == ',' || *s == '\0' || *s == ';') {
-            if (i == index) {
-                const char *tok_end = s;
-                while (tok_end > tok_start && (tok_end[-1] == ' ' || tok_end[-1] == '\t' || tok_end[-1] == '\n' || tok_end[-1] == '\r')) tok_end--;
-                while (tok_start < tok_end && (*tok_start == ' ' || *tok_start == '\t' || *tok_start == '\n' || *tok_start == '\r')) tok_start++;
-
-                const char *dot = memchr(tok_start, '.', tok_end - tok_start);
-                if (!dot) return 0;
-
-                /* Copy qualifier uppercased + '.' + rest as-is */
-                size_t qual_len = (size_t)(dot - tok_start);
-                size_t rest_len = (size_t)(tok_end - (dot + 1));
-                if (qual_len < 3 || (qual_len + 1 + rest_len + 1) > out_len) return 0;
-
-                /* Qualifier */
-                for (size_t k = 0; k < qual_len; k++) {
-                    out[k] = (char) toupper((unsigned char) tok_start[k]);
-                }
-                out[qual_len] = '.';
-                /* Column part */
-                memcpy(out + qual_len + 1, dot + 1, rest_len);
-                out[qual_len + 1 + rest_len] = '\0';
-                return 1;
             }
             i++;
             if (*s == '\0' || *s == ';') break;

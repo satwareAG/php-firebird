@@ -91,7 +91,9 @@ int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
 					field_index, dest_var->sqllen, src_var->sqllen, query_context ? query_context : "unknown");
 				return FAILURE;
 			}
-			if (dest_var->sqllen < 0 || dest_var->sqllen > 65535) {
+			/* ISC_SHORT is signed 16-bit (max 32767), so > 65535 is unreachable.
+			 * Only the < 0 check is meaningful (catches negative lengths). */
+			if (dest_var->sqllen < 0) {
 				_php_fbird_module_error("EXECUTE PROCEDURE: Invalid VARCHAR length %d for field %d in query: %s",
 					dest_var->sqllen, field_index, query_context ? query_context : "unknown");
 				return FAILURE;

@@ -63,10 +63,6 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_get_exception_mode, 0, 0, IS_LONG, 0)
 ZEND_END_ARG_INFO()
 
-/* Firebird\Exception method arginfo */
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_firebird_exception_getSqlState, 0, 0, IS_STRING, 0)
-ZEND_END_ARG_INFO()
-
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_connect, 0, 0, MAY_BE_RESOURCE|MAY_BE_FALSE)
 	ZEND_ARG_INFO(0, database)
 	ZEND_ARG_INFO(0, username)

@@ -1008,13 +1008,11 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 					if (!ib_query->link || !ib_query->link->fbc_connection) {
 						_php_fbird_module_error("Parameter %d: OO API connection required for array binding", i + 1);
 						rv = FAILURE;
-						++array_cnt;
 						continue;
 					}
 					if (!ib_query->trans || !ib_query->trans->fbt_transaction) {
 						_php_fbird_module_error("Parameter %d: OO API transaction required for array binding", i + 1);
 						rv = FAILURE;
-						++array_cnt;
 						continue;
 					}
 
@@ -1114,7 +1112,6 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 				if (arr_relname[0] == '\0' || arr_sqlname[0] == '\0') {
 					_php_fbird_module_error("Parameter %d: cannot determine table/column name for array binding. Use explicit INSERT INTO table (columns...) VALUES (...).", i + 1);
 					rv = FAILURE;
-					++array_cnt;
 					continue;
 				}
 
@@ -1135,7 +1132,6 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 					) != 0) {
 					_php_fbird_error();
 					rv = FAILURE;
-					++array_cnt;
 					continue;
 				}
 
@@ -1191,7 +1187,6 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 						default:
 							_php_fbird_module_error("Parameter %d: unsupported array element dtype %d", i + 1, ar_desc.array_desc_dtype);
 							rv = FAILURE;
-							++array_cnt;
 							continue;
 					}
 
@@ -1206,7 +1201,6 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 						_php_fbird_module_error("Parameter %d: failed to bind array argument", i + 1);
 						efree(array_data);
 						rv = FAILURE;
-						++array_cnt;
 						continue;
 					}
 
@@ -1224,14 +1218,12 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 						_php_fbird_error();
 						efree(array_data);
 						rv = FAILURE;
-						++array_cnt;
 						continue;
 					}
 
 					buf[i].val.qval = array_id;
 					efree(array_data);
 				}
-				++array_cnt;
 				continue;
 		} /* switch */
 

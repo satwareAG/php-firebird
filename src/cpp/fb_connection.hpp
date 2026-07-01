@@ -556,31 +556,34 @@ inline bool Connection::detachNoThrow() noexcept {
         // Use getMaster() to get the current global master instead of the cached master_
         // pointer, which may be dangling if MSHUTDOWN already released the Firebird
         // client library (persistent connections destroyed after module shutdown).
-        // getMaster() returns nullptr during MSHUTDOWN, so we skip detach entirely.
+        // getMaster() returns nullptr during MSHUTDOWN - in that case, skip the
+        // Firebird API entirely. Calling pingAttachment()/detach() on a dead
+        // attachment (dropped by cleanup_db() in RSHUTDOWN) SIGSEGVs with
+        // opcache protect_memory=1 (issue #264). The Firebird client library's
+        // atexit handler cleans up server-side state on process exit.
+        // This matches the pattern already used in BlobWrapper::~BlobWrapper().
         Firebird::IMaster* master = getMaster();
         if (!master) {
-            master = master_;
+            attachment_.reset();
+            return true;
         }
-        if (master) {
-            // Liveness check: if the DB was dropped by another connection
-            // (e.g., test harness cleanup_db()), the server-side attachment
-            // is dead. Calling detach() on it SIGSEGVs on FB 3.0 (issue #260).
-            // The dropped_ flag only covers same-connection dropDatabase().
-            if (!pingAttachment(master)) {
-                attachment_.reset();
-                return true;
-            }
 
-            // Attachment is alive — safe to detach
-            CheckStatusScope status(master);
-            attachment_->detach(status.get());
-            if (status.hasError()) {
-                attachment_.reset();
-                return false;
-            }
+        // Liveness check: if the DB was dropped by another connection
+        // (e.g., test harness cleanup_db()), the server-side attachment
+        // is dead. Calling detach() on it SIGSEGVs on FB 3.0 (issue #260).
+        // The dropped_ flag only covers same-connection dropDatabase().
+        if (!pingAttachment(master)) {
+            attachment_.reset();
+            return true;
         }
-        // If no master available at all (MSHUTDOWN), just release the pointer.
-        // The Firebird client library will clean up on process exit.
+
+        // Attachment is alive - safe to detach
+        CheckStatusScope status(master);
+        attachment_->detach(status.get());
+        if (status.hasError()) {
+            attachment_.reset();
+            return false;
+        }
         attachment_.reset();
         return true;
     } catch (...) {

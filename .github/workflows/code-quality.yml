@@ -189,7 +189,7 @@ jobs:
           done
 
   # ==========================================================================
-  # Version Stamp Check (stubs @version must match VERSION file)
+  # Version Stamp Check (stubs @version must match VERSION.txt)
   # ==========================================================================
   version-stamps:
     name: Version Stamps Check
@@ -199,7 +199,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Check stubs @version tags match VERSION file
+      - name: Check stubs @version tags match VERSION.txt
         run: |
           chmod +x scripts/check-version-stamps.sh
           bash scripts/check-version-stamps.sh

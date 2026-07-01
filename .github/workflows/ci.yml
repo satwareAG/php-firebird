@@ -146,16 +146,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Ensure VERSION file
+      - name: Ensure VERSION.txt file
         shell: bash
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             echo "${GITHUB_REF#refs/tags/v}" > VERSION.txt
-            echo "Updated VERSION file from tag: $(cat VERSION.txt)"
+            echo "Updated VERSION.txt from tag: $(cat VERSION.txt)"
           elif [ ! -f VERSION.txt ]; then
             VERSION=$(grep -E '#define PHP_FIREBIRD_VERSION_STRING' php_firebird.h | sed 's/.*"\([^"]*\)".*/\1/' | head -1)
-            echo "${VERSION:-7.0.0}" > VERSION.txt
-            echo "Created VERSION file from header/default: $(cat VERSION.txt)"
+            if [ -z "$VERSION" ] || [[ "$VERSION" == *"unknown"* ]]; then
+              echo "ERROR: Cannot determine version" >&2
+              exit 1
+            fi
+            echo "${VERSION}" > VERSION.txt
+            echo "Created VERSION.txt from header: $(cat VERSION.txt)"
           fi
 
       - name: Install system dependencies
@@ -641,12 +645,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Ensure VERSION file
+      - name: Ensure VERSION.txt file
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             echo "${GITHUB_REF#refs/tags/v}" > VERSION.txt
           elif [ ! -f VERSION.txt ]; then
-            echo "0.0.0-unknown" > VERSION.txt
+            echo "ERROR: Cannot determine version" >&2
+            exit 1
           fi
 
       - name: Install PHP via Homebrew
@@ -751,21 +756,7 @@ jobs:
           phpize
           ./configure --with-firebird="${FB_CLIENT_DIR}"
 
-          # WORKAROUND: macOS uses case-insensitive APFS by default.
-          # Our VERSION file conflicts with the C++ standard <version> header
-          # because phpize adds -I. to the include path. Temporarily hide it
-          # during compilation (configure already read it via config.m4).
-          if [ -f VERSION.txt ]; then
-            mv VERSION.txt VERSION.txt.bak
-            echo "Temporarily renamed VERSION.txt to avoid C++ header conflict"
-          fi
-
           make -j"$(sysctl -n hw.ncpu)"
-
-          # Restore VERSION.txt file
-          if [ -f VERSION.txt.bak ]; then
-            mv VERSION.txt.bak VERSION.txt
-          fi
 
           echo "Extension built successfully"
           ls -la modules/firebird.so

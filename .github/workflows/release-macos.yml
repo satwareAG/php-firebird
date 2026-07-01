@@ -70,16 +70,17 @@ jobs:
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF#refs/tags/v}"
-            echo "${VERSION}" > VERSION
-            echo "Updated VERSION file from tag: ${VERSION}"
-          elif [ -f VERSION ]; then
-            VERSION=$(cat VERSION | tr -d '[:space:]')
+            echo "${VERSION}" > VERSION.txt
+            echo "Updated VERSION.txt from tag: ${VERSION}"
+          elif [ -f VERSION.txt ]; then
+            VERSION=$(cat VERSION.txt | tr -d '[:space:]')
           else
             VERSION=$(grep -E '#define PHP_FIREBIRD_VERSION_STRING' php_firebird.h | sed 's/.*"\([^"]*\)".*/\1/' | head -1)
             if [ -z "$VERSION" ] || [[ "$VERSION" == *"unknown"* ]]; then
-              VERSION="7.0.0"
+              echo "ERROR: Cannot determine version" >&2
+              exit 1
             fi
-            echo "${VERSION}" > VERSION
+            echo "${VERSION}" > VERSION.txt
           fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Extension version: ${VERSION}"
@@ -266,20 +267,7 @@ jobs:
           phpize
           ./configure --with-firebird="${FB_ROOT}"
 
-          # WORKAROUND: macOS uses case-insensitive APFS by default.
-          # Our VERSION file conflicts with the C++ standard <version> header
-          # because phpize adds -I. to the include path. Temporarily hide it
-          # during compilation (configure already read it via config.m4).
-          if [ -f VERSION ]; then
-            mv VERSION VERSION.bak
-          fi
-
           make -j"$(sysctl -n hw.ncpu)"
-
-          # Restore VERSION file
-          if [ -f VERSION.bak ]; then
-            mv VERSION.bak VERSION
-          fi
 
           ls -la modules/firebird.so
           file modules/firebird.so

@@ -69,6 +69,18 @@ void _php_fbird_free_batch(zend_resource *rsrc)
 }
 #endif /* FB_API_VER >= 40 */
 
+#if FB_API_VER >= 40
+/* Dual-bridge helper: extract fbird_batch from either a Firebird\BatchHandle
+ * object or a legacy resource. Returns NULL on failure. */
+static fbird_batch *fbird_batch_from_zval(zval *zv)
+{
+	if (Z_TYPE_P(zv) == IS_OBJECT) {
+		return fbird_batch_get_ptr(Z_OBJ_P(zv));
+	}
+	return (fbird_batch *)zend_fetch_resource_ex(zv, LE_BATCH, le_batch);
+}
+#endif
+
 /*
  * Custom INI display callback for password fields.
  * Displays "********" instead of the actual password value in phpinfo().
@@ -177,7 +189,7 @@ PHP_FUNCTION(fbird_batch_create)
 	ib_batch->in_msg_buffer = emalloc(msg_length);
 	memset(ib_batch->in_msg_buffer, 0, msg_length);
 
-	RETVAL_RES(zend_register_resource(ib_batch, le_batch));
+	fbird_setup_batch_object(return_value, ib_batch);
 }
 
 PHP_FUNCTION(fbird_batch_add)
@@ -189,11 +201,11 @@ PHP_FUNCTION(fbird_batch_add)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r*", &batch_arg, &args, &argc) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z*", &batch_arg, &args, &argc) == FAILURE) {
 		return;
 	}
 
-	ib_batch = (fbird_batch *)zend_fetch_resource_ex(batch_arg, LE_BATCH, le_batch);
+	ib_batch = fbird_batch_from_zval(batch_arg);
 	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
 		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
 		RETURN_FALSE;
@@ -577,11 +589,11 @@ PHP_FUNCTION(fbird_batch_execute)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r", &batch_arg) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &batch_arg) == FAILURE) {
 		return;
 	}
 
-	ib_batch = (fbird_batch *)zend_fetch_resource_ex(batch_arg, LE_BATCH, le_batch);
+	ib_batch = fbird_batch_from_zval(batch_arg);
 	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
 		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
 		RETURN_FALSE;
@@ -624,11 +636,11 @@ PHP_FUNCTION(fbird_batch_cancel)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r", &batch_arg) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &batch_arg) == FAILURE) {
 		return;
 	}
 
-	ib_batch = (fbird_batch *)zend_fetch_resource_ex(batch_arg, LE_BATCH, le_batch);
+	ib_batch = fbird_batch_from_zval(batch_arg);
 	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
 		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
 		RETURN_FALSE;
@@ -656,11 +668,11 @@ PHP_FUNCTION(fbird_batch_add_blob)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "rs|l", &batch_arg, &data, &data_len, &blob_type) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zs|l", &batch_arg, &data, &data_len, &blob_type) == FAILURE) {
 		return;
 	}
 
-	ib_batch = (fbird_batch *)zend_fetch_resource_ex(batch_arg, LE_BATCH, le_batch);
+	ib_batch = fbird_batch_from_zval(batch_arg);
 	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
 		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
 		RETURN_FALSE;
@@ -687,11 +699,11 @@ PHP_FUNCTION(fbird_batch_register_blob)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "rs", &batch_arg, &blob_id_str, &blob_id_len) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zs", &batch_arg, &blob_id_str, &blob_id_len) == FAILURE) {
 		return;
 	}
 
-	ib_batch = (fbird_batch *)zend_fetch_resource_ex(batch_arg, LE_BATCH, le_batch);
+	ib_batch = fbird_batch_from_zval(batch_arg);
 	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
 		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
 		RETURN_FALSE;
@@ -725,11 +737,11 @@ PHP_FUNCTION(fbird_batch_get_blob_alignment)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r", &batch_arg) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &batch_arg) == FAILURE) {
 		return;
 	}
 
-	ib_batch = (fbird_batch *)zend_fetch_resource_ex(batch_arg, LE_BATCH, le_batch);
+	ib_batch = fbird_batch_from_zval(batch_arg);
 	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
 		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
 		RETURN_FALSE;
@@ -753,11 +765,11 @@ PHP_FUNCTION(fbird_batch_append_blob_data)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "rs", &batch_arg, &data, &data_len) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zs", &batch_arg, &data, &data_len) == FAILURE) {
 		return;
 	}
 
-	ib_batch = (fbird_batch *)zend_fetch_resource_ex(batch_arg, LE_BATCH, le_batch);
+	ib_batch = fbird_batch_from_zval(batch_arg);
 	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
 		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
 		RETURN_FALSE;
@@ -781,11 +793,11 @@ PHP_FUNCTION(fbird_batch_add_blob_stream)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "rs", &batch_arg, &data, &data_len) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zs", &batch_arg, &data, &data_len) == FAILURE) {
 		return;
 	}
 
-	ib_batch = (fbird_batch *)zend_fetch_resource_ex(batch_arg, LE_BATCH, le_batch);
+	ib_batch = fbird_batch_from_zval(batch_arg);
 	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
 		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
 		RETURN_FALSE;
@@ -809,11 +821,11 @@ PHP_FUNCTION(fbird_batch_set_default_bpb)
 
 	RESET_ERRMSG;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "rs", &batch_arg, &bpb, &bpb_len) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zs", &batch_arg, &bpb, &bpb_len) == FAILURE) {
 		return;
 	}
 
-	ib_batch = (fbird_batch *)zend_fetch_resource_ex(batch_arg, LE_BATCH, le_batch);
+	ib_batch = fbird_batch_from_zval(batch_arg);
 	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
 		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
 		RETURN_FALSE;

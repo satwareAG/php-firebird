@@ -59,9 +59,9 @@ use RuntimeException;
 final class Batch
 {
     /**
-     * The underlying batch resource from \fbird_batch_create().
+     * The underlying batch handle from \fbird_batch_create().
      *
-     * @var resource|null
+     * @var \Firebird\BatchHandle|resource|null
      */
     private mixed $resource;
 
@@ -85,7 +85,7 @@ final class Batch
     /**
      * Private constructor - use factory methods.
      *
-     * @param resource $resource Batch resource
+     * @param \Firebird\BatchHandle|resource $resource Batch handle
      */
     private function __construct(mixed $resource)
     {

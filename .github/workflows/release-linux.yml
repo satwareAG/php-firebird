@@ -55,9 +55,72 @@ permissions: read-all
 
 jobs:
   # ===========================================================================
+  # CI Gate: Wait for CI/Sanitizers/Code Quality to pass before building
+  # ===========================================================================
+  ci-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check required workflows passed on this commit
+        run: |
+          set -euo pipefail
+          SHA="${{ github.sha }}"
+          MAX_WAIT=1080   # 18 minutes
+          INTERVAL=30
+          ELAPSED=0
+
+          # Workflow filenames that must pass (CI, Sanitizers, Code Quality)
+          REQUIRED=("ci.yml" "sanitizers.yml" "code-quality.yml")
+
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            ALL_DONE=true
+            ALL_PASSED=true
+
+            for wf in "${REQUIRED[@]}"; do
+              RESULT=$(gh run list --workflow "$wf" --commit "$SHA" --limit 1 \
+                --json status,conclusion 2>/dev/null | jq '.[0] // empty')
+              STATUS=$(echo "$RESULT" | jq -r '.status // "not_found"')
+              CONCLUSION=$(echo "$RESULT" | jq -r '.conclusion // ""')
+
+              if [ "$STATUS" = "not_found" ]; then
+                echo "  $wf: not found (waiting)"
+                ALL_DONE=false
+              elif [ "$STATUS" != "completed" ]; then
+                echo "  $wf: $STATUS (waiting)"
+                ALL_DONE=false
+              elif [ "$CONCLUSION" != "success" ]; then
+                echo "  $wf: $CONCLUSION (FAILED)"
+                ALL_PASSED=false
+              else
+                echo "  $wf: success"
+              fi
+            done
+
+            if [ "$ALL_DONE" = "true" ]; then
+              if [ "$ALL_PASSED" = "true" ]; then
+                echo "✓ All required CI workflows passed"
+                exit 0
+              else
+                echo "✗ One or more required CI workflows failed"
+                exit 1
+              fi
+            fi
+
+            echo "Waiting for CI workflows... (${ELAPSED}s / ${MAX_WAIT}s)"
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+
+          echo "✗ Timeout waiting for CI workflows to complete"
+          exit 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  # ===========================================================================
   # Prepare Build Matrix
   # ===========================================================================
   prepare:
+    needs: ci-gate
     runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}

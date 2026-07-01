@@ -960,7 +960,7 @@ function fbird_batch_create(mixed $query, mixed $trans_identifier = null): mixed
 /**
  * Add a row of parameters to the batch.
  *
- * @param resource|Firebird\BatchHandle $batch Batch resource
+ * @param mixed $batch Batch resource
  * @param mixed ...$args Parameter values
  * @return bool True on success, false on error
  */
@@ -970,7 +970,7 @@ function fbird_batch_add(mixed $batch, mixed ...$args): bool {}
  * Create an inline BLOB in the batch context.
  * Returns a BLOB ID string in "HHHHHHHH:LLLL" format (13 characters).
  *
- * @param resource|Firebird\BatchHandle $batch Batch resource from fbird_batch_create()
+ * @param mixed $batch Batch resource from fbird_batch_create()
  * @param string $data BLOB content data
  * @param int $type BLOB subtype (0 = BINARY, 1 = TEXT, default 0)
  * @return string|false BLOB ID string or false on error
@@ -980,7 +980,7 @@ function fbird_batch_add_blob(mixed $batch, string $data, int $type = 0): string
 /**
  * Register an existing BLOB for use in a batch operation.
  *
- * @param resource|Firebird\BatchHandle $batch Batch resource from fbird_batch_create()
+ * @param mixed $batch Batch resource from fbird_batch_create()
  * @param string $blob_id Existing BLOB ID string from fbird_blob_close()
  * @return string|false Batch BLOB ID string or false on error
  */
@@ -989,7 +989,7 @@ function fbird_batch_register_blob(mixed $batch, string $blob_id): string|false 
 /**
  * Execute the batch and return results.
  *
- * @param resource|Firebird\BatchHandle $batch Batch resource
+ * @param mixed $batch Batch resource
  * @return array{total_processed: int, success_count: int, error_count: int, errors?: array<int, array{position: int, sqlstate: string, message: string}>}|false Results or false on error
  */
 function fbird_batch_execute(mixed $batch): array|false {}
@@ -997,7 +997,7 @@ function fbird_batch_execute(mixed $batch): array|false {}
 /**
  * Cancel the batch without executing.
  *
- * @param resource|Firebird\BatchHandle $batch Batch resource
+ * @param mixed $batch Batch resource
  * @return bool True on success, false on error
  */
 function fbird_batch_cancel(mixed $batch): bool {}
@@ -1005,28 +1005,28 @@ function fbird_batch_cancel(mixed $batch): bool {}
 /**
  * Returns the BLOB alignment requirement for this batch, in bytes.
  *
- * @param resource|Firebird\BatchHandle $batch Batch resource from fbird_batch_create()
+ * @param mixed $batch Batch resource from fbird_batch_create()
  * @return int|false Alignment in bytes (power of 2), or false on error
  * @since 7.0.0
  */
 function fbird_batch_get_blob_alignment(mixed $batch): int|false {}
 
 /**
- * @param resource|Firebird\BatchHandle $batch
+ * @param mixed $batch
  * @param string $data
  * @return bool
  */
 function fbird_batch_append_blob_data(mixed $batch, string $data): bool {}
 
 /**
- * @param resource|Firebird\BatchHandle $batch
+ * @param mixed $batch
  * @param string $data
  * @return bool
  */
 function fbird_batch_add_blob_stream(mixed $batch, string $data): bool {}
 
 /**
- * @param resource|Firebird\BatchHandle $batch
+ * @param mixed $batch
  * @param string $bpb
  * @return bool
  */

@@ -173,10 +173,10 @@ jobs:
           # Detect prerelease from tag name (rc, beta, alpha, dev)
           if echo "$TAG" | grep -qiE '(rc|beta|alpha|dev)\.'; then
             echo "Detected prerelease tag — marking as prerelease"
-            gh release edit "$TAG" --draft=false --prerelease
+            gh release edit "$TAG" --draft=false --prerelease --repo "${{ github.repository }}"
           else
             echo "Stable release — publishing as latest"
-            gh release edit "$TAG" --draft=false --latest
+            gh release edit "$TAG" --draft=false --latest --repo "${{ github.repository }}"
           fi
 
           echo "Release published: https://github.com/${{ github.repository }}/releases/tag/$TAG"

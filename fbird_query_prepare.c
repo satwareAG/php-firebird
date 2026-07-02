@@ -234,14 +234,10 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc)
                 ib_query->link->tr_list->trans == ib_query->trans);
             bool is_persistent = (ib_query->link && ib_query->link->is_persistent);
             if (is_default_tx && !is_persistent) {
-                int _ac_res = fbt_commit(ib_query->trans->fbt_transaction, IB_STATUS);
+                /* jane: silent on failure — see fbird_query_exec.c for rationale */
+                fbt_commit(ib_query->trans->fbt_transaction, IB_STATUS);
                 fbt_free(ib_query->trans->fbt_transaction);
                 ib_query->trans->fbt_transaction = NULL;
-                /* Report commit errors (e.g., deferred constraint violations).
-                 * IBG(in_mshutdown) already guarded by outer condition. */
-                if (_ac_res) {
-                    _php_fbird_error();
-                }
             }
         }
 

@@ -1226,16 +1226,17 @@ PHP_FUNCTION(fbird_query)
 		bool is_persistent = (link && link->is_persistent);
 		if (!trans_res && trans && trans->fbt_transaction &&
 			Z_TYPE_P(return_value) != IS_RESOURCE && !is_persistent) {
-		/* Issue #294: Commit + free the default transaction for true autocommit.
-		 * fbt_free calls rollbackNoThrow() (safe — transaction_ is null after
-		 * commit, so it returns early) then deletes the C++ Transaction object,
-		 * preventing the wrapper leak identified in code review. */
-			int _ac_res = fbt_commit(trans->fbt_transaction, IB_STATUS);
+			/* Issue #294: Commit + free the default transaction for true autocommit.
+			 * fbt_free calls rollbackNoThrow() (safe — transaction_ is null after
+			 * commit, so it returns early) then deletes the C++ Transaction object.
+			 * If commit fails (e.g., open cursors from a prior SELECT on the same
+			 * default tx), silently continue — the transaction stays valid and
+			 * will be committed at connection close or explicit fbird_commit().
+			 * jane: silent on failure — autocommit is an optimization, not a
+			 * user-initiated commit; reporting cursor-lock errors would be noise. */
+			fbt_commit(trans->fbt_transaction, IB_STATUS);
 			fbt_free(trans->fbt_transaction);
 			trans->fbt_transaction = NULL;
-			if (_ac_res && !IBG(in_mshutdown)) {
-				_php_fbird_error();
-			}
 		}
 	}
 

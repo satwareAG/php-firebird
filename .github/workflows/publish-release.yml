@@ -169,7 +169,16 @@ jobs:
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
           echo "Publishing release: $TAG"
-          gh release edit "$TAG" --draft=false --make-latest
+
+          # Detect prerelease from tag name (rc, beta, alpha, dev)
+          if echo "$TAG" | grep -qiE '(rc|beta|alpha|dev)\.'; then
+            echo "Detected prerelease tag — marking as prerelease"
+            gh release edit "$TAG" --draft=false --prerelease
+          else
+            echo "Stable release — publishing as latest"
+            gh release edit "$TAG" --draft=false --latest
+          fi
+
           echo "Release published: https://github.com/${{ github.repository }}/releases/tag/$TAG"
         env:
           GH_TOKEN: ${{ github.token }}

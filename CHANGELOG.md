@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [11.0.2] - 2026-07-02
+## [11.1.0] - 2026-07-02
+
+### Summary
+Minor release completing the M3 resource-to-object migration. All handle-returning
+`fbird_*` functions now return typed `Firebird\*` objects. No raw resources are
+returned to userland. The dual-accept bridge accepts both legacy resources and
+new objects in all consuming functions — no consumer-side changes required.
 
 ### Fixed
 - **[Issue #294]** `fbird_query($conn, $sql)` autocommit mode didn't see data committed
@@ -26,39 +32,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `master_` with `getMaster()` in all three methods. Added `in_mshutdown` guard in
   `fbird_transaction_free` as belt-and-suspenders. (`src/cpp/fb_transaction.hpp`,
   `fbird_classes.c`)
+- **[Issue #296]** `fbird_query()` stub declared `\Firebird\ResultSet` return type but
+  C code returned raw `resource`. Same issue affected `fbird_execute_query()` and
+  `fbird_query_params_tx()`. Fix: added `fbird_setup_resultset_object()` wrapping block
+  to all three functions (same pattern as `fbird_execute()`). (`fbird_query_exec.c`)
+
+### Added
+- **[Issue #297]** `fbird_prepare()` and `fbird_prepare_ex()` now return `Firebird\Statement`
+  objects instead of raw `resource` handles. Completes the M3 resource-to-object migration
+  — all handle-returning `fbird_*` functions now return typed objects. Added
+  `fbird_setup_statement_object()` and `fbird_statement_get_resource()` helpers.
+  `Firebird\Statement` branch added to `FBIRD_VALIDATE_QUERY_EX` macro and `fbird_execute()`
+  type validation. OOP `Connection::prepare()` and `Statement::execute()` refactored to
+  call internal C functions directly (avoids `call_user_function` segfault).
+  (`fbird_classes.c`, `fbird_classes.h`, `fbird_query_exec.c`, `php_fbird_includes.h`)
+- `is_persistent` field added to `fbird_db_link` struct to distinguish persistent from
+  non-persistent connections in autocommit logic.
 
 ### Tests
-- Added `tests/issue294_autocommit_visibility.phpt` — regression test verifying
-  autocommit query sees committed data after explicit-tx commit.
-- Added `tests/issue295_mshutdown_pconnect_sigsegv.phpt` — regression test for
-  MSHUTDOWN cleanup with active default transaction on persistent connection.
-- Updated `tests/005.phpt` — use explicit transaction for rollback test (autocommit
-  DML is now committed immediately). Added `@fbird_commit()` suppression for
-  already-committed default tx in `tests/fbird_query_stmt_release_001.phpt` and
-  `tests/issue35_001.phpt`.
-- Updated `tests/fbird_rollback_001.phpt`, `tests/fbird_trans_008.phpt`,
-  `tests/fbird_trans_009.phpt`, `tests/004.phpt`, `tests/fbird_batch_blob_001.phpt`
-  to use explicit transactions where rollback/savepoints are needed (autocommit
-  DML is now committed immediately and cannot be rolled back).
+- Added `tests/issue294_autocommit_visibility.phpt` — autocommit sees committed data.
+- Added `tests/issue295_mshutdown_pconnect_sigsegv.phpt` — MSHUTDOWN cleanup with default tx.
+- Added `tests/issue296_resultset_return_type.phpt` — all SELECT-returning functions return
+  `Firebird\ResultSet` objects.
+- Added `tests/issue297_statement_return_type.phpt` — `fbird_prepare/ex` return
+  `Firebird\Statement` objects, dual-accept bridge works with `fbird_execute()`.
+- Updated 7 existing tests to use `instanceof` checks instead of `is_resource()`.
 
 ### Additional Fixes
 - `fbird_commit()` and `fbird_rollback()` on the default link are now silent no-ops
-  (return `true`) when the default transaction was already committed by autocommit,
-  instead of warning "invalid transaction handle". Explicit transactions still warn.
-  (`fbird_transaction.c`)
+  (return `true`) when the default transaction was already committed by autocommit.
 - `fbird_execute()` on prepared statements now restarts the default transaction if
-  it was committed by a prior autocommit DML call. Previously, `fbird_execute()`
-  would fail with "Legacy API execution not supported" if a `fbird_query()` DML
-  call committed the default transaction between prepare and execute.
-  (`fbird_query_exec.c`)
+  it was committed by a prior autocommit DML call.
+- Autocommit commit in `php_fbird_free_query_rsrc` guarded to only fire for the
+  default transaction (first `tr_list` node), preventing use-after-free in
+  `fbird_execute_auto()` temp transactions.
 
-### Known Limitations
-- **Transaction C++ object leak**: `fbt_free` is not called in the autocommit path
-  (`php_fbird_free_query_rsrc`) because calling it caused SIGSEGV (StatusWrapper
-  destructor). The `Transaction` C++ object is cleaned up by `_php_fbird_commit_link`
-  during connection close. Small leak (one object per autocommit SELECT on non-persistent
-  connections). Fix in follow-up by adding `fbt_dispose()` that clears `last_status_`
-  before `delete`.
+### Breaking Changes (v11.1)
+- Return types of `fbird_prepare()` and `fbird_prepare_ex()` changed from `resource` to
+  `Firebird\Statement`. Code using `is_resource()` checks will need updating to
+  `$x instanceof \Firebird\Statement`.
+- `fbird_query()`, `fbird_execute_query()`, `fbird_query_params_tx()` now return
+  `Firebird\ResultSet` objects for SELECT (was `resource`). The stubs already declared
+  this type since v11.0.0 — this fix makes the C code match the stubs.
+- `fbird_commit()`/`fbird_rollback()` on already-committed default transaction now
+  silently returns `true` (was: warning + `false`).
 
 ## [11.0.1] - 2026-04-20
 

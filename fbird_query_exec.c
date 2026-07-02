@@ -1265,6 +1265,13 @@ PHP_FUNCTION(fbird_query)
 		zval_ptr_dtor(&args[i]);
 	}
 	efree(args);
+
+	/* Issue #296: wrap le_query result in Firebird\ResultSet (same as fbird_execute) */
+	if (Z_TYPE_P(return_value) == IS_RESOURCE &&
+	    Z_RES_TYPE_P(return_value) == le_query) {
+		zend_resource *_res = Z_RES_P(return_value);
+		fbird_setup_resultset_object(return_value, _res);
+	}
 }
 
 PHP_FUNCTION(fbird_prepare)
@@ -1705,6 +1712,13 @@ PHP_FUNCTION(fbird_execute_query)
         }
         zend_list_delete(ib_query->res);
     }
+
+	/* Issue #296: wrap le_query result in Firebird\ResultSet (same as fbird_execute) */
+	if (Z_TYPE_P(return_value) == IS_RESOURCE &&
+	    Z_RES_TYPE_P(return_value) == le_query) {
+		zend_resource *_res = Z_RES_P(return_value);
+		fbird_setup_resultset_object(return_value, _res);
+	}
 }
 
 PHP_FUNCTION(fbird_execute_auto)
@@ -1890,6 +1904,13 @@ PHP_FUNCTION(fbird_query_params_tx)
         }
         zend_list_delete(ib_query->res);
     }
+
+	/* Issue #296: wrap le_query result in Firebird\ResultSet (same as fbird_execute) */
+	if (Z_TYPE_P(return_value) == IS_RESOURCE &&
+	    Z_RES_TYPE_P(return_value) == le_query) {
+		zend_resource *_res = Z_RES_P(return_value);
+		fbird_setup_resultset_object(return_value, _res);
+	}
 }
 
 #endif /* HAVE_FIREBIRD */

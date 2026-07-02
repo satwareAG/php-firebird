@@ -26,7 +26,16 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0  # Full history required for subtree split
-      
+
+      - name: Delete existing tag in stubs repo (if re-tagging)
+        if: github.ref_type == 'tag'
+        run: |
+          # If the tag already exists in the stubs repo (e.g. from a previous split),
+          # delete it so the split action can recreate it.
+          gh api -X DELETE "repos/satwareAG/php-firebird-stubs/git/refs/tags/${{ github.ref_name }}" 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ secrets.STUBS_REPO_TOKEN }}
+
       - name: Split stubs directory
         uses: danharrin/monorepo-split-github-action@19b2e0cbe3fe3de17309fd0fe95d4e05454f3ab3 # v2.4.0
         env:

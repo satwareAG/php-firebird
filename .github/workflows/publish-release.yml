@@ -1,0 +1,165 @@
+# =============================================================================
+# Publish Release — finalizes a multi-platform release
+# =============================================================================
+# Waits for Release (Linux), Release (macOS), and Release (Windows) to all
+# complete successfully on the same tag, then:
+#   1. Generates SLSA provenance attestations for all artifacts
+#   2. Publishes the draft release (draft: false)
+#
+# Prerequisites: All 3 platform workflows must upload with draft: true.
+# This workflow is the ONLY one that flips draft to false.
+# =============================================================================
+
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish (must have draft release with assets)'
+        required: true
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  wait-and-publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            echo "Unsupported event: ${{ github.event_name }}"
+            exit 1
+          fi
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "Publishing release: ${TAG}"
+
+      - name: Wait for all platform workflows
+        run: |
+          set +e
+          TAG="${{ steps.tag.outputs.tag }}"
+          MAX_WAIT=2400   # 40 minutes (releases can take 20-30 min)
+          INTERVAL=30
+          ELAPSED=0
+
+          # Required release workflows (by filename)
+          REQUIRED=("release-linux.yml" "release-macos.yml" "release-windows.yml")
+
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            ALL_DONE=true
+            ALL_PASSED=true
+
+            for wf in "${REQUIRED[@]}"; do
+              RESULT=$(gh run list --workflow "$wf" --branch "$TAG" --limit 1 \
+                --json status,conclusion 2>/dev/null | jq '.[0] // empty' || true)
+              STATUS=$(echo "$RESULT" | jq -r '.status // "not_found"' || true)
+              CONCLUSION=$(echo "$RESULT" | jq -r '.conclusion // ""' || true)
+
+              if [ "$STATUS" = "not_found" ] || [ -z "$STATUS" ]; then
+                echo "  $wf: not found (waiting)"
+                ALL_DONE=false
+              elif [ "$STATUS" != "completed" ]; then
+                echo "  $wf: $STATUS (waiting)"
+                ALL_DONE=false
+              elif [ "$CONCLUSION" != "success" ]; then
+                echo "  $wf: $CONCLUSION (FAILED)"
+                ALL_PASSED=false
+              else
+                echo "  $wf: success"
+              fi
+            done
+
+            if [ "$ALL_DONE" = "true" ]; then
+              if [ "$ALL_PASSED" = "true" ]; then
+                echo "All platform release workflows passed"
+                break
+              else
+                echo "One or more platform release workflows failed"
+                exit 1
+              fi
+            fi
+
+            echo "Waiting... (${ELAPSED}s / ${MAX_WAIT}s)"
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+
+          if [ $ELAPSED -ge $MAX_WAIT ]; then
+            echo "Timeout waiting for platform release workflows"
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Download all release assets
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          mkdir -p release-assets
+          cd release-assets
+
+          # Download all assets from the draft release
+          gh release download "$TAG" --clobber --repo "${{ github.repository }}" \
+            --pattern "*.tar.gz" --pattern "*.zip" --pattern "*.sbom.cdx.json" \
+            --pattern "CHECKSUMS*" || true
+
+          echo "Downloaded assets:"
+          ls -la
+
+      - name: Generate SLSA Provenance Attestations
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          echo "Generating SLSA provenance attestations for release: $TAG"
+
+          cd release-assets
+          for artifact in *.tar.gz *.zip; do
+            if [ -f "$artifact" ]; then
+              echo "Attesting: $artifact"
+              gh attestation generate "$artifact" \
+                --repo "${{ github.repository }}" \
+                --signer github 2>&1 || echo "WARNING: Attestation failed for $artifact"
+            fi
+          done
+
+          echo "Attestation generation complete."
+          echo "Verify with: gh attestation verify <artifact> --repo ${{ github.repository }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Generate checksums index
+        run: |
+          cd release-assets
+          if ls *.tar.gz *.zip 1> /dev/null 2>&1; then
+            sha256sum *.tar.gz *.zip > CHECKSUMS-SHA256.txt 2>/dev/null || true
+            md5sum *.tar.gz *.zip > CHECKSUMS-MD5.txt 2>/dev/null || true
+            echo "Checksums generated:"
+            cat CHECKSUMS-SHA256.txt
+          fi
+
+      - name: Upload checksums to release
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          files: release-assets/CHECKSUMS-*.txt
+          draft: true
+
+      - name: Publish release
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          echo "Publishing release: $TAG"
+          gh release edit "$TAG" --draft=false --make-latest
+          echo "Release published: https://github.com/${{ github.repository }}/releases/tag/$TAG"
+        env:
+          GH_TOKEN: ${{ github.token }}

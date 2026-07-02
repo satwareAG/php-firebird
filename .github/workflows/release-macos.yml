@@ -25,8 +25,6 @@ on:
   push:
     tags:
       - 'v[0-9]*.*'
-  release:
-    types: [created, published]
   workflow_dispatch:
     inputs:
       php_versions:
@@ -434,7 +432,6 @@ jobs:
     needs: [prepare, build, test-bundles]
     runs-on: ubuntu-24.04
     if: |
-      github.event_name == 'release' ||
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
       (github.event_name == 'workflow_dispatch' && inputs.upload_to_release)
 
@@ -500,6 +497,25 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # ===========================================================================
+  # Test Bundles: Verify precompiled binaries work on macOS
+  # ===========================================================================
+  test-bundles:
+    needs: [prepare, build]
+    runs-on: ${{ matrix.runner }}
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+      github.event_name == 'workflow_dispatch'
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            arch: arm64
+            php_brew: php
+
+    steps:
       - name: Install PHP via Homebrew
         run: |
           brew install ${{ matrix.php_brew }} 2>/dev/null || true

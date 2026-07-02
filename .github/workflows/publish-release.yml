@@ -119,24 +119,11 @@ jobs:
           ls -la
 
       - name: Generate SLSA Provenance Attestations
-        run: |
-          TAG="${{ steps.tag.outputs.tag }}"
-          echo "Generating SLSA provenance attestations for release: $TAG"
-
-          cd release-assets
-          for artifact in *.tar.gz *.zip; do
-            if [ -f "$artifact" ]; then
-              echo "Attesting: $artifact"
-              gh attestation generate "$artifact" \
-                --repo "${{ github.repository }}" \
-                --signer github 2>&1 || echo "WARNING: Attestation failed for $artifact"
-            fi
-          done
-
-          echo "Attestation generation complete."
-          echo "Verify with: gh attestation verify <artifact> --repo ${{ github.repository }}"
-        env:
-          GH_TOKEN: ${{ github.token }}
+        uses: actions/attest-build-provenance@e499f8526e627e84a98f5795990b5d7d1ac1bfda # v2
+        with:
+          subject-path: |
+            release-assets/*.tar.gz
+            release-assets/*.zip
 
       - name: Generate checksums index
         run: |

@@ -440,7 +440,7 @@ jobs:
 
     steps:
       - name: Download All Artifacts
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           path: artifacts
 
@@ -490,8 +490,8 @@ jobs:
           files: |
             release-assets/*.tar.gz
             release-assets/*.sha256
+            release-assets/*.md5
             release-assets/*.sbom.cdx.json
-            release-assets/CHECKSUMS-SHA256.txt
           fail_on_unmatched_files: false
           draft: true
         env:
@@ -522,7 +522,7 @@ jobs:
           echo "PHP version: $(php -v | head -1)"
 
       - name: Download Bundle
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           pattern: "*macos*${{ matrix.arch }}*"
           path: bundle

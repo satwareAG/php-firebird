@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [11.0.2] - 2026-07-02
+
+### Fixed
+- **[Issue #294]** `fbird_query($conn, $sql)` autocommit mode didn't see data committed
+  by other transactions. The default transaction was cached in `ib_link->tr_list->trans`
+  and reused across all autocommit calls without ever being committed, freezing the
+  snapshot at the time of the first query. Fix: true autocommit for non-persistent
+  connections — DML commits immediately after execution, SELECT commits when the result
+  is freed. This unblocks `doctrine-firebird-driver`'s `lastInsertId()` which queries
+  `RDB$RELATION_FIELDS` via autocommit. (`fbird_query_exec.c`, `fbird_query_prepare.c`)
+- **[Issue #295]** SIGSEGV (exit code 139) during PHP shutdown after persistent connection
+  cleanup. `Transaction::commit()`, `rollback()`, and `rollbackNoThrow()` in
+  `src/cpp/fb_transaction.hpp` guarded on the cached `master_` member instead of calling
+  `getMaster()`. During MSHUTDOWN, `getMaster()` returns `nullptr` but `master_` was never
+  nulled, bypassing the guard and making a server-side call on a dead attachment. Same
+  class of bug as commit `881d375` fixed for `Connection::detachNoThrow()`. Fix: replace
+  `master_` with `getMaster()` in all three methods. Added `in_mshutdown` guard in
+  `fbird_transaction_free` as belt-and-suspenders. (`src/cpp/fb_transaction.hpp`,
+  `fbird_classes.c`)
+
+### Tests
+- Added `tests/issue294_autocommit_visibility.phpt` — regression test verifying
+  autocommit query sees committed data after explicit-tx commit.
+- Added `tests/issue295_mshutdown_pconnect_sigsegv.phpt` — regression test for
+  MSHUTDOWN cleanup with active default transaction on persistent connection.
+- Updated `tests/005.phpt` — use explicit transaction for rollback test (autocommit
+  DML is now committed immediately). Added `@fbird_commit()` suppression for
+  already-committed default tx in `tests/fbird_query_stmt_release_001.phpt` and
+  `tests/issue35_001.phpt`.
+- Updated `tests/fbird_rollback_001.phpt`, `tests/fbird_trans_008.phpt`,
+  `tests/fbird_trans_009.phpt`, `tests/004.phpt`, `tests/fbird_batch_blob_001.phpt`
+  to use explicit transactions where rollback/savepoints are needed (autocommit
+  DML is now committed immediately and cannot be rolled back).
+
+### Additional Fixes
+- `fbird_commit()` and `fbird_rollback()` on the default link are now silent no-ops
+  (return `true`) when the default transaction was already committed by autocommit,
+  instead of warning "invalid transaction handle". Explicit transactions still warn.
+  (`fbird_transaction.c`)
+- `fbird_execute()` on prepared statements now restarts the default transaction if
+  it was committed by a prior autocommit DML call. Previously, `fbird_execute()`
+  would fail with "Legacy API execution not supported" if a `fbird_query()` DML
+  call committed the default transaction between prepare and execute.
+  (`fbird_query_exec.c`)
+
+### Known Limitations
+- **Transaction C++ object leak**: `fbt_free` is not called in the autocommit path
+  (`php_fbird_free_query_rsrc`) because calling it caused SIGSEGV (StatusWrapper
+  destructor). The `Transaction` C++ object is cleaned up by `_php_fbird_commit_link`
+  during connection close. Small leak (one object per autocommit SELECT on non-persistent
+  connections). Fix in follow-up by adding `fbt_dispose()` that clears `last_status_`
+  before `delete`.
+
 ## [11.0.1] - 2026-04-20
 
 ### Fixed

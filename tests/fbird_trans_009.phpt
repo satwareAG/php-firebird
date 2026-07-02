@@ -9,24 +9,25 @@ require("firebird.inc");
 fbird_connect($test_base);
 
 (function() {
+    $tr = fbird_trans();
+    fbird_query($tr, "DELETE FROM TEST1");
+    fbird_commit_ret($tr);
+
     $queries = [
-        "SET TRANSACTION",
-        "DELETE FROM TEST1",
-        "COMMIT RETAIN",
         ["INSERT INTO TEST1 (I, C) VALUES (?, ?)", [1, "test2(1)"]],
         "SAVEPOINT sp_name",
         ["INSERT INTO TEST1 (I, C) VALUES (?, ?)", [2, "test2(2)"]],
     ];
 
     print "---- current status\n";
-    fbird_query_bulk($queries);
-    dump_table_rows("TEST1");
+    fbird_query_bulk($queries, $tr);
+    dump_table_rows("TEST1", $tr);
 
     print "---- now rollback\n";
     fbird_query_bulk([
         "ROLLBACK TO SAVEPOINT sp_name",
-        "COMMIT",
-    ]);
+    ], $tr);
+    fbird_commit($tr);
     dump_table_rows("TEST1");
 })();
 

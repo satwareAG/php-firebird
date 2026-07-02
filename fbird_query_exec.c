@@ -274,6 +274,19 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
 
     isc_result = 0;
 
+    /* Issue #294: If the default transaction was committed by autocommit
+     * (fbt_transaction is NULL), restart it before executing. This allows
+     * fbird_execute() on prepared statements created with the default tx
+     * to work after a fbird_query() DML call committed the default tx.
+     * trans_res == NULL ensures we only restart the default (implicit) tx,
+     * not an explicit user-started transaction. */
+    if (ib_query->trans && ib_query->trans->fbt_transaction == NULL &&
+        ib_query->trans_res == NULL &&
+        ib_query->link && ib_query->link->fbc_connection) {
+        ib_query->trans = NULL;  /* force _php_fbird_def_trans to restart */
+        _php_fbird_def_trans(ib_query->link, &ib_query->trans);
+    }
+
     if (ib_query->fbs_statement && ib_query->trans && ib_query->trans->fbt_transaction) {
         void *transaction_ptr = fbt_get_handle(ib_query->trans->fbt_transaction);
         int oo_api_success = 0;

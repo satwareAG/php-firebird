@@ -9,14 +9,15 @@ require("firebird.inc");
 
 $x = fbird_connect($test_base);
 
-fbird_query('INSERT INTO test1 VALUES (100, 2)');
-fbird_query('INSERT INTO test1 VALUES (100, 2)');
-fbird_query('INSERT INTO test1 VALUES (100, 2)');
+$tr = fbird_trans($x);
+fbird_query($tr, 'INSERT INTO test1 VALUES (100, 2)');
+fbird_query($tr, 'INSERT INTO test1 VALUES (100, 2)');
+fbird_query($tr, 'INSERT INTO test1 VALUES (100, 2)');
 
-$rs = fbird_query('SELECT COUNT(*) FROM test1 WHERE i = 100');
+$rs = fbird_query($tr, 'SELECT COUNT(*) FROM test1 WHERE i = 100');
 var_dump(fbird_fetch_row($rs));
 
-var_dump(fbird_rollback($x));
+var_dump(fbird_rollback($tr));
 
 $rs = fbird_query('SELECT COUNT(*) FROM test1 WHERE i = 100');
 var_dump(fbird_fetch_row($rs));
@@ -36,6 +37,4 @@ array(1) {
   int(0)
 }
 bool(true)
-
-Warning: fbird_rollback(): invalid transaction handle (expecting explicit transaction start)  in %s on line %d
-bool(false)
+bool(true)

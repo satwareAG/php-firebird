@@ -107,11 +107,11 @@ Firebird: BLOB test
     $q = fbird_query("SELECT v_blob FROM test4 WHERE v_integer = 3");
     $row = fbird_fetch_object($q);
 	fbird_commit();
+	fbird_free_result($q);
 	fbird_close();
 
     $link = fbird_connect($test_base);
     fbird_blob_echo($link, $row->V_BLOB);
-    fbird_free_result($q);
 
     echo "fetch blob 3\n";
     $q = fbird_query("SELECT v_blob FROM test4 WHERE v_integer = 3");

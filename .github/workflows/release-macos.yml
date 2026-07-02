@@ -490,8 +490,8 @@ jobs:
           files: |
             release-assets/*.tar.gz
             release-assets/*.sha256
+            release-assets/*.md5
             release-assets/*.sbom.cdx.json
-            release-assets/CHECKSUMS-SHA256.txt
           fail_on_unmatched_files: false
           draft: true
         env:

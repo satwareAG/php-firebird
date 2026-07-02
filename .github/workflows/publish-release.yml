@@ -50,25 +50,31 @@ jobs:
       - name: Wait for all platform workflows
         run: |
           set +e
+          set -u
           TAG="${{ steps.tag.outputs.tag }}"
+          COMMIT_SHA="${{ github.sha }}"
           MAX_WAIT=2400   # 40 minutes (releases can take 20-30 min)
           INTERVAL=30
           ELAPSED=0
 
-          # Required release workflows (by filename)
-          REQUIRED=("release-linux.yml" "release-macos.yml" "release-windows.yml")
+          # Required release workflows (by display name)
+          REQUIRED=("Release (Linux)" "Release (macOS)" "Release (Windows)")
 
           while [ $ELAPSED -lt $MAX_WAIT ]; do
             ALL_DONE=true
             ALL_PASSED=true
 
-            for wf in "${REQUIRED[@]}"; do
-              RESULT=$(gh run list --workflow "$wf" --branch "$TAG" --limit 1 \
-                --json status,conclusion 2>/dev/null | jq '.[0] // empty' || true)
-              STATUS=$(echo "$RESULT" | jq -r '.status // "not_found"' || true)
-              CONCLUSION=$(echo "$RESULT" | jq -r '.conclusion // ""' || true)
+            # Use GitHub API with head_sha filter — gh run list --branch
+            # does not work for tag-triggered runs inside the Actions runner.
+            RUNS_JSON=$(gh api "/repos/${{ github.repository }}/actions/runs?head_sha=${COMMIT_SHA}&per_page=50" 2>/dev/null || true)
 
-              if [ "$STATUS" = "not_found" ] || [ -z "$STATUS" ]; then
+            for wf in "${REQUIRED[@]}"; do
+              RESULT=$(echo "$RUNS_JSON" | jq -r --arg wf "$wf" \
+                '.workflow_runs[] | select(.name == $wf) | "\(.status) \(.conclusion // "")"' | head -1)
+              STATUS=$(echo "$RESULT" | awk '{print $1}')
+              CONCLUSION=$(echo "$RESULT" | awk '{print $2}')
+
+              if [ -z "$STATUS" ]; then
                 echo "  $wf: not found (waiting)"
                 ALL_DONE=false
               elif [ "$STATUS" != "completed" ]; then

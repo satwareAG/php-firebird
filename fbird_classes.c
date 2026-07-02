@@ -210,8 +210,13 @@ static void fbird_transaction_free(zend_object *obj)
 {
 	fbird_transaction_obj *intern = fbird_transaction_from_obj(obj);
 	if (intern->fbt_trans) {
-		ISC_STATUS sv[20];
-		fbt_rollback(intern->fbt_trans, sv);
+		/* Issue #295: Skip server-side rollback during MSHUTDOWN to prevent
+		 * SIGSEGV on dead attachments. Transaction::rollbackNoThrow() already
+		 * guards via getMaster(), but this avoids the call entirely. */
+		if (!IBG(in_mshutdown)) {
+			ISC_STATUS sv[20];
+			fbt_rollback(intern->fbt_trans, sv);
+		}
 		fbt_free(intern->fbt_trans);
 		intern->fbt_trans = NULL;
 	}

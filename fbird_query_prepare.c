@@ -227,15 +227,15 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc)
              * MSHUTDOWN (with #295 getMaster() guard). Non-persistent
              * connections (doctrine-firebird-driver) get the full fix.
              *
-             * fbt_free is NOT called here — calling it caused SIGSEGV in
-             * php_fbird_free_query_rsrc context (StatusWrapper destructor).
-             * The Transaction C++ object is cleaned up by _php_fbird_commit_link.
+             * fbt_free is now called — the #295 fix to rollbackNoThrow()
+             * (getMaster() guard) makes it safe: rollbackNoThrow() returns
+             * early when transaction_ is null (already committed), so only
+             * the C++ delete runs, cleaning up the wrapper object.
              */
-            // jane: skip pconnect — leak/crash trade-off; fix in follow-up
-            // by adding fbt_dispose() that clears last_status_ before delete.
             bool is_persistent = (ib_query->link && ib_query->link->is_persistent);
             if (!is_persistent) {
                 fbt_commit(ib_query->trans->fbt_transaction, IB_STATUS);
+                fbt_free(ib_query->trans->fbt_transaction);
                 ib_query->trans->fbt_transaction = NULL;
             }
         }

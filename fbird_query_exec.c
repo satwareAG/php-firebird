@@ -284,7 +284,9 @@ static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, 
         ib_query->trans_res == NULL &&
         ib_query->link && ib_query->link->fbc_connection) {
         ib_query->trans = NULL;  /* force _php_fbird_def_trans to restart */
-        _php_fbird_def_trans(ib_query->link, &ib_query->trans);
+        if (SUCCESS != _php_fbird_def_trans(ib_query->link, &ib_query->trans)) {
+            return FAILURE;  /* _php_fbird_def_trans already reported the error */
+        }
     }
 
     if (ib_query->fbs_statement && ib_query->trans && ib_query->trans->fbt_transaction) {
@@ -1224,7 +1226,12 @@ PHP_FUNCTION(fbird_query)
 		bool is_persistent = (link && link->is_persistent);
 		if (!trans_res && trans && trans->fbt_transaction &&
 			Z_TYPE_P(return_value) != IS_RESOURCE && !is_persistent) {
+			/* Issue #294: Commit + free the default transaction for true autocommit.
+			 * fbt_free calls rollbackNoThrow() (safe — transaction_ is null after
+			 * commit, so it returns early) then deletes the C++ Transaction object,
+			 * preventing the wrapper leak identified in code review. */
 			fbt_commit(trans->fbt_transaction, IB_STATUS);
+			fbt_free(trans->fbt_transaction);
 			trans->fbt_transaction = NULL;
 		}
 	}

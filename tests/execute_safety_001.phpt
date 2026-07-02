@@ -46,7 +46,7 @@ assert_exception(function() use ($trans) {
 // 4. Correct Usage of fbird_execute_query (SELECT)
 echo "4. SELECT via execute_query...\n";
 $res = fbird_execute_query($trans, "select * from test_exec_safety");
-var_dump(is_resource($res)); // bool(true)
+var_dump($res instanceof \Firebird\ResultSet); // bool(true)
 $row = fbird_fetch_row($res);
 var_dump($row[0]); // int(1)
 fbird_free_result($res);

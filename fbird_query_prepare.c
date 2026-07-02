@@ -221,19 +221,19 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc)
             /* Issue #294: Commit the default transaction so the next autocommit
              * query starts a fresh transaction with a current snapshot.
              *
-             * Skip for persistent connections (is_persistent): cleanup_db() may
-             * drop the DB during shutdown, making the attachment dead. The
-             * default tx is cleaned up by _php_fbird_commit_link during
-             * MSHUTDOWN (with #295 getMaster() guard). Non-persistent
-             * connections (doctrine-firebird-driver) get the full fix.
+             * Only fire for the DEFAULT transaction (first tr_list node).
+             * fbird_execute_auto() creates a temp transaction not in tr_list —
+             * freeing it here would cause use-after-free when execute_auto
+             * later calls fbt_rollback on the same pointer.
              *
-             * fbt_free is now called — the #295 fix to rollbackNoThrow()
-             * (getMaster() guard) makes it safe: rollbackNoThrow() returns
-             * early when transaction_ is null (already committed), so only
-             * the C++ delete runs, cleaning up the wrapper object.
+             * Skip for persistent connections: cleanup_db() may drop the DB
+             * during shutdown. The default tx is cleaned up by
+             * _php_fbird_commit_link during MSHUTDOWN (with #295 guard).
              */
+            bool is_default_tx = (ib_query->link && ib_query->link->tr_list &&
+                ib_query->link->tr_list->trans == ib_query->trans);
             bool is_persistent = (ib_query->link && ib_query->link->is_persistent);
-            if (!is_persistent) {
+            if (is_default_tx && !is_persistent) {
                 fbt_commit(ib_query->trans->fbt_transaction, IB_STATUS);
                 fbt_free(ib_query->trans->fbt_transaction);
                 ib_query->trans->fbt_transaction = NULL;

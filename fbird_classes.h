@@ -55,10 +55,22 @@ void fbird_setup_transaction_object(zval *return_value, zend_resource *res);
 zend_resource *fbird_resultset_get_resource(zend_object *obj);
 
 /**
+ * Extract the zend_resource* from a Firebird\Statement object.
+ * Returns NULL if obj is not a Firebird\Statement or has no resource.
+ */
+zend_resource *fbird_statement_get_resource(zend_object *obj);
+
+/**
  * Wrap a le_query zend_resource* in a Firebird\ResultSet object.
  * Stores the resource as a weak reference (EG(regular_list) owns it).
  */
 void fbird_setup_resultset_object(zval *return_value, zend_resource *res);
+
+/**
+ * Wrap a le_query zend_resource* in a Firebird\Statement object.
+ * Same weak-reference pattern as fbird_setup_resultset_object().
+ */
+void fbird_setup_statement_object(zval *return_value, zend_resource *res);
 
 /**
  * Extract the zend_resource* from a Firebird\Blob object (M3 Phase G bridge).

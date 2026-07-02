@@ -421,14 +421,14 @@ function fbird_query(mixed $link_or_query, mixed ...$args): \Firebird\ResultSet|
  * @param resource|string|null $link_or_trans_or_query   First argument
  * @param resource|string|null $link_or_trans_or_query_2 Second argument
  * @param string|null          $query                    Query string
- * @return resource|false Prepared statement resource
+ * @return \Firebird\Statement|false Statement object (v11.1.0+, was resource before)
  * @since 7.0.0
  */
 function fbird_prepare(
     mixed $link_or_trans_or_query,
     mixed $link_or_trans_or_query_2 = null,
     ?string $query = null
-): mixed {}
+): \Firebird\Statement|false {}
 
 /**
  * Prepare a SQL statement with a fixed, non-shifting signature.
@@ -440,14 +440,14 @@ function fbird_prepare(
  * @param resource    $link_identifier Connection resource
  * @param string      $query           SQL query string
  * @param resource|null $trans_handle  Transaction resource (optional)
- * @return resource|false Prepared statement resource or false on failure
+ * @return \Firebird\Statement|false Statement object (v11.1.0+, was resource before)
  * @since 9.0.0
  */
 function fbird_prepare_ex(
     mixed $link_identifier,
     string $query,
     mixed $trans_handle = null
-): mixed {}
+): \Firebird\Statement|false {}
 
 /**
  * Execute a prepared statement.

@@ -114,7 +114,7 @@ echo "\n=== All tests completed ===\n";
 ?>
 --EXPECTF--
 === Test 1: fbird_execute() with connection instead of query ===
-TypeError caught: fbird_execute(): Argument #1 ($query) must be a Firebird query resource or Firebird\ResultSet, object given
+TypeError caught: fbird_execute(): Argument #1 ($query) must be a Firebird query resource or Firebird\ResultSet/Statement, object given
 
 === Test 2: fbird_fetch_assoc() with connection instead of query ===
 TypeError caught: fbird_fetch_assoc(): Argument #1 ($result) must be a Firebird query/result resource, object given

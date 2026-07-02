@@ -21,6 +21,7 @@
 #include "php_fbird_includes.h"
 #include "firebird_utils.h"
 #include "fbird_classes.h"
+#include "php_fbird_query_prepare.h"
 #include "php_fbird_connection.h"
 #include "php_fbird_query_internal.h"
 
@@ -475,36 +476,37 @@ PHP_METHOD(FirebirdStatement, execute)
 	ZEND_PARSE_PARAMETERS_END();
 
 	fbird_statement_obj *intern = Z_FBIRD_STATEMENT_P(ZEND_THIS);
-	if (!intern->query_res) {
-		zend_throw_exception(fbird_query_exception_ce, "Statement not prepared", 0);
+	if (!intern->query_res || intern->query_res->type <= 0) {
+		zend_throw_exception(fbird_query_exception_ce, "Statement not prepared or freed", 0);
 		RETURN_THROWS();
 	}
 
-	/* Call fbird_execute($query_res) */
-	zval res_zv, retval;
-	ZVAL_RES(&res_zv, intern->query_res);
-	GC_ADDREF(intern->query_res);
-	fbird_call_fn("fbird_execute", &res_zv, 1, &retval);
-	zval_ptr_dtor(&res_zv);
+	/* Issue #297: Call _php_fbird_exec() directly instead of going through
+	 * fbird_execute() via call_user_function. This avoids argument validation
+	 * overhead and segfaults from call_user_function context issues. */
+	fbird_query *ib_query = (fbird_query *)intern->query_res->ptr;
+	if (!ib_query) {
+		zend_throw_exception(fbird_query_exception_ce, "Statement has no query data", 0);
+		RETURN_THROWS();
+	}
 
-	if (Z_TYPE(retval) == IS_FALSE) {
-		zval_ptr_dtor(&retval);
+	RETVAL_FALSE;
+	if (FAILURE == _php_fbird_exec(INTERNAL_FUNCTION_PARAM_PASSTHRU, ib_query, NULL, 0)) {
 		zend_throw_exception(fbird_query_exception_ce, "Failed to execute statement", 0);
 		RETURN_THROWS();
 	}
 
-	/* Return a ResultSet wrapping the same query resource */
-	object_init_ex(return_value, fbird_resultset_ce);
-	fbird_resultset_obj *rs = Z_FBIRD_RESULTSET_P(return_value);
-	if (Z_TYPE(retval) == IS_RESOURCE) {
-		rs->query_res = Z_RES(retval);
-		GC_ADDREF(rs->query_res);
-		zval_ptr_dtor(&retval);
-	} else {
-		/* Non-SELECT: reuse the prepared statement resource for fetch (returns false) */
+	/* Issue #296: wrap le_query result in Firebird\ResultSet (same as fbird_execute) */
+	if (Z_TYPE_P(return_value) == IS_RESOURCE &&
+	    Z_RES_TYPE_P(return_value) == le_query) {
+		fbird_setup_resultset_object(return_value, Z_RES_P(return_value));
+	} else if (Z_TYPE_P(return_value) != IS_RESOURCE) {
+		/* Non-SELECT (DML): return a ResultSet wrapping the statement resource
+		 * (fetch will return false — standard behavior for DML results) */
+		object_init_ex(return_value, fbird_resultset_ce);
+		fbird_resultset_obj *rs = Z_FBIRD_RESULTSET_P(return_value);
 		rs->query_res = intern->query_res;
 		GC_ADDREF(rs->query_res);
-		zval_ptr_dtor(&retval);
 	}
 }
 
@@ -554,27 +556,20 @@ PHP_METHOD(FirebirdConnection, prepare)
 		RETURN_THROWS();
 	}
 
-	/* Call fbird_prepare($conn_res, $tr_res, $sql) */
-	zval prep_args[3], retval;
-	ZVAL_RES(&prep_args[0], conn->conn_res);
-	GC_ADDREF(conn->conn_res);
-	ZVAL_RES(&prep_args[1], tr_res);
-	GC_ADDREF(tr_res);
-	ZVAL_STRINGL(&prep_args[2], sql, sql_len);
-	fbird_call_fn("fbird_prepare", prep_args, 3, &retval);
-	for (int i = 0; i < 3; i++) zval_ptr_dtor(&prep_args[i]);
+	/* Issue #297: Call _php_fbird_prepare() directly instead of through
+	 * fbird_prepare()/call_user_function. This avoids the overhead and
+	 * segfault risk of call_user_function in OOP method context. */
+	fbird_db_link *link = (fbird_db_link *)conn->conn_res->ptr;
+	fbird_transaction *trans = (fbird_transaction *)tr_res->ptr;
+	fbird_query *ib_query = NULL;
 
-	if (Z_TYPE(retval) != IS_RESOURCE) {
-		zval_ptr_dtor(&retval);
+	if (FAILURE == _php_fbird_prepare(&ib_query, link, trans, tr_res, sql)) {
 		zend_throw_exception(fbird_query_exception_ce, "Failed to prepare statement", 0);
 		RETURN_THROWS();
 	}
 
-	object_init_ex(return_value, fbird_statement_ce);
-	fbird_statement_obj *stmt = Z_FBIRD_STATEMENT_P(return_value);
-	stmt->query_res = Z_RES(retval);
-	GC_ADDREF(stmt->query_res);
-	zval_ptr_dtor(&retval);
+	/* Wrap the le_query resource in a Firebird\Statement object */
+	fbird_setup_statement_object(return_value, ib_query->res);
 }
 
 /* -----------------------------------------------------------------------
@@ -1304,6 +1299,17 @@ zend_resource *fbird_resultset_get_resource(zend_object *obj)
 }
 
 /* -----------------------------------------------------------------------
+ * fbird_statement_get_resource() — extract zend_resource* from a
+ *   Firebird\Statement internal object. Returns NULL if no resource set.
+ *   Used by the dual-accept bridge in fbird_execute(), fbird_free_query(), etc.
+ * --------------------------------------------------------------------- */
+zend_resource *fbird_statement_get_resource(zend_object *obj)
+{
+	fbird_statement_obj *intern = fbird_statement_from_obj(obj);
+	return intern ? intern->query_res : NULL;
+}
+
+/* -----------------------------------------------------------------------
  * fbird_setup_resultset_object() — glue from procedural fbird_query() /
  *                                   fbird_execute() to Firebird\ResultSet
  *
@@ -1318,6 +1324,23 @@ void fbird_setup_resultset_object(zval *return_value, zend_resource *res)
 	object_init_ex(return_value, fbird_resultset_ce);
 	fbird_resultset_obj *intern = fbird_resultset_from_obj(Z_OBJ_P(return_value));
 	/* Add a reference so the resource stays alive while this object lives */
+	GC_ADDREF(res);
+	intern->query_res = res;
+}
+
+/* -----------------------------------------------------------------------
+ * fbird_setup_statement_object() — glue from procedural fbird_prepare() /
+ *                                   fbird_prepare_ex() to Firebird\Statement
+ *
+ * Same pattern as fbird_setup_resultset_object(): wraps the le_query
+ * resource in a typed Firebird\Statement object. The resource stays in
+ * EG(regular_list); we store a weak reference.
+ * --------------------------------------------------------------------- */
+void fbird_setup_statement_object(zval *return_value, zend_resource *res)
+{
+	zval_ptr_dtor(return_value);
+	object_init_ex(return_value, fbird_statement_ce);
+	fbird_statement_obj *intern = fbird_statement_from_obj(Z_OBJ_P(return_value));
 	GC_ADDREF(res);
 	intern->query_res = res;
 }

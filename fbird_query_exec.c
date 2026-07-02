@@ -82,7 +82,7 @@ static fbird_db_link *_php_fbird_link_from_zval(zval *z)
     return NULL;
 }
 
-static int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, zval *args, int bind_n)
+int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, zval *args, int bind_n)
 {
 	int rv = FAILURE;
 	ISC_STATUS isc_result;
@@ -1374,6 +1374,13 @@ PHP_FUNCTION(fbird_prepare)
 	efree(args);
 	RETVAL_RES(ib_query->res);
 	Z_TRY_ADDREF_P(return_value);
+
+	/* Issue #297: wrap le_query result in Firebird\Statement object */
+	if (Z_TYPE_P(return_value) == IS_RESOURCE &&
+	    Z_RES_TYPE_P(return_value) == le_query) {
+		zend_resource *_res = Z_RES_P(return_value);
+		fbird_setup_statement_object(return_value, _res);
+	}
 }
 
 /* {{{ proto resource fbird_prepare_ex(resource $link, string $query [, resource $trans])
@@ -1432,6 +1439,13 @@ PHP_FUNCTION(fbird_prepare_ex)
 
 	RETVAL_RES(ib_query->res);
 	Z_TRY_ADDREF_P(return_value);
+
+	/* Issue #297: wrap le_query result in Firebird\Statement object */
+	if (Z_TYPE_P(return_value) == IS_RESOURCE &&
+	    Z_RES_TYPE_P(return_value) == le_query) {
+		zend_resource *_res = Z_RES_P(return_value);
+		fbird_setup_statement_object(return_value, _res);
+	}
 }
 /* }}} */
 
@@ -1451,14 +1465,16 @@ PHP_FUNCTION(fbird_execute)
 		WRONG_PARAM_COUNT;
 	}
 
-	/* Validate first argument: query resource OR Firebird\ResultSet object.
-	 * Throw TypeError for wrong types (consistent with other fbird_* functions). */
+	/* Validate first argument: query resource OR Firebird\ResultSet/Statement object.
+	 * Throw TypeError for wrong types (consistent with other fbird_* functions).
+	 * Issue #297: also accept Firebird\Statement (returned by fbird_prepare/ex). */
 	if (Z_TYPE(args[0]) != IS_RESOURCE &&
 	    !(Z_TYPE(args[0]) == IS_OBJECT &&
-	      instanceof_function(Z_OBJCE(args[0]), fbird_resultset_ce))) {
+	      (instanceof_function(Z_OBJCE(args[0]), fbird_resultset_ce) ||
+	       instanceof_function(Z_OBJCE(args[0]), fbird_statement_ce)))) {
 		/* Capture type name BEFORE efree(args) to avoid use-after-free */
 		const char *arg_type = zend_get_type_by_const(Z_TYPE(args[0]));
-		zend_type_error("fbird_execute(): Argument #1 ($query) must be a Firebird query resource or Firebird\\ResultSet, %s given", arg_type);
+		zend_type_error("fbird_execute(): Argument #1 ($query) must be a Firebird query resource or Firebird\\ResultSet/Statement, %s given", arg_type);
 		efree(args);
 		RETURN_THROWS();
 	}
@@ -1504,10 +1520,17 @@ void _php_fbird_free_query_impl(INTERNAL_FUNCTION_PARAMETERS, int as_result)
 		return;
 	}
 
-	/* M3 Phase G: Accept Firebird\ResultSet objects */
+	/* M3 Phase G: Accept Firebird\ResultSet and Firebird\Statement objects */
 	if (Z_TYPE_P(query_arg) == IS_OBJECT &&
 	    instanceof_function(Z_OBJCE_P(query_arg), fbird_resultset_ce)) {
 		res = fbird_resultset_get_resource(Z_OBJ_P(query_arg));
+		if (!res) {
+			RETURN_FALSE;
+		}
+	} else if (Z_TYPE_P(query_arg) == IS_OBJECT &&
+	           instanceof_function(Z_OBJCE_P(query_arg), fbird_statement_ce)) {
+		/* Issue #297: Firebird\Statement returned by fbird_prepare()/fbird_prepare_ex() */
+		res = fbird_statement_get_resource(Z_OBJ_P(query_arg));
 		if (!res) {
 			RETURN_FALSE;
 		}

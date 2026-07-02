@@ -267,17 +267,22 @@ inline void Transaction::commit() {
         return;
     }
 
-    if (!master_) {
+    /* Issue #295: Use getMaster() instead of cached master_ to detect MSHUTDOWN.
+     * getMaster() returns nullptr when IBG(in_mshutdown) is set, preventing a
+     * server-side ITransaction::commit() on a dead attachment during cleanup.
+     * Mirrors the 881d375 fix for Connection::detachNoThrow(). */
+    Firebird::IMaster* master = getMaster();
+    if (!master) {
         transaction_.reset();
         return;
     }
 
-    Firebird::IStatus* raw_status = master_->getStatus();
+    Firebird::IStatus* raw_status = master->getStatus();
     Firebird::CheckStatusWrapper check_status(raw_status);
     transaction_->commit(&check_status);
 
     if (check_status.isDirty()) {
-        last_status_ = StatusWrapper(master_);
+        last_status_ = StatusWrapper(master);
         last_status_.get()->setErrors(raw_status->getErrors());
         throw Exception(raw_status);
     }
@@ -290,17 +295,19 @@ inline void Transaction::rollback() {
         return;
     }
 
-    if (!master_) {
+    /* Issue #295: Use getMaster() instead of cached master_ (mirrors 881d375). */
+    Firebird::IMaster* master = getMaster();
+    if (!master) {
         transaction_.reset();
         return;
     }
 
-    Firebird::IStatus* raw_status = master_->getStatus();
+    Firebird::IStatus* raw_status = master->getStatus();
     Firebird::CheckStatusWrapper check_status(raw_status);
     transaction_->rollback(&check_status);
 
     if (check_status.isDirty()) {
-        last_status_ = StatusWrapper(master_);
+        last_status_ = StatusWrapper(master);
         last_status_.get()->setErrors(raw_status->getErrors());
         throw Exception(raw_status);
     }
@@ -356,8 +363,10 @@ inline bool Transaction::rollbackNoThrow() noexcept {
     }
 
     try {
-        if (master_) {
-            Firebird::IStatus* raw_status = master_->getStatus();
+        /* Issue #295: Use getMaster() instead of cached master_ (mirrors 881d375). */
+        Firebird::IMaster* master = getMaster();
+        if (master) {
+            Firebird::IStatus* raw_status = master->getStatus();
             Firebird::CheckStatusWrapper check_status(raw_status);
             transaction_->rollback(&check_status);
             if (check_status.isDirty()) {

@@ -13,7 +13,7 @@ $db = fbird_connect($test_base);
 
 function test35() {
 	fbird_query('CREATE TABLE "test" (ID INTEGER, CLIENT_NAME VARCHAR(10))');
-	fbird_commit();
+	@fbird_commit(); /* Issue #294: autocommit DDL already committed */
 	$p = fbird_prepare('INSERT INTO "test" (ID, CLIENT_NAME) VALUES (?, ?)');
 	fbird_execute($p, 1, "Some name");
 	$q = fbird_query('SELECT * FROM "test"');

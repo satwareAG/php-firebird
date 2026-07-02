@@ -445,6 +445,7 @@ zend_resource *_php_fbird_connect_link(
 		ib_link->dialect = largs[DLECT] ? (unsigned short)largs[DLECT] : SQL_DIALECT_CURRENT;
 		ib_link->tr_list = NULL;
 		ib_link->event_head = NULL;
+		ib_link->is_persistent = persistent;
 
 		ib_link->fbc_connection = connection_ptr;
 

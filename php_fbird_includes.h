@@ -111,6 +111,10 @@ typedef struct {
 	/* PID at connection creation for fork-safety validation.
 	 * Fixes: Issue #36 - UAF with pcntl_fork/PHPStan parallel mode */
 	pid_t created_pid;
+	/* Whether this is a persistent connection (le_plink).
+	 * Used by autocommit logic to skip default-tx commit for pconnect
+	 * (Issue #294 — cleanup_db() may drop DB before MSHUTDOWN). */
+	bool is_persistent;
 } fbird_db_link;
 
 typedef struct {
@@ -470,6 +474,9 @@ const char *_fbird_res_type_name(int type);
 
 /* Validate query/result resource (le_query).
  * M3 Phase G: Also accepts Firebird\ResultSet objects (weak-ref to same resource). */
+/* Issue #297: Exported for OOP Statement::execute() to call directly */
+int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, zval *args, int bind_n);
+
 #define FBIRD_VALIDATE_QUERY_EX(zv, argnum, var) do { \
 	/* M3 object path: Firebird\ResultSet accepted alongside resources */ \
 	if (Z_TYPE_P(zv) == IS_OBJECT && \
@@ -485,6 +492,25 @@ const char *_fbird_res_type_name(int type);
 			} \
 			php_error_docref(NULL, E_WARNING, \
 				"Argument #%d must be a valid (non-freed) Firebird query/result resource or Firebird\\ResultSet", \
+				argnum); \
+			RETURN_FALSE; \
+		} \
+		break; \
+	} \
+	/* Issue #297: Firebird\Statement (from fbird_prepare/ex) accepted */ \
+	if (Z_TYPE_P(zv) == IS_OBJECT && \
+		instanceof_function(Z_OBJCE_P(zv), fbird_statement_ce)) { \
+		zend_resource *_qres = fbird_statement_get_resource(Z_OBJ_P(zv)); \
+		if (!_qres) { RETURN_FALSE; } \
+		var = (fbird_query *)_qres->ptr; \
+		if (!var) { \
+			if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
+				zend_argument_type_error(argnum, \
+					"must be a valid (non-freed) Firebird query resource or Firebird\\Statement"); \
+				RETURN_THROWS(); \
+			} \
+			php_error_docref(NULL, E_WARNING, \
+				"Argument #%d must be a valid (non-freed) Firebird query resource or Firebird\\Statement", \
 				argnum); \
 			RETURN_FALSE; \
 		} \

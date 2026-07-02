@@ -174,7 +174,7 @@ Verifying inserted BLOB data:
   Row 3: OK (NAME='Test Row 3', BLOB size=400 bytes)
 
 All BLOB data verified successfully
-%aDONE
+DONE
 
 --CLEAN--
 <?php

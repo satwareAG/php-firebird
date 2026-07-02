@@ -1079,6 +1079,13 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 
 	/* OO API Only: All transactions use fbt_* functions */
 	if (trans->fbt_transaction == NULL) {
+		/* Issue #294: True autocommit may have already committed the default
+		 * transaction. For the default (implicit) tx (res_id == 0), silently
+		 * return success — the data was already committed by autocommit.
+		 * For explicit transactions, warn about the invalid handle. */
+		if (res_id == 0) {
+			RETURN_TRUE;
+		}
 		_php_fbird_module_error("invalid transaction handle (expecting explicit transaction start) ");
 		RETURN_FALSE;
 	}

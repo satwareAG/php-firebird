@@ -42,7 +42,7 @@ $rs = fbird_query_params_tx(
     "SELECT ITEST, CTEST FROM qptx_test WHERE ITEST = ?",
     [9901]
 );
-var_dump(is_resource($rs));
+var_dump($rs instanceof \Firebird\ResultSet);
 
 $row = fbird_fetch_assoc($rs);
 var_dump($row !== false);
@@ -56,7 +56,7 @@ $rs2 = fbird_query_params_tx(
     "SELECT ITEST FROM qptx_test WHERE ITEST = ?",
     [99999]
 );
-var_dump(is_resource($rs2));
+var_dump($rs2 instanceof \Firebird\ResultSet);
 var_dump(fbird_fetch_assoc($rs2) === false);
 fbird_free_result($rs2);
 

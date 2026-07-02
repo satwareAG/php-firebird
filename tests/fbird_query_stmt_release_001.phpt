@@ -15,7 +15,7 @@ if (!$db) {
 
 // Create a temporary test table
 fbird_query($db, 'CREATE TABLE stmt_release_test (id INTEGER NOT NULL PRIMARY KEY, val VARCHAR(32))');
-fbird_commit($db);
+@fbird_commit($db); /* Issue #294: autocommit may have already committed */
 
 // Execute many DML queries via fbird_query() without storing the return value.
 // Before fix: each call left a prepared statement handle alive on the Firebird server
@@ -31,7 +31,7 @@ for ($i = 0; $i < $iterations; $i++) {
         die("FAIL: INSERT $i failed: " . fbird_errmsg());
     }
 }
-fbird_commit($db);
+@fbird_commit($db); /* Issue #294: autocommit DML already committed */
 
 // Verify all rows were inserted correctly
 $result = fbird_query($db, 'SELECT COUNT(*) AS CNT FROM stmt_release_test');
@@ -53,7 +53,7 @@ for ($i = 0; $i < 100; $i++) {
         die("FAIL: UPDATE $i failed: " . fbird_errmsg());
     }
 }
-fbird_commit($db);
+@fbird_commit($db); /* Issue #294: autocommit DML already committed */
 
 // Verify connection still alive and usable after 600+ DML statements
 $result = fbird_query($db, "SELECT COUNT(*) AS CNT FROM stmt_release_test WHERE val LIKE 'updated_%'");
@@ -71,7 +71,7 @@ if ((int)$row['CNT'] !== 100) {
 fbird_close($db);
 $db2 = fbird_connect($test_base, $user, $password);
 fbird_query($db2, 'DROP TABLE stmt_release_test');
-fbird_commit($db2);
+@fbird_commit($db2); /* Issue #294: autocommit DDL already committed */
 fbird_close($db2);
 
 echo "ok\n";

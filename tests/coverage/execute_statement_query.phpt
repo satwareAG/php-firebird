@@ -42,7 +42,7 @@ var_dump($r !== false);
 // Test 4: fbird_execute_query — SELECT (returns result resource)
 echo "Test 4: fbird_execute_query SELECT\n";
 $res = fbird_execute_query($tr, "SELECT ID, VAL FROM EXEC_STMT_COV ORDER BY ID");
-var_dump($res !== false && is_resource($res));
+var_dump($res !== false && $res instanceof \Firebird\ResultSet);
 if ($res) {
     while ($row = fbird_fetch_assoc($res)) {
         // consume rows
@@ -53,7 +53,7 @@ if ($res) {
 // Test 5: fbird_execute_query — SELECT with params
 echo "Test 5: fbird_execute_query SELECT with params\n";
 $res = fbird_execute_query($tr, "SELECT VAL FROM EXEC_STMT_COV WHERE ID = ?", [1]);
-var_dump($res !== false && is_resource($res));
+var_dump($res !== false && $res instanceof \Firebird\ResultSet);
 if ($res) {
     $row = fbird_fetch_row($res);
     var_dump($row[0] === 'world');

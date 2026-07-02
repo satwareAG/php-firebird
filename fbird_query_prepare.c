@@ -139,6 +139,12 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc)
     fbird_query *ib_query = (fbird_query *)rsrc->ptr;
 
     if (ib_query != NULL) {
+        /* Issue #294: Track whether this resource had an open cursor (SELECT result).
+         * Only SELECT results should trigger default-transaction commit on free.
+         * Prepared statements (fbird_prepare) that were never executed have no
+         * open cursor and must NOT commit the default transaction. */
+        bool had_open_cursor = (ib_query->fbs_resultset != NULL || ib_query->is_open);
+
         FBDEBUG("Preparing to free query by dtor...");
 
         /* If this is a child result, unlink it from the parent's list to prevent
@@ -201,6 +207,39 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc)
             }
             ib_query->fbs_statement = NULL;
         }
+
+        /* Issue #294: True autocommit — commit the default (implicit) transaction
+         * when a SELECT result is freed. trans_res == NULL indicates the default
+         * transaction was used (no explicit transaction resource provided).
+         * had_open_cursor ensures this only fires for SELECT results, not for
+         * prepared statements (fbird_prepare) that were never executed.
+         * IBG(in_mshutdown) guard prevents SIGSEGV during MSHUTDOWN cleanup
+         * (Issue #295 — _php_fbird_commit_link handles MSHUTDOWN separately). */
+        if (had_open_cursor && !ib_query->trans_res &&
+            ib_query->trans && ib_query->trans->fbt_transaction &&
+            !IBG(in_mshutdown)) {
+            /* Issue #294: Commit the default transaction so the next autocommit
+             * query starts a fresh transaction with a current snapshot.
+             *
+             * Skip for persistent connections (is_persistent): cleanup_db() may
+             * drop the DB during shutdown, making the attachment dead. The
+             * default tx is cleaned up by _php_fbird_commit_link during
+             * MSHUTDOWN (with #295 getMaster() guard). Non-persistent
+             * connections (doctrine-firebird-driver) get the full fix.
+             *
+             * fbt_free is NOT called here — calling it caused SIGSEGV in
+             * php_fbird_free_query_rsrc context (StatusWrapper destructor).
+             * The Transaction C++ object is cleaned up by _php_fbird_commit_link.
+             */
+            // jane: skip pconnect — leak/crash trade-off; fix in follow-up
+            // by adding fbt_dispose() that clears last_status_ before delete.
+            bool is_persistent = (ib_query->link && ib_query->link->is_persistent);
+            if (!is_persistent) {
+                fbt_commit(ib_query->trans->fbt_transaction, IB_STATUS);
+                ib_query->trans->fbt_transaction = NULL;
+            }
+        }
+
         _php_fbird_free_query(ib_query);
     }
 }

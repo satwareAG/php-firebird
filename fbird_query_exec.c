@@ -1187,6 +1187,35 @@ PHP_FUNCTION(fbird_query)
 		RETURN_FALSE;
 	}
 
+	/* Issue #294: True autocommit for the implicit/default transaction.
+	 *
+	 * When fbird_query($conn, $sql) is called without an explicit transaction,
+	 * _php_fbird_def_trans() provides the cached default transaction. Previously,
+	 * this transaction was reused across all autocommit calls without ever being
+	 * committed, freezing the snapshot at the time of the first query. Data
+	 * committed by other transactions after that point was invisible.
+	 *
+	 * Fix: for non-SELECT statements (DML/DDL), commit the default transaction
+	 * immediately after execution and nullify fbt_transaction so the next
+	 * autocommit query starts a fresh transaction with a current snapshot.
+	 *
+	 * For SELECT statements, the cursor is still open — the default transaction
+	 * is committed when the result resource is freed (php_fbird_free_query_rsrc).
+	 *
+	 * Skip for persistent connections: cleanup_db() may drop the DB during
+	 * shutdown, causing MSHUTDOWN crash. The default tx is cleaned up by
+	 * _php_fbird_commit_link during MSHUTDOWN (with #295 getMaster() guard).
+	 *
+	 * trans_res == NULL indicates the default (implicit) transaction was used. */
+	{
+		bool is_persistent = (link && link->is_persistent);
+		if (!trans_res && trans && trans->fbt_transaction &&
+			Z_TYPE_P(return_value) != IS_RESOURCE && !is_persistent) {
+			fbt_commit(trans->fbt_transaction, IB_STATUS);
+			trans->fbt_transaction = NULL;
+		}
+	}
+
 	if (Z_TYPE_P(return_value) != IS_RESOURCE) {
 	    zend_list_delete(ib_query->res);
 	} else {

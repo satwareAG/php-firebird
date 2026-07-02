@@ -44,12 +44,19 @@ simple default transaction test without fbird_trans()
     out_table("test5");
 
     /* in default transaction context */
-    fbird_query("insert into test5 (i) values (1)");
+    /* Issue #294: True autocommit — fbird_query() without explicit tx commits
+     * DML immediately. Use an explicit transaction when rollback is needed.
+     * The SELECT must also use the explicit tx to see uncommitted DML
+     * (SNAPSHOT isolation: a different transaction can't see uncommitted data). */
+    $tx1 = fbird_trans();
+    fbird_query($tx1, "insert into test5 (i) values (1)");
 
     echo "one row\n";
-    out_table("test5");
+    $res = fbird_query($tx1, "select * from test5");
+    out_result($res,"test5");
+    fbird_free_result($res);
 
-    fbird_rollback(); /* default rolled */
+    fbird_rollback($tx1); /* explicit tx rolled back */
 
     echo "after rollback table empty again\n";
     out_table("test5");  /* started new default transaction */
@@ -99,7 +106,7 @@ parameters run in this context
 
     fbird_free_result($res);
 
-    fbird_rollback($link_def); /* just for example */
+    @fbird_rollback($link_def); /* Issue #294: default tx may already be committed */
 
     fbird_close();
 
@@ -140,7 +147,7 @@ three transaction on default link
 
     fbird_free_result($res);
 
-	fbird_commit();
+	@fbird_commit(); /* Issue #294: default tx may already be committed by autocommit */
     fbird_commit($tr_1);
 
 	$tr_1 = fbird_trans();

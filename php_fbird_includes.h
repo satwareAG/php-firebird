@@ -111,6 +111,10 @@ typedef struct {
 	/* PID at connection creation for fork-safety validation.
 	 * Fixes: Issue #36 - UAF with pcntl_fork/PHPStan parallel mode */
 	pid_t created_pid;
+	/* Whether this is a persistent connection (le_plink).
+	 * Used by autocommit logic to skip default-tx commit for pconnect
+	 * (Issue #294 — cleanup_db() may drop DB before MSHUTDOWN). */
+	bool is_persistent;
 } fbird_db_link;
 
 typedef struct {

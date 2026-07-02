@@ -34,74 +34,11 @@ env:
 
 jobs:
   # ===========================================================================
-  # CI Gate: Wait for CI/Sanitizers/Code Quality to pass before building
-  # ===========================================================================
-  ci-gate:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - name: Check required workflows passed on this commit
-        run: |
-          set +e
-          set -u
-          SHA="${{ github.sha }}"
-          MAX_WAIT=1080   # 18 minutes
-          INTERVAL=30
-          ELAPSED=0
-
-          # Workflow filenames that must pass (CI, Sanitizers, Code Quality)
-          REQUIRED=("ci.yml" "sanitizers.yml" "code-quality.yml")
-
-          while [ $ELAPSED -lt $MAX_WAIT ]; do
-            ALL_DONE=true
-            ALL_PASSED=true
-
-            for wf in "${REQUIRED[@]}"; do
-              RESULT=$(gh run list --workflow "$wf" --branch "$GITHUB_REF_NAME" --limit 1 \
-                --json status,conclusion 2>/dev/null | jq '.[0] // empty' || true)
-              STATUS=$(echo "$RESULT" | jq -r '.status // "not_found"' || true)
-              CONCLUSION=$(echo "$RESULT" | jq -r '.conclusion // ""' || true)
-
-              if [ "$STATUS" = "not_found" ] || [ -z "$STATUS" ]; then
-                echo "  $wf: not found (waiting)"
-                ALL_DONE=false
-              elif [ "$STATUS" != "completed" ]; then
-                echo "  $wf: $STATUS (waiting)"
-                ALL_DONE=false
-              elif [ "$CONCLUSION" != "success" ]; then
-                echo "  $wf: $CONCLUSION (FAILED)"
-                ALL_PASSED=false
-              else
-                echo "  $wf: success"
-              fi
-            done
-
-            if [ "$ALL_DONE" = "true" ]; then
-              if [ "$ALL_PASSED" = "true" ]; then
-                echo "All required CI workflows passed"
-                exit 0
-              else
-                echo "One or more required CI workflows failed"
-                exit 1
-              fi
-            fi
-
-            echo "Waiting for CI workflows... (${ELAPSED}s / ${MAX_WAIT}s)"
-            sleep $INTERVAL
-            ELAPSED=$((ELAPSED + INTERVAL))
-          done
-
-          echo "Timeout waiting for CI workflows to complete"
-          exit 1
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-  # ===========================================================================
   # Generate build matrix using php-windows-builder/extension-matrix
   # Reads PHP constraints from composer.json
   # ===========================================================================
   get-extension-matrix:
-    # needs: ci-gate  # TODO fix for tag runs
+    # CI gate removed — relies on pre-tag verification (scripts/verify-ci-green.sh)
     runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.extension-matrix.outputs.matrix }}
@@ -199,8 +136,6 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
-      id-token: write
-      attestations: write
     if: |
       github.event_name == 'release' ||
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
@@ -223,28 +158,10 @@ jobs:
           path: artifacts
 
       - name: Upload Windows DLLs to GitHub Release
-        run: |
-          TAG="${{ steps.tag.outputs.tag }}"
-          echo "Uploading Windows artifacts to release: $TAG"
-          find artifacts -name "*.zip" -type f | while read -r zip_file; do
-            echo "Uploading: $(basename "$zip_file")"
-            gh release upload "$TAG" "$zip_file" --clobber
-          done
-          echo "Upload complete."
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          files: artifacts/**/*.zip
+          fail_on_unmatched_files: true
+          draft: true
 
-      - name: Generate SLSA Provenance Attestations
-        run: |
-          echo "Generating SLSA provenance attestations for Windows artifacts..."
-          find artifacts -name "*.zip" -type f | while read -r artifact; do
-            echo "Attesting: $(basename "$artifact")"
-            gh attestation generate "$artifact" \
-              --repo "${{ github.repository }}" \
-              --signer github 2>&1 || echo "WARNING: Attestation failed for $(basename "$artifact")"
-          done
-          echo "Attestation generation complete."
-          echo "Verify with: gh attestation verify <artifact> --repo ${{ github.repository }}"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

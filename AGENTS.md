@@ -42,3 +42,46 @@ This project targets **L3 conformance** (Discovery).
 - **PDO Driver**: `pdo_fbird/`.
 
 Agents MUST maintain consistency between the three layers when introducing new features.
+
+---
+
+## Release Procedure
+
+### Pre-Tag Checklist
+
+1. **Verify CI green**: `bash scripts/verify-ci-green.sh` — all 4 workflows must pass
+2. **Run local test matrix**: `bash scripts/test_matrix.sh` — all 12 containers must pass
+3. **Verify version stamps**: `bash scripts/check-version-stamps.sh`
+4. **Update CHANGELOG.md** with release notes
+5. **Bump version**: Update `VERSION.txt` and `stubs/*.php` `@version` tags
+
+### Tagging Rules
+
+- **NEVER force-push a tag.** Once `git push origin v*` succeeds, the tag is immutable.
+- If a release is broken: delete tag + release entirely, fix, re-tag with a NEW tag (e.g., `v11.0.2`).
+- Tag format: `vMAJOR.MINOR.PATCH` (e.g., `v11.0.1`)
+
+### Release Pipeline Architecture
+
+```
+Tag push v*
+  |
+  +-- CI, Code Quality, Sanitizers, Coverage (validation, already passed)
+  |
+  +-- Release (Linux)   -> prepare -> build -> test-bundles -> upload (draft:true)
+  +-- Release (macOS)   -> prepare -> build -> test-bundles -> upload (draft:true)
+  +-- Release (Windows) -> get-matrix -> build -> upload (draft:true)
+  |
+  +-- Split Stubs       -> split stubs/ to satwareAG/php-firebird-stubs
+  |
+  +-- Publish Release   -> waits for all 3 platform workflows
+                           -> generates SLSA attestations
+                           -> generates checksums
+                           -> publishes release (draft:false)
+```
+
+**Key rules**:
+- Platform workflows upload with `draft: true` via `softprops/action-gh-release@v3`
+- The `publish-release.yml` workflow is the ONLY one that flips `draft: false`
+- SLSA attestations are generated centrally in `publish-release.yml`
+- The split-stubs workflow deletes any pre-existing tag in the stubs repo before re-creating

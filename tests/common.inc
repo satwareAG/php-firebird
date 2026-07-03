@@ -1,5 +1,19 @@
 <?php
 
+// ============================================================================
+// Service Manager Teardown Pattern (OC-10)
+// ============================================================================
+// When a test calls FBIRD_RPR_VALIDATE_DB and the database is marked as
+// "damaged", subsequent tests inherit that damaged state. The correct
+// teardown sequence is:
+//
+//   1. FBIRD_RPR_VALIDATE_DB + FBIRD_RPR_FULL  — check for errors
+//   2. FBIRD_RPR_MEND_DB    + FBIRD_RPR_FULL  — repair if needed
+//   3. FBIRD_RPR_VALIDATE_DB + FBIRD_RPR_FULL  — verify no remaining errors
+//
+// See fbird_service_validate_mend_cycle.phpt for a working example.
+// ============================================================================
+
 function test_use_after_fbird_free_query() {
 	$batch_count = 5;
 

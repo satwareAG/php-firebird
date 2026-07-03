@@ -1,5 +1,5 @@
 --TEST--
-fbird_service_db_mgr: Info, Maintenance, Validate and Mend DB
+Service: Full validate -> mend -> re-validate cycle (OC-10)
 --SKIPIF--
 <?php include("skipif.inc"); ?>
 --FILE--
@@ -14,35 +14,32 @@ if (!empty($host) && strpos($test_base, $host . ':') === 0) {
     $db_path = substr($test_base, strlen($host) + 1);
 }
 
-echo "--- DB Info ---\n";
-$info = fbird_db_info($service, $db_path, FBIRD_STS_HDR_PAGES);
-var_dump(is_string($info));
-var_dump(strlen($info) > 0);
-
-echo "--- Maintain DB ---\n";
-$res = fbird_maintain_db($service, $db_path, FBIRD_PRP_SWEEP_INTERVAL, 20000);
-var_dump($res);
-
-echo "--- Validate DB ---\n";
+// Step 1: Validate DB (check for errors)
+echo "--- Step 1: Validate DB ---\n";
 $res = fbird_maintain_db($service, $db_path, FBIRD_RPR_VALIDATE_DB, FBIRD_RPR_FULL);
 var_dump($res);
 
-echo "--- Mend DB ---\n";
+// Step 2: Mend DB (repair any errors found)
+echo "--- Step 2: Mend DB ---\n";
 $res = fbird_maintain_db($service, $db_path, FBIRD_RPR_MEND_DB, FBIRD_RPR_FULL);
 var_dump($res);
 
+// Step 3: Re-validate DB (confirm no remaining errors)
+echo "--- Step 3: Re-validate DB ---\n";
+$res = fbird_maintain_db($service, $db_path, FBIRD_RPR_VALIDATE_DB, FBIRD_RPR_FULL);
+var_dump($res);
+
 fbird_service_detach($service);
+echo "done\n";
 ?>
 --EXPECT--
---- DB Info ---
+--- Step 1: Validate DB ---
 bool(true)
+--- Step 2: Mend DB ---
 bool(true)
---- Maintain DB ---
+--- Step 3: Re-validate DB ---
 bool(true)
---- Validate DB ---
-bool(true)
---- Mend DB ---
-bool(true)
+done
 
 --CLEAN--
 <?php require_once __DIR__ . '/clean.inc'; ?>

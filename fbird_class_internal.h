@@ -6,6 +6,7 @@
 #include "php.h"
 #include "php_fbird_includes.h"
 #include "fbird_classes.h"
+#include "fbird_service_types.h"
 
 extern zend_class_entry *fbird_connection_exception_ce;
 extern zend_class_entry *fbird_query_exception_ce;
@@ -85,16 +86,7 @@ zend_object *fbird_blob_create_obj(zend_class_entry *ce);
 void fbird_blob_free_obj(zend_object *obj);
 extern const zend_function_entry fbird_blob_methods[];
 
-/* Service */
-typedef struct {
-	zend_resource *svc_res;
-	void        *fbsvc;
-	zend_object  std;
-} fbird_service_obj;
-static inline fbird_service_obj *fbird_service_from_obj(zend_object *obj) {
-	return (fbird_service_obj *)((char *)obj - XtOffsetOf(fbird_service_obj, std));
-}
-#define Z_FBIRD_SERVICE_P(zv) fbird_service_from_obj(Z_OBJ_P(zv))
+/* Service — unified struct in fbird_service_types.h */
 extern zend_object_handlers fbird_service_handlers;
 zend_object *fbird_service_create_obj(zend_class_entry *ce);
 void fbird_service_free_obj(zend_object *obj);

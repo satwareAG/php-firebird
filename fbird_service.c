@@ -44,10 +44,10 @@ static void _php_fbird_free_service(zend_resource *rsrc)
 {
 	fbird_service *sv = (fbird_service *) rsrc->ptr;
 
-	if (sv->fbsvc_service) {
-		fbsvc_detach(IBG(master_instance), sv->fbsvc_service, IB_STATUS);
-		fbsvc_free(sv->fbsvc_service);
-		sv->fbsvc_service = NULL;
+	if (sv->fbsvc) {
+		fbsvc_detach(IBG(master_instance), sv->fbsvc, IB_STATUS);
+		fbsvc_free(sv->fbsvc);
+		sv->fbsvc = NULL;
 	}
 
 	if (sv->hostname) {
@@ -192,7 +192,7 @@ static void _php_fbird_user(INTERNAL_FUNCTION_PARAMETERS, char operation)
 	}
 
 	/* now start the job */
-	if (!fbsvc_start(IBG(master_instance), svm->fbsvc_service,
+	if (!fbsvc_start(IBG(master_instance), svm->fbsvc,
 			(unsigned short)spb_len, (const unsigned char *)buf, IB_STATUS)) {
 		FBIRD_SVC_ERROR(svm);
 		RETURN_FALSE;
@@ -290,8 +290,8 @@ PHP_FUNCTION(fbird_service_attach)
 	svm = (fbird_service*)emalloc(sizeof(fbird_service));
 	svm->hostname = hlen > 0 ? estrdup(host) : NULL;
 	svm->username = ulen > 0 ? estrdup(user) : NULL;
-	svm->fbsvc_service = fbsvc_attach(IBG(master_instance), loc, p, (const unsigned char *)buf, IB_STATUS);
-	if (!svm->fbsvc_service) {
+	svm->fbsvc = fbsvc_attach(IBG(master_instance), loc, p, (const unsigned char *)buf, IB_STATUS);
+	if (!svm->fbsvc) {
 		_php_fbird_error();
 		efree(svm->hostname);
 		efree(svm->username);
@@ -340,7 +340,7 @@ static void _php_fbird_service_query(INTERNAL_FUNCTION_PARAMETERS,
 	if (info_action == isc_info_svc_get_users) {
 		static char action[] = { isc_action_svc_display_user };
 
-		if (!fbsvc_start(IBG(master_instance), svm->fbsvc_service,
+		if (!fbsvc_start(IBG(master_instance), svm->fbsvc,
 				sizeof(action), (const unsigned char *)action, IB_STATUS)) {
 			FBIRD_SVC_ERROR(svm);
 			RETURN_FALSE;
@@ -350,7 +350,7 @@ static void _php_fbird_service_query(INTERNAL_FUNCTION_PARAMETERS,
 query_loop:
 	result = res_buf;
 
-	if (!fbsvc_query(IBG(master_instance), svm->fbsvc_service,
+	if (!fbsvc_query(IBG(master_instance), svm->fbsvc,
 			sizeof(spb), (const unsigned char *)spb,
 			1, (const unsigned char *)&info_action,
 			sizeof(res_buf), (unsigned char *)res_buf, IB_STATUS)) {
@@ -526,7 +526,7 @@ static void _php_fbird_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operati
 	}
 
 	/* now start the backup/restore job */
-	if (!fbsvc_start(IBG(master_instance), svm->fbsvc_service,
+	if (!fbsvc_start(IBG(master_instance), svm->fbsvc,
 			(unsigned short)spb_len, (const unsigned char *)buf, IB_STATUS)) {
 		FBIRD_SVC_ERROR(svm);
 		RETURN_FALSE;
@@ -631,7 +631,7 @@ options_argument:
 		RETURN_FALSE;
 	}
 
-	if (!fbsvc_start(IBG(master_instance), svm->fbsvc_service,
+	if (!fbsvc_start(IBG(master_instance), svm->fbsvc,
 			(unsigned short)spb_len, (const unsigned char *)buf, IB_STATUS)) {
 		FBIRD_SVC_ERROR(svm);
 		RETURN_FALSE;

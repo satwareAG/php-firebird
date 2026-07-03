@@ -14,8 +14,8 @@ zend_object_handlers fbird_service_handlers;
 
 zend_object *fbird_service_create_obj(zend_class_entry *ce)
 {
-	fbird_service_obj *intern = zend_object_alloc(sizeof(fbird_service_obj), ce);
-	intern->svc_res = NULL;
+	fbird_service *intern = zend_object_alloc(sizeof(fbird_service), ce);
+	intern->res = NULL;
 	intern->fbsvc = NULL;
 	zend_object_std_init(&intern->std, ce);
 	object_properties_init(&intern->std, ce);
@@ -25,9 +25,9 @@ zend_object *fbird_service_create_obj(zend_class_entry *ce)
 
 void fbird_service_free_obj(zend_object *obj)
 {
-	fbird_service_obj *intern = fbird_service_from_obj(obj);
-	if (intern->svc_res) {
-		intern->svc_res = NULL;
+	fbird_service *intern = fbird_service_from_obj(obj);
+	if (intern->res) {
+		intern->res = NULL;
 		intern->fbsvc = NULL;
 		zend_object_std_dtor(obj);
 		return;
@@ -43,17 +43,17 @@ void fbird_service_free_obj(zend_object *obj)
 
 zend_resource *fbird_service_get_resource(zend_object *obj)
 {
-	fbird_service_obj *intern = fbird_service_from_obj(obj);
-	return intern ? intern->svc_res : NULL;
+	fbird_service *intern = fbird_service_from_obj(obj);
+	return intern ? intern->res : NULL;
 }
 
 void fbird_setup_service_object(zval *return_value, zend_resource *res)
 {
 	zval_ptr_dtor(return_value);
 	object_init_ex(return_value, fbird_service_ce);
-	fbird_service_obj *intern = Z_FBIRD_SERVICE_P(return_value);
-	intern->svc_res = res;
-	intern->fbsvc = res && res->ptr ? ((fbird_service *)res->ptr)->fbsvc_service : NULL;
+	fbird_service *intern = Z_FBIRD_SERVICE_P(return_value);
+	intern->res = res;
+	intern->fbsvc = res && res->ptr ? ((fbird_service *)res->ptr)->fbsvc : NULL;
 }
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_service_construct, 0, 0, 3)
@@ -93,9 +93,9 @@ PHP_METHOD(FirebirdService, __construct)
 		RETURN_THROWS();
 	}
 
-	fbird_service_obj *intern = Z_FBIRD_SERVICE_P(ZEND_THIS);
-	if (intern->svc_res && intern->svc_res->ptr) {
-		intern->fbsvc = ((fbird_service *)intern->svc_res->ptr)->fbsvc_service;
+	fbird_service *intern = Z_FBIRD_SERVICE_P(ZEND_THIS);
+	if (intern->res && intern->res->ptr) {
+		intern->fbsvc = ((fbird_service *)intern->res->ptr)->fbsvc;
 	}
 
 	char buf[256];
@@ -132,10 +132,10 @@ ZEND_END_ARG_INFO()
 PHP_METHOD(FirebirdService, detach)
 {
 	ZEND_PARSE_PARAMETERS_NONE();
-	fbird_service_obj *intern = Z_FBIRD_SERVICE_P(ZEND_THIS);
-	if (intern->svc_res) {
-		zend_list_delete(intern->svc_res);
-		intern->svc_res = NULL;
+	fbird_service *intern = Z_FBIRD_SERVICE_P(ZEND_THIS);
+	if (intern->res) {
+		zend_list_delete(intern->res);
+		intern->res = NULL;
 		intern->fbsvc = NULL;
 		return;
 	}
@@ -153,9 +153,9 @@ ZEND_END_ARG_INFO()
 PHP_METHOD(FirebirdService, isAttached)
 {
 	ZEND_PARSE_PARAMETERS_NONE();
-	fbird_service_obj *intern = Z_FBIRD_SERVICE_P(ZEND_THIS);
-	if (intern->svc_res && intern->svc_res->ptr) {
-		intern->fbsvc = ((fbird_service *)intern->svc_res->ptr)->fbsvc_service;
+	fbird_service *intern = Z_FBIRD_SERVICE_P(ZEND_THIS);
+	if (intern->res && intern->res->ptr) {
+		intern->fbsvc = ((fbird_service *)intern->res->ptr)->fbsvc;
 	}
 	RETURN_BOOL(intern->fbsvc && fbsvc_is_attached(intern->fbsvc));
 }
@@ -166,9 +166,9 @@ ZEND_END_ARG_INFO()
 PHP_METHOD(FirebirdService, getServerVersion)
 {
 	ZEND_PARSE_PARAMETERS_NONE();
-	fbird_service_obj *intern = Z_FBIRD_SERVICE_P(ZEND_THIS);
-	if (intern->svc_res && intern->svc_res->ptr) {
-		intern->fbsvc = ((fbird_service *)intern->svc_res->ptr)->fbsvc_service;
+	fbird_service *intern = Z_FBIRD_SERVICE_P(ZEND_THIS);
+	if (intern->res && intern->res->ptr) {
+		intern->fbsvc = ((fbird_service *)intern->res->ptr)->fbsvc;
 	}
 	if (!intern->fbsvc) {
 		zend_throw_exception(fbird_service_exception_ce, "Not attached", 0);

@@ -108,8 +108,13 @@ No breaking changes. All improvements are backward-compatible.
 - [ ] No struct definition loss: confirm all struct definitions exist in their canonical `.c` files
 - [ ] Header file inventory updated in any documentation referencing it
 
-#### QH-4c: Service struct unification (C5)
-- [ ] `fbird_service` (defined in `fbird_service.c:17`) and `fbird_service_rsrc` (defined in `fbird_classes.c:868`) unified into single canonical struct
+#### QH-4c: Service struct unification (C5) — CARRIED OVER to v12.0.0 (OC-11)
+
+> **Note 2026-07-03**: Not implemented in v11.1.0. Carried over to v12.0.0 as OC-11.
+> Original spec referenced `fbird_service_rsrc` - actual struct name is `fbird_service_obj`.
+
+- [ ] `fbird_service` (defined in `php_fbird_includes.h:163`) and `fbird_service_obj`
+  (defined in `fbird_classes.c:874`) unified into single canonical struct
 - [ ] Shared struct moved to a new header (e.g. `fbird_service_types.h`) included by both files
 - [ ] Raw pointer casts between the two types eliminated
 - [ ] Service OOP tests pass without modification

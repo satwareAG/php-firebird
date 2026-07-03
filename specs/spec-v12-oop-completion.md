@@ -3,12 +3,13 @@ description: >-
   v12.0.0 OOP completion: test coverage 13%→>50%, --CLEAN-- for 164+ tests,
   dual-bridge pattern updates, Firebird\Event full implementation (Phase H),
   live event testing, OOP helpers in common.inc, typed arginfo annotations,
-  zend_bool→bool migration, RPR_VALIDATE_DB+RPR_MEND_DB teardown pattern.
-tags: [oop, testing, event, arginfo, coverage, v12, phase-h]
+  fbird_classes.c split into per-class files, service struct unification.
+tags: [oop, testing, event, arginfo, coverage, v12, phase-h, refactor]
 priority: 13
 ---
 
 > **Status: ACTIVE** — v12.0.0 OOP completion milestone. Depends on Phase H event implementation before live event tests.
+> **Audit 2026-07-03**: `zend_bool` migration (OC-9) and M6 fuzz dictionary removed - both already done in v11.1.0.
 
 # Spec: v12.0.0 OOP Completion
 
@@ -37,14 +38,13 @@ completes the Event class, and hardens argument type information.
 
 | Metric | Baseline (v11.0.0) | Target (v12.0.0) |
 |--------|-------------------|------------------|
-| OOP API test coverage | 13.1% (31/236 tests) | >50% (>118 tests) |
-| Tests with `--CLEAN--` | 30.5% (72/236) | >80% (>189 tests) |
-| `is_resource()` only test files | 12 files | 0 files |
+| OOP API test coverage | 10.9% (31/284 tests) | >50% (>142 tests) |
+| Tests with `--CLEAN--` | 25.7% (73/284) | >80% (>227 tests) |
+| `is_resource()` only test files | 10 files | 0 files |
 | `Firebird\Event` methods accessible from PHP | 0 | ≥3 (wait, cancel, getName) |
-| Dual-bridge test coverage | 1.7% (4/236) | >10% (>24 tests) |
-| Typed arginfo (procedural) | 0/163 parameters typed | 163/163 typed |
-| Typed arginfo (OOP methods) | 0/9 return types | 9/9 return types |
-| `zend_bool` usages | 13 | 0 |
+| Dual-bridge test coverage | 1.4% (4/284) | >10% (>28 tests) |
+| Typed arginfo (procedural parameters) | 15/174 typed (8.6%) | 174/174 typed |
+| Typed arginfo (OOP method returns) | 0/9 return types | 9/9 return types |
 
 ---
 
@@ -91,7 +91,8 @@ All other items (`OC-1`, `OC-4`–`OC-9`) are independent.
 - [ ] `fbird_wait_event(Firebird\Event $event, float $timeout = -1.0): bool` accepts Firebird\Event object
 - [ ] `arginfo_fbird_event_*` updated with typed return macros
 - [ ] `stubs/firebird-classes.php` updated with `Firebird\Event` method signatures
-- [ ] `phpstan/firebird-event.stub.php` populated with full class definition (currently empty)
+- [ ] `phpstan/firebird-event.stub.php` is intentionally empty (consolidated into
+  `stubs/firebird-classes.php`) - no work required here
 - [ ] Phase H completion closes the "registered but has no methods" gap (C11 from QA report)
 
 ### OC-3: Live Event Testing with Actual DB Triggers (T4)
@@ -122,15 +123,19 @@ All other items (`OC-1`, `OC-4`–`OC-9`) are independent.
 
 ### OC-5: Dual-Bridge Pattern Updates (T3)
 
-- [ ] All 12 test files that use `is_resource()` without OOP fallback updated to dual-bridge pattern
-- [ ] Files updated (per QA audit T3):
-  - `blob_stream_chunked_write.phpt`
-  - `execute_safety_001.phpt`
-  - `fbird_batch_no_params_001.phpt`
-  - `issue120.phpt`
-  - `issue131.phpt`
-  - `test_blob_stream.phpt`
-  - 6 additional files identified in T3
+- [ ] All 10 test files that use `is_resource()` without OOP fallback updated to dual-bridge pattern
+  (audit 2026-07-03: 10 bare files remain, 4 already use OOP fallback)
+- [ ] Files updated (audit 2026-07-03 bare files):
+  - `tests/coverage/events_error_handling.phpt`
+  - `tests/coverage/inspection_deep.phpt`
+  - `tests/fbird_service_001.phpt`
+  - `tests/fbird_blob_001.phpt`
+  - `tests/issue120.phpt`
+  - `tests/test_blob_stream.phpt`
+  - `tests/blob_stream_chunked_write.phpt`
+  - `tests/bug45575.phpt`
+  - `tests/pdo_fbird_blob_handling.phpt` (PDO BLOB handle - may need different pattern than `Firebird\*`)
+  - `tests/pdo_fbird_blob_stream.phpt` (PDO BLOB handle - may need different pattern than `Firebird\*`)
 - [ ] Dual-bridge pattern used: `assert($result instanceof Firebird\ResultSet || is_resource($result))`
   OR pure OOP assertion where function now guarantees object return
 - [ ] New dual-bridge tests target >10% of test suite (>24 tests use both procedural + OOP paths)
@@ -148,7 +153,10 @@ All other items (`OC-1`, `OC-4`–`OC-9`) are independent.
 
 ### OC-7: Typed Arginfo Annotations — Procedural API (C8)
 
-- [ ] All 163 `ZEND_ARG_INFO(0, param)` in `firebird.c` replaced with typed variants:
+> **Audit 2026-07-03**: Return types are 100% done (85/85 arginfo blocks in `firebird.c` carry typed returns).
+> Only **parameters** remain untyped: 159 of 174 procedural parameters.
+
+- [ ] All 159 untyped `ZEND_ARG_INFO(0, param)` in `firebird.c` replaced with typed variants:
   - Connection handle params: `ZEND_ARG_OBJ_INFO(0, connection, Firebird\\Connection, 0)`
   - Transaction handle params: `ZEND_ARG_OBJ_INFO(0, transaction, Firebird\\Transaction, 0)` (with nullable where dual-accept)
   - String params: `ZEND_ARG_TYPE_INFO(0, param, IS_STRING, 0)`
@@ -173,15 +181,10 @@ All other items (`OC-1`, `OC-4`–`OC-9`) are independent.
 - [ ] `stubs/firebird-classes.php` return types match arginfos exactly
 - [ ] `php --re fbird` shows return types on all OOP methods
 
-### OC-9: `zend_bool` → `bool` Migration (C7)
+### OC-9: `zend_bool` → `bool` Migration (C7) — DONE
 
-> **Note**: This overlaps with QH-3c in spec-v11.1-quality-hardening.md. If v11.1 ships
-> this change first, this item is pre-completed for v12.
-
-- [ ] All 13 `zend_bool` usages replaced with `bool` (PHP 8.0+ standard)
-- [ ] Files: `fbird_connection.c`, `fbird_metadata.c`, `fbird_service.c`, `php_fbird_includes.h`
-- [ ] `grep -rn zend_bool ./*.c ./*.h` returns zero results
-- [ ] Compilation warnings about deprecated type eliminated
+> **Status**: Shipped in v11.1.0 (2026-07-02). Zero `zend_bool` occurrences remain.
+> This criterion is retained for historical reference; no v12 work required.
 
 ### OC-10: RPR_VALIDATE_DB + RPR_MEND_DB Teardown Pattern (T5)
 
@@ -189,6 +192,30 @@ All other items (`OC-1`, `OC-4`–`OC-9`) are independent.
 - [ ] Teardown sequence in `--CLEAN--`: `VALIDATE_DB` → if errors → `MEND_DB` → re-validate
 - [ ] Pattern documented in `tests/README.md` (or `tests/common.inc` comment block)
 - [ ] At least one new service test demonstrates the full validate→mend→verify cycle
+
+### OC-11: Service Struct Unification (carry-over from QH-4c)
+
+> **Carry-over**: QH-4c in `spec-v11.1-quality-hardening.md` targeted this for v11.1.0
+> but it was not implemented. Two structs still exist as of 2026-07-03 audit.
+
+- [ ] `fbird_service` (defined in `php_fbird_includes.h:163`) and `fbird_service_obj`
+  (defined in `fbird_classes.c:874`) unified into single canonical struct
+- [ ] Shared struct moved to `fbird_service_types.h` included by both files
+- [ ] Raw pointer casts between the two types eliminated
+- [ ] Note: v11.1 spec referenced `fbird_service_rsrc` - actual name is `fbird_service_obj`
+- [ ] Service OOP tests pass without modification
+
+### OC-12: `fbird_classes.c` Split (Structural Refactor)
+
+> **Prerequisite for OC-2** (Phase H Event). Reduces 1450-line monolith to per-class files
+> matching the `fbird_<area>.c` Layer 1 naming pattern.
+
+- [ ] Create 8 new files: `fbird_class_{connection,transaction,statement,resultset,blob,batch,service,event}.c`
+- [ ] Reduce `fbird_classes.c` to registry only (`fbird_register_classes()` + class entry pointers)
+- [ ] `fbird_classes.h` unchanged (public API stable)
+- [ ] Move each class's: handlers, free_obj, methods array, `PHP_METHOD` implementations, arginfo
+- [ ] Update `config.m4` and `config.w32` with new source files
+- [ ] `make test` passes unchanged; ASAN clean
 
 ---
 
@@ -297,18 +324,17 @@ Phase H completion requires:
 | File | Change |
 |------|--------|
 | `fbird_classes.c` | Phase H event methods, OOP arginfo typed returns |
-| `firebird.c` | Typed arginfo for 163 procedural parameters |
-| `fbird_connection.c` | zend_bool → bool |
-| `fbird_metadata.c` | zend_bool → bool |
-| `fbird_service.c` | zend_bool → bool |
-| `php_fbird_includes.h` | zend_bool → bool |
+| `firebird.c` | Typed arginfo for 159 procedural parameters |
+| `fbird_class_event.c` | New: Phase H event methods (after OC-12 split) |
+| `fbird_class_service.c` | New: service struct unification (after OC-12 split) |
+| `fbird_service_types.h` | New: unified service struct (OC-11) |
 | `tests/common.inc` | Add OOP helpers |
 | `tests/*.phpt` (164+) | Add --CLEAN-- sections |
-| `tests/*.phpt` (12 files) | Update is_resource() → dual-bridge |
+| `tests/*.phpt` (10 files) | Update is_resource() → dual-bridge |
 | `tests/fbird_event_live_001.phpt` | New: live event test |
 | `tests/fbird_service_db_mgr.phpt` | Add RPR_MEND_DB teardown |
 | `stubs/firebird-classes.php` | Phase H event method stubs |
-| `phpstan/firebird-event.stub.php` | Populate full Event class definition |
+| `config.m4` | Add new per-class source files, LTO flag |
 
 ---
 

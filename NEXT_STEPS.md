@@ -1,10 +1,10 @@
 # Next Steps - php-firebird
 
-**Last Updated**: 2026-07-01 (v11.0.1 QA hardening complete; 203 tests pass, 0 warnings)
+**Last Updated**: 2026-07-03 (v11.1.0 shipped; starting v12.0.0 - OOP API Completion)
 
-> **Status**: v11.0.0 shipped (tag `v11.0.0`, commit `ff84b3a`). v11.0.1 QA audit bugs all closed
-> (16 PRs merged, compiler warnings 25→0, memory safety fixes across blob/transaction/service layers).
-> Remaining open work tracked in GitHub issues.
+> **Status**: v11.1.0 shipped (tag `v11.1.0`, published 2026-07-02). All QA hardening items closed
+> (QH-1 through QH-8, #233 batch OOP migration, zend_bool elimination, stubs completeness).
+> v12.0.0 - OOP API Completion milestone started (milestone #21, due 2026-09-29).
 
 ## Immediate (v10.6.x)
 
@@ -44,11 +44,6 @@ All previously open specs confirmed RELEASED and closed (2026-04-07 audit):
 - [x] `spec-v10.4-build-hardening.md`: All criteria met - shipped in v10.4.x (commit 99c7c0f)
 - [x] `spec-v10.4-supply-chain.md`: All criteria met - SLSA, SBOM, Dependabot, version stamps shipped
 
-## Technical Debt
-
-- [ ] macOS x86_64 builds disabled (macos-13 runner deprecated) - evaluate macos-15 x86_64 when available
-- [ ] Coverage threshold still at 54% - target 65%+ with v11.0 test improvements
-
 ## 2026-04-09 AM - PHPStan Code Quality Fix (COMPLETE)
 
 **PR #215 merged** (squash, ff84b3a). M3 Phases A-I complete. #176 closed.
@@ -71,26 +66,43 @@ Issue #213 closed. All pipelines (Linux/macOS/Windows/Stubs/Coverage/Sanitizers)
 
 ## Forward Roadmap (v11.x+)
 
-### v11.1.0 - Quality and Security Hardening (in progress)
+### v11.1.0 - Quality and Security Hardening (SHIPPED 2026-07-02)
 
-All QA audit bugs closed. Remaining items in milestone:
+All QA audit bugs closed. Milestone #20 fully complete (21 closed / 0 open).
 
-- [ ] #233 - Complete M3 migration: `fbird_batch_create` returns `Firebird\BatchHandle` (last RETVAL_RES)
+- [x] #233 - Complete M3 migration: `fbird_batch_create` returns `Firebird\BatchHandle` (CLOSED)
+  - `fbird_batch.c:192` now calls `fbird_setup_batch_object()`; zero `RETVAL_RES` in batch code
 
-### v12.0.0 - OOP API Completion
+### v12.0.0 - OOP API Completion (in progress, milestone #21, due 2026-09-29)
 
-- [ ] #252 - Typed return annotations for all 163 procedural arginfos and 9 OOP method arginfos
-- [ ] #250 - Implement `Firebird\Event` class methods (Phase H completion)
+Major version (non-breaking). OOP API test infra completion, Phase H Event implementation,
+typed arginfo, test coverage overhaul. Also includes `fbird_classes.c` split into per-class files.
+
+**Audit findings (2026-07-03):**
+- `zend_bool` -> `bool` (OC-9): **DONE** in v11.1.0 - removed from v12 scope
+- M6 fuzz dictionary: **DONE** - `fuzz/dictionary/sql.dict` exists (372 lines) - removed from v12 scope
+- `fbird_classes_internal.h` deletion (QH-4b): **DONE** - removed from v12 scope
+
+**Implementation issues (13 total):**
+
+- [ ] #250 - Implement `Firebird\Event` class methods (Phase H) - **blocker for #247**
+- [ ] #247 - Add live Firebird event test using fbird_event_wait with actual DB trigger
 - [ ] #244 - Expand OOP API test coverage from 13% to >50%
-- [ ] #245 - Add `--CLEAN--` sections to all state-modifying tests (164 files)
-- [ ] #246 - Update 12 test files from `is_resource()` to `instanceof Firebird\*` dual-bridge
+- [ ] #245 - Add `--CLEAN--` sections to all state-modifying tests (154 more needed, target >80% of 284)
+- [ ] #246 - Update 10 test files from `is_resource()` to `instanceof Firebird\*` dual-bridge
 - [ ] #249 - OOP-aware helper functions in `tests/common.inc`
+- [ ] #252 - Typed arginfo: 159 procedural parameters + 9 OOP method return types
+- [ ] #248 - Implement RPR_MEND_DB teardown after RPR_VALIDATE_DB in fbird_service_db_mgr.phpt
+- [ ] #257 - Windows builds missing DLLs for some PHP versions
+- [ ] #258 - `php_pdo_unregister_driver` undefined symbol on Rocky Linux (#150 regression)
+- [ ] L1 - Enable `-flto=auto` in `config.m4` for all builds (Linux workflow-only currently)
+- [ ] M8 - Replace pointer smoking in `IBG(status[])` with proper output parameter (172 usages)
+- [ ] OC-11 - Unify `fbird_service` and `fbird_service_obj` structs (carry-over from QH-4c)
+
+**Structural refactor (prerequisite for Phase H):**
+- [ ] Split `fbird_classes.c` (1450 lines, 8 classes) into `fbird_class_{connection,transaction,statement,resultset,blob,batch,service,event}.c` + registry stub
 
 ### Backlog (unscheduled)
 
-- [ ] #257 - Windows builds missing DLLs for some PHP versions
-- [ ] #258 - `php_pdo_unregister_driver` undefined symbol on Rocky Linux (#150 regression)
-- [ ] L1 - Add LTO for release builds (`-flto=auto`)
-- [ ] M6 - Create fuzz dictionary for Firebird SQL
-- [ ] M8 - Replace pointer smuggling in `IBG(status[])` with proper output parameter
-- [ ] macOS precompiled universal binary builds
+- [ ] macOS x86_64 builds disabled (macos-13 runner deprecated) - evaluate macos-15 x86_64 when available
+- [ ] Coverage threshold still at 54% - target 65%+ with v12.0 test improvements

@@ -32,7 +32,7 @@ void fbird_resultset_free(zend_object *obj)
 	zend_object_std_dtor(obj);
 }
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_resultset_fetch, 0, 0, 0)
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_resultset_fetch, 0, 0, MAY_BE_ARRAY|MAY_BE_FALSE)
 ZEND_END_ARG_INFO()
 
 PHP_METHOD(FirebirdResultSet, fetch)

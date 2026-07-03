@@ -33,7 +33,7 @@ void fbird_statement_free(zend_object *obj)
 	zend_object_std_dtor(obj);
 }
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_statement_execute, 0, 0, 1)
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_statement_execute, 0, 1, MAY_BE_OBJECT)
 	ZEND_ARG_OBJ_INFO(0, transaction, Firebird\\Transaction, 0)
 ZEND_END_ARG_INFO()
 

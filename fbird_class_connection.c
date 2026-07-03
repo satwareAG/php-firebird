@@ -132,7 +132,7 @@ PHP_METHOD(FirebirdConnection, ping)
 	RETURN_BOOL(link && link->fbc_connection && fbc_is_connected(link->fbc_connection));
 }
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_connection_beginTransaction, 0, 0, 0)
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_connection_beginTransaction, 0, 0, MAY_BE_OBJECT)
 ZEND_END_ARG_INFO()
 
 PHP_METHOD(FirebirdConnection, beginTransaction)
@@ -156,7 +156,7 @@ PHP_METHOD(FirebirdConnection, beginTransaction)
 	}
 }
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_fbird_connection_prepare, 0, 0, 2)
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_connection_prepare, 0, 2, MAY_BE_OBJECT)
 	ZEND_ARG_TYPE_INFO(0, sql, IS_STRING, 0)
 	ZEND_ARG_OBJ_INFO(0, transaction, Firebird\\Transaction, 0)
 ZEND_END_ARG_INFO()

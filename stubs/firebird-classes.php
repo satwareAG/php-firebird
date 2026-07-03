@@ -161,10 +161,10 @@ class Statement
     /**
      * Execute the statement.
      * @param mixed ...$params Bind parameters.
-     * @return ResultSet|bool ResultSet for SELECT, true for DML/DDL.
+     * @return ResultSet ResultSet for SELECT, DML, and DDL.
      * @throws Exception
      */
-    public function execute(mixed ...$params): ResultSet|bool {}
+    public function execute(mixed ...$params): ResultSet {}
 }
 
 /**

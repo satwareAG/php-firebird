@@ -122,12 +122,11 @@ class Connection
 
     /**
      * Prepare a SQL statement.
-     * @param string           $sql         SQL text.
-     * @param Transaction|null $transaction Transaction context.
-     * @param int              $dialect     SQL dialect override.
+     * @param string $sql SQL text.
+     * @param Transaction $transaction Transaction context (required).
      * @throws Exception
      */
-    public function prepare(string $sql, ?Transaction $transaction = null, int $dialect = 3): Statement {}
+    public function prepare(string $sql, \Firebird\Transaction $transaction): Statement {}
 }
 
 /**
@@ -160,11 +159,11 @@ class Statement
 
     /**
      * Execute the statement.
-     * @param mixed ...$params Bind parameters.
+     * @param Transaction $transaction Active transaction context
      * @return ResultSet ResultSet for SELECT, DML, and DDL.
      * @throws Exception
      */
-    public function execute(mixed ...$params): ResultSet {}
+    public function execute(\Firebird\Transaction $transaction): ResultSet {}
 }
 
 /**

@@ -94,7 +94,7 @@ if test "$PHP_FIREBIRD" != "no"; then
   AC_DEFINE(HAVE_FIREBIRD,1,[ ])
 
   dnl Base source files (always compiled)
-  FIREBIRD_SOURCES="firebird.c fbird_error.c fbird_connection.c fbird_transaction.c fbird_batch.c fbird_query_exec.c fbird_query_prepare.c fbird_query_bind.c fbird_query_array.c fbird_datetime.c fbird_result.c fbird_metadata.c fbird_service.c fbird_events.c fbird_blobs.c fbird_inspection.c fbird_classes.c"
+  FIREBIRD_SOURCES="firebird.c fbird_error.c fbird_connection.c fbird_transaction.c fbird_batch.c fbird_query_exec.c fbird_query_prepare.c fbird_query_bind.c fbird_query_array.c fbird_datetime.c fbird_result.c fbird_metadata.c fbird_service.c fbird_events.c fbird_blobs.c fbird_inspection.c fbird_classes.c fbird_class_connection.c fbird_class_transaction.c fbird_class_statement.c fbird_class_resultset.c fbird_class_blob.c fbird_class_service.c fbird_class_event.c fbird_class_batch.c"
 
   dnl Check for PDO availability (required for pdo_fbird integration)
   ifdef([PHP_CHECK_PDO_INCLUDES],

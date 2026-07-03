@@ -53,6 +53,14 @@ if (PHP_FIREBIRD != 'no') {
                                'fbird_result.c ' +
                                'fbird_service.c ' +
                                'fbird_classes.c ' +
+                               'fbird_class_connection.c ' +
+                               'fbird_class_transaction.c ' +
+                               'fbird_class_statement.c ' +
+                               'fbird_class_resultset.c ' +
+                               'fbird_class_blob.c ' +
+                               'fbird_class_service.c ' +
+                               'fbird_class_event.c ' +
+                               'fbird_class_batch.c ' +
                                'firebird_utils.cpp';
 
         // Register extension

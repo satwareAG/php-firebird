@@ -304,18 +304,18 @@ function fbird_create_database(
 ): \Firebird\Connection|false {}
 
 /**
- * @param resource $link_identifier Connection resource
+ * @param mixed $link_identifier Connection resource
  * @param string $sequence Generator/sequence name
  * @return int|false
  */
-function fbird_last_insert_id(mixed $link_identifier, string $sequence): int|false {}
+function fbird_last_insert_id(mixed $link_identifier, ?string $sequence = null): int|false {}
 
 // ============================================================================
 // QUERY FUNCTIONS
 // ============================================================================
 
 /**
- * @param resource|string $link_or_query
+ * @param mixed $link_or_query
  * @param mixed ...$args
  * @return \Firebird\ResultSet|int|bool
  */
@@ -331,29 +331,29 @@ function fbird_query(mixed $link_or_query, mixed ...$args): \Firebird\ResultSet|
  * - fbird_prepare(resource $trans, string $query)
  * - fbird_prepare(resource $trans, resource $link, string $query)
  *
- * @param resource|string|null $link_or_trans_or_query Link, transaction, or query string
- * @param resource|string|null $link_or_trans_or_query_2 Link, transaction, or query string
+ * @param mixed $link_or_trans_or_query Link, transaction, or query string
+ * @param mixed $link_or_trans_or_query_2 Link, transaction, or query string
  * @param string|null $query Query string when first two args are resources
- * @return resource|false
+ * @return \Firebird\Statement|false
  */
 function fbird_prepare(
     mixed $link_or_trans_or_query,
     mixed $link_or_trans_or_query_2 = null,
     ?string $query = null
-): mixed {}
+): \Firebird\Statement|false {}
 
 /**
  * Prepare with fixed signature: connection, query, optional transaction.
- * @param resource $link_identifier
+ * @param mixed $link_identifier
  * @param string $query
- * @param resource|null $trans_handle
- * @return resource|false
+ * @param mixed $trans_handle
+ * @return \Firebird\Statement|false
  */
 function fbird_prepare_ex(
     mixed $link_identifier,
     string $query,
     mixed $trans_handle = null
-): mixed {}
+): \Firebird\Statement|false {}
 
 /**
  * @param resource|\Firebird\ResultSet $query
@@ -363,7 +363,7 @@ function fbird_prepare_ex(
 function fbird_execute(mixed $query, mixed ...$bind_args): \Firebird\ResultSet|int|bool {}
 
 /**
- * @param resource $trans_handle
+ * @param mixed $trans_handle
  * @param string $query
  * @param array<int, mixed>|null $params
  * @return int|false
@@ -371,40 +371,40 @@ function fbird_execute(mixed $query, mixed ...$bind_args): \Firebird\ResultSet|i
 function fbird_execute_statement(mixed $trans_handle, string $query, ?array $params = null): int|false {}
 
 /**
- * @param resource $trans_handle
+ * @param mixed $trans_handle
  * @param string $query
  * @param array<int, mixed>|null $params
- * @return resource|false
+ * @return \Firebird\ResultSet|false
  */
-function fbird_execute_query(mixed $trans_handle, string $query, ?array $params = null): mixed {}
+function fbird_execute_query(mixed $trans_handle, string $query, ?array $params = null): \Firebird\ResultSet|false {}
 
 /**
- * @param resource $link_identifier
+ * @param mixed $link_identifier
  * @param string $query
  * @param array<int, mixed>|null $params
- * @return resource|int|false
+ * @return \Firebird\ResultSet|int|false
  */
-function fbird_execute_auto(mixed $link_identifier, string $query, ?array $params = null): mixed {}
+function fbird_execute_auto(mixed $link_identifier, string $query, ?array $params = null): \Firebird\ResultSet|int|false {}
 
 /**
  * Execute a parameterized query with explicit link and transaction.
- * @param resource $link_identifier Connection resource
+ * @param mixed $link_identifier Connection resource
  * @param \Firebird\Transaction|resource $trans_handle Transaction object or legacy resource
  * @param string $query SQL statement
  * @param array<mixed>|null $params Bind parameters
- * @return resource|int|false
+ * @return \Firebird\ResultSet|int|false
  * @since 7.1.0
  */
-function fbird_query_params_tx(mixed $link_identifier, mixed $trans_handle, string $query, ?array $params = null): mixed {}
+function fbird_query_params_tx(mixed $link_identifier, mixed $trans_handle, string $query, ?array $params = null): \Firebird\ResultSet|int|false {}
 
 /**
- * @param resource $query
+ * @param mixed $query
  * @return bool
  */
 function fbird_free_query(mixed $query): bool {}
 
 /**
- * @param resource $result
+ * @param mixed $result
  * @return bool
  */
 function fbird_free_result(mixed $result): bool {}
@@ -414,28 +414,28 @@ function fbird_free_result(mixed $result): bool {}
 // ============================================================================
 
 /**
- * @param resource $result
+ * @param mixed $result
  * @param int $fetch_flags
  * @return array<int, mixed>|false
  */
 function fbird_fetch_row(mixed $result, int $fetch_flags = 0): array|false {}
 
 /**
- * @param resource $result
+ * @param mixed $result
  * @param int $fetch_flags
  * @return array<string, mixed>|false
  */
 function fbird_fetch_assoc(mixed $result, int $fetch_flags = 0): array|false {}
 
 /**
- * @param resource $result
+ * @param mixed $result
  * @param int $fetch_flags
  * @return object|false
  */
 function fbird_fetch_object(mixed $result, int $fetch_flags = 0): object|false {}
 
 /**
- * @param resource $result
+ * @param mixed $result
  * @param string $name
  * @return bool
  */
@@ -446,32 +446,32 @@ function fbird_name_result(mixed $result, string $name): bool {}
 // ============================================================================
 
 /**
- * @param resource $result
+ * @param mixed $result
  * @return int|false
  */
 function fbird_num_fields(mixed $result): int|false {}
 
 /**
- * @param resource $query
+ * @param mixed $query
  * @return int|false
  */
 function fbird_num_params(mixed $query): int|false {}
 
 /**
- * @param resource|null $link
+ * @param mixed $link
  * @return int
  */
 function fbird_affected_rows(mixed $link = null): int {}
 
 /**
- * @param resource $result
+ * @param mixed $result
  * @param int $field_number
  * @return array<string, mixed>|false
  */
 function fbird_field_info(mixed $result, int $field_number): array|false {}
 
 /**
- * @param resource $query
+ * @param mixed $query
  * @param int $param_number
  * @return array<string, mixed>|false
  */
@@ -482,7 +482,7 @@ function fbird_param_info(mixed $query, int $param_number): array|false {}
 // ============================================================================
 
 /**
- * @param resource|int|null $link_or_flags
+ * @param mixed $link_or_flags
  * @param mixed ...$args
  * @return \Firebird\Transaction|false
  */
@@ -497,52 +497,52 @@ function fbird_trans(mixed $link_or_flags = null, mixed ...$args): \Firebird\Tra
  * New form (options array) as used by `Firebird\TBuilder::build()`:
  *   fbird_trans_start($link, ['readCommitted' => true, 'lockTimeout' => 5, ...])
  *
- * @param resource $link Database connection
+ * @param mixed $link Database connection
  * @param int|array<string, array<string, int>|bool|int> $options Transaction options
  * @return \Firebird\Transaction|false Transaction handle or false on error
  */
 function fbird_trans_start(mixed $link, mixed $options = 0): \Firebird\Transaction|false {}
 
 /**
- * @param resource|null $link
+ * @param mixed $link
  * @return bool
  */
 function fbird_commit(mixed $link = null): bool {}
 
 /**
- * @param resource|null $link
+ * @param mixed $link
  * @return bool
  */
 function fbird_rollback(mixed $link = null): bool {}
 
 /**
- * @param resource|null $link
+ * @param mixed $link
  * @return bool
  */
 function fbird_commit_ret(mixed $link = null): bool {}
 
 /**
- * @param resource|null $link
+ * @param mixed $link
  * @return bool
  */
 function fbird_rollback_ret(mixed $link = null): bool {}
 
 /**
- * @param resource $link
+ * @param mixed $link
  * @param string $name
  * @return bool
  */
 function fbird_savepoint(mixed $link, string $name): bool {}
 
 /**
- * @param resource $link
+ * @param mixed $link
  * @param string $name
  * @return bool
  */
 function fbird_rollback_savepoint(mixed $link, string $name): bool {}
 
 /**
- * @param resource $link
+ * @param mixed $link
  * @param string $name
  * @return bool
  */
@@ -551,7 +551,7 @@ function fbird_release_savepoint(mixed $link, string $name): bool {}
 /**
  * Get transaction information.
  *
- * @param resource $trans_handle Transaction resource
+ * @param mixed $trans_handle Transaction resource
  * @return array<string, mixed>|false Transaction info array or false on failure
  */
 function fbird_trans_info(mixed $trans_handle): array|false {}
@@ -569,20 +569,20 @@ function fbird_trans_info(mixed $trans_handle): array|false {}
 function fbird_blob_create(mixed $link = null): \Firebird\Blob|false {}
 
 /**
- * @param resource $blob
+ * @param mixed $blob
  * @param string $data
  * @return bool
  */
 function fbird_blob_add(mixed $blob, string $data): bool {}
 
 /**
- * @param resource $blob
+ * @param mixed $blob
  * @return string|false
  */
 function fbird_blob_close(mixed $blob): string|false {}
 
 /**
- * @param resource $blob
+ * @param mixed $blob
  * @return bool
  */
 function fbird_blob_cancel(mixed $blob): bool {}
@@ -601,41 +601,41 @@ function fbird_blob_cancel(mixed $blob): bool {}
 function fbird_blob_open(mixed $link_or_blob_id, ?string $blob_id = null): \Firebird\Blob|false {}
 
 /**
- * @param resource $blob
+ * @param mixed $blob
  * @param int $length
  * @return string|false
  */
 function fbird_blob_get(mixed $blob, int $length): string|false {}
 
 /**
- * @param resource|string $link_or_id
+ * @param mixed $link_or_id
  * @param string|null $blob_id
  * @return bool
  */
 function fbird_blob_echo(mixed $link_or_id, ?string $blob_id = null): bool {}
 
 /**
- * @param resource|string $link_or_id
+ * @param mixed $link_or_id
  * @param string|null $blob_id
  * @return array<string, mixed>|false
  */
 function fbird_blob_info(mixed $link_or_id, ?string $blob_id = null): array|false {}
 
 /**
- * @param resource $link
- * @param resource $file
+ * @param mixed $link
+ * @param mixed $file
  * @return string|false
  */
 function fbird_blob_import(mixed $link, mixed $file): string|false {}
 
 /**
- * @param resource|null $link
+ * @param mixed $link
  * @return resource|false
  */
 function fbird_blob_create_stream(mixed $link = null): mixed {}
 
 /**
- * @param resource|string $link_or_id
+ * @param mixed $link_or_id
  * @param string|null $blob_id
  * @return resource|false
  */
@@ -655,7 +655,7 @@ function fbird_blob_create_seekable(mixed $link = null): \Firebird\Blob|false {}
 function fbird_blob_open_seekable(mixed $link_or_id, ?string $blob_id = null): \Firebird\Blob|false {}
 
 /**
- * @param resource $blob
+ * @param mixed $blob
  * @param int $offset
  * @param int $whence
  * @return int|false
@@ -669,7 +669,7 @@ function fbird_blob_seek(mixed $blob, int $offset, int $whence = 0): int|false {
 /**
  * @param string $generator
  * @param int $increment
- * @param resource|null $link
+ * @param mixed $link
  * @return int|string|false
  */
 function fbird_gen_id(string $generator, int $increment = 1, mixed $link = null): int|string|false {}
@@ -737,7 +737,7 @@ function fbird_get_exception_mode(): int {}
 // ============================================================================
 
 /**
- * @param resource|string $link_or_event
+ * @param mixed $link_or_event
  * @param string ...$events
  * @return string|false
  */
@@ -754,14 +754,14 @@ function fbird_set_event_handler(mixed $link_or_callback, mixed $callback_or_eve
 /**
  * Poll for event occurrences (non-blocking).
  *
- * @param resource|null $event Event handler resource
+ * @param mixed $event Event handler resource
  * @param int $timeout_ms Timeout in milliseconds (default: 0 = non-blocking)
  * @return array<string, int>|int|false Event counts, timeout indicator, or false on error
  */
-function fbird_poll_event(mixed $event, int $timeout_ms = 0): mixed {}
+function fbird_poll_event(mixed $event, int $timeout_ms = 0): array|int|false {}
 
 /**
- * @param resource $event
+ * @param mixed $event
  * @return bool
  */
 function fbird_free_event_handler(mixed $event): bool {}
@@ -917,7 +917,7 @@ function fbird_get_client_minor_version(): int {}
  * - ods_minor_version: On-Disk Structure minor version
  * - sql_dialect: SQL dialect in use
  *
- * @param resource|null $link_identifier Database connection resource
+ * @param mixed $link_identifier Database connection resource
  * @return array<string, int>|false Connection statistics array or false on error
  */
 function fbird_connection_info(mixed $link_identifier = null): array|false {}
@@ -929,7 +929,7 @@ function fbird_connection_info(mixed $link_identifier = null): array|false {}
 /**
  * Get list of limbo (in-doubt) transaction IDs.
  *
- * @param resource|null $link_identifier Database connection
+ * @param mixed $link_identifier Database connection
  * @param int $max_count Maximum number of IDs to retrieve (1-10000)
  * @return array<int, int>|false Array of transaction IDs or false on error
  */
@@ -938,11 +938,11 @@ function fbird_get_limbo_transactions(mixed $link_identifier = null, int $max_co
 /**
  * Reconnect to a limbo transaction for recovery.
  *
- * @param resource $link_identifier Database connection
+ * @param mixed $link_identifier Database connection
  * @param int $transaction_id The limbo transaction ID
- * @return resource|false Transaction handle or false on error
+ * @return \Firebird\Transaction|false Transaction handle or false on error
  */
-function fbird_reconnect_transaction(mixed $link_identifier, int $transaction_id): mixed {}
+function fbird_reconnect_transaction(mixed $link_identifier, int $transaction_id): \Firebird\Transaction|false {}
 
 // ============================================================================
 // BATCH API FUNCTIONS (Firebird 4.0+ Bulk Operations)
@@ -951,11 +951,11 @@ function fbird_reconnect_transaction(mixed $link_identifier, int $transaction_id
 /**
  * Create a batch from a prepared statement for bulk operations.
  *
- * @param resource $query Prepared statement resource
- * @param resource|null $trans_identifier Transaction resource (optional)
- * @return \Firebird\BatchHandle|resource|false Batch handle or false on error
+ * @param mixed $query Prepared statement resource
+ * @param mixed $trans_identifier Transaction resource (optional)
+ * @return \Firebird\BatchHandle|false Batch handle or false on error
  */
-function fbird_batch_create(mixed $query, mixed $trans_identifier = null): mixed {}
+function fbird_batch_create(mixed $query, mixed $trans_identifier = null): \Firebird\BatchHandle|false {}
 
 /**
  * Add a row of parameters to the batch.
@@ -1039,7 +1039,7 @@ function fbird_batch_set_default_bpb(mixed $batch, string $bpb): bool {}
 /**
  * Kill a database attachment by ID.
  *
- * @param resource $link_or_trans Connection or transaction resource
+ * @param mixed $link_or_trans Connection or transaction resource
  * @param int $attachment_id Attachment ID to kill
  * @return bool True on success, false on error
  */
@@ -1048,7 +1048,7 @@ function fbird_kill_attachment(mixed $link_or_trans, int $attachment_id): bool {
 /**
  * List attachments blocking a table.
  *
- * @param resource $link_or_trans Connection or transaction resource
+ * @param mixed $link_or_trans Connection or transaction resource
  * @param string $table_name Table name to check
  * @return array<int, array{attachment_id: int, user: string}>|false Blocker info or false on error
  */
@@ -1057,7 +1057,7 @@ function fbird_list_table_blockers(mixed $link_or_trans, string $table_name): ar
 /**
  * Force drop a table by killing blocking attachments.
  *
- * @param resource $link_or_trans Connection or transaction resource
+ * @param mixed $link_or_trans Connection or transaction resource
  * @param string $table_name Table name to drop
  * @return bool True on success, false on error
  */

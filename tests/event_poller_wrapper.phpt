@@ -12,6 +12,11 @@ include __DIR__ . '/skipif.inc';
 /**
  * Test the PHP Event Poller wrapper classes for timeout support.
  *
+ * NOTE: This test exercises the PHP-userland strategy pattern only
+ * (ProcessEventPoller, PcntlEventPoller, FiberEventPoller). It does
+ * NOT test live Firebird events via DB triggers. For live event
+ * testing, see fbird_event_live_001.phpt.
+ *
  * This test verifies:
  * 1. All wrapper classes can be loaded
  * 2. Factory detection works correctly

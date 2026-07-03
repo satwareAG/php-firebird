@@ -20,6 +20,15 @@ zend_class_entry *fbird_connection_exception_ce;
 zend_class_entry *fbird_query_exception_ce;
 zend_class_entry *fbird_service_exception_ce;
 
+zend_class_entry *fbird_connection_ce;
+zend_class_entry *fbird_transaction_ce;
+zend_class_entry *fbird_statement_ce;
+zend_class_entry *fbird_resultset_ce;
+zend_class_entry *fbird_blob_ce;
+zend_class_entry *fbird_service_ce;
+zend_class_entry *fbird_event_ce;
+zend_class_entry *fbird_batch_ce;
+
 void fbird_register_classes(void)
 {
 	zend_class_entry ce;
@@ -81,7 +90,7 @@ void fbird_register_classes(void)
 	fbird_service_handlers.offset    = XtOffsetOf(fbird_service_obj, std);
 	fbird_service_handlers.free_obj  = fbird_service_free_obj;
 
-	INIT_CLASS_ENTRY(ce, "Firebird\\Event", NULL);
+	INIT_CLASS_ENTRY(ce, "Firebird\\Event", fbird_event_methods);
 	fbird_event_ce = zend_register_internal_class(&ce);
 	fbird_event_ce->create_object = fbird_event_create_obj;
 	memcpy(&fbird_event_handlers, zend_get_std_object_handlers(),

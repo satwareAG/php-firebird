@@ -153,6 +153,7 @@ typedef struct event {
 	unsigned short buffer_size;
 	int callback_count;
 	int max_callbacks;
+	char *last_fired_event; /* Phase H: name of last event that fired (for Event::getName()) */
 	/* Phase 7: OO API event wrapper (fb::EventsWrapper* from fbe_queue())
 	 * When non-NULL, events are queued via the modern OO API.
 	 * Note: The current polling model continues to use isc_wait_for_event()

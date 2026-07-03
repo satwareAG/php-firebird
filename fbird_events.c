@@ -100,6 +100,11 @@ void _php_fbird_free_event(fbird_event *event)
 			event->result_buffer = NULL;
 		}
 
+		if (event->last_fired_event) {
+			efree(event->last_fired_event);
+			event->last_fired_event = NULL;
+		}
+
 		for (i = 0; i < event->event_count; ++i) {
 			if (event->events[i]) {
 				efree(event->events[i]);
@@ -333,6 +338,7 @@ PHP_FUNCTION(fbird_set_event_handler)
 	event->buffer_size = 0;
 	event->callback_count = 0;
 	event->max_callbacks = 1000; /* Safety limit for polling */
+	event->last_fired_event = NULL;
 	event->event_id = 0;
 	event->event_buffer = NULL;
 	event->result_buffer = NULL;
@@ -377,9 +383,9 @@ PHP_FUNCTION(fbird_set_event_handler)
 }
 
 #ifndef PHP_WIN32
-/* Signal handler for alarm-based timeout */
-static volatile sig_atomic_t fbird_timeout_occurred = 0;
-static void fbird_timeout_handler(int sig) {
+/* Signal handler for alarm-based timeout (shared with fbird_class_event.c) */
+volatile sig_atomic_t fbird_timeout_occurred = 0;
+void fbird_timeout_handler(int sig) {
 	(void)sig;
 	fbird_timeout_occurred = 1;
 }
@@ -573,6 +579,11 @@ PHP_FUNCTION(fbird_poll_event)
 			ZVAL_STRING(&args[0], event->events[i]);
 
 			event->callback_count++;
+
+			if (event->last_fired_event) {
+				efree(event->last_fired_event);
+			}
+			event->last_fired_event = estrdup(event->events[i]);
 
 			/**
 			 * Call the PHP callback - THREAD-SAFE!

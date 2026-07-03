@@ -28,6 +28,36 @@ if (extension_loaded('fbird')) {
 final class Event
 {
     private function __construct() {}
+
+    /**
+     * Block until an event fires or timeout expires.
+     * @param float $timeout Timeout in seconds (-1.0 = block forever, 0.0 = return immediately)
+     * @return bool True if event fired, false on timeout/error
+     * @since 12.0.0
+     */
+    public function wait(float $timeout = -1.0): bool {}
+
+    /**
+     * Cancel a pending event wait.
+     * @return bool True on success, false if already cancelled
+     * @since 12.0.0
+     */
+    public function cancel(): bool {}
+
+    /**
+     * Get the name of the last event that fired.
+     * Returns the first registered event name if none fired yet.
+     * @return string Event name
+     * @since 12.0.0
+     */
+    public function getName(): string {}
+
+    /**
+     * Get the number of times the event callback has been invoked.
+     * @return int Callback invocation count
+     * @since 12.0.0
+     */
+    public function getCount(): int {}
 }
 
 /**

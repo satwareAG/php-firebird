@@ -112,6 +112,13 @@ static inline fbird_event_obj *fbird_event_from_obj(zend_object *obj) {
 extern zend_object_handlers fbird_event_handlers;
 zend_object *fbird_event_create_obj(zend_class_entry *ce);
 void fbird_event_free_obj(zend_object *obj);
+extern const zend_function_entry fbird_event_methods[];
+
+/* Signal-based timeout (shared between fbird_events.c and fbird_class_event.c) */
+#ifndef PHP_WIN32
+extern volatile sig_atomic_t fbird_timeout_occurred;
+void fbird_timeout_handler(int sig);
+#endif
 
 /* Batch (FB4+) */
 #if FB_API_VER >= 40

@@ -9,10 +9,12 @@ require("firebird.inc");
 echo "Connecting with fbird_connect()...\n";
 $conn = fbird_connect($test_base, $user, $password);
 
-if (is_resource($conn)) {
-    echo "Current behavior: Result is a resource\n";
+if ($conn instanceof \Firebird\Connection) {
+    echo "OOP behavior: Result is Firebird\\Connection object\n";
+} elseif (is_resource($conn)) {
+    echo "Legacy behavior: Result is a resource\n";
 } elseif (is_object($conn)) {
-    echo "Proposed behavior: Result is an object (" . get_class($conn) . ")\n";
+    echo "Unknown object: " . get_class($conn) . "\n";
 } else {
     echo "Unknown type: " . gettype($conn) . "\n";
 }
@@ -21,4 +23,4 @@ fbird_close($conn);
 ?>
 --EXPECTF--
 Connecting with fbird_connect()...
-Proposed behavior: Result is an object (Firebird\Connection)
+OOP behavior: Result is Firebird\Connection object

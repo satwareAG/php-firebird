@@ -212,11 +212,11 @@ try {
         echo "   Callback (default link): $event\n";
     }, 'EVENT_DEFAULT_LINK', 'EVENT_DEFAULT_LINK2');
 
-    if (is_resource($handler)) {
+    if ($handler instanceof \Firebird\Event || is_resource($handler)) {
         echo "   PASS - Handler created with default link\n";
         fbird_free_event_handler($handler);
     } else {
-        echo "   FAIL - Should return resource\n";
+        echo "   FAIL - Should return Firebird\\Event or resource\n";
     }
 } catch (TypeError $e) {
     // If default link is not supported or signature mismatch

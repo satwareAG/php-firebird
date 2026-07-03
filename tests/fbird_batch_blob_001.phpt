@@ -177,11 +177,4 @@ All BLOB data verified successfully
 DONE
 
 --CLEAN--
-<?php
-require_once 'firebird.inc';
-$db = @fbird_connect($test_base, $user, $password);
-if ($db) {
-    @fbird_query($db, "DROP TABLE BATCH_BLOB_TEST");
-    @fbird_close($db);
-}
-?>
+<?php require_once __DIR__ . '/clean.inc'; ?>

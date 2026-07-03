@@ -48,3 +48,5 @@ Row ID: 1
 V_VARCHAR count: 10
 V_VARCHAR[1] length: 100
 Done
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>

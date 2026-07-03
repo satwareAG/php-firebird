@@ -36,11 +36,4 @@ Connecting with default_charset=UTF8...
 UTF8 data roundtrip successful
 
 --CLEAN--
-<?php
-require_once 'firebird.inc';
-$db = @fbird_connect($test_base, $user, $password);
-if ($db) {
-    @fbird_query($db, "DROP TABLE test_charset");
-    @fbird_close($db);
-}
-?>
+<?php require_once __DIR__ . '/clean.inc'; ?>

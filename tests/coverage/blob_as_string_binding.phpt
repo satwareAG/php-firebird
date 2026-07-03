@@ -117,3 +117,5 @@ bool(true)
 Test 9: long blob stored (non-null)
 bool(true)
 Done
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

@@ -77,12 +77,4 @@ bool(true)
 bool(true)
 done
 --CLEAN--
-<?php
-require __DIR__ . '/../firebird.inc';
-$dbh = fbird_connect($test_base);
-if ($dbh) {
-    @fbird_query($dbh, "DROP TABLE qptx_test");
-    fbird_commit($dbh);
-    fbird_close($dbh);
-}
-?>
+<?php require_once __DIR__ . '/../clean.inc'; ?>

@@ -123,3 +123,5 @@ Test 8: READ COMMITTED sees committed data
 bool(true)
 bool(true)
 Done
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

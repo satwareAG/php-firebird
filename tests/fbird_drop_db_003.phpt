@@ -30,8 +30,4 @@ bool(true)
 Fatal error: Uncaught TypeError: fbird_drop_db(): Argument #1 ($link_identifier) must be of type resource, int given in %a
 
 --CLEAN--
-<?php
-require_once 'firebird.inc';
-// Database creation tests - DB dropped in --FILE-- section.
-// This --CLEAN-- is a safety net for crash recovery.
-?>
+<?php require_once __DIR__ . '/clean.inc'; ?>

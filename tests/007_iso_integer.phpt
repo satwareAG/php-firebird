@@ -42,3 +42,5 @@ Row ID: 1
 V_INT[1]: 100
 V_INT[10]: 1000
 Done
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>

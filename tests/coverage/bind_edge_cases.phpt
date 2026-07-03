@@ -140,3 +140,5 @@ array(4) {
   NULL
 }
 Done
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

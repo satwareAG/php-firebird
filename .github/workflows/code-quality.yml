@@ -71,6 +71,11 @@ jobs:
           chmod +x scripts/check-stubs-sync.sh
           bash scripts/check-stubs-sync.sh
 
+      - name: Check --CLEAN-- sections for DDL tests
+        run: |
+          chmod +x scripts/check-clean-sections.sh
+          bash scripts/check-clean-sections.sh
+
   # ==========================================================================
   # C/C++ Static Analysis (clang-tidy + cppcheck)
   # ==========================================================================

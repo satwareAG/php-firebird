@@ -56,3 +56,6 @@ bool(true)
 bool(true)
 --- Validate DB ---
 bool(true)
+
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>

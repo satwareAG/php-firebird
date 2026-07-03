@@ -31,3 +31,5 @@ fbird_close($conn);
 --EXPECT--
 Started transaction with default_trans_params=8 (WRITE)
 Insert succeeded in WRITE transaction
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>

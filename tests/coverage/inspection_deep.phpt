@@ -357,3 +357,5 @@ Connected to Firebird
 %A   PASS - Returned false for non-existent table
 
 === All Inspection Error Tests Complete ===
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

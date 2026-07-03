@@ -91,3 +91,5 @@ ID=2 B=false V='no'
 ID=3 B=null V='null'
 ID=4 B=true V=NULL
 Done
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

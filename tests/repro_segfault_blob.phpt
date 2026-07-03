@@ -48,12 +48,7 @@ fbird_commit($trans);
 
 echo "Done\n";
 ?>
---CLEAN--
-<?php
-require("firebird.inc");
-$x = fbird_connect($test_base);
-@fbird_query($x, "DROP TABLE test_blobs");
-fbird_close($x);
-?>
 --EXPECTF--
 Done
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>

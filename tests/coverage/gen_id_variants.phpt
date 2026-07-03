@@ -83,3 +83,5 @@ bool(true)
 Test 8: gen_id via default connection
 bool(true)
 Done
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

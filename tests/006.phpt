@@ -298,3 +298,5 @@ prepare and exec select
 10	
 ---
 end of test
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>

@@ -139,3 +139,5 @@ bool(true)
 Test 7: cancelled rows not inserted
 bool(true)
 Done
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

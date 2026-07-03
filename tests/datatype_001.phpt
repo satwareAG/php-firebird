@@ -61,3 +61,5 @@ array(17) {
   ["TIMESTAMP_TZ"]=>
   string(31) "2025-11-06 15:45:59 Europe/Riga"
 }
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>

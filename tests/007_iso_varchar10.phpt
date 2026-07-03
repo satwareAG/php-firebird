@@ -47,3 +47,5 @@ Row ID: 1
 V_VARCHAR[1]: test1
 V_VARCHAR[10]: test10
 Done
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>

@@ -97,17 +97,6 @@ fbird_close($link);
 
 echo "\nDone.\n";
 ?>
---CLEAN--
-<?php
-// Cleanup in separate process to avoid shutdown race conditions
-require("firebird.inc");
-$link = @fbird_connect($test_base, $user, $password);
-if ($link) {
-    @fbird_query($link, "DROP TABLE test_datetime");
-    @fbird_commit($link);
-    @fbird_close($link);
-}
-?>
 --EXPECTF--
 === Test FBIRD_FETCH_DATE_OBJ constant exists ===
 bool(true)
@@ -140,3 +129,5 @@ NULL time_col is null: bool(true)
 NULL timestamp_col is null: bool(true)
 
 Done.
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>

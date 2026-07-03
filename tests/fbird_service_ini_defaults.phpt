@@ -68,3 +68,6 @@ OK: Server version query succeeded
 OK: Service attach with empty strings used INI defaults
 
 Done.
+
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>

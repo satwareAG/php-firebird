@@ -168,3 +168,7 @@ restore.php
 run_events_test.php
 test_error.php
 .env.bak
+pdo_fbird_root.c
+pdo_fbird_driver.c
+pdo_fbird_stmt.c
+pdo_fbird_error.c

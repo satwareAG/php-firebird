@@ -55,7 +55,7 @@ if [ -d pdo_fbird ] && [ -f pdo_fbird/config.m4 ]; then
     log_info "Building pdo_fbird as separate extension..."
     (cd pdo_fbird && \
         phpize && \
-        ./configure --with-pdo-fbird ${FBIRD_CONFIGURE_EXTRA:-} && \
+        ./configure --with-pdo-fbird --with-firebird="$FIREBIRD_PATH" ${FBIRD_CONFIGURE_EXTRA:-} && \
         make -j$(nproc))
     log_info "pdo_fbird extension: $(pwd)/pdo_fbird/modules/pdo_fbird.so"
     log_info "Note: pdo_fbird PDO driver is a separate extension (load after firebird)"

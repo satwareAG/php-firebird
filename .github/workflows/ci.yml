@@ -479,7 +479,7 @@ jobs:
           make -j"$(nproc)"
 
           # Build pdo_fbird as separate extension
-          (cd pdo_fbird && phpize && ./configure --with-pdo-fbird && make -j"$(nproc)")
+          (cd pdo_fbird && phpize && ./configure --with-pdo-fbird --with-firebird=/opt/firebird-client && make -j"$(nproc)")
 
           echo "Extension built successfully"
           ls -la modules/firebird.so
@@ -770,7 +770,7 @@ jobs:
           make -j"$(sysctl -n hw.ncpu)"
 
           # Build pdo_fbird as separate extension
-          (cd pdo_fbird && phpize && ./configure --with-pdo-fbird && make -j"$(sysctl -n hw.ncpu)")
+          (cd pdo_fbird && phpize && ./configure --with-pdo-fbird --with-firebird="${FB_CLIENT_DIR}" && make -j"$(sysctl -n hw.ncpu)")
 
           echo "Extension built successfully"
           ls -la modules/firebird.so

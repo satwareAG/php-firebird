@@ -426,7 +426,7 @@ jobs:
           make -j$(nproc)
           
           # Build pdo_fbird as separate extension
-          (cd pdo_fbird && phpize && ./configure --with-pdo-fbird && make -j$(nproc))
+          (cd pdo_fbird && phpize && ./configure --with-pdo-fbird --with-firebird="${FB_ROOT}" && make -j$(nproc))
           
           # Verify
           ls -la modules/firebird.so

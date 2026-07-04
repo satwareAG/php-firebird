@@ -319,7 +319,7 @@ jobs:
           make -j"$(nproc)"
 
           # Build pdo_fbird as separate extension
-          (cd pdo_fbird && phpize && ./configure --with-pdo-fbird && make -j"$(nproc)")
+          (cd pdo_fbird && phpize && ./configure --with-pdo-fbird --with-firebird=/opt/firebird-client && make -j"$(nproc)")
 
           echo "Extension built successfully"
 

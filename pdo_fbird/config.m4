@@ -6,6 +6,12 @@ PHP_ARG_WITH([pdo-fbird],
   [AS_HELP_STRING([--with-pdo-fbird],
     [Include PDO Firebird driver using fbird: DSN prefix])])
 
+PHP_ARG_WITH([firebird],
+  [for Firebird client library],
+  [AS_HELP_STRING([--with-firebird[=DIR]],
+    [Firebird client install prefix (default: autodetect)])],
+  [yes])
+
 if test "$PHP_PDO_FBIRD" != "no"; then
 
   AC_DEFINE(HAVE_PDO_FBIRD,1,[Whether pdo_fbird is available])
@@ -28,7 +34,14 @@ if test "$PHP_PDO_FBIRD" != "no"; then
   FIREBIRD_INCDIR=""
   FIREBIRD_LIBDIR=""
 
-  for i in /usr /usr/local /opt/firebird; do
+  dnl Build search path: explicit --with-firebird=DIR first, then defaults
+  FB_SEARCH_PATHS=""
+  if test "$PHP_FIREBIRD" != "no" && test "$PHP_FIREBIRD" != "yes"; then
+    FB_SEARCH_PATHS="$PHP_FIREBIRD"
+  fi
+  FB_SEARCH_PATHS="$FB_SEARCH_PATHS /usr /usr/local /opt/firebird"
+
+  for i in $FB_SEARCH_PATHS; do
     if test -f "$i/include/firebird/Interface.h"; then
       FIREBIRD_INCDIR="$i/include"
       FIREBIRD_LIBDIR="$i/lib"
@@ -42,7 +55,7 @@ if test "$PHP_PDO_FBIRD" != "no"; then
   done
 
   if test -z "$FIREBIRD_INCDIR"; then
-    AC_MSG_ERROR([Firebird client headers not found. Install libfbclient-dev.])
+    AC_MSG_ERROR([Firebird client headers not found. Install libfbclient-dev or specify --with-firebird=DIR.])
   fi
 
   PHP_ADD_INCLUDE($FIREBIRD_INCDIR)

@@ -3,7 +3,7 @@
 [![CI](https://github.com/satwareAG/php-firebird/actions/workflows/ci.yml/badge.svg)](https://github.com/satwareAG/php-firebird/actions/workflows/ci.yml)
 [![License: PHP-3.01](https://img.shields.io/badge/License-PHP--3.01-blue.svg)](LICENSE)
 [![PHP 8.2+](https://img.shields.io/badge/PHP-8.2%2B-8892BF.svg)](https://www.php.net/)
-[![Version](https://img.shields.io/badge/version-11.0.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-12.0.0-blue.svg)](CHANGELOG.md)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/satwareAG/php-firebird)
 
 A high-performance PHP extension providing native connectivity to Firebird databases. This modernized version targets PHP 8.2+ with C++17 standards and comprehensive development tooling.
@@ -17,12 +17,13 @@ A high-performance PHP extension providing native connectivity to Firebird datab
 - **Modern C++ OO API**: Uses Firebird 3.0+ Object-Oriented API with RAII wrappers — zero legacy `isc_*` calls
 - **Modern PHP**: Optimized for PHP 8.2+ with typed properties and attributes
 - **Layer 1 — `fbird_*` procedural API**: Full-featured function-based interface for Firebird-specific features
-- **Layer 2 — `Firebird\*` OOP classes**: Native C-registered PHP classes (`Connection`, `Transaction`, `Statement`, `ResultSet`, `Blob`, `Service`) with Firebird-specific features
-- **Layer 3 — `pdo_fbird` PDO driver**: Separate `pdo_fbird.so` with `fbird:` DSN prefix, compatible with PDO without colliding with PHP's bundled `pdo_firebird`
+- **Layer 2 — `Firebird\*` OOP classes**: Native C-registered PHP classes (`Connection`, `Transaction`, `Statement`, `ResultSet`, `Blob`, `Service`, `Event`) with Firebird-specific features
+- **Layer 3 — `pdo_fbird` PDO driver**: Separate `pdo_fbird.so` extension with `fbird:` DSN prefix, compatible with PDO without colliding with PHP's bundled `pdo_firebird`. Load after `firebird.so`.
 - **Exception Mode API**: PDO-style exception handling with runtime switchable error modes (SILENT/THROW)
 - **Memory Safety**: Built with AddressSanitizer and comprehensive static analysis
 - **Cross-Platform**: Linux, Windows, macOS support
 - **Clean API**: `fbird_*` function prefix (no legacy InterBase naming)
+- **LTO Optimized**: Link-Time Optimization enabled by default for GCC 8+ (auto-disabled for PHP < 8.3 and sanitizers)
 
 ## API Layers
 
@@ -76,7 +77,7 @@ This extension provides three complementary API layers:
 
 > **Note**: glibc 2.28+ required for glibc precompiled binaries; musl 1.2+ for Alpine binaries. PHP 8.2+ is required.
 
-#### Precompiled Binary Matrix (v11.0.0+)
+#### Precompiled Binary Matrix (v12.0.0+)
 
 | Platform | Architectures | PHP Versions | Variants | Bundles |
 |----------|--------------|--------------|----------|---------|
@@ -436,6 +437,9 @@ fbird_close($db);
 ; php.ini settings
 extension=firebird.so
 
+; PDO Firebird driver (optional, load AFTER firebird.so)
+extension=pdo_fbird.so
+
 ; Output format defaults (for displaying date/time values)
 fbird.timestampformat = "%Y-%m-%d %H:%M:%S"
 fbird.dateformat = "%Y-%m-%d"
@@ -443,6 +447,7 @@ fbird.timeformat = "%H:%M:%S"
 ```
 
 > **⚠️ Breaking Change (v7.0)**: INI settings have been renamed from `ibase.*` to `fbird.*`. Update your php.ini configuration accordingly.
+> **⚠️ Breaking Change (v12.0)**: `pdo_fbird` is now a separate extension. Add `extension=pdo_fbird.so` to your `php.ini` (after `firebird.so`) to use the `fbird:` PDO DSN.
 
 ### Supported Input Date/Time Formats
 
@@ -561,6 +566,7 @@ extension=interbase.so
 
 ; NEW (add this)
 extension=firebird.so
+extension=pdo_fbird.so   ; optional: only if using PDO with fbird: DSN (v12.0+)
 ```
 
 #### Build Flag Changes
@@ -869,10 +875,19 @@ Add to your `psalm.xml`:
 - `fbird_delete_user()` - Delete a user
 
 ### Event Functions
-- `fbird_set_event_handler()` - Register event handler
+- `fbird_set_event_handler()` - Register event handler (returns `Firebird\Event`)
 - `fbird_free_event_handler()` - Free event handler
 - `fbird_wait_event()` - Wait for event
 - `fbird_poll_event()` - Poll for events with optional timeout
+
+**OOP Event API (v12.0+):**
+```php
+$event = fbird_set_event_handler($conn, $callback, 'MY_EVENT');
+$event->wait(5.0);    // Block up to 5 seconds
+$event->getName();    // Get event name
+$event->getCount();   // Get callback invocation count
+$event->cancel();     // Cancel pending wait
+```
 
 ### Batch Functions (Firebird 4.0+)
 - `fbird_batch_create()` - Create batch from prepared statement for bulk INSERT
@@ -930,7 +945,7 @@ See the [EventPoller documentation](docs/OO_WRAPPER_IMPLEMENTATION.md) for imple
 
 ## Version Compatibility
 
-### Current Version: 11.0.0 (Stable Release)
+### Current Version: 12.0.0 (Stable Release)
 
 **Supported PHP Versions:**
 - PHP 8.2 (fully supported, minimum)
@@ -953,22 +968,23 @@ See the [EventPoller documentation](docs/OO_WRAPPER_IMPLEMENTATION.md) for imple
 
 > **ℹ️ Firebird 2.5 Server**: Firebird 2.5 reached EOL in September 2020 and is no longer supported as of v7.2.0. Please migrate to Firebird 3.0+.
 
-### Precompiled Binaries (v11.0.0+)
+### Precompiled Binaries (v12.0.0+)
 
-Starting with v11.0.0, we provide 40 precompiled bundles across Linux (glibc + musl), macOS (arm64), and Windows:
+Starting with v12.0.0, we provide precompiled bundles across Linux (glibc + musl), macOS (arm64), and Windows. Both `firebird.so` and `pdo_fbird.so` are included:
 
 ```bash
 # Download from GitHub Releases (example: Linux x86_64 glibc)
-wget https://github.com/satwareAG/php-firebird/releases/download/v11.0.0/php-firebird-11.0.0-php84-nts-linux-x86_64.tar.gz
+wget https://github.com/satwareAG/php-firebird/releases/download/v12.0.0/php-firebird-12.0.0-php84-nts-linux-x86_64.tar.gz
 
 # Extract to PHP extension directory
 EXTDIR=$(php -r 'echo ini_get("extension_dir");')
-sudo tar -xzf php-firebird-11.0.0-php84-nts-linux-x86_64.tar.gz -C "$EXTDIR" --strip-components=1
+sudo tar -xzf php-firebird-12.0.0-php84-nts-linux-x86_64.tar.gz -C "$EXTDIR" --strip-components=1
 
-# Enable and verify
+# Enable and verify (both extensions required)
 echo "extension=firebird.so" | sudo tee /etc/php/8.4/mods-available/firebird.ini
-sudo phpenmod firebird
-php -m | grep firebird
+echo "extension=pdo_fbird.so" | sudo tee /etc/php/8.4/mods-available/pdo_fbird.ini
+sudo phpenmod firebird pdo_fbird
+php -m | grep -E 'firebird|pdo_fbird'
 ```
 
 **Package Compatibility:**
@@ -1005,6 +1021,8 @@ After installing PHP 8.1+, install the precompiled extension bundle matching you
 - ❌ Firebird 2.5 client library (requires OO API from FB 3.0+ client)
 - ❌ `ibase_*` function aliases (use `fbird_*` instead)
 - ❌ `interbase.so` extension name (use `firebird.so`)
+- ❌ Integrated `pdo_fbird` in `firebird.so` (v12.0: load `pdo_fbird.so` separately)
+- ❌ `IB`/`ib_`/`ibase` internal naming (v12.0: all renamed to `FB`/`fb_`/`fbird`)
 
 ## Security
 

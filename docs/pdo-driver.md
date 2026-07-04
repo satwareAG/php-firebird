@@ -1,10 +1,27 @@
 # Firebird PDO Driver (pdo_fbird)
 
-The `pdo_fbird` extension is a separate PDO driver for Firebird databases using the `fbird:` DSN prefix. It avoids collision with PHP's bundled `pdo_firebird` driver (`firebird:` DSN) and provides deep integration with Firebird-specific features via the modern OO API.
+The `pdo_fbird` extension is a **standalone** PDO driver for Firebird databases
+using the `fbird:` DSN prefix. It avoids collision with PHP's bundled
+`pdo_firebird` driver (`firebird:` DSN) and provides deep integration with
+Firebird-specific features via the modern OO API.
+
+> **v12.0.0 Breaking Change**: `pdo_fbird` is no longer compiled into
+> `firebird.so`. It must be loaded as a separate extension after `firebird.so`.
 
 ## Installation
 
-The `pdo_fbird` driver is built separately from the main `firebird` extension:
+The `pdo_fbird` driver is built as a separate extension from the main
+`firebird` extension. Both extensions are built from the same source tree:
+
+```bash
+# From the repository root — builds both firebird.so and pdo_fbird.so
+phpize
+./configure --with-firebird --with-pdo-fbird
+make
+make install
+```
+
+Or build pdo_fbird standalone:
 
 ```bash
 cd pdo_fbird
@@ -14,9 +31,9 @@ make
 make install
 ```
 
-Add to `php.ini`:
+Add to `php.ini` (order matters — `pdo_fbird.so` must load AFTER `firebird.so`):
 ```ini
-extension=firebird.so   ; must be loaded first
+extension=firebird.so
 extension=pdo_fbird.so
 ```
 

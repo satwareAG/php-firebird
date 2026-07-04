@@ -150,6 +150,45 @@ $svc->detach();
 
 ---
 
+### `Firebird\Event`
+
+Opaque event handle returned by `fbird_set_event_handler()`. Provides OOP
+methods for waiting, cancelling, and inspecting events (Phase H, v12.0.0).
+
+```php
+$conn = fbird_connect('/path/to/db.fdb', 'SYSDBA', 'masterkey');
+
+$event = fbird_set_event_handler($conn, function($eventName) {
+    echo "Event fired: $eventName\n";
+    return true; // continue listening
+}, 'ORDER_PLACED', 'ORDER_CANCELLED');
+
+// Block up to 5 seconds for an event
+if ($event->wait(5.0)) {
+    echo "Event: " . $event->getName() . "\n";
+    echo "Count: " . $event->getCount() . "\n";
+} else {
+    echo "Timeout\n";
+}
+
+$event->cancel();
+```
+
+**Methods:**
+
+| Method | Description |
+|--------|-------------|
+| `wait(float $timeout = -1.0): bool` | Block until event fires or timeout. `-1.0` = block forever, `0.0` = non-blocking |
+| `cancel(): bool` | Cancel a pending event wait |
+| `getName(): string` | Get the name of the last event that fired (or first registered name if none fired) |
+| `getCount(): int` | Get the number of times the event callback has been invoked |
+
+> **Note**: `Firebird\Event` cannot be instantiated via `new`. It is returned by
+> `fbird_set_event_handler()`. The procedural `fbird_wait_event()` function accepts
+> both `Firebird\Event` objects and legacy resources (dual-bridge pattern).
+
+---
+
 ### Exception Hierarchy
 
 ```

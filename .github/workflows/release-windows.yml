@@ -191,4 +191,8 @@ jobs:
           files: artifacts/**/*.zip
           fail_on_unmatched_files: true
           draft: true
+        continue-on-error: true
+        # The action sometimes fails on metadata update after successful upload
+        # ("HttpError: Not Found" on asset update). The assets are present,
+        # so we continue and let publish-release.yml handle the final state.
 

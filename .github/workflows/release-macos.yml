@@ -268,7 +268,11 @@ jobs:
 
           make -j"$(sysctl -n hw.ncpu)"
 
+          # Build pdo_fbird as separate extension
+          (cd pdo_fbird && phpize && ./configure --with-pdo-fbird && make -j"$(sysctl -n hw.ncpu)")
+
           ls -la modules/firebird.so
+          ls -la pdo_fbird/modules/pdo_fbird.so
           file modules/firebird.so
 
       - name: Create Bundle
@@ -292,6 +296,10 @@ jobs:
 
           # Copy extension
           cp modules/firebird.so "${DIST_DIR}/firebird.so"
+          # Copy pdo_fbird.so if built
+          if [ -f pdo_fbird/modules/pdo_fbird.so ]; then
+            cp pdo_fbird/modules/pdo_fbird.so "${DIST_DIR}/pdo_fbird.so"
+          fi
 
           # Bundle libfbclient.dylib and its dependencies
           echo "=== Bundling libraries ==="

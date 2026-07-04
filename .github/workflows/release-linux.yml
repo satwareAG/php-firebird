@@ -425,8 +425,12 @@ jobs:
           ./configure --with-firebird="${FB_ROOT}"
           make -j$(nproc)
           
+          # Build pdo_fbird as separate extension
+          (cd pdo_fbird && phpize && ./configure --with-pdo-fbird && make -j$(nproc))
+          
           # Verify
           ls -la modules/firebird.so
+          ls -la pdo_fbird/modules/pdo_fbird.so
       
       - name: Create Bundle
         id: bundle
@@ -686,7 +690,7 @@ jobs:
             # Install PHP and dependencies (plus bash for the rest of the script)
             if command -v apk >/dev/null 2>&1; then
               # Alpine Linux (musl)
-              # php83-pdo required: firebird.so integrates pdo_fbird when built against PDO-enabled PHP
+              # php83-pdo required: pdo_fbird.so (separate extension) depends on PDO
               apk add --no-cache bash php83 php83-cli php83-pdo patchelf binutils file grep
               ln -sf /usr/bin/php83 /usr/bin/php 2>/dev/null || true
             elif command -v apt-get >/dev/null 2>&1; then
@@ -696,7 +700,7 @@ jobs:
             elif command -v dnf &>/dev/null; then
               # Enable EPEL for patchelf on RHEL/AlmaLinux
               dnf install -y epel-release || true
-              # php-pdo required: firebird.so integrates pdo_fbird when built against PDO-enabled PHP
+              # php-pdo required: pdo_fbird.so (separate extension) depends on PDO
               dnf install -y php-cli php-pdo patchelf binutils file || dnf install -y php-cli php-pdo binutils file
             elif command -v yum &>/dev/null; then
               yum install -y epel-release || true

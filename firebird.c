@@ -28,10 +28,6 @@
 #include "php_fbird_transaction.h"
 #include "php_fbird_batch.h"
 
-#ifdef HAVE_PDO_FBIRD
-#include "pdo_fbird/php_pdo_fbird.h"
-#endif
-
 #define ROLLBACK    0
 #define COMMIT      1
 #define RETAIN      2
@@ -884,13 +880,6 @@ PHP_MINIT_FUNCTION(fbird)
 	php_fbird_events_minit(INIT_FUNC_ARGS_PASSTHRU);
 	php_fbird_service_minit(INIT_FUNC_ARGS_PASSTHRU);
 
-#ifdef HAVE_PDO_FBIRD
-	/* Initialize integrated pdo_fbird PDO driver */
-	if (PHP_MINIT(pdo_fbird)(INIT_FUNC_ARGS_PASSTHRU) == FAILURE) {
-		return FAILURE;
-	}
-#endif
-
 #ifdef ZEND_SIGNALS
 	// firebird replaces some signals at runtime, suppress warnings.
 	SIGG(check) = 0;
@@ -918,9 +907,6 @@ PHP_MSHUTDOWN_FUNCTION(fbird)
 			strlen(firebird_module_entry.name))) != NULL) {
 		fbird_entry->handle = 0;
 	}
-#endif
-#ifdef HAVE_PDO_FBIRD
-	PHP_MSHUTDOWN(pdo_fbird)(SHUTDOWN_FUNC_ARGS_PASSTHRU);
 #endif
 
 	UNREGISTER_INI_ENTRIES();

@@ -478,8 +478,12 @@ jobs:
           ./configure --with-firebird=/opt/firebird-client
           make -j"$(nproc)"
 
+          # Build pdo_fbird as separate extension
+          (cd pdo_fbird && phpize && ./configure --with-pdo-fbird && make -j"$(nproc)")
+
           echo "Extension built successfully"
           ls -la modules/firebird.so
+          ls -la pdo_fbird/modules/pdo_fbird.so
 
       - name: Verify extension and connection
         run: |
@@ -591,8 +595,15 @@ jobs:
           set -eu
 
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
+          PDO_FBIRD_PATH="$(pwd)/pdo_fbird/modules/pdo_fbird.so"
           export TEST_PHP_EXECUTABLE="$(which php)"
           export PHP_TEST_SHARED_EXTENSIONS="-d extension=${EXTENSION_PATH}"
+
+          # Add pdo_fbird extension if built
+          if [ -f "$PDO_FBIRD_PATH" ]; then
+            export PHP_TEST_SHARED_EXTENSIONS="${PHP_TEST_SHARED_EXTENSIONS} -d extension=${PDO_FBIRD_PATH}"
+            echo "Added pdo_fbird extension to test configuration"
+          fi
 
           # Add pcntl extension if available
           PCNTL_SO=$(find $(php-config --extension-dir) -name "pcntl.so" 2>/dev/null || true)
@@ -758,8 +769,12 @@ jobs:
 
           make -j"$(sysctl -n hw.ncpu)"
 
+          # Build pdo_fbird as separate extension
+          (cd pdo_fbird && phpize && ./configure --with-pdo-fbird && make -j"$(sysctl -n hw.ncpu)")
+
           echo "Extension built successfully"
           ls -la modules/firebird.so
+          ls -la pdo_fbird/modules/pdo_fbird.so
           file modules/firebird.so
 
       - name: Patch extension RPATH

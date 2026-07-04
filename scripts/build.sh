@@ -26,16 +26,6 @@ rm -f configure config.h config.h.in config.log config.status config.nice \
      Makefile Makefile.fragments Makefile.global Makefile.objects \
      build/shtool config.cache libtool 2>/dev/null || true
 
-# Clean any standalone pdo_fbird build artifacts — pdo_fbird is compiled
-# as part of the unified firebird.so via config.m4.  A leftover
-# pdo_fbird/config.h from a standalone build defines COMPILE_DL_PDO_FBIRD
-# which causes duplicate get_module symbols.
-if [ -f pdo_fbird/Makefile ]; then
-    (cd pdo_fbird && make clean 2>/dev/null || true && phpize --clean 2>/dev/null || true)
-fi
-rm -f pdo_fbird/config.h pdo_fbird/config.h.in~ pdo_fbird/config.log \
-     pdo_fbird/config.status pdo_fbird/config.nice 2>/dev/null || true
-
 # Prepare build environment
 phpize
 
@@ -86,4 +76,16 @@ make -j$(nproc)
 
 echo "Build completed. Extension is available at: $(pwd)/modules/firebird.so"
 echo "Firebird client library: $FIREBIRD_PATH"
-echo "Note: pdo_fbird PDO driver is integrated into firebird.so (no separate build needed)"
+
+# Build pdo_fbird as separate extension (depends on firebird.so symbols)
+if [ -d pdo_fbird ] && [ -f pdo_fbird/config.m4 ]; then
+    echo "Building pdo_fbird as separate extension..."
+    (cd pdo_fbird && \
+        phpize && \
+        ./configure --with-pdo-fbird && \
+        make -j$(nproc))
+    echo "pdo_fbird extension: $(pwd)/pdo_fbird/modules/pdo_fbird.so"
+    echo "Note: pdo_fbird PDO driver is a separate extension (load after firebird)"
+else
+    echo "Note: pdo_fbird not built (pdo_fbird/config.m4 not found)"
+fi

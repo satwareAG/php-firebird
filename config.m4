@@ -96,16 +96,6 @@ if test "$PHP_FIREBIRD" != "no"; then
   dnl Base source files (always compiled)
   FIREBIRD_SOURCES="firebird.c fbird_error.c fbird_connection.c fbird_transaction.c fbird_batch.c fbird_query_exec.c fbird_query_prepare.c fbird_query_bind.c fbird_query_array.c fbird_datetime.c fbird_result.c fbird_metadata.c fbird_service.c fbird_events.c fbird_blobs.c fbird_inspection.c fbird_classes.c fbird_class_connection.c fbird_class_transaction.c fbird_class_statement.c fbird_class_resultset.c fbird_class_blob.c fbird_class_service.c fbird_class_event.c fbird_class_batch.c"
 
-  dnl Check for PDO availability (required for pdo_fbird integration)
-  ifdef([PHP_CHECK_PDO_INCLUDES],
-  [
-    PHP_CHECK_PDO_INCLUDES
-    AC_DEFINE(HAVE_PDO_FBIRD,1,[Whether pdo_fbird is integrated])
-    FIREBIRD_SOURCES="$FIREBIRD_SOURCES pdo_fbird/pdo_fbird.c pdo_fbird/pdo_fbird_driver.c pdo_fbird/pdo_fbird_stmt.c pdo_fbird/pdo_fbird_error.c"
-  ],[
-    AC_MSG_WARN([PDO not found — pdo_fbird driver will not be available])
-  ])
-
   dnl Enable extra debug logging for array slice operations when requested.
   dnl This is a build-time flag used by `src/cpp/fb_array.hpp`.
   dnl
@@ -113,10 +103,6 @@ if test "$PHP_FIREBIRD" != "no"; then
   dnl   CPPFLAGS="-DFBIRD_ARRAY_DEBUG" ./configure --with-firebird=/usr
   dnl
   PHP_NEW_EXTENSION(firebird, $FIREBIRD_SOURCES, $ext_shared,, -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1,[cxx])
-  ifdef([PHP_CHECK_PDO_INCLUDES],
-  [
-    PHP_ADD_EXTENSION_DEP(firebird, pdo)
-  ])
   PHP_SUBST(FIREBIRD_SHARED_LIBADD)
 
   dnl Compiler hardening flags (Issue #164)

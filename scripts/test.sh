@@ -88,8 +88,11 @@ if [ -d "tests" ]; then
             TARGET="$TARGET $resolved"
         done
     fi
-    # Build extension arguments - always load firebird (pdo_fbird is integrated)
+    # Build extension arguments - load firebird and pdo_fbird separately
     EXT_ARGS="-d extension=$(pwd)/modules/firebird.so"
+    if [ -f pdo_fbird/modules/pdo_fbird.so ]; then
+        EXT_ARGS="$EXT_ARGS -d extension=$(pwd)/pdo_fbird/modules/pdo_fbird.so"
+    fi
     # Check if pcntl is available (needed for fork tests)
     if php -m 2>/dev/null | grep -q pcntl; then
         EXT_ARGS="$EXT_ARGS -d extension=pcntl"

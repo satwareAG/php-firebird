@@ -8,6 +8,8 @@ PHP_ARG_WITH([pdo-fbird],
 
 if test "$PHP_PDO_FBIRD" != "no"; then
 
+  AC_DEFINE(HAVE_PDO_FBIRD,1,[Whether pdo_fbird is available])
+
   dnl Require PDO headers (PDO may be built-in or shared)
   ifdef([PHP_CHECK_PDO_INCLUDES],
     [PHP_CHECK_PDO_INCLUDES],

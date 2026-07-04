@@ -501,6 +501,10 @@ if [ "$SKIP_BUILD" = false ]; then
         
         log_info "Compiling..."
         make -j"$(nproc)"
+
+        # Build pdo_fbird as separate extension
+        log_info "Building pdo_fbird..."
+        (cd pdo_fbird && phpize && ./configure --with-pdo-fbird && make -j"$(nproc)")
     fi
 fi
 
@@ -531,6 +535,11 @@ if [ "$DRY_RUN" = true ]; then
     log_dry_run "Would copy: modules/firebird.so -> ${DIST_DIR}/"
 else
     cp modules/firebird.so "${DIST_DIR}/"
+    # Copy pdo_fbird.so if it was built as a separate extension
+    if [ -f pdo_fbird/modules/pdo_fbird.so ]; then
+        cp pdo_fbird/modules/pdo_fbird.so "${DIST_DIR}/"
+        log_info "Copied pdo_fbird.so"
+    fi
 fi
 
 # =============================================================================

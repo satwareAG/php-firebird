@@ -280,6 +280,9 @@ jobs:
           ./configure --with-firebird=/opt/firebird-client
           make -j"$(nproc)"
 
+          # Build pdo_fbird as separate extension
+          (cd pdo_fbird && phpize && ./configure --with-pdo-fbird && make -j"$(nproc)")
+
           echo "Extension built with ASan + UBSan"
 
       - name: Verify extension build
@@ -716,8 +719,13 @@ jobs:
           echo "=== Running tests with LeakSanitizer ==="
 
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
+          PDO_FBIRD_PATH="$(pwd)/pdo_fbird/modules/pdo_fbird.so"
           export TEST_PHP_EXECUTABLE="$(which php)"
           export PHP_TEST_SHARED_EXTENSIONS="-d extension=${EXTENSION_PATH}"
+
+          if [ -f "$PDO_FBIRD_PATH" ]; then
+            export PHP_TEST_SHARED_EXTENSIONS="${PHP_TEST_SHARED_EXTENSIONS} -d extension=${PDO_FBIRD_PATH}"
+          fi
 
           PCNTL_SO=$(find $(php-config --extension-dir) -name "pcntl.so" 2>/dev/null || true)
           if [ -n "$PCNTL_SO" ]; then
@@ -1116,8 +1124,13 @@ jobs:
           echo "=== Running tests with ThreadSanitizer (ZTS) ==="
 
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
+          PDO_FBIRD_PATH="$(pwd)/pdo_fbird/modules/pdo_fbird.so"
           export TEST_PHP_EXECUTABLE="$(which php)"
           export PHP_TEST_SHARED_EXTENSIONS="-d extension=${EXTENSION_PATH}"
+
+          if [ -f "$PDO_FBIRD_PATH" ]; then
+            export PHP_TEST_SHARED_EXTENSIONS="${PHP_TEST_SHARED_EXTENSIONS} -d extension=${PDO_FBIRD_PATH}"
+          fi
 
           # Check for pcntl extension (built as shared with our custom PHP)
           PCNTL_SO=$(find /opt/php-tsan -name "pcntl.so" 2>/dev/null | head -1 || true)

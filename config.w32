@@ -1,5 +1,6 @@
 // config.w32 - Windows build configuration for php-firebird extension
 // PHP 8.2+ required, Firebird 3.0+ required
+// Handles both firebird (--with-firebird) and pdo_fbird (--with-pdo-fbird)
 
 ARG_WITH('firebird', 'Firebird database support', 'no');
 
@@ -76,5 +77,28 @@ if (PHP_FIREBIRD != 'no') {
 
     } else {
         WARNING('firebird not enabled; Firebird client libraries and headers not found');
+    }
+}
+
+// pdo_fbird — PDO driver for Firebird (fbird: DSN prefix)
+// Separate extension, depends on firebird.so for fbc_*/fbt_*/fbs_* symbols
+ARG_WITH('pdo-fbird', 'Firebird PDO driver (fbird: DSN)', 'no');
+
+if (PHP_PDO_FBIRD != 'no') {
+    if (CHECK_LIB('fbclient_ms.lib', 'pdo_fbird', PHP_PDO_FBIRD + '\\lib') &&
+        CHECK_HEADER_ADD_INCLUDE('ibase.h', 'CFLAGS_PDO_FBIRD', PHP_PDO_FBIRD + '\\include')) {
+
+        AC_DEFINE('HAVE_PDO_FBIRD', 1, 'pdo_fbird available');
+
+        var pdo_fbird_sources = 'pdo_fbird/pdo_fbird.c ' +
+                                'pdo_fbird/pdo_fbird_driver.c ' +
+                                'pdo_fbird/pdo_fbird_stmt.c ' +
+                                'pdo_fbird/pdo_fbird_error.c';
+
+        EXTENSION('pdo_fbird', pdo_fbird_sources, PHP_PDO_FBIRD_SHARED,
+                  '/DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 /EHsc /std:c++17');
+
+    } else {
+        WARNING('pdo_fbird not enabled; Firebird client libraries and headers not found');
     }
 }

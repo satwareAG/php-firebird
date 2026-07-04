@@ -1,0 +1,20 @@
+// pdo_fbird/config.w32 - Windows build config for standalone pdo_fbird build
+// When building pdo_fbird standalone (not via root config.w32), copy this
+// to the build root or use the root config.w32 which handles both extensions.
+ARG_WITH('pdo-fbird', 'Firebird PDO driver (fbird: DSN)', 'no');
+
+if (PHP_PDO_FBIRD != 'no') {
+    if (CHECK_LIB('fbclient_ms.lib', 'pdo_fbird', PHP_PDO_FBIRD + '\\lib') &&
+        CHECK_HEADER_ADD_INCLUDE('ibase.h', 'CFLAGS_PDO_FBIRD', PHP_PDO_FBIRD + '\\include')) {
+
+        AC_DEFINE('HAVE_PDO_FBIRD', 1, 'pdo_fbird available');
+
+        EXTENSION('pdo_fbird',
+            'pdo_fbird.c pdo_fbird_driver.c pdo_fbird_stmt.c pdo_fbird_error.c',
+            PHP_PDO_FBIRD_SHARED,
+            '/DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 /EHsc /std:c++17');
+
+    } else {
+        WARNING('pdo_fbird not enabled; Firebird client libraries not found');
+    }
+}

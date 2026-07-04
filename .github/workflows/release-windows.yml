@@ -131,9 +131,6 @@ jobs:
           ts: ${{ matrix.ts }}
           args: --with-pdo-fbird=${{ env.FIREBIRD_HOME }}
           run-tests: false
-        # jane: pdo_fbird is in a subdirectory; the action may need the
-        # source to be at repo root. If this fails, copy pdo_fbird/* to a
-        # temp top-level dir before building.
 
   # ===========================================================================
   # Upload artifacts to GitHub Release
@@ -163,6 +160,26 @@ jobs:
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           path: artifacts
+          merge-multiple: true
+
+      - name: Validate artifact sizes
+        run: |
+          echo "=== Validating artifact sizes ==="
+          found=0
+          for f in artifacts/*.zip; do
+            [ -f "$f" ] || continue
+            found=1
+            size=$(wc -c < "$f")
+            if [ "$size" -lt 100000 ]; then
+              echo "ERROR: $f is only ${size} bytes (expected >100KB)"
+              exit 1
+            fi
+            echo "OK: $f (${size} bytes)"
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "ERROR: No zip artifacts found"
+            exit 1
+          fi
 
       - name: Upload Windows DLLs to GitHub Release
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3

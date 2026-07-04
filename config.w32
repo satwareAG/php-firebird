@@ -90,18 +90,23 @@ if (PHP_PDO_FBIRD != 'no') {
 
         AC_DEFINE('HAVE_PDO_FBIRD', 1, 'pdo_fbird available');
 
-        // Create output subdirectory for pdo_fbird source files.
-        // MSVC's /Fo flag mirrors the source file's subdirectory structure
-        // in the output directory, but nmake doesn't create it automatically.
-        // Use cmd /c mkdir to create intermediate directories recursively.
-        var shell = new ActiveXObject("WScript.Shell");
-        var configDir = (PHP_ZTS == 1 ? "x64\\Release_TS\\pdo_fbird" : "x64\\Release\\pdo_fbird");
-        shell.Run("cmd /c mkdir \"" + configDir + "\" 2>NUL", 0, true);
-
-        var pdo_fbird_sources = 'pdo_fbird/pdo_fbird.c ' +
+        // Source files: use flattened names if available (Windows build
+        // pre-copies them to root to avoid subdirectory output dir issues),
+        // otherwise use the pdo_fbird/ subdirectory prefix.
+        var fso = new ActiveXObject("Scripting.FileSystemObject");
+        var useFlat = fso.FileExists("pdo_fbird_root.c");
+        var pdo_fbird_sources;
+        if (useFlat) {
+            pdo_fbird_sources = 'pdo_fbird_root.c ' +
+                                'pdo_fbird_driver.c ' +
+                                'pdo_fbird_stmt.c ' +
+                                'pdo_fbird_error.c';
+        } else {
+            pdo_fbird_sources = 'pdo_fbird/pdo_fbird.c ' +
                                 'pdo_fbird/pdo_fbird_driver.c ' +
                                 'pdo_fbird/pdo_fbird_stmt.c ' +
                                 'pdo_fbird/pdo_fbird_error.c';
+        }
 
         EXTENSION('pdo_fbird', pdo_fbird_sources, PHP_PDO_FBIRD_SHARED,
                   '/DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 /EHsc /std:c++17');

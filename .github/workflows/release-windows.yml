@@ -114,6 +114,18 @@ jobs:
           echo "FIREBIRD_HOME=$sdkPath" >> $env:GITHUB_ENV
           echo "$sdkPath\bin" >> $env:GITHUB_PATH
 
+      - name: Flatten pdo_fbird sources for Windows build
+        shell: pwsh
+        run: |
+          # The PHP Windows build system (nmake) doesn't create output
+          # subdirectories for source files in subdirectories. Copy the
+          # pdo_fbird source files to the root so they compile without
+          # a subdirectory prefix, avoiding C1083 errors.
+          Copy-Item pdo_fbird/pdo_fbird.c -Destination pdo_fbird_root.c -Force
+          Copy-Item pdo_fbird/pdo_fbird_driver.c -Destination pdo_fbird_driver.c -Force
+          Copy-Item pdo_fbird/pdo_fbird_stmt.c -Destination pdo_fbird_stmt.c -Force
+          Copy-Item pdo_fbird/pdo_fbird_error.c -Destination pdo_fbird_error.c -Force
+
       - name: Build Extensions
         uses: php/php-windows-builder/extension@c49dae50774b14e0f358d2efa65637b67f1104f6 # v1
         with:

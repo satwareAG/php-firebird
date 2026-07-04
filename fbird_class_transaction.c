@@ -27,7 +27,7 @@ void fbird_transaction_free(zend_object *obj)
 {
 	fbird_transaction_obj *intern = fbird_transaction_from_obj(obj);
 	if (intern->fbt_trans) {
-		if (!IBG(in_mshutdown)) {
+		if (!FBG(in_mshutdown)) {
 			ISC_STATUS sv[20];
 			fbt_rollback(intern->fbt_trans, sv);
 		}
@@ -59,7 +59,7 @@ PHP_METHOD(FirebirdTransaction, commit)
 			trans->fbt_transaction = NULL;
 			zend_list_delete(intern->trans_res);
 			intern->trans_res = NULL;
-			if (res && !IBG(in_mshutdown)) {
+			if (res && !FBG(in_mshutdown)) {
 				_php_fbird_error();
 			}
 		}

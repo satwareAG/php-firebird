@@ -26,7 +26,7 @@ void _php_fbird_free_batch(zend_resource *rsrc)
 
 #ifndef PHP_WIN32
 	/* Fork-safety check (Issue #22): Skip cleanup if we're in a forked child */
-	if (IBG(init_pid) != 0 && getpid() != IBG(init_pid)) {
+	if (FBG(init_pid) != 0 && getpid() != FBG(init_pid)) {
 		FBDEBUG("Skipping batch cleanup in forked child process");
 		/* Only free memory allocated by child, not Firebird handles */
 		if (batch->in_msg_buffer != NULL) {
@@ -40,8 +40,8 @@ void _php_fbird_free_batch(zend_resource *rsrc)
 	/* Cancel and close the batch if still open */
 	if (batch->fbbatch_wrapper != NULL) {
 		FBDEBUG("Canceling unexecuted batch...");
-		fbbatch_cancel(IBG(master_instance), batch->fbbatch_wrapper, IB_STATUS);
-		fbbatch_close(IBG(master_instance), batch->fbbatch_wrapper, IB_STATUS);
+		fbbatch_cancel(FBG(master_instance), batch->fbbatch_wrapper, IB_STATUS);
+		fbbatch_close(FBG(master_instance), batch->fbbatch_wrapper, IB_STATUS);
 		batch->fbbatch_wrapper = NULL;
 	}
 
@@ -92,9 +92,9 @@ static fbird_batch *fbird_batch_from_zval(zval *zv)
 PHP_FUNCTION(fbird_batch_create)
 {
 	zval *query_arg, *trans_arg = NULL;
-	fbird_query *ib_query;
+	fbird_query *fb_query;
 	fbird_transaction *trans = NULL;
-	fbird_batch *ib_batch;
+	fbird_batch *fb_batch;
 	void *stmt_ptr;
 	void *batch_wrapper;
 	void *metadata;
@@ -107,12 +107,12 @@ PHP_FUNCTION(fbird_batch_create)
 		return;
 	}
 
-	FBIRD_VALIDATE_QUERY_EX(query_arg, 1, ib_query);
-	if (!ib_query) {
+	FBIRD_VALIDATE_QUERY_EX(query_arg, 1, fb_query);
+	if (!fb_query) {
 		RETURN_FALSE;
 	}
 
-	if (!ib_query->fbs_statement) {
+	if (!fb_query->fbs_statement) {
 		_php_fbird_module_error("Query has no OO API statement handle");
 		RETURN_FALSE;
 	}
@@ -124,7 +124,7 @@ PHP_FUNCTION(fbird_batch_create)
 			RETURN_FALSE;
 		}
 	} else {
-		trans = ib_query->trans;
+		trans = fb_query->trans;
 	}
 
 	if (!trans || !trans->fbt_transaction) {
@@ -133,7 +133,7 @@ PHP_FUNCTION(fbird_batch_create)
 	}
 
 	/* Get raw IStatement pointer */
-	stmt_ptr = fbs_get_statement(ib_query->fbs_statement);
+	stmt_ptr = fbs_get_statement(fb_query->fbs_statement);
 	if (!stmt_ptr) {
 		_php_fbird_module_error("Failed to get statement handle");
 		RETURN_FALSE;
@@ -144,7 +144,7 @@ PHP_FUNCTION(fbird_batch_create)
 	 * (division by zero when computing row capacity from buffer size). */
 	{
 		unsigned input_count = fbs_get_input_count(
-			IBG(master_instance), ib_query->fbs_statement, IB_STATUS);
+			FBG(master_instance), fb_query->fbs_statement, IB_STATUS);
 		if (input_count == 0) {
 			_php_fbird_module_error("fbird_batch_create(): statement has no "
 				"input parameters; batch operations require parameterized "
@@ -154,42 +154,42 @@ PHP_FUNCTION(fbird_batch_create)
 	}
 
 	/* Create batch with default buffer size */
-	batch_wrapper = fbbatch_create(IBG(master_instance), stmt_ptr, 0, IB_STATUS);
+	batch_wrapper = fbbatch_create(FBG(master_instance), stmt_ptr, 0, IB_STATUS);
 	if (!batch_wrapper) {
 		_php_fbird_error();
 		RETURN_FALSE;
 	}
 
 	/* Get input metadata for building message buffers */
-	metadata = fbbatch_get_metadata(IBG(master_instance), batch_wrapper, IB_STATUS);
+	metadata = fbbatch_get_metadata(FBG(master_instance), batch_wrapper, IB_STATUS);
 	if (!metadata) {
-		fbbatch_close(IBG(master_instance), batch_wrapper, IB_STATUS);
+		fbbatch_close(FBG(master_instance), batch_wrapper, IB_STATUS);
 		_php_fbird_error();
 		RETURN_FALSE;
 	}
 
-	msg_length = fbm_get_message_length(IBG(master_instance), metadata);
+	msg_length = fbm_get_message_length(FBG(master_instance), metadata);
 
 	/* Allocate batch structure */
-	ib_batch = (fbird_batch *)ecalloc(1, sizeof(fbird_batch));
-	ib_batch->fbbatch_wrapper = batch_wrapper;
-	ib_batch->trans = trans;
-	ib_batch->query = ib_query;
+	fb_batch = (fbird_batch *)ecalloc(1, sizeof(fbird_batch));
+	fb_batch->fbbatch_wrapper = batch_wrapper;
+	fb_batch->trans = trans;
+	fb_batch->query = fb_query;
 	/* M3: query_arg may be a Firebird\ResultSet object or a legacy resource */
 	if (Z_TYPE_P(query_arg) == IS_OBJECT) {
-		ib_batch->query_res = fbird_resultset_get_resource(Z_OBJ_P(query_arg));
+		fb_batch->query_res = fbird_resultset_get_resource(Z_OBJ_P(query_arg));
 	} else {
-		ib_batch->query_res = Z_RES_P(query_arg);
+		fb_batch->query_res = Z_RES_P(query_arg);
 	}
-	if (ib_batch->query_res) {
-		GC_ADDREF(ib_batch->query_res);
+	if (fb_batch->query_res) {
+		GC_ADDREF(fb_batch->query_res);
 	}
-	ib_batch->in_metadata = metadata;
-	ib_batch->in_msg_length = msg_length;
-	ib_batch->in_msg_buffer = emalloc(msg_length);
-	memset(ib_batch->in_msg_buffer, 0, msg_length);
+	fb_batch->in_metadata = metadata;
+	fb_batch->in_msg_length = msg_length;
+	fb_batch->in_msg_buffer = emalloc(msg_length);
+	memset(fb_batch->in_msg_buffer, 0, msg_length);
 
-	fbird_setup_batch_object(return_value, ib_batch);
+	fbird_setup_batch_object(return_value, fb_batch);
 }
 
 PHP_FUNCTION(fbird_batch_add)
@@ -197,7 +197,7 @@ PHP_FUNCTION(fbird_batch_add)
 	zval *batch_arg;
 	zval *args = NULL;
 	int argc = 0;
-	fbird_batch *ib_batch;
+	fbird_batch *fb_batch;
 
 	RESET_ERRMSG;
 
@@ -205,27 +205,27 @@ PHP_FUNCTION(fbird_batch_add)
 		return;
 	}
 
-	ib_batch = fbird_batch_from_zval(batch_arg);
-	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
+	fb_batch = fbird_batch_from_zval(batch_arg);
+	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
 		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
 		RETURN_FALSE;
 	}
 
 	/* Get master interface for metadata operations */
-	void *master = IBG(master_instance);
+	void *master = FBG(master_instance);
 	if (!master) {
 		_php_fbird_module_error("fbird_batch_add() requires Firebird 3.0+ OO API master interface");
 		RETURN_FALSE;
 	}
 
 	/* Validate metadata and buffer are available */
-	if (!ib_batch->in_metadata || !ib_batch->in_msg_buffer || ib_batch->in_msg_length == 0) {
+	if (!fb_batch->in_metadata || !fb_batch->in_msg_buffer || fb_batch->in_msg_length == 0) {
 		_php_fbird_module_error("fbird_batch_add() batch has no input metadata or buffer");
 		RETURN_FALSE;
 	}
 
 	/* Get parameter count from metadata */
-	unsigned param_count = fbm_get_count(master, ib_batch->in_metadata);
+	unsigned param_count = fbm_get_count(master, fb_batch->in_metadata);
 
 	/* Validate argument count matches parameter count */
 	if ((unsigned)argc != param_count) {
@@ -234,22 +234,22 @@ PHP_FUNCTION(fbird_batch_add)
 	}
 
 	/* Clear message buffer before populating */
-	memset(ib_batch->in_msg_buffer, 0, ib_batch->in_msg_length);
+	memset(fb_batch->in_msg_buffer, 0, fb_batch->in_msg_length);
 
 	/* Bind each parameter to the message buffer */
 	for (unsigned i = 0; i < param_count; i++) {
 		zval *b_var = &args[i];
 
 		/* Get metadata info for this parameter */
-		unsigned sql_type = fbm_get_type(master, ib_batch->in_metadata, i) & ~1;
-		unsigned data_offset = fbm_get_offset(master, ib_batch->in_metadata, i);
-		unsigned null_offset = fbm_get_null_offset(master, ib_batch->in_metadata, i);
-		unsigned field_length = fbm_get_length(master, ib_batch->in_metadata, i);
-		int sql_scale = fbm_get_scale(master, ib_batch->in_metadata, i);
+		unsigned sql_type = fbm_get_type(master, fb_batch->in_metadata, i) & ~1;
+		unsigned data_offset = fbm_get_offset(master, fb_batch->in_metadata, i);
+		unsigned null_offset = fbm_get_null_offset(master, fb_batch->in_metadata, i);
+		unsigned field_length = fbm_get_length(master, fb_batch->in_metadata, i);
+		int sql_scale = fbm_get_scale(master, fb_batch->in_metadata, i);
 
 		/* Get pointers to data and null indicator in message buffer */
-		unsigned char *data_ptr = (unsigned char *)ib_batch->in_msg_buffer + data_offset;
-		short *null_ptr = (short *)((unsigned char *)ib_batch->in_msg_buffer + null_offset);
+		unsigned char *data_ptr = (unsigned char *)fb_batch->in_msg_buffer + data_offset;
+		short *null_ptr = (short *)((unsigned char *)fb_batch->in_msg_buffer + null_offset);
 
 		/* Handle NULL values */
 		int is_null = 0;
@@ -571,7 +571,7 @@ PHP_FUNCTION(fbird_batch_add)
 	}
 
 	/* Add the populated message buffer to the batch */
-	if (fbbatch_add(master, ib_batch->fbbatch_wrapper, 1, ib_batch->in_msg_buffer, IB_STATUS) != 1) {
+	if (fbbatch_add(master, fb_batch->fbbatch_wrapper, 1, fb_batch->in_msg_buffer, IB_STATUS) != 1) {
 		_php_fbird_error();
 		RETURN_FALSE;
 	}
@@ -582,7 +582,7 @@ PHP_FUNCTION(fbird_batch_add)
 PHP_FUNCTION(fbird_batch_execute)
 {
 	zval *batch_arg;
-	fbird_batch *ib_batch;
+	fbird_batch *fb_batch;
 	void *trans_ptr;
 	unsigned total_processed = 0;
 	unsigned error_count = 0;
@@ -593,32 +593,32 @@ PHP_FUNCTION(fbird_batch_execute)
 		return;
 	}
 
-	ib_batch = fbird_batch_from_zval(batch_arg);
-	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
+	fb_batch = fbird_batch_from_zval(batch_arg);
+	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
 		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
 		RETURN_FALSE;
 	}
 
-	if (!ib_batch->trans || !ib_batch->trans->fbt_transaction) {
+	if (!fb_batch->trans || !fb_batch->trans->fbt_transaction) {
 		_php_fbird_module_error("Batch has no valid transaction");
 		RETURN_FALSE;
 	}
 
-	trans_ptr = fbt_get_handle(ib_batch->trans->fbt_transaction);
+	trans_ptr = fbt_get_handle(fb_batch->trans->fbt_transaction);
 	if (!trans_ptr) {
 		_php_fbird_module_error("Failed to get transaction handle");
 		RETURN_FALSE;
 	}
 
-	if (!fbbatch_execute(IBG(master_instance), ib_batch->fbbatch_wrapper, trans_ptr,
+	if (!fbbatch_execute(FBG(master_instance), fb_batch->fbbatch_wrapper, trans_ptr,
 			&total_processed, &error_count, IB_STATUS)) {
 		_php_fbird_error();
 		RETURN_FALSE;
 	}
 
 	/* Close the batch after execution */
-	fbbatch_close(IBG(master_instance), ib_batch->fbbatch_wrapper, IB_STATUS);
-	ib_batch->fbbatch_wrapper = NULL;
+	fbbatch_close(FBG(master_instance), fb_batch->fbbatch_wrapper, IB_STATUS);
+	fb_batch->fbbatch_wrapper = NULL;
 
 	/* Calculate success_count from total_processed - error_count */
 	unsigned success_count = (total_processed >= error_count) ? (total_processed - error_count) : 0;
@@ -632,7 +632,7 @@ PHP_FUNCTION(fbird_batch_execute)
 PHP_FUNCTION(fbird_batch_cancel)
 {
 	zval *batch_arg;
-	fbird_batch *ib_batch;
+	fbird_batch *fb_batch;
 
 	RESET_ERRMSG;
 
@@ -640,19 +640,19 @@ PHP_FUNCTION(fbird_batch_cancel)
 		return;
 	}
 
-	ib_batch = fbird_batch_from_zval(batch_arg);
-	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
+	fb_batch = fbird_batch_from_zval(batch_arg);
+	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
 		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
 		RETURN_FALSE;
 	}
 
-	if (!fbbatch_cancel(IBG(master_instance), ib_batch->fbbatch_wrapper, IB_STATUS)) {
+	if (!fbbatch_cancel(FBG(master_instance), fb_batch->fbbatch_wrapper, IB_STATUS)) {
 		_php_fbird_error();
 		RETURN_FALSE;
 	}
 
-	fbbatch_close(IBG(master_instance), ib_batch->fbbatch_wrapper, IB_STATUS);
-	ib_batch->fbbatch_wrapper = NULL;
+	fbbatch_close(FBG(master_instance), fb_batch->fbbatch_wrapper, IB_STATUS);
+	fb_batch->fbbatch_wrapper = NULL;
 
 	RETURN_TRUE;
 }
@@ -663,7 +663,7 @@ PHP_FUNCTION(fbird_batch_add_blob)
 	char *data;
 	size_t data_len;
 	zend_long blob_type = 0;
-	fbird_batch *ib_batch;
+	fbird_batch *fb_batch;
 	ISC_QUAD blob_id;
 
 	RESET_ERRMSG;
@@ -672,14 +672,14 @@ PHP_FUNCTION(fbird_batch_add_blob)
 		return;
 	}
 
-	ib_batch = fbird_batch_from_zval(batch_arg);
-	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
+	fb_batch = fbird_batch_from_zval(batch_arg);
+	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
 		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
 		RETURN_FALSE;
 	}
 
 	/* Call C++ wrapper to add BLOB to batch */
-	if (fbbatch_add_blob(IBG(master_instance), ib_batch->fbbatch_wrapper,
+	if (fbbatch_add_blob(FBG(master_instance), fb_batch->fbbatch_wrapper,
 			(unsigned)data_len, data, &blob_id, 0, NULL, IB_STATUS) == 0) {
 		_php_fbird_error();
 		RETURN_FALSE;
@@ -694,7 +694,7 @@ PHP_FUNCTION(fbird_batch_register_blob)
 	zval *batch_arg;
 	char *blob_id_str;
 	size_t blob_id_len;
-	fbird_batch *ib_batch;
+	fbird_batch *fb_batch;
 	ISC_QUAD existing_blob, batch_blob_id;
 
 	RESET_ERRMSG;
@@ -703,8 +703,8 @@ PHP_FUNCTION(fbird_batch_register_blob)
 		return;
 	}
 
-	ib_batch = fbird_batch_from_zval(batch_arg);
-	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
+	fb_batch = fbird_batch_from_zval(batch_arg);
+	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
 		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
 		RETURN_FALSE;
 	}
@@ -716,7 +716,7 @@ PHP_FUNCTION(fbird_batch_register_blob)
 	}
 
 	/* Call C++ wrapper to register BLOB in batch */
-	if (fbbatch_register_blob(IBG(master_instance), ib_batch->fbbatch_wrapper,
+	if (fbbatch_register_blob(FBG(master_instance), fb_batch->fbbatch_wrapper,
 			&existing_blob, &batch_blob_id, IB_STATUS) == 0) {
 		_php_fbird_error();
 		RETURN_FALSE;
@@ -732,7 +732,7 @@ PHP_FUNCTION(fbird_batch_register_blob)
 PHP_FUNCTION(fbird_batch_get_blob_alignment)
 {
 	zval *batch_arg;
-	fbird_batch *ib_batch;
+	fbird_batch *fb_batch;
 	unsigned alignment;
 
 	RESET_ERRMSG;
@@ -741,13 +741,13 @@ PHP_FUNCTION(fbird_batch_get_blob_alignment)
 		return;
 	}
 
-	ib_batch = fbird_batch_from_zval(batch_arg);
-	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
+	fb_batch = fbird_batch_from_zval(batch_arg);
+	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
 		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
 		RETURN_FALSE;
 	}
 
-	alignment = fbbatch_get_blob_alignment(IBG(master_instance), ib_batch->fbbatch_wrapper, IB_STATUS);
+	alignment = fbbatch_get_blob_alignment(FBG(master_instance), fb_batch->fbbatch_wrapper, IB_STATUS);
 	if (alignment == 0) {
 		_php_fbird_error();
 		RETURN_FALSE;
@@ -761,7 +761,7 @@ PHP_FUNCTION(fbird_batch_append_blob_data)
 	zval *batch_arg;
 	char *data;
 	size_t data_len;
-	fbird_batch *ib_batch;
+	fbird_batch *fb_batch;
 
 	RESET_ERRMSG;
 
@@ -769,13 +769,13 @@ PHP_FUNCTION(fbird_batch_append_blob_data)
 		return;
 	}
 
-	ib_batch = fbird_batch_from_zval(batch_arg);
-	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
+	fb_batch = fbird_batch_from_zval(batch_arg);
+	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
 		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
 		RETURN_FALSE;
 	}
 
-	if (!fbbatch_append_blob_data(IBG(master_instance), ib_batch->fbbatch_wrapper,
+	if (!fbbatch_append_blob_data(FBG(master_instance), fb_batch->fbbatch_wrapper,
 			(unsigned)data_len, data, IB_STATUS)) {
 		_php_fbird_error();
 		RETURN_FALSE;
@@ -789,7 +789,7 @@ PHP_FUNCTION(fbird_batch_add_blob_stream)
 	zval *batch_arg;
 	char *data;
 	size_t data_len;
-	fbird_batch *ib_batch;
+	fbird_batch *fb_batch;
 
 	RESET_ERRMSG;
 
@@ -797,13 +797,13 @@ PHP_FUNCTION(fbird_batch_add_blob_stream)
 		return;
 	}
 
-	ib_batch = fbird_batch_from_zval(batch_arg);
-	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
+	fb_batch = fbird_batch_from_zval(batch_arg);
+	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
 		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
 		RETURN_FALSE;
 	}
 
-	if (!fbbatch_add_blob_stream(IBG(master_instance), ib_batch->fbbatch_wrapper,
+	if (!fbbatch_add_blob_stream(FBG(master_instance), fb_batch->fbbatch_wrapper,
 			(unsigned)data_len, data, IB_STATUS)) {
 		_php_fbird_error();
 		RETURN_FALSE;
@@ -817,7 +817,7 @@ PHP_FUNCTION(fbird_batch_set_default_bpb)
 	zval *batch_arg;
 	char *bpb;
 	size_t bpb_len;
-	fbird_batch *ib_batch;
+	fbird_batch *fb_batch;
 
 	RESET_ERRMSG;
 
@@ -825,13 +825,13 @@ PHP_FUNCTION(fbird_batch_set_default_bpb)
 		return;
 	}
 
-	ib_batch = fbird_batch_from_zval(batch_arg);
-	if (!ib_batch || !ib_batch->fbbatch_wrapper) {
+	fb_batch = fbird_batch_from_zval(batch_arg);
+	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
 		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
 		RETURN_FALSE;
 	}
 
-	if (!fbbatch_set_default_bpb(IBG(master_instance), ib_batch->fbbatch_wrapper,
+	if (!fbbatch_set_default_bpb(FBG(master_instance), fb_batch->fbbatch_wrapper,
 			(unsigned)bpb_len, (const unsigned char *)bpb, IB_STATUS)) {
 		_php_fbird_error();
 		RETURN_FALSE;

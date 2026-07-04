@@ -34,7 +34,7 @@ void fbird_service_free_obj(zend_object *obj)
 	}
 	if (intern->fbsvc) {
 		ISC_STATUS sv[20];
-		fbsvc_detach(IBG(master_instance), intern->fbsvc, sv);
+		fbsvc_detach(FBG(master_instance), intern->fbsvc, sv);
 		fbsvc_free(intern->fbsvc);
 		intern->fbsvc = NULL;
 	}
@@ -116,7 +116,7 @@ PHP_METHOD(FirebirdService, __construct)
 		snprintf(loc, sizeof(loc), "%s", "service_mgr");
 
 	ISC_STATUS sv[20];
-	intern->fbsvc = fbsvc_attach(IBG(master_instance), loc,
+	intern->fbsvc = fbsvc_attach(FBG(master_instance), loc,
 		buf_len, (const unsigned char *)buf, sv);
 
 	if (!intern->fbsvc) {
@@ -141,7 +141,7 @@ PHP_METHOD(FirebirdService, detach)
 	}
 	if (intern->fbsvc) {
 		ISC_STATUS sv[20];
-		fbsvc_detach(IBG(master_instance), intern->fbsvc, sv);
+		fbsvc_detach(FBG(master_instance), intern->fbsvc, sv);
 		fbsvc_free(intern->fbsvc);
 		intern->fbsvc = NULL;
 	}
@@ -180,7 +180,7 @@ PHP_METHOD(FirebirdService, getServerVersion)
 	char res_buf[256];
 	ISC_STATUS sv[20];
 
-	if (!fbsvc_query(IBG(master_instance), intern->fbsvc,
+	if (!fbsvc_query(FBG(master_instance), intern->fbsvc,
 			sizeof(spb), (const unsigned char *)spb,
 			1, (const unsigned char *)&info_action,
 			sizeof(res_buf), (unsigned char *)res_buf, sv)) {

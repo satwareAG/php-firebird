@@ -42,9 +42,9 @@ PHP_METHOD(FirebirdResultSet, fetch)
 	if (!intern->query_res) {
 		RETURN_FALSE;
 	}
-	fbird_query *ib_query = (fbird_query *) intern->query_res->ptr;
-	if (!ib_query) { RETURN_FALSE; }
-	_php_fbird_fetch_hash_query(ib_query, FBIRD_FETCH_ASSOC, 0, return_value);
+	fbird_query *fb_query = (fbird_query *) intern->query_res->ptr;
+	if (!fb_query) { RETURN_FALSE; }
+	_php_fbird_fetch_hash_query(fb_query, FBIRD_FETCH_ASSOC, 0, return_value);
 }
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_resultset_close, 0, 0, IS_VOID, 0)

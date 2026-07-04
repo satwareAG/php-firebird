@@ -59,7 +59,7 @@ static int _fbird_exec_kill(fbird_db_link *link, fbird_transaction *trans, ISC_I
 
 	/* Prepare statement */
 	stmt = fbs_prepare(
-		IBG(master_instance),
+		FBG(master_instance),
 		attachment,
 		transaction,
 		sql,
@@ -74,7 +74,7 @@ static int _fbird_exec_kill(fbird_db_link *link, fbird_transaction *trans, ISC_I
 	}
 
 	/* Get input metadata for parameter binding */
-	void *in_metadata = fbs_get_input_metadata(IBG(master_instance), stmt, IB_STATUS);
+	void *in_metadata = fbs_get_input_metadata(FBG(master_instance), stmt, IB_STATUS);
 	if (!in_metadata) {
 		_php_fbird_error();
 		fbs_free(stmt, IB_STATUS);
@@ -98,7 +98,7 @@ static int _fbird_exec_kill(fbird_db_link *link, fbird_transaction *trans, ISC_I
 
 	/* Execute the statement */
 	if (!fbs_execute(
-		IBG(master_instance),
+		FBG(master_instance),
 		stmt,
 		transaction,
 		in_msg,
@@ -159,7 +159,7 @@ static int _fbird_drop_table(fbird_db_link *link, fbird_transaction *trans, cons
 
 	/* Prepare statement */
 	stmt = fbs_prepare(
-		IBG(master_instance),
+		FBG(master_instance),
 		attachment,
 		transaction,
 		drop_sql,
@@ -176,7 +176,7 @@ static int _fbird_drop_table(fbird_db_link *link, fbird_transaction *trans, cons
 
 	/* Execute the statement (no parameters) */
 	if (!fbs_execute(
-		IBG(master_instance),
+		FBG(master_instance),
 		stmt,
 		transaction,
 		NULL,  /* no input */
@@ -326,7 +326,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
 
 	/* Prepare statement */
 	stmt = fbs_prepare(
-		IBG(master_instance),
+		FBG(master_instance),
 		attachment,
 		transaction,
 		sql,
@@ -341,7 +341,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
 	}
 
 	/* Get input metadata for parameter binding */
-	in_metadata = fbs_get_input_metadata(IBG(master_instance), stmt, IB_STATUS);
+	in_metadata = fbs_get_input_metadata(FBG(master_instance), stmt, IB_STATUS);
 	if (!in_metadata) {
 		_php_fbird_error();
 		fbs_free(stmt, IB_STATUS);
@@ -349,7 +349,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
 	}
 
 	/* Get output metadata for result fetching */
-	out_metadata = fbs_get_output_metadata(IBG(master_instance), stmt, IB_STATUS);
+	out_metadata = fbs_get_output_metadata(FBG(master_instance), stmt, IB_STATUS);
 	if (!out_metadata) {
 		_php_fbird_error();
 		fbs_free(stmt, IB_STATUS);
@@ -380,7 +380,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
 
 	/* Open cursor for fetching results */
 	if (!fbs_open_cursor(
-		IBG(master_instance),
+		FBG(master_instance),
 		stmt,
 		transaction,
 		in_msg,
@@ -416,7 +416,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
 		memset(out_msg, 0, sizeof(out_msg));
 
 		int fetch_result = fbs_fetch(
-			IBG(master_instance),
+			FBG(master_instance),
 			stmt,
 			out_msg,
 			IB_STATUS

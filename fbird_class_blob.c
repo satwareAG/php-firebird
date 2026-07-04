@@ -29,7 +29,7 @@ void fbird_blob_free_obj(zend_object *obj)
 	fbird_blob_obj *intern = fbird_blob_from_obj(obj);
 	if (intern->fbb_wrap) {
 		ISC_STATUS sv[20];
-		fbb_cancel(IBG(master_instance), intern->fbb_wrap, sv);
+		fbb_cancel(FBG(master_instance), intern->fbb_wrap, sv);
 		fbb_free(intern->fbb_wrap);
 		intern->fbb_wrap = NULL;
 	}
@@ -89,7 +89,7 @@ PHP_METHOD(FirebirdBlob, create)
 	fbird_blob_obj *blob = Z_FBIRD_BLOB_P(return_value);
 
 	ISC_STATUS sv[20];
-	blob->fbb_wrap = fbb_create(IBG(master_instance),
+	blob->fbb_wrap = fbb_create(FBG(master_instance),
 		fbc_get_attachment(link->fbc_connection),
 		fbt_get_handle(trans_ptr),
 		&blob->blob_id, 0, NULL, sv);
@@ -151,7 +151,7 @@ PHP_METHOD(FirebirdBlob, open)
 	blob->blob_id = blob_id;
 
 	ISC_STATUS sv[20];
-	blob->fbb_wrap = fbb_open(IBG(master_instance),
+	blob->fbb_wrap = fbb_open(FBG(master_instance),
 		fbc_get_attachment(link->fbc_connection),
 		fbt_get_handle(trans_ptr),
 		&blob_id, 0, NULL, sv);
@@ -181,7 +181,7 @@ PHP_METHOD(FirebirdBlob, write)
 		RETURN_THROWS();
 	}
 	ISC_STATUS sv[20];
-	if (!fbb_put_segment(IBG(master_instance), intern->fbb_wrap,
+	if (!fbb_put_segment(FBG(master_instance), intern->fbb_wrap,
 			(unsigned)data_len, data, sv)) {
 		_php_fbird_error();
 		zend_throw_exception(fbird_query_exception_ce, "Failed to write blob segment", 0);
@@ -207,7 +207,7 @@ PHP_METHOD(FirebirdBlob, read)
 	zend_string *buf = zend_string_alloc((size_t)length, 0);
 	unsigned actual = 0;
 	ISC_STATUS sv[20];
-	int rc = fbb_get_segment(IBG(master_instance), intern->fbb_wrap,
+	int rc = fbb_get_segment(FBG(master_instance), intern->fbb_wrap,
 		(unsigned)length, ZSTR_VAL(buf), &actual, sv);
 
 	if (rc == -1) {
@@ -229,7 +229,7 @@ PHP_METHOD(FirebirdBlob, close)
 	if (intern->fbb_wrap) {
 		ISC_STATUS sv[20];
 		fbb_get_blob_id(intern->fbb_wrap, &intern->blob_id);
-		fbb_close(IBG(master_instance), intern->fbb_wrap, sv);
+		fbb_close(FBG(master_instance), intern->fbb_wrap, sv);
 		fbb_free(intern->fbb_wrap);
 		intern->fbb_wrap = NULL;
 	}

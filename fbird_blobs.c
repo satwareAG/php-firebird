@@ -19,17 +19,17 @@
 
 /* Stream Wrapper Definitions */
 typedef struct {
-	fbird_blob *ib_blob;
+	fbird_blob *fb_blob;
 } fbird_blob_stream_data;
 
 static ssize_t fbird_blob_stream_write(php_stream *stream, const char *buf, size_t count)
 {
 	fbird_blob_stream_data *data = (fbird_blob_stream_data *)stream->abstract;
-	fbird_blob *ib_blob = data->ib_blob;
+	fbird_blob *fb_blob = data->fb_blob;
 	size_t total_written = 0;
 	unsigned chunk_size;
 
-	if (!ib_blob || !ib_blob->fbb_blob) {
+	if (!fb_blob || !fb_blob->fbb_blob) {
 		return 0;
 	}
 
@@ -42,7 +42,7 @@ static ssize_t fbird_blob_stream_write(php_stream *stream, const char *buf, size
 	while (count > 0) {
 		chunk_size = count > USHRT_MAX ? USHRT_MAX : (unsigned)count;
 
-		if (fbb_put_segment(IBG(master_instance), ib_blob->fbb_blob, chunk_size, buf, IB_STATUS) == 0) {
+		if (fbb_put_segment(FBG(master_instance), fb_blob->fbb_blob, chunk_size, buf, IB_STATUS) == 0) {
 			/* Error handling */
 			return total_written; /* Return what we managed to write */
 		}
@@ -58,12 +58,12 @@ static ssize_t fbird_blob_stream_write(php_stream *stream, const char *buf, size
 static ssize_t fbird_blob_stream_read(php_stream *stream, char *buf, size_t count)
 {
 	fbird_blob_stream_data *data = (fbird_blob_stream_data *)stream->abstract;
-	fbird_blob *ib_blob = data->ib_blob;
+	fbird_blob *fb_blob = data->fb_blob;
 	size_t total_read = 0;
 	unsigned actual_len;
 	int result;
 
-	if (!ib_blob || !ib_blob->fbb_blob) {
+	if (!fb_blob || !fb_blob->fbb_blob) {
 		return 0;
 	}
 
@@ -77,8 +77,8 @@ static ssize_t fbird_blob_stream_read(php_stream *stream, char *buf, size_t coun
 		unsigned chunk_size = count > USHRT_MAX ? USHRT_MAX : (unsigned)count;
 
 		result = fbb_get_segment(
-			IBG(master_instance),
-			ib_blob->fbb_blob,
+			FBG(master_instance),
+			fb_blob->fbb_blob,
 			chunk_size,
 			buf,
 			&actual_len,
@@ -107,7 +107,7 @@ static ssize_t fbird_blob_stream_read(php_stream *stream, char *buf, size_t coun
 static int fbird_blob_stream_close(php_stream *stream, int close_handle)
 {
 	fbird_blob_stream_data *data = (fbird_blob_stream_data *)stream->abstract;
-	fbird_blob *ib_blob = data->ib_blob;
+	fbird_blob *fb_blob = data->fb_blob;
 
 	/*
 	 * Firebird 3.0+ OO API Blob Close (Stream)
@@ -115,17 +115,17 @@ static int fbird_blob_stream_close(php_stream *stream, int close_handle)
 	 * Uses IBlob::close() via fbb_close() wrapper.
 	 * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
 	 */
-	if (ib_blob) {
-		if (ib_blob->fbb_blob) {
+	if (fb_blob) {
+		if (fb_blob->fbb_blob) {
 			/* fbb_close returns 1 on success, 0 on error */
-			if (fbb_close(IBG(master_instance), ib_blob->fbb_blob, IB_STATUS) == 0) {
+			if (fbb_close(FBG(master_instance), fb_blob->fbb_blob, IB_STATUS) == 0) {
 				_php_fbird_error();
 			}
-			fbb_free(ib_blob->fbb_blob);
-			ib_blob->fbb_blob = NULL;
+			fbb_free(fb_blob->fbb_blob);
+			fb_blob->fbb_blob = NULL;
 		}
-		efree(ib_blob);
-		data->ib_blob = NULL;
+		efree(fb_blob);
+		data->fb_blob = NULL;
 	}
 	efree(data);
 	return 0;
@@ -177,7 +177,7 @@ int le_blob;
 
 static void _php_fbird_free_blob(zend_resource *rsrc)
 {
-	fbird_blob *ib_blob = (fbird_blob *)rsrc->ptr;
+	fbird_blob *fb_blob = (fbird_blob *)rsrc->ptr;
 
 	/*
 	 * Firebird 3.0+ OO API Blob Cancel (Resource Cleanup)
@@ -185,9 +185,9 @@ static void _php_fbird_free_blob(zend_resource *rsrc)
 	 * Uses IBlob::cancel() via fbb_cancel() wrapper.
 	 * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
 	 */
-	if (ib_blob->fbb_blob != NULL) { /* blob open */
+	if (fb_blob->fbb_blob != NULL) { /* blob open */
 		/* fbb_cancel returns 1 on success, 0 on error */
-		if (fbb_cancel(IBG(master_instance), ib_blob->fbb_blob, IB_STATUS) == 0) {
+		if (fbb_cancel(FBG(master_instance), fb_blob->fbb_blob, IB_STATUS) == 0) {
 			/* If the blob handle is invalid (e.g. transaction committed/rolled back),
 			 * we can safely ignore the error as there's nothing to cancel/close. */
 			if (IB_STATUS[1] != isc_bad_segstr_handle) {
@@ -195,10 +195,10 @@ static void _php_fbird_free_blob(zend_resource *rsrc)
 					"writing to it. Use fbird_blob_close() before calling fbird_close()");
 			}
 		}
-		fbb_free(ib_blob->fbb_blob);
-		ib_blob->fbb_blob = NULL;
+		fbb_free(fb_blob->fbb_blob);
+		fb_blob->fbb_blob = NULL;
 	}
-	efree(ib_blob);
+	efree(fb_blob);
 }
 
 void php_fbird_blobs_minit(INIT_FUNC_ARGS)
@@ -238,15 +238,15 @@ typedef struct {
 	int       bl_stream;
 } FBIRD_BLOBINFO;
 
-int _php_fbird_blob_get(zval *return_value, fbird_blob *ib_blob, zend_ulong max_len)
+int _php_fbird_blob_get(zval *return_value, fbird_blob *fb_blob, zend_ulong max_len)
 {
 	/* Safety check: verify blob handle is valid before any operation */
-	if (!ib_blob || !ib_blob->fbb_blob) {
+	if (!fb_blob || !fb_blob->fbb_blob) {
 		_php_fbird_module_error("BLOB handle is invalid or has been closed");
 		return FAILURE;
 	}
 
-	if (ib_blob->bl_qd.gds_quad_high || ib_blob->bl_qd.gds_quad_low) { /*not null ?*/
+	if (fb_blob->bl_qd.gds_quad_high || fb_blob->bl_qd.gds_quad_low) { /*not null ?*/
 
 		zend_string *bl_data;
 		zend_ulong cur_len;
@@ -281,8 +281,8 @@ int _php_fbird_blob_get(zval *return_value, fbird_blob *ib_blob, zend_ulong max_
 
 			actual_len = 0;  /* Reset before each call */
 			result = fbb_get_segment(
-				IBG(master_instance),
-				ib_blob->fbb_blob,
+				FBG(master_instance),
+				fb_blob->fbb_blob,
 				chunk_size,
 				&ZSTR_VAL(bl_data)[cur_len],
 				&actual_len,
@@ -321,13 +321,13 @@ int _php_fbird_blob_get(zval *return_value, fbird_blob *ib_blob, zend_ulong max_
 	return SUCCESS;
 }
 
-int _php_fbird_blob_add(zval *string_arg, fbird_blob *ib_blob)
+int _php_fbird_blob_add(zval *string_arg, fbird_blob *fb_blob)
 {
 	zend_ulong put_cnt = 0, rem_cnt;
 	zend_string *str;
 
 	/* Safety check: verify blob handle is valid before any operation */
-	if (!ib_blob || !ib_blob->fbb_blob) {
+	if (!fb_blob || !fb_blob->fbb_blob) {
 		_php_fbird_module_error("BLOB handle is invalid or has been closed");
 		return FAILURE;
 	}
@@ -344,7 +344,7 @@ int _php_fbird_blob_add(zval *string_arg, fbird_blob *ib_blob)
 		unsigned chunk_size = rem_cnt > USHRT_MAX ? USHRT_MAX : (unsigned)rem_cnt;
 
 		/* fbb_put_segment returns 1 on success, 0 on error */
-		if (fbb_put_segment(IBG(master_instance), ib_blob->fbb_blob, chunk_size,
+		if (fbb_put_segment(FBG(master_instance), fb_blob->fbb_blob, chunk_size,
 				&ZSTR_VAL(str)[put_cnt], IB_STATUS) == 0) {
 			_php_fbird_error();
 			zend_string_release(str);
@@ -381,7 +381,7 @@ static int _php_fbird_blob_info_oo(void *fbb_blob, FBIRD_BLOBINFO *bl_info)
 	bl_info->bl_stream = 0;
 
 	/* fbb_get_info returns 1 on success, 0 on error */
-	if (fbb_get_info(IBG(master_instance), fbb_blob, sizeof(bl_items), bl_items,
+	if (fbb_get_info(FBG(master_instance), fbb_blob, sizeof(bl_items), bl_items,
 			sizeof(bl_inf), bl_inf, IB_STATUS) == 0) {
 		_php_fbird_error();
 		return FAILURE;
@@ -421,9 +421,9 @@ static int _php_fbird_blob_info_oo(void *fbb_blob, FBIRD_BLOBINFO *bl_info)
 PHP_FUNCTION(fbird_blob_create)
 {
 	zval *link = NULL;
-	fbird_db_link *ib_link;
+	fbird_db_link *fb_link;
 	fbird_transaction *trans = NULL;
-	fbird_blob *ib_blob;
+	fbird_blob *fb_blob;
 
 	RESET_ERRMSG;
 
@@ -432,11 +432,11 @@ PHP_FUNCTION(fbird_blob_create)
 		RETURN_FALSE;
 	}
 
-	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
+	PHP_FBIRD_LINK_TRANS(link, fb_link, trans);
 
-	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
-	ib_blob->type = BLOB_INPUT;
-	ib_blob->fbb_blob = NULL;  /* Phase 6: explicit fbird_blob init */
+	fb_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
+	fb_blob->type = BLOB_INPUT;
+	fb_blob->fbb_blob = NULL;  /* Phase 6: explicit fbird_blob init */
 
 	/*
 	 * Firebird 3.0+ OO API Blob Creation
@@ -445,29 +445,29 @@ PHP_FUNCTION(fbird_blob_create)
 	 * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
 	 */
 	void *trans_handle = fbt_get_handle(trans->fbt_transaction);
-	ib_blob->fbb_blob = fbb_create(
-		IBG(master_instance),
-		fbc_get_attachment(ib_link->fbc_connection),
+	fb_blob->fbb_blob = fbb_create(
+		FBG(master_instance),
+		fbc_get_attachment(fb_link->fbc_connection),
 		trans_handle,
-		&ib_blob->bl_qd,
+		&fb_blob->bl_qd,
 		0, NULL,  /* No BPB */
 		IB_STATUS
 	);
-	if (ib_blob->fbb_blob == NULL) {
+	if (fb_blob->fbb_blob == NULL) {
 		_php_fbird_error();
-		efree(ib_blob);
+		efree(fb_blob);
 		RETURN_FALSE;
 	}
 
-	fbird_setup_blob_object(return_value, zend_register_resource(ib_blob, le_blob));
+	fbird_setup_blob_object(return_value, zend_register_resource(fb_blob, le_blob));
 }
 
 PHP_FUNCTION(fbird_blob_create_seekable)
 {
 	zval *link = NULL;
-	fbird_db_link *ib_link;
+	fbird_db_link *fb_link;
 	fbird_transaction *trans = NULL;
-	fbird_blob *ib_blob;
+	fbird_blob *fb_blob;
 
 	RESET_ERRMSG;
 
@@ -476,11 +476,11 @@ PHP_FUNCTION(fbird_blob_create_seekable)
 		RETURN_FALSE;
 	}
 
-	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
+	PHP_FBIRD_LINK_TRANS(link, fb_link, trans);
 
-	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
-	ib_blob->type = BLOB_INPUT;
-	ib_blob->fbb_blob = NULL;
+	fb_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
+	fb_blob->type = BLOB_INPUT;
+	fb_blob->fbb_blob = NULL;
 
 	/*
 	 * Firebird 3.0+ OO API Blob Creation (Stream Mode - Seekable)
@@ -489,21 +489,21 @@ PHP_FUNCTION(fbird_blob_create_seekable)
 	 * Stream mode enables seeking via fbird_blob_seek().
 	 */
 	void *trans_handle = fbt_get_handle(trans->fbt_transaction);
-	ib_blob->fbb_blob = fbb_create(
-		IBG(master_instance),
-		fbc_get_attachment(ib_link->fbc_connection),
+	fb_blob->fbb_blob = fbb_create(
+		FBG(master_instance),
+		fbc_get_attachment(fb_link->fbc_connection),
 		trans_handle,
-		&ib_blob->bl_qd,
+		&fb_blob->bl_qd,
 		sizeof(stream_bpb), stream_bpb,  /* Stream BPB for seek support */
 		IB_STATUS
 	);
-	if (ib_blob->fbb_blob == NULL) {
+	if (fb_blob->fbb_blob == NULL) {
 		_php_fbird_error();
-		efree(ib_blob);
+		efree(fb_blob);
 		RETURN_FALSE;
 	}
 
-	fbird_setup_blob_object(return_value, zend_register_resource(ib_blob, le_blob));
+	fbird_setup_blob_object(return_value, zend_register_resource(fb_blob, le_blob));
 }
 
 PHP_FUNCTION(fbird_blob_open)
@@ -511,21 +511,21 @@ PHP_FUNCTION(fbird_blob_open)
 	char *blob_id;
 	size_t blob_id_len;
 	zval *link = NULL;
-	fbird_db_link *ib_link;
+	fbird_db_link *fb_link;
 	fbird_transaction *trans = NULL;
-	fbird_blob *ib_blob;
+	fbird_blob *fb_blob;
 
 	RESET_ERRMSG;
 	PARSE_PARAMETERS;
 
-	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
+	PHP_FBIRD_LINK_TRANS(link, fb_link, trans);
 
-	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
-	ib_blob->type = BLOB_OUTPUT;
-	ib_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
+	fb_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
+	fb_blob->type = BLOB_OUTPUT;
+	fb_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
 
 	do {
-		if (! _php_fbird_string_to_quad(blob_id, &ib_blob->bl_qd)) {
+		if (! _php_fbird_string_to_quad(blob_id, &fb_blob->bl_qd)) {
 			_php_fbird_module_error("String is not a BLOB ID");
 			break;
 		}
@@ -537,32 +537,32 @@ PHP_FUNCTION(fbird_blob_open)
 		 * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
 		 */
 		void *trans_handle = fbt_get_handle(trans->fbt_transaction);
-		ib_blob->fbb_blob = fbb_open(
-			IBG(master_instance),
-			fbc_get_attachment(ib_link->fbc_connection),
+		fb_blob->fbb_blob = fbb_open(
+			FBG(master_instance),
+			fbc_get_attachment(fb_link->fbc_connection),
 			trans_handle,
-			&ib_blob->bl_qd,
+			&fb_blob->bl_qd,
 			0, NULL,  /* No BPB */
 			IB_STATUS
 		);
-		if (ib_blob->fbb_blob == NULL) {
+		if (fb_blob->fbb_blob == NULL) {
 			_php_fbird_error();
 			break;
 		}
 
-		fbird_setup_blob_object(return_value, zend_register_resource(ib_blob, le_blob));
+		fbird_setup_blob_object(return_value, zend_register_resource(fb_blob, le_blob));
 		return;
 
 	} while (0);
 
-	efree(ib_blob);
+	efree(fb_blob);
 	RETURN_FALSE;
 }
 
 PHP_FUNCTION(fbird_blob_add)
 {
 	zval *blob_arg, *string_arg;
-	fbird_blob *ib_blob;
+	fbird_blob *fb_blob;
 
 	RESET_ERRMSG;
 
@@ -570,14 +570,14 @@ PHP_FUNCTION(fbird_blob_add)
 		return;
 	}
 
-	FBIRD_VALIDATE_BLOB_EX(blob_arg, 1, ib_blob);
+	FBIRD_VALIDATE_BLOB_EX(blob_arg, 1, fb_blob);
 
-	if (ib_blob->type != BLOB_INPUT) {
+	if (fb_blob->type != BLOB_INPUT) {
 		_php_fbird_module_error("BLOB is not open for input");
 		RETURN_FALSE;
 	}
 
-	if (_php_fbird_blob_add(string_arg, ib_blob) != SUCCESS) {
+	if (_php_fbird_blob_add(string_arg, fb_blob) != SUCCESS) {
 		RETURN_FALSE;
 	}
 	RETURN_TRUE;
@@ -587,7 +587,7 @@ PHP_FUNCTION(fbird_blob_get)
 {
 	zval *blob_arg;
 	zend_ulong len_arg;
-	fbird_blob *ib_blob;
+	fbird_blob *fb_blob;
 
 	RESET_ERRMSG;
 
@@ -595,14 +595,14 @@ PHP_FUNCTION(fbird_blob_get)
 		return;
 	}
 
-	FBIRD_VALIDATE_BLOB_EX(blob_arg, 1, ib_blob);
+	FBIRD_VALIDATE_BLOB_EX(blob_arg, 1, fb_blob);
 
-	if (ib_blob->type != BLOB_OUTPUT) {
+	if (fb_blob->type != BLOB_OUTPUT) {
 		_php_fbird_module_error("BLOB is not open for output");
 		RETURN_FALSE;
 	}
 
-	if (_php_fbird_blob_get(return_value, ib_blob, len_arg) != SUCCESS) {
+	if (_php_fbird_blob_get(return_value, fb_blob, len_arg) != SUCCESS) {
 		RETURN_FALSE;
 	}
 }
@@ -610,7 +610,7 @@ PHP_FUNCTION(fbird_blob_get)
 static void _php_fbird_blob_end(INTERNAL_FUNCTION_PARAMETERS, int bl_end)
 {
 	zval *blob_arg;
-	fbird_blob *ib_blob;
+	fbird_blob *fb_blob;
 
 	RESET_ERRMSG;
 
@@ -618,7 +618,7 @@ static void _php_fbird_blob_end(INTERNAL_FUNCTION_PARAMETERS, int bl_end)
 		return;
 	}
 
-	FBIRD_VALIDATE_BLOB_EX(blob_arg, 1, ib_blob);
+	FBIRD_VALIDATE_BLOB_EX(blob_arg, 1, fb_blob);
 
 	if (bl_end == BLOB_CLOSE) { /* return id here */
 
@@ -628,17 +628,17 @@ static void _php_fbird_blob_end(INTERNAL_FUNCTION_PARAMETERS, int bl_end)
 		 * Uses IBlob::close() via fbb_close() wrapper.
 		 * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
 		 */
-		if (ib_blob->bl_qd.gds_quad_high || ib_blob->bl_qd.gds_quad_low) { /*not null ?*/
+		if (fb_blob->bl_qd.gds_quad_high || fb_blob->bl_qd.gds_quad_low) { /*not null ?*/
 			/* fbb_close returns 1 on success, 0 on error */
-			if (fbb_close(IBG(master_instance), ib_blob->fbb_blob, IB_STATUS) == 0) {
+			if (fbb_close(FBG(master_instance), fb_blob->fbb_blob, IB_STATUS) == 0) {
 				_php_fbird_error();
 				RETURN_FALSE;
 			}
 		}
-		fbb_free(ib_blob->fbb_blob);
-		ib_blob->fbb_blob = NULL;
+		fbb_free(fb_blob->fbb_blob);
+		fb_blob->fbb_blob = NULL;
 
-		RETVAL_NEW_STR(_php_fbird_quad_to_string(ib_blob->bl_qd));
+		RETVAL_NEW_STR(_php_fbird_quad_to_string(fb_blob->bl_qd));
 	} else { /* discard created blob */
 		/*
 		 * Firebird 3.0+ OO API Blob Cancel
@@ -647,12 +647,12 @@ static void _php_fbird_blob_end(INTERNAL_FUNCTION_PARAMETERS, int bl_end)
 		 * Note: Firebird 3.0+ is required - compile-time enforced in php_fbird_includes.h
 		 */
 		/* fbb_cancel returns 1 on success, 0 on error */
-		if (fbb_cancel(IBG(master_instance), ib_blob->fbb_blob, IB_STATUS) == 0) {
+		if (fbb_cancel(FBG(master_instance), fb_blob->fbb_blob, IB_STATUS) == 0) {
 			_php_fbird_error();
 			RETURN_FALSE;
 		}
-		fbb_free(ib_blob->fbb_blob);
-		ib_blob->fbb_blob = NULL;
+		fbb_free(fb_blob->fbb_blob);
+		fb_blob->fbb_blob = NULL;
 
 		RETVAL_TRUE;
 	}
@@ -692,9 +692,9 @@ PHP_FUNCTION(fbird_blob_info)
 {
 	char *blob_id = NULL;
 	zval *link = NULL, *arg1 = NULL;
-	fbird_db_link *ib_link;
+	fbird_db_link *fb_link;
 	fbird_transaction *trans = NULL;
-	fbird_blob ib_blob = { BLOB_INPUT, {0, 0}, NULL };
+	fbird_blob fb_blob = { BLOB_INPUT, {0, 0}, NULL };
 	FBIRD_BLOBINFO bl_info;
 	php_stream *stream = NULL;
 	fbird_blob *ext_blob = NULL;
@@ -715,14 +715,14 @@ PHP_FUNCTION(fbird_blob_info)
 		stream = (php_stream *)zend_fetch_resource_ex(arg1, NULL, php_file_le_stream());
 		if (stream && stream->ops == &fbird_blob_stream_ops) {
 			fbird_blob_stream_data *data = (fbird_blob_stream_data *)stream->abstract;
-			if (data && data->ib_blob) {
-				ext_blob = data->ib_blob;
-				ib_blob = *ext_blob; // Copy struct content including handle and quad
+			if (data && data->fb_blob) {
+				ext_blob = data->fb_blob;
+				fb_blob = *ext_blob; // Copy struct content including handle and quad
 			}
 		} else {
 			ext_blob = (fbird_blob *)zend_fetch_resource_ex(arg1, NULL, le_blob);
 			if (ext_blob) {
-				ib_blob = *ext_blob;
+				fb_blob = *ext_blob;
 			}
 		}
 	} else if (arg1 && Z_TYPE_P(arg1) == IS_OBJECT &&
@@ -730,7 +730,7 @@ PHP_FUNCTION(fbird_blob_info)
 		zend_resource *_bres = fbird_blob_get_resource(Z_OBJ_P(arg1));
 		if (_bres && _bres->ptr) {
 			ext_blob = (fbird_blob *)_bres->ptr;
-			ib_blob = *ext_blob;
+			fb_blob = *ext_blob;
 		}
 	} else if (arg1 && Z_TYPE_P(arg1) == IS_STRING) {
 		blob_id = Z_STRVAL_P(arg1);
@@ -753,46 +753,46 @@ PHP_FUNCTION(fbird_blob_info)
 		// Using a blob ID string
 		if (!link) {
 			// Fetch default link if not provided
-			link = IBG(default_link) ? (zval *)IBG(default_link) : NULL;
+			link = FBG(default_link) ? (zval *)FBG(default_link) : NULL;
 		}
-		PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
+		PHP_FBIRD_LINK_TRANS(link, fb_link, trans);
 
-		if (!blob_id || ! _php_fbird_string_to_quad(blob_id, &ib_blob.bl_qd)) {
+		if (!blob_id || ! _php_fbird_string_to_quad(blob_id, &fb_blob.bl_qd)) {
 			_php_fbird_module_error("Unrecognized BLOB ID");
 			RETURN_FALSE;
 		}
 
-		if (ib_blob.bl_qd.gds_quad_high || ib_blob.bl_qd.gds_quad_low) { /* not null ? */
+		if (fb_blob.bl_qd.gds_quad_high || fb_blob.bl_qd.gds_quad_low) { /* not null ? */
 			/*
 			 * Firebird 3.0+ OO API Blob Open/Info/Close
 			 *
 			 * Uses IBlob interface via fbb_open(), fbb_get_info(), fbb_close() wrappers.
 			 */
 			void *trans_handle = fbt_get_handle(trans->fbt_transaction);
-			ib_blob.fbb_blob = fbb_open(
-				IBG(master_instance),
-				fbc_get_attachment(ib_link->fbc_connection),
+			fb_blob.fbb_blob = fbb_open(
+				FBG(master_instance),
+				fbc_get_attachment(fb_link->fbc_connection),
 				trans_handle,
-				&ib_blob.bl_qd,
+				&fb_blob.bl_qd,
 				0, NULL,
 				IB_STATUS
 			);
-			if (!ib_blob.fbb_blob) {
+			if (!fb_blob.fbb_blob) {
 				_php_fbird_error();
 				RETURN_FALSE;
 			}
 
-			if (_php_fbird_blob_info_oo(ib_blob.fbb_blob, &bl_info)) {
-				fbb_free(ib_blob.fbb_blob);
+			if (_php_fbird_blob_info_oo(fb_blob.fbb_blob, &bl_info)) {
+				fbb_free(fb_blob.fbb_blob);
 				RETURN_FALSE;
 			}
-			if (fbb_close(IBG(master_instance), ib_blob.fbb_blob, IB_STATUS) == 0) {
-				fbb_free(ib_blob.fbb_blob);
+			if (fbb_close(FBG(master_instance), fb_blob.fbb_blob, IB_STATUS) == 0) {
+				fbb_free(fb_blob.fbb_blob);
 				_php_fbird_error();
 				RETURN_FALSE;
 			}
-			fbb_free(ib_blob.fbb_blob);
-			ib_blob.fbb_blob = NULL;
+			fbb_free(fb_blob.fbb_blob);
+			fb_blob.fbb_blob = NULL;
 		} else { /* null blob */
 			bl_info.max_segment = 0;
 			bl_info.num_segments = 0;
@@ -815,11 +815,11 @@ PHP_FUNCTION(fbird_blob_info)
 	add_index_bool(return_value, 3, bl_info.bl_stream);
  	add_assoc_bool(return_value, "stream", bl_info.bl_stream);
 
-	add_index_bool(return_value, 4, (!ib_blob.bl_qd.gds_quad_high && !ib_blob.bl_qd.gds_quad_low));
- 	add_assoc_bool(return_value, "isnull", (!ib_blob.bl_qd.gds_quad_high && !ib_blob.bl_qd.gds_quad_low));
+	add_index_bool(return_value, 4, (!fb_blob.bl_qd.gds_quad_high && !fb_blob.bl_qd.gds_quad_low));
+ 	add_assoc_bool(return_value, "isnull", (!fb_blob.bl_qd.gds_quad_high && !fb_blob.bl_qd.gds_quad_low));
 
 	// Add Blob ID to output
-	zend_string *str_id = _php_fbird_quad_to_string(ib_blob.bl_qd);
+	zend_string *str_id = _php_fbird_quad_to_string(fb_blob.bl_qd);
 	add_assoc_str(return_value, "id", str_id);
 }
 
@@ -828,9 +828,9 @@ PHP_FUNCTION(fbird_blob_echo)
 	char *blob_id;
 	size_t blob_id_len;
 	zval *link = NULL;
-	fbird_db_link *ib_link;
+	fbird_db_link *fb_link;
 	fbird_transaction *trans = NULL;
-	fbird_blob ib_blob_id = { BLOB_OUTPUT, {0, 0}, NULL };
+	fbird_blob fb_blob_id = { BLOB_OUTPUT, {0, 0}, NULL };
 	char bl_data[FBIRD_BLOB_SEG];
 	unsigned actual_len;
 	int result;
@@ -838,9 +838,9 @@ PHP_FUNCTION(fbird_blob_echo)
 	RESET_ERRMSG;
 	PARSE_PARAMETERS;
 
-	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
+	PHP_FBIRD_LINK_TRANS(link, fb_link, trans);
 
-	if (! _php_fbird_string_to_quad(blob_id, &ib_blob_id.bl_qd)) {
+	if (! _php_fbird_string_to_quad(blob_id, &fb_blob_id.bl_qd)) {
 		_php_fbird_module_error("Unrecognized BLOB ID");
 		RETURN_FALSE;
 	}
@@ -852,23 +852,23 @@ PHP_FUNCTION(fbird_blob_echo)
 		 * Uses IBlob interface via fbb_open(), fbb_get_segment(), fbb_close() wrappers.
 		 */
 		void *trans_handle = fbt_get_handle(trans->fbt_transaction);
-		ib_blob_id.fbb_blob = fbb_open(
-			IBG(master_instance),
-			fbc_get_attachment(ib_link->fbc_connection),
+		fb_blob_id.fbb_blob = fbb_open(
+			FBG(master_instance),
+			fbc_get_attachment(fb_link->fbc_connection),
 			trans_handle,
-			&ib_blob_id.bl_qd,
+			&fb_blob_id.bl_qd,
 			0, NULL,
 			IB_STATUS
 		);
-		if (!ib_blob_id.fbb_blob) {
+		if (!fb_blob_id.fbb_blob) {
 			break;
 		}
 
 		/* Read and output blob segments */
 		do {
 			result = fbb_get_segment(
-				IBG(master_instance),
-				ib_blob_id.fbb_blob,
+				FBG(master_instance),
+				fb_blob_id.fbb_blob,
 				sizeof(bl_data),
 				bl_data,
 				&actual_len,
@@ -880,16 +880,16 @@ PHP_FUNCTION(fbird_blob_echo)
 		} while (result == 0 || result == 2);  /* 0 = success with more, 2 = segment */
 
 		if (result < 0 && result != 1) {  /* 1 = EOF is OK */
-			fbb_close(IBG(master_instance), ib_blob_id.fbb_blob, IB_STATUS);
-			fbb_free(ib_blob_id.fbb_blob);
+			fbb_close(FBG(master_instance), fb_blob_id.fbb_blob, IB_STATUS);
+			fbb_free(fb_blob_id.fbb_blob);
 			break;
 		}
 
-		if (fbb_close(IBG(master_instance), ib_blob_id.fbb_blob, IB_STATUS) == 0) {
-			fbb_free(ib_blob_id.fbb_blob);
+		if (fbb_close(FBG(master_instance), fb_blob_id.fbb_blob, IB_STATUS) == 0) {
+			fbb_free(fb_blob_id.fbb_blob);
 			break;
 		}
-		fbb_free(ib_blob_id.fbb_blob);
+		fbb_free(fb_blob_id.fbb_blob);
 		RETURN_TRUE;
 	} while (0);
 
@@ -901,8 +901,8 @@ PHP_FUNCTION(fbird_blob_import)
 {
 	zval *link = NULL, *file;
 	unsigned b;
-	fbird_blob ib_blob = { 0, {0, 0}, NULL };
-	fbird_db_link *ib_link;
+	fbird_blob fb_blob = { 0, {0, 0}, NULL };
+	fbird_db_link *fb_link;
 	fbird_transaction *trans = NULL;
 	char bl_data[FBIRD_BLOB_SEG];
 	php_stream *stream;
@@ -921,7 +921,7 @@ PHP_FUNCTION(fbird_blob_import)
 		}
 	}
 
-	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
+	PHP_FBIRD_LINK_TRANS(link, fb_link, trans);
 
 	php_stream_from_zval(stream, file);
 
@@ -932,34 +932,34 @@ PHP_FUNCTION(fbird_blob_import)
 		 * Uses IBlob interface via fbb_create(), fbb_put_segment(), fbb_close() wrappers.
 		 */
 		void *trans_handle = fbt_get_handle(trans->fbt_transaction);
-		ib_blob.fbb_blob = fbb_create(
-			IBG(master_instance),
-			fbc_get_attachment(ib_link->fbc_connection),
+		fb_blob.fbb_blob = fbb_create(
+			FBG(master_instance),
+			fbc_get_attachment(fb_link->fbc_connection),
 			trans_handle,
-			&ib_blob.bl_qd,
+			&fb_blob.bl_qd,
 			0, NULL,
 			IB_STATUS
 		);
-		if (!ib_blob.fbb_blob) {
+		if (!fb_blob.fbb_blob) {
 			break;
 		}
 
 		for (; (b = (unsigned)php_stream_read(stream, bl_data, sizeof(bl_data))) > 0; ) {
 			/* fbb_put_segment returns 1 on success, 0 on error */
-			if (fbb_put_segment(IBG(master_instance), ib_blob.fbb_blob, b, bl_data, IB_STATUS) == 0) {
-				fbb_cancel(IBG(master_instance), ib_blob.fbb_blob, IB_STATUS);
-				fbb_free(ib_blob.fbb_blob);
+			if (fbb_put_segment(FBG(master_instance), fb_blob.fbb_blob, b, bl_data, IB_STATUS) == 0) {
+				fbb_cancel(FBG(master_instance), fb_blob.fbb_blob, IB_STATUS);
+				fbb_free(fb_blob.fbb_blob);
 				break;
 			}
 		}
 
 		/* fbb_close returns 1 on success, 0 on error */
-		if (fbb_close(IBG(master_instance), ib_blob.fbb_blob, IB_STATUS) == 0) {
-			fbb_free(ib_blob.fbb_blob);
+		if (fbb_close(FBG(master_instance), fb_blob.fbb_blob, IB_STATUS) == 0) {
+			fbb_free(fb_blob.fbb_blob);
 			break;
 		}
-		fbb_free(ib_blob.fbb_blob);
-		RETURN_NEW_STR(_php_fbird_quad_to_string(ib_blob.bl_qd));
+		fbb_free(fb_blob.fbb_blob);
+		RETURN_NEW_STR(_php_fbird_quad_to_string(fb_blob.bl_qd));
 	} while (0);
 
 	_php_fbird_error();
@@ -969,9 +969,9 @@ PHP_FUNCTION(fbird_blob_import)
 PHP_FUNCTION(fbird_blob_create_stream)
 {
 	zval *link = NULL;
-	fbird_db_link *ib_link;
+	fbird_db_link *fb_link;
 	fbird_transaction *trans = NULL;
-	fbird_blob *ib_blob;
+	fbird_blob *fb_blob;
 	fbird_blob_stream_data *data;
 	php_stream *stream;
 
@@ -982,11 +982,11 @@ PHP_FUNCTION(fbird_blob_create_stream)
 		RETURN_FALSE;
 	}
 
-	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
+	PHP_FBIRD_LINK_TRANS(link, fb_link, trans);
 
-	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
-	ib_blob->type = BLOB_INPUT;
-	ib_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
+	fb_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
+	fb_blob->type = BLOB_INPUT;
+	fb_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
 
 	/*
 	 * Firebird 3.0+ OO API Blob Create (Stream)
@@ -994,28 +994,28 @@ PHP_FUNCTION(fbird_blob_create_stream)
 	 * Uses IBlob interface via fbb_create() wrapper.
 	 */
 	void *trans_handle = fbt_get_handle(trans->fbt_transaction);
-	ib_blob->fbb_blob = fbb_create(
-		IBG(master_instance),
-		fbc_get_attachment(ib_link->fbc_connection),
+	fb_blob->fbb_blob = fbb_create(
+		FBG(master_instance),
+		fbc_get_attachment(fb_link->fbc_connection),
 		trans_handle,
-		&ib_blob->bl_qd,
+		&fb_blob->bl_qd,
 		0, NULL,
 		IB_STATUS
 	);
-	if (!ib_blob->fbb_blob) {
+	if (!fb_blob->fbb_blob) {
 		_php_fbird_error();
-		efree(ib_blob);
+		efree(fb_blob);
 		RETURN_FALSE;
 	}
 
 	data = emalloc(sizeof(fbird_blob_stream_data));
-	data->ib_blob = ib_blob;
+	data->fb_blob = fb_blob;
 
 	stream = php_stream_alloc(&fbird_blob_stream_ops, data, NULL, "w");
 	if (!stream) {
-		fbb_cancel(IBG(master_instance), ib_blob->fbb_blob, IB_STATUS);
-		fbb_free(ib_blob->fbb_blob);
-		efree(ib_blob);
+		fbb_cancel(FBG(master_instance), fb_blob->fbb_blob, IB_STATUS);
+		fbb_free(fb_blob->fbb_blob);
+		efree(fb_blob);
 		efree(data);
 		RETURN_FALSE;
 	}
@@ -1028,24 +1028,24 @@ PHP_FUNCTION(fbird_blob_open_stream)
 	char *blob_id;
 	size_t blob_id_len;
 	zval *link = NULL;
-	fbird_db_link *ib_link;
+	fbird_db_link *fb_link;
 	fbird_transaction *trans = NULL;
-	fbird_blob *ib_blob;
+	fbird_blob *fb_blob;
 	fbird_blob_stream_data *data;
 	php_stream *stream;
 
 	RESET_ERRMSG;
 	PARSE_PARAMETERS;
 
-	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
+	PHP_FBIRD_LINK_TRANS(link, fb_link, trans);
 
-	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
-	ib_blob->type = BLOB_OUTPUT;
-	ib_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
+	fb_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
+	fb_blob->type = BLOB_OUTPUT;
+	fb_blob->fbb_blob = NULL;  /* Phase 6: explicit fbb_blob init */
 
-	if (! _php_fbird_string_to_quad(blob_id, &ib_blob->bl_qd)) {
+	if (! _php_fbird_string_to_quad(blob_id, &fb_blob->bl_qd)) {
 		_php_fbird_module_error("String is not a BLOB ID");
-		efree(ib_blob);
+		efree(fb_blob);
 		RETURN_FALSE;
 	}
 
@@ -1055,28 +1055,28 @@ PHP_FUNCTION(fbird_blob_open_stream)
 	 * Uses IBlob interface via fbb_open() wrapper.
 	 */
 	void *trans_handle = fbt_get_handle(trans->fbt_transaction);
-	ib_blob->fbb_blob = fbb_open(
-		IBG(master_instance),
-		fbc_get_attachment(ib_link->fbc_connection),
+	fb_blob->fbb_blob = fbb_open(
+		FBG(master_instance),
+		fbc_get_attachment(fb_link->fbc_connection),
 		trans_handle,
-		&ib_blob->bl_qd,
+		&fb_blob->bl_qd,
 		0, NULL,
 		IB_STATUS
 	);
-	if (!ib_blob->fbb_blob) {
+	if (!fb_blob->fbb_blob) {
 		_php_fbird_error();
-		efree(ib_blob);
+		efree(fb_blob);
 		RETURN_FALSE;
 	}
 
 	data = emalloc(sizeof(fbird_blob_stream_data));
-	data->ib_blob = ib_blob;
+	data->fb_blob = fb_blob;
 
 	stream = php_stream_alloc(&fbird_blob_stream_ops, data, NULL, "r");
 	if (!stream) {
-		fbb_close(IBG(master_instance), ib_blob->fbb_blob, IB_STATUS);
-		fbb_free(ib_blob->fbb_blob);
-		efree(ib_blob);
+		fbb_close(FBG(master_instance), fb_blob->fbb_blob, IB_STATUS);
+		fbb_free(fb_blob->fbb_blob);
+		efree(fb_blob);
 		efree(data);
 		RETURN_FALSE;
 	}
@@ -1089,21 +1089,21 @@ PHP_FUNCTION(fbird_blob_open_seekable)
 	char *blob_id;
 	size_t blob_id_len;
 	zval *link = NULL;
-	fbird_db_link *ib_link;
+	fbird_db_link *fb_link;
 	fbird_transaction *trans = NULL;
-	fbird_blob *ib_blob;
+	fbird_blob *fb_blob;
 
 	RESET_ERRMSG;
 	PARSE_PARAMETERS;
 
-	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
+	PHP_FBIRD_LINK_TRANS(link, fb_link, trans);
 
-	ib_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
-	ib_blob->type = BLOB_OUTPUT;
-	ib_blob->fbb_blob = NULL;
+	fb_blob = (fbird_blob *) emalloc(sizeof(fbird_blob));
+	fb_blob->type = BLOB_OUTPUT;
+	fb_blob->fbb_blob = NULL;
 
 	do {
-		if (! _php_fbird_string_to_quad(blob_id, &ib_blob->bl_qd)) {
+		if (! _php_fbird_string_to_quad(blob_id, &fb_blob->bl_qd)) {
 			_php_fbird_module_error("String is not a BLOB ID");
 			break;
 		}
@@ -1115,25 +1115,25 @@ PHP_FUNCTION(fbird_blob_open_seekable)
 		 * Stream mode enables seeking via isc_seek_blob/IBlob::seek().
 		 */
 		void *trans_handle = fbt_get_handle(trans->fbt_transaction);
-		ib_blob->fbb_blob = fbb_open(
-			IBG(master_instance),
-			fbc_get_attachment(ib_link->fbc_connection),
+		fb_blob->fbb_blob = fbb_open(
+			FBG(master_instance),
+			fbc_get_attachment(fb_link->fbc_connection),
 			trans_handle,
-			&ib_blob->bl_qd,
+			&fb_blob->bl_qd,
 			sizeof(stream_bpb), stream_bpb,  /* Stream BPB for seek support */
 			IB_STATUS
 		);
-		if (ib_blob->fbb_blob == NULL) {
+		if (fb_blob->fbb_blob == NULL) {
 			_php_fbird_error();
 			break;
 		}
 
-		fbird_setup_blob_object(return_value, zend_register_resource(ib_blob, le_blob));
+		fbird_setup_blob_object(return_value, zend_register_resource(fb_blob, le_blob));
 		return;
 
 	} while (0);
 
-	efree(ib_blob);
+	efree(fb_blob);
 	RETURN_FALSE;
 }
 
@@ -1142,7 +1142,7 @@ PHP_FUNCTION(fbird_blob_seek)
 	zval *blob_arg;
 	zend_long offset;
 	zend_long whence = 0; /* Default: SEEK_SET */
-	fbird_blob *ib_blob;
+	fbird_blob *fb_blob;
 	int result_position = 0;
 
 	RESET_ERRMSG;
@@ -1157,10 +1157,10 @@ PHP_FUNCTION(fbird_blob_seek)
 		RETURN_FALSE;
 	}
 
-	FBIRD_VALIDATE_BLOB_EX(blob_arg, 1, ib_blob);
+	FBIRD_VALIDATE_BLOB_EX(blob_arg, 1, fb_blob);
 
 	/* Safety check: verify blob handle is valid */
-	if (!ib_blob->fbb_blob) {
+	if (!fb_blob->fbb_blob) {
 		_php_fbird_module_error("BLOB handle is invalid or has been closed");
 		RETURN_FALSE;
 	}
@@ -1172,7 +1172,7 @@ PHP_FUNCTION(fbird_blob_seek)
 	 * Note: Only works on stream blobs (created with isc_bpb_type_stream).
 	 * Segmented blobs will fail with isc_bad_segstr_type error.
 	 */
-	if (fbb_seek(IBG(master_instance), ib_blob->fbb_blob, (int)whence, (int)offset, &result_position, IB_STATUS) == 0) {
+	if (fbb_seek(FBG(master_instance), fb_blob->fbb_blob, (int)whence, (int)offset, &result_position, IB_STATUS) == 0) {
 		_php_fbird_error();
 		RETURN_FALSE;
 	}

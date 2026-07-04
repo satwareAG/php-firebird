@@ -42,9 +42,9 @@
 	php_error_docref(NULL, E_WARNING, "A link to the server could not be established"); \
 	RETURN_FALSE; } }
 
-#define RESET_ERRMSG do { IBG(errmsg)[0] = '\0'; IBG(sql_code) = 0; } while (0)
+#define RESET_ERRMSG do { FBG(errmsg)[0] = '\0'; FBG(sql_code) = 0; } while (0)
 
-#define IB_STATUS (IBG(status))
+#define IB_STATUS (FBG(status))
 
 #ifdef FBIRD_DEBUG
 #define FBDEBUG(a) php_printf("::: %s (%s:%d)\n", a, __FILE__, __LINE__);
@@ -65,14 +65,14 @@ extern int le_batch;
 #define LE_EVENT "Firebird event"
 #define LE_BLOB  "Firebird blob"
 #define LE_QUERY "Firebird query"
-#define LE_SCVH  "Firebird service manager handle"
+#define LE_SVC  "Firebird service manager handle"
 #define LE_BATCH "Firebird batch"
 
 #define FBIRD_MSGSIZE 512
 #define MAX_ERRMSG (FBIRD_MSGSIZE*2)
 
-#define IB_DEF_DATE_FMT "%Y-%m-%d"
-#define IB_DEF_TIME_FMT "%H:%M:%S"
+#define FB_DEF_DATE_FMT "%Y-%m-%d"
+#define FB_DEF_TIME_FMT "%H:%M:%S"
 
 /* this value should never be > USHRT_MAX */
 #define FBIRD_BLOB_SEG 4096
@@ -194,7 +194,7 @@ typedef struct {
 	unsigned short el_type, el_size;
 } fbird_array;
 
-typedef struct _ib_query {
+typedef struct _fb_query {
     fbird_db_link *link;
     fbird_transaction *trans;
     zend_resource *trans_res;
@@ -219,9 +219,9 @@ typedef struct _ib_query {
     /* Parent/children linkage to allow invalidating dependent results when the
      * prepared statement is freed (ensures TypeError on use-after-free, as
      * expected by tests/use_after_free-002.phpt). */
-    struct _ib_query *parent;
-    struct _ib_query *child_head;
-    struct _ib_query *child_next;
+    struct _fb_query *parent;
+    struct _fb_query *child_head;
+    struct _fb_query *child_next;
     /* OO API statement wrapper (fb::Statement* from fbs_prepare()) */
     void *fbs_statement;
     void *fbs_resultset;  /* OO API IResultSet* for cursor operations */
@@ -294,7 +294,7 @@ enum php_fbird_option {
 	PHP_FBIRD_EVENT_TIMEOUT      = -2
 };
 
-#define IBG(v) ZEND_MODULE_GLOBALS_ACCESSOR(fbird, v)
+#define FBG(v) ZEND_MODULE_GLOBALS_ACCESSOR(fbird, v)
 
 #if defined(ZTS) && defined(COMPILE_DL_FIREBIRD)
 #ifdef __cplusplus
@@ -335,16 +335,16 @@ void _php_fbird_module_error(const char *, ...)
 		do {                                                                                \
 			if (!zv) {                                                                      \
 				lh = (fbird_db_link *)zend_fetch_resource2(                                 \
-					IBG(default_link), "Firebird link", le_link, le_plink);                \
+					FBG(default_link), "Firebird link", le_link, le_plink);                \
 			} else {                                                                        \
 				_php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAM_PASSTHRU, zv, &lh, &th);  \
 			}                                                                               \
 			if (SUCCESS != _php_fbird_def_trans(lh, &th)) { RETURN_FALSE; }                 \
 		} while (0)
 
-int _php_fbird_def_trans(fbird_db_link *ib_link, fbird_transaction **trans);
+int _php_fbird_def_trans(fbird_db_link *fb_link, fbird_transaction **trans);
 void _php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAMETERS, zval *link_id,
-	fbird_db_link **ib_link, fbird_transaction **trans);
+	fbird_db_link **fb_link, fbird_transaction **trans);
 
 /* provided by fbird_query.c */
 void php_fbird_query_minit(INIT_FUNC_ARGS);
@@ -353,8 +353,8 @@ void php_fbird_query_minit(INIT_FUNC_ARGS);
 void php_fbird_blobs_minit(INIT_FUNC_ARGS);
 int _php_fbird_string_to_quad(char const *id, ISC_QUAD *qd);
 zend_string *_php_fbird_quad_to_string(ISC_QUAD const qd);
-int _php_fbird_blob_get(zval *return_value, fbird_blob *ib_blob, zend_ulong max_len);
-int _php_fbird_blob_add(zval *string_arg, fbird_blob *ib_blob);
+int _php_fbird_blob_get(zval *return_value, fbird_blob *fb_blob, zend_ulong max_len);
+int _php_fbird_blob_add(zval *string_arg, fbird_blob *fb_blob);
 
 /* provided by fbird_events.c */
 void php_fbird_events_minit(INIT_FUNC_ARGS);
@@ -422,7 +422,7 @@ const char *_fbird_res_type_name(int type);
 	} \
 	int _res_type = Z_RES_TYPE_P(zv); \
 	if (_res_type != le_link && _res_type != le_plink) { \
-		if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
+		if (FBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
 			zend_argument_type_error(argnum, \
 				"must be a Firebird connection resource, %s resource given", \
 				_fbird_res_type_name(_res_type)); \
@@ -452,7 +452,7 @@ const char *_fbird_res_type_name(int type);
 	} \
 	int _res_type = Z_RES_TYPE_P(zv); \
 	if (_res_type != le_trans) { \
-		if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
+		if (FBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
 			zend_argument_type_error(argnum, \
 				"must be a Firebird transaction resource, %s resource given", \
 				_fbird_res_type_name(_res_type)); \
@@ -471,7 +471,7 @@ const char *_fbird_res_type_name(int type);
 /* Validate query/result resource (le_query).
  * M3 Phase G: Also accepts Firebird\ResultSet objects (weak-ref to same resource). */
 /* Issue #297: Exported for OOP Statement::execute() to call directly */
-int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, zval *args, int bind_n);
+int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *args, int bind_n);
 
 #define FBIRD_VALIDATE_QUERY_EX(zv, argnum, var) do { \
 	/* M3 object path: Firebird\ResultSet accepted alongside resources */ \
@@ -481,7 +481,7 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, zval *a
 		if (!_qres) { RETURN_FALSE; } \
 		var = (fbird_query *)_qres->ptr; \
 		if (!var) { \
-			if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
+			if (FBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
 				zend_argument_type_error(argnum, \
 					"must be a valid (non-freed) Firebird query/result resource or Firebird\\ResultSet"); \
 				RETURN_THROWS(); \
@@ -500,7 +500,7 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, zval *a
 		if (!_qres) { RETURN_FALSE; } \
 		var = (fbird_query *)_qres->ptr; \
 		if (!var) { \
-			if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
+			if (FBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
 				zend_argument_type_error(argnum, \
 					"must be a valid (non-freed) Firebird query resource or Firebird\\Statement"); \
 				RETURN_THROWS(); \
@@ -514,7 +514,7 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, zval *a
 	} \
 	/* Must be IS_RESOURCE - anything else (object, array, etc.) is a type error */ \
 	if (Z_TYPE_P(zv) != IS_RESOURCE) { \
-		if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
+		if (FBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
 			zend_argument_type_error(argnum, \
 				"must be a Firebird query/result resource, %s given", \
 				zend_get_type_by_const(Z_TYPE_P(zv))); \
@@ -528,7 +528,7 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, zval *a
 	} \
 	int _res_type = Z_RES_TYPE_P(zv); \
 	if (_res_type != le_query) { \
-		if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
+		if (FBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
 			zend_argument_type_error(argnum, \
 				"must be a Firebird query/result resource, %s resource given", \
 				_fbird_res_type_name(_res_type)); \
@@ -554,7 +554,7 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, zval *a
 		if (!_bres) { RETURN_FALSE; } \
 		var = (fbird_blob *)_bres->ptr; \
 		if (!var) { \
-			if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
+			if (FBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
 				zend_argument_type_error(argnum, \
 					"must be a valid (non-freed) Firebird blob resource or Firebird\\Blob"); \
 				RETURN_THROWS(); \
@@ -568,7 +568,7 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, zval *a
 	} \
 	/* Must be IS_RESOURCE - anything else is a type error */ \
 	if (Z_TYPE_P(zv) != IS_RESOURCE) { \
-		if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
+		if (FBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
 			zend_argument_type_error(argnum, \
 				"must be a Firebird blob resource, %s given", \
 				zend_get_type_by_const(Z_TYPE_P(zv))); \
@@ -582,7 +582,7 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *ib_query, zval *a
 	} \
 	int _res_type_b = Z_RES_TYPE_P(zv); \
 	if (_res_type_b != le_blob) { \
-		if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
+		if (FBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) { \
 			zend_argument_type_error(argnum, \
 				"must be a Firebird blob resource, %s resource given", \
 				_fbird_res_type_name(_res_type_b)); \

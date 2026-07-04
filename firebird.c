@@ -637,7 +637,7 @@ const char *_fbird_res_type_name(int type) {
 }
 
 
-/* Fill ib_link and trans with the correct database link and transaction. */
+/* Fill fb_link and trans with the correct database link and transaction. */
 static PHP_INI_DISP(php_fbird_password_displayer_cb)
 {
 
@@ -715,9 +715,9 @@ static PHP_INI_DISP(php_fbird_trans_displayer)
 static PHP_INI_MH(OnUpdateExceptionMode)
 {
 	if (new_value && zend_ini_parse_bool(new_value)) {
-		IBG(exception_mode) = FBIRD_EXCEPTION_MODE_THROW;
+		FBG(exception_mode) = FBIRD_EXCEPTION_MODE_THROW;
 	} else {
-		IBG(exception_mode) = FBIRD_EXCEPTION_MODE_SILENT;
+		FBG(exception_mode) = FBIRD_EXCEPTION_MODE_SILENT;
 	}
 	return SUCCESS;
 }
@@ -730,9 +730,9 @@ PHP_INI_BEGIN()
 	PHP_INI_ENTRY("fbird.default_user", NULL, PHP_INI_ALL, NULL)
 	PHP_INI_ENTRY_EX("fbird.default_password", NULL, PHP_INI_ALL, NULL, php_fbird_password_displayer_cb)
 	PHP_INI_ENTRY("fbird.default_charset", NULL, PHP_INI_ALL, NULL)
-	PHP_INI_ENTRY("fbird.timestampformat", IB_DEF_DATE_FMT " " IB_DEF_TIME_FMT, PHP_INI_ALL, NULL)
-	PHP_INI_ENTRY("fbird.dateformat", IB_DEF_DATE_FMT, PHP_INI_ALL, NULL)
-	PHP_INI_ENTRY("fbird.timeformat", IB_DEF_TIME_FMT, PHP_INI_ALL, NULL)
+	PHP_INI_ENTRY("fbird.timestampformat", FB_DEF_DATE_FMT " " FB_DEF_TIME_FMT, PHP_INI_ALL, NULL)
+	PHP_INI_ENTRY("fbird.dateformat", FB_DEF_DATE_FMT, PHP_INI_ALL, NULL)
+	PHP_INI_ENTRY("fbird.timeformat", FB_DEF_TIME_FMT, PHP_INI_ALL, NULL)
 	STD_PHP_INI_ENTRY_EX("fbird.default_trans_params", "0", PHP_INI_ALL, OnUpdateLongGEZero, default_trans_params, zend_fbird_globals, fbird_globals, php_fbird_trans_displayer)
 	STD_PHP_INI_ENTRY_EX("fbird.default_lock_timeout", "0", PHP_INI_ALL, OnUpdateLongGEZero, default_lock_timeout, zend_fbird_globals, fbird_globals, display_link_numbers)
 	STD_PHP_INI_ENTRY_EX("fbird.blob_segment_size", "4096", PHP_INI_ALL, OnUpdateLongGEZero, blob_segment_size, zend_fbird_globals, fbird_globals, display_link_numbers)
@@ -894,7 +894,7 @@ PHP_MSHUTDOWN_FUNCTION(fbird)
 	 * During MSHUTDOWN, EG(regular_list) and EG(persistent_list) may already be destroyed.
 	 * Fixes: Issue #50 (SIGSEGV exit code 139), Issue #51 (EG() access during MSHUTDOWN)
 	 */
-	IBG(in_mshutdown) = 1;
+	FBG(in_mshutdown) = 1;
 
 #ifndef PHP_WIN32
 	/*
@@ -922,16 +922,16 @@ PHP_RINIT_FUNCTION(fbird)
 
 PHP_RSHUTDOWN_FUNCTION(fbird)
 {
-	IBG(num_links) = IBG(num_persistent);
+	FBG(num_links) = FBG(num_persistent);
 
 	/* Properly release the default_link reference (Issue #183).
 	 * Previously this just set the pointer to NULL, orphaning the resource
 	 * reference (refcount never decremented). This caused the resource to
 	 * leak or trigger SIGSEGV during shutdown when the orphaned resource
 	 * was cleaned up with stale state. */
-	if (IBG(default_link)) {
-		zend_list_delete(IBG(default_link));
-		IBG(default_link) = NULL;
+	if (FBG(default_link)) {
+		zend_list_delete(FBG(default_link));
+		FBG(default_link) = NULL;
 	}
 
 	RESET_ERRMSG;
@@ -991,7 +991,7 @@ PHP_FUNCTION(fbird_gen_id)
 	char query[128], *generator;
 	size_t gen_len;
 	zend_long inc = 1;
-	fbird_db_link *ib_link = NULL;
+	fbird_db_link *fb_link = NULL;
 	fbird_transaction *trans = NULL;
 	ISC_INT64 result = 0;
 	void *attachment = NULL;
@@ -1006,7 +1006,7 @@ PHP_FUNCTION(fbird_gen_id)
 	}
 
 	if (link) {
-		FBIRD_VALIDATE_LINK_EX(link, 3, ib_link);
+		FBIRD_VALIDATE_LINK_EX(link, 3, fb_link);
 	}
 
 	if (gen_len > 31) {
@@ -1019,10 +1019,10 @@ PHP_FUNCTION(fbird_gen_id)
 		RETURN_FALSE;
 	}
 
-	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
+	PHP_FBIRD_LINK_TRANS(link, fb_link, trans);
 
 	/* OO API Only: Verify connection has OO API handle */
-	if (ib_link->fbc_connection == NULL) {
+	if (fb_link->fbc_connection == NULL) {
 		_php_fbird_module_error("Connection has no OO API handle");
 		RETURN_FALSE;
 	}
@@ -1036,7 +1036,7 @@ PHP_FUNCTION(fbird_gen_id)
 	snprintf(query, sizeof(query), "SELECT GEN_ID(%s,%ld) FROM rdb$database", generator, inc);
 
 	/* Get attachment from connection */
-	attachment = fbc_get_attachment(ib_link->fbc_connection);
+	attachment = fbc_get_attachment(fb_link->fbc_connection);
 	if (!attachment) {
 		_php_fbird_module_error("Failed to get attachment from connection");
 		RETURN_FALSE;
@@ -1050,7 +1050,7 @@ PHP_FUNCTION(fbird_gen_id)
 	}
 
 	/* Prepare the query via OO API */
-	stmt = fbs_prepare(IBG(master_instance), attachment, transaction_ptr,
+	stmt = fbs_prepare(FBG(master_instance), attachment, transaction_ptr,
 		query, (unsigned)strlen(query), SQL_DIALECT_CURRENT, IB_STATUS);
 	if (!stmt) {
 		_php_fbird_error();
@@ -1058,7 +1058,7 @@ PHP_FUNCTION(fbird_gen_id)
 	}
 
 	/* Execute the statement and fetch the result via OO API */
-	result = fbs_execute_singleton_int64(IBG(master_instance), stmt, transaction_ptr, IB_STATUS);
+	result = fbs_execute_singleton_int64(FBG(master_instance), stmt, transaction_ptr, IB_STATUS);
 
 	/* Check for errors (result 0 could be valid, check status) */
 	if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
@@ -1091,7 +1091,7 @@ PHP_FUNCTION(fbird_last_insert_id)
 	zval *link = NULL;
 	char *sequence = NULL;
 	size_t seq_len = 0;
-	fbird_db_link *ib_link = NULL;
+	fbird_db_link *fb_link = NULL;
 	fbird_transaction *trans = NULL;
 
 	RESET_ERRMSG;
@@ -1118,12 +1118,12 @@ PHP_FUNCTION(fbird_last_insert_id)
 	}
 
 	if (link) {
-		FBIRD_VALIDATE_LINK_EX(link, 1, ib_link);
+		FBIRD_VALIDATE_LINK_EX(link, 1, fb_link);
 	}
 
-	PHP_FBIRD_LINK_TRANS(link, ib_link, trans);
+	PHP_FBIRD_LINK_TRANS(link, fb_link, trans);
 
-	if (ib_link->fbc_connection == NULL) {
+	if (fb_link->fbc_connection == NULL) {
 		_php_fbird_module_error("Connection has no OO API handle");
 		RETURN_FALSE;
 	}
@@ -1136,7 +1136,7 @@ PHP_FUNCTION(fbird_last_insert_id)
 	char query[128];
 	snprintf(query, sizeof(query), "SELECT GEN_ID(%s,0) FROM rdb$database", sequence);
 
-	void *attachment = fbc_get_attachment(ib_link->fbc_connection);
+	void *attachment = fbc_get_attachment(fb_link->fbc_connection);
 	if (!attachment) {
 		_php_fbird_module_error("Failed to get attachment from connection");
 		RETURN_FALSE;
@@ -1148,14 +1148,14 @@ PHP_FUNCTION(fbird_last_insert_id)
 		RETURN_FALSE;
 	}
 
-	void *stmt = fbs_prepare(IBG(master_instance), attachment, transaction_ptr,
+	void *stmt = fbs_prepare(FBG(master_instance), attachment, transaction_ptr,
 		query, (unsigned)strlen(query), SQL_DIALECT_CURRENT, IB_STATUS);
 	if (!stmt) {
 		_php_fbird_error();
 		RETURN_FALSE;
 	}
 
-	ISC_INT64 result = fbs_execute_singleton_int64(IBG(master_instance), stmt, transaction_ptr, IB_STATUS);
+	ISC_INT64 result = fbs_execute_singleton_int64(FBG(master_instance), stmt, transaction_ptr, IB_STATUS);
 
 	if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
 		_php_fbird_error();
@@ -1211,7 +1211,7 @@ void fbp_error_ex(long level, const char *msg, ...)
 	vsnprintf(buf, sizeof(buf), msg, ap);
 	va_end(ap);
 
-	// IBG(sql_code) = -999; /* no SQL error */
+	// FBG(sql_code) = -999; /* no SQL error */
 
 	php_error(level, "%s", buf);
 }
@@ -1221,7 +1221,7 @@ PHP_FUNCTION(fbird_get_limbo_transactions)
 {
 	zval *link_arg = NULL;
 	zend_long max_count = 100;
-	fbird_db_link *ib_link;
+	fbird_db_link *fb_link;
 	ISC_INT64 *trans_ids;
 	int count, i;
 	void *attachment;
@@ -1238,21 +1238,21 @@ PHP_FUNCTION(fbird_get_limbo_transactions)
 	}
 
 	if (link_arg == NULL) {
-		ib_link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), LE_LINK, le_link, le_plink);
+		fb_link = (fbird_db_link *)zend_fetch_resource2(FBG(default_link), LE_LINK, le_link, le_plink);
 	} else {
-		FBIRD_VALIDATE_LINK_EX(link_arg, 1, ib_link);
+		FBIRD_VALIDATE_LINK_EX(link_arg, 1, fb_link);
 	}
 
-	if (!ib_link) {
+	if (!fb_link) {
 		RETURN_FALSE;
 	}
 
-	if (ib_link->fbc_connection == NULL) {
+	if (fb_link->fbc_connection == NULL) {
 		_php_fbird_module_error("Connection has no OO API handle");
 		RETURN_FALSE;
 	}
 
-	attachment = fbc_get_attachment(ib_link->fbc_connection);
+	attachment = fbc_get_attachment(fb_link->fbc_connection);
 	if (attachment == NULL) {
 		_php_fbird_module_error("Failed to get attachment from connection");
 		RETURN_FALSE;
@@ -1260,7 +1260,7 @@ PHP_FUNCTION(fbird_get_limbo_transactions)
 
 	trans_ids = (ISC_INT64 *)safe_emalloc(sizeof(ISC_INT64), (size_t)max_count, 0);
 
-	count = fbt_get_limbo_transactions(IBG(master_instance), attachment, trans_ids,
+	count = fbt_get_limbo_transactions(FBG(master_instance), attachment, trans_ids,
 		(unsigned)max_count, IB_STATUS);
 
 	if (count < 0) {
@@ -1281,8 +1281,8 @@ PHP_FUNCTION(fbird_reconnect_transaction)
 {
 	zval *link_arg;
 	zend_long trans_id;
-	fbird_db_link *ib_link;
-	fbird_transaction *ib_trans;
+	fbird_db_link *fb_link;
+	fbird_transaction *fb_trans;
 	void *attachment;
 	void *reconnected_trans;
 
@@ -1292,49 +1292,49 @@ PHP_FUNCTION(fbird_reconnect_transaction)
 		return;
 	}
 
-	FBIRD_VALIDATE_LINK_EX(link_arg, 1, ib_link);
-	if (!ib_link) {
+	FBIRD_VALIDATE_LINK_EX(link_arg, 1, fb_link);
+	if (!fb_link) {
 		RETURN_FALSE;
 	}
 
-	if (ib_link->fbc_connection == NULL) {
+	if (fb_link->fbc_connection == NULL) {
 		_php_fbird_module_error("Connection has no OO API handle");
 		RETURN_FALSE;
 	}
 
-	attachment = fbc_get_attachment(ib_link->fbc_connection);
+	attachment = fbc_get_attachment(fb_link->fbc_connection);
 	if (attachment == NULL) {
 		_php_fbird_module_error("Failed to get attachment from connection");
 		RETURN_FALSE;
 	}
 
-	reconnected_trans = fbt_reconnect(IBG(master_instance), attachment, trans_id, IB_STATUS);
+	reconnected_trans = fbt_reconnect(FBG(master_instance), attachment, trans_id, IB_STATUS);
 	if (reconnected_trans == NULL) {
 		_php_fbird_error();
 		RETURN_FALSE;
 	}
 
 	/* Allocate and initialize transaction structure */
-	ib_trans = (fbird_transaction *)safe_emalloc(1, sizeof(fbird_transaction), 0);
-	ib_trans->fbt_transaction = reconnected_trans;
-	ib_trans->link_cnt = 1;
-	ib_trans->affected_rows = 0;
-	ib_trans->db_link[0] = ib_link;
+	fb_trans = (fbird_transaction *)safe_emalloc(1, sizeof(fbird_transaction), 0);
+	fb_trans->fbt_transaction = reconnected_trans;
+	fb_trans->link_cnt = 1;
+	fb_trans->affected_rows = 0;
+	fb_trans->db_link[0] = fb_link;
 
 	/* Link into connection's transaction list */
-	if (ib_link->tr_list == NULL) {
-		ib_link->tr_list = (fbird_tr_list *)emalloc(sizeof(fbird_tr_list));
-		ib_link->tr_list->trans = NULL;
-		ib_link->tr_list->next = NULL;
+	if (fb_link->tr_list == NULL) {
+		fb_link->tr_list = (fbird_tr_list *)emalloc(sizeof(fbird_tr_list));
+		fb_link->tr_list->trans = NULL;
+		fb_link->tr_list->next = NULL;
 	}
 
 	fbird_tr_list **l;
-	for (l = &ib_link->tr_list; *l != NULL; l = &(*l)->next);
+	for (l = &fb_link->tr_list; *l != NULL; l = &(*l)->next);
 	*l = (fbird_tr_list *)emalloc(sizeof(fbird_tr_list));
-	(*l)->trans = ib_trans;
+	(*l)->trans = fb_trans;
 	(*l)->next = NULL;
 
-	zend_resource *res = zend_register_resource(ib_trans, le_trans);
+	zend_resource *res = zend_register_resource(fb_trans, le_trans);
 	fbird_setup_transaction_object(return_value, res);
 }
 

@@ -29,8 +29,8 @@ void fbird_batch_free_obj(zend_object *obj)
 	if (intern->batch) {
 		fbird_batch *batch = intern->batch;
 		if (batch->fbbatch_wrapper != NULL) {
-			fbbatch_cancel(IBG(master_instance), batch->fbbatch_wrapper, IB_STATUS);
-			fbbatch_close(IBG(master_instance), batch->fbbatch_wrapper, IB_STATUS);
+			fbbatch_cancel(FBG(master_instance), batch->fbbatch_wrapper, IB_STATUS);
+			fbbatch_close(FBG(master_instance), batch->fbbatch_wrapper, IB_STATUS);
 			batch->fbbatch_wrapper = NULL;
 		}
 		if (batch->in_msg_buffer != NULL) {

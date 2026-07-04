@@ -96,8 +96,8 @@ PHP_METHOD(FirebirdConnection, close)
 	ZEND_PARSE_PARAMETERS_NONE();
 	fbird_connection_obj *intern = Z_FBIRD_CONNECTION_P(ZEND_THIS);
 	if (intern->conn_res) {
-		if (!IBG(in_mshutdown) && IBG(default_link) == intern->conn_res) {
-			IBG(default_link) = NULL;
+		if (!FBG(in_mshutdown) && FBG(default_link) == intern->conn_res) {
+			FBG(default_link) = NULL;
 		}
 		zend_list_close(intern->conn_res);
 		intern->conn_res = NULL;
@@ -193,14 +193,14 @@ PHP_METHOD(FirebirdConnection, prepare)
 
 	fbird_db_link *link = (fbird_db_link *)conn->conn_res->ptr;
 	fbird_transaction *trans = (fbird_transaction *)tr_res->ptr;
-	fbird_query *ib_query = NULL;
+	fbird_query *fb_query = NULL;
 
-	if (FAILURE == _php_fbird_prepare(&ib_query, link, trans, tr_res, sql)) {
+	if (FAILURE == _php_fbird_prepare(&fb_query, link, trans, tr_res, sql)) {
 		zend_throw_exception(fbird_query_exception_ce, "Failed to prepare statement", 0);
 		RETURN_THROWS();
 	}
 
-	fbird_setup_statement_object(return_value, ib_query->res);
+	fbird_setup_statement_object(return_value, fb_query->res);
 }
 
 const zend_function_entry fbird_connection_methods[] = {

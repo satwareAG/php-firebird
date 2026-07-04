@@ -21,8 +21,8 @@ PHP_FUNCTION(fbird_errmsg)
 		return;
 	}
 
-	if (IBG(sql_code) != 0) {
-		RETURN_STRING(IBG(errmsg));
+	if (FBG(sql_code) != 0) {
+		RETURN_STRING(FBG(errmsg));
 	}
 
 	RETURN_FALSE;
@@ -30,17 +30,17 @@ PHP_FUNCTION(fbird_errmsg)
 
 PHP_FUNCTION(fbird_get_client_version)
 {
-	RETURN_DOUBLE((double)IBG(client_major_version) + (double)IBG(client_minor_version) / 10);
+	RETURN_DOUBLE((double)FBG(client_major_version) + (double)FBG(client_minor_version) / 10);
 }
 
 PHP_FUNCTION(fbird_get_client_major_version)
 {
-	RETURN_LONG(IBG(client_major_version));
+	RETURN_LONG(FBG(client_major_version));
 }
 
 PHP_FUNCTION(fbird_get_client_minor_version)
 {
-	RETURN_LONG(IBG(client_minor_version));
+	RETURN_LONG(FBG(client_minor_version));
 }
 
 PHP_FUNCTION(fbird_errcode)
@@ -49,8 +49,8 @@ PHP_FUNCTION(fbird_errcode)
 		return;
 	}
 
-	if (IBG(sql_code) != 0) {
-		RETURN_LONG(IBG(sql_code));
+	if (FBG(sql_code) != 0) {
+		RETURN_LONG(FBG(sql_code));
 	}
 	RETURN_FALSE;
 }
@@ -64,7 +64,7 @@ PHP_FUNCTION(fbird_sqlstate)
 	}
 
 	/* Check if there is an error to report */
-	if (IBG(sql_code) == 0) {
+	if (FBG(sql_code) == 0) {
 		RETURN_FALSE;
 	}
 
@@ -137,7 +137,7 @@ PHP_FUNCTION(fbird_set_exception_mode)
 		RETURN_FALSE;
 	}
 
-	IBG(exception_mode) = (int)mode;
+	FBG(exception_mode) = (int)mode;
 	RETURN_TRUE;
 }
 
@@ -147,7 +147,7 @@ PHP_FUNCTION(fbird_get_exception_mode)
 		return;
 	}
 
-	RETURN_LONG(IBG(exception_mode));
+	RETURN_LONG(FBG(exception_mode));
 }
 
 PHP_METHOD(FirebirdException, getSqlState)
@@ -176,26 +176,26 @@ const zend_function_entry firebird_exception_methods[] = {
 /* print firebird error and save it for fbird_errmsg() */
 void _php_fbird_error(void)
 {
-	char *s = IBG(errmsg);
+	char *s = FBG(errmsg);
 	const ISC_STATUS *statusp = IB_STATUS;
 	size_t msg_len;
 
-	IBG(sql_code) = fbu_sqlcode(IB_STATUS);
+	FBG(sql_code) = fbu_sqlcode(IB_STATUS);
 
-	msg_len = strlen(IBG(errmsg));
+	msg_len = strlen(FBG(errmsg));
 	while (msg_len < MAX_ERRMSG && fb_interpret(s, MAX_ERRMSG - msg_len - 1, &statusp)) {
 		msg_len = strlen(s);
 		s[msg_len] = ' ';
 		s[msg_len + 1] = '\0';
-		msg_len = s - IBG(errmsg) + msg_len + 1;
-		s = IBG(errmsg) + msg_len;
+		msg_len = s - FBG(errmsg) + msg_len + 1;
+		s = FBG(errmsg) + msg_len;
 	}
 
 	/* Check runtime exception_mode */
-	if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) {
-		zend_throw_exception(firebird_exception_ce, IBG(errmsg), IBG(sql_code));
+	if (FBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) {
+		zend_throw_exception(firebird_exception_ce, FBG(errmsg), FBG(sql_code));
 	} else {
-		php_error_docref(NULL, E_WARNING, "%s", IBG(errmsg));
+		php_error_docref(NULL, E_WARNING, "%s", FBG(errmsg));
 	}
 }
 
@@ -207,16 +207,16 @@ void _php_fbird_module_error(const char *msg, ...)
 	va_start(ap, msg);
 
 	/* vsnprintf NUL terminates the buf and writes at most n-1 chars+NUL */
-	vsnprintf(IBG(errmsg), MAX_ERRMSG, msg, ap);
+	vsnprintf(FBG(errmsg), MAX_ERRMSG, msg, ap);
 	va_end(ap);
 
-	IBG(sql_code) = -999; /* no SQL error */
+	FBG(sql_code) = -999; /* no SQL error */
 
 	/* Check runtime exception_mode */
-	if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) {
-		zend_throw_exception(firebird_exception_ce, IBG(errmsg), IBG(sql_code));
+	if (FBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) {
+		zend_throw_exception(firebird_exception_ce, FBG(errmsg), FBG(sql_code));
 	} else {
-		php_error_docref(NULL, E_WARNING, "%s", IBG(errmsg));
+		php_error_docref(NULL, E_WARNING, "%s", FBG(errmsg));
 	}
 }
 

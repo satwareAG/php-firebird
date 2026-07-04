@@ -50,14 +50,14 @@ PHP_METHOD(FirebirdStatement, execute)
 		RETURN_THROWS();
 	}
 
-	fbird_query *ib_query = (fbird_query *)intern->query_res->ptr;
-	if (!ib_query) {
+	fbird_query *fb_query = (fbird_query *)intern->query_res->ptr;
+	if (!fb_query) {
 		zend_throw_exception(fbird_query_exception_ce, "Statement has no query data", 0);
 		RETURN_THROWS();
 	}
 
 	RETVAL_FALSE;
-	if (FAILURE == _php_fbird_exec(INTERNAL_FUNCTION_PARAM_PASSTHRU, ib_query, NULL, 0)) {
+	if (FAILURE == _php_fbird_exec(INTERNAL_FUNCTION_PARAM_PASSTHRU, fb_query, NULL, 0)) {
 		zend_throw_exception(fbird_query_exception_ce, "Failed to execute statement", 0);
 		RETURN_THROWS();
 	}

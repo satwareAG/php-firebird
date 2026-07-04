@@ -63,7 +63,7 @@ void _php_fbird_free_event(fbird_event *event)
 	event->state = DEAD;
 
 	if (event->fbe_events) {
-		fbe_cancel(IBG(master_instance), event->fbe_events, NULL);
+		fbe_cancel(FBG(master_instance), event->fbe_events, NULL);
 		fbe_free(event->fbe_events);
 		event->fbe_events = NULL;
 	}
@@ -135,7 +135,7 @@ static void _php_fbird_event_block(unsigned short count, char **events,
 	unsigned short *l, unsigned char **event_buf, unsigned char **result_buf)
 {
 	/**
-	 * The Interbase API uses variadic arguments which we can't easily
+	 * The Firebird API uses variadic arguments which we can't easily
 	 * construct at runtime, but the maximum is 15 events.
 	 */
 	*l = (unsigned short) fbe_event_block(event_buf, result_buf, count,
@@ -147,7 +147,7 @@ static void _php_fbird_event_block(unsigned short count, char **events,
 PHP_FUNCTION(fbird_wait_event)
 {
 	zval *args;
-	fbird_db_link *ib_link;
+	fbird_db_link *fb_link;
 	int num_args;
 	unsigned char *event_buffer, *result_buffer;
 	char *events[15];
@@ -168,7 +168,7 @@ PHP_FUNCTION(fbird_wait_event)
 
 	/* Determine if first argument is a link resource or Firebird\Connection object */
 	if (Z_TYPE(args[0]) == IS_RESOURCE) {
-		if ((ib_link = (fbird_db_link *)zend_fetch_resource2_ex(&args[0], "Firebird link", le_link, le_plink)) == NULL) {
+		if ((fb_link = (fbird_db_link *)zend_fetch_resource2_ex(&args[0], "Firebird link", le_link, le_plink)) == NULL) {
 			RETURN_FALSE;
 		}
 		i = 1;
@@ -181,7 +181,7 @@ PHP_FUNCTION(fbird_wait_event)
 				"fbird_wait_event(): Firebird\\Connection object has no valid resource");
 			RETURN_FALSE;
 		}
-		ib_link = (fbird_db_link *)_conn_res->ptr;
+		fb_link = (fbird_db_link *)_conn_res->ptr;
 		i = 1;
 	} else {
 		/* First arg is neither a resource nor a Firebird\Connection object.
@@ -196,7 +196,7 @@ PHP_FUNCTION(fbird_wait_event)
 		if (ZEND_NUM_ARGS() > 15) {
 			WRONG_PARAM_COUNT;
 		}
-		if ((ib_link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), "Firebird link", le_link, le_plink)) == NULL) {
+		if ((fb_link = (fbird_db_link *)zend_fetch_resource2(FBG(default_link), "Firebird link", le_link, le_plink)) == NULL) {
 			RETURN_FALSE;
 		}
 	}
@@ -224,7 +224,7 @@ PHP_FUNCTION(fbird_wait_event)
 	{
 		ISC_STATUS init_status[20];
 		ISC_ULONG init_counts[15];
-		void *attachment_ptr = fbc_get_attachment(ib_link->fbc_connection);
+		void *attachment_ptr = fbc_get_attachment(fb_link->fbc_connection);
 		if (fbe_wait_for_event_oo(init_status, attachment_ptr, buffer_size, event_buffer, result_buffer)) {
 			/* Initial wait failed - likely connection issue */
 			_php_fbird_error();
@@ -236,7 +236,7 @@ PHP_FUNCTION(fbird_wait_event)
 
 	/* Now wait for actual events */
 	{
-		void *attachment_ptr = fbc_get_attachment(ib_link->fbc_connection);
+		void *attachment_ptr = fbc_get_attachment(fb_link->fbc_connection);
 		if (fbe_wait_for_event_oo(IB_STATUS, attachment_ptr, buffer_size, event_buffer, result_buffer)) {
 			_php_fbird_error();
 			_php_fbird_event_free(event_buffer, result_buffer);
@@ -262,7 +262,7 @@ PHP_FUNCTION(fbird_wait_event)
 PHP_FUNCTION(fbird_set_event_handler)
 {
 	zval *args, *cb_arg;
-	fbird_db_link *ib_link;
+	fbird_db_link *fb_link;
 	fbird_event *event;
 	unsigned short i = 1, buffer_size;
 	int num_args;
@@ -298,9 +298,9 @@ PHP_FUNCTION(fbird_set_event_handler)
 					"fbird_set_event_handler(): Firebird\\Connection object has no valid resource");
 				RETURN_FALSE;
 			}
-			ib_link = (fbird_db_link *)link_res->ptr;
+			fb_link = (fbird_db_link *)link_res->ptr;
 		} else {
-			if ((ib_link = (fbird_db_link *)zend_fetch_resource2_ex(&args[0], "Firebird link", le_link, le_plink)) == NULL) {
+			if ((fb_link = (fbird_db_link *)zend_fetch_resource2_ex(&args[0], "Firebird link", le_link, le_plink)) == NULL) {
 				RETURN_FALSE;
 			}
 			link_res = Z_RES(args[0]);
@@ -313,10 +313,10 @@ PHP_FUNCTION(fbird_set_event_handler)
 
 		cb_arg = &args[0];
 
-		if ((ib_link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), "Firebird link", le_link, le_plink)) == NULL) {
+		if ((fb_link = (fbird_db_link *)zend_fetch_resource2(FBG(default_link), "Firebird link", le_link, le_plink)) == NULL) {
 			RETURN_FALSE;
 		}
-		link_res = IBG(default_link);
+		link_res = FBG(default_link);
 	}
 
 	/* Validate callback is callable */
@@ -331,7 +331,7 @@ PHP_FUNCTION(fbird_set_event_handler)
 	event = (fbird_event *) safe_emalloc(sizeof(fbird_event), 1, 0);
 	event->link_res = link_res;
 	GC_ADDREF(link_res);
-	event->link = ib_link;
+	event->link = fb_link;
 	event->event_count = 0;
 	event->state = NEW;
 	event->needs_reregistration = 0;
@@ -374,8 +374,8 @@ PHP_FUNCTION(fbird_set_event_handler)
 
 	/* Mark as active and add to link's event list */
 	event->state = ACTIVE;
-	event->event_next = ib_link->event_head;
-	ib_link->event_head = event;
+	event->event_next = fb_link->event_head;
+	fb_link->event_head = event;
 
 	/* M3 Phase H3: return Firebird\Event object — object owns fbird_event* directly.
 	 * fbird_event_free_obj() will call _php_fbird_free_event() + efree() on GC. */

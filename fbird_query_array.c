@@ -215,13 +215,13 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size,
 
 						if (fbird_parse_timestamp(ZSTR_VAL(str), &dt)) {
 							/* Use OO API encoding */
-							*(ISC_TIMESTAMP *)buf = fbu_encode_timestamp(IBG(master_instance),
+							*(ISC_TIMESTAMP *)buf = fbu_encode_timestamp(FBG(master_instance),
 								dt.year, dt.month, dt.day,
 								dt.hours, dt.minutes, dt.seconds,
 								dt.fractions);
 						} else {
 							/* Parsing failed - encode zero timestamp via OO API */
-							*(ISC_TIMESTAMP *)buf = fbu_encode_timestamp(IBG(master_instance), 0, 0, 0, 0, 0, 0, 0);
+							*(ISC_TIMESTAMP *)buf = fbu_encode_timestamp(FBG(master_instance), 0, 0, 0, 0, 0, 0, 0);
 						}
 						zend_string_release(str);
 					}
@@ -230,7 +230,7 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size,
 				case SQL_TIMESTAMP_TZ:
 					{
 						/* Timezone types in arrays require Firebird 4.0+ master interface */
-						if (!IBG(master_instance)) {
+						if (!FBG(master_instance)) {
 							_php_fbird_module_error("TIMESTAMP WITH TIME ZONE arrays require Firebird 4.0+ client library");
 							return FAILURE;
 						}
@@ -250,7 +250,7 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size,
 
 						zend_string_release(str);
 
-						if (fbu_encode_timestamp_tz(IBG(master_instance), (ISC_TIMESTAMP_TZ *)buf,
+						if (fbu_encode_timestamp_tz(FBG(master_instance), (ISC_TIMESTAMP_TZ *)buf,
 								dt.year, dt.month, dt.day,
 								dt.hours, dt.minutes, dt.seconds, dt.fractions, dt.timezone) != 0) {
 							_php_fbird_module_error("Failed to encode TIMESTAMP WITH TIME ZONE array element");
@@ -267,11 +267,11 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size,
 
 						if (fbird_parse_date(ZSTR_VAL(str), &dt)) {
 							/* Use OO API encoding */
-							*(ISC_DATE *)buf = fbu_encode_date(IBG(master_instance),
+							*(ISC_DATE *)buf = fbu_encode_date(FBG(master_instance),
 								dt.year, dt.month, dt.day);
 						} else {
 							/* Parsing failed - encode zero date via OO API */
-							*(ISC_DATE *)buf = fbu_encode_date(IBG(master_instance), 0, 0, 0);
+							*(ISC_DATE *)buf = fbu_encode_date(FBG(master_instance), 0, 0, 0);
 						}
 						zend_string_release(str);
 					}
@@ -284,12 +284,12 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size,
 
 						if (fbird_parse_time(ZSTR_VAL(str), &dt)) {
 							/* Use OO API encoding */
-							*(ISC_TIME *)buf = fbu_encode_time(IBG(master_instance),
+							*(ISC_TIME *)buf = fbu_encode_time(FBG(master_instance),
 								dt.hours, dt.minutes, dt.seconds,
 								dt.fractions);
 						} else {
 							/* Parsing failed - encode zero time via OO API */
-							*(ISC_TIME *)buf = fbu_encode_time(IBG(master_instance), 0, 0, 0, 0);
+							*(ISC_TIME *)buf = fbu_encode_time(FBG(master_instance), 0, 0, 0, 0);
 						}
 						zend_string_release(str);
 					}
@@ -298,7 +298,7 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size,
 				case SQL_TIME_TZ:
 					{
 						/* Timezone types in arrays require Firebird 4.0+ master interface */
-						if (!IBG(master_instance)) {
+						if (!FBG(master_instance)) {
 							_php_fbird_module_error("TIME WITH TIME ZONE arrays require Firebird 4.0+ client library");
 							return FAILURE;
 						}
@@ -318,7 +318,7 @@ int _php_fbird_bind_array(zval *val, char *buf, zend_ulong buf_size,
 
 						zend_string_release(str);
 
-						if (fbu_encode_time_tz(IBG(master_instance), (ISC_TIME_TZ *)buf,
+						if (fbu_encode_time_tz(FBG(master_instance), (ISC_TIME_TZ *)buf,
 								dt.hours, dt.minutes, dt.seconds, dt.fractions, dt.timezone) != 0) {
 							_php_fbird_module_error("Failed to encode TIME WITH TIME ZONE array element");
 							return FAILURE;

@@ -557,8 +557,8 @@ jobs:
           
       - name: Build extension
         run: |
-          # Windows build script
-          scripts/windows/php-fb-build.bat
+          # Windows build uses php/php-windows-builder action
+          # See .github/workflows/release-windows.yml for the actual pipeline
       
       - uses: actions/upload-artifact@v4
         with:

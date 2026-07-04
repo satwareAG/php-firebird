@@ -66,9 +66,9 @@ fi
 # correct -I flags from fb_config --cflags, so CPPFLAGS is not needed.
 # For explicit path mode, CPPFLAGS ensures headers are found.
 if [ "$CONFIGURE_ARGS" = "--with-firebird=yes" ]; then
-    ./configure $CONFIGURE_ARGS
+    ./configure $CONFIGURE_ARGS ${FBIRD_CONFIGURE_EXTRA:-}
 else
-    CPPFLAGS="-I$FIREBIRD_INCLUDE" ./configure $CONFIGURE_ARGS
+    CPPFLAGS="-I$FIREBIRD_INCLUDE" ./configure $CONFIGURE_ARGS ${FBIRD_CONFIGURE_EXTRA:-}
 fi
 
 # Build
@@ -82,7 +82,7 @@ if [ -d pdo_fbird ] && [ -f pdo_fbird/config.m4 ]; then
     echo "Building pdo_fbird as separate extension..."
     (cd pdo_fbird && \
         phpize && \
-        ./configure --with-pdo-fbird && \
+        ./configure --with-pdo-fbird ${FBIRD_CONFIGURE_EXTRA:-} && \
         make -j$(nproc))
     echo "pdo_fbird extension: $(pwd)/pdo_fbird/modules/pdo_fbird.so"
     echo "Note: pdo_fbird PDO driver is a separate extension (load after firebird)"

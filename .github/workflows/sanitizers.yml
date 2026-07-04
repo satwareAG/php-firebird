@@ -1038,7 +1038,7 @@ jobs:
           export LDFLAGS="-L/opt/firebird-client/lib"
 
           phpize
-          ./configure --with-firebird=/opt/firebird-client
+          ./configure --with-firebird=/opt/firebird-client --disable-fbird-lto
 
           # Post-configure: inject TSan flags into the generated Makefile
           sed -i 's/^CFLAGS_CLEAN = /CFLAGS_CLEAN = -fsanitize=thread /' Makefile

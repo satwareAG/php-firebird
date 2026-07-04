@@ -110,6 +110,8 @@ RUN set -eu \
 RUN php -v && php -i | grep -i "thread safety" \
     || echo "⚠️  php -v failed in BuildKit context. Will verify at container runtime."
 
+ENV FBIRD_CONFIGURE_EXTRA="--disable-fbird-lto"
+
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 

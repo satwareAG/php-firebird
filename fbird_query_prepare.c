@@ -112,7 +112,6 @@ void _php_fbird_free_xsqlda(XSQLDA *sqlda)
 
 void _php_fbird_free_query(fbird_query *fb_query)
 {
-	ISC_STATUS status[256];
 	FBDEBUG("Freeing query...");
 
 	if(fb_query->in_nullind)efree(fb_query->in_nullind);

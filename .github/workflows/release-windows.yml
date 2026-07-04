@@ -114,22 +114,13 @@ jobs:
           echo "FIREBIRD_HOME=$sdkPath" >> $env:GITHUB_ENV
           echo "$sdkPath\bin" >> $env:GITHUB_PATH
 
-      - name: Build Extension
+      - name: Build Extensions
         uses: php/php-windows-builder/extension@c49dae50774b14e0f358d2efa65637b67f1104f6 # v1
         with:
           php-version: ${{ matrix.php-version }}
           arch: ${{ matrix.arch }}
           ts: ${{ matrix.ts }}
-          args: --with-firebird=${{ env.FIREBIRD_HOME }}
-          run-tests: false
-
-      - name: Build pdo_fbird Extension
-        uses: php/php-windows-builder/extension@c49dae50774b14e0f358d2efa65637b67f1104f6 # v1
-        with:
-          php-version: ${{ matrix.php-version }}
-          arch: ${{ matrix.arch }}
-          ts: ${{ matrix.ts }}
-          args: --with-pdo-fbird=${{ env.FIREBIRD_HOME }}
+          args: --with-firebird=${{ env.FIREBIRD_HOME }} --with-pdo-fbird=${{ env.FIREBIRD_HOME }}
           run-tests: false
 
   # ===========================================================================

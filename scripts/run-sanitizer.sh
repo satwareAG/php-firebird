@@ -4,7 +4,7 @@
 # Usage: ./scripts/run-sanitizer.sh [options] [test_name]
 #
 # Options:
-#   --container NAME   Container to use (default: php83-dev)
+#   --container NAME   Container to use (default: php83-asan)
 #   --mode MODE        asan|ubsan|all (default: asan)
 #   --list             List available tests
 #   --verbose          Show full output

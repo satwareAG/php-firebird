@@ -2,6 +2,8 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+source "$(dirname "$(dirname "$0")")/lib/logging.sh"
+
 # check-resource-lifecycle.sh - Static analysis for PHP resource lifecycle issues
 #
 # Scans C source files for zend_register_resource() calls and cross-references
@@ -37,12 +39,6 @@ done
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-NC='\033[0m'
-
 issues=0
 total_registers=0
 
@@ -60,7 +56,7 @@ while IFS=: read -r file line content; do
     trimmed=$(echo "$content" | sed 's/^[[:space:]]*//')
     if [[ "$trimmed" == RETVAL_RES* ]]; then
         if [[ "$VERBOSE" -eq 1 ]]; then
-            echo -e "${GREEN}OK${NC}: $file:$line - returned to userland (RETVAL_RES)"
+            log_pass "$file:$line - returned to userland (RETVAL_RES)"
         fi
         continue
     fi
@@ -88,16 +84,16 @@ while IFS=: read -r file line content; do
     fi
 
     if [[ "$has_delete" -eq 0 ]] && [[ "$is_struct_field" -eq 0 ]]; then
-        echo -e "${YELLOW}WARNING${NC}: $file:$line - zend_register_resource() in $func_name"
+        log_warn "$file:$line - zend_register_resource() in $func_name"
         echo "         No zend_list_delete/close within 200 lines"
         echo "         $content"
         issues=$((issues + 1))
     elif [[ "$has_delete" -eq 0 ]] && [[ "$is_struct_field" -eq 1 ]]; then
         if [[ "$VERBOSE" -eq 1 ]]; then
-            echo -e "${GREEN}OK${NC}: $file:$line - $func_name (struct field, caller manages lifecycle)"
+            log_pass "$file:$line - $func_name (struct field, caller manages lifecycle)"
         fi
     elif [[ "$VERBOSE" -eq 1 ]]; then
-        echo -e "${GREEN}OK${NC}: $file:$line - $func_name (has $has_delete delete/close nearby)"
+        log_pass "$file:$line - $func_name (has $has_delete delete/close nearby)"
     fi
 done < <(grep -rn 'zend_register_resource(' "$PROJECT_ROOT"/*.c "$PROJECT_ROOT"/pdo_fbird/*.c 2>/dev/null | grep -v '^\s*//' || true)
 
@@ -115,15 +111,15 @@ if [[ -n "$ownership_transfers" ]]; then
         end=$((line_num + 5))
         context=$(sed -n "${line_num},${end}p" "$file")
 
-        has_parent_null=$(echo "$context" | grep -c 'ib_query->fbs_statement = NULL' || true)
-        has_parent_disown=$(echo "$context" | grep -c 'ib_query->owns_stmt_handle = 0' || true)
+        has_parent_null=$(echo "$context" | grep -c 'fb_query->fbs_statement = NULL' || true)
+        has_parent_disown=$(echo "$context" | grep -c 'fb_query->owns_stmt_handle = 0' || true)
 
         if [[ "$has_parent_null" -eq 0 ]] || [[ "$has_parent_disown" -eq 0 ]]; then
-            echo -e "${RED}ERROR${NC}: $file:$line - Ownership transfer without parent cleanup!"
-            echo "         Missing: ib_query->fbs_statement=NULL ($has_parent_null) or owns_stmt_handle=0 ($has_parent_disown)"
+            log_error "$file:$line - Ownership transfer without parent cleanup!"
+            echo "         Missing: fb_query->fbs_statement=NULL ($has_parent_null) or owns_stmt_handle=0 ($has_parent_disown)"
             issues=$((issues + 1))
         elif [[ "$VERBOSE" -eq 1 ]]; then
-            echo -e "${GREEN}OK${NC}: $file:$line - Ownership transfer pattern correct"
+            log_pass "$file:$line - Ownership transfer pattern correct"
         fi
     done <<< "$ownership_transfers"
 else
@@ -145,10 +141,10 @@ if [[ -n "$destructors" ]]; then
 
         if [[ "$has_fbs_free" -eq 0 ]] && [[ "$has_owns_check" -eq 0 ]]; then
             if [[ "$VERBOSE" -eq 1 ]]; then
-                echo -e "${YELLOW}NOTE${NC}: $file:$line - Destructor without fbs_free (may be non-statement resource)"
+                log_warn "$file:$line - Destructor without fbs_free (may be non-statement resource)"
             fi
         elif [[ "$VERBOSE" -eq 1 ]]; then
-            echo -e "${GREEN}OK${NC}: $file:$line - Destructor has fbs_free/owns_stmt_handle check"
+            log_pass "$file:$line - Destructor has fbs_free/owns_stmt_handle check"
         fi
     done <<< "$destructors"
 fi
@@ -160,10 +156,10 @@ echo "=== Summary ==="
 echo "Total zend_register_resource() calls scanned: $total_registers"
 
 if [[ "$issues" -eq 0 ]]; then
-    echo -e "${GREEN}No resource lifecycle issues detected.${NC}"
+    log_pass "No resource lifecycle issues detected."
     exit 0
 else
-    echo -e "${RED}$issues potential issue(s) found.${NC}"
+    log_error "$issues potential issue(s) found."
     echo "Review each WARNING/ERROR above. Some may be false positives"
     echo "(e.g., cleanup via caller function or goto label in a different range)."
     exit 1

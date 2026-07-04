@@ -32,6 +32,8 @@
 
 set -euo pipefail
 
+source "$(dirname "$0")/lib/logging.sh"
+
 # =============================================================================
 # Configuration
 # =============================================================================
@@ -44,23 +46,11 @@ FB_DSN=""
 FB_USER="SYSDBA"
 FB_PASSWORD="masterkey"
 MAX_SIZE_MB=100
-VERBOSE=false
+VERBOSE=0
 STRICT=false
-
-# Results tracking
-CHECKS_PASSED=0
-CHECKS_FAILED=0
-CHECKS_WARNED=0
 
 # Temporary directory for extraction
 TEMP_DIR=""
-
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
 
 # =============================================================================
 # Helper Functions
@@ -69,31 +59,6 @@ NC='\033[0m'
 usage() {
     sed -n '3,28p' "$0" | sed 's/^# //' | sed 's/^#//'
     exit 0
-}
-
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $*"
-}
-
-log_pass() {
-    echo -e "${GREEN}[PASS]${NC} $*"
-    ((++CHECKS_PASSED))
-}
-
-log_fail() {
-    echo -e "${RED}[FAIL]${NC} $*" >&2
-    ((++CHECKS_FAILED))
-}
-
-log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $*"
-    ((++CHECKS_WARNED))
-}
-
-log_verbose() {
-    if [ "$VERBOSE" = true ]; then
-        echo -e "${BLUE}[VERBOSE]${NC} $*"
-    fi
 }
 
 cleanup() {
@@ -144,7 +109,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --verbose)
-            VERBOSE=true
+            VERBOSE=1
             shift
             ;;
         --strict)
@@ -321,7 +286,7 @@ else
                 log_verbose "$(basename "$so") RPATH: $LIB_RPATH"
                 if [[ "$LIB_RPATH" != *'$ORIGIN'* ]] && [[ "$LIB_RPATH" != "none" ]] && [[ -n "$LIB_RPATH" ]]; then
                     log_verbose "Warning: $(basename "$so") has non-relative RPATH: $LIB_RPATH"
-                    ((LIB_RPATH_ERRORS++))
+                    ((LIB_RPATH_ERRORS++)) || true
                 fi
             fi
         done
@@ -346,7 +311,7 @@ if [ "$PLATFORM" = "macos" ]; then
     # macOS: use otool -L
     OTOOL_OUTPUT=$(otool -L "$BUNDLE_DIR/firebird.so" 2>&1 || true)
     log_verbose "otool -L output:"
-    if [ "$VERBOSE" = true ]; then
+    if [ "$VERBOSE" = 1 ]; then
         echo "$OTOOL_OUTPUT" | sed 's/^/  /'
     fi
     
@@ -389,7 +354,7 @@ else
         popd > /dev/null
         
         log_verbose "ldd output:"
-        if [ "$VERBOSE" = true ]; then
+        if [ "$VERBOSE" = 1 ]; then
             echo "$LDD_OUTPUT" | sed 's/^/  /'
         fi
         
@@ -426,13 +391,18 @@ else
     FORBIDDEN_LIBS=("libc.so" "libpthread.so" "libdl.so" "libm.so" "librt.so" "ld-linux")
 fi
 
+HAS_FORBIDDEN=0
 for lib in "${FORBIDDEN_LIBS[@]}"; do
     if ls "$BUNDLE_DIR"/lib/"$lib"* &>/dev/null 2>&1; then
         log_fail "System library should not be bundled: $lib"
+        HAS_FORBIDDEN=1
     fi
 done
 
-log_pass "No forbidden system libraries bundled"
+# Only pass if no forbidden libs were found
+if [ "$HAS_FORBIDDEN" -eq 0 ]; then
+    log_pass "No forbidden system libraries bundled"
+fi
 
 # These SHOULD be bundled
 REQUIRED_LIBS=("libfbclient")
@@ -474,8 +444,7 @@ else
     # Attempt to load extension
     pushd "$BUNDLE_DIR" > /dev/null
     
-    LOAD_OUTPUT=$("$PHP_BINARY" -d "extension=$(pwd)/firebird.so" -m 2>&1 || true)
-    LOAD_EXIT=$?
+    LOAD_OUTPUT=$("$PHP_BINARY" -d "extension=$(pwd)/firebird.so" -m 2>&1) && LOAD_EXIT=$? || LOAD_EXIT=$?
     
     popd > /dev/null
     
@@ -483,7 +452,7 @@ else
         log_pass "Extension loads successfully"
     else
         log_fail "Extension failed to load"
-        if [ "$VERBOSE" = true ] || [ $LOAD_EXIT -ne 0 ]; then
+        if [ "$VERBOSE" = 1 ] || [ $LOAD_EXIT -ne 0 ]; then
             echo "Output:"
             echo "$LOAD_OUTPUT" | head -20 | sed 's/^/  /'
         fi
@@ -531,7 +500,7 @@ if [ -d "$BUNDLE_DIR" ]; then
     fi
     
     # Breakdown by component
-    if [ "$VERBOSE" = true ]; then
+    if [ "$VERBOSE" = 1 ]; then
         echo "Size breakdown:"
         du -sh "$BUNDLE_DIR"/* 2>/dev/null | sed 's/^/  /'
         echo "Library sizes:"
@@ -596,19 +565,19 @@ fi
 
 echo "=== Verification Summary ==="
 echo ""
-echo -e "  ${GREEN}Passed:${NC}  $CHECKS_PASSED"
-echo -e "  ${RED}Failed:${NC}  $CHECKS_FAILED"
-echo -e "  ${YELLOW}Warnings:${NC} $CHECKS_WARNED"
+echo -e "  ${GREEN}Passed:${NC}  $LOG_PASS_COUNT"
+echo -e "  ${RED}Failed:${NC}  $LOG_FAIL_COUNT"
+echo -e "  ${YELLOW}Warnings:${NC} $LOG_WARN_COUNT"
 echo ""
 
 # Determine exit code
-if [ "$CHECKS_FAILED" -gt 0 ]; then
+if [ "$LOG_FAIL_COUNT" -gt 0 ]; then
     echo -e "${RED}VERIFICATION FAILED${NC} - Bundle has critical issues"
     exit 1
-elif [ "$CHECKS_WARNED" -gt 0 ] && [ "$STRICT" = true ]; then
+elif [ "$LOG_WARN_COUNT" -gt 0 ] && [ "$STRICT" = true ]; then
     echo -e "${YELLOW}VERIFICATION FAILED (strict mode)${NC} - Bundle has warnings"
     exit 2
-elif [ "$CHECKS_WARNED" -gt 0 ]; then
+elif [ "$LOG_WARN_COUNT" -gt 0 ]; then
     echo -e "${YELLOW}VERIFICATION PASSED WITH WARNINGS${NC} - Bundle may have limitations"
     exit 0
 else

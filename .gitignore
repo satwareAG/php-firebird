@@ -137,7 +137,7 @@ build_scripts/php-fb-config.bat
 composer.lock
 
 # LSan suppressions (generated)
-scripts/container/analysis/lsan.supp
+scripts/analysis/lsan.supp
 
 # act (GitHub Actions local runner)
 .act.env

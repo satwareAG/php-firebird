@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+source "$(dirname "$0")/lib/logging.sh"
+source "$(dirname "$0")/lib/clean-artifacts.sh"
+
 # Modern implementation of test runner across PHP versions
 # Usage: ./test_matrix.sh [container_name] [firebird_server] [test_files...]
 # Example: ./test_matrix.sh php83-dev
@@ -17,62 +20,19 @@ set -e
 #   firebird_server  - Target Firebird server (firebird30, firebird40, firebird50)
 #   test_files       - Optional specific test files to run
 
-# Colors
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-
 PROJECT_ROOT=$(pwd)
 DOCKER_DIR="$PROJECT_ROOT/docker"
 
-echo -e "${BLUE}=== PHP Firebird Test Matrix ===${NC}"
-
-# Helper: clean test artifacts left by run-tests.php
-# These files accumulate between runs and can cause stale results or confusion.
-clean_test_artifacts() {
-    local cleaned=0
-    for dir in tests pdo_fbird/tests; do
-        if [ -d "$PROJECT_ROOT/$dir" ]; then
-            # Pass 1: recursive for unambiguous artifact extensions
-            cleaned=$(( cleaned + $(find "$PROJECT_ROOT/$dir" \
-                \( -name '*.diff' -o -name '*.out' -o -name '*.exp' \
-                   -o -name '*.log' -o -name '*.mem' \) \
-                2>/dev/null | wc -l) ))
-            find "$PROJECT_ROOT/$dir" \
-                \( -name '*.diff' -o -name '*.out' -o -name '*.exp' \
-                   -o -name '*.log' -o -name '*.mem' \) \
-                -delete 2>/dev/null || true
-            # Pass 2: top-level only for *.php and *.sh
-            # (protects tracked source files in subdirs like tests/sanitizer/)
-            cleaned=$(( cleaned + $(find "$PROJECT_ROOT/$dir" -maxdepth 1 \
-                \( -name '*.php' -o -name '*.sh' \) \
-                -not -name 'common.inc' -not -name 'config.inc' \
-                -not -name 'firebird.inc' -not -name 'functions.inc' \
-                -not -name 'skipif.inc' \
-                2>/dev/null | wc -l) ))
-            find "$PROJECT_ROOT/$dir" -maxdepth 1 \
-                \( -name '*.php' -o -name '*.sh' \) \
-                -not -name 'common.inc' -not -name 'config.inc' \
-                -not -name 'firebird.inc' -not -name 'functions.inc' \
-                -not -name 'skipif.inc' \
-                -delete 2>/dev/null || true
-        fi
-    done
-    if [ "$cleaned" -gt 0 ]; then
-        echo -e "${YELLOW}Cleaned $cleaned test artifact(s) from previous run${NC}"
-    fi
-}
+log_info "=== PHP Firebird Test Matrix ==="
 
 # 1. Check Prerequisites
 if ! command -v docker >/dev/null 2>&1; then
-    echo -e "${RED}Error: docker is not installed.${NC}"
+    log_error "Error: docker is not installed."
     exit 1
 fi
 
 # 2. Ensure Environment
-echo -e "${BLUE}>> Infrastructure Check${NC}"
+log_info ">> Infrastructure Check"
 cd "$DOCKER_DIR"
 
 # Export UID/GID for docker compose substitution
@@ -84,14 +44,14 @@ export CURRENT_GID=$(id -g)
 # and its dependencies (Docker Compose handles depends_on automatically).
 # When no container is specified (full matrix), start all services.
 if [ -n "$1" ]; then
-    echo -e "${BLUE}Starting container: $1 (+ dependencies)${NC}"
+    log_info "Starting container: $1 (+ dependencies)"
     if ! docker compose up -d "$1"; then
-        echo -e "${RED}Failed to start Docker environment for $1.${NC}"
+        log_error "Failed to start Docker environment for $1."
         exit 1
     fi
 else
     if ! docker compose up -d --remove-orphans; then
-        echo -e "${RED}Failed to start Docker environment.${NC}"
+        log_error "Failed to start Docker environment."
         exit 1
     fi
 fi
@@ -136,16 +96,16 @@ auto_detect_firebird_server() {
 FIREBIRD_SERVER=""
 if [ -n "$2" ]; then
     case "$2" in
-        firebird25|firebird30|firebird40|firebird50)
+        firebird30|firebird40|firebird50)
             FIREBIRD_SERVER="$2"
-            echo -e "${BLUE}>> Firebird Server Target: $FIREBIRD_SERVER${NC}"
+            log_info ">> Firebird Server Target: $FIREBIRD_SERVER"
             ;;
         "")
             # Empty string - use container default
             ;;
         *)
-            echo -e "${RED}Error: Invalid Firebird server '$2'${NC}"
-            echo "Valid servers: firebird25, firebird30, firebird40, firebird50"
+            log_error "Error: Invalid Firebird server '$2'"
+            echo "Valid servers: firebird30, firebird40, firebird50"
             echo "Usage: $0 [container] [firebird_server] [test_files...]"
             exit 1
             ;;
@@ -157,7 +117,7 @@ TEST_TARGETS=""
 if [ -n "$3" ]; then
     # Capture all arguments starting from position 3
     TEST_TARGETS="${@:3}"
-    echo -e "${BLUE}>> Targeting specific tests: $TEST_TARGETS${NC}"
+    log_info ">> Targeting specific tests: $TEST_TARGETS"
 fi
 
 # 6. Execute Matrix
@@ -165,7 +125,7 @@ FAILED_CONTAINERS=()
 PASSED_CONTAINERS=()
 
 # Clean stale test artifacts before starting the matrix
-echo -e "${BLUE}>> Cleaning test artifacts from previous runs${NC}"
+log_info ">> Cleaning test artifacts from previous runs"
 clean_test_artifacts
 
 # Helper: clean test environment (orphaned processes + leftover DB files) between runs.
@@ -192,7 +152,8 @@ clean_test_environment() {
 }
 
 for CONTAINER in "${TARGETS[@]}"; do
-    echo -e "\n${BLUE}>> Testing Target: $CONTAINER${NC}"
+    echo ""
+    log_info ">> Testing Target: $CONTAINER"
 
     # Clean test artifacts between container runs to prevent cross-contamination
     clean_test_artifacts
@@ -202,10 +163,10 @@ for CONTAINER in "${TARGETS[@]}"; do
 
     # Verify container state
     if [ -z "$(docker compose ps -q $CONTAINER)" ]; then
-        echo -e "${YELLOW}Container $CONTAINER is not running. Starting...${NC}"
+        log_warn "Container $CONTAINER is not running. Starting..."
         docker compose up -d $CONTAINER
         if [ -z "$(docker compose ps -q $CONTAINER)" ]; then
-            echo -e "${RED}Failed to start container $CONTAINER.${NC}"
+            log_error "Failed to start container $CONTAINER."
             echo "Available services:"
             docker compose ps --services
             FAILED_CONTAINERS+=("$CONTAINER (failed to start)")
@@ -214,7 +175,7 @@ for CONTAINER in "${TARGETS[@]}"; do
     fi
 
     # Fix permissions as root first (in case previous runs left root-owned files)
-    echo "Fixing permissions..."
+    log_info "Fixing permissions..."
     docker compose exec -u root "$CONTAINER" chown -R $CURRENT_UID:$CURRENT_GID /ext
 
     # Build environment variable options for docker exec
@@ -234,14 +195,14 @@ for CONTAINER in "${TARGETS[@]}"; do
         # (or writable) in the selected Firebird server container, which breaks
         # CREATE DATABASE during SKIPIF/init_db().
         ENV_OPTS="-e FIREBIRD_HOST=$TARGET_SERVER -e FIREBIRD_DB_DIR=/tmp"
-        echo "Using Firebird server: $TARGET_SERVER (FIREBIRD_DB_DIR=/tmp)"
+        log_info "Using Firebird server: $TARGET_SERVER (FIREBIRD_DB_DIR=/tmp)"
     fi
 
     # Run Build & Test in single session
     # CRITICAL: build.sh must clean .dep files between PHP versions
     # These dependency files contain absolute paths to PHP headers (e.g., /usr/local/include/php/main/php_stdint.h)
     # that differ between PHP versions, causing "No rule to make target" errors if not cleaned.
-    echo "Running build and test suite (Server: ${TARGET_SERVER:-default}, Tests: ${TEST_TARGETS:-ALL})..."
+    log_info "Running build and test suite (Server: ${TARGET_SERVER:-default}, Tests: ${TEST_TARGETS:-ALL})..."
 
     # Construct command with optional target
     CMD="/ext/scripts/build.sh && /ext/scripts/test.sh"
@@ -250,26 +211,30 @@ for CONTAINER in "${TARGETS[@]}"; do
     fi
 
     if docker compose exec $ENV_OPTS "$CONTAINER" bash -c "$CMD"; then
-        echo -e "${GREEN}✓ $CONTAINER passed${NC}"
+        log_pass "✓ $CONTAINER passed"
         PASSED_CONTAINERS+=("$CONTAINER")
     else
-        echo -e "${RED}✗ $CONTAINER failed${NC}"
+        log_fail "✗ $CONTAINER failed"
         FAILED_CONTAINERS+=("$CONTAINER")
     fi
 done
 
 # Final cleanup after all containers have run
-echo -e "\n${BLUE}>> Final artifact cleanup${NC}"
+echo ""
+log_info ">> Final artifact cleanup"
 clean_test_artifacts
 
-echo -e "\n${BLUE}=== Test Matrix Summary ===${NC}"
-echo -e "Passed (${#PASSED_CONTAINERS[@]}): ${PASSED_CONTAINERS[*]}"
-echo -e "Failed (${#FAILED_CONTAINERS[@]}): ${FAILED_CONTAINERS[*]}"
+echo ""
+log_info "=== Test Matrix Summary ==="
+log_info "Passed (${#PASSED_CONTAINERS[@]}): ${PASSED_CONTAINERS[*]}"
+log_info "Failed (${#FAILED_CONTAINERS[@]}): ${FAILED_CONTAINERS[*]}"
 
 if [ ${#FAILED_CONTAINERS[@]} -eq 0 ]; then
-    echo -e "\n${GREEN}=== All Targeted Versions Passed ===${NC}"
+    echo ""
+    log_pass "=== All Targeted Versions Passed ==="
     exit 0
 else
-    echo -e "\n${RED}=== Some Versions Failed ===${NC}"
+    echo ""
+    log_fail "=== Some Versions Failed ==="
     exit 1
 fi

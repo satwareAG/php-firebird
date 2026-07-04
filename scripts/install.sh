@@ -20,12 +20,14 @@
 #
 # Requirements:
 #   - Linux x86_64 with glibc 2.28+ (Ubuntu 18.10+, Debian 10+, RHEL 8+)
-#   - PHP 8.1+ CLI installed
+#   - PHP 8.2+ CLI installed
 #   - curl and tar
 #
 # =============================================================================
 
 set -euo pipefail
+
+source "$(dirname "$0")/lib/logging.sh"
 
 # =============================================================================
 # Configuration
@@ -37,28 +39,9 @@ SYSTEM_INSTALL=false
 VERIFY_ONLY=false
 INSTALL_DIR="${HOME}/php-firebird"
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
 # =============================================================================
 # Helper Functions
 # =============================================================================
-
-log_info() {
-    echo -e "${GREEN}>>>${NC} $*"
-}
-
-log_warn() {
-    echo -e "${YELLOW}WARNING:${NC} $*"
-}
-
-log_error() {
-    echo -e "${RED}ERROR:${NC} $*" >&2
-}
 
 show_help() {
     sed -n '3,22p' "$0" | sed 's/^# //' | sed 's/^#//'
@@ -138,8 +121,8 @@ PHP_VER="${PHP_MAJOR}${PHP_MINOR}"
 PHP_VER_DOT="${PHP_MAJOR}.${PHP_MINOR}"
 
 # Validate PHP version
-if [ "$PHP_MAJOR" -lt 8 ] || { [ "$PHP_MAJOR" -eq 8 ] && [ "$PHP_MINOR" -lt 1 ]; }; then
-    log_error "PHP $PHP_VER_DOT is not supported. Minimum required: 8.1"
+if [ "$PHP_MAJOR" -lt 8 ] || { [ "$PHP_MAJOR" -eq 8 ] && [ "$PHP_MINOR" -lt 2 ]; }; then
+    log_error "PHP $PHP_VER_DOT is not supported. Minimum required: 8.2"
     exit 1
 fi
 
@@ -329,7 +312,7 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 if [ "$SYSTEM_INSTALL" = true ]; then
-    echo -e "${GREEN}Installation complete!${NC}"
+    log_info "Installation complete!"
     echo ""
     echo "The extension is now available system-wide."
     echo ""
@@ -337,7 +320,7 @@ if [ "$SYSTEM_INSTALL" = true ]; then
     echo "  php -m | grep firebird"
     echo "  php -ri firebird"
 else
-    echo -e "${GREEN}Installation complete!${NC}"
+    log_info "Installation complete!"
     echo ""
     echo "The extension is installed to: $INSTALL_DIR"
     echo ""

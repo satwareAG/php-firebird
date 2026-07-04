@@ -93,13 +93,13 @@ The `php85-fb5-dev` container:
 The static analysis scripts auto-detect the Firebird installation:
 ```bash
 # Run cppcheck in FB 3.0 client container
-docker compose exec php84-fb3-dev sh -c "/ext/scripts/container/analysis/cppcheck.sh"
+docker compose exec php84-fb3-dev sh -c "/ext/scripts/analysis/cppcheck.sh"
 
 # Run clang-tidy in FB 5.0 client container
-docker compose exec php85-fb5-dev sh -c "/ext/scripts/container/analysis/clang_tidy.sh"
+docker compose exec php85-fb5-dev sh -c "/ext/scripts/analysis/clang_tidy.sh"
 
 # Generate compile_commands.json (auto-detects Firebird path)
-docker compose exec php84-fb3-dev sh -c "/ext/scripts/container/analysis/generate_compdb.sh"
+docker compose exec php84-fb3-dev sh -c "/ext/scripts/analysis/generate_compdb.sh"
 ```
 
 ## Customization

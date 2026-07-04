@@ -101,10 +101,10 @@ cd docker/
 docker-compose up -d php83-dev
 
 # Build extension
-docker exec php-firebird-dev-php83-dev-1 /ext/scripts/container/build.sh
+docker exec php-firebird-dev-php83-dev-1 /ext/scripts/build.sh
 
 # Run tests
-docker exec php-firebird-dev-php83-dev-1 /ext/scripts/container/test.sh
+docker exec php-firebird-dev-php83-dev-1 /ext/scripts/test.sh
 ```
 
 ### Native Installation

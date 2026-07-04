@@ -79,7 +79,7 @@ CustomChecks:
 
 ### 1.3 clang-tidy Integration Script
 
-**File**: `scripts/run_clang_tidy.sh`
+**File**: `scripts/analysis/clang_tidy.sh`
 
 ```bash
 #!/bin/bash
@@ -148,7 +148,7 @@ check-config=true
 
 ### 2.2 Cppcheck CI Integration
 
-**File**: `scripts/run_cppcheck.sh`
+**File**: `scripts/analysis/cppcheck.sh`
 
 ```bash
 #!/bin/bash
@@ -215,7 +215,7 @@ CXXFLAGS="-fsanitize=address -fno-omit-frame-pointer -g -O1" \
 
 ```bash
 #!/bin/bash
-# scripts/test_with_asan.sh
+# scripts/analysis/sanitizers.sh
 
 set -e
 
@@ -458,7 +458,7 @@ clang-tidy:
     - apt-get install -y clang-tools-17 bear make gcc php8.1-dev libfirebird-dev
     - ln -sf /usr/bin/clang-tidy-17 /usr/bin/clang-tidy
   script:
-    - ./scripts/run_clang_tidy.sh
+    - ./scripts/analysis/clang_tidy.sh
   artifacts:
     reports:
       codequality: clang-tidy-report.json
@@ -474,7 +474,7 @@ cppcheck:
     - apt-get update -qq
     - apt-get install -y cppcheck xmllint
   script:
-    - ./scripts/run_cppcheck.sh
+    - ./scripts/analysis/cppcheck.sh
   artifacts:
     reports:
       codequality: cppcheck-report.xml
@@ -490,7 +490,7 @@ address-sanitizer:
     - apt-get update -qq
     - apt-get install -y gcc clang php8.1-dev libfirebird-dev
   script:
-    - ./scripts/test_with_asan.sh
+    - ./scripts/analysis/sanitizers.sh
   artifacts:
     paths:
       - asan-report.log
@@ -933,15 +933,15 @@ static-analysis: clang-tidy cppcheck
 
 clang-tidy:
 	@echo "Running clang-tidy analysis..."
-	./scripts/run_clang_tidy.sh
+	./scripts/analysis/clang_tidy.sh
 
 cppcheck:
 	@echo "Running cppcheck analysis..."
-	./scripts/run_cppcheck.sh
+	./scripts/analysis/cppcheck.sh
 
 asan-test:
 	@echo "Running AddressSanitizer tests..."
-	./scripts/test_with_asan.sh
+	./scripts/analysis/sanitizers.sh
 
 valgrind-test:
 	@echo "Running Valgrind analysis..."

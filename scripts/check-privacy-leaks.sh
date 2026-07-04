@@ -18,28 +18,12 @@
 # Part of IPADP Phase 2: L2 Privacy Validation
 # See: https://github.com/satwareAG/spec-kit/issues/9
 set -euo pipefail
+source "$(dirname "$0")/lib/logging.sh"
 
 REPO_ROOT="${1:-.}"
 WHITELIST="${REPO_ROOT}/.privacy-whitelist"
 VIOLATIONS=0
 REPORT=""
-
-# --- Color helpers (nocolor fallback for CI) ---
-if [[ -t 1 ]]; then
-  RED='\033[0;31m'
-  GREEN='\033[0;32m'
-  YELLOW='\033[0;33m'
-  NC='\033[0m'
-else
-  RED=''
-  GREEN=''
-  YELLOW=''
-  NC=''
-fi
-
-info()  { echo -e "${GREEN}[INFO]${NC}  $*"; }
-warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
-fail()  { echo -e "${RED}[FAIL]${NC}  $*"; }
 
 # --- Privacy patterns (extended regex) ---
 # Each entry: PATTERN_REGEX<tab>CATEGORY_DESCRIPTION
@@ -53,13 +37,8 @@ PATTERNS=(
 )
 
 # --- Load whitelist exclusions ---
-WHITELIST_ARGS=()
 if [[ -f "${WHITELIST}" ]]; then
   info "Loaded whitelist: ${WHITELIST}"
-  while IFS= read -r line; do
-    [[ -z "${line}" || "${line}" =~ ^# ]] && continue
-    WHITELIST_ARGS+=(--not --match="${line}")
-  done < "${WHITELIST}"
 fi
 
 # --- Get tracked files ---

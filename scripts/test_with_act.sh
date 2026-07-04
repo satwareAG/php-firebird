@@ -49,19 +49,15 @@
 
 set -euo pipefail
 
+source "$(dirname "$0")/lib/logging.sh"
+
 # ============================================================================
 # Configuration
 # ============================================================================
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
+# Additional colors not provided by shared logging helper
 MAGENTA='\033[0;35m'
 BOLD='\033[1m'
-NC='\033[0m'
 
 # Project paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -124,7 +120,7 @@ check_prerequisites() {
     local missing=()
     local warnings=()
 
-    echo -e "${BLUE}>> Checking prerequisites...${NC}"
+    log_info ">> Checking prerequisites..."
 
     # Required: docker
     if ! command -v docker &>/dev/null; then
@@ -153,21 +149,21 @@ check_prerequisites() {
 
     # Report
     if [ ${#missing[@]} -gt 0 ]; then
-        echo -e "${RED}ERROR: Missing required tools:${NC}"
+        log_error "ERROR: Missing required tools:"
         for tool in "${missing[@]}"; do
-            echo -e "  - $tool"
+            echo "  - $tool"
         done
         exit 1
     fi
 
     if [ ${#warnings[@]} -gt 0 ]; then
-        echo -e "${YELLOW}⚠ Optional tools not found:${NC}"
+        log_warn "Optional tools not found:"
         for tool in "${warnings[@]}"; do
-            echo -e "  - $tool"
+            echo "  - $tool"
         done
     fi
 
-    echo -e "${GREEN}✓ Prerequisites OK${NC}"
+    log_pass "Prerequisites OK"
 }
 
 # ============================================================================
@@ -192,14 +188,15 @@ workflow_uses_services() {
 # Show service container warning
 show_service_warning() {
     local workflow_name="$1"
-    echo -e "\n${YELLOW}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${YELLOW}║       ⚠️  SERVICE CONTAINER WARNING                          ║${NC}"
-    echo -e "${YELLOW}╚══════════════════════════════════════════════════════════════╝${NC}"
-    echo -e ""
-    echo -e "${YELLOW}Workflow '${workflow_name}' uses service containers (Firebird).${NC}"
-    echo -e "${YELLOW}act v0.2.83 has a bug causing panics with service containers.${NC}"
-    echo -e ""
-    echo -e "${CYAN}Recommended alternatives:${NC}"
+    echo ""
+    log_warn "╔══════════════════════════════════════════════════════════════╗"
+    log_warn "║       ⚠️  SERVICE CONTAINER WARNING                          ║"
+    log_warn "╚══════════════════════════════════════════════════════════════╝"
+    echo ""
+    log_warn "Workflow '${workflow_name}' uses service containers (Firebird)."
+    log_warn "act v0.2.83 has a bug causing panics with service containers."
+    echo ""
+    log_info "Recommended alternatives:"
     case "$workflow_name" in
         ci)
             echo -e "  ${GREEN}./scripts/test_with_act.sh --matrix${NC}  # PHP/Firebird matrix tests"
@@ -212,22 +209,22 @@ show_service_warning() {
             echo -e "  ${GREEN}./scripts/test_with_act.sh --sanitizers${NC}  # ASan/UBSan tests"
             ;;
     esac
-    echo -e ""
-    echo -e "${CYAN}For workflows without services, act works well:${NC}"
+    echo ""
+    log_info "For workflows without services, act works well:"
     echo -e "  ${GREEN}./scripts/test_with_act.sh act code-quality${NC}  # Quality checks"
     echo -e "  ${GREEN}./scripts/test_with_act.sh act release-linux${NC}  # Linux release build"
     echo -e "  ${GREEN}./scripts/test_with_act.sh act release-windows${NC}  # Windows release build"
-    echo -e ""
+    echo ""
     echo -e "See: ${CYAN}docs/development/LOCAL_CI_TESTING.md${NC}"
-    echo -e ""
+    echo ""
 }
 
 # Check if act is installed
 check_act() {
     if ! command -v act &>/dev/null; then
-        echo -e "${RED}ERROR: act is not installed${NC}"
+        log_error "ERROR: act is not installed"
         echo ""
-        echo -e "${YELLOW}Install act:${NC}"
+        log_warn "Install act:"
         echo "  Arch Linux:   sudo pacman -S act"
         echo "  macOS:        brew install act"
         echo "  Other:        https://github.com/nektos/act#installation"
@@ -241,7 +238,7 @@ check_act() {
     
     # Warn about service container bug in v0.2.83
     if echo "$act_version" | grep -q "0.2.83"; then
-        echo -e "${YELLOW}⚠ Note: v0.2.83 has known issues with service containers${NC}"
+        log_warn "Note: v0.2.83 has known issues with service containers"
     fi
 }
 
@@ -290,16 +287,17 @@ get_workflow_shortname() {
 
 # List all workflows and their jobs
 list_workflows() {
-    echo -e "\n${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║       Available GitHub Actions Workflows                     ║${NC}"
-    echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    log_info "╔══════════════════════════════════════════════════════════════╗"
+    log_info "║       Available GitHub Actions Workflows                     ║"
+    log_info "╚══════════════════════════════════════════════════════════════╝"
     echo ""
 
     local workflows
     mapfile -t workflows < <(find "$WORKFLOWS_DIR" -name "*.yml" -o -name "*.yaml" 2>/dev/null | sort)
 
     if [ ${#workflows[@]} -eq 0 ]; then
-        echo -e "${YELLOW}No workflows found in $WORKFLOWS_DIR${NC}"
+        log_warn "No workflows found in $WORKFLOWS_DIR"
         return 1
     fi
 
@@ -309,10 +307,10 @@ list_workflows() {
             shortname=$(get_workflow_shortname "$workflow")
             local fullname
             fullname=$(get_workflow_name "$workflow")
-            
+
             echo -e "${CYAN}${BOLD}$shortname${NC} - ${fullname}"
             echo -e "  ${YELLOW}File:${NC} $workflow"
-            
+
             # List jobs using act
             echo -e "  ${YELLOW}Jobs:${NC}"
             if act -W "$workflow" -l 2>/dev/null | grep -v "^Stage" | grep -v "^$" | head -20; then
@@ -382,10 +380,11 @@ run_act_workflow() {
     local fullname
     fullname=$(get_workflow_name "$workflow_file")
     
-    echo -e "\n${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo ""
+    log_info "╔══════════════════════════════════════════════════════════════╗"
     printf "${BLUE}║${NC}  Running: ${CYAN}%-48s${NC} ${BLUE}║${NC}\n" "$shortname"
     echo -e "${BLUE}║${NC}  ${fullname}"
-    echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+    log_info "╚══════════════════════════════════════════════════════════════╝"
 
     local act_args=()
     
@@ -427,11 +426,11 @@ run_act_workflow() {
     
     echo -e "${CYAN}>> act ${act_args[*]}${NC}"
     echo ""
-    
+
     local start_time
     start_time=$(date +%s)
     local exit_code=0
-    
+
     if act "${act_args[@]}"; then
         exit_code=0
     else
@@ -443,10 +442,12 @@ run_act_workflow() {
     local duration=$((end_time - start_time))
     
     if [ $exit_code -eq 0 ]; then
-        echo -e "\n${GREEN}✓ Workflow '$shortname' completed successfully (${duration}s)${NC}"
+        echo ""
+        log_pass "Workflow '$shortname' completed successfully (${duration}s)"
         RESULTS["act:$shortname"]="PASS"
     else
-        echo -e "\n${RED}✗ Workflow '$shortname' failed with exit code $exit_code (${duration}s)${NC}"
+        echo ""
+        log_fail "Workflow '$shortname' failed with exit code $exit_code (${duration}s)"
         RESULTS["act:$shortname"]="FAIL"
     fi
     
@@ -455,9 +456,10 @@ run_act_workflow() {
 
 # Run act mode - main entry point for act functionality
 run_act_mode() {
-    echo -e "\n${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║       GitHub Actions Local Runner (act)                      ║${NC}"
-    echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    log_info "╔══════════════════════════════════════════════════════════════╗"
+    log_info "║       GitHub Actions Local Runner (act)                      ║"
+    log_info "╚══════════════════════════════════════════════════════════════╝"
 
     check_act
     
@@ -489,9 +491,9 @@ run_act_mode() {
         fi
         
         if [ -z "$workflow_file" ] || [ ! -f "$workflow_file" ]; then
-            echo -e "${RED}ERROR: Workflow not found: $ACT_WORKFLOW${NC}"
+            log_error "ERROR: Workflow not found: $ACT_WORKFLOW"
             echo ""
-            echo -e "${YELLOW}Available workflows:${NC}"
+            log_warn "Available workflows:"
             for wf in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
                 if [ -f "$wf" ]; then
                     echo "  - $(get_workflow_shortname "$wf")"
@@ -506,11 +508,11 @@ run_act_mode() {
         mapfile -t workflows_to_run < <(find "$WORKFLOWS_DIR" -name "*.yml" -o -name "*.yaml" 2>/dev/null | sort)
         
         if [ ${#workflows_to_run[@]} -eq 0 ]; then
-            echo -e "${RED}ERROR: No workflows found in $WORKFLOWS_DIR${NC}"
+            log_error "ERROR: No workflows found in $WORKFLOWS_DIR"
             exit $EXIT_ACT_FAILED
         fi
-        
-        echo -e "${YELLOW}Running ${#workflows_to_run[@]} workflow(s)...${NC}"
+
+        log_warn "Running ${#workflows_to_run[@]} workflow(s)..."
     fi
     
     # Run each workflow
@@ -519,7 +521,7 @@ run_act_mode() {
             if ! run_act_workflow "$workflow"; then
                 act_failed=1
                 if [ "$ACT_FAIL_FAST" = true ]; then
-                    echo -e "${RED}Stopping due to --fail-fast${NC}"
+                    log_fail "Stopping due to --fail-fast"
                     break
                 fi
             fi
@@ -560,7 +562,7 @@ map_php_to_container() {
         8.4) echo "php84-dev" ;;
         8.5) echo "php85-dev" ;;
         *)
-            echo -e "${RED}ERROR: Unknown PHP version: $php_ver${NC}" >&2
+            log_error "ERROR: Unknown PHP version: $php_ver"
             exit 1
             ;;
     esac
@@ -576,7 +578,7 @@ map_fb_to_server() {
         4.0) echo "firebird40" ;;
         5.0) echo "firebird50" ;;
         *)
-            echo -e "${RED}ERROR: Unknown Firebird version: $fb_ver${NC}" >&2
+            log_error "ERROR: Unknown Firebird version: $fb_ver"
             exit 1
             ;;
     esac
@@ -587,14 +589,16 @@ map_fb_to_server() {
 # ============================================================================
 
 run_qa_mode() {
-    echo -e "\n${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║       CI Quality Check (mirrors code-quality.yml)            ║${NC}"
-    echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    log_info "╔══════════════════════════════════════════════════════════════╗"
+    log_info "║       CI Quality Check (mirrors code-quality.yml)            ║"
+    log_info "╚══════════════════════════════════════════════════════════════╝"
 
     local qa_failed=0
 
     # 1. PHP Static Analysis (mirrors php-analysis job)
-    echo -e "\n${CYAN}>> [1/3] PHP Static Analysis (PHPStan + PHPCS)...${NC}"
+    echo ""
+    echo -e "${CYAN}>> [1/3] PHP Static Analysis (PHPStan + PHPCS)...${NC}"
     cd "$PROJECT_ROOT"
 
     # Ensure composer dependencies
@@ -607,15 +611,15 @@ run_qa_mode() {
     if [ -f vendor/bin/phpstan ]; then
         echo "Running PHPStan..."
         if vendor/bin/phpstan analyse --configuration=phpstan.neon --no-progress; then
-            echo -e "${GREEN}✓ PHPStan passed${NC}"
+            log_pass "PHPStan passed"
             RESULTS["phpstan"]="PASS"
         else
-            echo -e "${RED}✗ PHPStan failed${NC}"
+            log_fail "PHPStan failed"
             RESULTS["phpstan"]="FAIL"
             qa_failed=1
         fi
     else
-        echo -e "${YELLOW}⚠ PHPStan not installed${NC}"
+        log_warn "PHPStan not installed"
         RESULTS["phpstan"]="SKIP"
     fi
 
@@ -623,10 +627,10 @@ run_qa_mode() {
     if [ -f vendor/bin/phpcs ] && [ -d src ]; then
         echo "Running PHPCS..."
         if vendor/bin/phpcs src/ --report=summary 2>/dev/null; then
-            echo -e "${GREEN}✓ PHPCS passed${NC}"
+            log_pass "PHPCS passed"
             RESULTS["phpcs"]="PASS"
         else
-            echo -e "${YELLOW}⚠ PHPCS found style issues (non-blocking)${NC}"
+            log_warn "PHPCS found style issues (non-blocking)"
             RESULTS["phpcs"]="WARN"
         fi
     else
@@ -634,7 +638,8 @@ run_qa_mode() {
     fi
 
     # 2. C/C++ Static Analysis (mirrors c-analysis job)
-    echo -e "\n${CYAN}>> [2/3] C/C++ Static Analysis (clang-tidy + cppcheck)...${NC}"
+    echo ""
+    echo -e "${CYAN}>> [2/3] C/C++ Static Analysis (clang-tidy + cppcheck)...${NC}"
 
     local build_opts=""
     if [ "$SKIP_BUILD" = true ]; then
@@ -642,16 +647,17 @@ run_qa_mode() {
     fi
 
     if "$SCRIPT_DIR/qa.sh" --container "$CONTAINER" --mode fast $build_opts; then
-        echo -e "${GREEN}✓ C/C++ analysis passed${NC}"
+        log_pass "C/C++ analysis passed"
         RESULTS["c_analysis"]="PASS"
     else
-        echo -e "${RED}✗ C/C++ analysis failed${NC}"
+        log_fail "C/C++ analysis failed"
         RESULTS["c_analysis"]="FAIL"
         qa_failed=1
     fi
 
     # 3. Secret Detection (mirrors secrets-scan job)
-    echo -e "\n${CYAN}>> [3/3] Secret Detection (Gitleaks)...${NC}"
+    echo ""
+    echo -e "${CYAN}>> [3/3] Secret Detection (Gitleaks)...${NC}"
 
     if command -v gitleaks &>/dev/null; then
         local gitleaks_opts=""
@@ -660,15 +666,15 @@ run_qa_mode() {
         fi
 
         if gitleaks detect --source "$PROJECT_ROOT" --no-git $gitleaks_opts --no-banner 2>/dev/null; then
-            echo -e "${GREEN}✓ No secrets detected${NC}"
+            log_pass "No secrets detected"
             RESULTS["gitleaks"]="PASS"
         else
-            echo -e "${RED}✗ Secrets detected! Review and remove before committing${NC}"
+            log_fail "Secrets detected! Review and remove before committing"
             RESULTS["gitleaks"]="FAIL"
             qa_failed=1
         fi
     else
-        echo -e "${YELLOW}⚠ Gitleaks not installed, skipping${NC}"
+        log_warn "Gitleaks not installed, skipping"
         RESULTS["gitleaks"]="SKIP"
     fi
 
@@ -680,9 +686,10 @@ run_qa_mode() {
 # ============================================================================
 
 run_matrix_mode() {
-    echo -e "\n${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║       CI Build Matrix (mirrors ci.yml)                       ║${NC}"
-    echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    log_info "╔══════════════════════════════════════════════════════════════╗"
+    log_info "║       CI Build Matrix (mirrors ci.yml)                       ║"
+    log_info "╚══════════════════════════════════════════════════════════════╝"
 
     local matrix_failed=0
 
@@ -690,14 +697,14 @@ run_matrix_mode() {
 
     if [ "$RUN_ALL_MATRIX" = true ]; then
         # Full matrix - run all combinations
-        echo -e "${YELLOW}Running full matrix (all PHP/Firebird combinations)...${NC}"
-        echo -e "${YELLOW}This will take a while!${NC}"
+        log_warn "Running full matrix (all PHP/Firebird combinations)..."
+        log_warn "This will take a while!"
 
         if "$SCRIPT_DIR/test_matrix.sh"; then
-            echo -e "${GREEN}✓ Full matrix passed${NC}"
+            log_pass "Full matrix passed"
             RESULTS["matrix"]="PASS"
         else
-            echo -e "${RED}✗ Full matrix failed${NC}"
+            log_fail "Full matrix failed"
             RESULTS["matrix"]="FAIL"
             matrix_failed=1
         fi
@@ -710,10 +717,10 @@ run_matrix_mode() {
         echo -e "Container: ${YELLOW}$container${NC} → Server: ${YELLOW}$server${NC}"
 
         if "$SCRIPT_DIR/test_matrix.sh" "$container" "$server"; then
-            echo -e "${GREEN}✓ Matrix cell passed: PHP $PHP_VERSION / FB $FB_VERSION${NC}"
+            log_pass "Matrix cell passed: PHP $PHP_VERSION / FB $FB_VERSION"
             RESULTS["matrix"]="PASS"
         else
-            echo -e "${RED}✗ Matrix cell failed: PHP $PHP_VERSION / FB $FB_VERSION${NC}"
+            log_fail "Matrix cell failed: PHP $PHP_VERSION / FB $FB_VERSION"
             RESULTS["matrix"]="FAIL"
             matrix_failed=1
         fi
@@ -727,12 +734,13 @@ run_matrix_mode() {
 # ============================================================================
 
 run_syntax_mode() {
-    echo -e "\n${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║       Workflow Syntax Validation (act --dryrun)              ║${NC}"
-    echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    log_info "╔══════════════════════════════════════════════════════════════╗"
+    log_info "║       Workflow Syntax Validation (act --dryrun)              ║"
+    log_info "╚══════════════════════════════════════════════════════════════╝"
 
     if ! command -v act &>/dev/null; then
-        echo -e "${RED}ERROR: act is not installed. Install via: sudo pacman -S act${NC}"
+        log_error "ERROR: act is not installed. Install via: sudo pacman -S act"
         exit $EXIT_SYNTAX_INVALID
     fi
 
@@ -744,13 +752,14 @@ run_syntax_mode() {
         if [ -f "$workflow" ]; then
             local shortname
             shortname=$(get_workflow_shortname "$workflow")
-            echo -e "\n${CYAN}>> Validating $shortname...${NC}"
+            echo ""
+            echo -e "${CYAN}>> Validating $shortname...${NC}"
 
             if act -W "$workflow" -n 2>&1 | head -30; then
-                echo -e "${GREEN}✓ $shortname syntax valid${NC}"
+                log_pass "$shortname syntax valid"
                 RESULTS["syntax:$shortname"]="PASS"
             else
-                echo -e "${RED}✗ $shortname syntax invalid${NC}"
+                log_fail "$shortname syntax invalid"
                 RESULTS["syntax:$shortname"]="FAIL"
                 syntax_failed=1
             fi
@@ -771,9 +780,10 @@ run_syntax_mode() {
 # ============================================================================
 
 run_coverage_mode() {
-    echo -e "\n${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║       Code Coverage (mirrors coverage.yml)                   ║${NC}"
-    echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    log_info "╔══════════════════════════════════════════════════════════════╗"
+    log_info "║       Code Coverage (mirrors coverage.yml)                   ║"
+    log_info "╚══════════════════════════════════════════════════════════════╝"
 
     local coverage_failed=0
     cd "$PROJECT_ROOT"
@@ -782,10 +792,10 @@ run_coverage_mode() {
     if [ -f "$SCRIPT_DIR/coverage.sh" ]; then
         echo -e "${CYAN}>> Running coverage.sh...${NC}"
         if "$SCRIPT_DIR/coverage.sh"; then
-            echo -e "${GREEN}✓ Coverage passed${NC}"
+            log_pass "Coverage passed"
             RESULTS["coverage"]="PASS"
         else
-            echo -e "${RED}✗ Coverage failed${NC}"
+            log_fail "Coverage failed"
             RESULTS["coverage"]="FAIL"
             coverage_failed=1
         fi
@@ -819,10 +829,10 @@ run_coverage_mode() {
                 echo "lcov not available for coverage summary"
             fi
         '; then
-            echo -e "${GREEN}✓ Coverage tests passed${NC}"
+            log_pass "Coverage tests passed"
             RESULTS["coverage"]="PASS"
         else
-            echo -e "${RED}✗ Coverage tests failed${NC}"
+            log_fail "Coverage tests failed"
             RESULTS["coverage"]="FAIL"
             coverage_failed=1
         fi
@@ -836,16 +846,17 @@ run_coverage_mode() {
 # ============================================================================
 
 run_sanitizers_mode() {
-    echo -e "\n${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║       Memory Testing with ASan/UBSan                         ║${NC}"
-    echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    log_info "╔══════════════════════════════════════════════════════════════╗"
+    log_info "║       Memory Testing with ASan/UBSan                         ║"
+    log_info "╚══════════════════════════════════════════════════════════════╝"
 
     local sanitizers_failed=0
     cd "$PROJECT_ROOT"
 
     echo -e "${CYAN}>> Running ASan + UBSan memory sanitizers...${NC}"
-    echo -e "${YELLOW}Note: Uses GCC sanitizers with libasan preload workaround for PHP${NC}"
-    echo -e "${YELLOW}For Valgrind testing, use: ./scripts/qa.sh --mode full${NC}"
+    log_warn "Note: Uses GCC sanitizers with libasan preload workaround for PHP"
+    log_warn "For Valgrind testing, use: ./scripts/qa.sh --mode full"
 
     local container="php83-dev"
 
@@ -918,10 +929,10 @@ run_sanitizers_mode() {
 
           echo "✅ No sanitizer errors detected in extension code"
     '; then
-        echo -e "${GREEN}✓ Sanitizer tests passed${NC}"
+        log_pass "Sanitizer tests passed"
         RESULTS["sanitizers"]="PASS"
     else
-        echo -e "${RED}✗ Sanitizer tests failed${NC}"
+        log_fail "Sanitizer tests failed"
         RESULTS["sanitizers"]="FAIL"
         sanitizers_failed=1
     fi
@@ -934,10 +945,11 @@ run_sanitizers_mode() {
 # ============================================================================
 
 run_full_mode() {
-    echo -e "\n${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║       Full CI Pre-flight Validation                          ║${NC}"
-    echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
-    echo -e "${YELLOW}This simulates the complete GitHub Actions CI pipeline${NC}"
+    echo ""
+    log_info "╔══════════════════════════════════════════════════════════════╗"
+    log_info "║       Full CI Pre-flight Validation                          ║"
+    log_info "╚══════════════════════════════════════════════════════════════╝"
+    log_warn "This simulates the complete GitHub Actions CI pipeline"
 
     local full_failed=0
 
@@ -947,7 +959,8 @@ run_full_mode() {
     fi
 
     # 2. Build & Test Matrix (representative sample)
-    echo -e "\n${CYAN}>> Running representative matrix sample...${NC}"
+    echo ""
+    echo -e "${CYAN}>> Running representative matrix sample...${NC}"
     if ! run_matrix_mode; then
         full_failed=1
     fi
@@ -963,11 +976,13 @@ print_summary() {
     local end_time=$(date +%s)
     local duration=$((end_time - START_TIME))
 
-    echo -e "\n${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║                     Test Summary                             ║${NC}"
-    echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    log_info "╔══════════════════════════════════════════════════════════════╗"
+    log_info "║                     Test Summary                             ║"
+    log_info "╚══════════════════════════════════════════════════════════════╝"
 
-    echo -e "\n${CYAN}Results:${NC}"
+    echo ""
+    echo -e "${CYAN}Results:${NC}"
 
     local has_failures=false
 
@@ -983,23 +998,28 @@ print_summary() {
         printf "  %-20s %b %s\n" "$key:" "$icon" "$result"
     done
 
-    echo -e "\n${CYAN}Duration:${NC} ${duration}s"
+    echo ""
+    echo -e "${CYAN}Duration:${NC} ${duration}s"
 
     if [ "$has_failures" = true ]; then
-        echo -e "\n${RED}╔══════════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${RED}║               ✗ SOME CHECKS FAILED                          ║${NC}"
-        echo -e "${RED}╚══════════════════════════════════════════════════════════════╝${NC}"
-        echo -e "\n${YELLOW}Next steps:${NC}"
+        echo ""
+        log_fail "╔══════════════════════════════════════════════════════════════╗"
+        log_fail "║               SOME CHECKS FAILED                          ║"
+        log_fail "╚══════════════════════════════════════════════════════════════╝"
+        echo ""
+        log_warn "Next steps:"
         echo "  1. Review failures above"
         echo "  2. Fix issues locally"
         echo "  3. Re-run: $0 $MODE"
         echo "  4. Push only when all checks pass"
         return 1
     else
-        echo -e "\n${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${GREEN}║               ✓ ALL CHECKS PASSED                           ║${NC}"
-        echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
-        echo -e "\n${GREEN}CI parity verified - safe to push!${NC}"
+        echo ""
+        log_pass "╔══════════════════════════════════════════════════════════════╗"
+        log_pass "║               ALL CHECKS PASSED                           ║"
+        log_pass "╚══════════════════════════════════════════════════════════════╝"
+        echo ""
+        log_pass "CI parity verified - safe to push!"
         return 0
     fi
 }
@@ -1097,7 +1117,7 @@ parse_args() {
                 usage
                 ;;
             *)
-                echo -e "${RED}Unknown option: $1${NC}"
+                log_error "Unknown option: $1"
                 usage
                 ;;
         esac
@@ -1107,7 +1127,7 @@ parse_args() {
     # Default mode
     if [ -z "$MODE" ]; then
         MODE="qa"
-        echo -e "${YELLOW}No mode specified, defaulting to --qa${NC}"
+        log_warn "No mode specified, defaulting to --qa"
     fi
 }
 
@@ -1118,11 +1138,11 @@ parse_args() {
 main() {
     parse_args "$@"
 
-    echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║           CI Pre-flight Validator                            ║${NC}"
-    echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
-    echo -e "Mode: ${YELLOW}$MODE${NC}"
-    
+    log_info "╔══════════════════════════════════════════════════════════════╗"
+    log_info "║           CI Pre-flight Validator                            ║"
+    log_info "╚══════════════════════════════════════════════════════════════╝"
+    log_info "Mode: $MODE"
+
     if [ "$MODE" = "act" ]; then
         if [ -n "$ACT_WORKFLOW" ]; then
             echo -e "Workflow: ${CYAN}$ACT_WORKFLOW${NC}"
@@ -1133,7 +1153,7 @@ main() {
             echo -e "Job: ${CYAN}$ACT_JOB${NC}"
         fi
         if [ "$ACT_DRYRUN" = true ]; then
-            echo -e "Dry Run: ${YELLOW}yes${NC}"
+            log_info "Dry Run: yes"
         fi
     else
         echo -e "PHP: ${YELLOW}$PHP_VERSION${NC} | Firebird: ${YELLOW}$FB_VERSION${NC}"
@@ -1170,7 +1190,7 @@ main() {
             run_syntax_mode || exit_code=$EXIT_SYNTAX_INVALID
             ;;
         *)
-            echo -e "${RED}Invalid mode: $MODE${NC}"
+            log_error "Invalid mode: $MODE"
             usage
             ;;
     esac

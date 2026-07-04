@@ -2,8 +2,9 @@
 # clang-tidy static analysis for php-firebird
 # Uses .clang-tidy configuration for C++17 modernization checks
 set -e
+source "$(dirname "$(dirname "$0")")/lib/logging.sh"
 
-echo "Running clang-tidy analysis..."
+log_info "Running clang-tidy analysis..."
 
 # Change to extension root directory
 if [ -d /ext ]; then
@@ -29,8 +30,8 @@ SOURCE_FILES=(
 
 # Ensure compilation database exists for accurate analysis
 if ! [ -f compile_commands.json ]; then
-    echo "No compile_commands.json found."
-    echo "Attempting to generate with bear..."
+    log_warn "No compile_commands.json found."
+    log_info "Attempting to generate with bear..."
 
     if command -v bear &> /dev/null; then
         # Clean and rebuild with bear
@@ -42,9 +43,9 @@ if ! [ -f compile_commands.json ]; then
         fi
         bear -- make -j$(nproc)
     else
-        echo "Warning: 'bear' not found. Running without compilation database."
-        echo "Results may be less accurate. Consider installing bear:"
-        echo "  apt-get install bear"
+        log_warn "'bear' not found. Running without compilation database."
+        log_warn "Results may be less accurate. Consider installing bear:"
+        log_info "  apt-get install bear"
 
         # Build if not already built
         if ! [ -f modules/firebird.so ]; then
@@ -64,7 +65,7 @@ CLANG_TIDY_ARGS=(
 # Add compilation database if available
 if [ -f compile_commands.json ]; then
     CLANG_TIDY_ARGS+=("-p" ".")
-    echo "Using compile_commands.json for analysis"
+    log_info "Using compile_commands.json for analysis"
 else
     # Provide manual include paths if no compile_commands.json
     PHP_INCLUDE_DIR=$(php-config --include-dir 2>/dev/null || echo "/usr/include/php")
@@ -89,12 +90,12 @@ else
         "-std=c++17"
         "-DHAVE_CONFIG_H"
     )
-    echo "Using manual include paths (compile_commands.json recommended)"
-    echo "Firebird include: ${FB_INCLUDE_DIR}"
+    log_info "Using manual include paths (compile_commands.json recommended)"
+    log_info "Firebird include: ${FB_INCLUDE_DIR}"
 fi
 
 echo ""
-echo "Analyzing ${#SOURCE_FILES[@]} source files..."
+log_info "Analyzing ${#SOURCE_FILES[@]} source files..."
 
 # Track results
 FAILED=0
@@ -111,27 +112,27 @@ for file in "${SOURCE_FILES[@]}"; do
             ((PASSED+=1))
         fi
     else
-        echo "  Skipping $file (not found)"
+        log_warn "Skipping $file (not found)"
     fi
 done
 
 echo ""
 echo "=========================================="
-echo "clang-tidy Report Summary"
+log_info "clang-tidy Report Summary"
 echo "=========================================="
-echo "Passed: $PASSED"
-echo "Failed: $FAILED"
-echo "Total:  ${#SOURCE_FILES[@]}"
+log_info "Passed: $PASSED"
+log_info "Failed: $FAILED"
+log_info "Total:  ${#SOURCE_FILES[@]}"
 echo "=========================================="
 
 # Check for blocking errors (WarningsAsErrors in .clang-tidy)
 if [ $FAILED -gt 0 ]; then
     echo ""
-    echo "❌ clang-tidy found blocking issues in $FAILED files"
-    echo "   See clang-tidy-output.log for details"
+    log_error "clang-tidy found blocking issues in $FAILED files"
+    log_info "   See clang-tidy-output.log for details"
     exit 1
 fi
 
 echo ""
-echo "✅ clang-tidy analysis passed"
-echo "   Full output: clang-tidy-output.log"
+log_pass "clang-tidy analysis passed"
+log_info "   Full output: clang-tidy-output.log"

@@ -25,15 +25,10 @@
 
 set -euo pipefail
 
+source "$(dirname "$0")/lib/logging.sh"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
 
 # Test counters
 TESTS_PASSED=0
@@ -57,30 +52,11 @@ DB_USER="SYSDBA"
 DB_PASS="masterkey"
 DB_NAME="test.fdb"
 
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-log_success() {
-    echo -e "${GREEN}[PASS]${NC} $1"
-    ((TESTS_PASSED++))
-}
-
-log_fail() {
-    echo -e "${RED}[FAIL]${NC} $1"
-    ((TESTS_FAILED++))
-}
-
-log_skip() {
-    echo -e "${YELLOW}[SKIP]${NC} $1"
-    ((TESTS_SKIPPED++))
-}
-
 log_header() {
     echo ""
-    echo -e "${BLUE}========================================${NC}"
-    echo -e "${BLUE}$1${NC}"
-    echo -e "${BLUE}========================================${NC}"
+    log_info "========================================"
+    log_info "$1"
+    log_info "========================================"
 }
 
 # Check if Docker services are running
@@ -446,12 +422,15 @@ run_test() {
         exec -T "$PHP_CONTAINER" php -d extension=/ext/modules/firebird.so -- "$dsn" "$DB_USER" "$DB_PASS" 2>&1) || true
     
     if [[ "$output" == SUCCESS:* ]]; then
-        log_success "FB $version - $description: ${output#SUCCESS:}"
+        ((TESTS_PASSED++)) || true
+        log_pass "FB $version - $description: ${output#SUCCESS:}"
         return 0
     elif [[ "$output" == FAIL:* ]]; then
+        ((TESTS_FAILED++)) || true
         log_fail "FB $version - $description: ${output#FAIL:}"
         return 1
     else
+        ((TESTS_FAILED++)) || true
         log_fail "FB $version - $description: Unexpected output: $output"
         return 1
     fi
@@ -486,19 +465,19 @@ print_summary() {
     local total=$((TESTS_PASSED + TESTS_FAILED + TESTS_SKIPPED))
     
     echo ""
-    echo -e "  ${GREEN}Passed:${NC}  $TESTS_PASSED"
-    echo -e "  ${RED}Failed:${NC}  $TESTS_FAILED"
-    echo -e "  ${YELLOW}Skipped:${NC} $TESTS_SKIPPED"
-    echo -e "  Total:   $total"
+    log_info "  Passed:  $TESTS_PASSED"
+    log_info "  Failed:  $TESTS_FAILED"
+    log_info "  Skipped: $TESTS_SKIPPED"
+    log_info "  Total:   $total"
     echo ""
-    
+
     if [[ $TESTS_FAILED -eq 0 ]]; then
-        echo -e "${GREEN}✓ All tests passed!${NC}"
+        log_pass "✓ All tests passed!"
         echo ""
         echo "The Firebird 5.x client library successfully connects to all tested"
         echo "server versions. The single-bundle distribution strategy is validated."
     else
-        echo -e "${RED}✗ Some tests failed.${NC}"
+        log_fail "✗ Some tests failed."
         echo ""
         echo "Review the failures above. Note that some failures may be expected"
         echo "due to feature differences between Firebird versions."
@@ -520,7 +499,8 @@ ensure_php_container() {
         log_info "Building php-firebird extension..."
         docker compose -f "${PROJECT_ROOT}/docker/docker-compose.yml" \
             exec -T "$PHP_CONTAINER" bash -c "cd /ext && phpize && ./configure --with-firebird=/opt/firebird && make -j\$(nproc)" 2>&1 || {
-            log_fail "Failed to build extension"
+            ((TESTS_FAILED++)) || true
+        log_fail "Failed to build extension"
             exit 1
         }
     fi
@@ -532,6 +512,7 @@ ensure_php_container() {
         exec -T "$PHP_CONTAINER" php -d extension=/ext/modules/firebird.so -m 2>&1 | grep -i firebird || echo "")
     
     if [[ -z "$ext_check" ]]; then
+            ((TESTS_FAILED++)) || true
         log_fail "php-firebird extension cannot be loaded in $PHP_CONTAINER"
         echo ""
         echo "Please build the extension first:"
@@ -540,7 +521,8 @@ ensure_php_container() {
         exit 1
     fi
     
-    log_success "Extension loaded: $ext_check"
+    ((TESTS_PASSED++)) || true
+    log_pass "Extension loaded: $ext_check"
 }
 
 # Main execution

@@ -3,6 +3,7 @@
 # Audit: flag tests that create DDL objects but lack --CLEAN-- sections.
 # Part of OC-4 (v12.0.0). Exits non-zero if violations found.
 set -euo pipefail
+source "$(dirname "$0")/lib/logging.sh"
 
 cd "$(dirname "$0")/.."
 
@@ -25,21 +26,21 @@ for f in tests/*.phpt tests/coverage/*.phpt tests/pdo_fbird/*.phpt; do
 	if grep -q '^--CLEAN--' "$f" 2>/dev/null; then
 		total_clean=$((total_clean + 1))
 	else
-		echo "[FAIL] $f - contains DDL but has no --CLEAN-- section"
+		log_fail "$f - contains DDL but has no --CLEAN-- section"
 		violations=$((violations + 1))
 	fi
 done
 
 echo ""
-echo "DDL tests:       $total_ddl"
-echo "With --CLEAN--:  $total_clean"
-echo "Violations:      $violations"
+log_info "DDL tests:       $total_ddl"
+log_info "With --CLEAN--:  $total_clean"
+log_info "Violations:      $violations"
 
 if [ "$violations" -gt 0 ]; then
 	echo ""
-	echo "[ERROR] $violations test(s) with DDL but no --CLEAN-- section"
+	log_error "$violations test(s) with DDL but no --CLEAN-- section"
 	exit 1
 fi
 
-echo "[OK] All DDL tests have --CLEAN-- sections"
+log_pass "All DDL tests have --CLEAN-- sections"
 exit 0

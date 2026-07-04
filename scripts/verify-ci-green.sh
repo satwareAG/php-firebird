@@ -12,20 +12,12 @@
 #   1 = one or more workflows failed or not found
 set -euo pipefail
 
+source "$(dirname "$0")/lib/logging.sh"
+
 BRANCH="${1:-satware-main}"
 REQUIRED_WORKFLOWS=("ci.yml" "code-quality.yml" "sanitizers.yml" "coverage.yml")
 
-# Colors
-if [[ -t 1 ]]; then
-    GREEN='\033[0;32m'
-    RED='\033[0;31m'
-    YELLOW='\033[1;33m'
-    NC='\033[0m'
-else
-    GREEN='' RED='' YELLOW='' NC=''
-fi
-
-echo -e "Checking CI status on ${YELLOW}${BRANCH}${NC}..."
+log_info "Checking CI status on ${BRANCH}..."
 echo ""
 
 ALL_PASSED=true
@@ -36,7 +28,7 @@ for wf in "${REQUIRED_WORKFLOWS[@]}"; do
         --json status,conclusion,headSha,createdAt 2>/dev/null | jq '.[0] // empty' || true)
 
     if [ -z "$RESULT" ]; then
-        echo -e "  ${RED}FAIL${NC}  ${wf}: no run found on ${BRANCH}"
+        log_fail "  ${wf}: no run found on ${BRANCH}"
         ALL_PASSED=false
         continue
     fi
@@ -47,21 +39,21 @@ for wf in "${REQUIRED_WORKFLOWS[@]}"; do
     CREATED=$(echo "$RESULT" | jq -r '.createdAt[0:16]')
 
     if [ "$STATUS" != "completed" ]; then
-        echo -e "  ${YELLOW}WAIT${NC}  ${wf}: ${STATUS} (started ${CREATED})"
+        log_warn "  ${wf}: ${STATUS} (started ${CREATED})"
         ALL_PASSED=false
     elif [ "$CONCLUSION" != "success" ]; then
-        echo -e "  ${RED}FAIL${NC}  ${wf}: ${CONCLUSION} (${SHA}, ${CREATED})"
+        log_fail "  ${wf}: ${CONCLUSION} (${SHA}, ${CREATED})"
         ALL_PASSED=false
     else
-        echo -e "  ${GREEN}OK${NC}    ${wf}: success (${SHA}, ${CREATED})"
+        log_pass "  ${wf}: success (${SHA}, ${CREATED})"
     fi
 done
 
 echo ""
 if [ "$ALL_PASSED" = "true" ]; then
-    echo -e "${GREEN}All CI workflows green on ${BRANCH}. Safe to tag.${NC}"
+    log_pass "All CI workflows green on ${BRANCH}. Safe to tag."
     exit 0
 else
-    echo -e "${RED}CI not green on ${BRANCH}. Fix failures before tagging.${NC}"
+    log_error "CI not green on ${BRANCH}. Fix failures before tagging."
     exit 1
 fi

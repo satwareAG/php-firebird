@@ -5,17 +5,14 @@
 
 set -e
 
+source "$(dirname "$0")/lib/logging.sh"
+
 ITERATIONS=${1:-1000}
 CONTAINER="php83-asan"
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DOCKER_DIR="$PROJECT_ROOT/docker"
 
-# Colors
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-NC='\033[0m'
-
-echo -e "${GREEN}Starting Firebird Fuzzer (ASan) with $ITERATIONS iterations...${NC}"
+log_info "Starting Firebird Fuzzer (ASan) with $ITERATIONS iterations..."
 
 # Ensure containers are running (PHP + Firebird)
 cd "$DOCKER_DIR"
@@ -36,7 +33,7 @@ fi
 
 # Run fuzzer
 # We use -d extension_dir to ensure we load the built extension
-# We assume the extension is built and available in /ext/modules/fbird.so (or similar)
+# We assume the extension is built and available in /ext/modules/firebird.so (or similar)
 # The ASan container usually has the extension installed or available.
 # Let's assume standard `php` command works if configured correctly, 
 # or we might need to point to the specific php binary if it's custom built.
@@ -48,16 +45,17 @@ docker compose exec -T "$CONTAINER" bash -c "make clean 2>/dev/null; phpize && .
 
 echo "Executing fuzzer..."
 # Disable LeakSanitizer - detected leaks are in PHP internals (opcache, zend_compile), not our extension
+set +e
 docker compose exec -T -e ASAN_OPTIONS=detect_leaks=0 "$CONTAINER" php -d extension=modules/firebird.so fuzz/run.php --iterations="$ITERATIONS" --output=fuzz/reports/fuzz_report.sarif --dsn="firebird30:/firebird/data/test.fdb"
+EXIT_CODE=$?
+set -e
 
 # Check exit code
-EXIT_CODE=$?
-
 if [ $EXIT_CODE -eq 0 ]; then
-    echo -e "${GREEN}Fuzzer completed successfully.${NC}"
+    log_info "Fuzzer completed successfully."
     echo "Report saved to fuzz/reports/fuzz_report.sarif"
 else
-    echo -e "${RED}Fuzzer failed with exit code $EXIT_CODE${NC}"
+    log_error "Fuzzer failed with exit code $EXIT_CODE"
     # Check for ASan errors in output (stderr usually)
     # Note: docker exec might mix stdout/stderr depending on TTY
     exit $EXIT_CODE

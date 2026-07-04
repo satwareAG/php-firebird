@@ -30,7 +30,7 @@ permissions:
 jobs:
   wait-and-publish:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 70
 
     steps:
       - name: Determine tag and commit SHA
@@ -68,7 +68,7 @@ jobs:
           set -u
           TAG="${{ steps.tag.outputs.tag }}"
           COMMIT_SHA="${{ steps.tag.outputs.sha }}"
-          MAX_WAIT=2400   # 40 minutes (releases can take 20-30 min)
+          MAX_WAIT=3600   # 60 minutes (Linux builds 32 bundles, can take 40+ min)
           INTERVAL=30
           ELAPSED=0
 

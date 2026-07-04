@@ -90,6 +90,15 @@ if (PHP_PDO_FBIRD != 'no') {
 
         AC_DEFINE('HAVE_PDO_FBIRD', 1, 'pdo_fbird available');
 
+        // Create output subdirectory for pdo_fbird source files.
+        // MSVC's /Fo flag mirrors the source file's subdirectory structure
+        // in the output directory, but nmake doesn't create it automatically.
+        var fso = new ActiveXObject("Scripting.FileSystemObject");
+        var configDir = (PHP_ZTS == 1 ? "x64\\Release_TS\\pdo_fbird" : "x64\\Release\\pdo_fbird");
+        if (!fso.FolderExists(configDir)) {
+            fso.CreateFolder(configDir);
+        }
+
         var pdo_fbird_sources = 'pdo_fbird/pdo_fbird.c ' +
                                 'pdo_fbird/pdo_fbird_driver.c ' +
                                 'pdo_fbird/pdo_fbird_stmt.c ' +

@@ -49,6 +49,9 @@ fclose($pipes[0]);
 
 // Wait for the event
 $event->wait(10.0);
+
+// Hard-kill child before close to prevent zombie holding DB lock
+proc_terminate($child, 9);
 proc_close($child);
 
 // After event fired:

@@ -55,7 +55,8 @@ fclose($pipes[0]);
 // Poll for the event (10 second timeout)
 $result = fbird_poll_event($event, 10000);
 
-// Wait for child to finish
+// Hard-kill child before close to prevent zombie holding DB lock
+proc_terminate($child, 9);
 proc_close($child);
 
 var_dump($result !== false && $result !== null);
@@ -94,6 +95,8 @@ fclose($pipes2[0]);
 // OOP wait with 10 second timeout
 $waitResult = $event2->wait(10.0);
 
+// Hard-kill child before close to prevent zombie holding DB lock
+proc_terminate($child2, 9);
 proc_close($child2);
 
 var_dump($waitResult);

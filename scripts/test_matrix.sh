@@ -168,11 +168,37 @@ PASSED_CONTAINERS=()
 echo -e "${BLUE}>> Cleaning test artifacts from previous runs${NC}"
 clean_test_artifacts
 
+# Helper: clean test environment (orphaned processes + leftover DB files) between runs.
+# Runs on the host via docker compose exec — can reach both PHP and Firebird containers.
+# Called BEFORE each container's test suite starts, so no test runner process is at risk.
+clean_test_environment() {
+    local container="$1"
+    # Kill orphaned PHP child processes from previous test run.
+    # Safe: runs BEFORE this container's test suite starts.
+    if [ -n "$(docker compose ps -q "$container" 2>/dev/null)" ]; then
+        docker compose exec -u root "$container" \
+            bash -c "pkill -9 -f 'php.*firebird' 2>/dev/null || true" \
+            2>/dev/null || true
+    fi
+    # Clean leftover .fdb files on all Firebird server containers.
+    # Orphaned processes hold locks on these files, preventing DROP DATABASE.
+    for fb in firebird30 firebird40 firebird50; do
+        if [ -n "$(docker compose ps -q "$fb" 2>/dev/null)" ]; then
+            docker compose exec -u root "$fb" \
+                bash -c "rm -f /tmp/*.fdb 2>/dev/null || true" \
+                2>/dev/null || true
+        fi
+    done
+}
+
 for CONTAINER in "${TARGETS[@]}"; do
     echo -e "\n${BLUE}>> Testing Target: $CONTAINER${NC}"
 
     # Clean test artifacts between container runs to prevent cross-contamination
     clean_test_artifacts
+
+    # Clean orphaned processes + leftover DB files from previous container run
+    clean_test_environment "$CONTAINER"
 
     # Verify container state
     if [ -z "$(docker compose ps -q $CONTAINER)" ]; then

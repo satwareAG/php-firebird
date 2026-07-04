@@ -126,13 +126,22 @@ jobs:
           Copy-Item pdo_fbird/pdo_fbird_stmt.c -Destination pdo_fbird_stmt.c -Force
           Copy-Item pdo_fbird/pdo_fbird_error.c -Destination pdo_fbird_error.c -Force
 
-      - name: Build Extensions
+      - name: Build firebird Extension
         uses: php/php-windows-builder/extension@c49dae50774b14e0f358d2efa65637b67f1104f6 # v1
         with:
           php-version: ${{ matrix.php-version }}
           arch: ${{ matrix.arch }}
           ts: ${{ matrix.ts }}
           args: --with-firebird=${{ env.FIREBIRD_HOME }} --with-pdo-fbird=${{ env.FIREBIRD_HOME }}
+          run-tests: false
+
+      - name: Build pdo_fbird Extension (artifact only)
+        uses: php/php-windows-builder/extension@c49dae50774b14e0f358d2efa65637b67f1104f6 # v1
+        with:
+          php-version: ${{ matrix.php-version }}
+          arch: ${{ matrix.arch }}
+          ts: ${{ matrix.ts }}
+          args: --with-pdo-fbird=${{ env.FIREBIRD_HOME }}
           run-tests: false
 
   # ===========================================================================

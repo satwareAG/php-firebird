@@ -26,11 +26,12 @@ zend_object *fbird_batch_create_obj(zend_class_entry *ce)
 void fbird_batch_free_obj(zend_object *obj)
 {
 	fbird_batch_obj *intern = fbird_batch_from_obj(obj);
+	ISC_STATUS status[256];
 	if (intern->batch) {
 		fbird_batch *batch = intern->batch;
 		if (batch->fbbatch_wrapper != NULL) {
-			fbbatch_cancel(FBG(master_instance), batch->fbbatch_wrapper, IB_STATUS);
-			fbbatch_close(FBG(master_instance), batch->fbbatch_wrapper, IB_STATUS);
+			fbbatch_cancel(FBG(master_instance), batch->fbbatch_wrapper, status);
+			fbbatch_close(FBG(master_instance), batch->fbbatch_wrapper, status);
 			batch->fbbatch_wrapper = NULL;
 		}
 		if (batch->in_msg_buffer != NULL) {

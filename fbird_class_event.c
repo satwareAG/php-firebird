@@ -69,6 +69,7 @@ ZEND_END_ARG_INFO()
  * Returns true if event fired, false on timeout/error. */
 PHP_METHOD(Firebird_Event, wait)
 {
+	ISC_STATUS status[256];
 	double timeout = -1.0;
 	fbird_event_obj *intern;
 	fbird_event *event;
@@ -143,11 +144,10 @@ PHP_METHOD(Firebird_Event, wait)
 
 	/* Baseline initialization on first wait */
 	if (event->needs_reregistration) {
-		ISC_STATUS init_status[20];
 		ISC_ULONG init_counts[15];
 		void *attachment_ptr = fbc_get_attachment(event->link->fbc_connection);
 
-		if (fbe_wait_for_event_oo(init_status, attachment_ptr,
+		if (fbe_wait_for_event_oo(status, attachment_ptr,
 				event->buffer_size, event->event_buffer, event->result_buffer)) {
 #ifndef PHP_WIN32
 			if (use_timeout) {
@@ -159,7 +159,7 @@ PHP_METHOD(Firebird_Event, wait)
 				}
 			}
 #endif
-			_php_fbird_error(IB_STATUS);
+			_php_fbird_error(status);
 			event->state = DEAD;
 			RETURN_FALSE;
 		}
@@ -168,7 +168,7 @@ PHP_METHOD(Firebird_Event, wait)
 		event->needs_reregistration = 0;
 	}
 
-	wait_result = fbe_wait_for_event_oo(IB_STATUS,
+	wait_result = fbe_wait_for_event_oo(status,
 		fbc_get_attachment(event->link->fbc_connection),
 		event->buffer_size, event->event_buffer, event->result_buffer);
 
@@ -184,7 +184,7 @@ PHP_METHOD(Firebird_Event, wait)
 #endif
 
 	if (wait_result != 0) {
-		_php_fbird_error(IB_STATUS);
+		_php_fbird_error(status);
 		event->state = DEAD;
 		RETURN_FALSE;
 	}

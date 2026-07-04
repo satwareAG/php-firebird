@@ -26,6 +26,7 @@ zend_object *fbird_service_create_obj(zend_class_entry *ce)
 void fbird_service_free_obj(zend_object *obj)
 {
 	fbird_service *intern = fbird_service_from_obj(obj);
+	ISC_STATUS status[256];
 	if (intern->res) {
 		intern->res = NULL;
 		intern->fbsvc = NULL;
@@ -33,8 +34,7 @@ void fbird_service_free_obj(zend_object *obj)
 		return;
 	}
 	if (intern->fbsvc) {
-		ISC_STATUS sv[20];
-		fbsvc_detach(FBG(master_instance), intern->fbsvc, sv);
+		fbsvc_detach(FBG(master_instance), intern->fbsvc, status);
 		fbsvc_free(intern->fbsvc);
 		intern->fbsvc = NULL;
 	}
@@ -64,6 +64,7 @@ ZEND_END_ARG_INFO()
 
 PHP_METHOD(FirebirdService, __construct)
 {
+	ISC_STATUS status[256];
 	char *host, *user, *pass;
 	size_t host_len, user_len, pass_len;
 	ZEND_PARSE_PARAMETERS_START(3, 3)
@@ -115,12 +116,11 @@ PHP_METHOD(FirebirdService, __construct)
 	else
 		snprintf(loc, sizeof(loc), "%s", "service_mgr");
 
-	ISC_STATUS sv[20];
 	intern->fbsvc = fbsvc_attach(FBG(master_instance), loc,
-		buf_len, (const unsigned char *)buf, sv);
+		buf_len, (const unsigned char *)buf, status);
 
 	if (!intern->fbsvc) {
-		_php_fbird_error(IB_STATUS);
+		_php_fbird_error(status);
 		zend_throw_exception(fbird_service_exception_ce,
 			"Failed to attach to Firebird service manager", 0);
 	}
@@ -131,6 +131,7 @@ ZEND_END_ARG_INFO()
 
 PHP_METHOD(FirebirdService, detach)
 {
+	ISC_STATUS status[256];
 	ZEND_PARSE_PARAMETERS_NONE();
 	fbird_service *intern = Z_FBIRD_SERVICE_P(ZEND_THIS);
 	if (intern->res) {
@@ -140,8 +141,7 @@ PHP_METHOD(FirebirdService, detach)
 		return;
 	}
 	if (intern->fbsvc) {
-		ISC_STATUS sv[20];
-		fbsvc_detach(FBG(master_instance), intern->fbsvc, sv);
+		fbsvc_detach(FBG(master_instance), intern->fbsvc, status);
 		fbsvc_free(intern->fbsvc);
 		intern->fbsvc = NULL;
 	}
@@ -165,6 +165,7 @@ ZEND_END_ARG_INFO()
 
 PHP_METHOD(FirebirdService, getServerVersion)
 {
+	ISC_STATUS status[256];
 	ZEND_PARSE_PARAMETERS_NONE();
 	fbird_service *intern = Z_FBIRD_SERVICE_P(ZEND_THIS);
 	if (intern->res && intern->res->ptr) {
@@ -178,13 +179,12 @@ PHP_METHOD(FirebirdService, getServerVersion)
 	static char spb[] = { isc_info_svc_timeout, 10, 0, 0, 0 };
 	char info_action = isc_info_svc_server_version;
 	char res_buf[256];
-	ISC_STATUS sv[20];
 
 	if (!fbsvc_query(FBG(master_instance), intern->fbsvc,
 			sizeof(spb), (const unsigned char *)spb,
 			1, (const unsigned char *)&info_action,
-			sizeof(res_buf), (unsigned char *)res_buf, sv)) {
-		_php_fbird_error(IB_STATUS);
+			sizeof(res_buf), (unsigned char *)res_buf, status)) {
+		_php_fbird_error(status);
 		RETURN_STRING("");
 	}
 

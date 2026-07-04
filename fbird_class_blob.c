@@ -27,9 +27,9 @@ zend_object *fbird_blob_create_obj(zend_class_entry *ce)
 void fbird_blob_free_obj(zend_object *obj)
 {
 	fbird_blob_obj *intern = fbird_blob_from_obj(obj);
+	ISC_STATUS status[256];
 	if (intern->fbb_wrap) {
-		ISC_STATUS sv[20];
-		fbb_cancel(FBG(master_instance), intern->fbb_wrap, sv);
+		fbb_cancel(FBG(master_instance), intern->fbb_wrap, status);
 		fbb_free(intern->fbb_wrap);
 		intern->fbb_wrap = NULL;
 	}
@@ -59,6 +59,7 @@ ZEND_END_ARG_INFO()
 
 PHP_METHOD(FirebirdBlob, create)
 {
+	ISC_STATUS status[256];
 	zval *conn_zv, *tr_zv;
 	ZEND_PARSE_PARAMETERS_START(2, 2)
 		Z_PARAM_OBJECT_OF_CLASS(conn_zv, fbird_connection_ce)
@@ -88,14 +89,13 @@ PHP_METHOD(FirebirdBlob, create)
 	object_init_ex(return_value, fbird_blob_ce);
 	fbird_blob_obj *blob = Z_FBIRD_BLOB_P(return_value);
 
-	ISC_STATUS sv[20];
 	blob->fbb_wrap = fbb_create(FBG(master_instance),
 		fbc_get_attachment(link->fbc_connection),
 		fbt_get_handle(trans_ptr),
-		&blob->blob_id, 0, NULL, sv);
+		&blob->blob_id, 0, NULL, status);
 
 	if (!blob->fbb_wrap) {
-		_php_fbird_error(IB_STATUS);
+		_php_fbird_error(status);
 		zend_throw_exception(fbird_query_exception_ce, "Failed to create blob", 0);
 		RETURN_THROWS();
 	}
@@ -109,6 +109,7 @@ ZEND_END_ARG_INFO()
 
 PHP_METHOD(FirebirdBlob, open)
 {
+	ISC_STATUS status[256];
 	zval *conn_zv, *tr_zv;
 	char *id_str;
 	size_t id_len;
@@ -150,14 +151,13 @@ PHP_METHOD(FirebirdBlob, open)
 	fbird_blob_obj *blob = Z_FBIRD_BLOB_P(return_value);
 	blob->blob_id = blob_id;
 
-	ISC_STATUS sv[20];
 	blob->fbb_wrap = fbb_open(FBG(master_instance),
 		fbc_get_attachment(link->fbc_connection),
 		fbt_get_handle(trans_ptr),
-		&blob_id, 0, NULL, sv);
+		&blob_id, 0, NULL, status);
 
 	if (!blob->fbb_wrap) {
-		_php_fbird_error(IB_STATUS);
+		_php_fbird_error(status);
 		zend_throw_exception(fbird_query_exception_ce, "Failed to open blob", 0);
 		RETURN_THROWS();
 	}
@@ -169,6 +169,7 @@ ZEND_END_ARG_INFO()
 
 PHP_METHOD(FirebirdBlob, write)
 {
+	ISC_STATUS status[256];
 	char *data;
 	size_t data_len;
 	ZEND_PARSE_PARAMETERS_START(1, 1)
@@ -180,10 +181,9 @@ PHP_METHOD(FirebirdBlob, write)
 		zend_throw_exception(fbird_query_exception_ce, "Blob not open", 0);
 		RETURN_THROWS();
 	}
-	ISC_STATUS sv[20];
 	if (!fbb_put_segment(FBG(master_instance), intern->fbb_wrap,
-			(unsigned)data_len, data, sv)) {
-		_php_fbird_error(IB_STATUS);
+			(unsigned)data_len, data, status)) {
+		_php_fbird_error(status);
 		zend_throw_exception(fbird_query_exception_ce, "Failed to write blob segment", 0);
 	}
 }
@@ -194,6 +194,7 @@ ZEND_END_ARG_INFO()
 
 PHP_METHOD(FirebirdBlob, read)
 {
+	ISC_STATUS status[256];
 	zend_long length;
 	ZEND_PARSE_PARAMETERS_START(1, 1)
 		Z_PARAM_LONG(length)
@@ -206,9 +207,8 @@ PHP_METHOD(FirebirdBlob, read)
 
 	zend_string *buf = zend_string_alloc((size_t)length, 0);
 	unsigned actual = 0;
-	ISC_STATUS sv[20];
 	int rc = fbb_get_segment(FBG(master_instance), intern->fbb_wrap,
-		(unsigned)length, ZSTR_VAL(buf), &actual, sv);
+		(unsigned)length, ZSTR_VAL(buf), &actual, status);
 
 	if (rc == -1) {
 		zend_string_efree(buf);
@@ -224,12 +224,12 @@ ZEND_END_ARG_INFO()
 
 PHP_METHOD(FirebirdBlob, close)
 {
+	ISC_STATUS status[256];
 	ZEND_PARSE_PARAMETERS_NONE();
 	fbird_blob_obj *intern = Z_FBIRD_BLOB_P(ZEND_THIS);
 	if (intern->fbb_wrap) {
-		ISC_STATUS sv[20];
 		fbb_get_blob_id(intern->fbb_wrap, &intern->blob_id);
-		fbb_close(FBG(master_instance), intern->fbb_wrap, sv);
+		fbb_close(FBG(master_instance), intern->fbb_wrap, status);
 		fbb_free(intern->fbb_wrap);
 		intern->fbb_wrap = NULL;
 	}

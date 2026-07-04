@@ -43,6 +43,7 @@ static zend_resource *_php_fbird_trans_res_from_zval(zval *zv)
 
 void _php_fbird_free_trans(zend_resource *rsrc)
 {
+	ISC_STATUS status[256];
 	fbird_transaction *trans = (fbird_transaction *)rsrc->ptr;
 	unsigned short i;
 
@@ -60,14 +61,14 @@ void _php_fbird_free_trans(zend_resource *rsrc)
 	/* OO API Only: All transactions use fbt_rollback() */
 	if (trans->fbt_transaction != NULL) {
 		FBDEBUG("Rolling back unhandled OO API transaction...");
-		int res = fbt_rollback(trans->fbt_transaction, IB_STATUS);
+		int res = fbt_rollback(trans->fbt_transaction, status);
 		fbt_free(trans->fbt_transaction);
 		trans->fbt_transaction = NULL;
-		/* Fix #78: _php_fbird_error(IB_STATUS) calls php_error_docref()/zend_throw_exception()
+		/* Fix #78: _php_fbird_error(status) calls php_error_docref()/zend_throw_exception()
 		 * which access EG() globals that may already be destroyed during MSHUTDOWN.
 		 * Guard with in_mshutdown to prevent SIGABRT. */
 		if (res && !FBG(in_mshutdown)) {
-			_php_fbird_error(IB_STATUS);
+			_php_fbird_error(status);
 		}
 	}
 
@@ -284,6 +285,7 @@ void _php_fbird_populate_trans_from_array(zval *options, zend_long *trans_timeou
 
 PHP_FUNCTION(fbird_trans_start)
 {
+	ISC_STATUS status[256];
 	zval *link_arg = NULL, *options_arg = NULL;
 	fbird_db_link *fb_link;
 	fbird_transaction *fb_trans;
@@ -349,12 +351,12 @@ PHP_FUNCTION(fbird_trans_start)
 		attachment,
 		tpb_len,
 		tpb_len > 0 ? (const unsigned char*)last_tpb : NULL,
-		IB_STATUS
+		status
 	);
 
 	if (fb_trans->fbt_transaction == NULL) {
 		efree(fb_trans);
-		_php_fbird_error(IB_STATUS);
+		_php_fbird_error(status);
 		RETURN_FALSE;
 	}
 
@@ -382,6 +384,7 @@ PHP_FUNCTION(fbird_trans_start)
 
 static void _php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAMETERS, const char *format)
 {
+	ISC_STATUS status[256];
 	zval *trans_arg = NULL;
 	char *name;
 	size_t name_len;
@@ -455,24 +458,24 @@ static void _php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAMETERS, const char *
 
 	/* Prepare the savepoint statement */
 	stmt = fbs_prepare(FBG(master_instance), attachment, transaction_ptr,
-		query, (unsigned)len, SQL_DIALECT_CURRENT, IB_STATUS);
+		query, (unsigned)len, SQL_DIALECT_CURRENT, status);
 	if (!stmt) {
-		_php_fbird_error(IB_STATUS);
+		_php_fbird_error(status);
 		efree(query);
 		RETURN_FALSE;
 	}
 
 	/* Execute the savepoint statement (no input/output parameters) */
 	if (!fbs_execute(FBG(master_instance), stmt, transaction_ptr,
-			NULL, NULL, NULL, NULL, IB_STATUS)) {
-		_php_fbird_error(IB_STATUS);
-		fbs_free(stmt, IB_STATUS);
+			NULL, NULL, NULL, NULL, status)) {
+		_php_fbird_error(status);
+		fbs_free(stmt, status);
 		efree(query);
 		RETURN_FALSE;
 	}
 
 	/* Free the statement */
-	fbs_free(stmt, IB_STATUS);
+	fbs_free(stmt, status);
 	efree(query);
 	RETURN_TRUE;
 }
@@ -494,6 +497,7 @@ PHP_FUNCTION(fbird_release_savepoint)
 
 PHP_FUNCTION(fbird_trans_info)
 {
+	ISC_STATUS status[256];
 	zval *trans_arg;
 	fbird_transaction *trans;
 	char tpb[] = {
@@ -533,9 +537,9 @@ PHP_FUNCTION(fbird_trans_info)
 			(const unsigned char*)tpb,
 			sizeof(res_buf),
 			(unsigned char*)res_buf,
-			IB_STATUS
+			status
 		) == 0) {
-		_php_fbird_error(IB_STATUS);
+		_php_fbird_error(status);
 		RETURN_FALSE;
 	}
 
@@ -594,6 +598,7 @@ PHP_FUNCTION(fbird_trans_info)
 
 PHP_FUNCTION(fbird_connection_info)
 {
+	ISC_STATUS status[256];
 	zval *link_arg = NULL;
 	fbird_db_link *fb_link;
 	char info_items[] = {
@@ -648,8 +653,8 @@ PHP_FUNCTION(fbird_connection_info)
 
 		if (!fbc_get_info(FBG(master_instance), attachment,
 				sizeof(info_items), (const unsigned char*)info_items,
-				sizeof(res_buf), (unsigned char*)res_buf, IB_STATUS)) {
-			_php_fbird_error(IB_STATUS);
+				sizeof(res_buf), (unsigned char*)res_buf, status)) {
+			_php_fbird_error(status);
 			RETURN_FALSE;
 		}
 	} else {
@@ -728,6 +733,7 @@ PHP_FUNCTION(fbird_connection_info)
 
 PHP_FUNCTION(fbird_trans)
 {
+	ISC_STATUS status[256];
 	int i, argn = ZEND_NUM_ARGS();
 	unsigned short link_cnt = 0, tpb_len = 0;
 	char last_tpb[TPB_MAX_SIZE];
@@ -852,13 +858,13 @@ PHP_FUNCTION(fbird_trans)
 					attachment,
 					link0_tpb_len,
 					link0_tpb_len > 0 ? (const unsigned char*)tpb : NULL,
-					IB_STATUS
+					status
 				);
 
 				if (oo_trans == NULL) {
 					efree(tpb);
 					efree(fb_link);
-					_php_fbird_error(IB_STATUS);
+					_php_fbird_error(status);
 					RETURN_FALSE;
 				}
 
@@ -907,10 +913,10 @@ PHP_FUNCTION(fbird_trans)
 			attachment,
 			tpb_len,
 			tpb_len > 0 ? (const unsigned char*)last_tpb : NULL,
-			IB_STATUS
+			status
 		);
 		if (oo_trans == NULL) {
-			_php_fbird_error(IB_STATUS);
+			_php_fbird_error(status);
 			efree(fb_link);
 			RETURN_FALSE;
 		}
@@ -947,6 +953,7 @@ register_trans:
 
 int _php_fbird_def_trans(fbird_db_link *fb_link, fbird_transaction **trans)
 {
+	ISC_STATUS status[256];
 	if (fb_link == NULL) {
 		php_error_docref(NULL, E_WARNING, "Invalid database link");
 		return FAILURE;
@@ -997,11 +1004,11 @@ int _php_fbird_def_trans(fbird_db_link *fb_link, fbird_transaction **trans)
 				attachment,
 				tpb_len,
 				tpb_len > 0 ? (const unsigned char*)last_tpb : NULL,
-				IB_STATUS
+				status
 			);
 
 			if (tr->fbt_transaction == NULL) {
-				_php_fbird_error(IB_STATUS);
+				_php_fbird_error(status);
 				return FAILURE;
 			}
 		}
@@ -1012,6 +1019,7 @@ int _php_fbird_def_trans(fbird_db_link *fb_link, fbird_transaction **trans)
 
 static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 {
+	ISC_STATUS status[256];
 	fbird_transaction *trans = NULL;
 	int res_id = 0;
 	ISC_STATUS result;
@@ -1092,16 +1100,16 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 
 	switch (commit) {
 		default: /* == case ROLLBACK: */
-			result = fbt_rollback(trans->fbt_transaction, IB_STATUS);
+			result = fbt_rollback(trans->fbt_transaction, status);
 			break;
 		case COMMIT:
-			result = fbt_commit(trans->fbt_transaction, IB_STATUS);
+			result = fbt_commit(trans->fbt_transaction, status);
 			break;
 		case (ROLLBACK | RETAIN):
-			result = fbt_rollback_retaining(trans->fbt_transaction, IB_STATUS);
+			result = fbt_rollback_retaining(trans->fbt_transaction, status);
 			break;
 		case (COMMIT | RETAIN):
-			result = fbt_commit_retaining(trans->fbt_transaction, IB_STATUS);
+			result = fbt_commit_retaining(trans->fbt_transaction, status);
 			break;
 	}
 
@@ -1116,7 +1124,7 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 	}
 
 	if (result) {
-		_php_fbird_error(IB_STATUS);
+		_php_fbird_error(status);
 		RETURN_FALSE;
 	}
 

@@ -42,9 +42,10 @@
 	php_error_docref(NULL, E_WARNING, "A link to the server could not be established"); \
 	RETURN_FALSE; } }
 
-#define RESET_ERRMSG do { FBG(errmsg)[0] = '\0'; FBG(sql_code) = 0; } while (0)
+#define RESET_ERRMSG do { FBG(errmsg)[0] = '\0'; FBG(sql_code) = 0; memset(FBG(last_status), 0, sizeof(FBG(last_status))); } while (0)
 
-#define IB_STATUS (FBG(status))
+/* Error check helper: Firebird status vectors indicate error when [0]==1 && [1]!=0 */
+#define FB_STATUS_ERROR(s) ((s)[0] == 1 && (s)[1] != 0)
 
 #ifdef FBIRD_DEBUG
 #define FBDEBUG(a) php_printf("::: %s (%s:%d)\n", a, __FILE__, __LINE__);
@@ -78,7 +79,6 @@ extern int le_batch;
 #define FBIRD_BLOB_SEG 4096
 
 ZEND_BEGIN_MODULE_GLOBALS(fbird)
-	ISC_STATUS status[256];
 	ISC_STATUS last_status[256];   /* last error status vector for fbird_sqlstate() */
 	zend_resource *default_link;
 	zend_long num_links, num_persistent;

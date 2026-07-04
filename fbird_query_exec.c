@@ -84,6 +84,7 @@ static fbird_db_link *_php_fbird_link_from_zval(zval *z)
 
 int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *args, int bind_n)
 {
+	ISC_STATUS status[256];
 	int rv = FAILURE;
 	ISC_STATUS isc_result;
 	int argc = fb_query->in_fields_count;
@@ -131,7 +132,7 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
 
      /* OO API Only: Close cursor via fbs_close_cursor() */
      if (fb_query->fbs_statement) {
-         fbs_close_cursor(fb_query->fbs_statement, IB_STATUS);
+         fbs_close_cursor(fb_query->fbs_statement, status);
      }
      fb_query->is_open = 0;
      fb_query->has_more_rows = 0;
@@ -170,9 +171,9 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
 				FBDEBUG("OO API: Executing SET TRANSACTION via fbt_start()");
 
 				/* Start transaction with default TPB (READ_WRITE, WAIT, CONCURRENCY) */
-				new_trans = fbt_start(FBG(master_instance), attachment, 0, NULL, IB_STATUS);
+				new_trans = fbt_start(FBG(master_instance), attachment, 0, NULL, status);
 				if (!new_trans) {
-					_php_fbird_error(IB_STATUS);
+					_php_fbird_error(status);
 					goto _php_fbird_ex_error;
 				}
 
@@ -216,13 +217,13 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
 				int rc;
 				if (fb_query->statement_type == isc_info_sql_stmt_commit) {
 					FBDEBUG("OO API: Executing COMMIT via fbt_commit()");
-					rc = fbt_commit(fb_query->trans->fbt_transaction, IB_STATUS);
+					rc = fbt_commit(fb_query->trans->fbt_transaction, status);
 				} else {
 					FBDEBUG("OO API: Executing ROLLBACK via fbt_rollback()");
-					rc = fbt_rollback(fb_query->trans->fbt_transaction, IB_STATUS);
+					rc = fbt_rollback(fb_query->trans->fbt_transaction, status);
 				}
 				if (rc != 0) {
-					_php_fbird_error(IB_STATUS);
+					_php_fbird_error(status);
 					goto _php_fbird_ex_error;
 				}
 
@@ -309,14 +310,14 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
                     fb_query->in_msg_buffer,  /* in_msg: parameter values */
                     fb_query->in_metadata,    /* in_metadata: parameter metadata */
                     0,    /* cursor_flags: default */
-                    IB_STATUS
+                    status
                 );
                 if (oo_api_success) {
                     FBDEBUG("OO API fbs_open_cursor() succeeded for SELECT");
                     isc_result = 0; /* Success */
                 } else {
                     /* OO API cursor open failed - report error immediately, no fallback */
-                    _php_fbird_error(IB_STATUS);
+                    _php_fbird_error(status);
                     goto _php_fbird_ex_error;
                 }
             }
@@ -338,14 +339,14 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
                     fb_query->in_metadata,    /* in_metadata: parameter metadata */
                     NULL, /* out_msg: no output for DML without RETURNING */
                     NULL, /* out_metadata: no output for DML without RETURNING */
-                    IB_STATUS
+                    status
                 );
                 if (oo_api_success) {
                     FBDEBUG("OO API fbs_execute() succeeded for DML");
                     isc_result = 0; /* Success */
                 } else {
                     /* OO API execution failed - report error immediately, no fallback */
-                    _php_fbird_error(IB_STATUS);
+                    _php_fbird_error(status);
                     goto _php_fbird_ex_error;
                 }
             }
@@ -363,14 +364,14 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
                     NULL, /* in_metadata */
                     NULL, /* out_msg */
                     NULL, /* out_metadata */
-                    IB_STATUS
+                    status
                 );
                 if (oo_api_success) {
                     FBDEBUG("OO API fbs_execute() succeeded for DDL");
                     isc_result = 0; /* Success */
                 } else {
                     /* OO API execution failed - report error immediately, no fallback */
-                    _php_fbird_error(IB_STATUS);
+                    _php_fbird_error(status);
                     goto _php_fbird_ex_error;
                 }
             }
@@ -386,13 +387,13 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
                     NULL,
                     NULL,
                     NULL,
-                    IB_STATUS
+                    status
                 );
                 if (oo_api_success) {
                     FBDEBUG("OO API fbs_execute() succeeded for SAVEPOINT");
                     isc_result = 0;
                 } else {
-                    _php_fbird_error(IB_STATUS);
+                    _php_fbird_error(status);
                     goto _php_fbird_ex_error;
                 }
             }
@@ -412,14 +413,14 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
                     fb_query->in_metadata,     /* in_metadata: input parameter metadata */
                     fb_query->out_msg_buffer,  /* out_msg: output parameter values */
                     fb_query->out_metadata,    /* out_metadata: output parameter metadata */
-                    IB_STATUS
+                    status
                 );
                 if (oo_api_success) {
                     FBDEBUG("OO API fbs_execute() succeeded for EXECUTE PROCEDURE");
                     isc_result = 0; /* Success */
                 } else {
                     /* OO API execution failed - report error immediately, no fallback */
-                    _php_fbird_error(IB_STATUS);
+                    _php_fbird_error(status);
                     goto _php_fbird_ex_error;
                 }
             }
@@ -445,11 +446,11 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
                     fb_query->in_msg_buffer,
                     fb_query->in_metadata,
                     0,
-                    IB_STATUS
+                    status
                 );
 
                 if (!oo_api_success) {
-                    _php_fbird_error(IB_STATUS);
+                    _php_fbird_error(status);
                     goto _php_fbird_ex_error;
                 }
 
@@ -457,17 +458,17 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
                     FBG(master_instance),
                     fb_query->fbs_statement,
                     fb_query->out_msg_buffer,
-                    IB_STATUS
+                    status
                 );
 
                 if (fetch_result == -1) {
-                    _php_fbird_error(IB_STATUS);
-                    fbs_close_cursor(fb_query->fbs_statement, IB_STATUS);
+                    _php_fbird_error(status);
+                    fbs_close_cursor(fb_query->fbs_statement, status);
                     goto _php_fbird_ex_error;
                 }
 
                 /* Always close cursor for DML RETURNING (like execute2) */
-                fbs_close_cursor(fb_query->fbs_statement, IB_STATUS);
+                fbs_close_cursor(fb_query->fbs_statement, status);
 
                 /* fetch_result: 1=row copied into out_msg_buffer, 0=no data */
                 if (fetch_result == 1) {
@@ -504,7 +505,7 @@ execute_done:
 
     if (isc_result) {
         FBDEBUG("Could not execute query");
-        _php_fbird_error(IB_STATUS);
+        _php_fbird_error(status);
         goto _php_fbird_ex_error;
     }
 
@@ -954,11 +955,11 @@ cleanup_select_result_query:
 				ISC_UINT64 oo_affected = fbs_get_affected_records(
 					FBG(master_instance),
 					fb_query->fbs_statement,
-					IB_STATUS
+					status
 				);
 
-				if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
-					_php_fbird_error(IB_STATUS);
+				if (FB_STATUS_ERROR(status)) {
+					_php_fbird_error(status);
 					goto _php_fbird_ex_error;
 				}
 
@@ -1025,6 +1026,7 @@ _php_fbird_ex_error:
 
 PHP_FUNCTION(fbird_query)
 {
+	ISC_STATUS status[256];
 	zval *args;
 	int i, argc = ZEND_NUM_ARGS();
 	char *query = NULL;
@@ -1096,11 +1098,11 @@ PHP_FUNCTION(fbird_query)
 			FBG(master_instance),
 			query,
 			dialect,
-			IB_STATUS
+			status
 		);
 
 		if (!create_result) {
-			_php_fbird_error(IB_STATUS);
+			_php_fbird_error(status);
 			efree(args);
 			RETURN_FALSE;
 		}
@@ -1234,7 +1236,7 @@ PHP_FUNCTION(fbird_query)
 			 * will be committed at connection close or explicit fbird_commit().
 			 * jane: silent on failure — autocommit is an optimization, not a
 			 * user-initiated commit; reporting cursor-lock errors would be noise. */
-			fbt_commit(trans->fbt_transaction, IB_STATUS);
+			fbt_commit(trans->fbt_transaction, status);
 			fbt_free(trans->fbt_transaction);
 			trans->fbt_transaction = NULL;
 		}
@@ -1750,6 +1752,7 @@ PHP_FUNCTION(fbird_execute_query)
 
 PHP_FUNCTION(fbird_execute_auto)
 {
+	ISC_STATUS status[256];
     zval *link_arg, *params_arg = NULL;
     char *sql;
     size_t sql_len;
@@ -1776,9 +1779,9 @@ PHP_FUNCTION(fbird_execute_auto)
 
     /* Start autonomous transaction via OO API */
     void *attachment = fbc_get_attachment(link->fbc_connection);
-    oo_trans = fbt_start(FBG(master_instance), attachment, 0, NULL, IB_STATUS);
+    oo_trans = fbt_start(FBG(master_instance), attachment, 0, NULL, status);
     if (!oo_trans) {
-        _php_fbird_error(IB_STATUS);
+        _php_fbird_error(status);
         RETURN_FALSE;
     }
 
@@ -1792,7 +1795,7 @@ PHP_FUNCTION(fbird_execute_auto)
 
     /* Prepare */
     if (FAILURE == _php_fbird_prepare(&fb_query, link, trans, NULL, sql)) {
-        fbt_rollback(oo_trans, IB_STATUS);
+        fbt_rollback(oo_trans, status);
         efree(trans);
         RETURN_FALSE;
     }
@@ -1808,7 +1811,7 @@ PHP_FUNCTION(fbird_execute_auto)
         }
 
         zend_list_delete(fb_query->res); // Frees statement
-        fbt_rollback(oo_trans, IB_STATUS);
+        fbt_rollback(oo_trans, status);
         efree(trans);
         RETURN_FALSE;
     }
@@ -1825,7 +1828,7 @@ PHP_FUNCTION(fbird_execute_auto)
         zend_throw_error(NULL, "fbird_execute_auto cannot be used with SELECT statements (cursor would be closed on commit).");
         zend_list_delete(Z_RES_P(return_value));
         zend_list_delete(fb_query->res);
-        fbt_rollback(oo_trans, IB_STATUS);
+        fbt_rollback(oo_trans, status);
         efree(trans);
         RETURN_THROWS();
     }
@@ -1838,8 +1841,8 @@ PHP_FUNCTION(fbird_execute_auto)
     zend_list_delete(fb_query->res);
 
     /* Commit via OO API (returns 0 on success, non-zero on error) */
-    if (fbt_commit(oo_trans, IB_STATUS)) {
-        _php_fbird_error(IB_STATUS);
+    if (fbt_commit(oo_trans, status)) {
+        _php_fbird_error(status);
         efree(trans);
         RETURN_FALSE;
     }

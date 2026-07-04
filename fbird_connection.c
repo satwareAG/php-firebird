@@ -77,6 +77,7 @@ void _php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAMETERS,
 
 void _php_fbird_commit_link(fbird_db_link *link)
 {
+	ISC_STATUS status[256];
 	unsigned short i = 0, j;
 	fbird_tr_list *l;
 	fbird_event *e;
@@ -89,14 +90,14 @@ void _php_fbird_commit_link(fbird_db_link *link)
 				/* Default transaction: commit via OO API */
 				if (p->trans->fbt_transaction != NULL) {
 					FBDEBUG("Committing default transaction via OO API...");
-					int res = fbt_commit(p->trans->fbt_transaction, IB_STATUS);
+					int res = fbt_commit(p->trans->fbt_transaction, status);
 					fbt_free(p->trans->fbt_transaction);
 					p->trans->fbt_transaction = NULL;
 					/* Guard error reporting during MSHUTDOWN (Issue #183).
-					 * _php_fbird_error(IB_STATUS) accesses EG() globals which may be
+					 * _php_fbird_error(status) accesses EG() globals which may be
 					 * destroyed during persistent connection cleanup. */
 					if (res && !FBG(in_mshutdown)) {
-						_php_fbird_error(IB_STATUS);
+						_php_fbird_error(status);
 					}
 				}
 				efree(p->trans); /* default transaction is not a registered resource: clean up */
@@ -104,11 +105,11 @@ void _php_fbird_commit_link(fbird_db_link *link)
 				/* Non-default transaction: rollback via OO API */
 				if (p->trans->fbt_transaction != NULL) {
 					FBDEBUG("Rolling back other transaction via OO API...");
-					int res = fbt_rollback(p->trans->fbt_transaction, IB_STATUS);
+					int res = fbt_rollback(p->trans->fbt_transaction, status);
 					fbt_free(p->trans->fbt_transaction);
 					p->trans->fbt_transaction = NULL;
 					if (res && !FBG(in_mshutdown)) {
-						_php_fbird_error(IB_STATUS);
+						_php_fbird_error(status);
 					}
 				}
 				/* set this link pointer to NULL in the transaction */
@@ -147,6 +148,7 @@ void php_fbird_commit_link_rsrc(zend_resource *rsrc)
 
 void _php_fbird_close_link(zend_resource *rsrc)
 {
+	ISC_STATUS status[256];
 	fbird_db_link *link = (fbird_db_link *) rsrc->ptr;
 
 	/* NULL pointer guard (Issue #55): In forked PHPStan workers, rsrc->ptr may be NULL
@@ -204,7 +206,7 @@ void _php_fbird_close_link(zend_resource *rsrc)
 	/* OO API Only: All connections use fbc_disconnect() */
 	if (link->fbc_connection != NULL) {
 		FBDEBUG("Closing normal link via OO API...");
-		fbc_disconnect(link->fbc_connection, IB_STATUS);
+		fbc_disconnect(link->fbc_connection, status);
 		link->fbc_connection = NULL;
 	}
 	FBG(num_links)--;
@@ -213,6 +215,7 @@ void _php_fbird_close_link(zend_resource *rsrc)
 
 void _php_fbird_close_plink(zend_resource *rsrc)
 {
+	ISC_STATUS status[256];
 	fbird_db_link *link = (fbird_db_link *) rsrc->ptr;
 
 	/* NULL pointer guard (Issue #55): In forked PHPStan workers, rsrc->ptr may be NULL
@@ -267,7 +270,7 @@ void _php_fbird_close_plink(zend_resource *rsrc)
 	/* OO API Only: All connections use fbc_disconnect() */
 	if (link->fbc_connection != NULL) {
 		FBDEBUG("Closing permanent link via OO API...");
-		fbc_disconnect(link->fbc_connection, IB_STATUS);
+		fbc_disconnect(link->fbc_connection, status);
 		link->fbc_connection = NULL;
 	}
 	FBG(num_persistent)--;
@@ -279,6 +282,7 @@ enum connect_args { DB = 0, USER = 1, PASS = 2, CSET = 3, ROLE = 4, BUF = 0, DLE
 
 int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **out_connection)
 {
+	ISC_STATUS status[256];
     void* connection = NULL;
 
     /* Use OO API as the connection method */
@@ -292,11 +296,11 @@ int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **out_
         (int)largs[BUF],                            /* num_buffers */
         largs[DLECT] ? (int)largs[DLECT] : SQL_DIALECT_CURRENT, /* dialect */
         (int)largs[SYNC],                           /* force_write */
-        IB_STATUS                                   /* status vector */
+        status                                   /* status vector */
     );
 
     if (!connection) {
-        _php_fbird_error(IB_STATUS);
+        _php_fbird_error(status);
         return FAILURE;
     }
 
@@ -310,7 +314,7 @@ int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **out_
  * Core connection logic extracted from _php_fbird_connect.
  * Accepts plain C arguments (already parsed/defaulted by caller).
  * Returns the new zend_resource* with appropriate refcount adjustments,
- * or NULL on failure (error already set via _php_fbird_error(IB_STATUS)).
+ * or NULL on failure (error already set via _php_fbird_error(status)).
  * Also applies INI-based defaults for empty args and manages FBG(default_link).
  */
 zend_resource *_php_fbird_connect_link(
@@ -714,6 +718,7 @@ static int _php_fbird_is_valid_charset(const char *charset)
    Create a new Firebird database and return a connection resource */
 PHP_FUNCTION(fbird_create_database)
 {
+	ISC_STATUS status[256];
 	char *database = NULL, *username = NULL, *password = NULL, *charset = NULL;
 	size_t database_len, username_len = 0, password_len = 0, charset_len = 0;
 	zend_long page_size = 0;
@@ -782,7 +787,7 @@ PHP_FUNCTION(fbird_create_database)
 		FBG(master_instance),
 		create_sql,
 		dialect,
-		IB_STATUS
+		status
 	);
 
 	/* Clean up dynamically allocated SQL and escaped strings */
@@ -796,7 +801,7 @@ PHP_FUNCTION(fbird_create_database)
 	}
 
 	if (!create_result) {
-		_php_fbird_error(IB_STATUS);
+		_php_fbird_error(status);
 		RETURN_FALSE;
 	}
 
@@ -823,6 +828,7 @@ PHP_FUNCTION(fbird_create_database)
 
 PHP_FUNCTION(fbird_drop_db)
 {
+	ISC_STATUS status[256];
 	zval *link_arg = NULL;
 	fbird_db_link *fb_link;
 	fbird_tr_list *l;
@@ -866,15 +872,15 @@ PHP_FUNCTION(fbird_drop_db)
 			0,        /* num_buffers */
 			3,        /* dialect */
 			-1,       /* force_write */
-			IB_STATUS
+			status
 		);
 		if (!conn) {
-			_php_fbird_error(IB_STATUS);
+			_php_fbird_error(status);
 			RETURN_FALSE;
 		}
-		drop_result = fbc_drop_database(conn, IB_STATUS);
+		drop_result = fbc_drop_database(conn, status);
 		if (drop_result != 0) {
-			_php_fbird_error(IB_STATUS);
+			_php_fbird_error(status);
 			RETURN_FALSE;
 		}
 		RETURN_TRUE;
@@ -916,9 +922,9 @@ PHP_FUNCTION(fbird_drop_db)
 	/* OO API Only: All connections use fbc_drop_database() */
 	if (fb_link->fbc_connection != NULL) {
 		FBDEBUG("Dropping database via OO API...");
-		drop_result = fbc_drop_database(fb_link->fbc_connection, IB_STATUS);
+		drop_result = fbc_drop_database(fb_link->fbc_connection, status);
 		if (drop_result != 0) {
-			_php_fbird_error(IB_STATUS);
+			_php_fbird_error(status);
 			RETURN_FALSE;
 		}
 		/* fbc_drop_database() already frees the connection wrapper */

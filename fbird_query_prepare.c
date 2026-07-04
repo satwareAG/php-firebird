@@ -30,6 +30,7 @@ int le_query;
 /* Implementation of _php_fbird_set_query_info */
 int _php_fbird_set_query_info(fbird_query *fb_query)
 {
+	ISC_STATUS status[256];
 	/*
 	 * Firebird 3.0+ OO API - uses IStatement interface methods
 	 *
@@ -37,15 +38,15 @@ int _php_fbird_set_query_info(fbird_query *fb_query)
 	 */
 
 	/* Get statement type via OO API */
-	fb_query->statement_type = fbs_get_type(FBG(master_instance), fb_query->fbs_statement, IB_STATUS);
-	if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
-		_php_fbird_error(IB_STATUS);
+	fb_query->statement_type = fbs_get_type(FBG(master_instance), fb_query->fbs_statement, status);
+	if (FB_STATUS_ERROR(status)) {
+		_php_fbird_error(status);
 		return FAILURE;
 	}
 
 	/* Get field counts via OO API helper functions */
-	fb_query->out_fields_count = fbs_get_output_count(FBG(master_instance), fb_query->fbs_statement, IB_STATUS);
-	fb_query->in_fields_count = fbs_get_input_count(FBG(master_instance), fb_query->fbs_statement, IB_STATUS);
+	fb_query->out_fields_count = fbs_get_output_count(FBG(master_instance), fb_query->fbs_statement, status);
+	fb_query->in_fields_count = fbs_get_input_count(FBG(master_instance), fb_query->fbs_statement, status);
 
 	return SUCCESS;
 }
@@ -111,6 +112,7 @@ void _php_fbird_free_xsqlda(XSQLDA *sqlda)
 
 void _php_fbird_free_query(fbird_query *fb_query)
 {
+	ISC_STATUS status[256];
 	FBDEBUG("Freeing query...");
 
 	if(fb_query->in_nullind)efree(fb_query->in_nullind);
@@ -137,6 +139,7 @@ void _php_fbird_free_query(fbird_query *fb_query)
 void php_fbird_free_query_rsrc(zend_resource *rsrc)
 {
     fbird_query *fb_query = (fbird_query *)rsrc->ptr;
+    ISC_STATUS status[256];
 
     if (fb_query != NULL) {
         /* Issue #294: Track whether this resource had an open cursor (SELECT result).
@@ -188,7 +191,7 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc)
             /* Close any open cursor first */
             if (fb_query->fbs_resultset || fb_query->is_open) {
                 FBDEBUG("Closing open cursor in dtor (OO API)");
-                fbs_close_cursor(fb_query->fbs_statement, IB_STATUS);
+                fbs_close_cursor(fb_query->fbs_statement, status);
                 fb_query->fbs_resultset = NULL;
                 fb_query->is_open = 0;
                 fb_query->has_more_rows = 0;
@@ -203,7 +206,7 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc)
             /* Free the OO API statement only if this resource OWNS it.
              * Result clones created for SELECT reuse parent's handle and must NOT drop it. */
             if (fb_query->owns_stmt_handle) {
-                fbs_free(fb_query->fbs_statement, IB_STATUS);
+                fbs_free(fb_query->fbs_statement, status);
             }
             fb_query->fbs_statement = NULL;
         }
@@ -235,7 +238,7 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc)
             bool is_persistent = (fb_query->link && fb_query->link->is_persistent);
             if (is_default_tx && !is_persistent) {
                 /* jane: silent on failure — see fbird_query_exec.c for rationale */
-                fbt_commit(fb_query->trans->fbt_transaction, IB_STATUS);
+                fbt_commit(fb_query->trans->fbt_transaction, status);
                 fbt_free(fb_query->trans->fbt_transaction);
                 fb_query->trans->fbt_transaction = NULL;
             }
@@ -255,6 +258,7 @@ void php_fbird_query_minit(INIT_FUNC_ARGS)
 int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link,
     fbird_transaction *trans, zend_resource *trans_res, char *query)
 {
+	ISC_STATUS status[256];
 	/* Validate required parameters to prevent NULL pointer dereference */
 	if (!link) {
 		php_error_docref(NULL, E_WARNING, "Invalid database connection resource");
@@ -314,11 +318,11 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link,
 		query,
 		0,  /* sql_length: 0 = null-terminated */
 		link->dialect,
-		IB_STATUS
+		status
 	);
 	if (!fb_query->fbs_statement) {
 		FBDEBUG("fbs_prepare() failed\n");
-		_php_fbird_error(IB_STATUS);
+		_php_fbird_error(status);
 		goto _php_fbird_alloc_query_error;
 	}
 	FBDEBUG("OO API statement prepared successfully\n");
@@ -337,10 +341,10 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link,
 	if (fb_query->out_fields_count > 0) {
 		/* Get output metadata and allocate message buffer */
 		fb_query->out_metadata = fbs_get_output_metadata(
-			FBG(master_instance), fb_query->fbs_statement, IB_STATUS);
+			FBG(master_instance), fb_query->fbs_statement, status);
 		if (!fb_query->out_metadata) {
 			FBDEBUG("fbs_get_output_metadata() failed\n");
-			_php_fbird_error(IB_STATUS);
+			_php_fbird_error(status);
 			goto _php_fbird_alloc_query_error;
 		}
 
@@ -426,10 +430,10 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link,
 	if (fb_query->in_fields_count > 0) {
 		/* Get input metadata and allocate message buffer */
 		fb_query->in_metadata = fbs_get_input_metadata(
-			FBG(master_instance), fb_query->fbs_statement, IB_STATUS);
+			FBG(master_instance), fb_query->fbs_statement, status);
 		if (!fb_query->in_metadata) {
 			FBDEBUG("fbs_get_input_metadata() failed\n");
-			_php_fbird_error(IB_STATUS);
+			_php_fbird_error(status);
 			goto _php_fbird_alloc_query_error;
 		}
 

@@ -26,10 +26,10 @@ zend_object *fbird_transaction_create(zend_class_entry *ce)
 void fbird_transaction_free(zend_object *obj)
 {
 	fbird_transaction_obj *intern = fbird_transaction_from_obj(obj);
+	ISC_STATUS status[256];
 	if (intern->fbt_trans) {
 		if (!FBG(in_mshutdown)) {
-			ISC_STATUS sv[20];
-			fbt_rollback(intern->fbt_trans, sv);
+			fbt_rollback(intern->fbt_trans, status);
 		}
 		fbt_free(intern->fbt_trans);
 		intern->fbt_trans = NULL;
@@ -43,24 +43,23 @@ ZEND_END_ARG_INFO()
 
 PHP_METHOD(FirebirdTransaction, commit)
 {
+	ISC_STATUS status[256];
 	ZEND_PARSE_PARAMETERS_NONE();
 	fbird_transaction_obj *intern = Z_FBIRD_TRANSACTION_P(ZEND_THIS);
 	if (intern->fbt_trans) {
-		ISC_STATUS sv[20];
-		fbt_commit(intern->fbt_trans, sv);
+		fbt_commit(intern->fbt_trans, status);
 		fbt_free(intern->fbt_trans);
 		intern->fbt_trans = NULL;
 	} else if (intern->trans_res) {
 		fbird_transaction *trans = (fbird_transaction *)intern->trans_res->ptr;
 		if (trans && trans->fbt_transaction) {
-			ISC_STATUS sv[20];
-			int res = fbt_commit(trans->fbt_transaction, sv);
+			int res = fbt_commit(trans->fbt_transaction, status);
 			fbt_free(trans->fbt_transaction);
 			trans->fbt_transaction = NULL;
 			zend_list_delete(intern->trans_res);
 			intern->trans_res = NULL;
 			if (res && !FBG(in_mshutdown)) {
-				_php_fbird_error(IB_STATUS);
+				_php_fbird_error(status);
 			}
 		}
 	}
@@ -71,18 +70,17 @@ ZEND_END_ARG_INFO()
 
 PHP_METHOD(FirebirdTransaction, rollback)
 {
+	ISC_STATUS status[256];
 	ZEND_PARSE_PARAMETERS_NONE();
 	fbird_transaction_obj *intern = Z_FBIRD_TRANSACTION_P(ZEND_THIS);
 	if (intern->fbt_trans) {
-		ISC_STATUS sv[20];
-		fbt_rollback(intern->fbt_trans, sv);
+		fbt_rollback(intern->fbt_trans, status);
 		fbt_free(intern->fbt_trans);
 		intern->fbt_trans = NULL;
 	} else if (intern->trans_res) {
 		fbird_transaction *trans = (fbird_transaction *)intern->trans_res->ptr;
 		if (trans && trans->fbt_transaction) {
-			ISC_STATUS sv[20];
-			fbt_rollback(trans->fbt_transaction, sv);
+			fbt_rollback(trans->fbt_transaction, status);
 			fbt_free(trans->fbt_transaction);
 			trans->fbt_transaction = NULL;
 			zend_list_delete(intern->trans_res);

@@ -146,6 +146,7 @@ static void _php_fbird_event_block(unsigned short count, char **events,
 
 PHP_FUNCTION(fbird_wait_event)
 {
+	ISC_STATUS status[256];
 	zval *args;
 	fbird_db_link *fb_link;
 	int num_args;
@@ -222,12 +223,11 @@ PHP_FUNCTION(fbird_wait_event)
 	 * The first wait/count cycle establishes the baseline.
 	 */
 	{
-		ISC_STATUS init_status[20];
 		ISC_ULONG init_counts[15];
 		void *attachment_ptr = fbc_get_attachment(fb_link->fbc_connection);
-		if (fbe_wait_for_event_oo(init_status, attachment_ptr, buffer_size, event_buffer, result_buffer)) {
+		if (fbe_wait_for_event_oo(status, attachment_ptr, buffer_size, event_buffer, result_buffer)) {
 			/* Initial wait failed - likely connection issue */
-			_php_fbird_error(IB_STATUS);
+			_php_fbird_error(status);
 			_php_fbird_event_free(event_buffer, result_buffer);
 			RETURN_FALSE;
 		}
@@ -237,8 +237,8 @@ PHP_FUNCTION(fbird_wait_event)
 	/* Now wait for actual events */
 	{
 		void *attachment_ptr = fbc_get_attachment(fb_link->fbc_connection);
-		if (fbe_wait_for_event_oo(IB_STATUS, attachment_ptr, buffer_size, event_buffer, result_buffer)) {
-			_php_fbird_error(IB_STATUS);
+		if (fbe_wait_for_event_oo(status, attachment_ptr, buffer_size, event_buffer, result_buffer)) {
+			_php_fbird_error(status);
 			_php_fbird_event_free(event_buffer, result_buffer);
 			RETURN_FALSE;
 		}
@@ -393,6 +393,7 @@ void fbird_timeout_handler(int sig) {
 
 PHP_FUNCTION(fbird_poll_event)
 {
+	ISC_STATUS status[256];
 	zval *event_arg;
 	zend_long timeout_ms = -1;  /* Default: block forever */
 	fbird_event *event;
@@ -495,11 +496,10 @@ PHP_FUNCTION(fbird_poll_event)
 	 * SIGALRM timeout set above so it cannot block indefinitely.
 	 */
 	if (event->needs_reregistration) {
-		ISC_STATUS init_status[20];
 		ISC_ULONG init_counts[15];
 		void *attachment_ptr = fbc_get_attachment(event->link->fbc_connection);
 
-		if (fbe_wait_for_event_oo(init_status, attachment_ptr,
+		if (fbe_wait_for_event_oo(status, attachment_ptr,
 				event->buffer_size, event->event_buffer, event->result_buffer)) {
 			/* Wait failed - check if our timeout interrupted it */
 #ifndef PHP_WIN32
@@ -516,7 +516,7 @@ PHP_FUNCTION(fbird_poll_event)
 				}
 			}
 #endif
-			_php_fbird_error(IB_STATUS);
+			_php_fbird_error(status);
 			event->state = DEAD;
 			RETURN_FALSE;
 		}
@@ -529,7 +529,7 @@ PHP_FUNCTION(fbird_poll_event)
 	 * Use isc_wait_for_event() synchronously.
 	 * This blocks until an event fires OR until interrupted by SIGALRM.
 	 */
-	wait_result = fbe_wait_for_event_oo(IB_STATUS, fbc_get_attachment(event->link->fbc_connection),
+	wait_result = fbe_wait_for_event_oo(status, fbc_get_attachment(event->link->fbc_connection),
 			event->buffer_size, event->event_buffer, event->result_buffer);
 
 #ifndef PHP_WIN32
@@ -561,7 +561,7 @@ PHP_FUNCTION(fbird_poll_event)
 		/* On Unix, EINTR from timeout is handled above via fbird_timeout_occurred flag.
 		 * If we get here with an error, it's a real error. */
 #endif
-		_php_fbird_error(IB_STATUS);
+		_php_fbird_error(status);
 		event->state = DEAD;
 		RETURN_FALSE;
 	}

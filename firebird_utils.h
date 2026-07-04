@@ -22,7 +22,7 @@ ISC_DATE fbu_encode_date(void *master_ptr, unsigned year, unsigned month, unsign
  * Extract SQLCODE from a Firebird status vector.
  * Wraps isc_sqlcode() to isolate the legacy isc_* call in firebird_utils.cpp.
  *
- * @param status_vector ISC_STATUS array (typically IB_STATUS)
+ * @param status_vector ISC_STATUS array (local status[256])
  * @return SQLCODE value (negative for errors, 0 for success)
  */
 long fbu_sqlcode(const ISC_STATUS *status_vector);

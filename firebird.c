@@ -997,6 +997,7 @@ PHP_FUNCTION(fbird_gen_id)
 	void *attachment = NULL;
 	void *transaction_ptr = NULL;
 	void *stmt = NULL;
+	ISC_STATUS status[256];
 
 	RESET_ERRMSG;
 
@@ -1051,24 +1052,24 @@ PHP_FUNCTION(fbird_gen_id)
 
 	/* Prepare the query via OO API */
 	stmt = fbs_prepare(FBG(master_instance), attachment, transaction_ptr,
-		query, (unsigned)strlen(query), SQL_DIALECT_CURRENT, IB_STATUS);
+		query, (unsigned)strlen(query), SQL_DIALECT_CURRENT, status);
 	if (!stmt) {
-		_php_fbird_error(IB_STATUS);
+		_php_fbird_error(status);
 		RETURN_FALSE;
 	}
 
 	/* Execute the statement and fetch the result via OO API */
-	result = fbs_execute_singleton_int64(FBG(master_instance), stmt, transaction_ptr, IB_STATUS);
+	result = fbs_execute_singleton_int64(FBG(master_instance), stmt, transaction_ptr, status);
 
 	/* Check for errors (result 0 could be valid, check status) */
-	if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
-		_php_fbird_error(IB_STATUS);
-		fbs_free(stmt, IB_STATUS);
+	if (FB_STATUS_ERROR(status)) {
+		_php_fbird_error(status);
+		fbs_free(stmt, status);
 		RETURN_FALSE;
 	}
 
 	/* Free the statement */
-	fbs_free(stmt, IB_STATUS);
+	fbs_free(stmt, status);
 
 	/* don't return the generator value as a string unless it doesn't fit in a long */
 #if SIZEOF_ZEND_LONG < 8
@@ -1093,6 +1094,7 @@ PHP_FUNCTION(fbird_last_insert_id)
 	size_t seq_len = 0;
 	fbird_db_link *fb_link = NULL;
 	fbird_transaction *trans = NULL;
+	ISC_STATUS status[256];
 
 	RESET_ERRMSG;
 
@@ -1149,21 +1151,21 @@ PHP_FUNCTION(fbird_last_insert_id)
 	}
 
 	void *stmt = fbs_prepare(FBG(master_instance), attachment, transaction_ptr,
-		query, (unsigned)strlen(query), SQL_DIALECT_CURRENT, IB_STATUS);
+		query, (unsigned)strlen(query), SQL_DIALECT_CURRENT, status);
 	if (!stmt) {
-		_php_fbird_error(IB_STATUS);
+		_php_fbird_error(status);
 		RETURN_FALSE;
 	}
 
-	ISC_INT64 result = fbs_execute_singleton_int64(FBG(master_instance), stmt, transaction_ptr, IB_STATUS);
+	ISC_INT64 result = fbs_execute_singleton_int64(FBG(master_instance), stmt, transaction_ptr, status);
 
-	if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
-		_php_fbird_error(IB_STATUS);
-		fbs_free(stmt, IB_STATUS);
+	if (FB_STATUS_ERROR(status)) {
+		_php_fbird_error(status);
+		fbs_free(stmt, status);
 		RETURN_FALSE;
 	}
 
-	fbs_free(stmt, IB_STATUS);
+	fbs_free(stmt, status);
 
 #if SIZEOF_ZEND_LONG < 8
 	if (result < ZEND_LONG_MIN || result > ZEND_LONG_MAX) {
@@ -1225,6 +1227,7 @@ PHP_FUNCTION(fbird_get_limbo_transactions)
 	ISC_INT64 *trans_ids;
 	int count, i;
 	void *attachment;
+	ISC_STATUS status[256];
 
 	RESET_ERRMSG;
 
@@ -1261,11 +1264,11 @@ PHP_FUNCTION(fbird_get_limbo_transactions)
 	trans_ids = (ISC_INT64 *)safe_emalloc(sizeof(ISC_INT64), (size_t)max_count, 0);
 
 	count = fbt_get_limbo_transactions(FBG(master_instance), attachment, trans_ids,
-		(unsigned)max_count, IB_STATUS);
+		(unsigned)max_count, status);
 
 	if (count < 0) {
 		efree(trans_ids);
-		_php_fbird_error(IB_STATUS);
+		_php_fbird_error(status);
 		RETURN_FALSE;
 	}
 
@@ -1284,6 +1287,7 @@ PHP_FUNCTION(fbird_reconnect_transaction)
 	fbird_db_link *fb_link;
 	fbird_transaction *fb_trans;
 	void *attachment;
+	ISC_STATUS status[256];
 	void *reconnected_trans;
 
 	RESET_ERRMSG;
@@ -1308,9 +1312,9 @@ PHP_FUNCTION(fbird_reconnect_transaction)
 		RETURN_FALSE;
 	}
 
-	reconnected_trans = fbt_reconnect(FBG(master_instance), attachment, trans_id, IB_STATUS);
+	reconnected_trans = fbt_reconnect(FBG(master_instance), attachment, trans_id, status);
 	if (reconnected_trans == NULL) {
-		_php_fbird_error(IB_STATUS);
+		_php_fbird_error(status);
 		RETURN_FALSE;
 	}
 

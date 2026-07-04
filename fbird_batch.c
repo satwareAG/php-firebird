@@ -20,6 +20,7 @@
 #if FB_API_VER >= 40
 void _php_fbird_free_batch(zend_resource *rsrc)
 {
+	ISC_STATUS status[256];
 	fbird_batch *batch = (fbird_batch *)rsrc->ptr;
 
 	FBDEBUG("Cleaning up batch resource...");
@@ -40,8 +41,8 @@ void _php_fbird_free_batch(zend_resource *rsrc)
 	/* Cancel and close the batch if still open */
 	if (batch->fbbatch_wrapper != NULL) {
 		FBDEBUG("Canceling unexecuted batch...");
-		fbbatch_cancel(FBG(master_instance), batch->fbbatch_wrapper, IB_STATUS);
-		fbbatch_close(FBG(master_instance), batch->fbbatch_wrapper, IB_STATUS);
+		fbbatch_cancel(FBG(master_instance), batch->fbbatch_wrapper, status);
+		fbbatch_close(FBG(master_instance), batch->fbbatch_wrapper, status);
 		batch->fbbatch_wrapper = NULL;
 	}
 
@@ -91,6 +92,7 @@ static fbird_batch *fbird_batch_from_zval(zval *zv)
 /* IBatch API Functions (Firebird 4.0+ Bulk Operations) */
 PHP_FUNCTION(fbird_batch_create)
 {
+	ISC_STATUS status[256];
 	zval *query_arg, *trans_arg = NULL;
 	fbird_query *fb_query;
 	fbird_transaction *trans = NULL;
@@ -144,7 +146,7 @@ PHP_FUNCTION(fbird_batch_create)
 	 * (division by zero when computing row capacity from buffer size). */
 	{
 		unsigned input_count = fbs_get_input_count(
-			FBG(master_instance), fb_query->fbs_statement, IB_STATUS);
+			FBG(master_instance), fb_query->fbs_statement, status);
 		if (input_count == 0) {
 			_php_fbird_module_error("fbird_batch_create(): statement has no "
 				"input parameters; batch operations require parameterized "
@@ -154,17 +156,17 @@ PHP_FUNCTION(fbird_batch_create)
 	}
 
 	/* Create batch with default buffer size */
-	batch_wrapper = fbbatch_create(FBG(master_instance), stmt_ptr, 0, IB_STATUS);
+	batch_wrapper = fbbatch_create(FBG(master_instance), stmt_ptr, 0, status);
 	if (!batch_wrapper) {
-		_php_fbird_error(IB_STATUS);
+		_php_fbird_error(status);
 		RETURN_FALSE;
 	}
 
 	/* Get input metadata for building message buffers */
-	metadata = fbbatch_get_metadata(FBG(master_instance), batch_wrapper, IB_STATUS);
+	metadata = fbbatch_get_metadata(FBG(master_instance), batch_wrapper, status);
 	if (!metadata) {
-		fbbatch_close(FBG(master_instance), batch_wrapper, IB_STATUS);
-		_php_fbird_error(IB_STATUS);
+		fbbatch_close(FBG(master_instance), batch_wrapper, status);
+		_php_fbird_error(status);
 		RETURN_FALSE;
 	}
 
@@ -194,6 +196,7 @@ PHP_FUNCTION(fbird_batch_create)
 
 PHP_FUNCTION(fbird_batch_add)
 {
+	ISC_STATUS status[256];
 	zval *batch_arg;
 	zval *args = NULL;
 	int argc = 0;
@@ -571,8 +574,8 @@ PHP_FUNCTION(fbird_batch_add)
 	}
 
 	/* Add the populated message buffer to the batch */
-	if (fbbatch_add(master, fb_batch->fbbatch_wrapper, 1, fb_batch->in_msg_buffer, IB_STATUS) != 1) {
-		_php_fbird_error(IB_STATUS);
+	if (fbbatch_add(master, fb_batch->fbbatch_wrapper, 1, fb_batch->in_msg_buffer, status) != 1) {
+		_php_fbird_error(status);
 		RETURN_FALSE;
 	}
 
@@ -581,6 +584,7 @@ PHP_FUNCTION(fbird_batch_add)
 
 PHP_FUNCTION(fbird_batch_execute)
 {
+	ISC_STATUS status[256];
 	zval *batch_arg;
 	fbird_batch *fb_batch;
 	void *trans_ptr;
@@ -611,13 +615,13 @@ PHP_FUNCTION(fbird_batch_execute)
 	}
 
 	if (!fbbatch_execute(FBG(master_instance), fb_batch->fbbatch_wrapper, trans_ptr,
-			&total_processed, &error_count, IB_STATUS)) {
-		_php_fbird_error(IB_STATUS);
+			&total_processed, &error_count, status)) {
+		_php_fbird_error(status);
 		RETURN_FALSE;
 	}
 
 	/* Close the batch after execution */
-	fbbatch_close(FBG(master_instance), fb_batch->fbbatch_wrapper, IB_STATUS);
+	fbbatch_close(FBG(master_instance), fb_batch->fbbatch_wrapper, status);
 	fb_batch->fbbatch_wrapper = NULL;
 
 	/* Calculate success_count from total_processed - error_count */
@@ -631,6 +635,7 @@ PHP_FUNCTION(fbird_batch_execute)
 
 PHP_FUNCTION(fbird_batch_cancel)
 {
+	ISC_STATUS status[256];
 	zval *batch_arg;
 	fbird_batch *fb_batch;
 
@@ -646,12 +651,12 @@ PHP_FUNCTION(fbird_batch_cancel)
 		RETURN_FALSE;
 	}
 
-	if (!fbbatch_cancel(FBG(master_instance), fb_batch->fbbatch_wrapper, IB_STATUS)) {
-		_php_fbird_error(IB_STATUS);
+	if (!fbbatch_cancel(FBG(master_instance), fb_batch->fbbatch_wrapper, status)) {
+		_php_fbird_error(status);
 		RETURN_FALSE;
 	}
 
-	fbbatch_close(FBG(master_instance), fb_batch->fbbatch_wrapper, IB_STATUS);
+	fbbatch_close(FBG(master_instance), fb_batch->fbbatch_wrapper, status);
 	fb_batch->fbbatch_wrapper = NULL;
 
 	RETURN_TRUE;
@@ -659,6 +664,7 @@ PHP_FUNCTION(fbird_batch_cancel)
 
 PHP_FUNCTION(fbird_batch_add_blob)
 {
+	ISC_STATUS status[256];
 	zval *batch_arg;
 	char *data;
 	size_t data_len;
@@ -680,8 +686,8 @@ PHP_FUNCTION(fbird_batch_add_blob)
 
 	/* Call C++ wrapper to add BLOB to batch */
 	if (fbbatch_add_blob(FBG(master_instance), fb_batch->fbbatch_wrapper,
-			(unsigned)data_len, data, &blob_id, 0, NULL, IB_STATUS) == 0) {
-		_php_fbird_error(IB_STATUS);
+			(unsigned)data_len, data, &blob_id, 0, NULL, status) == 0) {
+		_php_fbird_error(status);
 		RETURN_FALSE;
 	}
 
@@ -691,6 +697,7 @@ PHP_FUNCTION(fbird_batch_add_blob)
 
 PHP_FUNCTION(fbird_batch_register_blob)
 {
+	ISC_STATUS status[256];
 	zval *batch_arg;
 	char *blob_id_str;
 	size_t blob_id_len;
@@ -717,8 +724,8 @@ PHP_FUNCTION(fbird_batch_register_blob)
 
 	/* Call C++ wrapper to register BLOB in batch */
 	if (fbbatch_register_blob(FBG(master_instance), fb_batch->fbbatch_wrapper,
-			&existing_blob, &batch_blob_id, IB_STATUS) == 0) {
-		_php_fbird_error(IB_STATUS);
+			&existing_blob, &batch_blob_id, status) == 0) {
+		_php_fbird_error(status);
 		RETURN_FALSE;
 	}
 
@@ -731,6 +738,7 @@ PHP_FUNCTION(fbird_batch_register_blob)
    The alignment value is needed when embedding inline BLOBs via fbird_batch_add_blob(). */
 PHP_FUNCTION(fbird_batch_get_blob_alignment)
 {
+	ISC_STATUS status[256];
 	zval *batch_arg;
 	fbird_batch *fb_batch;
 	unsigned alignment;
@@ -747,9 +755,9 @@ PHP_FUNCTION(fbird_batch_get_blob_alignment)
 		RETURN_FALSE;
 	}
 
-	alignment = fbbatch_get_blob_alignment(FBG(master_instance), fb_batch->fbbatch_wrapper, IB_STATUS);
+	alignment = fbbatch_get_blob_alignment(FBG(master_instance), fb_batch->fbbatch_wrapper, status);
 	if (alignment == 0) {
-		_php_fbird_error(IB_STATUS);
+		_php_fbird_error(status);
 		RETURN_FALSE;
 	}
 
@@ -758,6 +766,7 @@ PHP_FUNCTION(fbird_batch_get_blob_alignment)
 
 PHP_FUNCTION(fbird_batch_append_blob_data)
 {
+	ISC_STATUS status[256];
 	zval *batch_arg;
 	char *data;
 	size_t data_len;
@@ -776,8 +785,8 @@ PHP_FUNCTION(fbird_batch_append_blob_data)
 	}
 
 	if (!fbbatch_append_blob_data(FBG(master_instance), fb_batch->fbbatch_wrapper,
-			(unsigned)data_len, data, IB_STATUS)) {
-		_php_fbird_error(IB_STATUS);
+			(unsigned)data_len, data, status)) {
+		_php_fbird_error(status);
 		RETURN_FALSE;
 	}
 
@@ -786,6 +795,7 @@ PHP_FUNCTION(fbird_batch_append_blob_data)
 
 PHP_FUNCTION(fbird_batch_add_blob_stream)
 {
+	ISC_STATUS status[256];
 	zval *batch_arg;
 	char *data;
 	size_t data_len;
@@ -804,8 +814,8 @@ PHP_FUNCTION(fbird_batch_add_blob_stream)
 	}
 
 	if (!fbbatch_add_blob_stream(FBG(master_instance), fb_batch->fbbatch_wrapper,
-			(unsigned)data_len, data, IB_STATUS)) {
-		_php_fbird_error(IB_STATUS);
+			(unsigned)data_len, data, status)) {
+		_php_fbird_error(status);
 		RETURN_FALSE;
 	}
 
@@ -814,6 +824,7 @@ PHP_FUNCTION(fbird_batch_add_blob_stream)
 
 PHP_FUNCTION(fbird_batch_set_default_bpb)
 {
+	ISC_STATUS status[256];
 	zval *batch_arg;
 	char *bpb;
 	size_t bpb_len;
@@ -832,8 +843,8 @@ PHP_FUNCTION(fbird_batch_set_default_bpb)
 	}
 
 	if (!fbbatch_set_default_bpb(FBG(master_instance), fb_batch->fbbatch_wrapper,
-			(unsigned)bpb_len, (const unsigned char *)bpb, IB_STATUS)) {
-		_php_fbird_error(IB_STATUS);
+			(unsigned)bpb_len, (const unsigned char *)bpb, status)) {
+		_php_fbird_error(status);
 		RETURN_FALSE;
 	}
 

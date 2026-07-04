@@ -523,6 +523,7 @@ static int _php_fbird_scale_double_to_int64(double dval, int sqlscale, ISC_INT64
 
 int _php_fbird_bind(fbird_query *fb_query, zval *b_vars)
 {
+	ISC_STATUS status[256];
 	BIND_BUF *buf = fb_query->bind_buf;
 	XSQLDA *sqlda = fb_query->in_sqlda;
 
@@ -850,10 +851,10 @@ int _php_fbird_bind(fbird_query *fb_query, zval *b_vars)
 
  					fb_blob.fbb_blob = fbb_create(
  						FBG(master_instance), attachment_ptr, transaction_ptr,
- 						&fb_blob.bl_qd, 0, NULL, IB_STATUS
+ 						&fb_blob.bl_qd, 0, NULL, status
  					);
  					if (!fb_blob.fbb_blob) {
- 						_php_fbird_error(IB_STATUS);
+ 						_php_fbird_error(status);
  						return FAILURE;
  					}
 
@@ -862,16 +863,16 @@ int _php_fbird_bind(fbird_query *fb_query, zval *b_vars)
  					ssize_t read_len;
  					while ((read_len = php_stream_read(stream, chunk, sizeof(chunk))) > 0) {
  						if (fbb_put_segment(FBG(master_instance), fb_blob.fbb_blob,
- 								(unsigned int)read_len, chunk, IB_STATUS) == 0) {
- 							_php_fbird_error(IB_STATUS);
- 							fbb_cancel(FBG(master_instance), fb_blob.fbb_blob, IB_STATUS);
+ 								(unsigned int)read_len, chunk, status) == 0) {
+ 							_php_fbird_error(status);
+ 							fbb_cancel(FBG(master_instance), fb_blob.fbb_blob, status);
  							fbb_free(fb_blob.fbb_blob);
  							return FAILURE;
  						}
  					}
 
- 					if (fbb_close(FBG(master_instance), fb_blob.fbb_blob, IB_STATUS) == 0) {
- 						_php_fbird_error(IB_STATUS);
+ 					if (fbb_close(FBG(master_instance), fb_blob.fbb_blob, status) == 0) {
+ 						_php_fbird_error(status);
  						fbb_free(fb_blob.fbb_blob);
  						return FAILURE;
  					}
@@ -914,10 +915,10 @@ int _php_fbird_bind(fbird_query *fb_query, zval *b_vars)
 						&fb_blob.bl_qd,
 						0,
 						NULL,
-						IB_STATUS
+						status
 					);
 					if (!fb_blob.fbb_blob) {
-						_php_fbird_error(IB_STATUS);
+						_php_fbird_error(status);
 						return FAILURE;
 					}
 
@@ -925,14 +926,14 @@ int _php_fbird_bind(fbird_query *fb_query, zval *b_vars)
 
 					if (_php_fbird_blob_add(b_var, &fb_blob) != SUCCESS) {
 						/* Try to cancel and free to avoid leaking the server-side blob. */
-						fbb_cancel(FBG(master_instance), fb_blob.fbb_blob, IB_STATUS);
+						fbb_cancel(FBG(master_instance), fb_blob.fbb_blob, status);
 						fbb_free(fb_blob.fbb_blob);
 						return FAILURE;
 					}
 
 					/* fbb_close returns 1 on success, 0 on error */
-					if (fbb_close(FBG(master_instance), fb_blob.fbb_blob, IB_STATUS) == 0) {
-						_php_fbird_error(IB_STATUS);
+					if (fbb_close(FBG(master_instance), fb_blob.fbb_blob, status) == 0) {
+						_php_fbird_error(status);
 						fbb_free(fb_blob.fbb_blob);
 						return FAILURE;
 					}
@@ -1128,9 +1129,9 @@ int _php_fbird_bind(fbird_query *fb_query, zval *b_vars)
 						arr_relname,
 						arr_sqlname,
 						&ar_desc,
-						IB_STATUS
+						status
 					) != 0) {
-					_php_fbird_error(IB_STATUS);
+					_php_fbird_error(status);
 					rv = FAILURE;
 					continue;
 				}
@@ -1213,9 +1214,9 @@ int _php_fbird_bind(fbird_query *fb_query, zval *b_vars)
 							&ar_desc,
 							array_data,
 							slice_len,
-							IB_STATUS
+							status
 						) != 0) {
-						_php_fbird_error(IB_STATUS);
+						_php_fbird_error(status);
 						efree(array_data);
 						rv = FAILURE;
 						continue;

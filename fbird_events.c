@@ -227,7 +227,7 @@ PHP_FUNCTION(fbird_wait_event)
 		void *attachment_ptr = fbc_get_attachment(fb_link->fbc_connection);
 		if (fbe_wait_for_event_oo(init_status, attachment_ptr, buffer_size, event_buffer, result_buffer)) {
 			/* Initial wait failed - likely connection issue */
-			_php_fbird_error();
+			_php_fbird_error(IB_STATUS);
 			_php_fbird_event_free(event_buffer, result_buffer);
 			RETURN_FALSE;
 		}
@@ -238,7 +238,7 @@ PHP_FUNCTION(fbird_wait_event)
 	{
 		void *attachment_ptr = fbc_get_attachment(fb_link->fbc_connection);
 		if (fbe_wait_for_event_oo(IB_STATUS, attachment_ptr, buffer_size, event_buffer, result_buffer)) {
-			_php_fbird_error();
+			_php_fbird_error(IB_STATUS);
 			_php_fbird_event_free(event_buffer, result_buffer);
 			RETURN_FALSE;
 		}
@@ -516,7 +516,7 @@ PHP_FUNCTION(fbird_poll_event)
 				}
 			}
 #endif
-			_php_fbird_error();
+			_php_fbird_error(IB_STATUS);
 			event->state = DEAD;
 			RETURN_FALSE;
 		}
@@ -561,7 +561,7 @@ PHP_FUNCTION(fbird_poll_event)
 		/* On Unix, EINTR from timeout is handled above via fbird_timeout_occurred flag.
 		 * If we get here with an error, it's a real error. */
 #endif
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		event->state = DEAD;
 		RETURN_FALSE;
 	}

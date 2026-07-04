@@ -156,7 +156,7 @@ PHP_FUNCTION(fbird_batch_create)
 	/* Create batch with default buffer size */
 	batch_wrapper = fbbatch_create(FBG(master_instance), stmt_ptr, 0, IB_STATUS);
 	if (!batch_wrapper) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_FALSE;
 	}
 
@@ -164,7 +164,7 @@ PHP_FUNCTION(fbird_batch_create)
 	metadata = fbbatch_get_metadata(FBG(master_instance), batch_wrapper, IB_STATUS);
 	if (!metadata) {
 		fbbatch_close(FBG(master_instance), batch_wrapper, IB_STATUS);
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_FALSE;
 	}
 
@@ -572,7 +572,7 @@ PHP_FUNCTION(fbird_batch_add)
 
 	/* Add the populated message buffer to the batch */
 	if (fbbatch_add(master, fb_batch->fbbatch_wrapper, 1, fb_batch->in_msg_buffer, IB_STATUS) != 1) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_FALSE;
 	}
 
@@ -612,7 +612,7 @@ PHP_FUNCTION(fbird_batch_execute)
 
 	if (!fbbatch_execute(FBG(master_instance), fb_batch->fbbatch_wrapper, trans_ptr,
 			&total_processed, &error_count, IB_STATUS)) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_FALSE;
 	}
 
@@ -647,7 +647,7 @@ PHP_FUNCTION(fbird_batch_cancel)
 	}
 
 	if (!fbbatch_cancel(FBG(master_instance), fb_batch->fbbatch_wrapper, IB_STATUS)) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_FALSE;
 	}
 
@@ -681,7 +681,7 @@ PHP_FUNCTION(fbird_batch_add_blob)
 	/* Call C++ wrapper to add BLOB to batch */
 	if (fbbatch_add_blob(FBG(master_instance), fb_batch->fbbatch_wrapper,
 			(unsigned)data_len, data, &blob_id, 0, NULL, IB_STATUS) == 0) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_FALSE;
 	}
 
@@ -718,7 +718,7 @@ PHP_FUNCTION(fbird_batch_register_blob)
 	/* Call C++ wrapper to register BLOB in batch */
 	if (fbbatch_register_blob(FBG(master_instance), fb_batch->fbbatch_wrapper,
 			&existing_blob, &batch_blob_id, IB_STATUS) == 0) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_FALSE;
 	}
 
@@ -749,7 +749,7 @@ PHP_FUNCTION(fbird_batch_get_blob_alignment)
 
 	alignment = fbbatch_get_blob_alignment(FBG(master_instance), fb_batch->fbbatch_wrapper, IB_STATUS);
 	if (alignment == 0) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_FALSE;
 	}
 
@@ -777,7 +777,7 @@ PHP_FUNCTION(fbird_batch_append_blob_data)
 
 	if (!fbbatch_append_blob_data(FBG(master_instance), fb_batch->fbbatch_wrapper,
 			(unsigned)data_len, data, IB_STATUS)) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_FALSE;
 	}
 
@@ -805,7 +805,7 @@ PHP_FUNCTION(fbird_batch_add_blob_stream)
 
 	if (!fbbatch_add_blob_stream(FBG(master_instance), fb_batch->fbbatch_wrapper,
 			(unsigned)data_len, data, IB_STATUS)) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_FALSE;
 	}
 
@@ -833,7 +833,7 @@ PHP_FUNCTION(fbird_batch_set_default_bpb)
 
 	if (!fbbatch_set_default_bpb(FBG(master_instance), fb_batch->fbbatch_wrapper,
 			(unsigned)bpb_len, (const unsigned char *)bpb, IB_STATUS)) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_FALSE;
 	}
 

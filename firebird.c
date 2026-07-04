@@ -1053,7 +1053,7 @@ PHP_FUNCTION(fbird_gen_id)
 	stmt = fbs_prepare(FBG(master_instance), attachment, transaction_ptr,
 		query, (unsigned)strlen(query), SQL_DIALECT_CURRENT, IB_STATUS);
 	if (!stmt) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_FALSE;
 	}
 
@@ -1062,7 +1062,7 @@ PHP_FUNCTION(fbird_gen_id)
 
 	/* Check for errors (result 0 could be valid, check status) */
 	if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		fbs_free(stmt, IB_STATUS);
 		RETURN_FALSE;
 	}
@@ -1151,14 +1151,14 @@ PHP_FUNCTION(fbird_last_insert_id)
 	void *stmt = fbs_prepare(FBG(master_instance), attachment, transaction_ptr,
 		query, (unsigned)strlen(query), SQL_DIALECT_CURRENT, IB_STATUS);
 	if (!stmt) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_FALSE;
 	}
 
 	ISC_INT64 result = fbs_execute_singleton_int64(FBG(master_instance), stmt, transaction_ptr, IB_STATUS);
 
 	if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		fbs_free(stmt, IB_STATUS);
 		RETURN_FALSE;
 	}
@@ -1265,7 +1265,7 @@ PHP_FUNCTION(fbird_get_limbo_transactions)
 
 	if (count < 0) {
 		efree(trans_ids);
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_FALSE;
 	}
 
@@ -1310,7 +1310,7 @@ PHP_FUNCTION(fbird_reconnect_transaction)
 
 	reconnected_trans = fbt_reconnect(FBG(master_instance), attachment, trans_id, IB_STATUS);
 	if (reconnected_trans == NULL) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_FALSE;
 	}
 

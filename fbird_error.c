@@ -68,8 +68,8 @@ PHP_FUNCTION(fbird_sqlstate)
 		RETURN_FALSE;
 	}
 
-	/* Call fb_sqlstate to get the SQLSTATE code from the status vector */
-	fb_sqlstate(sqlstate, IB_STATUS);
+	/* Call fb_sqlstate to get the SQLSTATE code from the last error status vector */
+	fb_sqlstate(sqlstate, FBG(last_status));
 
 	/* fb_sqlstate always returns a 5-character string, with "00000" for success */
 	if (sqlstate[0] == '0' && sqlstate[1] == '0' && sqlstate[2] == '0' &&
@@ -158,8 +158,8 @@ PHP_METHOD(FirebirdException, getSqlState)
 		return;
 	}
 
-	/* Call fb_sqlstate to get the SQLSTATE code from the status vector */
-	fb_sqlstate(sqlstate, IB_STATUS);
+	/* Call fb_sqlstate to get the SQLSTATE code from the last error status vector */
+	fb_sqlstate(sqlstate, FBG(last_status));
 
 	/* Always return the SQLSTATE (even if "00000" for compatibility) */
 	RETURN_STRINGL(sqlstate, 5);
@@ -174,13 +174,16 @@ const zend_function_entry firebird_exception_methods[] = {
 };
 
 /* print firebird error and save it for fbird_errmsg() */
-void _php_fbird_error(void)
+void _php_fbird_error(ISC_STATUS *status)
 {
 	char *s = FBG(errmsg);
-	const ISC_STATUS *statusp = IB_STATUS;
+	const ISC_STATUS *statusp = status;
 	size_t msg_len;
 
-	FBG(sql_code) = fbu_sqlcode(IB_STATUS);
+	/* Store the status vector for fbird_sqlstate() */
+	memcpy(FBG(last_status), status, sizeof(FBG(last_status)));
+
+	FBG(sql_code) = fbu_sqlcode(status);
 
 	msg_len = strlen(FBG(errmsg));
 	while (msg_len < MAX_ERRMSG && fb_interpret(s, MAX_ERRMSG - msg_len - 1, &statusp)) {
@@ -205,6 +208,9 @@ void _php_fbird_module_error(const char *msg, ...)
 	va_list ap;
 
 	va_start(ap, msg);
+
+	/* Module errors have no Firebird status vector — clear last_status */
+	memset(FBG(last_status), 0, sizeof(FBG(last_status)));
 
 	/* vsnprintf NUL terminates the buf and writes at most n-1 chars+NUL */
 	vsnprintf(FBG(errmsg), MAX_ERRMSG, msg, ap);

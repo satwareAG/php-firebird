@@ -69,14 +69,14 @@ static int _fbird_exec_kill(fbird_db_link *link, fbird_transaction *trans, ISC_I
 	);
 
 	if (!stmt) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		return FAILURE;
 	}
 
 	/* Get input metadata for parameter binding */
 	void *in_metadata = fbs_get_input_metadata(FBG(master_instance), stmt, IB_STATUS);
 	if (!in_metadata) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		fbs_free(stmt, IB_STATUS);
 		return FAILURE;
 	}
@@ -107,7 +107,7 @@ static int _fbird_exec_kill(fbird_db_link *link, fbird_transaction *trans, ISC_I
 		NULL,
 		IB_STATUS
 	)) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		fbs_free(stmt, IB_STATUS);
 		return FAILURE;
 	}
@@ -169,7 +169,7 @@ static int _fbird_drop_table(fbird_db_link *link, fbird_transaction *trans, cons
 	);
 
 	if (!stmt) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		efree(drop_sql);
 		return FAILURE;
 	}
@@ -185,7 +185,7 @@ static int _fbird_drop_table(fbird_db_link *link, fbird_transaction *trans, cons
 		NULL,
 		IB_STATUS
 	)) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		fbs_free(stmt, IB_STATUS);
 		efree(drop_sql);
 		return FAILURE;
@@ -198,7 +198,7 @@ static int _fbird_drop_table(fbird_db_link *link, fbird_transaction *trans, cons
 	/* Commit for DDL visibility
 	 * fbt_commit returns 0 on success, -1 on error. */
 	if (fbt_commit(trans->fbt_transaction, IB_STATUS) != 0) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		return FAILURE;
 	}
 
@@ -336,14 +336,14 @@ PHP_FUNCTION(fbird_list_table_blockers)
 	);
 
 	if (!stmt) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_FALSE;
 	}
 
 	/* Get input metadata for parameter binding */
 	in_metadata = fbs_get_input_metadata(FBG(master_instance), stmt, IB_STATUS);
 	if (!in_metadata) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		fbs_free(stmt, IB_STATUS);
 		RETURN_FALSE;
 	}
@@ -351,7 +351,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
 	/* Get output metadata for result fetching */
 	out_metadata = fbs_get_output_metadata(FBG(master_instance), stmt, IB_STATUS);
 	if (!out_metadata) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		fbs_free(stmt, IB_STATUS);
 		RETURN_FALSE;
 	}
@@ -388,7 +388,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
 		0,  /* cursor_flags */
 		IB_STATUS
 	)) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		efree(in_msg);
 		fbs_free(stmt, IB_STATUS);
 		RETURN_FALSE;
@@ -427,7 +427,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
 			break;
 		} else if (fetch_result < 0) {
 			/* Error */
-			_php_fbird_error();
+			_php_fbird_error(IB_STATUS);
 			fbs_close_cursor(stmt, IB_STATUS);
 			fbs_free(stmt, IB_STATUS);
 			/* Return partial result */

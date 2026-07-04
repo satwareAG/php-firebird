@@ -60,7 +60,7 @@ PHP_METHOD(FirebirdTransaction, commit)
 			zend_list_delete(intern->trans_res);
 			intern->trans_res = NULL;
 			if (res && !FBG(in_mshutdown)) {
-				_php_fbird_error();
+				_php_fbird_error(IB_STATUS);
 			}
 		}
 	}

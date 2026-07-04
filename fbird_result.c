@@ -497,7 +497,7 @@ static int _php_fbird_arr_zval(zval *ar_zval, char *data, zend_ulong data_size,
  *
  * Opens the blob, reads its data into result, then closes and frees the blob.
  * On SUCCESS (return SUCCESS): result is populated, blob is closed and freed.
- * On FAILURE (return FAILURE): error message is set via _php_fbird_error() or
+ * On FAILURE (return FAILURE): error message is set via _php_fbird_error(IB_STATUS) or
  *   _php_fbird_module_error(), result may have been partially populated
  *   (caller owns and must release it via ht_ret cleanup), blob is best-effort
  *   closed and freed.
@@ -543,7 +543,7 @@ static int _php_fbird_fetch_blob_field(
 		IB_STATUS
 	);
 	if (!blob_handle.fbb_blob) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		return FAILURE;
 	}
 
@@ -562,7 +562,7 @@ static int _php_fbird_fetch_blob_field(
 			bl_info,
 			IB_STATUS
 		) == 0) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		goto blob_cleanup;
 	}
 
@@ -622,7 +622,7 @@ static int _php_fbird_fetch_blob_field(
 
 	/* Success path: close and free */
 	if (fbb_close(FBG(master_instance), blob_handle.fbb_blob, IB_STATUS) == 0) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		fbb_free(blob_handle.fbb_blob);
 		return FAILURE;
 	}
@@ -722,7 +722,7 @@ void _php_fbird_fetch_hash_query(
 	if(!(fetch_type & FETCH_ROW)) {
 		if(!fb_query->ht_aliases){
 			if(_php_fbird_alloc_ht_aliases(fb_query)){
-				_php_fbird_error();
+				_php_fbird_error(IB_STATUS);
 				RETURN_FALSE;
 			}
 		}
@@ -825,7 +825,7 @@ void _php_fbird_fetch_hash_query(
 
 					if (fba_lookup_bounds(FBG(master_instance), attachment_ptr, transaction_ptr,
 							rname, sname, &fresh_desc, IB_STATUS) != 0) {
-						_php_fbird_error();
+						_php_fbird_error(IB_STATUS);
 						goto _php_fbird_fetch_error;
 					}
 
@@ -896,7 +896,7 @@ void _php_fbird_fetch_hash_query(
 
 					if (fba_get_slice(FBG(master_instance), attachment_ptr, transaction_ptr,
 							&ar_qd, &local_array.ar_desc, ar_data, &fetch_size, IB_STATUS) != 0) {
-						_php_fbird_error();
+						_php_fbird_error(IB_STATUS);
 						efree(ar_data);
 						goto _php_fbird_fetch_error;
 					}
@@ -990,7 +990,7 @@ PHP_FUNCTION(fbird_name_result)
 	}
 
 	if (!fbs_set_cursor_name(FBG(master_instance), fb_query->fbs_statement, name_arg, IB_STATUS)) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_FALSE;
 	}
 

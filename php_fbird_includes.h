@@ -79,6 +79,7 @@ extern int le_batch;
 
 ZEND_BEGIN_MODULE_GLOBALS(fbird)
 	ISC_STATUS status[256];
+	ISC_STATUS last_status[256];   /* last error status vector for fbird_sqlstate() */
 	zend_resource *default_link;
 	zend_long num_links, num_persistent;
 	char errmsg[MAX_ERRMSG];
@@ -326,7 +327,7 @@ typedef void (*info_func_t)(char*);
 extern zend_class_entry *firebird_exception_ce;
 extern const zend_function_entry firebird_exception_methods[];
 
-void _php_fbird_error(void);
+void _php_fbird_error(ISC_STATUS *status);
 void _php_fbird_module_error(const char *, ...)
 	PHP_ATTRIBUTE_FORMAT(printf,1,2);
 

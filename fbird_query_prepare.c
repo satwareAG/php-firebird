@@ -39,7 +39,7 @@ int _php_fbird_set_query_info(fbird_query *fb_query)
 	/* Get statement type via OO API */
 	fb_query->statement_type = fbs_get_type(FBG(master_instance), fb_query->fbs_statement, IB_STATUS);
 	if (IB_STATUS[0] == 1 && IB_STATUS[1] != 0) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		return FAILURE;
 	}
 
@@ -318,7 +318,7 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link,
 	);
 	if (!fb_query->fbs_statement) {
 		FBDEBUG("fbs_prepare() failed\n");
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		goto _php_fbird_alloc_query_error;
 	}
 	FBDEBUG("OO API statement prepared successfully\n");
@@ -340,7 +340,7 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link,
 			FBG(master_instance), fb_query->fbs_statement, IB_STATUS);
 		if (!fb_query->out_metadata) {
 			FBDEBUG("fbs_get_output_metadata() failed\n");
-			_php_fbird_error();
+			_php_fbird_error(IB_STATUS);
 			goto _php_fbird_alloc_query_error;
 		}
 
@@ -429,7 +429,7 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link,
 			FBG(master_instance), fb_query->fbs_statement, IB_STATUS);
 		if (!fb_query->in_metadata) {
 			FBDEBUG("fbs_get_input_metadata() failed\n");
-			_php_fbird_error();
+			_php_fbird_error(IB_STATUS);
 			goto _php_fbird_alloc_query_error;
 		}
 

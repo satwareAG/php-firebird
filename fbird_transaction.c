@@ -63,11 +63,11 @@ void _php_fbird_free_trans(zend_resource *rsrc)
 		int res = fbt_rollback(trans->fbt_transaction, IB_STATUS);
 		fbt_free(trans->fbt_transaction);
 		trans->fbt_transaction = NULL;
-		/* Fix #78: _php_fbird_error() calls php_error_docref()/zend_throw_exception()
+		/* Fix #78: _php_fbird_error(IB_STATUS) calls php_error_docref()/zend_throw_exception()
 		 * which access EG() globals that may already be destroyed during MSHUTDOWN.
 		 * Guard with in_mshutdown to prevent SIGABRT. */
 		if (res && !FBG(in_mshutdown)) {
-			_php_fbird_error();
+			_php_fbird_error(IB_STATUS);
 		}
 	}
 
@@ -354,7 +354,7 @@ PHP_FUNCTION(fbird_trans_start)
 
 	if (fb_trans->fbt_transaction == NULL) {
 		efree(fb_trans);
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_FALSE;
 	}
 
@@ -457,7 +457,7 @@ static void _php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAMETERS, const char *
 	stmt = fbs_prepare(FBG(master_instance), attachment, transaction_ptr,
 		query, (unsigned)len, SQL_DIALECT_CURRENT, IB_STATUS);
 	if (!stmt) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		efree(query);
 		RETURN_FALSE;
 	}
@@ -465,7 +465,7 @@ static void _php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAMETERS, const char *
 	/* Execute the savepoint statement (no input/output parameters) */
 	if (!fbs_execute(FBG(master_instance), stmt, transaction_ptr,
 			NULL, NULL, NULL, NULL, IB_STATUS)) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		fbs_free(stmt, IB_STATUS);
 		efree(query);
 		RETURN_FALSE;
@@ -535,7 +535,7 @@ PHP_FUNCTION(fbird_trans_info)
 			(unsigned char*)res_buf,
 			IB_STATUS
 		) == 0) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_FALSE;
 	}
 
@@ -649,7 +649,7 @@ PHP_FUNCTION(fbird_connection_info)
 		if (!fbc_get_info(FBG(master_instance), attachment,
 				sizeof(info_items), (const unsigned char*)info_items,
 				sizeof(res_buf), (unsigned char*)res_buf, IB_STATUS)) {
-			_php_fbird_error();
+			_php_fbird_error(IB_STATUS);
 			RETURN_FALSE;
 		}
 	} else {
@@ -858,7 +858,7 @@ PHP_FUNCTION(fbird_trans)
 				if (oo_trans == NULL) {
 					efree(tpb);
 					efree(fb_link);
-					_php_fbird_error();
+					_php_fbird_error(IB_STATUS);
 					RETURN_FALSE;
 				}
 
@@ -910,7 +910,7 @@ PHP_FUNCTION(fbird_trans)
 			IB_STATUS
 		);
 		if (oo_trans == NULL) {
-			_php_fbird_error();
+			_php_fbird_error(IB_STATUS);
 			efree(fb_link);
 			RETURN_FALSE;
 		}
@@ -1001,7 +1001,7 @@ int _php_fbird_def_trans(fbird_db_link *fb_link, fbird_transaction **trans)
 			);
 
 			if (tr->fbt_transaction == NULL) {
-				_php_fbird_error();
+				_php_fbird_error(IB_STATUS);
 				return FAILURE;
 			}
 		}
@@ -1116,7 +1116,7 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 	}
 
 	if (result) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_FALSE;
 	}
 

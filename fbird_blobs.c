@@ -119,7 +119,7 @@ static int fbird_blob_stream_close(php_stream *stream, int close_handle)
 		if (fb_blob->fbb_blob) {
 			/* fbb_close returns 1 on success, 0 on error */
 			if (fbb_close(FBG(master_instance), fb_blob->fbb_blob, IB_STATUS) == 0) {
-				_php_fbird_error();
+				_php_fbird_error(IB_STATUS);
 			}
 			fbb_free(fb_blob->fbb_blob);
 			fb_blob->fbb_blob = NULL;
@@ -297,7 +297,7 @@ int _php_fbird_blob_get(zval *return_value, fbird_blob *fb_blob, zend_ulong max_
 			if (result < 0) {
 				/* Error */
 				zend_string_free(bl_data);
-				_php_fbird_error();
+				_php_fbird_error(IB_STATUS);
 				return FAILURE;
 			}
 			/* result == 0 (success) or result == 2 (partial segment): data was read */
@@ -346,7 +346,7 @@ int _php_fbird_blob_add(zval *string_arg, fbird_blob *fb_blob)
 		/* fbb_put_segment returns 1 on success, 0 on error */
 		if (fbb_put_segment(FBG(master_instance), fb_blob->fbb_blob, chunk_size,
 				&ZSTR_VAL(str)[put_cnt], IB_STATUS) == 0) {
-			_php_fbird_error();
+			_php_fbird_error(IB_STATUS);
 			zend_string_release(str);
 			return FAILURE;
 		}
@@ -383,7 +383,7 @@ static int _php_fbird_blob_info_oo(void *fbb_blob, FBIRD_BLOBINFO *bl_info)
 	/* fbb_get_info returns 1 on success, 0 on error */
 	if (fbb_get_info(FBG(master_instance), fbb_blob, sizeof(bl_items), bl_items,
 			sizeof(bl_inf), bl_inf, IB_STATUS) == 0) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		return FAILURE;
 	}
 
@@ -454,7 +454,7 @@ PHP_FUNCTION(fbird_blob_create)
 		IB_STATUS
 	);
 	if (fb_blob->fbb_blob == NULL) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		efree(fb_blob);
 		RETURN_FALSE;
 	}
@@ -498,7 +498,7 @@ PHP_FUNCTION(fbird_blob_create_seekable)
 		IB_STATUS
 	);
 	if (fb_blob->fbb_blob == NULL) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		efree(fb_blob);
 		RETURN_FALSE;
 	}
@@ -546,7 +546,7 @@ PHP_FUNCTION(fbird_blob_open)
 			IB_STATUS
 		);
 		if (fb_blob->fbb_blob == NULL) {
-			_php_fbird_error();
+			_php_fbird_error(IB_STATUS);
 			break;
 		}
 
@@ -631,7 +631,7 @@ static void _php_fbird_blob_end(INTERNAL_FUNCTION_PARAMETERS, int bl_end)
 		if (fb_blob->bl_qd.gds_quad_high || fb_blob->bl_qd.gds_quad_low) { /*not null ?*/
 			/* fbb_close returns 1 on success, 0 on error */
 			if (fbb_close(FBG(master_instance), fb_blob->fbb_blob, IB_STATUS) == 0) {
-				_php_fbird_error();
+				_php_fbird_error(IB_STATUS);
 				RETURN_FALSE;
 			}
 		}
@@ -648,7 +648,7 @@ static void _php_fbird_blob_end(INTERNAL_FUNCTION_PARAMETERS, int bl_end)
 		 */
 		/* fbb_cancel returns 1 on success, 0 on error */
 		if (fbb_cancel(FBG(master_instance), fb_blob->fbb_blob, IB_STATUS) == 0) {
-			_php_fbird_error();
+			_php_fbird_error(IB_STATUS);
 			RETURN_FALSE;
 		}
 		fbb_free(fb_blob->fbb_blob);
@@ -778,7 +778,7 @@ PHP_FUNCTION(fbird_blob_info)
 				IB_STATUS
 			);
 			if (!fb_blob.fbb_blob) {
-				_php_fbird_error();
+				_php_fbird_error(IB_STATUS);
 				RETURN_FALSE;
 			}
 
@@ -788,7 +788,7 @@ PHP_FUNCTION(fbird_blob_info)
 			}
 			if (fbb_close(FBG(master_instance), fb_blob.fbb_blob, IB_STATUS) == 0) {
 				fbb_free(fb_blob.fbb_blob);
-				_php_fbird_error();
+				_php_fbird_error(IB_STATUS);
 				RETURN_FALSE;
 			}
 			fbb_free(fb_blob.fbb_blob);
@@ -893,7 +893,7 @@ PHP_FUNCTION(fbird_blob_echo)
 		RETURN_TRUE;
 	} while (0);
 
-	_php_fbird_error();
+	_php_fbird_error(IB_STATUS);
 	RETURN_FALSE;
 }
 
@@ -962,7 +962,7 @@ PHP_FUNCTION(fbird_blob_import)
 		RETURN_NEW_STR(_php_fbird_quad_to_string(fb_blob.bl_qd));
 	} while (0);
 
-	_php_fbird_error();
+	_php_fbird_error(IB_STATUS);
 	RETURN_FALSE;
 }
 
@@ -1003,7 +1003,7 @@ PHP_FUNCTION(fbird_blob_create_stream)
 		IB_STATUS
 	);
 	if (!fb_blob->fbb_blob) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		efree(fb_blob);
 		RETURN_FALSE;
 	}
@@ -1064,7 +1064,7 @@ PHP_FUNCTION(fbird_blob_open_stream)
 		IB_STATUS
 	);
 	if (!fb_blob->fbb_blob) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		efree(fb_blob);
 		RETURN_FALSE;
 	}
@@ -1124,7 +1124,7 @@ PHP_FUNCTION(fbird_blob_open_seekable)
 			IB_STATUS
 		);
 		if (fb_blob->fbb_blob == NULL) {
-			_php_fbird_error();
+			_php_fbird_error(IB_STATUS);
 			break;
 		}
 
@@ -1173,7 +1173,7 @@ PHP_FUNCTION(fbird_blob_seek)
 	 * Segmented blobs will fail with isc_bad_segstr_type error.
 	 */
 	if (fbb_seek(FBG(master_instance), fb_blob->fbb_blob, (int)whence, (int)offset, &result_position, IB_STATUS) == 0) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_FALSE;
 	}
 

@@ -120,7 +120,7 @@ PHP_METHOD(FirebirdService, __construct)
 		buf_len, (const unsigned char *)buf, sv);
 
 	if (!intern->fbsvc) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		zend_throw_exception(fbird_service_exception_ce,
 			"Failed to attach to Firebird service manager", 0);
 	}
@@ -184,7 +184,7 @@ PHP_METHOD(FirebirdService, getServerVersion)
 			sizeof(spb), (const unsigned char *)spb,
 			1, (const unsigned char *)&info_action,
 			sizeof(res_buf), (unsigned char *)res_buf, sv)) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_STRING("");
 	}
 

@@ -159,7 +159,7 @@ PHP_METHOD(Firebird_Event, wait)
 				}
 			}
 #endif
-			_php_fbird_error();
+			_php_fbird_error(IB_STATUS);
 			event->state = DEAD;
 			RETURN_FALSE;
 		}
@@ -184,7 +184,7 @@ PHP_METHOD(Firebird_Event, wait)
 #endif
 
 	if (wait_result != 0) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		event->state = DEAD;
 		RETURN_FALSE;
 	}

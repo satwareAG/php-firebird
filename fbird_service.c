@@ -77,7 +77,7 @@ static void _php_fbird_free_service(zend_resource *rsrc)
  * handle. */
 #define FBIRD_SVC_ERROR(svm) \
 	do { \
-		_php_fbird_error(); \
+		_php_fbird_error(IB_STATUS); \
 	} while (0)
 
 
@@ -292,7 +292,7 @@ PHP_FUNCTION(fbird_service_attach)
 	svm->username = ulen > 0 ? estrdup(user) : NULL;
 	svm->fbsvc = fbsvc_attach(FBG(master_instance), loc, p, (const unsigned char *)buf, IB_STATUS);
 	if (!svm->fbsvc) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		efree(svm->hostname);
 		efree(svm->username);
 		efree(svm);

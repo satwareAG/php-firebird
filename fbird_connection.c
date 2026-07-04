@@ -93,10 +93,10 @@ void _php_fbird_commit_link(fbird_db_link *link)
 					fbt_free(p->trans->fbt_transaction);
 					p->trans->fbt_transaction = NULL;
 					/* Guard error reporting during MSHUTDOWN (Issue #183).
-					 * _php_fbird_error() accesses EG() globals which may be
+					 * _php_fbird_error(IB_STATUS) accesses EG() globals which may be
 					 * destroyed during persistent connection cleanup. */
 					if (res && !FBG(in_mshutdown)) {
-						_php_fbird_error();
+						_php_fbird_error(IB_STATUS);
 					}
 				}
 				efree(p->trans); /* default transaction is not a registered resource: clean up */
@@ -108,7 +108,7 @@ void _php_fbird_commit_link(fbird_db_link *link)
 					fbt_free(p->trans->fbt_transaction);
 					p->trans->fbt_transaction = NULL;
 					if (res && !FBG(in_mshutdown)) {
-						_php_fbird_error();
+						_php_fbird_error(IB_STATUS);
 					}
 				}
 				/* set this link pointer to NULL in the transaction */
@@ -296,7 +296,7 @@ int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **out_
     );
 
     if (!connection) {
-        _php_fbird_error();
+        _php_fbird_error(IB_STATUS);
         return FAILURE;
     }
 
@@ -310,7 +310,7 @@ int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **out_
  * Core connection logic extracted from _php_fbird_connect.
  * Accepts plain C arguments (already parsed/defaulted by caller).
  * Returns the new zend_resource* with appropriate refcount adjustments,
- * or NULL on failure (error already set via _php_fbird_error()).
+ * or NULL on failure (error already set via _php_fbird_error(IB_STATUS)).
  * Also applies INI-based defaults for empty args and manages FBG(default_link).
  */
 zend_resource *_php_fbird_connect_link(
@@ -796,7 +796,7 @@ PHP_FUNCTION(fbird_create_database)
 	}
 
 	if (!create_result) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		RETURN_FALSE;
 	}
 
@@ -869,12 +869,12 @@ PHP_FUNCTION(fbird_drop_db)
 			IB_STATUS
 		);
 		if (!conn) {
-			_php_fbird_error();
+			_php_fbird_error(IB_STATUS);
 			RETURN_FALSE;
 		}
 		drop_result = fbc_drop_database(conn, IB_STATUS);
 		if (drop_result != 0) {
-			_php_fbird_error();
+			_php_fbird_error(IB_STATUS);
 			RETURN_FALSE;
 		}
 		RETURN_TRUE;
@@ -918,7 +918,7 @@ PHP_FUNCTION(fbird_drop_db)
 		FBDEBUG("Dropping database via OO API...");
 		drop_result = fbc_drop_database(fb_link->fbc_connection, IB_STATUS);
 		if (drop_result != 0) {
-			_php_fbird_error();
+			_php_fbird_error(IB_STATUS);
 			RETURN_FALSE;
 		}
 		/* fbc_drop_database() already frees the connection wrapper */

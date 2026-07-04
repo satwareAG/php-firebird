@@ -95,7 +95,7 @@ PHP_METHOD(FirebirdBlob, create)
 		&blob->blob_id, 0, NULL, sv);
 
 	if (!blob->fbb_wrap) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		zend_throw_exception(fbird_query_exception_ce, "Failed to create blob", 0);
 		RETURN_THROWS();
 	}
@@ -157,7 +157,7 @@ PHP_METHOD(FirebirdBlob, open)
 		&blob_id, 0, NULL, sv);
 
 	if (!blob->fbb_wrap) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		zend_throw_exception(fbird_query_exception_ce, "Failed to open blob", 0);
 		RETURN_THROWS();
 	}
@@ -183,7 +183,7 @@ PHP_METHOD(FirebirdBlob, write)
 	ISC_STATUS sv[20];
 	if (!fbb_put_segment(FBG(master_instance), intern->fbb_wrap,
 			(unsigned)data_len, data, sv)) {
-		_php_fbird_error();
+		_php_fbird_error(IB_STATUS);
 		zend_throw_exception(fbird_query_exception_ce, "Failed to write blob segment", 0);
 	}
 }

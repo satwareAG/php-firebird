@@ -853,7 +853,7 @@ int _php_fbird_bind(fbird_query *fb_query, zval *b_vars)
  						&fb_blob.bl_qd, 0, NULL, IB_STATUS
  					);
  					if (!fb_blob.fbb_blob) {
- 						_php_fbird_error();
+ 						_php_fbird_error(IB_STATUS);
  						return FAILURE;
  					}
 
@@ -863,7 +863,7 @@ int _php_fbird_bind(fbird_query *fb_query, zval *b_vars)
  					while ((read_len = php_stream_read(stream, chunk, sizeof(chunk))) > 0) {
  						if (fbb_put_segment(FBG(master_instance), fb_blob.fbb_blob,
  								(unsigned int)read_len, chunk, IB_STATUS) == 0) {
- 							_php_fbird_error();
+ 							_php_fbird_error(IB_STATUS);
  							fbb_cancel(FBG(master_instance), fb_blob.fbb_blob, IB_STATUS);
  							fbb_free(fb_blob.fbb_blob);
  							return FAILURE;
@@ -871,7 +871,7 @@ int _php_fbird_bind(fbird_query *fb_query, zval *b_vars)
  					}
 
  					if (fbb_close(FBG(master_instance), fb_blob.fbb_blob, IB_STATUS) == 0) {
- 						_php_fbird_error();
+ 						_php_fbird_error(IB_STATUS);
  						fbb_free(fb_blob.fbb_blob);
  						return FAILURE;
  					}
@@ -917,7 +917,7 @@ int _php_fbird_bind(fbird_query *fb_query, zval *b_vars)
 						IB_STATUS
 					);
 					if (!fb_blob.fbb_blob) {
-						_php_fbird_error();
+						_php_fbird_error(IB_STATUS);
 						return FAILURE;
 					}
 
@@ -932,7 +932,7 @@ int _php_fbird_bind(fbird_query *fb_query, zval *b_vars)
 
 					/* fbb_close returns 1 on success, 0 on error */
 					if (fbb_close(FBG(master_instance), fb_blob.fbb_blob, IB_STATUS) == 0) {
-						_php_fbird_error();
+						_php_fbird_error(IB_STATUS);
 						fbb_free(fb_blob.fbb_blob);
 						return FAILURE;
 					}
@@ -1130,7 +1130,7 @@ int _php_fbird_bind(fbird_query *fb_query, zval *b_vars)
 						&ar_desc,
 						IB_STATUS
 					) != 0) {
-					_php_fbird_error();
+					_php_fbird_error(IB_STATUS);
 					rv = FAILURE;
 					continue;
 				}
@@ -1215,7 +1215,7 @@ int _php_fbird_bind(fbird_query *fb_query, zval *b_vars)
 							slice_len,
 							IB_STATUS
 						) != 0) {
-						_php_fbird_error();
+						_php_fbird_error(IB_STATUS);
 						efree(array_data);
 						rv = FAILURE;
 						continue;

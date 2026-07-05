@@ -106,3 +106,5 @@ setDefaultBpb: true
 cancel: %b
 
 Done
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>

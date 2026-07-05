@@ -87,7 +87,7 @@ fbird_rollback($tx);
 
 // Cleanup
 $tx = fbird_trans($conn);
-fbird_query($tx, 'DROP TABLE test_batch_309');
+@fbird_query($tx, 'DROP TABLE test_batch_309');
 fbird_commit($tx);
 fbird_close($conn);
 
@@ -103,7 +103,7 @@ execute: array(%d)
 row count: 2
 addBlob: string(%d)
 setDefaultBpb: true
-cancel: %b
+cancel: true
 
 Done
 --CLEAN--

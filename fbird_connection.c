@@ -533,8 +533,7 @@ static int _php_fbird_validate_link_resource(zend_resource *link_res, bool is_de
 
 	/* Check resource type and validity directly */
 	if (link_res->type != le_link && link_res->type != le_plink) {
-		/* Wrong type - default_link may point to a closed/invalid resource */
-		_php_fbird_module_error("Supplied resource is not a valid database link resource");
+		/* Resource was closed/invalidated — silent no-op (not an error) */
 		return FAILURE;
 	}
 

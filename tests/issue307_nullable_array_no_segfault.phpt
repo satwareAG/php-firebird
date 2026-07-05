@@ -46,9 +46,9 @@ if ($r) {
 }
 fbird_commit($tx);
 
-// Test 3: fbird_execute_auto with null params (no segfault)
-$r = fbird_execute_auto($conn, 'SELECT 1 FROM RDB$DATABASE', null);
-echo "execute_auto null params: " . ($r !== false ? "ok" : "failed") . "\n";
+// Test 3: fbird_execute_query with null params on connection (no segfault)
+$r = fbird_execute_query($conn, 'SELECT 1 FROM RDB$DATABASE', null);
+echo "execute_query(conn) null params: " . ($r !== false ? "ok" : "failed") . "\n";
 if ($r) {
     $row = fbird_fetch_row($r);
     echo "result: " . $row[0] . "\n";
@@ -92,7 +92,7 @@ execute_query null params: ok
 result: 1
 execute_query null params: ok
 result: 1
-execute_auto null params: ok
+execute_query(conn) null params: ok
 result: 1
 query_params_tx null params: ok
 result: 1

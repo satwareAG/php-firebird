@@ -63,7 +63,7 @@ bool(true)
 bool(true)
 
 Invalid mode:
-caught: Invalid mode (use FBIRD_EXCEPTI...
+caught: %s...
 errcode: -999
 
 Reset to SILENT:

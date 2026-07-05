@@ -88,7 +88,7 @@ fbird_rollback($tx);
 // Cleanup
 $tx = fbird_trans($conn);
 @fbird_query($tx, 'DROP TABLE test_batch_309');
-fbird_commit($tx);
+@fbird_commit($tx);
 fbird_close($conn);
 
 echo "\nDone\n";

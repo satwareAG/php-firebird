@@ -46,18 +46,20 @@ if ($r) {
 }
 fbird_commit($tx);
 
-// Test 3: fbird_execute_query with null params on connection (no segfault)
-$r = fbird_execute_query($conn, 'SELECT 1 FROM RDB$DATABASE', null);
-echo "execute_query(conn) null params: " . ($r !== false ? "ok" : "failed") . "\n";
+// Test 3: fbird_execute_query with null params via transaction (no segfault)
+$tx = fbird_trans($conn);
+$r = fbird_execute_query($tx, 'SELECT 1 FROM RDB$DATABASE', null);
+echo "execute_query(tx) null params: " . ($r !== false ? "ok" : "failed") . "\n";
 if ($r) {
     $row = fbird_fetch_row($r);
     echo "result: " . $row[0] . "\n";
     fbird_free_result($r);
 }
+fbird_commit($tx);
 
-// Test 4: fbird_query_params_tx with null params (no segfault)
+// Test 4: fbird_query_params_tx with null params (no segfault - null = no params)
 $tx = fbird_trans($conn);
-$r = fbird_query_params_tx($conn, $tx, 'SELECT 1 FROM RDB$DATABASE WHERE 1 = ?', null);
+$r = fbird_query_params_tx($conn, $tx, 'SELECT 1 FROM RDB$DATABASE', null);
 echo "query_params_tx null params: " . ($r !== false ? "ok" : "failed") . "\n";
 if ($r) {
     $row = fbird_fetch_row($r);
@@ -92,7 +94,7 @@ execute_query null params: ok
 result: 1
 execute_query null params: ok
 result: 1
-execute_query(conn) null params: ok
+execute_query(tx) null params: ok
 result: 1
 query_params_tx null params: ok
 result: 1

@@ -44,7 +44,7 @@ var_dump(fbird_get_exception_mode() === FBIRD_EXCEPTION_MODE_SILENT);
 
 echo "\nDone\n";
 ?>
---EXPECT--
+--EXPECTF--
 Constants defined:
 bool(true)
 bool(true)

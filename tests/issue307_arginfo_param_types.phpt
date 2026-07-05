@@ -109,7 +109,7 @@ fbird_execute param0 type: mixed
 fbird_free_query param0 type: mixed
 fbird_num_params param0 type: mixed
 fbird_param_info param0 type: mixed
-%s
+%S
 fbird_param_info with object: ok
 fbird_execute with object: ok
 fbird_num_params with object: %d

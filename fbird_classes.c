@@ -99,7 +99,7 @@ void fbird_register_classes(void)
 	fbird_event_handlers.free_obj = fbird_event_free_obj;
 
 #if FB_API_VER >= 40
-	INIT_CLASS_ENTRY(ce, "Firebird\\BatchHandle", NULL);
+	INIT_CLASS_ENTRY(ce, "Firebird\\BatchHandle", fbird_batch_methods);
 	fbird_batch_ce = zend_register_internal_class(&ce);
 	fbird_batch_ce->create_object = fbird_batch_create_obj;
 	memcpy(&fbird_batch_handlers, zend_get_std_object_handlers(),

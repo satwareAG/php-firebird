@@ -260,4 +260,10 @@ class Service
  */
 final class BatchHandle
 {
+    public function getBlobAlignment(): int|false {}
+    public function setDefaultBpb(string $bpb): bool {}
+    public function cancel(): bool {}
+    public function execute(): array|false {}
+    public function add(mixed ...$args): bool {}
+    public function addBlob(string $data, int $blob_type = 0): string|false {}
 }

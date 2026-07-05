@@ -1,4 +1,4 @@
-/* fbird_class_batch.c - Firebird\BatchHandle OOP class (FB4+, skeleton) */
+/* fbird_class_batch.c - Firebird\BatchHandle OOP class (FB4+) */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -10,6 +10,30 @@
 #include "fbird_class_internal.h"
 
 #if FB_API_VER >= 40
+
+/* {{{ arginfo for BatchHandle methods */
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_BatchHandle_getBlobAlignment, 0, 0, MAY_BE_LONG|MAY_BE_FALSE)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_BatchHandle_setDefaultBpb, 0, 1, _IS_BOOL, 0)
+	ZEND_ARG_TYPE_INFO(0, bpb, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_BatchHandle_cancel, 0, 0, _IS_BOOL, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_BatchHandle_execute, 0, 0, MAY_BE_ARRAY|MAY_BE_FALSE)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_BatchHandle_add, 0, 1, _IS_BOOL, 0)
+	ZEND_ARG_VARIADIC_INFO(0, args)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_BatchHandle_addBlob, 0, 1, MAY_BE_STRING|MAY_BE_FALSE)
+	ZEND_ARG_TYPE_INFO(0, data, IS_STRING, 0)
+	ZEND_ARG_TYPE_INFO(0, blob_type, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+/* }}} */
 
 zend_object_handlers fbird_batch_handlers;
 
@@ -56,5 +80,282 @@ fbird_batch *fbird_batch_get_ptr(zend_object *obj)
 	fbird_batch_obj *intern = fbird_batch_from_obj(obj);
 	return intern ? intern->batch : NULL;
 }
+
+/* {{{ BatchHandle::getBlobAlignment(): int|false */
+PHP_METHOD(BatchHandle, getBlobAlignment)
+{
+	ISC_STATUS status[256];
+	fbird_batch *fb_batch;
+	unsigned alignment;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters_none() == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	fb_batch = fbird_batch_get_ptr(Z_OBJ_P(getThis()));
+	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
+		_php_fbird_module_error("Invalid batch handle");
+		RETURN_FALSE;
+	}
+
+	alignment = fbbatch_get_blob_alignment(FBG(master_instance), fb_batch->fbbatch_wrapper, status);
+	if (alignment == 0) {
+		_php_fbird_error(status);
+		RETURN_FALSE;
+	}
+
+	RETURN_LONG((zend_long)alignment);
+}
+
+/* {{{ BatchHandle::setDefaultBpb(string $bpb): bool */
+PHP_METHOD(BatchHandle, setDefaultBpb)
+{
+	ISC_STATUS status[256];
+	char *bpb;
+	size_t bpb_len;
+	fbird_batch *fb_batch;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "s", &bpb, &bpb_len) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	fb_batch = fbird_batch_get_ptr(Z_OBJ_P(getThis()));
+	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
+		_php_fbird_module_error("Invalid batch handle");
+		RETURN_FALSE;
+	}
+
+	if (!fbbatch_set_default_bpb(FBG(master_instance), fb_batch->fbbatch_wrapper,
+			(unsigned)bpb_len, (const unsigned char *)bpb, status)) {
+		_php_fbird_error(status);
+		RETURN_FALSE;
+	}
+
+	RETURN_TRUE;
+}
+
+/* {{{ BatchHandle::cancel(): bool */
+PHP_METHOD(BatchHandle, cancel)
+{
+	ISC_STATUS status[256];
+	fbird_batch *fb_batch;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters_none() == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	fb_batch = fbird_batch_get_ptr(Z_OBJ_P(getThis()));
+	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
+		_php_fbird_module_error("Invalid batch handle");
+		RETURN_FALSE;
+	}
+
+	if (!fbbatch_cancel(FBG(master_instance), fb_batch->fbbatch_wrapper, status)) {
+		_php_fbird_error(status);
+		RETURN_FALSE;
+	}
+
+	fbbatch_close(FBG(master_instance), fb_batch->fbbatch_wrapper, status);
+	fb_batch->fbbatch_wrapper = NULL;
+
+	RETURN_TRUE;
+}
+
+/* {{{ BatchHandle::execute(): array|false */
+PHP_METHOD(BatchHandle, execute)
+{
+	ISC_STATUS status[256];
+	fbird_batch *fb_batch;
+	void *trans_ptr;
+	unsigned total_processed = 0;
+	unsigned error_count = 0;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters_none() == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	fb_batch = fbird_batch_get_ptr(Z_OBJ_P(getThis()));
+	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
+		_php_fbird_module_error("Invalid batch handle");
+		RETURN_FALSE;
+	}
+
+	if (!fb_batch->trans || !fb_batch->trans->fbt_transaction) {
+		_php_fbird_module_error("Batch has no valid transaction");
+		RETURN_FALSE;
+	}
+
+	trans_ptr = fbt_get_handle(fb_batch->trans->fbt_transaction);
+	if (!trans_ptr) {
+		_php_fbird_module_error("Failed to get transaction handle");
+		RETURN_FALSE;
+	}
+
+	if (!fbbatch_execute(FBG(master_instance), fb_batch->fbbatch_wrapper, trans_ptr,
+			&total_processed, &error_count, status)) {
+		_php_fbird_error(status);
+		RETURN_FALSE;
+	}
+
+	/* Close the batch after execution */
+	fbbatch_close(FBG(master_instance), fb_batch->fbbatch_wrapper, status);
+	fb_batch->fbbatch_wrapper = NULL;
+
+	unsigned success_count = (total_processed >= error_count) ? (total_processed - error_count) : 0;
+
+	array_init(return_value);
+	add_assoc_long(return_value, "total_processed", total_processed);
+	add_assoc_long(return_value, "success_count", success_count);
+	add_assoc_long(return_value, "error_count", error_count);
+}
+
+/* {{{ BatchHandle::add(mixed ...$args): bool */
+PHP_METHOD(BatchHandle, add)
+{
+	ISC_STATUS status[256];
+	zval *args = NULL;
+	int argc = 0;
+	fbird_batch *fb_batch;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "*", &args, &argc) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	fb_batch = fbird_batch_get_ptr(Z_OBJ_P(getThis()));
+	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
+		_php_fbird_module_error("Invalid batch handle");
+		RETURN_FALSE;
+	}
+
+	void *master = FBG(master_instance);
+	if (!master) {
+		_php_fbird_module_error("BatchHandle::add() requires Firebird 3.0+ OO API master interface");
+		RETURN_FALSE;
+	}
+
+	if (!fb_batch->in_metadata || !fb_batch->in_msg_buffer || fb_batch->in_msg_length == 0) {
+		_php_fbird_module_error("BatchHandle::add() batch has no input metadata or buffer");
+		RETURN_FALSE;
+	}
+
+	unsigned param_count = fbm_get_count(master, fb_batch->in_metadata);
+
+	if ((unsigned)argc != param_count) {
+		_php_fbird_module_error("BatchHandle::add() expects %u parameters, %d given", param_count, argc);
+		RETURN_FALSE;
+	}
+
+	memset(fb_batch->in_msg_buffer, 0, fb_batch->in_msg_length);
+
+	for (unsigned i = 0; i < param_count; i++) {
+		zval *b_var = &args[i];
+		unsigned sql_type = fbm_get_type(master, fb_batch->in_metadata, i) & ~1;
+		unsigned data_offset = fbm_get_offset(master, fb_batch->in_metadata, i);
+		unsigned null_offset = fbm_get_null_offset(master, fb_batch->in_metadata, i);
+		unsigned field_length = fbm_get_length(master, fb_batch->in_metadata, i);
+
+		void *offset = fb_batch->in_msg_buffer + data_offset;
+		short *null_flag = (short *)(fb_batch->in_msg_buffer + null_offset);
+
+		*null_flag = 0;
+
+		if (Z_TYPE_P(b_var) == IS_NULL) {
+			*null_flag = -1;
+			continue;
+		}
+
+		switch (sql_type) {
+			case SQL_TEXT:
+			case SQL_VARYING: {
+				size_t str_len = Z_STRLEN_P(b_var);
+				if (str_len > field_length) str_len = field_length;
+				if (sql_type == SQL_VARYING) {
+					*(short *)offset = (short)str_len;
+					memcpy(offset + sizeof(short), Z_STRVAL_P(b_var), str_len);
+				} else {
+					memset(offset, ' ', field_length);
+					memcpy(offset, Z_STRVAL_P(b_var), str_len);
+				}
+				break;
+			}
+			case SQL_SHORT:
+				*(short *)offset = (short)zval_get_long(b_var);
+				break;
+			case SQL_LONG:
+				*(int *)offset = (int)zval_get_long(b_var);
+				break;
+			case SQL_INT64:
+				*(ISC_INT64 *)offset = (ISC_INT64)zval_get_long(b_var);
+				break;
+			case SQL_DOUBLE:
+			case SQL_FLOAT:
+				*(double *)offset = zval_get_double(b_var);
+				break;
+			default:
+				*null_flag = -1;
+				break;
+		}
+	}
+
+	if (fbbatch_add(FBG(master_instance), fb_batch->fbbatch_wrapper, 1, fb_batch->in_msg_buffer, status) != 1) {
+		_php_fbird_error(status);
+		RETURN_FALSE;
+	}
+
+	RETURN_TRUE;
+}
+
+/* {{{ BatchHandle::addBlob(string $data, int $blob_type = 0): string|false */
+PHP_METHOD(BatchHandle, addBlob)
+{
+	ISC_STATUS status[256];
+	char *data;
+	size_t data_len;
+	zend_long blob_type = 0;
+	fbird_batch *fb_batch;
+	ISC_QUAD blob_id;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "s|l", &data, &data_len, &blob_type) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	fb_batch = fbird_batch_get_ptr(Z_OBJ_P(getThis()));
+	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
+		_php_fbird_module_error("Invalid batch handle");
+		RETURN_FALSE;
+	}
+
+	memset(&blob_id, 0, sizeof(blob_id));
+
+	if (!fbbatch_add_blob(FBG(master_instance), fb_batch->fbbatch_wrapper,
+			(unsigned)data_len, (const void *)data, &blob_id, 0, NULL, status)) {
+		_php_fbird_error(status);
+		RETURN_FALSE;
+	}
+
+	RETURN_NEW_STR(_php_fbird_quad_to_string(blob_id));
+}
+
+const zend_function_entry fbird_batch_methods[] = {
+	PHP_ME(BatchHandle, getBlobAlignment, arginfo_BatchHandle_getBlobAlignment, ZEND_ACC_PUBLIC)
+	PHP_ME(BatchHandle, setDefaultBpb,    arginfo_BatchHandle_setDefaultBpb,    ZEND_ACC_PUBLIC)
+	PHP_ME(BatchHandle, cancel,           arginfo_BatchHandle_cancel,           ZEND_ACC_PUBLIC)
+	PHP_ME(BatchHandle, execute,          arginfo_BatchHandle_execute,          ZEND_ACC_PUBLIC)
+	PHP_ME(BatchHandle, add,              arginfo_BatchHandle_add,              ZEND_ACC_PUBLIC)
+	PHP_ME(BatchHandle, addBlob,          arginfo_BatchHandle_addBlob,          ZEND_ACC_PUBLIC)
+	PHP_FE_END
+};
 
 #endif /* FB_API_VER >= 40 */

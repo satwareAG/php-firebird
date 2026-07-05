@@ -128,7 +128,7 @@ void _php_fbird_populate_trans(zend_long trans_argl, zend_long trans_timeout, ch
 
 	if (tpb_buffer == NULL) {
 		/* Fallback: if OO API fails, report error and return empty TPB */
-		php_error_docref(NULL, E_WARNING, "DEBUG: fbxpb_build_tpb returned NULL, local_status[1]=%ld", (long)local_status[1]);
+		_php_fbird_module_error( "DEBUG: fbxpb_build_tpb returned NULL, local_status[1]=%ld", (long)local_status[1]);
 		*len = 0;
 		return;
 	}
@@ -260,7 +260,7 @@ void _php_fbird_populate_trans_from_array(zval *options, zend_long *trans_timeou
 						p += tlen;
 					} else {
 						// Buffer overflow prevention
-						php_error_docref(NULL, E_WARNING, "TPB buffer too small for table '%s'", ZSTR_VAL(table_name));
+						_php_fbird_module_error( "TPB buffer too small for table '%s'", ZSTR_VAL(table_name));
 						break;
 					}
 
@@ -320,7 +320,7 @@ PHP_FUNCTION(fbird_trans_start)
 	}
 
 	if (!fb_link) {
-		php_error_docref(NULL, E_WARNING, "Invalid database link");
+		_php_fbird_module_error( "Invalid database link");
 		RETURN_FALSE;
 	}
 
@@ -399,13 +399,13 @@ static void _php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAMETERS, const char *
 	}
 
 	if (name_len == 0 || name_len > 31) { // Max identifier length
-		php_error_docref(NULL, E_WARNING, "Invalid savepoint name (length must be 1-31 bytes)");
+		_php_fbird_module_error( "Invalid savepoint name (length must be 1-31 bytes)");
 		RETURN_FALSE;
 	}
 
 	zend_resource *sp_tres = _php_fbird_trans_res_from_zval(trans_arg);
 	if (!sp_tres) {
-		php_error_docref(NULL, E_WARNING, "Argument #1 must be a Firebird\\Transaction object or transaction resource");
+		_php_fbird_module_error( "Argument #1 must be a Firebird\\Transaction object or transaction resource");
 		RETURN_FALSE;
 	}
 	trans = (fbird_transaction *)sp_tres->ptr;
@@ -517,7 +517,7 @@ PHP_FUNCTION(fbird_trans_info)
 
 	zend_resource *ti_res = _php_fbird_trans_res_from_zval(trans_arg);
 	if (!ti_res) {
-		php_error_docref(NULL, E_WARNING, "Argument #1 must be a Firebird\\Transaction object or transaction resource");
+		_php_fbird_module_error( "Argument #1 must be a Firebird\\Transaction object or transaction resource");
 		RETURN_FALSE;
 	}
 	trans = (fbird_transaction *)ti_res->ptr;
@@ -639,7 +639,7 @@ PHP_FUNCTION(fbird_connection_info)
 	}
 
 	if (!fb_link) {
-		php_error_docref(NULL, E_WARNING, "Invalid database link");
+		_php_fbird_module_error( "Invalid database link");
 		RETURN_FALSE;
 	}
 
@@ -823,7 +823,7 @@ PHP_FUNCTION(fbird_trans)
 								convert_to_long_ex(&args[i]);
 								trans_timeout = Z_LVAL(args[i]);
 							} else {
-								php_error_docref(NULL, E_WARNING, "FBIRD_LOCK_TIMEOUT expects next argument to be timeout value");
+								_php_fbird_module_error( "FBIRD_LOCK_TIMEOUT expects next argument to be timeout value");
 							}
 						}
 					}
@@ -955,7 +955,7 @@ int _php_fbird_def_trans(fbird_db_link *fb_link, fbird_transaction **trans)
 {
 	ISC_STATUS status[256];
 	if (fb_link == NULL) {
-		php_error_docref(NULL, E_WARNING, "Invalid database link");
+		_php_fbird_module_error( "Invalid database link");
 		return FAILURE;
 	}
 

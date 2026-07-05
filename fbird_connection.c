@@ -540,7 +540,7 @@ static int _php_fbird_validate_link_resource(zend_resource *link_res, bool is_de
 	/* Check if resource pointer is valid */
 	if (link_res->ptr == NULL) {
 		/* Correct resource type but invalid/closed - generate warning */
-		php_error_docref(NULL, E_WARNING, "Supplied resource is not a valid database link resource");
+		_php_fbird_module_error( "Supplied resource is not a valid database link resource");
 		if (clear_default && is_default_link) {
 			/* Thread-safe: Only clear if we were the default */
 			if (FBG(default_link) == link_res) {
@@ -622,14 +622,14 @@ PHP_FUNCTION(fbird_close)
 		is_default_link = true;
 
 		if (link_res == NULL) {
-			php_error_docref(NULL, E_WARNING, "No default connection to close");
+			_php_fbird_module_error( "No default connection to close");
 			RETURN_FALSE;
 		}
 	} else {
 		/* Explicit link path: accept resource or Connection object */
 		link_res = _php_fbird_res_from_zval(link_arg);
 		if (link_res == NULL) {
-			php_error_docref(NULL, E_WARNING, "Argument #1 must be a valid Firebird connection resource or Firebird\\Connection object");
+			_php_fbird_module_error( "Argument #1 must be a valid Firebird connection resource or Firebird\\Connection object");
 			RETURN_FALSE;
 		}
 		is_default_link = (FBG(default_link) == link_res);
@@ -740,7 +740,7 @@ PHP_FUNCTION(fbird_create_database)
 	/* Validate charset against allowlist to prevent SQL injection via
 	 * DEFAULT CHARACTER SET clause (unquoted identifier). */
 	if (charset && charset_len > 0 && !_php_fbird_is_valid_charset(charset)) {
-		php_error_docref(NULL, E_WARNING,
+		_php_fbird_module_error(
 			"Invalid character set name '%s'", charset);
 		RETURN_FALSE;
 	}

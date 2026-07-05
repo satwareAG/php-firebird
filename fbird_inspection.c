@@ -50,11 +50,13 @@ static int _fbird_exec_kill(fbird_db_link *link, fbird_transaction *trans, ISC_I
 	/* Get OO API handles */
 	attachment = fbc_get_attachment(link->fbc_connection);
 	if (!attachment) {
+		_php_fbird_module_error("fbird_kill_attachment: Failed to get attachment from OO API connection");
 		return FAILURE;
 	}
 
 	transaction = fbt_get_handle(trans->fbt_transaction);
 	if (!transaction) {
+		_php_fbird_module_error("fbird_kill_attachment: Failed to get transaction handle from OO API transaction");
 		return FAILURE;
 	}
 
@@ -319,11 +321,13 @@ PHP_FUNCTION(fbird_list_table_blockers)
 	/* Get OO API handles */
 	attachment = fbc_get_attachment(link->fbc_connection);
 	if (!attachment) {
+		_php_fbird_module_error("Failed to get attachment from OO API connection");
 		RETURN_FALSE;
 	}
 
 	transaction = fbt_get_handle(trans->fbt_transaction);
 	if (!transaction) {
+		_php_fbird_module_error("Failed to get transaction handle from OO API transaction");
 		RETURN_FALSE;
 	}
 

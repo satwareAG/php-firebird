@@ -178,7 +178,7 @@ PHP_FUNCTION(fbird_wait_event)
 		/* M3: Accept Firebird\Connection objects */
 		zend_resource *_conn_res = fbird_connection_get_resource(Z_OBJ_P(&args[0]));
 		if (!_conn_res || !_conn_res->ptr) {
-			php_error_docref(NULL, E_WARNING,
+			_php_fbird_module_error(
 				"fbird_wait_event(): Firebird\\Connection object has no valid resource");
 			RETURN_FALSE;
 		}
@@ -294,7 +294,7 @@ PHP_FUNCTION(fbird_set_event_handler)
 				instanceof_function(Z_OBJCE_P(&args[0]), fbird_connection_ce)) {
 			link_res = fbird_connection_get_resource(Z_OBJ_P(&args[0]));
 			if (!link_res || !link_res->ptr) {
-				php_error_docref(NULL, E_WARNING,
+				_php_fbird_module_error(
 					"fbird_set_event_handler(): Firebird\\Connection object has no valid resource");
 				RETURN_FALSE;
 			}

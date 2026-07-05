@@ -175,6 +175,7 @@ static void _php_fbird_user(INTERNAL_FUNCTION_PARAMETERS, char operation)
 
 	svm = _php_fbird_service_from_zval(res);
 	if (!svm) {
+		_php_fbird_module_error("Invalid Firebird service handle");
 		RETURN_FALSE;
 	}
 
@@ -322,7 +323,7 @@ PHP_FUNCTION(fbird_service_detach)
 
 	svc_res = _php_fbird_service_res_from_zval(res);
 	if (!svc_res) {
-		php_error_docref(NULL, E_WARNING, "Argument #1 must be a valid Firebird service handle or Firebird\\Service object");
+		_php_fbird_module_error( "Argument #1 must be a valid Firebird service handle or Firebird\\Service object");
 		RETURN_FALSE;
 	}
 
@@ -508,6 +509,7 @@ static void _php_fbird_backup_restore(INTERNAL_FUNCTION_PARAMETERS, char operati
 
 	svm = _php_fbird_service_from_zval(res);
 	if (!svm) {
+		_php_fbird_module_error("Invalid Firebird service handle");
 		RETURN_FALSE;
 	}
 
@@ -572,6 +574,7 @@ static void _php_fbird_service_action(INTERNAL_FUNCTION_PARAMETERS, char svc_act
 
 	svm = _php_fbird_service_from_zval(res);
 	if (!svm) {
+		_php_fbird_module_error("Invalid Firebird service handle");
 		RETURN_FALSE;
 	}
 
@@ -674,6 +677,7 @@ PHP_FUNCTION(fbird_server_info)
 
 	svm = _php_fbird_service_from_zval(res);
 	if (!svm) {
+		_php_fbird_module_error("Invalid Firebird service handle");
 		RETURN_FALSE;
 	}
 

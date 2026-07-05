@@ -132,7 +132,7 @@ PHP_FUNCTION(fbird_set_exception_mode)
 	}
 
 	if (mode != FBIRD_EXCEPTION_MODE_SILENT && mode != FBIRD_EXCEPTION_MODE_THROW) {
-		php_error_docref(NULL, E_WARNING,
+		_php_fbird_module_error(
 			"Invalid mode (use FBIRD_EXCEPTION_MODE_SILENT or FBIRD_EXCEPTION_MODE_THROW)");
 		RETURN_FALSE;
 	}

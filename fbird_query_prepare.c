@@ -260,20 +260,20 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link,
 	ISC_STATUS status[256];
 	/* Validate required parameters to prevent NULL pointer dereference */
 	if (!link) {
-		php_error_docref(NULL, E_WARNING, "Invalid database connection resource");
+		_php_fbird_module_error( "Invalid database connection resource");
 		return FAILURE;
 	}
 	if (!trans) {
-		php_error_docref(NULL, E_WARNING, "Invalid transaction resource");
+		_php_fbird_module_error( "Invalid transaction resource");
 		return FAILURE;
 	}
 	if (!query) {
-		php_error_docref(NULL, E_WARNING, "Query string is NULL");
+		_php_fbird_module_error( "Query string is NULL");
 		return FAILURE;
 	}
 	/* Return FAILURE, if querystring is empty */
 	if (*query == '\0') {
-		php_error_docref(NULL, E_WARNING, "Querystring empty.");
+		_php_fbird_module_error( "Querystring empty.");
 		return FAILURE;
 	}
 

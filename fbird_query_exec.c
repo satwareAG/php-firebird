@@ -108,12 +108,12 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
 	 * Documentation: docs/development/FBIRD_QUERY_EXEC_FIXES.md
 	 */
 	if (bind_n < 0 || argc < 0) {
-		php_error_docref(NULL, E_WARNING, "Invalid parameter count: bind_n=%d, argc=%d", bind_n, argc);
+		_php_fbird_module_error("Invalid parameter count: bind_n=%d, argc=%d", bind_n, argc);
 		return FAILURE;
 	}
 
 	if (bind_n != argc) {
-		php_error_docref(NULL, (bind_n < argc) ? E_WARNING : E_NOTICE,
+		_php_fbird_module_error(
 			"Statement expects %d arguments, %d given", argc, bind_n);
 
 		if (bind_n < argc) {

@@ -210,7 +210,7 @@ PHP_FUNCTION(fbird_batch_add)
 
 	fb_batch = fbird_batch_from_zval(batch_arg);
 	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
-		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
+		_php_fbird_module_error( "Invalid batch resource");
 		RETURN_FALSE;
 	}
 
@@ -599,7 +599,7 @@ PHP_FUNCTION(fbird_batch_execute)
 
 	fb_batch = fbird_batch_from_zval(batch_arg);
 	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
-		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
+		_php_fbird_module_error( "Invalid batch resource");
 		RETURN_FALSE;
 	}
 
@@ -647,7 +647,7 @@ PHP_FUNCTION(fbird_batch_cancel)
 
 	fb_batch = fbird_batch_from_zval(batch_arg);
 	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
-		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
+		_php_fbird_module_error( "Invalid batch resource");
 		RETURN_FALSE;
 	}
 
@@ -680,7 +680,7 @@ PHP_FUNCTION(fbird_batch_add_blob)
 
 	fb_batch = fbird_batch_from_zval(batch_arg);
 	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
-		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
+		_php_fbird_module_error( "Invalid batch resource");
 		RETURN_FALSE;
 	}
 
@@ -712,13 +712,13 @@ PHP_FUNCTION(fbird_batch_register_blob)
 
 	fb_batch = fbird_batch_from_zval(batch_arg);
 	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
-		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
+		_php_fbird_module_error( "Invalid batch resource");
 		RETURN_FALSE;
 	}
 
 	/* Validate and convert BLOB ID string to ISC_QUAD */
 	if (blob_id_len != BLOB_ID_LEN || !_php_fbird_string_to_quad(blob_id_str, &existing_blob)) {
-		php_error_docref(NULL, E_WARNING, "Invalid BLOB ID format (expected %d character hex string)", BLOB_ID_LEN);
+		_php_fbird_module_error( "Invalid BLOB ID format (expected %d character hex string)", BLOB_ID_LEN);
 		RETURN_FALSE;
 	}
 
@@ -751,7 +751,7 @@ PHP_FUNCTION(fbird_batch_get_blob_alignment)
 
 	fb_batch = fbird_batch_from_zval(batch_arg);
 	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
-		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
+		_php_fbird_module_error( "Invalid batch resource");
 		RETURN_FALSE;
 	}
 
@@ -780,7 +780,7 @@ PHP_FUNCTION(fbird_batch_append_blob_data)
 
 	fb_batch = fbird_batch_from_zval(batch_arg);
 	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
-		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
+		_php_fbird_module_error( "Invalid batch resource");
 		RETURN_FALSE;
 	}
 
@@ -809,7 +809,7 @@ PHP_FUNCTION(fbird_batch_add_blob_stream)
 
 	fb_batch = fbird_batch_from_zval(batch_arg);
 	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
-		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
+		_php_fbird_module_error( "Invalid batch resource");
 		RETURN_FALSE;
 	}
 
@@ -838,7 +838,7 @@ PHP_FUNCTION(fbird_batch_set_default_bpb)
 
 	fb_batch = fbird_batch_from_zval(batch_arg);
 	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
-		php_error_docref(NULL, E_WARNING, "Invalid batch resource");
+		_php_fbird_module_error( "Invalid batch resource");
 		RETURN_FALSE;
 	}
 

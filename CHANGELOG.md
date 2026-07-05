@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### rc.11 Hotfixes (2026-07-05)
+
+5 issues found during doctrine-firebird-driver integration testing
+against v12.0.0-rc.10, plus 2 additional findings from code review.
+
+#### Fixed
+
+- **#308**: `fbird_get_client_version()` return type corrected from
+  `string` to `float` (arginfo `IS_STRING` -> `IS_DOUBLE`, both stubs
+  updated). The C implementation always returned `double` via
+  `RETURN_DOUBLE`.
+- **#307**: Arginfo parameter type mismatches fixed. 5 functions
+  declared `IS_STRING` but accepted resource/object - changed to `mixed`
+  (`fbird_execute`, `fbird_free_query`, `fbird_num_params`,
+  `fbird_param_info`, `fbird_batch_create`). 4 functions had nullable
+  array NULL-deref risk: arginfo said non-nullable `IS_ARRAY`, stubs
+  said `?array`, C parse accepted null via `a!` - `Z_ARRVAL_P` would
+  dereference NULL. Fixed arginfo to `IS_ARRAY,1` (nullable) + added
+  `Z_TYPE_P` guards. `fbird_trans_start` reverse mismatch fixed
+  (`"a"` -> `"a!"`). `_php_fbird_free_query_impl` now emits
+  `TypeError` for unrecognized argument types (was silent `RETURN_FALSE`).
+- **#306**: 20 arginfo entries changed from `MAY_BE_RESOURCE` to
+  `MAY_BE_OBJECT`. Runtime returns `Firebird\*` objects via
+  `fbird_setup_*_object()` helpers but `ReflectionFunction` reported
+  `resource`. Also added `MAY_BE_LONG` to `fbird_query` and
+  `fbird_execute` for affected row count returns.
+- **#305**: ~40 `php_error_docref(NULL, E_WARNING, ...)` calls replaced
+  with `_php_fbird_module_error(...)` across 10 files. Under
+  `FBIRD_EXCEPTION_MODE_THROW`, these paths now correctly throw
+  `Firebird\Exception` with `errcode=-999` and populate
+  `fbird_errcode()`/`fbird_errmsg()`. 7 silent `RETURN_FALSE` paths
+  also fixed (service handle validation, attachment/transaction NULL).
+  SILENT mode unchanged (still warns via helper).
+
+#### Added
+
+- **#309**: `Firebird\BatchHandle` now exposes 6 OOP methods (was
+  opaque marker with `NULL` methods table):
+  `getBlobAlignment(): int|false`, `setDefaultBpb(string): bool`,
+  `cancel(): bool`, `execute(): array|false`,
+  `add(mixed ...$args): bool`, `addBlob(string, int): string|false`.
+  Each method wraps the same C logic as its procedural counterpart.
+
+#### Tests
+
+- 11 new regression test files (TDD: tests committed before fixes)
+- `fbclient_vers_001.phpt` updated to assert float return type
+
 ## [12.0.0] - 2026-07-04
 
 ### Summary

@@ -7,7 +7,7 @@ tags: [hotfix, v12.0.0, rc.11, arginfo, throw-mode, batchhandle, null-deref]
 priority: 1
 ---
 
-> **Status: ACTIVE** - 5 issues from downstream integration testing + 2 code review findings
+> **Status: COMPLETE** - 5 issues from downstream integration testing + 2 code review findings
 
 # Spec: v12.0.0-rc.11 Hotfixes
 
@@ -34,11 +34,11 @@ The C implementation returns `double` via `RETURN_DOUBLE`, but arginfo
 declares `IS_STRING` and the stub declares `string`. ReflectionFunction
 lies to consumers.
 
-- [ ] `firebird.c` arginfo: `IS_STRING` -> `IS_DOUBLE`
-- [ ] `stubs/firebird-stubs.php`: `string` -> `float`
-- [ ] `phpstan/fbird.stub.php`: `string` -> `float` (if exists)
-- [ ] `ReflectionFunction::getReturnType()` returns `float`
-- [ ] Runtime `gettype()` returns `"double"`
+- [x] `firebird.c` arginfo: `IS_STRING` -> `IS_DOUBLE`
+- [x] `stubs/firebird-stubs.php`: `string` -> `float`
+- [x] `phpstan/fbird.stub.php`: `string` -> `float` (if exists)
+- [x] `ReflectionFunction::getReturnType()` returns `float`
+- [x] Runtime `gettype()` returns `"double"`
 
 ### HF-2: Arginfo parameter types + NULL-deref (#307)
 
@@ -53,24 +53,24 @@ nullable `IS_ARRAY,1` but C parser uses `"a"` (non-nullable).
 
 #### HF-2a: IS_STRING parameter mismatches (5 functions)
 
-- [ ] `fbird_execute` arginfo: `IS_STRING` -> `ZEND_ARG_INFO(0, query)` (mixed)
-- [ ] `fbird_free_query` arginfo: `IS_STRING` -> `ZEND_ARG_INFO(0, query)` (mixed)
-- [ ] `fbird_num_params` arginfo: `IS_STRING` -> `ZEND_ARG_INFO(0, query)` (mixed)
-- [ ] `fbird_param_info` arginfo: `IS_STRING` -> `ZEND_ARG_INFO(0, query)` (mixed)
-- [ ] `fbird_batch_create` arginfo: `IS_STRING` -> `ZEND_ARG_INFO(0, query)` (mixed)
+- [x] `fbird_execute` arginfo: `IS_STRING` -> `ZEND_ARG_INFO(0, query)` (mixed)
+- [x] `fbird_free_query` arginfo: `IS_STRING` -> `ZEND_ARG_INFO(0, query)` (mixed)
+- [x] `fbird_num_params` arginfo: `IS_STRING` -> `ZEND_ARG_INFO(0, query)` (mixed)
+- [x] `fbird_param_info` arginfo: `IS_STRING` -> `ZEND_ARG_INFO(0, query)` (mixed)
+- [x] `fbird_batch_create` arginfo: `IS_STRING` -> `ZEND_ARG_INFO(0, query)` (mixed)
 
 #### HF-2b: Nullable array NULL-deref (4 functions)
 
-- [ ] `fbird_execute_statement` arginfo: `IS_ARRAY,0` -> `IS_ARRAY,1` (nullable)
-- [ ] `fbird_execute_query` arginfo: `IS_ARRAY,0` -> `IS_ARRAY,1` (nullable)
-- [ ] `fbird_execute_auto` arginfo: `IS_ARRAY,0` -> `IS_ARRAY,1` (nullable)
-- [ ] `fbird_query_params_tx` arginfo: `IS_ARRAY,0` -> `IS_ARRAY,1` (nullable)
-- [ ] 4 `Z_ARRVAL_P(params_arg)` calls guarded by `Z_TYPE_P(params_arg) == IS_ARRAY`
+- [x] `fbird_execute_statement` arginfo: `IS_ARRAY,0` -> `IS_ARRAY,1` (nullable)
+- [x] `fbird_execute_query` arginfo: `IS_ARRAY,0` -> `IS_ARRAY,1` (nullable)
+- [x] `fbird_execute_auto` arginfo: `IS_ARRAY,0` -> `IS_ARRAY,1` (nullable)
+- [x] `fbird_query_params_tx` arginfo: `IS_ARRAY,0` -> `IS_ARRAY,1` (nullable)
+- [x] 4 `Z_ARRVAL_P(params_arg)` calls guarded by `Z_TYPE_P(params_arg) == IS_ARRAY`
 
 #### HF-2c: fbird_trans_start reverse mismatch
 
-- [ ] `fbird_transaction.c:299`: `"|za"` -> `"|za!"` (accept null options)
-- [ ] Add `Z_TYPE_P` guard before `Z_ARRVAL_P` if options used
+- [x] `fbird_transaction.c:299`: `"|za"` -> `"|za!"` (accept null options)
+- [x] Add `Z_TYPE_P` guard before `Z_ARRVAL_P` if options used
 
 ### HF-3: MAY_BE_RESOURCE -> MAY_BE_OBJECT (#306)
 
@@ -78,11 +78,11 @@ nullable `IS_ARRAY,1` but C parser uses `"a"` (non-nullable).
 returns `Firebird\*` objects. ReflectionFunction reports `resource|false`
 when the runtime produces `Firebird\Statement|false` etc.
 
-- [ ] All 20 `MAY_BE_RESOURCE` in arginfo replaced with `MAY_BE_OBJECT`
-- [ ] `fbird_query` (L208): add `MAY_BE_LONG` (returns affected row count)
-- [ ] `fbird_execute` (L247): add `MAY_BE_LONG` (returns affected row count)
-- [ ] `ReflectionFunction::getReturnType()` shows `object` not `resource`
-- [ ] Stubs already correct (no stub changes needed)
+- [x] All 20 `MAY_BE_RESOURCE` in arginfo replaced with `MAY_BE_OBJECT`
+- [x] `fbird_query` (L208): add `MAY_BE_LONG` (returns affected row count)
+- [x] `fbird_execute` (L247): add `MAY_BE_LONG` (returns affected row count)
+- [x] `ReflectionFunction::getReturnType()` shows `object` not `resource`
+- [x] Stubs already correct (no stub changes needed)
 
 ### HF-4: THROW mode bypass (#305)
 
@@ -99,16 +99,16 @@ The `_php_fbird_module_error` helper already:
 
 #### HF-4a: Replace php_error_docref with _php_fbird_module_error
 
-- [ ] `fbird_query_prepare.c` (4 calls: L263, L267, L271, L276)
-- [ ] `fbird_query_exec.c` (2 calls: L111, L116)
-- [ ] `fbird_batch.c` (10 calls: L213, L602, L650, L683, L715, L721, L754, L783, L812, L841)
-- [ ] `fbird_connection.c` (4 calls: L543, L625, L632, L743)
-- [ ] `fbird_transaction.c` (9 calls: L131, L263, L323, L402, L408, L520, L642, L826, L958)
-- [ ] `fbird_service.c` (1 call: L325)
-- [ ] `fbird_events.c` (2 calls: L181, L297)
-- [ ] `fbird_blobs.c` (1 call: L751)
-- [ ] `fbird_error.c` (1 call: L135 - invalid exception mode)
-- [ ] `firebird.c` (6 calls: L1014, L1019, L1107, L1113, L1118, L1239)
+- [x] `fbird_query_prepare.c` (4 calls: L263, L267, L271, L276)
+- [x] `fbird_query_exec.c` (2 calls: L111, L116)
+- [x] `fbird_batch.c` (10 calls: L213, L602, L650, L683, L715, L721, L754, L783, L812, L841)
+- [x] `fbird_connection.c` (4 calls: L543, L625, L632, L743)
+- [x] `fbird_transaction.c` (9 calls: L131, L263, L323, L402, L408, L520, L642, L826, L958)
+- [x] `fbird_service.c` (1 call: L325)
+- [x] `fbird_events.c` (2 calls: L181, L297)
+- [x] `fbird_blobs.c` (1 call: L751)
+- [x] `fbird_error.c` (1 call: L135 - invalid exception mode)
+- [x] `firebird.c` (6 calls: L1014, L1019, L1107, L1113, L1118, L1239)
 
 **EXCLUDE** (keep as-is):
 - `fbird_query_exec.c:1058` - `E_DEPRECATED` (not a warning)
@@ -116,17 +116,17 @@ The `_php_fbird_module_error` helper already:
 
 #### HF-4b: Add _php_fbird_module_error to silent RETURN_FALSE paths
 
-- [ ] `fbird_service.c:676-678` - invalid service handle in fbird_server_info
-- [ ] `fbird_inspection.c:321-323` - attachment NULL in fbird_list_table_blockers
-- [ ] `fbird_inspection.c:326-328` - transaction NULL in fbird_list_table_blockers
-- [ ] `fbird_inspection.c:52-54` - attachment NULL in _fbird_exec_kill
-- [ ] `fbird_inspection.c:57-59` - transaction NULL in _fbird_exec_kill
+- [x] `fbird_service.c:676-678` - invalid service handle in fbird_server_info
+- [x] `fbird_inspection.c:321-323` - attachment NULL in fbird_list_table_blockers
+- [x] `fbird_inspection.c:326-328` - transaction NULL in fbird_list_table_blockers
+- [x] `fbird_inspection.c:52-54` - attachment NULL in _fbird_exec_kill
+- [x] `fbird_inspection.c:57-59` - transaction NULL in _fbird_exec_kill
 
 #### HF-4c: Verification
 
-- [ ] THROW mode: exceptions thrown with errcode -999 and correct errmsg
-- [ ] SILENT mode: warnings still emitted (backward compatible)
-- [ ] `fbird_errcode()` / `fbird_errmsg()` return correct values after each failure
+- [x] THROW mode: exceptions thrown with errcode -999 and correct errmsg
+- [x] SILENT mode: warnings still emitted (backward compatible)
+- [x] `fbird_errcode()` / `fbird_errmsg()` return correct values after each failure
 
 ### HF-5: BatchHandle OOP methods (#309)
 
@@ -134,16 +134,16 @@ The `_php_fbird_module_error` helper already:
 opaque marker class. The C implementations already exist as
 `PHP_FUNCTION(fbird_batch_*)` and should be exposed as methods.
 
-- [ ] `fbird_classes.c:102`: replace `NULL` with method entries table
-- [ ] 6 methods wired to existing implementations:
+- [x] `fbird_classes.c:102`: replace `NULL` with method entries table
+- [x] 6 methods wired to existing implementations:
   - `getBlobAlignment(): int|false`
   - `setDefaultBpb(string $bpb): bool`
   - `cancel(): bool`
   - `execute(): array|false`
   - `add(mixed ...$args): bool`
   - `addBlob(string $data, int $type = 0): string|false`
-- [ ] Stub updated with method signatures
-- [ ] `ReflectionClass` shows 6 public methods
+- [x] Stub updated with method signatures
+- [x] `ReflectionClass` shows 6 public methods
 
 ### HF-6: Additional findings (code review)
 
@@ -153,14 +153,14 @@ opaque marker class. The C implementations already exist as
 returns FALSE when argument is not a resource and not a recognized object
 type. Should emit `zend_type_error` for unrecognized types.
 
-- [ ] Replace silent `RETURN_FALSE` with `zend_type_error(...)`
+- [x] Replace silent `RETURN_FALSE` with `zend_type_error(...)`
 
 #### HF-6b: stubs_sync.phpt return type assertions
 
 `tests/stubs_sync.phpt` currently only checks function existence, not
 return type consistency between arginfo and stubs.
 
-- [ ] Add assertions that arginfo return types match stub return types
+- [x] Add assertions that arginfo return types match stub return types
 
 ## User Stories
 

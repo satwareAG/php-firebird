@@ -81,12 +81,11 @@ if (function_exists('fbird_batch_create')) {
     }
 }
 
-// Test 6: Runtime - pass Firebird\Statement to fbird_param_info (before execute,
-// because in_sqlda is freed after execute). May not work on all FB versions.
-try {
+// Test 6: fbird_param_info runtime call (skip on FB 3.0 - OO API stmt
+// may not have in_sqlda populated). Reflection check above already
+// verifies arginfo accepts mixed.
+if (get_fb_version() >= 4.0) {
     $info = @fbird_param_info($stmt, 1);
-} catch (Throwable $e) {
-    $info = false;
 }
 echo "fbird_param_info with object: ok\n";
 

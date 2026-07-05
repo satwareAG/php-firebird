@@ -101,6 +101,7 @@ void fbird_register_classes(void)
 #if FB_API_VER >= 40
 	INIT_CLASS_ENTRY(ce, "Firebird\\BatchHandle", fbird_batch_methods);
 	fbird_batch_ce = zend_register_internal_class(&ce);
+	fbird_batch_ce->ce_flags |= ZEND_ACC_FINAL;
 	fbird_batch_ce->create_object = fbird_batch_create_obj;
 	memcpy(&fbird_batch_handlers, zend_get_std_object_handlers(),
 		sizeof(zend_object_handlers));

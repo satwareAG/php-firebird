@@ -498,7 +498,7 @@ function fbird_trans(mixed $link_or_flags = null, mixed ...$args): \Firebird\Tra
  *   fbird_trans_start($link, ['readCommitted' => true, 'lockTimeout' => 5, ...])
  *
  * @param mixed $link Database connection
- * @param int|array<string, array<string, int>|bool|int> $options Transaction options
+ * @param array<string, array<string, int>|bool|int>|null $options Transaction options
  * @return \Firebird\Transaction|false Transaction handle or false on error
  */
 function fbird_trans_start(mixed $link, ?array $options = null): \Firebird\Transaction|false {}
@@ -881,7 +881,7 @@ function fbird_delete_user(mixed $service, string $username): bool {}
 // ============================================================================
 
 /**
- * @return string
+ * @return float
  */
 function fbird_get_client_version(): float {}
 

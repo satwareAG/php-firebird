@@ -89,6 +89,7 @@ errcode: -999
 
 Test 3: Closed connection
 %s
+errcode: -999
 
 Test 4: errcode/errmsg after failure
 fbird_errcode: -999

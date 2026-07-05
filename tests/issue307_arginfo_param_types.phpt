@@ -81,18 +81,19 @@ if (function_exists('fbird_batch_create')) {
     }
 }
 
-// Test 6: Runtime - pass Firebird\Statement to fbird_execute (no TypeError)
+// Test 6: Runtime - pass Firebird\Statement to fbird_param_info (before execute,
+// because in_sqlda is freed after execute)
+$info = fbird_param_info($stmt, 1);
+echo "fbird_param_info with object: " . (is_array($info) ? "ok" : "failed") . "\n";
+
+// Test 7: Runtime - pass Firebird\Statement to fbird_execute (no TypeError)
 $rs = fbird_execute($stmt, 1);
 echo "fbird_execute with object: " . ($rs ? "ok" : "failed") . "\n";
 if ($rs) fbird_free_result($rs);
 
-// Test 7: Runtime - pass Firebird\Statement to fbird_num_params
+// Test 8: Runtime - pass Firebird\Statement to fbird_num_params
 $n = fbird_num_params($stmt);
 echo "fbird_num_params with object: $n\n";
-
-// Test 8: Runtime - pass Firebird\Statement to fbird_param_info
-$info = fbird_param_info($stmt, 1);
-echo "fbird_param_info with object: " . (is_array($info) ? "ok" : "failed") . "\n";
 
 // Test 9: Runtime - pass Firebird\Statement to fbird_free_query
 var_dump(fbird_free_query($stmt));
@@ -106,8 +107,8 @@ fbird_free_query param0 type: mixed
 fbird_num_params param0 type: mixed
 fbird_param_info param0 type: mixed
 %s
+fbird_param_info with object: ok
 fbird_execute with object: ok
 fbird_num_params with object: %d
-fbird_param_info with object: ok
 bool(true)
 Done

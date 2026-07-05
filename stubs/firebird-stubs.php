@@ -648,7 +648,7 @@ function fbird_trans(mixed $link_or_flags = null, mixed ...$args): \Firebird\Tra
  * Start a transaction with options.
  *
  * @param mixed                                     $link    Connection resource
- * @param int|array<string, array<string, int>|bool|int> $options Transaction options
+ * @param array<string, array<string, int>|bool|int>|null $options Transaction options
  * @return \Firebird\Transaction|false Transaction object
  * @since 7.0.0
  */
@@ -1129,7 +1129,7 @@ function fbird_delete_user(mixed $service, string $username): bool {}
 /**
  * Get Firebird client library version string.
  *
- * @return string Version string
+ * @return float Version number
  * @since 7.0.0
  */
 function fbird_get_client_version(): float {}

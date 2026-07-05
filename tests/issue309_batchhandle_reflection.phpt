@@ -44,13 +44,13 @@ echo "\nDone\n";
 ?>
 --EXPECT--
 class: Firebird\BatchHandle
-isFinal: bool(true)
+isFinal: true
 method count: 6
-has getBlobAlignment: bool(true)
-has setDefaultBpb: bool(true)
-has cancel: bool(true)
-has execute: bool(true)
-has add: bool(true)
-has addBlob: bool(true)
+has getBlobAlignment: true
+has setDefaultBpb: true
+has cancel: true
+has execute: true
+has add: true
+has addBlob: true
 
 Done

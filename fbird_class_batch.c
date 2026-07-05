@@ -129,6 +129,11 @@ PHP_METHOD(BatchHandle, setDefaultBpb)
 		RETURN_FALSE;
 	}
 
+	/* Empty BPB is a no-op (reset to Firebird defaults) */
+	if (bpb_len == 0) {
+		RETURN_TRUE;
+	}
+
 	if (!fbbatch_set_default_bpb(FBG(master_instance), fb_batch->fbbatch_wrapper,
 			(unsigned)bpb_len, (const unsigned char *)bpb, status)) {
 		_php_fbird_error(status);

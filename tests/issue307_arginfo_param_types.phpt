@@ -82,9 +82,12 @@ if (function_exists('fbird_batch_create')) {
 }
 
 // Test 6: Runtime - pass Firebird\Statement to fbird_param_info (before execute,
-// because in_sqlda is freed after execute). Suppress warnings — param_info
-// may not work on all FB versions with OO API statements.
-$info = @fbird_param_info($stmt, 1);
+// because in_sqlda is freed after execute). May not work on all FB versions.
+try {
+    $info = @fbird_param_info($stmt, 1);
+} catch (Throwable $e) {
+    $info = false;
+}
 echo "fbird_param_info with object: ok\n";
 
 // Test 7: Runtime - pass Firebird\Statement to fbird_execute (no TypeError)

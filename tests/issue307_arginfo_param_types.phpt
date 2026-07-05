@@ -68,7 +68,7 @@ try {
     echo "mixed\n";
 }
 
-// Test 5: fbird_batch_create accepts resource/object
+// Test 5: fbird_batch_create accepts resource/object (FB 4.0+ only)
 if (function_exists('fbird_batch_create')) {
     $rf = new ReflectionFunction('fbird_batch_create');
     $param1 = $rf->getParameters()[0];
@@ -79,6 +79,8 @@ if (function_exists('fbird_batch_create')) {
     } catch (Throwable $e) {
         echo "mixed\n";
     }
+} else {
+    echo "fbird_batch_create: not available (FB < 4.0)\n";
 }
 
 // Test 6: fbird_param_info runtime call (skip on FB 3.0 - OO API stmt
@@ -109,7 +111,7 @@ fbird_execute param0 type: mixed
 fbird_free_query param0 type: mixed
 fbird_num_params param0 type: mixed
 fbird_param_info param0 type: mixed
-%a
+fbird_batch_create%s
 fbird_param_info with object: ok
 fbird_execute with object: ok
 fbird_num_params with object: %d

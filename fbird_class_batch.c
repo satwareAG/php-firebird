@@ -25,7 +25,7 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_BatchHandle_execute, 0, 0, MAY_BE_ARRAY|MAY_BE_FALSE)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_BatchHandle_add, 0, 1, _IS_BOOL, 0)
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_BatchHandle_add, 0, 0, _IS_BOOL, 0)
 	ZEND_ARG_VARIADIC_INFO(0, args)
 ZEND_END_ARG_INFO()
 
@@ -217,98 +217,21 @@ PHP_METHOD(BatchHandle, execute)
 	add_assoc_long(return_value, "error_count", error_count);
 }
 
-/* {{{ BatchHandle::add(mixed ...$args): bool */
+/* {{{ BatchHandle::add(mixed ...$args): bool
+ * Delegates to fbird_batch_add_impl() - shared with procedural API. */
 PHP_METHOD(BatchHandle, add)
 {
-	ISC_STATUS status[256];
 	zval *args = NULL;
 	int argc = 0;
 	fbird_batch *fb_batch;
-
-	RESET_ERRMSG;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "*", &args, &argc) == FAILURE) {
 		RETURN_THROWS();
 	}
 
 	fb_batch = fbird_batch_get_ptr(Z_OBJ_P(getThis()));
-	if (!fb_batch || !fb_batch->fbbatch_wrapper) {
-		_php_fbird_module_error("Invalid batch handle");
-		RETURN_FALSE;
-	}
 
-	void *master = FBG(master_instance);
-	if (!master) {
-		_php_fbird_module_error("BatchHandle::add() requires Firebird 3.0+ OO API master interface");
-		RETURN_FALSE;
-	}
-
-	if (!fb_batch->in_metadata || !fb_batch->in_msg_buffer || fb_batch->in_msg_length == 0) {
-		_php_fbird_module_error("BatchHandle::add() batch has no input metadata or buffer");
-		RETURN_FALSE;
-	}
-
-	unsigned param_count = fbm_get_count(master, fb_batch->in_metadata);
-
-	if ((unsigned)argc != param_count) {
-		_php_fbird_module_error("BatchHandle::add() expects %u parameters, %d given", param_count, argc);
-		RETURN_FALSE;
-	}
-
-	memset(fb_batch->in_msg_buffer, 0, fb_batch->in_msg_length);
-
-	for (unsigned i = 0; i < param_count; i++) {
-		zval *b_var = &args[i];
-		unsigned sql_type = fbm_get_type(master, fb_batch->in_metadata, i) & ~1;
-		unsigned data_offset = fbm_get_offset(master, fb_batch->in_metadata, i);
-		unsigned null_offset = fbm_get_null_offset(master, fb_batch->in_metadata, i);
-		unsigned field_length = fbm_get_length(master, fb_batch->in_metadata, i);
-
-		void *offset = fb_batch->in_msg_buffer + data_offset;
-		short *null_flag = (short *)(fb_batch->in_msg_buffer + null_offset);
-
-		*null_flag = 0;
-
-		if (Z_TYPE_P(b_var) == IS_NULL) {
-			*null_flag = -1;
-			continue;
-		}
-
-		switch (sql_type) {
-			case SQL_TEXT:
-			case SQL_VARYING: {
-				size_t str_len = Z_STRLEN_P(b_var);
-				if (str_len > field_length) str_len = field_length;
-				if (sql_type == SQL_VARYING) {
-					*(short *)offset = (short)str_len;
-					memcpy(offset + sizeof(short), Z_STRVAL_P(b_var), str_len);
-				} else {
-					memset(offset, ' ', field_length);
-					memcpy(offset, Z_STRVAL_P(b_var), str_len);
-				}
-				break;
-			}
-			case SQL_SHORT:
-				*(short *)offset = (short)zval_get_long(b_var);
-				break;
-			case SQL_LONG:
-				*(int *)offset = (int)zval_get_long(b_var);
-				break;
-			case SQL_INT64:
-				*(ISC_INT64 *)offset = (ISC_INT64)zval_get_long(b_var);
-				break;
-			case SQL_DOUBLE:
-			case SQL_FLOAT:
-				*(double *)offset = zval_get_double(b_var);
-				break;
-			default:
-				*null_flag = -1;
-				break;
-		}
-	}
-
-	if (fbbatch_add(FBG(master_instance), fb_batch->fbbatch_wrapper, 1, fb_batch->in_msg_buffer, status) != 1) {
-		_php_fbird_error(status);
+	if (fbird_batch_add_impl(fb_batch, args, argc) == FAILURE) {
 		RETURN_FALSE;
 	}
 

@@ -1011,12 +1011,12 @@ PHP_FUNCTION(fbird_gen_id)
 	}
 
 	if (gen_len > 31) {
-		_php_fbird_module_error( "Invalid generator name (length > 31 characters)");
+		_php_fbird_module_error("Invalid generator name (length > 31 characters)");
 		RETURN_FALSE;
 	}
 
 	if (!is_valid_identifier(generator, gen_len)) {
-		_php_fbird_module_error( "Invalid generator name (contains invalid characters)");
+		_php_fbird_module_error("Invalid generator name (contains invalid characters)");
 		RETURN_FALSE;
 	}
 
@@ -1110,12 +1110,12 @@ PHP_FUNCTION(fbird_last_insert_id)
 	}
 
 	if (seq_len > 31) {
-		_php_fbird_module_error( "Invalid sequence name (length > 31 characters)");
+		_php_fbird_module_error("Invalid sequence name (length > 31 characters)");
 		RETURN_FALSE;
 	}
 
 	if (!is_valid_identifier(sequence, seq_len)) {
-		_php_fbird_module_error( "Invalid sequence name (contains invalid characters)");
+		_php_fbird_module_error("Invalid sequence name (contains invalid characters)");
 		RETURN_FALSE;
 	}
 
@@ -1236,7 +1236,7 @@ PHP_FUNCTION(fbird_get_limbo_transactions)
 	}
 
 	if (max_count < 1 || max_count > 10000) {
-		_php_fbird_module_error( "max_count must be between 1 and 10000");
+		_php_fbird_module_error("max_count must be between 1 and 10000");
 		RETURN_FALSE;
 	}
 

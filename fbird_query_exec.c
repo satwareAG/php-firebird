@@ -113,11 +113,15 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
 	}
 
 	if (bind_n != argc) {
-		_php_fbird_module_error(
-			"Statement expects %d arguments, %d given", argc, bind_n);
-
 		if (bind_n < argc) {
+			/* Too few args: error, cannot proceed */
+			_php_fbird_module_error(
+				"Statement expects %d arguments, %d given", argc, bind_n);
 			return FAILURE;
+		} else {
+			/* Extra args: notice, execution continues (backward compatible) */
+			php_error_docref(NULL, E_NOTICE,
+				"Statement expects %d arguments, %d given", argc, bind_n);
 		}
 	}
 
@@ -1544,7 +1548,7 @@ void _php_fbird_free_query_impl(INTERNAL_FUNCTION_PARAMETERS, int as_result)
 		if (Z_TYPE_P(query_arg) != IS_RESOURCE) {
 			const char *arg_type = zend_get_type_by_const(Z_TYPE_P(query_arg));
 			zend_type_error("fbird_free_query(): Argument #1 ($query) must be a Firebird query resource or Firebird\\ResultSet/Statement, %s given", arg_type);
-			RETURN_FALSE;
+			RETURN_THROWS();
 		}
 		res = Z_RES_P(query_arg);
 	}

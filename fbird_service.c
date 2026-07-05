@@ -323,7 +323,7 @@ PHP_FUNCTION(fbird_service_detach)
 
 	svc_res = _php_fbird_service_res_from_zval(res);
 	if (!svc_res) {
-		_php_fbird_module_error( "Argument #1 must be a valid Firebird service handle or Firebird\\Service object");
+		_php_fbird_module_error("Argument #1 must be a valid Firebird service handle or Firebird\\Service object");
 		RETURN_FALSE;
 	}
 

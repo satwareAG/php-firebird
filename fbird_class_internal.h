@@ -126,6 +126,7 @@ extern zend_object_handlers fbird_batch_handlers;
 zend_object *fbird_batch_create_obj(zend_class_entry *ce);
 void fbird_batch_free_obj(zend_object *obj);
 extern const zend_function_entry fbird_batch_methods[];
+int fbird_batch_add_impl(fbird_batch *fb_batch, zval *args, int argc);
 #endif
 
 #endif /* FBIRD_CLASS_INTERNAL_H */

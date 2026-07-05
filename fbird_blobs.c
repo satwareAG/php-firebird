@@ -748,7 +748,7 @@ PHP_FUNCTION(fbird_blob_info)
 		blob_id = Z_STRVAL_P(arg1);
 	} else {
 		// Invalid argument type
-		_php_fbird_module_error( "Expected blob ID string or blob stream resource");
+		_php_fbird_module_error("Expected blob ID string or blob stream resource");
 		RETURN_FALSE;
 	}
 

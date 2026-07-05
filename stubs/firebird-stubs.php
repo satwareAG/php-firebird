@@ -1132,7 +1132,7 @@ function fbird_delete_user(mixed $service, string $username): bool {}
  * @return string Version string
  * @since 7.0.0
  */
-function fbird_get_client_version(): string {}
+function fbird_get_client_version(): float {}
 
 /**
  * Get Firebird client library major version.

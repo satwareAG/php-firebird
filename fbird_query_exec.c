@@ -1542,6 +1542,8 @@ void _php_fbird_free_query_impl(INTERNAL_FUNCTION_PARAMETERS, int as_result)
 		}
 	} else {
 		if (Z_TYPE_P(query_arg) != IS_RESOURCE) {
+			const char *arg_type = zend_get_type_by_const(Z_TYPE_P(query_arg));
+			zend_type_error("fbird_free_query(): Argument #1 ($query) must be a Firebird query resource or Firebird\\ResultSet/Statement, %s given", arg_type);
 			RETURN_FALSE;
 		}
 		res = Z_RES_P(query_arg);
@@ -1637,7 +1639,7 @@ PHP_FUNCTION(fbird_execute_statement)
         RETURN_FALSE;
     }
 
-    if (params_arg) {
+    if (params_arg && Z_TYPE_P(params_arg) == IS_ARRAY) {
         bind_args = _php_fbird_hash_to_zval_array(Z_ARRVAL_P(params_arg), &bind_n);
     }
 
@@ -1701,7 +1703,7 @@ PHP_FUNCTION(fbird_execute_query)
         RETURN_FALSE;
     }
 
-    if (params_arg) {
+    if (params_arg && Z_TYPE_P(params_arg) == IS_ARRAY) {
         bind_args = _php_fbird_hash_to_zval_array(Z_ARRVAL_P(params_arg), &bind_n);
     }
 
@@ -1800,7 +1802,7 @@ PHP_FUNCTION(fbird_execute_auto)
         RETURN_FALSE;
     }
 
-    if (params_arg) {
+    if (params_arg && Z_TYPE_P(params_arg) == IS_ARRAY) {
         bind_args = _php_fbird_hash_to_zval_array(Z_ARRVAL_P(params_arg), &bind_n);
     }
 
@@ -1900,7 +1902,7 @@ PHP_FUNCTION(fbird_query_params_tx)
         RETURN_FALSE;
     }
 
-    if (params_arg) {
+    if (params_arg && Z_TYPE_P(params_arg) == IS_ARRAY) {
         bind_args = _php_fbird_hash_to_zval_array(Z_ARRVAL_P(params_arg), &bind_n);
     }
 

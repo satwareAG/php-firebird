@@ -652,7 +652,7 @@ function fbird_trans(mixed $link_or_flags = null, mixed ...$args): \Firebird\Tra
  * @return \Firebird\Transaction|false Transaction object
  * @since 7.0.0
  */
-function fbird_trans_start(mixed $link, mixed $options = 0): \Firebird\Transaction|false {}
+function fbird_trans_start(mixed $link, ?array $options = null): \Firebird\Transaction|false {}
 
 /**
  * Commit a transaction.

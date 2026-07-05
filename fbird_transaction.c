@@ -296,7 +296,7 @@ PHP_FUNCTION(fbird_trans_start)
 	RESET_ERRMSG;
 
 	/* M3: "|z" so Firebird\Connection objects are accepted alongside resources */
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|za", &link_arg, &options_arg) == FAILURE) {
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "|za!", &link_arg, &options_arg) == FAILURE) {
 		return;
 	}
 
@@ -324,7 +324,7 @@ PHP_FUNCTION(fbird_trans_start)
 		RETURN_FALSE;
 	}
 
-	if (options_arg) {
+	if (options_arg && Z_TYPE_P(options_arg) == IS_ARRAY) {
 		_php_fbird_populate_trans_from_array(options_arg, &trans_timeout, last_tpb, &tpb_len);
 	} else {
 		/* Default transaction parameters */

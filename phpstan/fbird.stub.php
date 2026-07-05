@@ -501,7 +501,7 @@ function fbird_trans(mixed $link_or_flags = null, mixed ...$args): \Firebird\Tra
  * @param int|array<string, array<string, int>|bool|int> $options Transaction options
  * @return \Firebird\Transaction|false Transaction handle or false on error
  */
-function fbird_trans_start(mixed $link, mixed $options = 0): \Firebird\Transaction|false {}
+function fbird_trans_start(mixed $link, ?array $options = null): \Firebird\Transaction|false {}
 
 /**
  * @param mixed $link

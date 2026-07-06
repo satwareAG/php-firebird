@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### v12.0.0 — Stable Release (2026-07-06)
+
+Final stable release. All 10 CI/CD workflows pass on a single tag push
+with zero manual intervention. 16 issues closed. Zero open issues.
+
+#### CI/CD Pipeline Automation (rc.13-rc.25)
+
+- **8 composite actions**: version, install-firebird-client, build-extension,
+  verify-extension, validate-artifacts, determine-php-version,
+  determine-release-tag, publish-bundle-artifacts
+- **5,051 → 3,393 workflow lines (-33%)**
+- **Concurrency fix**: Removed shared concurrency group from release
+  workflows (was causing mutual cancellation on tag push)
+- **Asset-presence polling**: publish-release.yml polls release assets via
+  `gh release view --json assets` instead of workflow status — publishes
+  as soon as assets land, not when workflow runs complete
+- **Windows tag resolution**: Fixed `github.ref_name` misuse on
+  `workflow_dispatch` (was producing malformed build paths)
+- **jq asset filtering**: `endswith()` + `contains()` instead of broken
+  `test()` regex (was returning total count for all platforms)
+- **API-based validation**: Asset counts validated via API before
+  best-effort download (avoids CDN propagation timing issues)
+- **GITHUB_TOKEN**: Passed via `secrets.GITHUB_TOKEN` and `github.token`
+  to composite actions (was empty in composite context)
+
+#### Fixed
+
+- **#311**: SIGSEGV (exit 139) during module shutdown with persistent
+  connections. Replaced `!FBG(in_mshutdown)` with
+  `!(EG(flags) & EG_FLAGS_IN_RESOURCE_SHUTDOWN)` at 3 sites in
+  `fbird_connection.c`. Removed `zend_hash_str_del(&EG(persistent_list))`
+  which caused infinite recursion. The `in_mshutdown` flag was set in
+  `PHP_MSHUTDOWN_FUNCTION` which runs AFTER
+  `zend_destroy_rsrc_list(&EG(persistent_list))` — the function that
+  calls `_php_fbird_close_plink` via `plist_entry_destructor`.
+- **Windows artifact naming**: Double `v` prefix
+  (`php_firebird-vv12.0.0-...`) fixed by adding `version` output to
+  Resolve release tag step.
+- **verify-extension**: Broken pipe on macOS (`tee | grep` with
+  `pipefail`) + missing `/` in `LD_LIBRARY_PATH` concatenation.
+- **publish-bundle-artifacts retry**: `find` instead of glob patterns
+  for file listing (avoids literal glob errors on single-platform uploads).
+
 ### rc.12 — CI/CD Pipeline Simplification (2026-07-06)
 
 Major CI/CD refactoring to reduce workflow complexity and duplication.

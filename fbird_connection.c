@@ -93,10 +93,13 @@ void _php_fbird_commit_link(fbird_db_link *link)
 					int res = fbt_commit(p->trans->fbt_transaction, status);
 					fbt_free(p->trans->fbt_transaction);
 					p->trans->fbt_transaction = NULL;
-					/* Guard error reporting during MSHUTDOWN (Issue #183).
-					 * _php_fbird_error(status) accesses EG() globals which may be
-					 * destroyed during persistent connection cleanup. */
-					if (res && !FBG(in_mshutdown)) {
+					/* Guard error reporting during resource shutdown (Issue #311).
+					 * Use EG_FLAGS_IN_RESOURCE_SHUTDOWN instead of FBG(in_mshutdown)
+					 * because _php_fbird_commit_link is called from both
+					 * _php_fbird_close_link (regular list, after MSHUTDOWN) and
+					 * _php_fbird_close_plink (persistent list, before MSHUTDOWN).
+					 * The EG flag is set during both request and module shutdown. */
+					if (res && !(EG(flags) & EG_FLAGS_IN_RESOURCE_SHUTDOWN)) {
 						_php_fbird_error(status);
 					}
 				}
@@ -108,7 +111,7 @@ void _php_fbird_commit_link(fbird_db_link *link)
 					int res = fbt_rollback(p->trans->fbt_transaction, status);
 					fbt_free(p->trans->fbt_transaction);
 					p->trans->fbt_transaction = NULL;
-					if (res && !FBG(in_mshutdown)) {
+					if (res && !(EG(flags) & EG_FLAGS_IN_RESOURCE_SHUTDOWN)) {
 						_php_fbird_error(status);
 					}
 				}
@@ -252,17 +255,24 @@ void _php_fbird_close_plink(zend_resource *rsrc)
 	}
 #endif
 
-	/* Remove cache entries from both regular and persistent lists (Issue #35).
-	 * Persistent connections are cached in EG(persistent_list) with hash key.
+	/* Remove cache entry from EG(regular_list) to prevent UAF (Issue #35).
 	 *
-	 * CRITICAL: Skip EG() access during MSHUTDOWN (Issue #50, #51).
-	 * During module shutdown, EG(regular_list) and EG(persistent_list) may already
-	 * be destroyed, causing SIGSEGV (exit code 139) if accessed. */
-	if (!FBG(in_mshutdown) &&
+	 * CRITICAL: Use EG_FLAGS_IN_RESOURCE_SHUTDOWN instead of FBG(in_mshutdown)
+	 * (Issue #311). The in_mshutdown flag is set in PHP_MSHUTDOWN_FUNCTION,
+	 * but persistent resource destructors run BEFORE MSHUTDOWN (during
+	 * zend_destroy_rsrc_list(&EG(persistent_list)) at zend.c:1118). The
+	 * EG_FLAGS_IN_RESOURCE_SHUTDOWN flag is set at the start of
+	 * zend_shutdown_executor_values(), before EG(regular_list) is destroyed,
+	 * and stays set through module shutdown.
+	 *
+	 * Do NOT call zend_hash_str_del(&EG(persistent_list), ...) here.
+	 * plist_entry_destructor (our caller via zend_hash_graceful_reverse_destroy)
+	 * is already removing this entry. Calling zend_hash_str_del would cause
+	 * infinite recursion. */
+	if (!(EG(flags) & EG_FLAGS_IN_RESOURCE_SHUTDOWN) &&
 		(link->hash_key[0] != '\0' || memcmp(link->hash_key, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16) != 0)) {
 		zend_hash_str_del(&EG(regular_list), link->hash_key, sizeof(link->hash_key) - 1);
-		zend_hash_str_del(&EG(persistent_list), link->hash_key, sizeof(link->hash_key) - 1);
-		FBDEBUG("Removed cache entries for persistent link");
+		FBDEBUG("Removed cache entry from regular list for persistent link");
 	}
 
 	_php_fbird_commit_link(link);

@@ -91,7 +91,11 @@ runs:
           if [ "$attempt" -lt "$MAX_RETRIES" ]; then
             echo "Retrying upload in 10s..."
             sleep 10
-            gh release upload "$TAG" release-assets/*.tar.gz release-assets/*.sha256 release-assets/*.md5 release-assets/*.zip release-assets/*.sbom.cdx.json release-assets/CHECKSUMS-*.txt --clobber --repo "${{ github.repository }}" 2>/dev/null || true
+            # Only upload files that actually exist (avoid glob literal errors)
+            FILES=$(find release-assets -type f 2>/dev/null)
+            if [ -n "$FILES" ]; then
+              gh release upload "$TAG" $FILES --clobber --repo "${{ github.repository }}" 2>/dev/null || true
+            fi
           fi
         done
         echo "ERROR: Only $COUNT assets found after $MAX_RETRIES attempts (expected >= $EXPECTED)"

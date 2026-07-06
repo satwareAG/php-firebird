@@ -105,10 +105,12 @@ jobs:
         shell: bash
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+            TAG="${GITHUB_REF#refs/tags/}"
           else
-            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+            TAG="${{ inputs.tag }}"
           fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
       - name: Flatten pdo_fbird sources for Windows build
         shell: pwsh
@@ -162,7 +164,7 @@ jobs:
       - name: Upload firebird DLL artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: php_firebird-v${{ steps.reltag.outputs.tag }}-${{ matrix.php-version }}-${{ matrix.ts }}
+          name: php_firebird-v${{ steps.reltag.outputs.version }}-${{ matrix.php-version }}-${{ matrix.ts }}
           path: artifacts/firebird/*.zip
 
   # ===========================================================================

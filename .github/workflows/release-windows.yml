@@ -233,8 +233,29 @@ jobs:
           files: artifacts/**/*.zip
           fail_on_unmatched_files: true
           draft: true
-        continue-on-error: true
-        # The action sometimes fails on metadata update after successful upload
-        # ("HttpError: Not Found" on asset update). The assets are present,
-        # so we continue and let publish-release.yml handle the final state.
+
+      - name: Verify release assets uploaded
+        shell: bash
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          MAX_RETRIES=3
+          for attempt in $(seq 1 $MAX_RETRIES); do
+            echo "Verifying release assets (attempt $attempt/$MAX_RETRIES)..."
+            ASSET_COUNT=$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets --jq '.assets | length' 2>/dev/null || echo 0)
+            echo "Found $ASSET_COUNT assets on release"
+            if [ "$ASSET_COUNT" -ge 8 ]; then
+              echo "OK: Sufficient assets ($ASSET_COUNT >= 8)"
+              exit 0
+            fi
+            if [ "$attempt" -lt "$MAX_RETRIES" ]; then
+              echo "Retrying upload in 10s..."
+              sleep 10
+              # Re-upload any missing assets
+              gh release upload "$TAG" artifacts/**/*.zip --clobber --repo "${{ github.repository }}" 2>/dev/null || true
+            fi
+          done
+          echo "ERROR: Only $ASSET_COUNT assets found after $MAX_RETRIES attempts (expected >= 8)"
+          exit 1
+        env:
+          GH_TOKEN: ${{ github.token }}
 

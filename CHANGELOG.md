@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### rc.12 — CI/CD Pipeline Simplification (2026-07-06)
+
+Major CI/CD refactoring to reduce workflow complexity and duplication.
+All 4 CI workflows pass on all 12 container combinations.
+
+#### CI/CD Pipeline Simplification
+
+- **5 composite actions** created to eliminate duplicated workflow logic:
+  - `version` — checkout + VERSION.txt materialization (tag → file → header fallback with `unknown` rejection)
+  - `install-firebird-client` — Firebird client install (apt deps, cache, download, install, auth, wait). Parameterized for container/non-container jobs via `use-sudo`, `firebird-host`, `extra-apt-packages`.
+  - `build-extension` — phpize + configure + make. Supports CC/CXX, sanitizer flags, LTO, pdo_fbird toggle, pre-build hook for Makefile injection.
+  - `verify-extension` — binary check + load test + DB connection. 4 modes: full, build-only, best-effort, load-only.
+  - `validate-artifacts` — asset count + size validation for release workflows.
+- **Workflow line reduction**: 5,051 → 3,625 lines (-1,426, -28%)
+  - `ci.yml`: 830 → 423 (-49%)
+  - `coverage.yml`: 554 → 251 (-55%)
+  - `sanitizers.yml`: 1,192 → 522 (-56%)
+  - `release-linux.yml`, `release-macos.yml`, `release-windows.yml`: checkout + VERSION.txt logic replaced with composite
+- **Quick wins applied** across all 10 workflows: `timeout-minutes`, `upload-artifact@v7`, `concurrency` groups, minimal `permissions`, `.github/CODEOWNERS` with `**/*.c` coverage.
+- **Windows release upload** (W2): `continue-on-error` replaced with 3-attempt retry loop + Windows-specific asset verification via `gh release view --jq`.
+- **Asset-count assertion** (Q3): `publish-release.yml` validates minimum asset counts per platform before publishing.
+- **`scripts/verify-firebird-connection.php`**: Extracted inline PHP DB connection test into reusable script.
+
+#### Fixed
+
+- **#310**: `TransactionManager::__destruct()` now wraps `fbird_rollback()` in try/catch. On FB4/FB5, implicit transaction invalidation (DDL commit, lock conflict) caused exceptions in THROW mode that `@` suppression cannot catch.
+- **Code review fixups**: Windows retry `if: always()` (runs on upload failure), jq Windows-asset filter (counts only `x86_64.zip`), glob fix (`artifacts/*.zip` not `**/*.zip`), CODEOWNERS `**/*.c` (covers `pdo_fbird/`, `src/cpp/`).
+
 ### rc.11 Hotfixes (2026-07-05)
 
 5 issues found during doctrine-firebird-driver integration testing

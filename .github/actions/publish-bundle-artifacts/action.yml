@@ -14,8 +14,8 @@ inputs:
     description: 'jq regex to filter platform-specific assets for verification (e.g. linux.*\\.tar\\.gz$ or x86_64\\.zip$)'
     required: true
   fail-on-unmatched:
-    description: 'Whether to fail if no files match the pattern'
-    default: 'true'
+    description: 'Whether to fail if no files match the pattern (set false for single-platform uploads)'
+    default: 'false'
   draft:
     description: 'Whether to create/update as draft'
     default: 'true'

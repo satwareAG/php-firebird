@@ -234,27 +234,29 @@ jobs:
           fail_on_unmatched_files: true
           draft: true
 
-      - name: Verify release assets uploaded
+      - name: Verify Windows release assets uploaded
+        if: always()
         shell: bash
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
           MAX_RETRIES=3
+          EXPECTED=8  # 4 PHP versions × 2 ts/nts variants
           for attempt in $(seq 1 $MAX_RETRIES); do
-            echo "Verifying release assets (attempt $attempt/$MAX_RETRIES)..."
-            ASSET_COUNT=$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets --jq '.assets | length' 2>/dev/null || echo 0)
-            echo "Found $ASSET_COUNT assets on release"
-            if [ "$ASSET_COUNT" -ge 8 ]; then
-              echo "OK: Sufficient assets ($ASSET_COUNT >= 8)"
+            echo "Verifying Windows assets (attempt $attempt/$MAX_RETRIES)..."
+            WIN_COUNT=$(gh release view "$TAG" --repo "${{ github.repository }}" \
+              --json assets --jq '[.assets[] | select(.name | test("x86_64\\.zip"))] | length' 2>/dev/null || echo 0)
+            echo "Found $WIN_COUNT Windows assets (expected >= $EXPECTED)"
+            if [ "$WIN_COUNT" -ge "$EXPECTED" ]; then
+              echo "OK: Sufficient Windows assets ($WIN_COUNT >= $EXPECTED)"
               exit 0
             fi
             if [ "$attempt" -lt "$MAX_RETRIES" ]; then
               echo "Retrying upload in 10s..."
               sleep 10
-              # Re-upload any missing assets
-              gh release upload "$TAG" artifacts/**/*.zip --clobber --repo "${{ github.repository }}" 2>/dev/null || true
+              gh release upload "$TAG" artifacts/*.zip --clobber --repo "${{ github.repository }}" 2>/dev/null || true
             fi
           done
-          echo "ERROR: Only $ASSET_COUNT assets found after $MAX_RETRIES attempts (expected >= 8)"
+          echo "ERROR: Only $WIN_COUNT Windows assets found after $MAX_RETRIES attempts (expected >= $EXPECTED)"
           exit 1
         env:
           GH_TOKEN: ${{ github.token }}

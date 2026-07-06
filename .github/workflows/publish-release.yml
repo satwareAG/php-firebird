@@ -84,36 +84,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      - name: Download all release assets
+      - name: Validate expected asset count via API
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
-          mkdir -p release-assets
-          cd release-assets
+          ASSETS_JSON=$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets)
 
-          # Download all assets from the draft release (no pattern filtering
-          # — gh release download --pattern has glob matching issues with
-          # dot characters in filenames on some gh CLI versions).
-          gh release download "$TAG" --clobber --repo "${{ github.repository }}" || true
-
-          echo "Downloaded assets:"
-          ls -la
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      - name: Validate expected asset count
-        run: |
-          cd release-assets
-          # Count platform-specific bundles
-          LINUX_COUNT=$(find . -name "*linux*.tar.gz" 2>/dev/null | wc -l)
-          MACOS_COUNT=$(find . -name "*macos*.tar.gz" 2>/dev/null | wc -l)
-          WINDOWS_COUNT=$(find . -name "*x86_64.zip" -o -name "*windows*.zip" 2>/dev/null | wc -l)
-          TOTAL_COUNT=$(find . -type f \( -name "*.tar.gz" -o -name "*.zip" \) | wc -l)
+          LINUX_COUNT=$(echo "$ASSETS_JSON" | jq '[.assets[].name | test("linux.*\\.tar\\.gz$")] | length')
+          MACOS_COUNT=$(echo "$ASSETS_JSON" | jq '[.assets[].name | test("macos.*\\.tar\\.gz$")] | length')
+          WINDOWS_COUNT=$(echo "$ASSETS_JSON" | jq '[.assets[].name | test("x86_64\\.zip$")] | length')
+          TOTAL_COUNT=$(echo "$ASSETS_JSON" | jq '[.assets[].name | test("\\.(tar\\.gz|zip)$")] | length')
 
           echo "Asset counts: Linux=${LINUX_COUNT}, macOS=${MACOS_COUNT}, Windows=${WINDOWS_COUNT}, Total=${TOTAL_COUNT}"
 
-          # Minimum thresholds (some platforms may have fewer bundles
-          # depending on PHP version coverage, but each platform must
-          # have at least some assets)
           fail=0
           [ "$LINUX_COUNT" -lt 8 ] && { echo "ERROR: Linux has only $LINUX_COUNT bundles (expected >= 8)"; fail=1; }
           [ "$MACOS_COUNT" -lt 4 ] && { echo "ERROR: macOS has only $MACOS_COUNT bundles (expected >= 4)"; fail=1; }
@@ -121,12 +103,28 @@ jobs:
           [ "$TOTAL_COUNT" -lt 20 ] && { echo "ERROR: Total $TOTAL_COUNT assets (expected >= 20)"; fail=1; }
 
           if [ "$fail" -ne 0 ]; then
-            echo "FAIL: Asset count validation failed — release incomplete"
-            echo "Listing all assets:"
-            find . -type f | sort
+            echo "FAIL: Asset count validation failed - release incomplete"
             exit 1
           fi
           echo "OK: All expected platform assets present"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Download all release assets
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          mkdir -p release-assets
+          cd release-assets
+
+          # Best-effort download for SLSA attestation and checksums.
+          # Validation already done via API — this is for generating
+          # SLSA attestations on the actual files.
+          gh release download "$TAG" --clobber --repo "${{ github.repository }}" || true
+
+          echo "Downloaded assets:"
+          ls -la
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Generate SLSA Provenance Attestations
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1

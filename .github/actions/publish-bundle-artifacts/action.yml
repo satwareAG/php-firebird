@@ -66,14 +66,14 @@ runs:
         fail_on_unmatched_files: ${{ inputs.fail-on-unmatched }}
         draft: ${{ inputs.draft }}
       env:
-        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ github.token }}
       continue-on-error: true
 
     - name: Verify release assets uploaded
       if: always()
       shell: bash
       env:
-        GH_TOKEN: ${{ env.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ github.token }}
         TAG: ${{ inputs.tag }}
         EXPECTED: ${{ inputs.expected-count }}
         NAME_FILTER: ${{ inputs.asset-name-filter }}

@@ -179,77 +179,16 @@ jobs:
       (github.event_name == 'workflow_dispatch' && inputs.tag != '')
     timeout-minutes: 10
     steps:
-      - name: Determine release tag
-        id: tag
-        run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
-            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event_name }}" = "push" ]; then
-            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Download All Build Artifacts
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+      - name: Determine Release Tag
+        id: release-tag
+        uses: ./.github/actions/determine-release-tag
         with:
-          path: artifacts
-          merge-multiple: true
+          release-tag-input: ${{ inputs.tag }}
 
-      - name: Validate artifact sizes
-        run: |
-          echo "=== Validating artifact sizes ==="
-          found=0
-          for f in artifacts/*.zip; do
-            [ -f "$f" ] || continue
-            found=1
-            size=$(wc -c < "$f")
-            if [ "$size" -lt 100000 ]; then
-              echo "ERROR: $f is only ${size} bytes (expected >100KB)"
-              exit 1
-            fi
-            echo "OK: $f (${size} bytes)"
-          done
-          if [ "$found" -eq 0 ]; then
-            echo "ERROR: No zip artifacts found"
-            exit 1
-          fi
-
-      - name: Upload Windows DLLs to GitHub Release
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3
+      - name: Publish bundle artifacts
+        uses: ./.github/actions/publish-bundle-artifacts
         with:
-          tag_name: ${{ steps.tag.outputs.tag }}
-          files: artifacts/**/*.zip
-          fail_on_unmatched_files: true
-          draft: true
-        continue-on-error: true
-        # The action sometimes fails on metadata update after successful upload.
-        # The Verify step below checks if assets actually landed on the release.
-
-      - name: Verify Windows release assets uploaded
-        if: always()
-        shell: bash
-        run: |
-          TAG="${{ steps.tag.outputs.tag }}"
-          MAX_RETRIES=3
-          EXPECTED=8  # 4 PHP versions × 2 ts/nts variants
-          for attempt in $(seq 1 $MAX_RETRIES); do
-            echo "Verifying Windows assets (attempt $attempt/$MAX_RETRIES)..."
-            WIN_COUNT=$(gh release view "$TAG" --repo "${{ github.repository }}" \
-              --json assets --jq '[.assets[] | select(.name | test("x86_64\\.zip"))] | length' 2>/dev/null || echo 0)
-            echo "Found $WIN_COUNT Windows assets (expected >= $EXPECTED)"
-            if [ "$WIN_COUNT" -ge "$EXPECTED" ]; then
-              echo "OK: Sufficient Windows assets ($WIN_COUNT >= $EXPECTED)"
-              exit 0
-            fi
-            if [ "$attempt" -lt "$MAX_RETRIES" ]; then
-              echo "Retrying upload in 10s..."
-              sleep 10
-              gh release upload "$TAG" artifacts/*.zip --clobber --repo "${{ github.repository }}" 2>/dev/null || true
-            fi
-          done
-          echo "ERROR: Only $WIN_COUNT Windows assets found after $MAX_RETRIES attempts (expected >= $EXPECTED)"
-          exit 1
-        env:
-          GH_TOKEN: ${{ github.token }}
+          tag: ${{ steps.release-tag.outputs.tag }}
+          expected-count: '8'
+          asset-name-filter: 'x86_64\\.zip$'
 

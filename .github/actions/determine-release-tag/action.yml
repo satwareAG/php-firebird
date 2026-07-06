@@ -1,0 +1,37 @@
+name: 'Determine Release Tag'
+description: 'Resolve the release tag from event type (push, release, workflow_dispatch) with version fallback'
+inputs:
+  release-tag-input:
+    description: 'Tag from workflow_dispatch inputs (release_tag or tag)'
+    default: ''
+  version:
+    description: 'Version string for fallback (e.g. 12.0.0)'
+    default: ''
+outputs:
+  tag:
+    description: 'Resolved release tag (e.g. v12.0.0)'
+    value: ${{ steps.release-tag.outputs.tag }}
+runs:
+  using: composite
+  steps:
+    - name: Determine Release Tag
+      id: release-tag
+      shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        RELEASE_TAG: ${{ github.event.release.tag_name }}
+        GITHUB_REF: ${{ github.ref }}
+        INPUT_TAG: ${{ inputs.release-tag-input }}
+        VERSION: ${{ inputs.version }}
+      run: |
+        if [ "${EVENT_NAME}" = "release" ]; then
+          TAG="${RELEASE_TAG}"
+        elif [ "${EVENT_NAME}" = "push" ]; then
+          TAG="${GITHUB_REF#refs/tags/}"
+        elif [ -n "${INPUT_TAG}" ]; then
+          TAG="${INPUT_TAG}"
+        else
+          TAG="v${VERSION}"
+        fi
+        echo "tag=${TAG}" >> $GITHUB_OUTPUT
+        echo "Release tag: ${TAG}"

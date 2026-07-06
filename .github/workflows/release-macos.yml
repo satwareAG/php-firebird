@@ -150,28 +150,9 @@ jobs:
 
       - name: Determine PHP Full Version
         id: php-version
-        run: |
-          MINOR="${{ matrix.php }}"
-          LATEST=$(curl -fsSL --retry 3 --retry-delay 5 \
-            "https://www.php.net/releases/index.php?json&version=${MINOR}" \
-            2>/dev/null | jq -r ".\"${MINOR}\".version // empty" 2>/dev/null || true)
-
-          if [ -n "${LATEST}" ] && [[ "${LATEST}" =~ ^${MINOR}\. ]]; then
-            echo "Resolved PHP ${MINOR} latest from php.net: ${LATEST}"
-            FULL_VERSION="${LATEST}"
-          else
-            echo "php.net API unavailable; using known-good fallback"
-            case "${MINOR}" in
-              8.2) FULL_VERSION="8.2.28" ;;
-              8.3) FULL_VERSION="8.3.16" ;;
-              8.4) FULL_VERSION="8.4.4" ;;
-              8.5) FULL_VERSION="8.5.0" ;;
-              *) FULL_VERSION="${MINOR}.0" ;;
-            esac
-          fi
-
-          echo "full_version=${FULL_VERSION}" >> $GITHUB_OUTPUT
-          echo "PHP full version: ${FULL_VERSION}"
+        uses: ./.github/actions/determine-php-version
+        with:
+          php-minor: ${{ matrix.php }}
 
       - name: Install Build Dependencies
         run: |
@@ -438,90 +419,19 @@ jobs:
       contents: write
 
     steps:
-      - name: Download All Artifacts
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
-        with:
-          path: artifacts
-
-      - name: Prepare Release Assets
-        run: |
-          mkdir -p release-assets
-
-          echo "Downloaded artifacts:"
-          find artifacts -type f -name "*.tar.gz*" | head -40
-
-          find artifacts -name "*.tar.gz" -exec cp {} release-assets/ \;
-          find artifacts -name "*.sha256" -exec cp {} release-assets/ \;
-          find artifacts -name "*.md5" -exec cp {} release-assets/ \;
-          find artifacts -name "*.sbom.cdx.json" -exec cp {} release-assets/ \;
-
-          echo ""
-          echo "Release assets:"
-          ls -la release-assets/
-
-          cd release-assets
-          sha256sum *.tar.gz > CHECKSUMS-SHA256.txt
-          md5sum *.tar.gz > CHECKSUMS-MD5.txt
-
-          echo ""
-          echo "CHECKSUMS-SHA256.txt:"
-          cat CHECKSUMS-SHA256.txt
-
       - name: Determine Release Tag
         id: release-tag
-        run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
-            TAG="${{ github.event.release.tag_name }}"
-          elif [ "${{ github.event_name }}" = "push" ]; then
-            TAG="${GITHUB_REF#refs/tags/}"
-          elif [ -n "${{ inputs.release_tag }}" ]; then
-            TAG="${{ inputs.release_tag }}"
-          else
-            TAG="v${{ needs.prepare.outputs.version }}"
-          fi
-          echo "tag=${TAG}" >> $GITHUB_OUTPUT
-          echo "Release tag: ${TAG}"
-
-      - name: Upload to Release
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3
+        uses: ./.github/actions/determine-release-tag
         with:
-          tag_name: ${{ steps.release-tag.outputs.tag }}
-          files: |
-            release-assets/*.tar.gz
-            release-assets/*.sha256
-            release-assets/*.md5
-            release-assets/*.sbom.cdx.json
-          fail_on_unmatched_files: false
-          draft: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-        # The action sometimes fails on metadata update after successful upload.
-        # The Verify step below checks if assets actually landed on the release.
+          release-tag-input: ${{ inputs.release_tag }}
+          version: ${{ needs.prepare.outputs.version }}
 
-      - name: Verify macOS release assets uploaded
-        if: always()
-        shell: bash
-        run: |
-          TAG="${{ steps.release-tag.outputs.tag }}"
-          EXPECTED=4  # 4 PHP versions × 1 variant (arm64 NTS)
-          for attempt in 1 2 3; do
-            echo "Verifying macOS assets (attempt $attempt/3)..."
-            MACOS_COUNT=$(gh release view "$TAG" --repo "${{ github.repository }}" \
-              --json assets --jq '[.assets[] | select(.name | test("macos.*\\.tar\\.gz$"))] | length' 2>/dev/null || echo 0)
-            echo "Found $MACOS_COUNT macOS assets (expected >= $EXPECTED)"
-            if [ "$MACOS_COUNT" -ge "$EXPECTED" ]; then
-              echo "OK: Sufficient macOS assets ($MACOS_COUNT >= $EXPECTED)"
-              exit 0
-            fi
-            if [ "$attempt" -lt 3 ]; then
-              echo "Retrying upload in 10s..."
-              sleep 10
-              gh release upload "$TAG" release-assets/*.tar.gz release-assets/*.sha256 release-assets/*.md5 release-assets/*.sbom.cdx.json --clobber --repo "${{ github.repository }}" 2>/dev/null || true
-            fi
-          done
-          echo "ERROR: Only $MACOS_COUNT macOS assets found after 3 attempts (expected >= $EXPECTED)"
-          exit 1
+      - name: Publish bundle artifacts
+        uses: ./.github/actions/publish-bundle-artifacts
+        with:
+          tag: ${{ steps.release-tag.outputs.tag }}
+          expected-count: '4'
+          asset-name-filter: 'macos.*\\.tar\\.gz$'
         env:
           GH_TOKEN: ${{ github.token }}
 

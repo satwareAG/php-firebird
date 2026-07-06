@@ -1,0 +1,98 @@
+name: 'Publish Bundle Artifacts'
+description: 'Download build artifacts, prepare release assets, upload to GitHub Release with retry verification. Used by all 3 platform release workflows.'
+inputs:
+  tag:
+    description: 'Release tag to upload to'
+    required: true
+  asset-pattern:
+    description: 'Glob pattern for asset files (e.g. release-assets/*.tar.gz or artifacts/*.zip)'
+    required: true
+  expected-count:
+    description: 'Minimum expected asset count for verification'
+    default: '4'
+  asset-name-filter:
+    description: 'jq regex to filter platform-specific assets for verification (e.g. linux.*\\.tar\\.gz$ or x86_64\\.zip$)'
+    required: true
+  fail-on-unmatched:
+    description: 'Whether to fail if no files match the pattern'
+    default: 'true'
+  draft:
+    description: 'Whether to create/update as draft'
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - name: Download all build artifacts
+      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+      with:
+        path: artifacts
+        merge-multiple: true
+
+    - name: Prepare release assets
+      shell: bash
+      run: |
+        set -eu
+        mkdir -p release-assets
+
+        # Copy all bundle files to release-assets/
+        find artifacts -name "*.tar.gz" -exec cp {} release-assets/ \; 2>/dev/null || true
+        find artifacts -name "*.sha256" -exec cp {} release-assets/ \; 2>/dev/null || true
+        find artifacts -name "*.md5" -exec cp {} release-assets/ \; 2>/dev/null || true
+        find artifacts -name "*.sbom.cdx.json" -exec cp {} release-assets/ \; 2>/dev/null || true
+        find artifacts -name "*.zip" -exec cp {} release-assets/ \; 2>/dev/null || true
+
+        # Generate checksums index
+        cd release-assets
+        if ls *.tar.gz *.zip 1>/dev/null 2>&1; then
+          sha256sum *.tar.gz *.zip > CHECKSUMS-SHA256.txt 2>/dev/null || true
+          md5sum *.tar.gz *.zip > CHECKSUMS-MD5.txt 2>/dev/null || true
+        fi
+
+        echo "Release assets prepared:"
+        ls -la
+
+    - name: Upload to Release
+      uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3
+      with:
+        tag_name: ${{ inputs.tag }}
+        files: |
+          release-assets/*.tar.gz
+          release-assets/*.sha256
+          release-assets/*.md5
+          release-assets/*.sbom.cdx.json
+          release-assets/*.zip
+          release-assets/CHECKSUMS-*.txt
+        fail_on_unmatched_files: ${{ inputs.fail-on-unmatched }}
+        draft: ${{ inputs.draft }}
+      env:
+        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+      continue-on-error: true
+
+    - name: Verify release assets uploaded
+      if: always()
+      shell: bash
+      env:
+        GH_TOKEN: ${{ env.GITHUB_TOKEN }}
+        TAG: ${{ inputs.tag }}
+        EXPECTED: ${{ inputs.expected-count }}
+        NAME_FILTER: ${{ inputs.asset-name-filter }}
+      run: |
+        MAX_RETRIES=3
+        for attempt in $(seq 1 $MAX_RETRIES); do
+          echo "Verifying assets (attempt $attempt/$MAX_RETRIES)..."
+          COUNT=$(gh release view "$TAG" --repo "${{ github.repository }}" \
+            --json assets --jq "[.assets[] | select(.name | test(\"${NAME_FILTER}\"))] | length" 2>/dev/null || echo 0)
+          echo "Found $COUNT assets (expected >= $EXPECTED)"
+          if [ "$COUNT" -ge "$EXPECTED" ]; then
+            echo "OK: Sufficient assets ($COUNT >= $EXPECTED)"
+            exit 0
+          fi
+          if [ "$attempt" -lt "$MAX_RETRIES" ]; then
+            echo "Retrying upload in 10s..."
+            sleep 10
+            gh release upload "$TAG" release-assets/*.tar.gz release-assets/*.sha256 release-assets/*.md5 release-assets/*.zip release-assets/*.sbom.cdx.json release-assets/CHECKSUMS-*.txt --clobber --repo "${{ github.repository }}" 2>/dev/null || true
+          fi
+        done
+        echo "ERROR: Only $COUNT assets found after $MAX_RETRIES attempts (expected >= $EXPECTED)"
+        exit 1

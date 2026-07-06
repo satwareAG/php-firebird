@@ -95,6 +95,8 @@ runs:
         GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
       run: |
         set -eu
+        # Accept both '5' and '5.0' formats — extract major version
+        FB_MAJOR=$(echo "${FB_MAJOR}" | cut -d. -f1)
         chmod +x scripts/get-latest-firebird.sh
         eval "$(./scripts/get-latest-firebird.sh "${FB_MAJOR}")"
         echo "fb_version=${FB_VERSION}"       >> "$GITHUB_OUTPUT"

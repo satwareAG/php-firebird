@@ -172,3 +172,4 @@ pdo_fbird_root.c
 pdo_fbird_driver.c
 pdo_fbird_stmt.c
 pdo_fbird_error.c
+.opencode/

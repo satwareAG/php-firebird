@@ -63,9 +63,9 @@ jobs:
           while [ $ELAPSED -lt $MAX_WAIT ]; do
             ASSETS_JSON=$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets 2>/dev/null || echo '{"assets":[]}')
 
-            LINUX=$(echo "$ASSETS_JSON" | jq '[.assets[].name | test("linux.*\\.tar\\.gz$")] | length' 2>/dev/null || echo 0)
-            MACOS=$(echo "$ASSETS_JSON" | jq '[.assets[].name | test("macos.*\\.tar\\.gz$")] | length' 2>/dev/null || echo 0)
-            WIN=$(echo "$ASSETS_JSON" | jq '[.assets[].name | test("x86_64\\.zip$")] | length' 2>/dev/null || echo 0)
+            LINUX=$(echo "$ASSETS_JSON" | jq '[.assets[].name | select(endswith(".tar.gz") and contains("linux"))] | length' 2>/dev/null || echo 0)
+            MACOS=$(echo "$ASSETS_JSON" | jq '[.assets[].name | select(endswith(".tar.gz") and contains("macos"))] | length' 2>/dev/null || echo 0)
+            WIN=$(echo "$ASSETS_JSON" | jq '[.assets[].name | select(endswith(".zip") and contains("x86_64"))] | length' 2>/dev/null || echo 0)
 
             echo "Assets: Linux=$LINUX, macOS=$MACOS, Windows=$WIN (${ELAPSED}s / ${MAX_WAIT}s)"
 
@@ -89,10 +89,10 @@ jobs:
           TAG="${{ steps.tag.outputs.tag }}"
           ASSETS_JSON=$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets)
 
-          LINUX_COUNT=$(echo "$ASSETS_JSON" | jq '[.assets[].name | test("linux.*\\.tar\\.gz$")] | length')
-          MACOS_COUNT=$(echo "$ASSETS_JSON" | jq '[.assets[].name | test("macos.*\\.tar\\.gz$")] | length')
-          WINDOWS_COUNT=$(echo "$ASSETS_JSON" | jq '[.assets[].name | test("x86_64\\.zip$")] | length')
-          TOTAL_COUNT=$(echo "$ASSETS_JSON" | jq '[.assets[].name | test("\\.(tar\\.gz|zip)$")] | length')
+          LINUX_COUNT=$(echo "$ASSETS_JSON" | jq '[.assets[].name | select(endswith(".tar.gz") and contains("linux"))] | length')
+          MACOS_COUNT=$(echo "$ASSETS_JSON" | jq '[.assets[].name | select(endswith(".tar.gz") and contains("macos"))] | length')
+          WINDOWS_COUNT=$(echo "$ASSETS_JSON" | jq '[.assets[].name | select(endswith(".zip") and contains("x86_64"))] | length')
+          TOTAL_COUNT=$(echo "$ASSETS_JSON" | jq '[.assets[].name | select(endswith(".tar.gz") or endswith(".zip"))] | length')
 
           echo "Asset counts: Linux=${LINUX_COUNT}, macOS=${MACOS_COUNT}, Windows=${WINDOWS_COUNT}, Total=${TOTAL_COUNT}"
 

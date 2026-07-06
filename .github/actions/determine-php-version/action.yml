@@ -5,7 +5,7 @@ inputs:
     description: 'PHP minor version (e.g. 8.2, 8.3, 8.4, 8.5)'
     required: true
 outputs:
-  full-version:
+  full_version:
     description: 'Full PHP version (e.g. 8.3.16)'
     value: ${{ steps.php-version.outputs.full_version }}
 runs:

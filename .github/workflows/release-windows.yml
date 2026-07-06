@@ -179,6 +179,9 @@ jobs:
       (github.event_name == 'workflow_dispatch' && inputs.tag != '')
     timeout-minutes: 10
     steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
       - name: Determine Release Tag
         id: release-tag
         uses: ./.github/actions/determine-release-tag

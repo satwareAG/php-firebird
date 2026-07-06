@@ -1,0 +1,39 @@
+name: 'Build PHP Extension'
+description: 'Run phpize, configure, and make for the firebird extension'
+inputs:
+  firebird-path:
+    description: 'Path to Firebird client installation'
+    required: false
+    default: '/opt/firebird-client'
+  configure-args:
+    description: 'Extra configure arguments'
+    required: false
+    default: ''
+  enable-lto:
+    description: 'Enable LTO (pass --enable-fbird-lto)'
+    required: false
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: phpize
+      shell: bash
+      run: |
+        phpize
+        # Clean .dep files between PHP versions (absolute paths differ)
+        find . -name '*.dep' -delete 2>/dev/null || true
+
+    - name: Configure
+      shell: bash
+      run: |
+        ARGS="--with-firebird=${{ inputs.firebird-path }}"
+        if [ "${{ inputs.enable-lto }}" = "true" ]; then
+          ARGS="$ARGS --enable-fbird-lto"
+        fi
+        ARGS="$ARGS ${{ inputs.configure-args }}"
+        ./configure $ARGS
+
+    - name: Build
+      shell: bash
+      run: |
+        make -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"

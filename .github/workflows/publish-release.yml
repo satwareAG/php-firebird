@@ -145,6 +145,34 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+      - name: Validate expected asset count
+        run: |
+          cd release-assets
+          # Count platform-specific bundles
+          LINUX_COUNT=$(find . -name "*linux*.tar.gz" 2>/dev/null | wc -l)
+          MACOS_COUNT=$(find . -name "*macos*.tar.gz" 2>/dev/null | wc -l)
+          WINDOWS_COUNT=$(find . -name "*x86_64.zip" -o -name "*windows*.zip" 2>/dev/null | wc -l)
+          TOTAL_COUNT=$(find . -type f \( -name "*.tar.gz" -o -name "*.zip" \) | wc -l)
+
+          echo "Asset counts: Linux=${LINUX_COUNT}, macOS=${MACOS_COUNT}, Windows=${WINDOWS_COUNT}, Total=${TOTAL_COUNT}"
+
+          # Minimum thresholds (some platforms may have fewer bundles
+          # depending on PHP version coverage, but each platform must
+          # have at least some assets)
+          fail=0
+          [ "$LINUX_COUNT" -lt 8 ] && { echo "ERROR: Linux has only $LINUX_COUNT bundles (expected >= 8)"; fail=1; }
+          [ "$MACOS_COUNT" -lt 4 ] && { echo "ERROR: macOS has only $MACOS_COUNT bundles (expected >= 4)"; fail=1; }
+          [ "$WINDOWS_COUNT" -lt 8 ] && { echo "ERROR: Windows has only $WINDOWS_COUNT DLLs (expected >= 8)"; fail=1; }
+          [ "$TOTAL_COUNT" -lt 20 ] && { echo "ERROR: Total $TOTAL_COUNT assets (expected >= 20)"; fail=1; }
+
+          if [ "$fail" -ne 0 ]; then
+            echo "FAIL: Asset count validation failed — release incomplete"
+            echo "Listing all assets:"
+            find . -type f | sort
+            exit 1
+          fi
+          echo "OK: All expected platform assets present"
+
       - name: Generate SLSA Provenance Attestations
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:

@@ -27,6 +27,10 @@ permissions:
   id-token: write
   attestations: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   wait-and-publish:
     runs-on: ubuntu-24.04

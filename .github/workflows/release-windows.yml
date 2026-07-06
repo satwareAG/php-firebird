@@ -25,7 +25,12 @@ on:
         description: 'Release tag to build for (optional)'
         required: false
 
-permissions: read-all
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   FIREBIRD_SDK_CACHE_KEY: firebird-sdk-v2
@@ -38,6 +43,7 @@ jobs:
   get-extension-matrix:
     # CI gate removed — relies on pre-tag verification (scripts/verify-ci-green.sh)
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     outputs:
       matrix: ${{ steps.extension-matrix.outputs.matrix }}
     steps:
@@ -58,6 +64,7 @@ jobs:
   build:
     needs: get-extension-matrix
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.get-extension-matrix.outputs.matrix) }}
@@ -181,6 +188,7 @@ jobs:
     if: |
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
       (github.event_name == 'workflow_dispatch' && inputs.tag != '')
+    timeout-minutes: 10
     steps:
       - name: Determine release tag
         id: tag

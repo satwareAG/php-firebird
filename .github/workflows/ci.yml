@@ -28,7 +28,8 @@ on:
 # Cancel in-progress runs for the same ref when a new push arrives.
 # This avoids wasting runner minutes on stale builds while keeping
 # manual dispatches and scheduled nightly runs independent.
-permissions: read-all
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -38,6 +39,7 @@ jobs:
   linux-matrix-build:
     name: PHP ${{ matrix.php-version }} / Firebird ${{ matrix.firebird-version }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
 
     strategy:
       fail-fast: false
@@ -622,7 +624,7 @@ jobs:
 
       - name: Upload test failure diffs
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-diffs-php${{ matrix.php-version }}-fb${{ matrix.firebird-version }}
           path: tests/**/*.diff
@@ -643,6 +645,7 @@ jobs:
   macos-build:
     name: macOS ${{ matrix.arch }} (build-only)
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
 
     strategy:
       fail-fast: false

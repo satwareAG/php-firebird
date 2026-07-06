@@ -47,7 +47,12 @@ env:
   FB_VERSION: '5.0.3'
   FB_BUILD: '1683'
 
-permissions: read-all
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   # ===========================================================================
@@ -56,6 +61,7 @@ jobs:
   prepare:
     # CI gate removed — relies on pre-tag verification (scripts/verify-ci-green.sh)
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       version: ${{ steps.get-version.outputs.version }}
@@ -124,6 +130,7 @@ jobs:
   build:
     needs: prepare
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
 
     strategy:
       fail-fast: false
@@ -420,7 +427,7 @@ jobs:
           artifact-name: ''
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ${{ steps.bundle.outputs.bundle_name }}
           path: |
@@ -442,6 +449,7 @@ jobs:
     if: |
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
       (github.event_name == 'workflow_dispatch' && inputs.upload_to_release)
+    timeout-minutes: 10
 
     permissions:
       contents: write
@@ -514,6 +522,7 @@ jobs:
     if: |
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
       github.event_name == 'workflow_dispatch'
+    timeout-minutes: 15
 
     strategy:
       fail-fast: false

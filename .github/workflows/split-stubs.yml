@@ -14,12 +14,18 @@ on:
       - 'v*'
   workflow_dispatch:
 
-permissions: read-all
+permissions:
+  contents: read
+
+concurrency:
+  group: split-stubs-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   split:
     name: Split stubs/ to dedicated repository
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     
     steps:
       - name: Checkout repository

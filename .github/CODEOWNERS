@@ -1,0 +1,19 @@
+# CI/CD pipeline changes require review
+/.github/workflows/   @satwareAG-ironMike
+/.github/actions/     @satwareAG-ironMike
+
+# Release infrastructure
+/scripts/             @satwareAG-ironMike
+/VERSION.txt          @satwareAG-ironMike
+
+# C source code
+/*.c                  @satwareAG-ironMike
+/*.cpp                @satwareAG-ironMike
+/*.h                  @satwareAG-ironMike
+
+# Stubs (downstream doctrine-firebird-driver depends on these)
+/stubs/               @satwareAG-ironMike
+/phpstan/             @satwareAG-ironMike
+
+# Specs
+/specs/               @satwareAG-ironMike

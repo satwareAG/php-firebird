@@ -6,7 +6,8 @@ on:
   workflow_dispatch:
 
 # Cancel in-progress runs for the same branch
-permissions: read-all
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,6 +21,7 @@ jobs:
   asan-ubsan:
     name: ASan + UBSan (PHP ${{ matrix.php-version }})
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
 
     strategy:
       fail-fast: false
@@ -387,6 +389,7 @@ jobs:
   lsan:
     name: LeakSanitizer (PHP 8.3)
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
 
     services:
       firebird:
@@ -754,6 +757,7 @@ jobs:
   tsan-zts:
     name: ThreadSanitizer + ZTS (PHP 8.3)
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
 
     services:
       firebird:
@@ -1163,6 +1167,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [asan-ubsan, lsan, tsan-zts]
     if: always()
+    timeout-minutes: 5
 
     steps:
       - name: Check sanitizer results

@@ -10,7 +10,8 @@ on:
     - cron: '0 0 * * 0'
 
 # Cancel in-progress runs for the same branch
-permissions: read-all
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -23,6 +24,7 @@ jobs:
   analyze-cpp:
     name: CodeQL C/C++
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
     container:
       image: php:8.3-cli-bookworm
 

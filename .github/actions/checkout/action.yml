@@ -23,12 +23,21 @@ runs:
       run: |
         if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
           echo "${GITHUB_REF#refs/tags/v}" > VERSION.txt
-        elif [ ! -f VERSION.txt ]; then
+          echo "version source: tag"
+        elif [ -f VERSION.txt ]; then
+          echo "version source: VERSION.txt"
+        elif [ -f php_firebird.h ]; then
           VERSION=$(grep -E '#define PHP_FIREBIRD_VERSION_STRING' php_firebird.h 2>/dev/null | sed 's/.*"\([^"]*\)".*/\1/' | head -1)
-          if [ -z "$VERSION" ]; then
-            echo "ERROR: Cannot determine version" >&2
+          if [ -z "$VERSION" ] || [[ "$VERSION" == *"unknown"* ]]; then
+            echo "ERROR: Cannot determine version (empty or 'unknown' in header)" >&2
             exit 1
           fi
           echo "${VERSION}" > VERSION.txt
+          echo "version source: header"
+        else
+          echo "ERROR: Cannot determine version (no tag, no VERSION.txt, no php_firebird.h)" >&2
+          exit 1
         fi
-        echo "version=$(cat VERSION.txt)" >> $GITHUB_OUTPUT
+        VERSION=$(cat VERSION.txt | tr -d '[:space:]')
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "Extension version: ${VERSION}"

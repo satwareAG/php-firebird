@@ -37,8 +37,15 @@ jobs:
         if: github.ref_type == 'tag'
         run: |
           # If the tag already exists in the stubs repo (e.g. from a previous split),
-          # delete it so the split action can recreate it.
-          gh api -X DELETE "repos/satwareAG/php-firebird-stubs/git/refs/tags/${{ github.ref_name }}" 2>/dev/null || true
+          # try to delete it so the split action can recreate it.
+          # Tag protection rules may block deletion — in that case, the split
+          # action will fail with "tag already exists", which is acceptable
+          # (the stubs repo already has the correct tag from the previous run).
+          if gh api -X DELETE "repos/satwareAG/php-firebird-stubs/git/refs/tags/${{ github.ref_name }}" 2>/dev/null; then
+            echo "Deleted existing tag ${{ github.ref_name }} in stubs repo"
+          else
+            echo "Tag ${{ github.ref_name }} could not be deleted (protected or not found) — split will use existing tag"
+          fi
         env:
           GH_TOKEN: ${{ secrets.STUBS_REPO_TOKEN }}
 

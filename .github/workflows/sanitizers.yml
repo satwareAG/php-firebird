@@ -287,6 +287,25 @@ jobs:
             exit(1);
           '
 
+      - name: Create LSan suppressions file
+        run: |
+          cat > lsan.supp << 'EOF'
+          # PHP internal allocations
+          leak:zend_
+          leak:php_
+          leak:_emalloc
+          leak:_erealloc
+
+          # Firebird client library
+          leak:fb_client
+          leak:isc_
+          leak:ib_util
+
+          # ICU library
+          leak:libicuuc
+          leak:libicui18n
+          EOF
+
       - name: Install Composer dependencies
         run: |
           EXPECTED_SIGNATURE="$(curl -sS https://composer.github.io/installer.sig)"

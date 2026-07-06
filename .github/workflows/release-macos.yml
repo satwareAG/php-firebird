@@ -64,31 +64,11 @@ jobs:
     timeout-minutes: 10
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
-      version: ${{ steps.get-version.outputs.version }}
+      version: ${{ steps.checkout.outputs.version }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Get Extension Version
-        id: get-version
-        run: |
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            VERSION="${GITHUB_REF#refs/tags/v}"
-            echo "${VERSION}" > VERSION.txt
-            echo "Updated VERSION.txt from tag: ${VERSION}"
-          elif [ -f VERSION.txt ]; then
-            VERSION=$(cat VERSION.txt | tr -d '[:space:]')
-          else
-            VERSION=$(grep -E '#define PHP_FIREBIRD_VERSION_STRING' php_firebird.h | sed 's/.*"\([^"]*\)".*/\1/' | head -1)
-            if [ -z "$VERSION" ] || [[ "$VERSION" == *"unknown"* ]]; then
-              echo "ERROR: Cannot determine version" >&2
-              exit 1
-            fi
-            echo "${VERSION}" > VERSION.txt
-          fi
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "Extension version: ${VERSION}"
+        uses: ./.github/actions/checkout
 
       - name: Set Build Matrix
         id: set-matrix
@@ -138,7 +118,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: ./.github/actions/checkout
 
       - name: Cache Firebird macOS Package
         id: cache-firebird

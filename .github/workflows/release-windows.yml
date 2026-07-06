@@ -48,7 +48,7 @@ jobs:
       matrix: ${{ steps.extension-matrix.outputs.matrix }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: ./.github/actions/checkout
 
       - name: Get the extension matrix
         id: extension-matrix
@@ -73,30 +73,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Ensure VERSION.txt file
-        shell: pwsh
-        run: |
-          if ("${{ github.ref }}" -like "refs/tags/v*") {
-            $version = "${{ github.ref }}".Substring(11)
-            Set-Content -Path "VERSION.txt" -Value $version
-            Write-Host "Updated VERSION.txt from tag: $version"
-          } elseif (-not (Test-Path "VERSION.txt")) {
-            # Extract from php_firebird.h as fallback
-            $header = Get-Content "php_firebird.h"
-            $match = $header | Select-String -Pattern '#define PHP_FIREBIRD_VERSION_STRING "([^"]+)"'
-            if ($match) {
-              $version = $match.Matches[0].Groups[1].Value
-            } else {
-              Write-Error "Cannot determine version (no tag, no VERSION.txt, no php_firebird.h define)"
-              exit 1
-            }
-            Set-Content -Path "VERSION.txt" -Value $version
-            Write-Host "Created VERSION.txt from header: $version"
-          } else {
-            Write-Host "Using existing VERSION.txt: $(Get-Content VERSION.txt)"
-          }
+        uses: ./.github/actions/checkout
 
       - name: Cache Firebird SDK
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5

@@ -216,6 +216,9 @@ jobs:
           files: artifacts/**/*.zip
           fail_on_unmatched_files: true
           draft: true
+        continue-on-error: true
+        # The action sometimes fails on metadata update after successful upload.
+        # The Verify step below checks if assets actually landed on the release.
 
       - name: Verify Windows release assets uploaded
         if: always()

@@ -54,238 +54,40 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: ./.github/actions/checkout
 
-      - name: Install build dependencies
-        run: |
-          set -eu
-          export DEBIAN_FRONTEND=noninteractive
-
-          apt-get update
-          apt-get install -y --no-install-recommends \
-            autoconf \
-            build-essential \
-            ca-certificates \
-            clang \
-            g++ \
-            git \
-            libasan8 \
-            libicu-dev \
-            libtool \
-            libubsan1 \
-            llvm \
-            netbase \
-            netcat-openbsd \
-            pkg-config \
-            wget \
-            curl \
-            unzip \
-            jq \
-            libtommath1 \
-            libncurses6
-
-          # Create compatibility symlinks for Firebird client libraries
-          echo "Creating library compatibility symlinks..."
-          if [ -f /lib/x86_64-linux-gnu/libncurses.so.6 ]; then
-            ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /lib/x86_64-linux-gnu/libncurses.so.5
-            ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 /lib/x86_64-linux-gnu/libtinfo.so.5 2>/dev/null || true
-          fi
-          if [ -f /lib/x86_64-linux-gnu/libtommath.so.1 ]; then
-            ln -sf /lib/x86_64-linux-gnu/libtommath.so.1 /lib/x86_64-linux-gnu/libtommath.so.0
-          fi
-          ldconfig
-
-          rm -rf /var/lib/apt/lists/*
-          docker-php-ext-install pcntl
-
-      - name: Resolve Firebird 5 client version
-        id: fb-version
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -eu
-          chmod +x scripts/get-latest-firebird.sh
-          eval "$(./scripts/get-latest-firebird.sh 5)"
-          echo "fb_version=${FB_VERSION}"       >> "$GITHUB_OUTPUT"
-          echo "fb_url=${FB_URL}"               >> "$GITHUB_OUTPUT"
-          echo "fb_tarball=${FB_TARBALL}"       >> "$GITHUB_OUTPUT"
-          echo "fb_extract_dir=${FB_EXTRACT_DIR}" >> "$GITHUB_OUTPUT"
-          echo "Resolved: FB ${FB_VERSION} -> ${FB_TARBALL}"
-
-      - name: Cache Firebird 5 client tarball
-        id: cache-firebird
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+      - name: Install Firebird client
+        uses: ./.github/actions/install-firebird-client
         with:
-          path: /tmp/firebird-cache
-          key: firebird-client-${{ steps.fb-version.outputs.fb_version }}-linux-x64
+          firebird-major-version: '5'
+          extra-apt-packages: clang libasan8 libubsan1 llvm
 
-      - name: Download Firebird 5 client tarball
-        if: steps.cache-firebird.outputs.cache-hit != 'true'
-        env:
-          FB_URL: ${{ steps.fb-version.outputs.fb_url }}
-          FB_TARBALL: ${{ steps.fb-version.outputs.fb_tarball }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build firebird extension with ASan + UBSan
+        uses: ./.github/actions/build-extension
+        with:
+          build-pdo-fbird: 'false'
+          cc: gcc
+          cxx: g++
+          cflags-extra: -I/opt/firebird-client/include -fsanitize=address,undefined -fno-omit-frame-pointer -g -O1
+          cxxflags-extra: -I/opt/firebird-client/include -fsanitize=address,undefined -fno-omit-frame-pointer -g -O1
+          ldflags-extra: -L/opt/firebird-client/lib -fsanitize=address,undefined
+          ld-library-path-extra: /opt/firebird-client/lib
+
+      - name: Build pdo_fbird extension with ASan
+        shell: bash
         run: |
           set -eu
-          mkdir -p /tmp/firebird-cache
-          DEST="/tmp/firebird-cache/${FB_TARBALL}"
-          DELAY=10
-          for attempt in 1 2 3 4 5; do
-            echo "Downloading FB client (attempt ${attempt}/5)..."
-            if curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused \
-                -H "Authorization: token ${GITHUB_TOKEN}" \
-                "${FB_URL}" -o "${DEST}"; then
-              FSIZE=$(stat -c%s "${DEST}" 2>/dev/null || echo "0")
-              if [ "${FSIZE}" -gt 8000000 ]; then echo "Download OK (${FSIZE} bytes)"; break; fi
-              rm -f "${DEST}"
-            fi
-            if wget -q --tries=3 --timeout=90 \
-                --header="Authorization: token ${GITHUB_TOKEN}" \
-                "${FB_URL}" -O "${DEST}"; then
-              FSIZE=$(stat -c%s "${DEST}" 2>/dev/null || echo "0")
-              if [ "${FSIZE}" -gt 8000000 ]; then echo "wget OK (${FSIZE} bytes)"; break; fi
-              rm -f "${DEST}"
-            fi
-            [ "${attempt}" -lt 5 ] && sleep "$((DELAY * attempt))"
-          done
-          [ -f "${DEST}" ] || { echo "ERROR: Download failed" >&2; exit 1; }
-
-      - name: Install Firebird 5.0 client library
-        env:
-          FB_VERSION: ${{ steps.fb-version.outputs.fb_version }}
-          FB_TARBALL: ${{ steps.fb-version.outputs.fb_tarball }}
-          FB_EXTRACT_DIR: ${{ steps.fb-version.outputs.fb_extract_dir }}
-        run: |
-          set -eu
-
-          FB_CLIENT_DIR="/opt/firebird-client"
-          mkdir -p "${FB_CLIENT_DIR}"
-
-          cp "/tmp/firebird-cache/${FB_TARBALL}" "/tmp/${FB_TARBALL}"
-          echo "Installing Firebird ${FB_VERSION} client library from ${FB_TARBALL}..."
-
-          cd /tmp
-          tar xzf "${FB_TARBALL}"
-          cd "${FB_EXTRACT_DIR}"
-          tar xzf buildroot.tar.gz
-
-          if [ -d "opt/firebird/include" ]; then
-            mkdir -p "${FB_CLIENT_DIR}/include"
-            cp -a opt/firebird/include/* "${FB_CLIENT_DIR}/include/"
-          fi
-          if [ -d "opt/firebird/lib" ]; then
-            mkdir -p "${FB_CLIENT_DIR}/lib"
-            cp -a opt/firebird/lib/* "${FB_CLIENT_DIR}/lib/"
-          fi
-
-          # Install ALL library files from the Firebird client package
-          echo "=== Installing ALL libraries to system paths ==="
-
-          # Copy all actual library files (not symlinks) first
-          for libfile in "${FB_CLIENT_DIR}/lib/"*.so*; do
-            if [ -f "$libfile" ] && [ ! -L "$libfile" ]; then
-              LIBNAME=$(basename "$libfile")
-              echo "Copying actual library: $LIBNAME"
-              cp "$libfile" /usr/lib/
-              cp "$libfile" /usr/local/lib/ 2>/dev/null || true
-            fi
-          done
-
-          # Now create proper symlinks for libfbclient
-          if [ -f /usr/lib/libfbclient.so.*.*.* ] 2>/dev/null; then
-            FBCLIENT_REAL=$(ls /usr/lib/libfbclient.so.*.*.* 2>/dev/null | head -1)
-            FBCLIENT_NAME=$(basename "$FBCLIENT_REAL")
-            echo "Creating symlinks for $FBCLIENT_NAME"
-            ln -sf "$FBCLIENT_NAME" /usr/lib/libfbclient.so.2
-            ln -sf libfbclient.so.2 /usr/lib/libfbclient.so
-          fi
-
-          # Create symlinks for libtomcrypt if present
-          if [ -f /usr/lib/libtomcrypt.so.*.*.* ] 2>/dev/null; then
-            TOMCRYPT_REAL=$(ls /usr/lib/libtomcrypt.so.*.*.* 2>/dev/null | head -1)
-            TOMCRYPT_NAME=$(basename "$TOMCRYPT_REAL")
-            ln -sf "$TOMCRYPT_NAME" /usr/lib/libtomcrypt.so.1
-            ln -sf libtomcrypt.so.1 /usr/lib/libtomcrypt.so
-          fi
-
-          # Copy headers directly
-          cp -a "${FB_CLIENT_DIR}/include"/* /usr/include/ 2>/dev/null || true
-
-          # Configure dynamic linker
-          echo "${FB_CLIENT_DIR}/lib" > /etc/ld.so.conf.d/firebird-client.conf
-          echo "/usr/local/lib" >> /etc/ld.so.conf.d/firebird-client.conf
-          echo "/usr/lib" >> /etc/ld.so.conf.d/firebird-client.conf
-          ldconfig
-
-          # Verify installation
-          ldconfig -p | grep -E "(fbclient|tomcrypt)" || echo "Warning: libraries not in ldconfig cache"
-          ldd /usr/lib/libfbclient.so 2>&1 || echo "Warning: could not check libfbclient dependencies"
-          echo "Firebird client installed"
-
-      - name: Configure Firebird client authentication
-        run: |
-          set -eu
-          echo "Configuring Firebird client authentication for CI..."
-
-          # Create firebird.conf in multiple locations where libfbclient might look
-          FB_CONF_CONTENT='# Firebird client configuration for CI
-          AuthClient = Srp256, Srp, Legacy_Auth
-          WireCrypt = Enabled
-          '
-
-          mkdir -p /opt/firebird-client
-          echo "$FB_CONF_CONTENT" > /opt/firebird-client/firebird.conf
-
-          mkdir -p /etc/firebird
-          echo "$FB_CONF_CONTENT" > /etc/firebird/firebird.conf
-
-          mkdir -p /opt/firebird-client/etc
-          echo "$FB_CONF_CONTENT" > /opt/firebird-client/etc/firebird.conf
-
-          echo "=== Firebird client configuration ==="
-          cat /etc/firebird/firebird.conf
-
-      - name: Wait for Firebird service
-        run: |
-          set -eu
-          for i in $(seq 1 60); do
-            if nc -z firebird 3050 2>/dev/null; then
-              echo "Firebird is ready"
-              sleep 5
-              break
-            fi
-            echo "Waiting for Firebird (${i}/60)..."
-            sleep 2
-          done
-
-          if ! nc -z firebird 3050 2>/dev/null; then
-            echo "ERROR: Firebird did not start" >&2
-            exit 1
-          fi
-
-      - name: Build extension with AddressSanitizer + UBSan
-        run: |
-          set -eu
-
           export LD_LIBRARY_PATH="/opt/firebird-client/lib:${LD_LIBRARY_PATH:-}"
-
-          # Sanitizer flags - using GCC which has built-in sanitizer support
           SANITIZE_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g -O1"
-
-          export CC=gcc
-          export CXX=g++
+          export CC=gcc CXX=g++
           export CFLAGS="-I/opt/firebird-client/include ${SANITIZE_FLAGS}"
           export CXXFLAGS="-I/opt/firebird-client/include ${SANITIZE_FLAGS}"
           export LDFLAGS="-L/opt/firebird-client/lib -fsanitize=address,undefined"
-
+          cd pdo_fbird
           phpize
-          ./configure --with-firebird=/opt/firebird-client
+          ./configure --with-pdo-fbird --with-firebird=/opt/firebird-client
           make -j"$(nproc)"
-
-          # Build pdo_fbird as separate extension
-          (cd pdo_fbird && phpize && ./configure --with-pdo-fbird --with-firebird=/opt/firebird-client && make -j"$(nproc)")
-
-          echo "Extension built with ASan + UBSan"
+          echo "pdo_fbird built with ASan + UBSan"
 
       - name: Verify extension build
         run: |
@@ -414,236 +216,25 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: ./.github/actions/checkout
 
-      - name: Install build dependencies
-        run: |
-          set -eu
-          export DEBIAN_FRONTEND=noninteractive
-
-          apt-get update
-          apt-get install -y --no-install-recommends \
-            autoconf \
-            build-essential \
-            ca-certificates \
-            clang \
-            g++ \
-            git \
-            libasan8 \
-            libicu-dev \
-            liblsan0 \
-            libtool \
-            llvm \
-            netbase \
-            netcat-openbsd \
-            pkg-config \
-            wget \
-            curl \
-            unzip \
-            jq \
-            libtommath1 \
-            libncurses6
-
-          # Create compatibility symlinks for Firebird client libraries
-          echo "Creating library compatibility symlinks..."
-          if [ -f /lib/x86_64-linux-gnu/libncurses.so.6 ]; then
-            ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /lib/x86_64-linux-gnu/libncurses.so.5
-            ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 /lib/x86_64-linux-gnu/libtinfo.so.5 2>/dev/null || true
-          fi
-          if [ -f /lib/x86_64-linux-gnu/libtommath.so.1 ]; then
-            ln -sf /lib/x86_64-linux-gnu/libtommath.so.1 /lib/x86_64-linux-gnu/libtommath.so.0
-          fi
-          ldconfig
-
-          rm -rf /var/lib/apt/lists/*
-          docker-php-ext-install pcntl
-
-      - name: Resolve Firebird 5 client version
-        id: fb-version
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -eu
-          chmod +x scripts/get-latest-firebird.sh
-          eval "$(./scripts/get-latest-firebird.sh 5)"
-          echo "fb_version=${FB_VERSION}"       >> "$GITHUB_OUTPUT"
-          echo "fb_url=${FB_URL}"               >> "$GITHUB_OUTPUT"
-          echo "fb_tarball=${FB_TARBALL}"       >> "$GITHUB_OUTPUT"
-          echo "fb_extract_dir=${FB_EXTRACT_DIR}" >> "$GITHUB_OUTPUT"
-          echo "Resolved: FB ${FB_VERSION} -> ${FB_TARBALL}"
-
-      - name: Cache Firebird 5 client tarball
-        id: cache-firebird
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+      - name: Install Firebird client
+        uses: ./.github/actions/install-firebird-client
         with:
-          path: /tmp/firebird-cache
-          key: firebird-client-${{ steps.fb-version.outputs.fb_version }}-linux-x64
+          firebird-major-version: '5'
+          extra-apt-packages: clang libasan8 liblsan0 llvm
+          include-wget-fallback: 'false'
 
-      - name: Download Firebird 5 client tarball
-        if: steps.cache-firebird.outputs.cache-hit != 'true'
-        env:
-          FB_URL: ${{ steps.fb-version.outputs.fb_url }}
-          FB_TARBALL: ${{ steps.fb-version.outputs.fb_tarball }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -eu
-          mkdir -p /tmp/firebird-cache
-          DEST="/tmp/firebird-cache/${FB_TARBALL}"
-          DELAY=10
-          for attempt in 1 2 3 4 5; do
-            echo "Downloading FB client (attempt ${attempt}/5)..."
-            if curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused \
-                -H "Authorization: token ${GITHUB_TOKEN}" \
-                "${FB_URL}" -o "${DEST}"; then
-              FSIZE=$(stat -c%s "${DEST}" 2>/dev/null || echo "0")
-              if [ "${FSIZE}" -gt 8000000 ]; then echo "Download OK (${FSIZE} bytes)"; break; fi
-              rm -f "${DEST}"
-            fi
-            [ "${attempt}" -lt 5 ] && sleep "$((DELAY * attempt))"
-          done
-          [ -f "${DEST}" ] || { echo "ERROR: Download failed" >&2; exit 1; }
-
-      - name: Install Firebird 5.0 client library
-        env:
-          FB_VERSION: ${{ steps.fb-version.outputs.fb_version }}
-          FB_TARBALL: ${{ steps.fb-version.outputs.fb_tarball }}
-          FB_EXTRACT_DIR: ${{ steps.fb-version.outputs.fb_extract_dir }}
-        run: |
-          set -eu
-
-          FB_CLIENT_DIR="/opt/firebird-client"
-          mkdir -p "${FB_CLIENT_DIR}"
-
-          cp "/tmp/firebird-cache/${FB_TARBALL}" "/tmp/${FB_TARBALL}"
-          echo "Installing Firebird ${FB_VERSION} client library from ${FB_TARBALL}..."
-
-          cd /tmp
-          tar xzf "${FB_TARBALL}"
-          cd "${FB_EXTRACT_DIR}"
-          tar xzf buildroot.tar.gz
-
-          if [ -d "opt/firebird/include" ]; then
-            mkdir -p "${FB_CLIENT_DIR}/include"
-            cp -a opt/firebird/include/* "${FB_CLIENT_DIR}/include/"
-          fi
-          if [ -d "opt/firebird/lib" ]; then
-            mkdir -p "${FB_CLIENT_DIR}/lib"
-            cp -a opt/firebird/lib/* "${FB_CLIENT_DIR}/lib/"
-          fi
-
-          # Install ALL library files from the Firebird client package
-          echo "=== Installing ALL libraries to system paths ==="
-
-          for libfile in "${FB_CLIENT_DIR}/lib/"*.so*; do
-            if [ -f "$libfile" ] && [ ! -L "$libfile" ]; then
-              LIBNAME=$(basename "$libfile")
-              echo "Copying actual library: $LIBNAME"
-              cp "$libfile" /usr/lib/
-              cp "$libfile" /usr/local/lib/ 2>/dev/null || true
-            fi
-          done
-
-          if [ -f /usr/lib/libfbclient.so.*.*.* ] 2>/dev/null; then
-            FBCLIENT_REAL=$(ls /usr/lib/libfbclient.so.*.*.* 2>/dev/null | head -1)
-            FBCLIENT_NAME=$(basename "$FBCLIENT_REAL")
-            echo "Creating symlinks for $FBCLIENT_NAME"
-            ln -sf "$FBCLIENT_NAME" /usr/lib/libfbclient.so.2
-            ln -sf libfbclient.so.2 /usr/lib/libfbclient.so
-          fi
-
-          if [ -f /usr/lib/libtomcrypt.so.*.*.* ] 2>/dev/null; then
-            TOMCRYPT_REAL=$(ls /usr/lib/libtomcrypt.so.*.*.* 2>/dev/null | head -1)
-            TOMCRYPT_NAME=$(basename "$TOMCRYPT_REAL")
-            ln -sf "$TOMCRYPT_NAME" /usr/lib/libtomcrypt.so.1
-            ln -sf libtomcrypt.so.1 /usr/lib/libtomcrypt.so
-          fi
-
-          cp -a "${FB_CLIENT_DIR}/include"/* /usr/include/ 2>/dev/null || true
-
-          echo "${FB_CLIENT_DIR}/lib" > /etc/ld.so.conf.d/firebird-client.conf
-          echo "/usr/local/lib" >> /etc/ld.so.conf.d/firebird-client.conf
-          echo "/usr/lib" >> /etc/ld.so.conf.d/firebird-client.conf
-          ldconfig
-
-          ldconfig -p | grep -E "(fbclient|tomcrypt)" || echo "Warning: libraries not in ldconfig cache"
-          ldd /usr/lib/libfbclient.so 2>&1 || echo "Warning: could not check libfbclient dependencies"
-          echo "Firebird client installed"
-
-      - name: Configure Firebird client authentication
-        run: |
-          set -eu
-          echo "Configuring Firebird client authentication for CI..."
-
-          FB_CONF_CONTENT='# Firebird client configuration for CI
-          AuthClient = Srp256, Srp, Legacy_Auth
-          WireCrypt = Enabled
-          '
-
-          mkdir -p /opt/firebird-client
-          echo "$FB_CONF_CONTENT" > /opt/firebird-client/firebird.conf
-
-          mkdir -p /etc/firebird
-          echo "$FB_CONF_CONTENT" > /etc/firebird/firebird.conf
-
-          mkdir -p /opt/firebird-client/etc
-          echo "$FB_CONF_CONTENT" > /opt/firebird-client/etc/firebird.conf
-
-          echo "=== Firebird client configuration ==="
-          cat /etc/firebird/firebird.conf
-
-      - name: Wait for Firebird service
-        run: |
-          set -eu
-          for i in $(seq 1 60); do
-            if nc -z firebird 3050 2>/dev/null; then
-              echo "Firebird is ready"
-              sleep 5
-              break
-            fi
-            sleep 2
-          done
-
-          if ! nc -z firebird 3050 2>/dev/null; then
-            exit 1
-          fi
-
-      - name: Create LSan suppressions file
-        run: |
-          cat > lsan.supp << 'EOF'
-          # PHP internal allocations
-          leak:zend_
-          leak:php_
-          leak:_emalloc
-          leak:_erealloc
-
-          # Firebird client library
-          leak:fb_client
-          leak:isc_
-          leak:ib_util
-
-          # ICU library
-          leak:libicuuc
-          leak:libicui18n
-          EOF
-
-      - name: Build extension with LeakSanitizer
-        run: |
-          set -eu
-
-          export LD_LIBRARY_PATH="/opt/firebird-client/lib:${LD_LIBRARY_PATH:-}"
-
-          # Sanitizer flags - using GCC which has built-in sanitizer support
-          SANITIZE_FLAGS="-fsanitize=leak -fno-omit-frame-pointer -g -O1"
-
-          export CC=gcc
-          export CXX=g++
-          export CFLAGS="-I/opt/firebird-client/include ${SANITIZE_FLAGS}"
-          export CXXFLAGS="-I/opt/firebird-client/include ${SANITIZE_FLAGS}"
-          export LDFLAGS="-L/opt/firebird-client/lib -fsanitize=leak"
-
-          phpize
-          ./configure --with-firebird=/opt/firebird-client
-          make -j"$(nproc)"
+      - name: Build firebird extension with LeakSanitizer
+        uses: ./.github/actions/build-extension
+        with:
+          build-pdo-fbird: 'false'
+          cc: gcc
+          cxx: g++
+          cflags-extra: -I/opt/firebird-client/include -fsanitize=leak -fno-omit-frame-pointer -g -O1
+          cxxflags-extra: -I/opt/firebird-client/include -fsanitize=leak -fno-omit-frame-pointer -g -O1
+          ldflags-extra: -L/opt/firebird-client/lib -fsanitize=leak
+          ld-library-path-extra: /opt/firebird-client/lib
 
       - name: Verify extension and connection
         run: |
@@ -779,51 +370,17 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: ./.github/actions/checkout
 
-      - name: Install system build dependencies
-        run: |
-          set -eu
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            autoconf \
-            bison \
-            build-essential \
-            ca-certificates \
-            clang \
-            curl \
-            g++ \
-            git \
-            jq \
-            libicu-dev \
-            libncurses6 \
-            libonig-dev \
-            libpcre2-dev \
-            libreadline-dev \
-            libsqlite3-dev \
-            libtommath1 \
-            libtool \
-            libxml2-dev \
-            libzip-dev \
-            llvm \
-            netbase \
-            netcat-openbsd \
-            pkg-config \
-            re2c \
-            unzip \
-            wget \
-            zlib1g-dev
-
-          # Create compatibility symlinks for Firebird client libraries
-          echo "Creating library compatibility symlinks..."
-          if [ -f /lib/x86_64-linux-gnu/libncurses.so.6 ]; then
-            sudo ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /lib/x86_64-linux-gnu/libncurses.so.5
-            sudo ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 /lib/x86_64-linux-gnu/libtinfo.so.5 2>/dev/null || true
-          fi
-          if [ -f /lib/x86_64-linux-gnu/libtommath.so.1 ]; then
-            sudo ln -sf /lib/x86_64-linux-gnu/libtommath.so.1 /lib/x86_64-linux-gnu/libtommath.so.0
-          fi
-          sudo ldconfig
+      - name: Install Firebird client and build dependencies
+        uses: ./.github/actions/install-firebird-client
+        with:
+          firebird-major-version: '5'
+          use-sudo: 'true'
+          firebird-host: localhost
+          include-wget-fallback: 'false'
+          install-pcntl: 'false'
+          extra-apt-packages: bison re2c libonig-dev libpcre2-dev libreadline-dev libsqlite3-dev libxml2-dev libzip-dev zlib1g-dev clang llvm
 
       - name: Resolve PHP 8.3 latest release
         id: php-version
@@ -888,170 +445,22 @@ jobs:
           /opt/php-tsan/bin/php -v || echo "⚠️ php -v crashed (known TSan+PHP issue) - continuing"
           /opt/php-tsan/bin/php -i | grep -i "thread safety" || echo "⚠️ php -i unavailable - will verify at extension build"
 
-      - name: Resolve Firebird 5 client version
-        id: fb-version
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -eu
-          chmod +x scripts/get-latest-firebird.sh
-          eval "$(./scripts/get-latest-firebird.sh 5)"
-          echo "fb_version=${FB_VERSION}"       >> "$GITHUB_OUTPUT"
-          echo "fb_url=${FB_URL}"               >> "$GITHUB_OUTPUT"
-          echo "fb_tarball=${FB_TARBALL}"       >> "$GITHUB_OUTPUT"
-          echo "fb_extract_dir=${FB_EXTRACT_DIR}" >> "$GITHUB_OUTPUT"
-          echo "Resolved: FB ${FB_VERSION} -> ${FB_TARBALL}"
-
-      - name: Cache Firebird 5 client tarball
-        id: cache-firebird
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+      - name: Build firebird extension with ThreadSanitizer
+        uses: ./.github/actions/build-extension
         with:
-          path: /tmp/firebird-cache
-          key: firebird-client-${{ steps.fb-version.outputs.fb_version }}-linux-x64
-
-      - name: Download Firebird 5 client tarball
-        if: steps.cache-firebird.outputs.cache-hit != 'true'
-        env:
-          FB_URL: ${{ steps.fb-version.outputs.fb_url }}
-          FB_TARBALL: ${{ steps.fb-version.outputs.fb_tarball }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -eu
-          mkdir -p /tmp/firebird-cache
-          DEST="/tmp/firebird-cache/${FB_TARBALL}"
-          DELAY=10
-          for attempt in 1 2 3 4 5; do
-            echo "Downloading FB client (attempt ${attempt}/5)..."
-            if curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused \
-                -H "Authorization: token ${GITHUB_TOKEN}" \
-                "${FB_URL}" -o "${DEST}"; then
-              FSIZE=$(stat -c%s "${DEST}" 2>/dev/null || echo "0")
-              if [ "${FSIZE}" -gt 8000000 ]; then echo "Download OK (${FSIZE} bytes)"; break; fi
-              rm -f "${DEST}"
-            fi
-            [ "${attempt}" -lt 5 ] && sleep "$((DELAY * attempt))"
-          done
-          [ -f "${DEST}" ] || { echo "ERROR: Download failed" >&2; exit 1; }
-
-      - name: Install Firebird 5.0 client library
-        env:
-          FB_VERSION: ${{ steps.fb-version.outputs.fb_version }}
-          FB_TARBALL: ${{ steps.fb-version.outputs.fb_tarball }}
-          FB_EXTRACT_DIR: ${{ steps.fb-version.outputs.fb_extract_dir }}
-        run: |
-          set -eu
-
-          FB_CLIENT_DIR="/opt/firebird-client"
-          sudo mkdir -p "${FB_CLIENT_DIR}"
-
-          cp "/tmp/firebird-cache/${FB_TARBALL}" "/tmp/${FB_TARBALL}"
-          echo "Installing Firebird ${FB_VERSION} client library..."
-
-          cd /tmp
-          tar xzf "${FB_TARBALL}"
-          cd "${FB_EXTRACT_DIR}"
-          tar xzf buildroot.tar.gz
-
-          if [ -d "opt/firebird/include" ]; then
-            sudo mkdir -p "${FB_CLIENT_DIR}/include"
-            sudo cp -a opt/firebird/include/* "${FB_CLIENT_DIR}/include/"
-          fi
-          if [ -d "opt/firebird/lib" ]; then
-            sudo mkdir -p "${FB_CLIENT_DIR}/lib"
-            sudo cp -a opt/firebird/lib/* "${FB_CLIENT_DIR}/lib/"
-          fi
-
-          # Install library files to system paths
-          echo "=== Installing libraries to system paths ==="
-          for libfile in "${FB_CLIENT_DIR}/lib/"*.so*; do
-            if [ -f "$libfile" ] && [ ! -L "$libfile" ]; then
-              LIBNAME=$(basename "$libfile")
-              echo "Copying: $LIBNAME"
-              sudo cp "$libfile" /usr/lib/
-            fi
-          done
-
-          if ls /usr/lib/libfbclient.so.*.*.* 1>/dev/null 2>&1; then
-            FBCLIENT_REAL=$(ls /usr/lib/libfbclient.so.*.*.* 2>/dev/null | head -1)
-            FBCLIENT_NAME=$(basename "$FBCLIENT_REAL")
-            sudo ln -sf "$FBCLIENT_NAME" /usr/lib/libfbclient.so.2
-            sudo ln -sf libfbclient.so.2 /usr/lib/libfbclient.so
-          fi
-
-          if ls /usr/lib/libtomcrypt.so.*.*.* 1>/dev/null 2>&1; then
-            TOMCRYPT_REAL=$(ls /usr/lib/libtomcrypt.so.*.*.* 2>/dev/null | head -1)
-            TOMCRYPT_NAME=$(basename "$TOMCRYPT_REAL")
-            sudo ln -sf "$TOMCRYPT_NAME" /usr/lib/libtomcrypt.so.1
-            sudo ln -sf libtomcrypt.so.1 /usr/lib/libtomcrypt.so
-          fi
-
-          sudo cp -a "${FB_CLIENT_DIR}/include"/* /usr/include/ 2>/dev/null || true
-
-          echo "${FB_CLIENT_DIR}/lib" | sudo tee /etc/ld.so.conf.d/firebird-client.conf
-          echo "/usr/lib" | sudo tee -a /etc/ld.so.conf.d/firebird-client.conf
-          sudo ldconfig
-
-          ldconfig -p | grep -E "(fbclient|tomcrypt)" || echo "Warning: libraries not in ldconfig cache"
-          echo "Firebird client installed"
-
-      - name: Configure Firebird client authentication
-        run: |
-          set -eu
-          FB_CONF_CONTENT='# Firebird client configuration for CI
-          AuthClient = Srp256, Srp, Legacy_Auth
-          WireCrypt = Enabled
-          '
-
-          sudo mkdir -p /opt/firebird-client /opt/firebird-client/etc /etc/firebird
-          echo "$FB_CONF_CONTENT" | sudo tee /opt/firebird-client/firebird.conf > /dev/null
-          echo "$FB_CONF_CONTENT" | sudo tee /opt/firebird-client/etc/firebird.conf > /dev/null
-          echo "$FB_CONF_CONTENT" | sudo tee /etc/firebird/firebird.conf > /dev/null
-
-      - name: Wait for Firebird service
-        run: |
-          set -eu
-          for i in $(seq 1 60); do
-            if nc -z localhost 3050 2>/dev/null; then
-              echo "Firebird is ready"
-              sleep 5
-              break
-            fi
-            echo "Waiting for Firebird (${i}/60)..."
-            sleep 2
-          done
-
-          if ! nc -z localhost 3050 2>/dev/null; then
-            echo "ERROR: Firebird did not start" >&2
-            exit 1
-          fi
-
-      - name: Build extension with ThreadSanitizer
-        run: |
-          set -eu
-
-          export PATH="/opt/php-tsan/bin:$PATH"
-          export LD_LIBRARY_PATH="/opt/firebird-client/lib:${LD_LIBRARY_PATH:-}"
-
-          # Use Clang to match PHP build (GCC TSan is broken on Ubuntu/Debian).
-          # Configure WITHOUT TSan flags first (configure runs test programs that
-          # fail with TSan exit codes), then inject TSan via sed post-configure.
-          export CC=clang
-          export CXX=clang++
-          export CFLAGS="-I/opt/firebird-client/include -g -O1 -fno-omit-frame-pointer"
-          export CXXFLAGS="-I/opt/firebird-client/include -g -O1 -fno-omit-frame-pointer"
-          export LDFLAGS="-L/opt/firebird-client/lib"
-
-          phpize
-          ./configure --with-firebird=/opt/firebird-client --disable-fbird-lto
-
-          # Post-configure: inject TSan flags into the generated Makefile
-          sed -i 's/^CFLAGS_CLEAN = /CFLAGS_CLEAN = -fsanitize=thread /' Makefile
-          sed -i '/^LDFLAGS = / s/$/ -fsanitize=thread/' Makefile
-          sed -i '/^EXTRA_LDFLAGS = / s/$/ -fsanitize=thread/' Makefile
-
-          make -j"$(nproc)"
-
-          echo "Extension built with ThreadSanitizer + ZTS"
+          build-pdo-fbird: 'false'
+          cc: clang
+          cxx: clang++
+          cflags-extra: -I/opt/firebird-client/include -g -O1 -fno-omit-frame-pointer
+          cxxflags-extra: -I/opt/firebird-client/include -g -O1 -fno-omit-frame-pointer
+          ldflags-extra: -L/opt/firebird-client/lib
+          ld-library-path-extra: /opt/firebird-client/lib
+          php-bin-dir: /opt/php-tsan/bin
+          configure-args: --disable-fbird-lto
+          pre-build-script: |
+            sed -i 's/^CFLAGS_CLEAN = /CFLAGS_CLEAN = -fsanitize=thread /' Makefile
+            sed -i '/^LDFLAGS = / s/$/ -fsanitize=thread/' Makefile
+            sed -i '/^EXTRA_LDFLAGS = / s/$/ -fsanitize=thread/' Makefile
 
       - name: Verify extension and ZTS mode
         run: |

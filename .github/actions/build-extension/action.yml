@@ -121,7 +121,10 @@ runs:
     - name: Pre-build hook
       if: ${{ inputs.pre-build-script != '' }}
       shell: bash
-      run: ${{ inputs.pre-build-script }}
+      env:
+        PRE_BUILD: ${{ inputs.pre-build-script }}
+      run: |
+        eval "$PRE_BUILD"
 
     - name: Build
       shell: bash

@@ -37,7 +37,7 @@ jobs:
     timeout-minutes: 70
 
     steps:
-      - name: Determine tag and commit SHA
+      - name: Determine release tag
         id: tag
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
@@ -49,83 +49,38 @@ jobs:
             exit 1
           fi
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
-
-          # Resolve the tag's commit SHA (for API polling).
-          # github.sha is only correct for push events; for workflow_dispatch
-          # it's the branch HEAD, not the tag's commit.
-          TAG_OBJ_SHA=$(gh api "/repos/${{ github.repository }}/git/refs/tags/${TAG}" --jq '.object.sha' 2>/dev/null || echo "")
-          if [ -n "$TAG_OBJ_SHA" ]; then
-            # Dereference annotated tag to get commit SHA
-            COMMIT_SHA=$(gh api "/repos/${{ github.repository }}/git/tags/${TAG_OBJ_SHA}" --jq '.object.sha' 2>/dev/null || echo "$TAG_OBJ_SHA")
-          else
-            # Lightweight tag or fallback: use github.sha
-            COMMIT_SHA="${{ github.sha }}"
-          fi
-          echo "sha=${COMMIT_SHA}" >> $GITHUB_OUTPUT
-          echo "Publishing release: ${TAG} (commit ${COMMIT_SHA:0:12})"
+          echo "Publishing release: ${TAG}"
         env:
           GH_TOKEN: ${{ github.token }}
 
-      - name: Wait for all platform workflows
+      - name: Wait for all platform assets on release
         run: |
-          set +e
-          set -u
           TAG="${{ steps.tag.outputs.tag }}"
-          COMMIT_SHA="${{ steps.tag.outputs.sha }}"
           MAX_WAIT=3600   # 60 minutes (Linux builds 32 bundles, can take 40+ min)
           INTERVAL=30
           ELAPSED=0
 
-          # Required release workflows (by display name)
-          REQUIRED=("Release (Linux)" "Release (macOS)" "Release (Windows)")
-
           while [ $ELAPSED -lt $MAX_WAIT ]; do
-            ALL_DONE=true
-            ALL_PASSED=true
+            ASSETS_JSON=$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets 2>/dev/null || echo '{"assets":[]}')
 
-            # Use GitHub API with head_sha filter — gh run list --branch
-            # does not work for tag-triggered runs inside the Actions runner.
-            RUNS_JSON=$(gh api "/repos/${{ github.repository }}/actions/runs?head_sha=${COMMIT_SHA}&per_page=50" 2>/dev/null || true)
+            LINUX=$(echo "$ASSETS_JSON" | jq '[.assets[].name | test("linux.*\\.tar\\.gz$")] | length' 2>/dev/null || echo 0)
+            MACOS=$(echo "$ASSETS_JSON" | jq '[.assets[].name | test("macos.*\\.tar\\.gz$")] | length' 2>/dev/null || echo 0)
+            WIN=$(echo "$ASSETS_JSON" | jq '[.assets[].name | test("x86_64\\.zip$")] | length' 2>/dev/null || echo 0)
 
-            for wf in "${REQUIRED[@]}"; do
-              RESULT=$(echo "$RUNS_JSON" | jq -r --arg wf "$wf" \
-                '.workflow_runs[] | select(.name == $wf) | "\(.status) \(.conclusion // "")"' | head -1)
-              STATUS=$(echo "$RESULT" | awk '{print $1}')
-              CONCLUSION=$(echo "$RESULT" | awk '{print $2}')
+            echo "Assets: Linux=$LINUX, macOS=$MACOS, Windows=$WIN (${ELAPSED}s / ${MAX_WAIT}s)"
 
-              if [ -z "$STATUS" ]; then
-                echo "  $wf: not found (waiting)"
-                ALL_DONE=false
-              elif [ "$STATUS" != "completed" ]; then
-                echo "  $wf: $STATUS (waiting)"
-                ALL_DONE=false
-              elif [ "$CONCLUSION" != "success" ]; then
-                echo "  $wf: $CONCLUSION (FAILED)"
-                ALL_PASSED=false
-              else
-                echo "  $wf: success"
-              fi
-            done
-
-            if [ "$ALL_DONE" = "true" ]; then
-              if [ "$ALL_PASSED" = "true" ]; then
-                echo "All platform release workflows passed"
-                break
-              else
-                echo "One or more platform release workflows failed"
-                exit 1
-              fi
+            if [ "$LINUX" -ge 8 ] && [ "$MACOS" -ge 4 ] && [ "$WIN" -ge 8 ]; then
+              echo "All platform assets present"
+              exit 0
             fi
 
-            echo "Waiting... (${ELAPSED}s / ${MAX_WAIT}s)"
             sleep $INTERVAL
             ELAPSED=$((ELAPSED + INTERVAL))
           done
 
-          if [ $ELAPSED -ge $MAX_WAIT ]; then
-            echo "Timeout waiting for platform release workflows"
-            exit 1
-          fi
+          echo "ERROR: Timeout waiting for platform assets"
+          echo "Final counts: Linux=$LINUX, macOS=$MACOS, Windows=$WIN"
+          exit 1
         env:
           GH_TOKEN: ${{ github.token }}
 

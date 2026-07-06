@@ -388,11 +388,22 @@ class TransactionManager
 
     /**
      * Destructor - rolls back uncommitted transaction.
+     *
+     * Uses try/catch instead of @ suppression because v12 THROW mode converts
+     * server errors to exceptions that @ cannot suppress. On FB4/FB5, the
+     * server can implicitly invalidate a transaction (DDL implicit commit,
+     * lock conflict, shutdown), making the handle invalid at destruct time.
+     * See: https://github.com/satwareAG/php-firebird/issues/310
      */
     public function __destruct()
     {
         if ($this->isActive()) {
-            @\fbird_rollback($this->resource);
+            try {
+                \fbird_rollback($this->resource);
+            } catch (\Throwable) {
+                // Transaction may have been implicitly invalidated by the server
+                // (DDL implicit commit, lock conflict, shutdown, etc.)
+            }
         }
     }
 }

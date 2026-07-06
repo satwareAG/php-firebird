@@ -54,7 +54,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: ./.github/actions/checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Ensure VERSION.txt
+        uses: ./.github/actions/version
 
       - name: Install Firebird client
         uses: ./.github/actions/install-firebird-client
@@ -176,7 +179,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: ./.github/actions/checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Ensure VERSION.txt
+        uses: ./.github/actions/version
 
       - name: Install Firebird client
         uses: ./.github/actions/install-firebird-client
@@ -305,7 +311,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: ./.github/actions/checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Ensure VERSION.txt
+        uses: ./.github/actions/version
 
       - name: Install Firebird client and build dependencies
         uses: ./.github/actions/install-firebird-client

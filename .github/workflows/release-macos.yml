@@ -64,11 +64,14 @@ jobs:
     timeout-minutes: 10
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
-      version: ${{ steps.checkout.outputs.version }}
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - name: Checkout
-        uses: ./.github/actions/checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Ensure VERSION.txt
+        uses: ./.github/actions/version
 
       - name: Set Build Matrix
         id: set-matrix
@@ -118,7 +121,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: ./.github/actions/checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Ensure VERSION.txt
+        uses: ./.github/actions/version
 
       - name: Cache Firebird macOS Package
         id: cache-firebird

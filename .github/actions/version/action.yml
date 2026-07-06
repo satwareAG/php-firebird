@@ -1,10 +1,5 @@
-name: 'Checkout + Version'
-description: 'Checkout repository and materialize VERSION.txt'
-inputs:
-  fetch-depth:
-    description: 'Fetch depth for checkout'
-    required: false
-    default: '1'
+name: 'Ensure VERSION.txt'
+description: 'Materialize VERSION.txt from git tag, existing file, or php_firebird.h header. Must be run AFTER actions/checkout.'
 outputs:
   version:
     description: 'Resolved extension version'
@@ -12,11 +7,6 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Checkout repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      with:
-        fetch-depth: ${{ inputs.fetch-depth }}
-
     - name: Ensure VERSION.txt file
       id: version
       shell: bash

@@ -88,14 +88,15 @@ runs:
 
         # Set library paths
         if [ -n "$LD_PATH_EXTRA" ]; then
-          export LD_LIBRARY_PATH="${LD_PATH_EXTRA}/usr/local/lib:/usr/lib:${LD_LIBRARY_PATH:-}"
+          export LD_LIBRARY_PATH="${LD_PATH_EXTRA}:/usr/local/lib:/usr/lib:${LD_LIBRARY_PATH:-}"
         fi
         if [ -n "$DYLD_PATH_EXTRA" ]; then
           export DYLD_LIBRARY_PATH="${DYLD_PATH_EXTRA}:${DYLD_LIBRARY_PATH:-}"
         fi
 
         echo "=== Testing extension loading ==="
-        if "$PHP_BIN" -d "extension=${EXTENSION_PATH}" -m 2>&1 | tee /tmp/modules.txt | grep -qi firebird; then
+        "$PHP_BIN" -d "extension=${EXTENSION_PATH}" -m 2>&1 > /tmp/modules.txt || true
+        if grep -qi firebird /tmp/modules.txt; then
           echo "OK: Firebird extension loaded successfully"
         else
           if [ "$MODE" = 'best-effort' ]; then

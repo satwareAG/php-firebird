@@ -499,6 +499,35 @@ jobs:
           draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+        # The action sometimes fails on metadata update after successful upload.
+        # The Verify step below checks if assets actually landed on the release.
+
+      - name: Verify macOS release assets uploaded
+        if: always()
+        shell: bash
+        run: |
+          TAG="${{ steps.release-tag.outputs.tag }}"
+          EXPECTED=4  # 4 PHP versions × 1 variant (arm64 NTS)
+          for attempt in 1 2 3; do
+            echo "Verifying macOS assets (attempt $attempt/3)..."
+            MACOS_COUNT=$(gh release view "$TAG" --repo "${{ github.repository }}" \
+              --json assets --jq '[.assets[] | select(.name | test("macos.*\\.tar\\.gz$"))] | length' 2>/dev/null || echo 0)
+            echo "Found $MACOS_COUNT macOS assets (expected >= $EXPECTED)"
+            if [ "$MACOS_COUNT" -ge "$EXPECTED" ]; then
+              echo "OK: Sufficient macOS assets ($MACOS_COUNT >= $EXPECTED)"
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Retrying upload in 10s..."
+              sleep 10
+              gh release upload "$TAG" release-assets/*.tar.gz release-assets/*.sha256 release-assets/*.md5 release-assets/*.sbom.cdx.json --clobber --repo "${{ github.repository }}" 2>/dev/null || true
+            fi
+          done
+          echo "ERROR: Only $MACOS_COUNT macOS assets found after 3 attempts (expected >= $EXPECTED)"
+          exit 1
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   # ===========================================================================
   # Test Bundles: Verify precompiled binaries work on macOS

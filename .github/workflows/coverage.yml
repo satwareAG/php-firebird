@@ -56,6 +56,7 @@ jobs:
       ISC_PASSWORD: masterkey
       FIREBIRD_HOST: firebird
       FIREBIRD_DB_PATH: /var/lib/firebird/data/test.fdb
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout repository

@@ -48,6 +48,7 @@ jobs:
       ISC_PASSWORD: masterkey
       FIREBIRD_HOST: firebird
       FIREBIRD_DB_PATH: /var/lib/firebird/data/test.fdb
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # ASan/UBSan runtime options
       ASAN_OPTIONS: "detect_leaks=1:abort_on_error=1:halt_on_error=0:print_stats=1:verbosity=0"
       UBSAN_OPTIONS: "print_stacktrace=1:halt_on_error=0"
@@ -175,6 +176,7 @@ jobs:
       ISC_PASSWORD: masterkey
       FIREBIRD_HOST: firebird
       FIREBIRD_DB_PATH: /var/lib/firebird/data/test.fdb
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       LSAN_OPTIONS: "suppressions=lsan.supp:print_suppressions=0:verbosity=1"
 
     steps:
@@ -307,6 +309,7 @@ jobs:
       ISC_PASSWORD: masterkey
       FIREBIRD_HOST: localhost
       FIREBIRD_DB_PATH: /var/lib/firebird/data/test.fdb
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TSAN_OPTIONS: "suppressions=tsan.supp:halt_on_error=0:second_deadlock_stack=1:history_size=4"
 
     steps:

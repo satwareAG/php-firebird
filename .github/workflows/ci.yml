@@ -143,6 +143,7 @@ jobs:
       ISC_PASSWORD: masterkey
       FIREBIRD_HOST: firebird
       FIREBIRD_DB_PATH: ${{ matrix.db-path }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout repository

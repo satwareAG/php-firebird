@@ -174,85 +174,11 @@ jobs:
           ls -la modules/pdo_fbird.so
 
       - name: Verify extension and connection
-        run: |
-          set -eu
-
-          # Ensure Firebird client library is in library path
-          export LD_LIBRARY_PATH="/opt/firebird-client/lib:/usr/local/lib:/usr/lib:${LD_LIBRARY_PATH:-}"
-
-          EXTENSION_PATH="$(pwd)/modules/firebird.so"
-
-          echo "=== Environment ==="
-          echo "FIREBIRD_HOST: ${FIREBIRD_HOST}"
-          echo "FIREBIRD_DB_PATH: ${FIREBIRD_DB_PATH}"
-          echo "ISC_USER: ${ISC_USER}"
-          echo "LD_LIBRARY_PATH: ${LD_LIBRARY_PATH}"
-
-          echo "=== Library check ==="
-          ls -la /usr/lib/libfbclient* 2>/dev/null || echo "No libfbclient in /usr/lib"
-          ldd "${EXTENSION_PATH}" 2>&1 | grep -i fbclient || echo "Could not check library deps"
-
-          echo "=== Testing extension loading ==="
-          php -d "extension=${EXTENSION_PATH}" -m 2>&1 | tee /tmp/modules.txt
-          if ! grep -qi firebird /tmp/modules.txt; then
-            echo "ERROR: Firebird extension failed to load"
-            exit 1
-          fi
-          echo "Firebird extension loaded successfully"
-
-          echo "=== Testing database connection ==="
-          # Use explicit credentials in fbird_connect call (belt and suspenders)
-          php -d "extension=${EXTENSION_PATH}" -r '
-            $host = getenv("FIREBIRD_HOST");
-            $dbPath = getenv("FIREBIRD_DB_PATH");
-            $connStr = $host . ":" . $dbPath;
-            $user = "SYSDBA";
-            $pass = "masterkey";
-
-            echo "Connection string: $connStr\n";
-            echo "User: $user\n";
-
-            // Try connection with explicit credentials
-            $db = @fbird_connect($connStr, $user, $pass);
-            if ($db) {
-              echo "SUCCESS: Connected to database!\n";
-              $res = fbird_query($db, "SELECT 1 FROM RDB\$DATABASE");
-              if ($res) {
-                $row = fbird_fetch_row($res);
-                echo "Query test: SELECT 1 returned " . $row[0] . "\n";
-                fbird_free_result($res);
-              }
-              fbird_close($db);
-              exit(0);
-            }
-
-            $err = fbird_errmsg();
-            echo "Primary connection failed: $err\n";
-
-            // Try alternate database paths
-            $altPaths = [
-              "/var/lib/firebird/data/test.fdb",
-              "/firebird/data/test.fdb",
-              "/tmp/test.fdb"
-            ];
-
-            foreach ($altPaths as $alt) {
-              if ($alt === $dbPath) continue; // Skip if same as primary
-              $altConn = $host . ":" . $alt;
-              echo "Trying alternate: $altConn ... ";
-              $db = @fbird_connect($altConn, $user, $pass);
-              if ($db) {
-                echo "SUCCESS!\n";
-                fbird_close($db);
-                exit(0);
-              }
-              echo "failed\n";
-            }
-
-            echo "ERROR: All connection attempts failed\n";
-            echo "Last error: " . fbird_errmsg() . "\n";
-            exit(1);
-          '
+        uses: ./.github/actions/verify-extension
+        with:
+          mode: full
+          extension-path: modules/firebird.so
+          ld-library-path-extra: /opt/firebird-client/lib
 
       - name: Cache Composer dependencies
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
@@ -493,24 +419,8 @@ jobs:
           otool -L "$EXTENSION_PATH"
 
       - name: Verify extension loads
-        run: |
-          set -eu
-
-          EXTENSION_PATH="$(pwd)/modules/firebird.so"
-
-          # Set library path for Firebird client (belt and suspenders with RPATH)
-          export DYLD_LIBRARY_PATH="/tmp/firebird-client/lib:${DYLD_LIBRARY_PATH:-}"
-
-          echo "=== Verifying extension ==="
-          php -d "extension=${EXTENSION_PATH}" -m 2>&1 | tee /tmp/modules.txt
-
-          if grep -qi firebird /tmp/modules.txt; then
-            echo "✅ Firebird extension loads successfully on macOS ${{ matrix.arch }}"
-          else
-            echo "❌ Firebird extension failed to load"
-            exit 1
-          fi
-
-          # Show extension info
-          php -d "extension=${EXTENSION_PATH}" -r "phpinfo(INFO_MODULES);" 2>&1 | \
-            sed -n '/^firebird$/,/^$/p' | head -20 || true
+        uses: ./.github/actions/verify-extension
+        with:
+          mode: load-only
+          extension-path: modules/firebird.so
+          dyld-library-path-extra: /tmp/firebird-client/lib

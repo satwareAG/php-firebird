@@ -90,52 +90,12 @@ jobs:
           echo "pdo_fbird built with ASan + UBSan"
 
       - name: Verify extension build
-        run: |
-          set -eu
-
-          # Note: We cannot verify the extension by loading it into PHP with ASan LD_PRELOAD
-          # because PHP uses RTLD_DEEPBIND when dlopening extensions, which is incompatible
-          # with AddressSanitizer runtime (see https://github.com/google/sanitizers/issues/611)
-          #
-          # The real verification happens in the "Run tests with sanitizers" step where
-          # make test uses PHP's run-tests.php which handles this differently.
-
-          EXTENSION_PATH="$(pwd)/modules/firebird.so"
-
-          echo "=== Verifying extension was built ==="
-          if [ ! -f "$EXTENSION_PATH" ]; then
-            echo "ERROR: Extension not found at $EXTENSION_PATH"
-            exit 1
-          fi
-
-          echo "Extension file size: $(stat -c%s "$EXTENSION_PATH") bytes"
-
-          # Verify it's a shared library with ASan instrumentation
-          echo "=== Checking shared library format ==="
-          file "$EXTENSION_PATH"
-
-          # Check that it has ASan symbols (compiled with sanitizers)
-          echo "=== Verifying ASan instrumentation ==="
-          if nm -D "$EXTENSION_PATH" 2>/dev/null | grep -q "__asan"; then
-            echo "✅ Extension has ASan instrumentation"
-          elif readelf -d "$EXTENSION_PATH" 2>/dev/null | grep -qi "asan\|sanitizer"; then
-            echo "✅ Extension linked with sanitizer runtime"
-          else
-            # The extension might not have visible ASan symbols if statically linked
-            echo "⚠️ Could not verify ASan symbols (may be statically linked)"
-          fi
-
-          # Basic sanity check - load without ASan preload to verify it's a valid PHP extension
-          # This won't catch memory errors but confirms the build is valid
-          echo "=== Basic extension load test (without ASan runtime) ==="
-          export LD_LIBRARY_PATH="/opt/firebird-client/lib:/usr/local/lib:/usr/lib:${LD_LIBRARY_PATH:-}"
-          if php -n -d "extension=${EXTENSION_PATH}" -m 2>&1 | grep -qi firebird; then
-            echo "✅ Extension loads successfully (ASan checks happen in make test)"
-          else
-            echo "⚠️ Extension load test inconclusive - will verify in make test"
-          fi
-
-          echo "✅ Extension build verification complete"
+        uses: ./.github/actions/verify-extension
+        with:
+          mode: build-only
+          extension-path: modules/firebird.so
+          ld-library-path-extra: /opt/firebird-client/lib
+          sanitizer-type: asan
 
       - name: ASan build verification complete
         run: |
@@ -237,55 +197,11 @@ jobs:
           ld-library-path-extra: /opt/firebird-client/lib
 
       - name: Verify extension and connection
-        run: |
-          set -eu
-
-          export LD_LIBRARY_PATH="/opt/firebird-client/lib:/usr/local/lib:/usr/lib:${LD_LIBRARY_PATH:-}"
-
-          # Note: Standalone LSan (-fsanitize=leak) links directly into the extension
-          # No LD_PRELOAD needed (unlike ASan which needs runtime library preloading)
-
-          EXTENSION_PATH="$(pwd)/modules/firebird.so"
-
-          echo "=== Testing extension loading ==="
-          php -d "extension=${EXTENSION_PATH}" -m 2>&1 | tee /tmp/modules.txt
-          if ! grep -qi firebird /tmp/modules.txt; then
-            echo "ERROR: Firebird extension failed to load"
-            exit 1
-          fi
-          echo "Firebird extension loaded successfully"
-
-          echo "=== Testing database connection ==="
-          php -d "extension=${EXTENSION_PATH}" -r '
-            $host = getenv("FIREBIRD_HOST");
-            $dbPath = getenv("FIREBIRD_DB_PATH");
-            $connStr = $host . ":" . $dbPath;
-            $user = "SYSDBA";
-            $pass = "masterkey";
-
-            echo "Connection string: $connStr\n";
-
-            $db = @fbird_connect($connStr, $user, $pass);
-            if ($db) {
-              echo "SUCCESS: Connected to database!\n";
-              fbird_close($db);
-              exit(0);
-            }
-
-            echo "Primary connection failed: " . fbird_errmsg() . "\n";
-
-            $altConn = $host . ":/firebird/data/test.fdb";
-            echo "Trying alternate: $altConn ... ";
-            $db = @fbird_connect($altConn, $user, $pass);
-            if ($db) {
-              echo "SUCCESS!\n";
-              fbird_close($db);
-              exit(0);
-            }
-
-            echo "ERROR: Connection failed\n";
-            exit(1);
-          '
+        uses: ./.github/actions/verify-extension
+        with:
+          mode: full
+          extension-path: modules/firebird.so
+          ld-library-path-extra: /opt/firebird-client/lib
 
       - name: Create LSan suppressions file
         run: |
@@ -481,43 +397,20 @@ jobs:
             sed -i '/^LDFLAGS = / s/$/ -fsanitize=thread/' Makefile
             sed -i '/^EXTRA_LDFLAGS = / s/$/ -fsanitize=thread/' Makefile
 
-      - name: Verify extension and ZTS mode
+      - name: Verify PHP ZTS build
+        shell: bash
         run: |
-          set -eu
-
           export PATH="/opt/php-tsan/bin:$PATH"
-          export LD_LIBRARY_PATH="/opt/firebird-client/lib:/usr/lib:${LD_LIBRARY_PATH:-}"
+          php -i 2>&1 | grep -i "thread safety" || echo "Warning: php -i crashed - TSan runtime init issue (known)"
 
-          EXTENSION_PATH="$(pwd)/modules/firebird.so"
-
-          # Verify the extension .so was built
-          echo "=== Verifying extension binary ==="
-          if [ ! -f "$EXTENSION_PATH" ]; then
-            echo "ERROR: Extension not found at $EXTENSION_PATH"
-            exit 1
-          fi
-          echo "Extension size: $(stat -c%s "$EXTENSION_PATH") bytes"
-          file "$EXTENSION_PATH"
-
-          # Check for TSan symbols in extension
-          if nm -D "$EXTENSION_PATH" 2>/dev/null | grep -q "__tsan"; then
-            echo "✅ Extension has TSan instrumentation"
-          else
-            echo "⚠️ TSan symbols not visible (may be statically linked)"
-          fi
-
-          # TSan-instrumented PHP may segfault during startup due to
-          # post-configure injection limitations. Verification is best-effort.
-          echo "=== Verifying PHP ZTS build (best-effort) ==="
-          php -i 2>&1 | grep -i "thread safety" || echo "⚠️ php -i crashed - TSan runtime init issue (known)"
-
-          echo "=== Testing extension loading (best-effort) ==="
-          if php -d "extension=${EXTENSION_PATH}" -m 2>&1 | tee /tmp/modules.txt | grep -qi firebird; then
-            echo "✅ Firebird extension loaded in ZTS PHP with TSan"
-          else
-            echo "⚠️ Extension load test inconclusive (TSan runtime issue)"
-            echo "   Extension was compiled successfully - runtime tests will validate"
-          fi
+      - name: Verify extension and ZTS mode
+        uses: ./.github/actions/verify-extension
+        with:
+          mode: best-effort
+          extension-path: modules/firebird.so
+          ld-library-path-extra: /opt/firebird-client/lib
+          php-bin: /opt/php-tsan/bin/php
+          sanitizer-type: tsan
 
       - name: Create TSan suppressions file
         run: |

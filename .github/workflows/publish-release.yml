@@ -90,14 +90,10 @@ jobs:
           mkdir -p release-assets
           cd release-assets
 
-          # Download all assets from the draft release.
-          # Use separate commands per pattern — gh release download with
-          # multiple --pattern flags can fail partway, masking partial
-          # download failures with || true.
-          gh release download "$TAG" --clobber --repo "${{ github.repository }}" --pattern "*.tar.gz" || true
-          gh release download "$TAG" --clobber --repo "${{ github.repository }}" --pattern "*.zip" || true
-          gh release download "$TAG" --clobber --repo "${{ github.repository }}" --pattern "*.sbom.cdx.json" || true
-          gh release download "$TAG" --clobber --repo "${{ github.repository }}" --pattern "CHECKSUMS*" || true
+          # Download all assets from the draft release (no pattern filtering
+          # — gh release download --pattern has glob matching issues with
+          # dot characters in filenames on some gh CLI versions).
+          gh release download "$TAG" --clobber --repo "${{ github.repository }}" || true
 
           echo "Downloaded assets:"
           ls -la

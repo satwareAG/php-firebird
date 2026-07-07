@@ -8,7 +8,7 @@
  * Usage in tests:
  *   require_once __DIR__ . '/../cross_version.inc';
  *   $conn = cross_version_connect('3.0');   // connect to FB 3.0 server
- *   skip_if_fb_server_not_available('2.5');  // skip if FB 2.5 not running
+ *   skip_if_fb_server_not_available('3.0');  // skip if FB 3.0 not running
  *
  * @package php-firebird
  * @since   12.1.0
@@ -17,29 +17,48 @@
 declare(strict_types=1);
 
 /**
- * Mapping of Firebird version strings to docker-compose service names and ports.
+ * Mapping of Firebird version strings to docker-compose service names.
  *
- * The service names match docker/docker-compose.yml. Ports are the host-mapped
- * ports (if exposed). If not exposed, tests connect via the docker network.
+ * Service names match docker/docker-compose.yml. Tests connect via the docker
+ * network service name (not localhost:port) to avoid ambiguity when multiple
+ * FB versions are running or when a native FB server occupies port 3050.
+ *
+ * After connecting, the actual server version is verified to ensure we're
+ * talking to the right FB version, not just any server that responds.
  */
 function cross_version_get_service_map(): array
 {
     return [
-        '3.0' => ['service' => 'firebird30', 'port' => 3050, 'image' => 'firebirdsql/firebird:3.0'],
-        '4.0' => ['service' => 'firebird40', 'port' => 3050, 'image' => 'firebirdsql/firebird:4.0'],
-        '5.0' => ['service' => 'firebird50', 'port' => 3050, 'image' => 'firebirdsql/firebird:5.0'],
-        '6.0' => ['service' => 'firebird60', 'port' => 3050, 'image' => 'firebirdsql/firebird:6.0'],
+        '3.0' => ['service' => 'firebird30', 'image' => 'firebirdsql/firebird:3.0'],
+        '4.0' => ['service' => 'firebird40', 'image' => 'firebirdsql/firebird:4.0'],
+        '5.0' => ['service' => 'firebird50', 'image' => 'firebirdsql/firebird:5.0'],
     ];
 }
 
 /**
- * Check if a specific Firebird server version is reachable.
+ * Extract the major.minor version string from a Firebird server version string.
+ * Handles formats like "LI-V3.0.13.33818 Firebird 3.0" and "5.0".
+ */
+function cross_version_extract_version(string $versionString): ?string
+{
+    // Match patterns like "3.0", "4.0.2", "5.0.1" anywhere in the string
+    if (preg_match('/\b(\d+\.\d+)\./', $versionString, $m)) {
+        return $m[1];
+    }
+    if (preg_match('/\b(\d+\.\d+)\b/', $versionString, $m)) {
+        return $m[1];
+    }
+    return null;
+}
+
+/**
+ * Check if a specific Firebird server version is reachable via docker-compose.
  *
- * Tries to connect to the service on localhost or the docker-compose service name.
- * Falls back gracefully if the service is not running.
+ * Connects via the docker-compose service name and verifies the actual
+ * server version matches the requested version.
  *
- * @param string $version Firebird version string ('2.5', '3.0', '4.0', '5.0', '6.0')
- * @return bool True if the server is reachable
+ * @param string $version Firebird version string ('3.0', '4.0', '5.0')
+ * @return bool True if the server is reachable and version matches
  */
 function is_fb_server_available(string $version): bool
 {
@@ -48,33 +67,38 @@ function is_fb_server_available(string $version): bool
         return false;
     }
 
-    $port = $services[$version]['port'];
-
-    // Try localhost first (host-mapped port)
-    $host = 'localhost';
-    $connected = @fbird_connect("{$host}/{$port}:/firebird/data/test.fdb", 'SYSDBA', 'masterkey');
-
-    if ($connected) {
-        fbird_close($connected);
-        return true;
-    }
+    $service = $services[$version]['service'];
 
     // Try docker-compose service name (when running inside the docker network)
-    $service = $services[$version]['service'];
-    $connected = @fbird_connect("{$service}:/firebird/data/test.fdb", 'SYSDBA', 'masterkey');
-
-    if ($connected) {
-        fbird_close($connected);
-        return true;
+    $conn = @fbird_connect("{$service}:/firebird/data/test.fdb", 'SYSDBA', 'masterkey');
+    if (!$conn) {
+        // Also try localhost as fallback (for host-side testing with exposed ports)
+        $conn = @fbird_connect("localhost:/firebird/data/test.fdb", 'SYSDBA', 'masterkey');
     }
 
-    return false;
+    if (!$conn) {
+        return false;
+    }
+
+    // Verify the actual server version matches
+    $rs = @fbird_query($conn, "SELECT rdb\$get_context('SYSTEM', 'ENGINE_VERSION') FROM rdb\$database");
+    if ($rs) {
+        $row = fbird_fetch_row($rs);
+        fbird_free_result($rs);
+        $serverVersion = cross_version_extract_version($row[0] ?? '');
+        fbird_close($conn);
+        return $serverVersion === $version;
+    }
+
+    // If ENGINE_VERSION not available (FB < 3.0), fall back to service name match
+    fbird_close($conn);
+    return true;
 }
 
 /**
  * Get list of available Firebird server versions.
  *
- * @return array Array of version strings ('2.5', '3.0', etc.)
+ * @return array Array of version strings ('3.0', '4.0', etc.)
  */
 function get_available_fb_versions(): array
 {
@@ -90,7 +114,7 @@ function get_available_fb_versions(): array
 /**
  * Connect to a specific Firebird server version.
  *
- * @param string $version Firebird version ('2.5', '3.0', '4.0', '5.0', '6.0')
+ * @param string $version Firebird version ('3.0', '4.0', '5.0')
  * @param string $user Database username (default SYSDBA)
  * @param string $pass Database password (default masterkey)
  * @param string $charset Character set (default UTF8)
@@ -108,16 +132,15 @@ function cross_version_connect(
         throw new Exception("Unknown Firebird version: {$version}");
     }
 
-    $port = $services[$version]['port'];
+    $service = $services[$version]['service'];
 
-    // Try localhost first (host-mapped port)
-    $dsn = "localhost/{$port}:/firebird/data/test.fdb";
+    // Try docker-compose service name first
+    $dsn = "{$service}:/firebird/data/test.fdb";
     $conn = @fbird_connect($dsn, $user, $pass, $charset);
 
     if (!$conn) {
-        // Try docker-compose service name
-        $service = $services[$version]['service'];
-        $dsn = "{$service}:/firebird/data/test.fdb";
+        // Fallback to localhost
+        $dsn = "localhost:/firebird/data/test.fdb";
         $conn = @fbird_connect($dsn, $user, $pass, $charset);
     }
 
@@ -135,7 +158,7 @@ function cross_version_connect(
  *
  * For use in --SKIPIF-- sections of cross-version tests.
  *
- * @param string $version Firebird version ('2.5', '3.0', '4.0', '5.0', '6.0')
+ * @param string $version Firebird version ('3.0', '4.0', '5.0')
  */
 function skip_if_fb_server_not_available(string $version): void
 {

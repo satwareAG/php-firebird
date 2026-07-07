@@ -57,7 +57,7 @@ if ($blob_id) {
     if ($blob_len === $proc_len) {
         echo "OK cross-method byte count match: $blob_len\n";
     } else {
-        echo "WARN byte count mismatch: PDO=$blob_len proc=$proc_len\n";
+        echo "FAIL byte count mismatch: PDO=$blob_len proc=$proc_len\n";
     }
 } else {
     echo "SKIP no BLOB found in ARTIKEL.BILD\n";
@@ -99,7 +99,7 @@ echo "=== DONE ===\n";
 === amicron BLOB integration ===
 OK PDO PARAM_LOB read: %d bytes
 OK fbird_blob_open+get: %d bytes
-%s
+OK cross-method byte count match: %d
 OK BLOB create+read roundtrip: %d bytes, content matches
 OK disconnect
 === DONE ===

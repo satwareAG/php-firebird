@@ -38,7 +38,7 @@ for arg in "$@"; do
         --skip-phpstan) SKIP_PHPSTAN=true ;;
         --skip-phpunit) SKIP_PHPUNIT=true ;;
         --help|-h)
-            head -22 "$0"
+            sed -n '1,/^# ---/p' "$0"
             exit 0
             ;;
     esac
@@ -115,7 +115,7 @@ if [[ ! -f composer.lock ]]; then
 fi
 
 info "Running composer install..."
-if composer install --no-interaction --prefer-dist --quiet 2>/dev/null; then
+if composer install --no-interaction --prefer-dist --quiet 2>&1 | tail -5; then
     pass "composer install"
 else
     fail "composer install failed"
@@ -132,7 +132,7 @@ section "Doctrine Schema Validation"
 export DBHOST=localhost
 export DBNAME="${DBNAME:-/var/lib/firebird/data/amicron-empty.fdb}"
 export DBUSER="${DBUSER:-SYSDBA}"
-export DBPASS="${DBPASS:?DBPASS not set — set to amicron test DB password (e.g. export DBPASS=...)}"
+export DBPASS="${DBPASS:?DBPASS not set - set to amicron test DB password (e.g. export DBPASS=...)}"
 
 if php bin/console doctrine:schema:validate --env=test 2>&1 | tail -5; then
     pass "doctrine:schema:validate"

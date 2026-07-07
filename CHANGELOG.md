@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### v12.1.0 — Integration Conformance Suite (in progress)
+
+**Branch**: `test/integration-conformance`  
+**Scope**: Tests + specs only. No implementation changes. Every gap surfaces as a RED test
+(with `--SKIPIF--` so CI stays green); implementations spawn separate `feat/*` branches
+after v12.1.0 ships.
+
+**Focus**: Best possible driver for Firebird 3.x full support (amicron-platform customer
+target: Symfony 7.4 + PHP 8.4 + doctrine-firebird-driver v3.14.0 + FB 3.0.13).
+
+**Living-spec approach**: 130 GitHub issues across 9 milestones replace static spec files
+as the public, searchable, +1-able planning surface. Each milestone has an index spec in
+`specs/spec-v12.1-*.md`.
+
+#### Milestones
+
+| Milestone | Issues | Due |
+|---|---|---|
+| M1: FB3 PDO Definition Conformance (#322, #328-#351) | 25 | 2026-07-21 |
+| M2: FB3 Procedural API Parity (#323, #359-#384) | 27 | 2026-07-28 |
+| M3: FB3 Doctrine & amicron-platform (#324, #352-#358) | 8 | 2026-08-04 |
+| M4: FB3 Firebird Client Coverage (#325, #385-#403) | 20 | 2026-08-11 |
+| M5: FB3 Cross-Version Compat (#326, #404-#409) | 7 | 2026-08-11 |
+| M6: FB3 Documentation & Polish (#410-#416) | 7 | 2026-08-18 |
+| M7: FB3 Test Infrastructure (#312-#321) | 10 | 2026-07-21 |
+| M8: FB4+/5+/6+ Coverage stretch (#327, #417-#435) | 20 | 2026-11-30 |
+| M9: Implementation Work backlog (#436-#441) | 6 | unscheduled |
+
+#### Headline findings
+
+- **#339 (bug)**: PDO `getColumnMeta()` returns IM001 "driver does not support this function"
+  but `stubs/pdo-fbird-stubs.php` lists it under "Supported features". Mismatch to resolve.
+- **FBIRD_TXN_READ_COMMITTED/_REPEATABLE_READ/_SERIALIZABLE** documented in
+  `docs/pdo-driver.md` but **0 tests** today (#334).
+- **#359 (regression)**: `fbird_fetch_array` (BOTH mode) dropped vs legacy interbase -
+  most-felt gap for migration code.
+- **#369 (architectural)**: `fbird_errmsg`/`errcode`/`sqlstate` are global single-slot;
+  concurrent connections lose errors.
+
 ### v12.0.0 — Stable Release (2026-07-06)
 
 Final stable release. All 10 CI/CD workflows pass on a single tag push

@@ -12,8 +12,8 @@ v12.1.0 M3-5 (#356) - amicron-platform customer integration test
  *   - AUFTRAG -> AUFTRAG via AUFTRAG_FORTGEFUEHRTLFDNR_FK (self-ref)
  */
 $DB = 'localhost/3050:/var/lib/firebird/data/amicron-demo.fdb';
-$USER = 'AMICRON03';
-$PASS = 'klopf';
+$USER = 'SYSDBA';
+$PASS = 'masterkey';
 $CHARSET = 'ISO8859_1';
 
 echo "=== amicron FK constraints ===\n";
@@ -75,7 +75,7 @@ echo "=== DONE ===\n";
 ?>
 --CLEAN--
 <?php
-$conn = @fbird_connect('localhost/3050:/var/lib/firebird/data/amicron-demo.fdb', 'AMICRON03', 'klopf', 'ISO8859_1');
+$conn = @fbird_connect('localhost/3050:/var/lib/firebird/data/amicron-demo.fdb', 'SYSDBA', 'masterkey', 'ISO8859_1');
 if ($conn) {
     foreach (['TEST-FK-OK', 'TEST-FK-BAD', 'TEST-FK-SELF', 'TEST-FK-PDO'] as $nr) {
         @fbird_query($conn, "DELETE FROM AUFTRAG WHERE AUFTRAGNR = '$nr'");

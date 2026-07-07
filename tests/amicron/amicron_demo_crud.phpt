@@ -11,12 +11,12 @@ v12.1.0 M3-3 (#354) - amicron-platform customer integration test
  * on the real amicron-demo.fdb (FB 3.0.13, 59 ADRESSEN, 257 AUFTRAG,
  * 301 ARTIKEL, 1039 ATRPOS, 162 KONTAKTE rows).
  *
- * Uses AMICRON03/klopf (public demo creds from amicron-software.de).
+ * Uses SYSDBA/masterkey (public demo creds from amicron-software.de).
  * Test rows use LFDNR 999990-999999 and AUFTRAGNR 'TEST-*' for cleanup.
  */
 $DB = 'localhost/3050:/var/lib/firebird/data/amicron-demo.fdb';
-$USER = 'AMICRON03';
-$PASS = 'klopf';
+$USER = 'SYSDBA';
+$PASS = 'masterkey';
 $CHARSET = 'ISO8859_1';
 
 echo "=== amicron schema CRUD ===\n";
@@ -92,7 +92,7 @@ echo "=== DONE ===\n";
 ?>
 --CLEAN--
 <?php
-$conn = @fbird_connect('localhost/3050:/var/lib/firebird/data/amicron-demo.fdb', 'AMICRON03', 'klopf', 'ISO8859_1');
+$conn = @fbird_connect('localhost/3050:/var/lib/firebird/data/amicron-demo.fdb', 'SYSDBA', 'masterkey', 'ISO8859_1');
 if ($conn) {
     foreach (['TEST-CRUD', 'TEST-BADFK', 'TEST-PDO'] as $nr) {
         @fbird_query($conn, "DELETE FROM AUFTRAG WHERE AUFTRAGNR = '$nr'");

@@ -13,8 +13,8 @@ v12.1.0 M3-4 (#355) - amicron-platform customer integration test
  * Tests both PDO (PARAM_LOB stream) and procedural (fbird_blob_open/get) paths.
  */
 $DB = 'localhost/3050:/var/lib/firebird/data/amicron-demo.fdb';
-$USER = 'AMICRON03';
-$PASS = 'klopf';
+$USER = 'SYSDBA';
+$PASS = 'masterkey';
 $CHARSET = 'ISO8859_1';
 
 echo "=== amicron BLOB integration ===\n";

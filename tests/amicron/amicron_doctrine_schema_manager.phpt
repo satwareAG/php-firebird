@@ -22,8 +22,8 @@ require_once __DIR__ . '/skipif.inc';
  * This test verifies those queries work and return expected data shapes.
  */
 $DB = 'localhost/3050:/var/lib/firebird/data/amicron-demo.fdb';
-$USER = 'AMICRON03';
-$PASS = 'klopf';
+$USER = 'SYSDBA';
+$PASS = 'masterkey';
 $CHARSET = 'ISO8859_1';
 
 echo "=== Doctrine SchemaManager queries ===\n";

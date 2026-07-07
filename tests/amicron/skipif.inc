@@ -5,7 +5,7 @@
  * Verifies:
  *   - firebird extension is loaded
  *   - amicron-firebird Docker container is running with amicron-demo.fdb
- *   - AMICRON03/klopf credentials work (public demo creds from amicron-software.de)
+ *   - SYSDBA/masterkey credentials work (public demo creds from amicron-software.de)
  *
  * These tests only run locally (not in CI) since the amicron DBs are private
  * (~/internal/amicron-firebird Docker container).
@@ -23,11 +23,11 @@ if (!extension_loaded('firebird')) {
     die('skip firebird extension not loaded');
 }
 
-// amicron-demo.fdb uses AMICRON03/klopf (public demo credentials)
+// amicron-demo.fdb uses SYSDBA/masterkey (public demo credentials)
 $conn = @fbird_connect(
     'localhost/3050:/var/lib/firebird/data/amicron-demo.fdb',
-    'AMICRON03',
-    'klopf',
+    'SYSDBA',
+    'masterkey',
     'ISO8859_1'
 );
 

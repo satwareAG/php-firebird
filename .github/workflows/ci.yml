@@ -431,6 +431,7 @@ jobs:
   pdo-conformance:
     name: PDO Conformance (FB 3.0 / PHP 8.4)
     runs-on: ubuntu-24.04
+    continue-on-error: true  # New job, may fail on transient apt-get network issues
     timeout-minutes: 10
 
     services:

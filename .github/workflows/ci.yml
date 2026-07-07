@@ -422,3 +422,137 @@ jobs:
           mode: load-only
           extension-path: modules/firebird.so
           dyld-library-path-extra: /tmp/firebird-client/lib
+
+  # ──────────────────────────────────────────────────────────────────────
+  # PDO Conformance: fast feedback on PDO Definition regressions.
+  # Runs only tests/pdo_fbird/conformance/*.phpt on FB 3.0 + PHP 8.4.
+  # See: specs/spec-v12.1-pdo-conformance.md (#322)
+  # ──────────────────────────────────────────────────────────────────────
+  pdo-conformance:
+    name: PDO Conformance (FB 3.0 / PHP 8.4)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    services:
+      firebird:
+        image: firebirdsql/firebird:3.0
+        env:
+          ISC_PASSWORD: masterkey
+          FIREBIRD_DATABASE: test.fdb
+          FIREBIRD_USE_LEGACY_AUTH: 'Enabled'
+        ports:
+          - 3050:3050
+        options: >-
+          --health-cmd="bash -c '</dev/tcp/localhost/3050' 2>/dev/null || exit 1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Install Firebird client
+        uses: ./.github/actions/install-firebird-client
+        with:
+          firebird-major-version: '5'
+          use-sudo: 'true'
+          firebird-host: 'localhost'
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@cfb85b80c3d45f1817d4b2742fefa0ce44b56149 # 2.35.0
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Build extensions
+        run: |
+          set -eu
+          phpize
+          ./configure --with-firebird=/opt/firebird-client --with-pdo-fbird
+          make -j"$(nproc)"
+          sudo make install
+
+      - name: Run PDO conformance tests
+        env:
+          FIREBIRD_HOST: localhost
+        run: |
+          set -eu
+          TEST_PHP_EXECUTABLE=$(which php) \
+          TEST_PHP_ARGS="-n" \
+          php -n \
+            -d extension=firebird.so \
+            -d extension=pdo_fbird.so \
+            run-tests.php \
+            -p $(which php) \
+            tests/pdo_fbird/conformance/
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Procedural Parity: track procedural gap closure progress.
+  # Runs tests/parity/*.phpt. RED tests use --SKIPIF-- so CI stays green.
+  # continue-on-error: true until feat/* branches merge.
+  # See: specs/spec-v12.1-procedural-parity.md (#323)
+  # ──────────────────────────────────────────────────────────────────────
+  procedural-parity:
+    name: Procedural Parity (FB 3.0 / PHP 8.4)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    continue-on-error: true
+
+    services:
+      firebird:
+        image: firebirdsql/firebird:3.0
+        env:
+          ISC_PASSWORD: masterkey
+          FIREBIRD_DATABASE: test.fdb
+          FIREBIRD_USE_LEGACY_AUTH: 'Enabled'
+        ports:
+          - 3050:3050
+        options: >-
+          --health-cmd="bash -c '</dev/tcp/localhost/3050' 2>/dev/null || exit 1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Install Firebird client
+        uses: ./.github/actions/install-firebird-client
+        with:
+          firebird-major-version: '5'
+          use-sudo: 'true'
+          firebird-host: 'localhost'
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@cfb85b80c3d45f1817d4b2742fefa0ce44b56149 # 2.35.0
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Build extensions
+        run: |
+          set -eu
+          phpize
+          ./configure --with-firebird=/opt/firebird-client --with-pdo-fbird
+          make -j"$(nproc)"
+          sudo make install
+
+      - name: Run procedural parity tests
+        env:
+          FIREBIRD_HOST: localhost
+        run: |
+          set -eu
+          # Create the parity test directory if it doesn't exist yet
+          mkdir -p tests/parity
+          # Only run if test files exist
+          if ls tests/parity/*.phpt 1>/dev/null 2>&1; then
+            TEST_PHP_EXECUTABLE=$(which php) \
+            TEST_PHP_ARGS="-n" \
+            php -n \
+              -d extension=firebird.so \
+              run-tests.php \
+              -p $(which php) \
+              tests/parity/
+          else
+            echo "No parity tests yet (tests/parity/ directory empty)"
+          fi

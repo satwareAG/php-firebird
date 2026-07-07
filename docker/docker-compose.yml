@@ -275,7 +275,7 @@ services:
 
   # Firebird Database Containers
   firebird30:
-    image: firebirdsql/firebird:3
+    image: firebirdsql/firebird:3.0
     environment:
       ISC_PASSWORD: masterkey
       FIREBIRD_DATABASE: test.fdb
@@ -286,7 +286,7 @@ services:
       - fb30-data:/firebird/data
 
   firebird40:
-    image: firebirdsql/firebird:4
+    image: firebirdsql/firebird:4.0
     environment:
       ISC_PASSWORD: masterkey
       FIREBIRD_DATABASE: test.fdb
@@ -297,7 +297,7 @@ services:
       - fb40-data:/firebird/data
 
   firebird50:
-    image: firebirdsql/firebird:5
+    image: firebirdsql/firebird:5.0
     environment:
       ISC_PASSWORD: masterkey
       FIREBIRD_DATABASE: test.fdb

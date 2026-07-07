@@ -60,13 +60,14 @@ fi
 if [ -n "$1" ]; then
     TARGETS=("$1")
 else
-    # Test all PHP containers across all supported Firebird client libraries (12 combinations)
+    # Test all PHP containers across all supported Firebird client libraries
     # Sanitizer containers (php83-tsan, php83-asan) excluded by default - use explicitly
+    # FB 2.5 containers require firebird25 service (added v12.1.0, issue #313)
     TARGETS=(
-        "php82-fb3-dev" "php82-dev" "php82-fb5-dev"
-        "php83-fb3-dev" "php83-dev" "php83-fb5-dev"
-        "php84-fb3-dev" "php84-dev" "php84-fb5-dev"
-        "php85-fb3-dev" "php85-dev" "php85-fb5-dev"
+        "php82-fb3-dev" "php82-dev" "php82-fb5-dev" "php82-fb25-dev"
+        "php83-fb3-dev" "php83-dev" "php83-fb5-dev" "php83-fb25-dev"
+        "php84-fb3-dev" "php84-dev" "php84-fb5-dev" "php84-fb25-dev"
+        "php85-fb3-dev" "php85-dev" "php85-fb5-dev" "php85-fb25-dev"
     )
 fi
 
@@ -77,6 +78,9 @@ auto_detect_firebird_server() {
     case "$container" in
         *-fb3-*)
             echo "firebird30"
+            ;;
+        *-fb25-*)
+            echo "firebird25"
             ;;
         *-fb5-*|*-tsan)
             # TSan container defaults to firebird50

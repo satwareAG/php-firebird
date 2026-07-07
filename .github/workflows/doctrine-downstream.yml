@@ -80,17 +80,26 @@ jobs:
             extension=firebird.so
             extension=pdo_fbird.so
 
-      - name: Build php-firebird (firebird.so + pdo_fbird.so)
+      - name: Build firebird extension
         run: |
           set -eu
           phpize
-          ./configure --with-firebird=/opt/firebird-client --with-pdo-fbird
+          ./configure --with-firebird=/opt/firebird-client
+          make -j"$(nproc)"
+
+      - name: Build pdo_fbird extension
+        run: |
+          set -eu
+          cd pdo_fbird
+          phpize
+          ./configure --with-pdo-fbird --with-firebird=/opt/firebird-client
           make -j"$(nproc)"
 
       - name: Install extensions
         run: |
           set -eu
           sudo make install
+          cd pdo_fbird && sudo make install
           # Verify both extensions load
           php -m | grep -i firebird
           php -m | grep -i pdo_fbird || php -m | grep -i 'PDO drivers' | grep -i fbird
@@ -102,7 +111,7 @@ jobs:
           set -eu
           # doctrine-firebird-driver expects test DB at specific path
           # The service container already created test.fdb via FIREBIRD_DATABASE env
-          echo "FIREBIRD_TEST_DSN=firebird:host=localhost;dbname=/firebird/data/test.fdb;charset=UTF8" >> "$GITHUB_ENV"
+          echo "FIREBIRD_TEST_DSN=fbird:host=localhost;dbname=/firebird/data/test.fdb;charset=UTF8" >> "$GITHUB_ENV"
           echo "FIREBIRD_TEST_USER=SYSDBA" >> "$GITHUB_ENV"
           echo "FIREBIRD_TEST_PASSWORD=masterkey" >> "$GITHUB_ENV"
 

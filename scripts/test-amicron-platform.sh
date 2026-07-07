@@ -130,9 +130,9 @@ info "php-firebird-stubs: $STUBS_VERSION"
 section "Doctrine Schema Validation"
 
 export DBHOST=localhost
-export DBNAME="/var/lib/firebird/data/amicron-empty.fdb"
-export DBUSER=AMICRON03
-export DBPASS=klopf
+export DBNAME="${DBNAME:-/var/lib/firebird/data/amicron-empty.fdb}"
+export DBUSER="${DBUSER:-SYSDBA}"
+export DBPASS="${DBPASS:?DBPASS not set — set to amicron test DB password (e.g. export DBPASS=...)}"
 
 if php bin/console doctrine:schema:validate --env=test 2>&1 | tail -5; then
     pass "doctrine:schema:validate"

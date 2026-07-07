@@ -464,11 +464,20 @@ jobs:
           php-version: '8.4'
           coverage: none
 
-      - name: Build extensions
+      - name: Build firebird extension
         run: |
           set -eu
           phpize
-          ./configure --with-firebird=/opt/firebird-client --with-pdo-fbird
+          ./configure --with-firebird=/opt/firebird-client
+          make -j"$(nproc)"
+          sudo make install
+
+      - name: Build pdo_fbird extension
+        run: |
+          set -eu
+          cd pdo_fbird
+          phpize
+          ./configure --with-pdo-fbird --with-firebird=/opt/firebird-client
           make -j"$(nproc)"
           sudo make install
 
@@ -529,11 +538,11 @@ jobs:
           php-version: '8.4'
           coverage: none
 
-      - name: Build extensions
+      - name: Build firebird extension
         run: |
           set -eu
           phpize
-          ./configure --with-firebird=/opt/firebird-client --with-pdo-fbird
+          ./configure --with-firebird=/opt/firebird-client
           make -j"$(nproc)"
           sudo make install
 

@@ -42,6 +42,7 @@ paths = [
     '''tests/.*\.phpt$''',
     '''tests/.*\.inc$''',
     '''tests/.*\.php$''',
+    '''specs/.*.md$''',
 ]
 
 # Exclude test debug scripts (contain Docker base image GPG keys, not secrets)

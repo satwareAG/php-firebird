@@ -435,7 +435,7 @@ jobs:
 
     services:
       firebird:
-        image: firebirdsql/firebird:3.0
+        image: firebirdsql/firebird:3
         env:
           ISC_PASSWORD: masterkey
           FIREBIRD_DATABASE: test.fdb
@@ -484,6 +484,7 @@ jobs:
       - name: Run PDO conformance tests
         env:
           FIREBIRD_HOST: localhost
+          FIREBIRD_DB_PATH: /var/lib/firebird/data/test.fdb
         run: |
           set -eu
           TEST_PHP_EXECUTABLE=$(which php) \
@@ -509,7 +510,7 @@ jobs:
 
     services:
       firebird:
-        image: firebirdsql/firebird:3.0
+        image: firebirdsql/firebird:3
         env:
           ISC_PASSWORD: masterkey
           FIREBIRD_DATABASE: test.fdb
@@ -549,6 +550,7 @@ jobs:
       - name: Run procedural parity tests
         env:
           FIREBIRD_HOST: localhost
+          FIREBIRD_DB_PATH: /var/lib/firebird/data/test.fdb
         run: |
           set -eu
           # Create the parity test directory if it doesn't exist yet

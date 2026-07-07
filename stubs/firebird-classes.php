@@ -7,7 +7,7 @@
  * C extension. These are used by static analysis tools and IDEs.
  *
  * @package   php-firebird-stubs
- * @version   11.1.0
+ * @version   12.0.0
  * @author    satware AG <info@satware.com>
  * @copyright 2025 satware AG
  * @license   PHP-3.01 https://www.php.net/license/3_01.txt
@@ -28,6 +28,36 @@ if (extension_loaded('fbird')) {
 final class Event
 {
     private function __construct() {}
+
+    /**
+     * Block until an event fires or timeout expires.
+     * @param float $timeout Timeout in seconds (-1.0 = block forever, 0.0 = return immediately)
+     * @return bool True if event fired, false on timeout/error
+     * @since 12.0.0
+     */
+    public function wait(float $timeout = -1.0): bool {}
+
+    /**
+     * Cancel a pending event wait.
+     * @return bool True on success, false if already cancelled
+     * @since 12.0.0
+     */
+    public function cancel(): bool {}
+
+    /**
+     * Get the name of the last event that fired.
+     * Returns the first registered event name if none fired yet.
+     * @return string Event name
+     * @since 12.0.0
+     */
+    public function getName(): string {}
+
+    /**
+     * Get the number of times the event callback has been invoked.
+     * @return int Callback invocation count
+     * @since 12.0.0
+     */
+    public function getCount(): int {}
 }
 
 /**
@@ -92,12 +122,11 @@ class Connection
 
     /**
      * Prepare a SQL statement.
-     * @param string           $sql         SQL text.
-     * @param Transaction|null $transaction Transaction context.
-     * @param int              $dialect     SQL dialect override.
+     * @param string $sql SQL text.
+     * @param Transaction $transaction Transaction context (required).
      * @throws Exception
      */
-    public function prepare(string $sql, ?Transaction $transaction = null, int $dialect = 3): Statement {}
+    public function prepare(string $sql, \Firebird\Transaction $transaction): Statement {}
 }
 
 /**
@@ -130,11 +159,11 @@ class Statement
 
     /**
      * Execute the statement.
-     * @param mixed ...$params Bind parameters.
-     * @return ResultSet|bool ResultSet for SELECT, true for DML/DDL.
+     * @param Transaction $transaction Active transaction context
+     * @return ResultSet ResultSet for SELECT, DML, and DDL.
      * @throws Exception
      */
-    public function execute(mixed ...$params): ResultSet|bool {}
+    public function execute(\Firebird\Transaction $transaction): ResultSet {}
 }
 
 /**
@@ -231,4 +260,11 @@ class Service
  */
 final class BatchHandle
 {
+    public function getBlobAlignment(): int|false {}
+    public function setDefaultBpb(string $bpb): bool {}
+    public function cancel(): bool {}
+    /** @return array<string, int>|false */
+    public function execute(): array|false {}
+    public function add(mixed ...$args): bool {}
+    public function addBlob(string $data, int $blob_type = 0): string|false {}
 }

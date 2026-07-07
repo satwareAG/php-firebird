@@ -1,5 +1,19 @@
 <?php
 
+// ============================================================================
+// Service Manager Teardown Pattern (OC-10)
+// ============================================================================
+// When a test calls FBIRD_RPR_VALIDATE_DB and the database is marked as
+// "damaged", subsequent tests inherit that damaged state. The correct
+// teardown sequence is:
+//
+//   1. FBIRD_RPR_VALIDATE_DB + FBIRD_RPR_FULL  — check for errors
+//   2. FBIRD_RPR_MEND_DB    + FBIRD_RPR_FULL  — repair if needed
+//   3. FBIRD_RPR_VALIDATE_DB + FBIRD_RPR_FULL  — verify no remaining errors
+//
+// See fbird_service_validate_mend_cycle.phpt for a working example.
+// ============================================================================
+
 function test_use_after_fbird_free_query() {
 	$batch_count = 5;
 
@@ -90,4 +104,76 @@ function test_field_data40(): void {
 	fbird_commit();
 	fbird_query("INSERT INTO FIELDS40 (ID) VALUES (1)");
 	dump_table_rows("FIELDS40");
+}
+
+// ============================================================================
+// OOP helper functions (OC-6)
+// These wrap the Firebird\* OOP API for use in test files.
+// Usage: require_once 'common.inc'; $conn = oop_connect();
+// ============================================================================
+
+/**
+ * Connect to the test database using the OOP API.
+ * Auto-includes firebird.inc if $test_base is not yet set.
+ *
+ * @param string|null $database Override database path (defaults to $test_base)
+ * @return \Firebird\Connection
+ * @throws \Firebird\DatabaseException On connection failure
+ */
+function oop_connect(?string $database = null): \Firebird\Connection
+{
+	global $test_base, $user, $password;
+	if (!isset($test_base)) {
+		require_once __DIR__ . '/firebird.inc';
+	}
+	return new \Firebird\Connection(
+		$database ?? $test_base,
+		$user,
+		$password
+	);
+}
+
+/**
+ * Begin a new transaction on the given connection.
+ *
+ * @param \Firebird\Connection $conn Active connection
+ * @return \Firebird\Transaction
+ * @throws \Firebird\TransactionException On failure
+ */
+function oop_begin_transaction(\Firebird\Connection $conn): \Firebird\Transaction
+{
+	return $conn->beginTransaction();
+}
+
+/**
+ * Prepare and execute a SQL statement, returning a ResultSet.
+ * Wraps Connection::prepare() + Statement::execute().
+ *
+ * Note: bind parameters are not supported via this helper because the
+ * OOP Statement::execute() only accepts a Transaction (no bind args).
+ * For parameterized queries, use $conn->prepare() + fbird_execute().
+ *
+ * @param \Firebird\Connection $conn Active connection
+ * @param \Firebird\Transaction $tx Active transaction
+ * @param string $sql SQL text (without placeholders)
+ * @return \Firebird\ResultSet
+ * @throws \Firebird\QueryException On prepare or execute failure
+ */
+function oop_query(
+	\Firebird\Connection $conn,
+	\Firebird\Transaction $tx,
+	string $sql
+): \Firebird\ResultSet {
+	$stmt = $conn->prepare($sql, $tx);
+	return $stmt->execute($tx);
+}
+
+/**
+ * Close a database connection.
+ *
+ * @param \Firebird\Connection $conn Connection to close
+ */
+function oop_close(\Firebird\Connection $conn): void
+{
+	$conn->close();
 }

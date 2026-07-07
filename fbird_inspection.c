@@ -29,6 +29,7 @@
  */
 static int _fbird_exec_kill(fbird_db_link *link, fbird_transaction *trans, ISC_INT64 attachment_id)
 {
+	ISC_STATUS status[256];
 	static const char *sql = "DELETE FROM MON$ATTACHMENTS WHERE MON$ATTACHMENT_ID = ?";
 	void *stmt = NULL;
 	void *attachment = NULL;
@@ -49,35 +50,37 @@ static int _fbird_exec_kill(fbird_db_link *link, fbird_transaction *trans, ISC_I
 	/* Get OO API handles */
 	attachment = fbc_get_attachment(link->fbc_connection);
 	if (!attachment) {
+		_php_fbird_module_error("fbird_kill_attachment: Failed to get attachment from OO API connection");
 		return FAILURE;
 	}
 
 	transaction = fbt_get_handle(trans->fbt_transaction);
 	if (!transaction) {
+		_php_fbird_module_error("fbird_kill_attachment: Failed to get transaction handle from OO API transaction");
 		return FAILURE;
 	}
 
 	/* Prepare statement */
 	stmt = fbs_prepare(
-		IBG(master_instance),
+		FBG(master_instance),
 		attachment,
 		transaction,
 		sql,
 		0,  /* null-terminated */
 		SQL_DIALECT_V6,
-		IB_STATUS
+		status
 	);
 
 	if (!stmt) {
-		_php_fbird_error();
+		_php_fbird_error(status);
 		return FAILURE;
 	}
 
 	/* Get input metadata for parameter binding */
-	void *in_metadata = fbs_get_input_metadata(IBG(master_instance), stmt, IB_STATUS);
+	void *in_metadata = fbs_get_input_metadata(FBG(master_instance), stmt, status);
 	if (!in_metadata) {
-		_php_fbird_error();
-		fbs_free(stmt, IB_STATUS);
+		_php_fbird_error(status);
+		fbs_free(stmt, status);
 		return FAILURE;
 	}
 
@@ -98,22 +101,22 @@ static int _fbird_exec_kill(fbird_db_link *link, fbird_transaction *trans, ISC_I
 
 	/* Execute the statement */
 	if (!fbs_execute(
-		IBG(master_instance),
+		FBG(master_instance),
 		stmt,
 		transaction,
 		in_msg,
 		in_metadata,
 		NULL,  /* no output */
 		NULL,
-		IB_STATUS
+		status
 	)) {
-		_php_fbird_error();
-		fbs_free(stmt, IB_STATUS);
+		_php_fbird_error(status);
+		fbs_free(stmt, status);
 		return FAILURE;
 	}
 
 	result = SUCCESS;
-	fbs_free(stmt, IB_STATUS);
+	fbs_free(stmt, status);
 	return result;
 }
 
@@ -127,6 +130,7 @@ static int _fbird_exec_kill(fbird_db_link *link, fbird_transaction *trans, ISC_I
  */
 static int _fbird_drop_table(fbird_db_link *link, fbird_transaction *trans, const char *table_name)
 {
+	ISC_STATUS status[256];
 	char *drop_sql = NULL;
 	void *stmt = NULL;
 	void *attachment = NULL;
@@ -159,46 +163,46 @@ static int _fbird_drop_table(fbird_db_link *link, fbird_transaction *trans, cons
 
 	/* Prepare statement */
 	stmt = fbs_prepare(
-		IBG(master_instance),
+		FBG(master_instance),
 		attachment,
 		transaction,
 		drop_sql,
 		0,  /* null-terminated */
 		SQL_DIALECT_V6,
-		IB_STATUS
+		status
 	);
 
 	if (!stmt) {
-		_php_fbird_error();
+		_php_fbird_error(status);
 		efree(drop_sql);
 		return FAILURE;
 	}
 
 	/* Execute the statement (no parameters) */
 	if (!fbs_execute(
-		IBG(master_instance),
+		FBG(master_instance),
 		stmt,
 		transaction,
 		NULL,  /* no input */
 		NULL,
 		NULL,  /* no output */
 		NULL,
-		IB_STATUS
+		status
 	)) {
-		_php_fbird_error();
-		fbs_free(stmt, IB_STATUS);
+		_php_fbird_error(status);
+		fbs_free(stmt, status);
 		efree(drop_sql);
 		return FAILURE;
 	}
 
 	/* Free statement before commit */
-	fbs_free(stmt, IB_STATUS);
+	fbs_free(stmt, status);
 	efree(drop_sql);
 
 	/* Commit for DDL visibility
 	 * fbt_commit returns 0 on success, -1 on error. */
-	if (fbt_commit(trans->fbt_transaction, IB_STATUS) != 0) {
-		_php_fbird_error();
+	if (fbt_commit(trans->fbt_transaction, status) != 0) {
+		_php_fbird_error(status);
 		return FAILURE;
 	}
 
@@ -274,6 +278,7 @@ PHP_FUNCTION(fbird_kill_attachment)
 
 PHP_FUNCTION(fbird_list_table_blockers)
 {
+	ISC_STATUS status[256];
 	zval *link_arg;
 	char *table_name;
 	size_t table_name_len;
@@ -316,43 +321,45 @@ PHP_FUNCTION(fbird_list_table_blockers)
 	/* Get OO API handles */
 	attachment = fbc_get_attachment(link->fbc_connection);
 	if (!attachment) {
+		_php_fbird_module_error("Failed to get attachment from OO API connection");
 		RETURN_FALSE;
 	}
 
 	transaction = fbt_get_handle(trans->fbt_transaction);
 	if (!transaction) {
+		_php_fbird_module_error("Failed to get transaction handle from OO API transaction");
 		RETURN_FALSE;
 	}
 
 	/* Prepare statement */
 	stmt = fbs_prepare(
-		IBG(master_instance),
+		FBG(master_instance),
 		attachment,
 		transaction,
 		sql,
 		0,  /* null-terminated */
 		SQL_DIALECT_V6,
-		IB_STATUS
+		status
 	);
 
 	if (!stmt) {
-		_php_fbird_error();
+		_php_fbird_error(status);
 		RETURN_FALSE;
 	}
 
 	/* Get input metadata for parameter binding */
-	in_metadata = fbs_get_input_metadata(IBG(master_instance), stmt, IB_STATUS);
+	in_metadata = fbs_get_input_metadata(FBG(master_instance), stmt, status);
 	if (!in_metadata) {
-		_php_fbird_error();
-		fbs_free(stmt, IB_STATUS);
+		_php_fbird_error(status);
+		fbs_free(stmt, status);
 		RETURN_FALSE;
 	}
 
 	/* Get output metadata for result fetching */
-	out_metadata = fbs_get_output_metadata(IBG(master_instance), stmt, IB_STATUS);
+	out_metadata = fbs_get_output_metadata(FBG(master_instance), stmt, status);
 	if (!out_metadata) {
-		_php_fbird_error();
-		fbs_free(stmt, IB_STATUS);
+		_php_fbird_error(status);
+		fbs_free(stmt, status);
 		RETURN_FALSE;
 	}
 
@@ -380,17 +387,17 @@ PHP_FUNCTION(fbird_list_table_blockers)
 
 	/* Open cursor for fetching results */
 	if (!fbs_open_cursor(
-		IBG(master_instance),
+		FBG(master_instance),
 		stmt,
 		transaction,
 		in_msg,
 		in_metadata,
 		0,  /* cursor_flags */
-		IB_STATUS
+		status
 	)) {
-		_php_fbird_error();
+		_php_fbird_error(status);
 		efree(in_msg);
-		fbs_free(stmt, IB_STATUS);
+		fbs_free(stmt, status);
 		RETURN_FALSE;
 	}
 
@@ -416,10 +423,10 @@ PHP_FUNCTION(fbird_list_table_blockers)
 		memset(out_msg, 0, sizeof(out_msg));
 
 		int fetch_result = fbs_fetch(
-			IBG(master_instance),
+			FBG(master_instance),
 			stmt,
 			out_msg,
-			IB_STATUS
+			status
 		);
 
 		if (fetch_result == 0) {
@@ -427,9 +434,9 @@ PHP_FUNCTION(fbird_list_table_blockers)
 			break;
 		} else if (fetch_result < 0) {
 			/* Error */
-			_php_fbird_error();
-			fbs_close_cursor(stmt, IB_STATUS);
-			fbs_free(stmt, IB_STATUS);
+			_php_fbird_error(status);
+			fbs_close_cursor(stmt, status);
+			fbs_free(stmt, status);
 			/* Return partial result */
 			return;
 		}
@@ -466,8 +473,8 @@ PHP_FUNCTION(fbird_list_table_blockers)
 		add_next_index_zval(return_value, &row);
 	}
 
-	fbs_close_cursor(stmt, IB_STATUS);
-	fbs_free(stmt, IB_STATUS);
+	fbs_close_cursor(stmt, status);
+	fbs_free(stmt, status);
 }
 
 PHP_FUNCTION(fbird_drop_table_force)

@@ -47,3 +47,5 @@ fbird_close($dbh);
 ?>
 --EXPECT--
 OK
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

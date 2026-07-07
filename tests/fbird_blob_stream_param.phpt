@@ -62,11 +62,4 @@ Line 2 of blob data.
 Done
 
 --CLEAN--
-<?php
-require_once 'firebird.inc';
-$db = @fbird_connect($test_base);
-if ($db) {
-    @fbird_query($db, "DROP TABLE blob_stream_test");
-    @fbird_close($db);
-}
-?>
+<?php require_once __DIR__ . '/clean.inc'; ?>

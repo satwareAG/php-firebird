@@ -5,6 +5,24 @@
 # Use default rules as base
 useDefault = true
 
+# =============================================================================
+# IPADP L2 Privacy Validation — custom rules for satware internal patterns
+# This repo is PUBLIC. Internal infrastructure URLs must never leak.
+# Replaces the deleted scripts/check-privacy-leaks.sh with CI-native rules.
+# =============================================================================
+
+[[rules]]
+id = "satware-internal-urls"
+description = "satware internal infrastructure URL in public repo"
+regex = '''gitlab\.satware\.com|git\.satware\.ai|mattermost\.satware\.com|wiki\.satware\.com'''
+tags = ["ipadp", "privacy", "L2"]
+
+[[rules]]
+id = "satware-private-ips"
+description = "private IP address in public repo"
+regex = '''\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})\b'''
+tags = ["ipadp", "privacy", "L2"]
+
 [allowlist]
 description = "php-firebird repository allowlist"
 
@@ -13,6 +31,13 @@ paths = [
     '''vendor/.*''',
     '''node_modules/.*''',
     '''\.idea/.*''',
+    # Historical files that contained internal URLs/IPs as tooling/documentation
+    # (now deleted from working tree, but present in git history)
+    '''scripts/check-privacy-leaks\.sh''',
+    '''scripts/daily-routine\.sh''',
+    '''scripts/morning-health-check\.sh''',
+    '''NEXT_STEPS\.md''',
+    '''docs/UPSTREAM_ISSUE_ANALYSIS\.md''',
 ]
 
 # Exclude test debug scripts (contain Docker base image GPG keys, not secrets)

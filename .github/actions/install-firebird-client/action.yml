@@ -1,0 +1,285 @@
+name: Install Firebird Client
+description: Install Firebird client library, configure auth, and wait for service readiness. Eliminates ~1087 lines of duplicated setup across ci.yml, coverage.yml, and sanitizers.yml.
+
+inputs:
+  firebird-major-version:
+    description: Firebird major version to resolve (3, 4, or 5)
+    default: '5'
+  extra-apt-packages:
+    description: Space-separated list of additional apt packages to install
+    default: ''
+  use-sudo:
+    description: Whether to prefix system commands with sudo (for non-containerized jobs)
+    default: 'false'
+  firebird-host:
+    description: Hostname for the Firebird service (service container name or localhost)
+    default: 'firebird'
+  include-wget-fallback:
+    description: Whether to try wget as a download fallback when curl fails
+    default: 'true'
+  install-pcntl:
+    description: Whether to install the PHP pcntl extension via docker-php-ext-install
+    default: 'true'
+  verbose-download:
+    description: Whether to emit verbose echo logging during download
+    default: 'false'
+
+outputs:
+  fb-version:
+    description: Resolved Firebird client version string
+    value: ${{ steps.fb-version.outputs.fb_version }}
+  fb-client-dir:
+    description: Path to installed Firebird client directory
+    value: /opt/firebird-client
+
+runs:
+  using: composite
+  steps:
+    - name: Install system dependencies
+      shell: bash
+      env:
+        EXTRA_APT: ${{ inputs.extra-apt-packages }}
+        INSTALL_PCNTL: ${{ inputs.install-pcntl }}
+        SUDO: ${{ inputs.use-sudo == 'true' && 'sudo' || '' }}
+      run: |
+        set -eu
+        export DEBIAN_FRONTEND=noninteractive
+
+        for attempt in 1 2 3; do
+          if ${SUDO} apt-get update; then break; fi
+          echo "apt-get update failed (attempt ${attempt}/3), retrying..." >&2
+          sleep 5
+        done
+
+        ${SUDO} apt-get install -y --no-install-recommends \
+          autoconf \
+          build-essential \
+          ca-certificates \
+          g++ \
+          git \
+          libicu-dev \
+          libtool \
+          netbase \
+          netcat-openbsd \
+          pkg-config \
+          wget \
+          curl \
+          unzip \
+          jq \
+          libtommath1 \
+          libncurses6 \
+          ${EXTRA_APT}
+
+        # Library compatibility symlinks for Firebird 3.0 client
+        echo "Creating library compatibility symlinks..."
+        if [ -f /lib/x86_64-linux-gnu/libncurses.so.6 ]; then
+          ${SUDO} ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /lib/x86_64-linux-gnu/libncurses.so.5
+          ${SUDO} ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 /lib/x86_64-linux-gnu/libtinfo.so.5 2>/dev/null || true
+        fi
+        if [ -f /lib/x86_64-linux-gnu/libtommath.so.1 ]; then
+          ${SUDO} ln -sf /lib/x86_64-linux-gnu/libtommath.so.1 /lib/x86_64-linux-gnu/libtommath.so.0
+        fi
+        ${SUDO} ldconfig
+
+        if [ "${INSTALL_PCNTL}" = 'true' ] && command -v docker-php-ext-install >/dev/null 2>&1; then
+          docker-php-ext-install pcntl
+        fi
+
+        ${SUDO} rm -rf /var/lib/apt/lists/*
+
+    - name: Resolve Firebird client version
+      id: fb-version
+      shell: bash
+      env:
+        FB_MAJOR: ${{ inputs.firebird-major-version }}
+        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+      run: |
+        set -eu
+        # Accept both '5' and '5.0' formats — extract major version
+        FB_MAJOR=$(echo "${FB_MAJOR}" | cut -d. -f1)
+        chmod +x scripts/get-latest-firebird.sh
+        eval "$(./scripts/get-latest-firebird.sh "${FB_MAJOR}")"
+        echo "fb_version=${FB_VERSION}"       >> "$GITHUB_OUTPUT"
+        echo "fb_url=${FB_URL}"               >> "$GITHUB_OUTPUT"
+        echo "fb_tarball=${FB_TARBALL}"       >> "$GITHUB_OUTPUT"
+        echo "fb_extract_dir=${FB_EXTRACT_DIR}" >> "$GITHUB_OUTPUT"
+        echo "Resolved: FB ${FB_VERSION} -> ${FB_TARBALL}"
+
+    - name: Cache Firebird client tarball
+      id: cache-firebird
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+      with:
+        path: /tmp/firebird-cache
+        key: firebird-client-${{ steps.fb-version.outputs.fb_version }}-linux-x64
+
+    - name: Download Firebird client tarball
+      if: steps.cache-firebird.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        FB_URL: ${{ steps.fb-version.outputs.fb_url }}
+        FB_TARBALL: ${{ steps.fb-version.outputs.fb_tarball }}
+        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+        WGET_FALLBACK: ${{ inputs.include-wget-fallback }}
+        VERBOSE: ${{ inputs.verbose-download }}
+      run: |
+        set -eu
+        mkdir -p /tmp/firebird-cache
+        DEST="/tmp/firebird-cache/${FB_TARBALL}"
+        DELAY=10
+
+        for attempt in 1 2 3 4 5; do
+          echo "Downloading FB client (attempt ${attempt}/5)..."
+
+          if curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              "${FB_URL}" -o "${DEST}"; then
+            FSIZE=$(stat -c%s "${DEST}" 2>/dev/null || echo "0")
+            if [ "${FSIZE}" -gt 8000000 ]; then
+              [ "${VERBOSE}" = 'true' ] && echo "curl download succeeded (${FSIZE} bytes)"
+              break
+            fi
+            echo "curl: file too small (${FSIZE} bytes), discarding"
+            rm -f "${DEST}"
+          fi
+
+          if [ "${WGET_FALLBACK}" = 'true' ]; then
+            echo "Trying wget fallback..."
+            if wget -q --tries=3 --timeout=90 \
+                --header="Authorization: token ${GITHUB_TOKEN}" \
+                "${FB_URL}" -O "${DEST}"; then
+              FSIZE=$(stat -c%s "${DEST}" 2>/dev/null || echo "0")
+              if [ "${FSIZE}" -gt 8000000 ]; then
+                [ "${VERBOSE}" = 'true' ] && echo "wget download succeeded (${FSIZE} bytes)"
+                break
+              fi
+              rm -f "${DEST}"
+            fi
+          fi
+
+          if [ "${attempt}" -lt 5 ]; then
+            echo "Sleeping ${DELAY}s before retry (exponential backoff)..."
+            sleep "${DELAY}"
+            DELAY=$((DELAY * 2))
+          fi
+        done
+
+        [ -f "${DEST}" ] || { echo "ERROR: All download attempts failed for ${FB_URL}" >&2; exit 1; }
+        echo "Tarball cached at ${DEST}"
+
+    - name: Install Firebird client library
+      shell: bash
+      env:
+        FB_VERSION: ${{ steps.fb-version.outputs.fb_version }}
+        FB_TARBALL: ${{ steps.fb-version.outputs.fb_tarball }}
+        FB_EXTRACT_DIR: ${{ steps.fb-version.outputs.fb_extract_dir }}
+        SUDO: ${{ inputs.use-sudo == 'true' && 'sudo' || '' }}
+      run: |
+        set -eu
+        FB_CLIENT_DIR="/opt/firebird-client"
+        ${SUDO} mkdir -p "${FB_CLIENT_DIR}"
+
+        cp "/tmp/firebird-cache/${FB_TARBALL}" "/tmp/${FB_TARBALL}"
+        echo "Installing Firebird ${FB_VERSION} client library..."
+
+        cd /tmp
+        tar xzf "${FB_TARBALL}"
+        cd "${FB_EXTRACT_DIR}"
+        tar xzf buildroot.tar.gz
+
+        if [ -d "opt/firebird/include" ]; then
+          ${SUDO} mkdir -p "${FB_CLIENT_DIR}/include"
+          ${SUDO} cp -a opt/firebird/include/* "${FB_CLIENT_DIR}/include/"
+        fi
+        if [ -d "opt/firebird/lib" ]; then
+          ${SUDO} mkdir -p "${FB_CLIENT_DIR}/lib"
+          ${SUDO} cp -a opt/firebird/lib/* "${FB_CLIENT_DIR}/lib/"
+        fi
+
+        echo "=== Installing libraries to system paths ==="
+        for libfile in "${FB_CLIENT_DIR}/lib/"*.so*; do
+          if [ -f "$libfile" ] && [ ! -L "$libfile" ]; then
+            LIBNAME=$(basename "$libfile")
+            echo "Copying: ${LIBNAME}"
+            ${SUDO} cp "$libfile" /usr/lib/
+          fi
+        done
+
+        if ls /usr/lib/libfbclient.so.*.*.* 1>/dev/null 2>&1; then
+          FBCLIENT_REAL=$(ls /usr/lib/libfbclient.so.*.*.* 2>/dev/null | head -1)
+          FBCLIENT_NAME=$(basename "$FBCLIENT_REAL")
+          ${SUDO} ln -sf "$FBCLIENT_NAME" /usr/lib/libfbclient.so.2
+          ${SUDO} ln -sf libfbclient.so.2 /usr/lib/libfbclient.so
+          ${SUDO} ln -sf "$FBCLIENT_NAME" /usr/local/lib/libfbclient.so.2 2>/dev/null || true
+          ${SUDO} ln -sf libfbclient.so.2 /usr/local/lib/libfbclient.so 2>/dev/null || true
+        fi
+
+        if ls /usr/lib/libtomcrypt.so.*.*.* 1>/dev/null 2>&1; then
+          TOMCRYPT_REAL=$(ls /usr/lib/libtomcrypt.so.*.*.* 2>/dev/null | head -1)
+          TOMCRYPT_NAME=$(basename "$TOMCRYPT_REAL")
+          ${SUDO} ln -sf "$TOMCRYPT_NAME" /usr/lib/libtomcrypt.so.1
+          ${SUDO} ln -sf libtomcrypt.so.1 /usr/lib/libtomcrypt.so
+        fi
+
+        ${SUDO} cp -a "${FB_CLIENT_DIR}/include"/* /usr/include/ 2>/dev/null || true
+
+        if [ -n "${SUDO}" ]; then
+          echo "${FB_CLIENT_DIR}/lib" | ${SUDO} tee /etc/ld.so.conf.d/firebird-client.conf > /dev/null
+          echo "/usr/lib" | ${SUDO} tee -a /etc/ld.so.conf.d/firebird-client.conf > /dev/null
+          ${SUDO} ldconfig
+        else
+          echo -e "${FB_CLIENT_DIR}/lib\n/usr/local/lib\n/usr/lib" > /etc/ld.so.conf.d/firebird-client.conf
+          ldconfig
+        fi
+
+        ldconfig -p | grep -E "(fbclient|tomcrypt)" || echo "Warning: libraries not in ldconfig cache"
+
+        if [ ! -f "${FB_CLIENT_DIR}/include/ibase.h" ]; then
+          echo "ERROR: ibase.h not found in ${FB_CLIENT_DIR}/include" >&2
+          exit 1
+        fi
+        echo "Firebird ${FB_VERSION} client installed successfully"
+
+    - name: Configure Firebird client authentication
+      shell: bash
+      env:
+        SUDO: ${{ inputs.use-sudo == 'true' && 'sudo' || '' }}
+      run: |
+        set -eu
+        FB_CONF_CONTENT='# Firebird client configuration for CI
+        AuthClient = Srp256, Srp, Legacy_Auth
+        WireCrypt = Enabled
+        '
+
+        ${SUDO} mkdir -p /opt/firebird-client /opt/firebird-client/etc /etc/firebird
+
+        if [ -n "${SUDO}" ]; then
+          echo "$FB_CONF_CONTENT" | ${SUDO} tee /opt/firebird-client/firebird.conf > /dev/null
+          echo "$FB_CONF_CONTENT" | ${SUDO} tee /opt/firebird-client/etc/firebird.conf > /dev/null
+          echo "$FB_CONF_CONTENT" | ${SUDO} tee /etc/firebird/firebird.conf > /dev/null
+        else
+          echo "$FB_CONF_CONTENT" > /opt/firebird-client/firebird.conf
+          echo "$FB_CONF_CONTENT" > /opt/firebird-client/etc/firebird.conf
+          echo "$FB_CONF_CONTENT" > /etc/firebird/firebird.conf
+        fi
+
+    - name: Wait for Firebird service
+      shell: bash
+      env:
+        FB_HOST: ${{ inputs.firebird-host }}
+      run: |
+        set -eu
+        echo "Waiting for Firebird at ${FB_HOST}:3050..."
+        for i in $(seq 1 60); do
+          if nc -z "${FB_HOST}" 3050 2>/dev/null; then
+            echo "Firebird is ready at ${FB_HOST}:3050"
+            sleep 5
+            break
+          fi
+          echo "Waiting (${i}/60)..."
+          sleep 2
+        done
+
+        if ! nc -z "${FB_HOST}" 3050 2>/dev/null; then
+          echo "ERROR: Firebird did not start at ${FB_HOST}:3050" >&2
+          exit 1
+        fi

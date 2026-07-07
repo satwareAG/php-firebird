@@ -10,7 +10,7 @@
 #   ./scripts/build-precompiled.sh [options] [PHP_VERSION] [VARIANT] [ARCH]
 #
 # Arguments:
-#   PHP_VERSION  - PHP version (8.1, 8.2, 8.3, 8.4, 8.5) [default: 8.4]
+#   PHP_VERSION  - PHP version (8.2, 8.3, 8.4, 8.5) [default: 8.4]
 #   VARIANT      - nts (Non-Thread Safe) or zts (Thread Safe) [default: nts]
 #   ARCH         - Architecture (x86_64, aarch64) [default: x86_64]
 #
@@ -35,6 +35,8 @@
 
 set -euo pipefail
 
+source "$(dirname "$0")/lib/logging.sh"
+
 # =============================================================================
 # Configuration
 # =============================================================================
@@ -43,10 +45,10 @@ PHP_VERSION=""
 VARIANT=""
 ARCH=""
 PLATFORM=""
-DRY_RUN=false
+DRY_RUN=0
 SKIP_BUILD=false
 GENERATE_CHECKSUMS=true
-VERBOSE=false
+VERBOSE=0
 RUN_VERIFY=false
 
 # Auto-detect platform
@@ -57,17 +59,17 @@ esac
 
 # Auto-detect extension version
 if [ -f "VERSION.txt" ]; then
-    DETECTED_VERSION=$(cat VERSION.txt | tr -d '[:space:]')
+    DETECTED_VERSION=$(tr -d '[:space:]' < VERSION.txt)
 elif [ -f "php_firebird.h" ]; then
     # Look for PHP_FIREBIRD_VERSION_STRING (set by configure)
     # Use || true to prevent grep exit code 1 from failing under set -e
     DETECTED_VERSION=$(grep -E '#define PHP_FIREBIRD_VERSION_STRING' php_firebird.h 2>/dev/null | sed 's/.*"\([^"]*\)".*/\1/' | head -1 || true)
     # If empty or contains "unknown", use fallback
     if [ -z "$DETECTED_VERSION" ] || [[ "$DETECTED_VERSION" == *"unknown"* ]]; then
-        DETECTED_VERSION="7.0.0"
+        DETECTED_VERSION="12.0.0"
     fi
 else
-    DETECTED_VERSION="7.0.0"
+    DETECTED_VERSION="12.0.0"
 fi
 EXT_VERSION="${EXT_VERSION:-$DETECTED_VERSION}"
 
@@ -118,13 +120,6 @@ LIB_SEARCH_PATHS=(
 # Track bundled libraries to avoid duplicates
 declare -A BUNDLED_LIBS
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
 # =============================================================================
 # Helper Functions
 # =============================================================================
@@ -132,28 +127,6 @@ NC='\033[0m'
 usage() {
     sed -n '3,32p' "$0" | sed 's/^# //' | sed 's/^#//'
     exit 0
-}
-
-log_info() {
-    echo -e "${GREEN}>>>${NC} $*"
-}
-
-log_warn() {
-    echo -e "${YELLOW}WARNING:${NC} $*"
-}
-
-log_error() {
-    echo -e "${RED}ERROR:${NC} $*" >&2
-}
-
-log_verbose() {
-    if [ "$VERBOSE" = true ]; then
-        echo -e "${BLUE}[VERBOSE]${NC} $*"
-    fi
-}
-
-log_dry_run() {
-    echo -e "${BLUE}[DRY-RUN]${NC} $*"
 }
 
 check_command() {
@@ -242,7 +215,7 @@ bundle_library() {
     
     log_verbose "${indent}Bundling: $lib_name -> $real_name"
     
-    if [ "$DRY_RUN" = true ]; then
+    if [ "$DRY_RUN" = 1 ]; then
         log_dry_run "${indent}Would copy: $real_path -> ${dest_dir}/"
     else
         # Copy the actual library file
@@ -337,7 +310,7 @@ generate_checksums() {
     local file="$1"
     local checksum_file="${file}.sha256"
     
-    if [ "$DRY_RUN" = true ]; then
+    if [ "$DRY_RUN" = 1 ]; then
         log_dry_run "Would generate: $checksum_file"
         return
     fi
@@ -360,7 +333,7 @@ generate_checksums() {
 while [[ $# -gt 0 ]]; do
     case $1 in
         --dry-run)
-            DRY_RUN=true
+            DRY_RUN=1
             shift
             ;;
         --skip-build)
@@ -376,7 +349,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --verbose|-v)
-            VERBOSE=true
+            VERBOSE=1
             shift
             ;;
         --verify)
@@ -431,7 +404,7 @@ log_info "Extension: ${EXT_VERSION}"
 log_info "PHP: ${PHP_VERSION} (${VARIANT})"
 log_info "Architecture: ${ARCH}"
 log_info "Firebird: ${FB_VERSION}"
-if [ "$DRY_RUN" = true ]; then
+if [ "$DRY_RUN" = 1 ]; then
     log_info "Mode: DRY RUN (no changes will be made)"
 fi
 echo ""
@@ -482,7 +455,7 @@ fi
 # =============================================================================
 
 if [ "$SKIP_BUILD" = false ]; then
-    if [ "$DRY_RUN" = true ]; then
+    if [ "$DRY_RUN" = 1 ]; then
         log_dry_run "Would clean previous build"
         log_dry_run "Would run: phpize"
         log_dry_run "Would run: ./configure --with-firebird=${FB_ROOT}"
@@ -501,11 +474,15 @@ if [ "$SKIP_BUILD" = false ]; then
         
         log_info "Compiling..."
         make -j"$(nproc)"
+
+        # Build pdo_fbird as separate extension
+        log_info "Building pdo_fbird..."
+        (cd pdo_fbird && phpize && ./configure --with-pdo-fbird && make -j"$(nproc)")
     fi
 fi
 
 # Verify build
-if [ "$DRY_RUN" = false ] && [ ! -f "modules/firebird.so" ]; then
+if [ "$DRY_RUN" = 0 ] && [ ! -f "modules/firebird.so" ]; then
     log_error "Build failed - modules/firebird.so not found"
     exit 1
 fi
@@ -514,7 +491,7 @@ fi
 # Create Distribution Directory
 # =============================================================================
 
-if [ "$DRY_RUN" = true ]; then
+if [ "$DRY_RUN" = 1 ]; then
     log_dry_run "Would create: ${DIST_DIR}/lib/"
 else
     rm -rf "${DIST_DIR}"
@@ -527,10 +504,15 @@ fi
 
 log_info "Copying extension..."
 
-if [ "$DRY_RUN" = true ]; then
+if [ "$DRY_RUN" = 1 ]; then
     log_dry_run "Would copy: modules/firebird.so -> ${DIST_DIR}/"
 else
     cp modules/firebird.so "${DIST_DIR}/"
+    # Copy pdo_fbird.so if it was built as a separate extension
+    if [ -f pdo_fbird/modules/pdo_fbird.so ]; then
+        cp pdo_fbird/modules/pdo_fbird.so "${DIST_DIR}/"
+        log_info "Copied pdo_fbird.so"
+    fi
 fi
 
 # =============================================================================
@@ -621,7 +603,7 @@ done
 
 log_info "Patching RPATH for main extension..."
 
-if [ "$DRY_RUN" = true ]; then
+if [ "$DRY_RUN" = 1 ]; then
     if [ "$PLATFORM" = "macos" ]; then
         log_dry_run "Would run: install_name_tool -add_rpath @loader_path/lib ${DIST_DIR}/firebird.so"
     else
@@ -643,7 +625,7 @@ else
 fi
 
 log_info "Patching RPATH for bundled libraries..."
-if [ "$DRY_RUN" = false ]; then
+if [ "$DRY_RUN" = 0 ]; then
     if [ "$PLATFORM" = "macos" ]; then
         for dylib in "${DIST_DIR}"/lib/*.dylib; do
             if [[ -f "$dylib" && ! -L "$dylib" ]]; then
@@ -671,7 +653,7 @@ fi
 
 log_info "Creating documentation..."
 
-if [ "$DRY_RUN" = true ]; then
+if [ "$DRY_RUN" = 1 ]; then
     log_dry_run "Would create: ${DIST_DIR}/LICENSE"
     log_dry_run "Would create: ${DIST_DIR}/README.md"  
     log_dry_run "Would create: ${DIST_DIR}/DEPRECATION.md"
@@ -680,19 +662,19 @@ else
 PHP Firebird Extension
 ======================
 
-Copyright (c) 2024-2025 satware AG and contributors
+Copyright (c) 2024-2026 satware AG and contributors
 Licensed under the PHP License v3.01
 
 Bundled Libraries
 -----------------
 
 Firebird Client Library (libfbclient)
-  Copyright (c) 2000-2025 Firebird Foundation
+  Copyright (c) 2000-2026 Firebird Foundation
   Licensed under IDPL (Initial Developer's Public License)
   https://firebirdsql.org/en/licensing/
 
 ICU - International Components for Unicode
-  Copyright (c) 1995-2025 Unicode, Inc.
+  Copyright (c) 1995-2026 Unicode, Inc.
   Licensed under the Unicode License Agreement
   https://www.unicode.org/copyright.html
 
@@ -831,41 +813,16 @@ EOF
     cat > "${DIST_DIR}/DEPRECATION.md" << 'EOF'
 # Deprecation Notices
 
-## PHP 8.1 Support
+## Dropped Support (v12.0.0+)
 
-⚠️ **PHP 8.1 support is DEPRECATED** in php-firebird 7.0.x and will be
-**REMOVED** in version 7.1.0.
+The following were removed in php-firebird v12.0.0:
 
-**Reason**: PHP 8.1 reaches end-of-life on November 25, 2025.
-
-**Action Required**: Upgrade to PHP 8.2 or newer before php-firebird 7.1.0.
-
-## Firebird 2.5 Server Support  
-
-⚠️ **Firebird 2.5 server support is DEPRECATED** and will be **REMOVED**
-in version 7.1.0.
-
-**Reason**: Firebird 2.5 reached end-of-life in September 2020. No security
-updates are provided.
-
-**Technical Note**: The bundled Firebird 5.x client maintains backward
-compatibility with Firebird 2.5 servers via wire protocol negotiation, but
-this configuration is no longer tested and may have issues with:
-- Legacy authentication (Legacy_Auth required)
-- Wire encryption negotiation (WireCrypt must be Enabled, not Required)
-- Character set handling with older metadata
-
-**Action Required**: Migrate to Firebird 4.0+ for security updates and
-modern features like inline blob handling, batch operations, and INT128.
-
-## Timeline
-
-| Version | PHP 8.1 | FB 2.5 |
-|---------|---------|--------|
-| 7.0.x | ⚠️ Deprecated | ⚠️ Deprecated |
-| 7.1.0+ | ❌ Removed | ❌ Removed |
-
----
+- **PHP 8.1**: Dropped in v7.2.0 (EOL November 2025). Upgrade to PHP 8.2+.
+- **Firebird 2.5 client**: Requires OO API from FB 3.0+ client.
+- **`ibase_*` function aliases**: Use `fbird_*` instead.
+- **`interbase.so` extension name**: Use `firebird.so`.
+- **Integrated `pdo_fbird` in `firebird.so`**: Load `pdo_fbird.so` separately.
+- **`IB`/`ib_`/`ibase` internal naming**: All renamed to `FB`/`fb_`/`fbird`.
 
 ## Technical: Single Client Library Strategy
 
@@ -903,7 +860,7 @@ fi
 
 log_info "Verifying bundle..."
 
-if [ "$DRY_RUN" = false ]; then
+if [ "$DRY_RUN" = 0 ]; then
     echo ""
     if [ "$PLATFORM" = "macos" ]; then
         echo "RPATH of firebird.so:"
@@ -949,7 +906,7 @@ fi
 
 log_info "Creating tarball..."
 
-if [ "$DRY_RUN" = true ]; then
+if [ "$DRY_RUN" = 1 ]; then
     log_dry_run "Would create: dist/${DIST_NAME}.tar.gz"
 else
     tar -czf "dist/${DIST_NAME}.tar.gz" -C dist "${DIST_NAME}"
@@ -960,7 +917,7 @@ fi
 # =============================================================================
 
 if [ "$GENERATE_CHECKSUMS" = true ]; then
-    if [ "$DRY_RUN" = false ]; then
+    if [ "$DRY_RUN" = 0 ]; then
         generate_checksums "dist/${DIST_NAME}.tar.gz"
     else
         log_dry_run "Would generate checksums"
@@ -971,7 +928,7 @@ fi
 # Run Verification (Optional)
 # =============================================================================
 
-if [ "$RUN_VERIFY" = true ] && [ "$DRY_RUN" = false ]; then
+if [ "$RUN_VERIFY" = true ] && [ "$DRY_RUN" = 0 ]; then
     log_info "Running bundle verification..."
     if [ -x "scripts/verify-bundle.sh" ]; then
         ./scripts/verify-bundle.sh "${DIST_DIR}" --verbose
@@ -988,7 +945,7 @@ echo ""
 log_info "=== Build Complete ==="
 echo ""
 
-if [ "$DRY_RUN" = true ]; then
+if [ "$DRY_RUN" = 1 ]; then
     log_dry_run "Would output: dist/${DIST_NAME}.tar.gz"
 else
     echo "Output: dist/${DIST_NAME}.tar.gz"

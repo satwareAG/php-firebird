@@ -1,0 +1,141 @@
+name: 'Build PHP Extension'
+description: 'Run phpize, configure, and make for the firebird and optional pdo_fbird extensions'
+inputs:
+  firebird-path:
+    description: 'Path to Firebird client installation'
+    required: false
+    default: '/opt/firebird-client'
+  configure-args:
+    description: 'Extra configure arguments (appended after --with-firebird)'
+    required: false
+    default: ''
+  enable-lto:
+    description: 'Enable LTO (pass --enable-fbird-lto)'
+    required: false
+    default: 'false'
+  build-pdo-fbird:
+    description: 'Also build pdo_fbird (pass --with-pdo-fbird)'
+    required: false
+    default: 'true'
+  cc:
+    description: 'C compiler'
+    required: false
+    default: 'gcc'
+  cxx:
+    description: 'C++ compiler'
+    required: false
+    default: 'g++'
+  cflags-extra:
+    description: 'Extra CFLAGS (e.g. -fsanitize=address,undefined or --coverage)'
+    required: false
+    default: ''
+  cxxflags-extra:
+    description: 'Extra CXXFLAGS'
+    required: false
+    default: ''
+  ldflags-extra:
+    description: 'Extra LDFLAGS (e.g. -fsanitize=... or --coverage)'
+    required: false
+    default: ''
+  phpize-clean:
+    description: 'Run phpize --clean before phpize'
+    required: false
+    default: 'false'
+  php-bin-dir:
+    description: 'Directory containing php/php-config binaries (prepended to PATH)'
+    required: false
+    default: ''
+  pre-build-script:
+    description: 'Bash snippet to run between configure and make (e.g. sed injection)'
+    required: false
+    default: ''
+  ld-library-path-extra:
+    description: 'Extra paths to prepend to LD_LIBRARY_PATH'
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: phpize
+      shell: bash
+      env:
+        PHPIZE_CLEAN: ${{ inputs.phpize-clean }}
+        PHP_BIN_DIR: ${{ inputs.php-bin-dir }}
+      run: |
+        if [ -n "$PHP_BIN_DIR" ]; then
+          export PATH="$PHP_BIN_DIR:$PATH"
+        fi
+        if [ "$PHPIZE_CLEAN" = 'true' ]; then
+          phpize --clean
+        fi
+        phpize
+        # Clean .dep files between PHP versions (absolute paths differ)
+        find . -name '*.dep' -delete 2>/dev/null || true
+
+    - name: Configure
+      shell: bash
+      env:
+        FB_PATH: ${{ inputs.firebird-path }}
+        ENABLE_LTO: ${{ inputs.enable-lto }}
+        BUILD_PDO: ${{ inputs.build-pdo-fbird }}
+        EXTRA_ARGS: ${{ inputs.configure-args }}
+        CC_BIN: ${{ inputs.cc }}
+        CXX_BIN: ${{ inputs.cxx }}
+        CFLAGS_X: ${{ inputs.cflags-extra }}
+        CXXFLAGS_X: ${{ inputs.cxxflags-extra }}
+        LDFLAGS_X: ${{ inputs.ldflags-extra }}
+        LD_PATH_EXTRA: ${{ inputs.ld-library-path-extra }}
+        PHP_BIN_DIR: ${{ inputs.php-bin-dir }}
+      run: |
+        if [ -n "$PHP_BIN_DIR" ]; then
+          export PATH="$PHP_BIN_DIR:$PATH"
+        fi
+        if [ -n "$LD_PATH_EXTRA" ]; then
+          export LD_LIBRARY_PATH="$LD_PATH_EXTRA:${LD_LIBRARY_PATH:-}"
+        fi
+
+        ARGS="--with-firebird=$FB_PATH"
+        if [ "$BUILD_PDO" = 'true' ]; then
+          ARGS="$ARGS --with-pdo-fbird=$FB_PATH"
+        fi
+        if [ "$ENABLE_LTO" = 'true' ]; then
+          ARGS="$ARGS --enable-fbird-lto"
+        fi
+        ARGS="$ARGS $EXTRA_ARGS"
+
+        export CC="$CC_BIN"
+        export CXX="$CXX_BIN"
+        if [ -n "$CFLAGS_X" ]; then
+          export CFLAGS="${CFLAGS:-} $CFLAGS_X"
+        fi
+        if [ -n "$CXXFLAGS_X" ]; then
+          export CXXFLAGS="${CXXFLAGS:-} $CXXFLAGS_X"
+        fi
+        if [ -n "$LDFLAGS_X" ]; then
+          export LDFLAGS="${LDFLAGS:-} $LDFLAGS_X"
+        fi
+
+        ./configure $ARGS
+
+    - name: Pre-build hook
+      if: ${{ inputs.pre-build-script != '' }}
+      shell: bash
+      env:
+        PRE_BUILD: ${{ inputs.pre-build-script }}
+      run: |
+        eval "$PRE_BUILD"
+
+    - name: Build
+      shell: bash
+      env:
+        PHP_BIN_DIR: ${{ inputs.php-bin-dir }}
+        LD_PATH_EXTRA: ${{ inputs.ld-library-path-extra }}
+      run: |
+        if [ -n "$PHP_BIN_DIR" ]; then
+          export PATH="$PHP_BIN_DIR:$PATH"
+        fi
+        if [ -n "$LD_PATH_EXTRA" ]; then
+          export LD_LIBRARY_PATH="$LD_PATH_EXTRA:${LD_LIBRARY_PATH:-}"
+        fi
+        make -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"

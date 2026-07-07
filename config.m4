@@ -94,17 +94,7 @@ if test "$PHP_FIREBIRD" != "no"; then
   AC_DEFINE(HAVE_FIREBIRD,1,[ ])
 
   dnl Base source files (always compiled)
-  FIREBIRD_SOURCES="firebird.c fbird_error.c fbird_connection.c fbird_transaction.c fbird_batch.c fbird_query_exec.c fbird_query_prepare.c fbird_query_bind.c fbird_query_array.c fbird_datetime.c fbird_result.c fbird_metadata.c fbird_service.c fbird_events.c fbird_blobs.c fbird_inspection.c fbird_classes.c"
-
-  dnl Check for PDO availability (required for pdo_fbird integration)
-  ifdef([PHP_CHECK_PDO_INCLUDES],
-  [
-    PHP_CHECK_PDO_INCLUDES
-    AC_DEFINE(HAVE_PDO_FBIRD,1,[Whether pdo_fbird is integrated])
-    FIREBIRD_SOURCES="$FIREBIRD_SOURCES pdo_fbird/pdo_fbird.c pdo_fbird/pdo_fbird_driver.c pdo_fbird/pdo_fbird_stmt.c pdo_fbird/pdo_fbird_error.c"
-  ],[
-    AC_MSG_WARN([PDO not found — pdo_fbird driver will not be available])
-  ])
+  FIREBIRD_SOURCES="firebird.c fbird_error.c fbird_connection.c fbird_transaction.c fbird_batch.c fbird_query_exec.c fbird_query_prepare.c fbird_query_bind.c fbird_query_array.c fbird_datetime.c fbird_result.c fbird_metadata.c fbird_service.c fbird_events.c fbird_blobs.c fbird_inspection.c fbird_classes.c fbird_class_connection.c fbird_class_transaction.c fbird_class_statement.c fbird_class_resultset.c fbird_class_blob.c fbird_class_service.c fbird_class_event.c fbird_class_batch.c"
 
   dnl Enable extra debug logging for array slice operations when requested.
   dnl This is a build-time flag used by `src/cpp/fb_array.hpp`.
@@ -113,10 +103,6 @@ if test "$PHP_FIREBIRD" != "no"; then
   dnl   CPPFLAGS="-DFBIRD_ARRAY_DEBUG" ./configure --with-firebird=/usr
   dnl
   PHP_NEW_EXTENSION(firebird, $FIREBIRD_SOURCES, $ext_shared,, -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1,[cxx])
-  ifdef([PHP_CHECK_PDO_INCLUDES],
-  [
-    PHP_ADD_EXTENSION_DEP(firebird, pdo)
-  ])
   PHP_SUBST(FIREBIRD_SHARED_LIBADD)
 
   dnl Compiler hardening flags (Issue #164)
@@ -129,6 +115,46 @@ if test "$PHP_FIREBIRD" != "no"; then
 
   dnl Pin C standard to gnu17 (Issue #165)
   AX_CHECK_COMPILE_FLAG(-std=gnu17, [FIREBIRD_CFLAGS="$FIREBIRD_CFLAGS -std=gnu17"])
+
+  dnl Link-Time Optimization (LTO) — enabled by default, opt out with --disable-fbird-lto
+  AC_ARG_ENABLE([fbird-lto],
+    [AS_HELP_STRING([--disable-fbird-lto],
+      [Disable LTO for the firebird extension [default=enabled]])],
+    [PHP_FBIRD_LTO=$enableval],
+    [PHP_FBIRD_LTO=yes])
+
+  if test "$PHP_FBIRD_LTO" != "no"; then
+    dnl Auto-disable LTO on PHP < 8.3 (libtool 1.5.26 strips -flto flags,
+    dnl causing link failures and test regressions. Fixed upstream in PHP
+    dnl master via PR #21067 (libtool 2.5.4), not backported to 8.2.)
+    if test "$php_major" -eq 8 -a "$php_minor" -lt 3; then
+      AC_MSG_NOTICE([PHP 8.2 detected - disabling LTO (libtool incompatibility)])
+      PHP_FBIRD_LTO=no
+    fi
+  fi
+
+  if test "$PHP_FBIRD_LTO" != "no"; then
+    dnl Auto-disable LTO when sanitizers are active (incompatible — linker failures)
+    case "$CFLAGS" in
+      *-fsanitize=*)
+        AC_MSG_NOTICE([Sanitizer detected in CFLAGS - disabling LTO (incompatible)])
+        PHP_FBIRD_LTO=no
+        ;;
+    esac
+  fi
+
+  if test "$PHP_FBIRD_LTO" != "no"; then
+    dnl GCC supports -flto=auto (parallel LTO), Clang uses -flto (no =auto suffix)
+    AX_CHECK_COMPILE_FLAG([-flto=auto], [
+      FIREBIRD_CFLAGS="$FIREBIRD_CFLAGS -flto=auto"
+      LDFLAGS="$LDFLAGS -flto=auto"
+    ], [
+      AX_CHECK_COMPILE_FLAG([-flto], [
+        FIREBIRD_CFLAGS="$FIREBIRD_CFLAGS -flto"
+        LDFLAGS="$LDFLAGS -flto"
+      ])
+    ])
+  fi
 
   dnl -D_FORTIFY_SOURCE=2 requires -O1 minimum (PHP defaults to -O2)
   CFLAGS="$CFLAGS $FIREBIRD_CFLAGS -D_FORTIFY_SOURCE=2"

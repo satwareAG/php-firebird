@@ -12,6 +12,7 @@
 # rely on satwareag/php-firebird-stubs for type checking.
 
 set -euo pipefail
+source "$(dirname "$0")/lib/logging.sh"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -24,15 +25,6 @@ CHECK_PHANTOMS=true
 if [[ "${1:-}" == "--no-phantom-check" ]]; then
     CHECK_PHANTOMS=false
 fi
-
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-GREEN='\033[0;32m'
-NC='\033[0m' # No Color
-
-error() { echo -e "${RED}[ERROR]${NC} $*" >&2; }
-warn()  { echo -e "${YELLOW}[WARN]${NC}  $*" >&2; }
-ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
 
 if [[ ! -f "${FIREBIRD_C}" ]]; then
     error "Source file not found: ${FIREBIRD_C}"
@@ -65,7 +57,7 @@ PHPSTAN_FUNCS=$(grep "^function fbird_" "${PHPSTAN_STUB}" \
 
 EXIT_CODE=0
 
-echo "Checking stub sync against firebird.c PHP_FE registrations..."
+log_info "Checking stub sync against firebird.c PHP_FE registrations..."
 echo ""
 
 # ── Check 1: Functions in C but missing from stubs/firebird-stubs.php ──────────
@@ -82,7 +74,7 @@ if [[ -n "${MISSING_FROM_STUBS}" ]]; then
     error "These missing stubs will cause PHPStan errors in doctrine-firebird-driver!"
     EXIT_CODE=1
 else
-    ok "stubs/firebird-stubs.php: all PHP_FE functions covered"
+    log_pass "stubs/firebird-stubs.php: all PHP_FE functions covered"
 fi
 
 # ── Check 2: Functions in C but missing from phpstan/fbird.stub.php ────────────
@@ -97,7 +89,7 @@ if [[ -n "${MISSING_FROM_PHPSTAN}" ]]; then
     done <<< "${MISSING_FROM_PHPSTAN}"
     EXIT_CODE=1
 else
-    ok "phpstan/fbird.stub.php: all PHP_FE functions covered"
+    log_pass "phpstan/fbird.stub.php: all PHP_FE functions covered"
 fi
 
 # ── Check 3: Phantom stubs (in stubs but not in PHP_FE) ────────────────────────
@@ -120,7 +112,7 @@ if [[ "${CHECK_PHANTOMS}" == "true" ]]; then
             EXIT_CODE=2
         fi
     else
-        ok "stubs/firebird-stubs.php: no phantom stubs"
+        log_pass "stubs/firebird-stubs.php: no phantom stubs"
     fi
 
     if [[ -n "${PHANTOM_IN_PHPSTAN}" ]]; then
@@ -132,7 +124,7 @@ if [[ "${CHECK_PHANTOMS}" == "true" ]]; then
             EXIT_CODE=2
         fi
     else
-        ok "phpstan/fbird.stub.php: no phantom stubs"
+        log_pass "phpstan/fbird.stub.php: no phantom stubs"
     fi
 fi
 
@@ -142,10 +134,10 @@ C_COUNT=$(echo "${C_FUNCS}" | wc -l | tr -d ' ')
 STUB_COUNT=$(echo "${STUB_FUNCS}" | wc -l | tr -d ' ')
 PHPSTAN_COUNT=$(echo "${PHPSTAN_FUNCS}" | wc -l | tr -d ' ')
 
-echo "Summary: C exports ${C_COUNT} functions | stubs: ${STUB_COUNT} | phpstan stub: ${PHPSTAN_COUNT}"
+log_info "Summary: C exports ${C_COUNT} functions | stubs: ${STUB_COUNT} | phpstan stub: ${PHPSTAN_COUNT}"
 
 if [[ ${EXIT_CODE} -eq 0 ]]; then
-    ok "All stubs are in sync with firebird.c PHP_FE registrations."
+    log_pass "All stubs are in sync with firebird.c PHP_FE registrations."
 elif [[ ${EXIT_CODE} -eq 1 ]]; then
     error "FAIL: Stub drift detected — doctrine-firebird-driver PHPStan will break!"
 elif [[ ${EXIT_CODE} -eq 2 ]]; then

@@ -1,0 +1,59 @@
+name: 'Validate Release Artifacts'
+description: 'Count and size-check release artifacts before publishing'
+inputs:
+  min-linux:
+    description: 'Minimum Linux bundle count'
+    required: false
+    default: '8'
+  min-macos:
+    description: 'Minimum macOS bundle count'
+    required: false
+    default: '4'
+  min-windows:
+    description: 'Minimum Windows DLL count'
+    required: false
+    default: '8'
+  min-total:
+    description: 'Minimum total asset count'
+    required: false
+    default: '20'
+  min-size-kb:
+    description: 'Minimum file size in KB'
+    required: false
+    default: '50'
+runs:
+  using: composite
+  steps:
+    - name: Validate artifact count and sizes
+      shell: bash
+      run: |
+        set -e
+        echo "Validating release artifacts..."
+
+        LINUX_COUNT=$(find . -name "*linux*.tar.gz" 2>/dev/null | wc -l)
+        MACOS_COUNT=$(find . -name "*macos*.tar.gz" 2>/dev/null | wc -l)
+        WINDOWS_COUNT=$(find . \( -name "*x86_64.zip" -o -name "*windows*.zip" \) 2>/dev/null | wc -l)
+        TOTAL_COUNT=$(find . -type f \( -name "*.tar.gz" -o -name "*.zip" \) | wc -l)
+
+        echo "Asset counts: Linux=${LINUX_COUNT}, macOS=${MACOS_COUNT}, Windows=${WINDOWS_COUNT}, Total=${TOTAL_COUNT}"
+
+        fail=0
+        [ "$LINUX_COUNT" -lt ${{ inputs.min-linux }} ] && { echo "ERROR: Linux has only $LINUX_COUNT bundles (expected >= ${{ inputs.min-linux }})"; fail=1; }
+        [ "$MACOS_COUNT" -lt ${{ inputs.min-macos }} ] && { echo "ERROR: macOS has only $MACOS_COUNT bundles (expected >= ${{ inputs.min-macos }})"; fail=1; }
+        [ "$WINDOWS_COUNT" -lt ${{ inputs.min-windows }} ] && { echo "ERROR: Windows has only $WINDOWS_COUNT DLLs (expected >= ${{ inputs.min-windows }})"; fail=1; }
+        [ "$TOTAL_COUNT" -lt ${{ inputs.min-total }} ] && { echo "ERROR: Total $TOTAL_COUNT assets (expected >= ${{ inputs.min-total }})"; fail=1; }
+
+        # Size check: every .tar.gz and .zip must be > min-size-kb
+        for f in $(find . -type f \( -name "*.tar.gz" -o -name "*.zip" \)); do
+          SIZE_KB=$(( $(stat -f%z "$f" 2>/dev/null || stat -c%s "$f" 2>/dev/null || echo 0) / 1024 ))
+          if [ "$SIZE_KB" -lt ${{ inputs.min-size-kb }} ]; then
+            echo "WARNING: $f is only ${SIZE_KB}KB (expected >= ${{ inputs.min-size-kb }}KB)"
+          fi
+        done
+
+        if [ "$fail" -ne 0 ]; then
+          echo "FAIL: Asset count validation failed"
+          find . -type f | sort
+          exit 1
+        fi
+        echo "OK: All expected platform assets present"

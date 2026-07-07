@@ -1,140 +1,79 @@
 #!/bin/bash
-# run-valgrind.sh - Run tests with Valgrind memory error detection
+# scripts/run-valgrind.sh
+# Host-side wrapper for running Valgrind memory checks in Docker
 #
 # Purpose:
-# Complementary to ASan for detecting uninitialized memory reads
-# (a class of bugs ASan cannot catch)
+#   Complementary to ASan for detecting uninitialized memory reads
+#   (a class of bugs ASan cannot catch)
 #
 # Usage:
-#   ./scripts/run-valgrind.sh              # Run all tests
-#   ./scripts/run-valgrind.sh tests/002.phpt  # Run specific test
-#   ./scripts/run-valgrind.sh --quick      # Run subset for CI
+#   ./scripts/run-valgrind.sh [options] [mode]
+#
+# Options:
+#   --container NAME   Container to use (default: php83-dev)
+#   --mode MODE        quick|full|tests (default: quick)
+#   --help             Show this help
+#
+# Examples:
+#   ./scripts/run-valgrind.sh                      # Quick mode
+#   ./scripts/run-valgrind.sh --mode full           # Full mode
+#   ./scripts/run-valgrind.sh --mode tests          # PHPT test mode
+#   ./scripts/run-valgrind.sh --container php84-dev # Use PHP 8.4 container
 #
 # See: docs/research/asan-vs-valgrind-php-extensions.md
 
-set -euo pipefail
+set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+source "$(dirname "$0")/lib/logging.sh"
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-log() { echo -e "[$(date +%H:%M:%S)] $*"; }
-log_info() { echo -e "${GREEN}[INFO]${NC} $*"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
-log_error() { echo -e "${RED}[ERROR]${NC} $*"; }
-
-# Required environment variables for PHP + Valgrind
-export USE_ZEND_ALLOC=0
-export ZEND_DONT_UNLOAD_MODULES=1
-export NO_INTERACTION=1
-export REPORT_EXIT_STATUS=1
+# Defaults
+CONTAINER="php83-dev"
+MODE="quick"
 
 # Parse arguments
-QUICK_MODE=false
-TEST_PATH=""
-VALGRIND_LOG=""
-
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --quick)
-            QUICK_MODE=true
-            shift
-            ;;
-        --log)
-            VALGRIND_LOG="$2"
+        --container)
+            CONTAINER="$2"
             shift 2
             ;;
-        -h|--help)
-            echo "Usage: $0 [OPTIONS] [TEST_PATH]"
+        --mode)
+            MODE="$2"
+            shift 2
+            ;;
+        --help|-h)
+            echo "Usage: $0 [options] [mode]"
             echo ""
             echo "Options:"
-            echo "  --quick    Run subset of tests (faster for CI)"
-            echo "  --log FILE Write Valgrind output to file"
-            echo "  -h, --help Show this help"
+            echo "  --container NAME   Container to use (default: php83-dev)"
+            echo "  --mode MODE        quick|full|tests (default: quick)"
+            echo "  --help             Show this help"
             echo ""
-            echo "Examples:"
-            echo "  $0                      # Run all tests"
-            echo "  $0 tests/002.phpt       # Run specific test"
-            echo "  $0 --quick              # Quick CI run"
+            echo "Modes:"
+            echo "  quick   Extension load + client version check"
+            echo "  full    Quick + connection + error handling tests"
+            echo "  tests   Curated PHPT test subset under Valgrind"
             exit 0
             ;;
         *)
-            TEST_PATH="$1"
-            shift
+            echo "Unknown argument: $1"
+            exit 1
             ;;
     esac
 done
 
-# Check Valgrind is installed
-if ! command -v valgrind &> /dev/null; then
-    log_error "Valgrind not found. Install with: apt-get install valgrind"
-    exit 1
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DOCKER_DIR="$PROJECT_ROOT/docker"
+
+# Ensure container is running
+cd "$DOCKER_DIR"
+if ! docker compose ps --services --filter "status=running" | grep -q "$CONTAINER"; then
+    log_info "Starting container $CONTAINER..."
+    docker compose up -d "$CONTAINER"
 fi
 
-# Check suppression file exists
-SUPP_FILE="$PROJECT_ROOT/valgrind-php.supp"
-if [[ ! -f "$SUPP_FILE" ]]; then
-    log_error "Suppression file not found: $SUPP_FILE"
-    exit 1
-fi
+# Build command
+CMD="/ext/scripts/analysis/valgrind.sh --$MODE"
 
-log_info "Running Valgrind memory check"
-log_info "USE_ZEND_ALLOC=0 (bypass Zend memory manager)"
-log_info "ZEND_DONT_UNLOAD_MODULES=1 (keep modules for stack traces)"
-echo ""
-
-# Build Valgrind command
-VALGRIND_CMD=(
-    valgrind
-    --tool=memcheck
-    --leak-check=full
-    --show-leak-kinds=all
-    --track-origins=yes
-    --suppressions="$SUPP_FILE"
-    --error-exitcode=1
-    --gen-suppressions=all
-)
-
-# Add log file if specified
-if [[ -n "$VALGRIND_LOG" ]]; then
-    VALGRIND_CMD+=(--log-file="$VALGRIND_LOG")
-    log_info "Writing Valgrind output to: $VALGRIND_LOG"
-fi
-
-# Determine test command
-if [[ -n "$TEST_PATH" ]]; then
-    # Run specific test
-    log_info "Running test: $TEST_PATH"
-    "${VALGRIND_CMD[@]}" php "$PROJECT_ROOT/run-tests.php" -m "$TEST_PATH"
-elif [[ "$QUICK_MODE" == "true" ]]; then
-    # Quick mode: run subset of critical tests
-    log_info "Quick mode: running subset of tests"
-    QUICK_TESTS=(
-        tests/002.phpt
-        tests/003.phpt
-        tests/fbird_connect_dpb_001.phpt
-        tests/fbird_blob_001.phpt
-        tests/fbird_commit_001.phpt
-    )
-    for test in "${QUICK_TESTS[@]}"; do
-        if [[ -f "$PROJECT_ROOT/$test" ]]; then
-            log_info "Testing: $test"
-            "${VALGRIND_CMD[@]}" php "$PROJECT_ROOT/run-tests.php" -m "$PROJECT_ROOT/$test" || {
-                log_error "Test failed: $test"
-                exit 1
-            }
-        fi
-    done
-else
-    # Run all tests
-    log_info "Running all tests with Valgrind (this will be slow)"
-    log_warn "Consider using --quick for CI or specifying individual tests"
-    "${VALGRIND_CMD[@]}" php "$PROJECT_ROOT/run-tests.php" -m "$PROJECT_ROOT/tests/"
-fi
-
-log_info "Valgrind check complete"
+log_info "Running: $CMD in $CONTAINER"
+docker compose exec -T "$CONTAINER" bash -c "$CMD"

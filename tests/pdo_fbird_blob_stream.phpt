@@ -21,6 +21,7 @@ $stmt->execute();
 $stmt->bindColumn('CONTENT', $lob, PDO::PARAM_LOB);
 
 while ($stmt->fetch(PDO::FETCH_BOUND)) {
+    // PDO LOB: may be a stream resource or a string depending on driver
     if (is_resource($lob)) {
         echo "stream: " . stream_get_contents($lob) . "\n";
         fclose($lob);

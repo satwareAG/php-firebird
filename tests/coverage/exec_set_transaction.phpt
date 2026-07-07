@@ -77,3 +77,5 @@ bool(true)
 Test 5: fbird_commit_ret for retain mode
 bool(true)
 Done
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

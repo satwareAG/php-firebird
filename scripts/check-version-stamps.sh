@@ -10,6 +10,7 @@
 # =============================================================================
 
 set -euo pipefail
+source "$(dirname "$0")/lib/logging.sh"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -17,18 +18,18 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 VERSION_FILE="${ROOT_DIR}/VERSION.txt"
 
 if [ ! -f "${VERSION_FILE}" ]; then
-  echo "ERROR: VERSION file not found at ${VERSION_FILE}" >&2
+  log_error "VERSION file not found at ${VERSION_FILE}"
   exit 1
 fi
 
 EXPECTED=$(tr -d '[:space:]' < "${VERSION_FILE}")
 
 if [ -z "${EXPECTED}" ]; then
-  echo "ERROR: VERSION file is empty" >&2
+  log_error "VERSION file is empty"
   exit 1
 fi
 
-echo "Expected @version: ${EXPECTED}"
+log_info "Expected @version: ${EXPECTED}"
 echo ""
 
 STUBS_FILES=(
@@ -42,7 +43,7 @@ ERRORS=0
 for file in "${STUBS_FILES[@]}"; do
   FULL_PATH="${ROOT_DIR}/${file}"
   if [ ! -f "${FULL_PATH}" ]; then
-    echo "WARN: ${file} not found, skipping"
+    log_warn "${file} not found, skipping"
     continue
   fi
 
@@ -50,9 +51,9 @@ for file in "${STUBS_FILES[@]}"; do
   ACTUAL=$(grep -m1 '@version' "${FULL_PATH}" | sed 's/.*@version[[:space:]]*//' | tr -d '[:space:]')
 
   if [ "${ACTUAL}" = "${EXPECTED}" ]; then
-    echo "  OK: ${file} (@version ${ACTUAL})"
+    log_pass "${file} (@version ${ACTUAL})"
   else
-    echo "  FAIL: ${file} (@version ${ACTUAL} != ${EXPECTED})"
+    log_fail "${file} (@version ${ACTUAL} != ${EXPECTED})"
     ERRORS=$((ERRORS + 1))
   fi
 done
@@ -60,9 +61,9 @@ done
 echo ""
 
 if [ "${ERRORS}" -gt 0 ]; then
-  echo "ERROR: ${ERRORS} stub(s) have mismatched @version tags."
-  echo "Fix: update @version in the listed files to match VERSION (${EXPECTED})."
+  log_error "${ERRORS} stub(s) have mismatched @version tags."
+  log_info "Fix: update @version in the listed files to match VERSION (${EXPECTED})."
   exit 1
 fi
 
-echo "All stubs @version tags match VERSION.txt file."
+log_pass "All stubs @version tags match VERSION.txt file."

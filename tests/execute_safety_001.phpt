@@ -86,3 +86,5 @@ int(1)
 Caught expected error containing: 'fbird_execute_query expects a SELECT or RETURNING statement'
 6. Autonomous Transaction...
 Count after auto: 3
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>

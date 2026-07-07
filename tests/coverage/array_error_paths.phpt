@@ -79,3 +79,5 @@ bool(true)
 Test 4: NULL array fetch
 bool(true)
 Done
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

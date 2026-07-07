@@ -155,3 +155,5 @@ data-visible: array(1) {
 }
 PASS: autocommit sees inserted row
 Done
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>

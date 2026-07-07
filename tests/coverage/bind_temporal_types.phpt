@@ -111,3 +111,5 @@ bool(true)
 Test 9: ISO date stored correctly
 bool(true)
 Done
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

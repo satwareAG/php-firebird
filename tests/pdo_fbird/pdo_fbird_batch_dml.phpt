@@ -80,3 +80,11 @@ total rows: 7
 error batch result: false
 row 99 after rollback: 0
 Done
+
+--CLEAN--
+<?php
+require_once __DIR__ . '/../pdo_fbird.inc';
+$pdo = pdo_fbird_connect();
+@$pdo->exec('DROP TABLE pdo_batch_dml_t');
+unset($pdo);
+?>

@@ -147,3 +147,5 @@ bool(true)
 Test 11: total rows in table >= 3 (at least from tr)
 bool(true)
 Done
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

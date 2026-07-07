@@ -28,7 +28,8 @@ on:
 # Cancel in-progress runs for the same ref when a new push arrives.
 # This avoids wasting runner minutes on stale builds while keeping
 # manual dispatches and scheduled nightly runs independent.
-permissions: read-all
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -38,6 +39,7 @@ jobs:
   linux-matrix-build:
     name: PHP ${{ matrix.php-version }} / Firebird ${{ matrix.firebird-version }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
 
     strategy:
       fail-fast: false
@@ -141,426 +143,46 @@ jobs:
       ISC_PASSWORD: masterkey
       FIREBIRD_HOST: firebird
       FIREBIRD_DB_PATH: ${{ matrix.db-path }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Ensure VERSION.txt file
+      - name: Ensure VERSION.txt
+        uses: ./.github/actions/version
+
+      - name: Install Firebird client
+        uses: ./.github/actions/install-firebird-client
+        with:
+          firebird-major-version: ${{ matrix.fb-client-version }}
+          verbose-download: 'true'
+
+      - name: Build firebird extension
+        uses: ./.github/actions/build-extension
+        with:
+          build-pdo-fbird: 'false'
+          ld-library-path-extra: /opt/firebird-client/lib
+          cflags-extra: -I/opt/firebird-client/include
+          ldflags-extra: -L/opt/firebird-client/lib
+
+      - name: Build pdo_fbird extension
         shell: bash
         run: |
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            echo "${GITHUB_REF#refs/tags/v}" > VERSION.txt
-            echo "Updated VERSION.txt from tag: $(cat VERSION.txt)"
-          elif [ ! -f VERSION.txt ]; then
-            VERSION=$(grep -E '#define PHP_FIREBIRD_VERSION_STRING' php_firebird.h | sed 's/.*"\([^"]*\)".*/\1/' | head -1)
-            if [ -z "$VERSION" ] || [[ "$VERSION" == *"unknown"* ]]; then
-              echo "ERROR: Cannot determine version" >&2
-              exit 1
-            fi
-            echo "${VERSION}" > VERSION.txt
-            echo "Created VERSION.txt from header: $(cat VERSION.txt)"
-          fi
-
-      - name: Install system dependencies
-        run: |
           set -eu
-          export DEBIAN_FRONTEND=noninteractive
-
-          # Retry apt-get update
-          for attempt in 1 2 3; do
-            if apt-get update; then break; fi
-            echo "apt-get update failed (attempt ${attempt}/3), retrying..." >&2
-            sleep 5
-          done
-
-          apt-get install -y --no-install-recommends \
-            autoconf \
-            build-essential \
-            ca-certificates \
-            g++ \
-            git \
-            libicu-dev \
-            libtool \
-            netbase \
-            netcat-openbsd \
-            pkg-config \
-            wget \
-            curl \
-            unzip \
-            jq \
-            libtommath1 \
-            libncurses6
-
-          # Create compatibility symlinks for Firebird client libraries
-          # Firebird 3.0 client was built against older library versions:
-          # - libncurses.so.5 (Bookworm has .so.6)
-          # - libtommath.so.0 (Bookworm has .so.1)
-          echo "Creating library compatibility symlinks..."
-          if [ -f /lib/x86_64-linux-gnu/libncurses.so.6 ]; then
-            ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /lib/x86_64-linux-gnu/libncurses.so.5
-            ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 /lib/x86_64-linux-gnu/libtinfo.so.5 2>/dev/null || true
-            echo "  Created libncurses.so.5 -> libncurses.so.6"
-          fi
-          if [ -f /lib/x86_64-linux-gnu/libtommath.so.1 ]; then
-            ln -sf /lib/x86_64-linux-gnu/libtommath.so.1 /lib/x86_64-linux-gnu/libtommath.so.0
-            echo "  Created libtommath.so.0 -> libtommath.so.1"
-          fi
-          ldconfig
-
-          # Install pcntl extension for event tests
-          docker-php-ext-install pcntl
-
-          rm -rf /var/lib/apt/lists/*
-
-      # -----------------------------------------------------------------------
-      # Firebird client: resolve version → cache tarball → download → install
-      # Splitting into three steps lets actions/cache skip the CDN download on
-      # cache hits, eliminating the primary source of transient 504 failures.
-      # -----------------------------------------------------------------------
-
-      - name: Resolve Firebird client version
-        id: fb-version
-        env:
-          FB_CLIENT_VERSION: ${{ matrix.fb-client-version }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -eu
-          MAJOR_VERSION=$(echo "${FB_CLIENT_VERSION}" | cut -d. -f1)
-          echo "Resolving latest Firebird ${MAJOR_VERSION}.x release..."
-          chmod +x scripts/get-latest-firebird.sh
-          eval "$(./scripts/get-latest-firebird.sh "${MAJOR_VERSION}")"
-          echo "fb_version=${FB_VERSION}"       >> "$GITHUB_OUTPUT"
-          echo "fb_url=${FB_URL}"               >> "$GITHUB_OUTPUT"
-          echo "fb_tarball=${FB_TARBALL}"       >> "$GITHUB_OUTPUT"
-          echo "fb_extract_dir=${FB_EXTRACT_DIR}" >> "$GITHUB_OUTPUT"
-          echo "Resolved: FB ${FB_VERSION} -> ${FB_TARBALL}"
-
-      - name: Cache Firebird client tarball
-        id: cache-firebird
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
-        with:
-          path: /tmp/firebird-cache
-          # Key includes the exact resolved version so a new release busts the cache.
-          key: firebird-client-${{ steps.fb-version.outputs.fb_version }}-linux-x64
-
-      - name: Download Firebird client tarball
-        if: steps.cache-firebird.outputs.cache-hit != 'true'
-        env:
-          FB_URL: ${{ steps.fb-version.outputs.fb_url }}
-          FB_TARBALL: ${{ steps.fb-version.outputs.fb_tarball }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -eu
-          mkdir -p /tmp/firebird-cache
-          DEST="/tmp/firebird-cache/${FB_TARBALL}"
-          DELAY=10
-
-          for attempt in 1 2 3 4 5; do
-            echo "Downloading FB client (attempt ${attempt}/5)..."
-
-            # Primary: curl with authentication header to avoid CDN rate-limits
-            if curl -fsSL \
-                --retry 3 --retry-delay 5 --retry-connrefused \
-                -H "Authorization: token ${GITHUB_TOKEN}" \
-                "${FB_URL}" -o "${DEST}"; then
-              FSIZE=$(stat -c%s "${DEST}" 2>/dev/null || echo "0")
-              if [ "${FSIZE}" -gt 8000000 ]; then
-                echo "curl download succeeded (${FSIZE} bytes)"
-                break
-              fi
-              echo "curl: file too small (${FSIZE} bytes), discarding"
-              rm -f "${DEST}"
-            fi
-
-            # Fallback: wget (independent TCP stack - helps when curl's CDN
-            # connection is rate-limited or returns a transient 504)
-            echo "Trying wget fallback..."
-            if wget -q --tries=3 --timeout=90 \
-                --header="Authorization: token ${GITHUB_TOKEN}" \
-                "${FB_URL}" -O "${DEST}"; then
-              FSIZE=$(stat -c%s "${DEST}" 2>/dev/null || echo "0")
-              if [ "${FSIZE}" -gt 8000000 ]; then
-                echo "wget download succeeded (${FSIZE} bytes)"
-                break
-              fi
-              echo "wget: file too small (${FSIZE} bytes), discarding"
-              rm -f "${DEST}"
-            fi
-
-            if [ "${attempt}" -lt 5 ]; then
-              echo "Sleeping ${DELAY}s before retry (exponential backoff)..."
-              sleep "${DELAY}"
-              DELAY=$((DELAY * 2))
-            fi
-          done
-
-          if [ ! -f "${DEST}" ]; then
-            echo "ERROR: All download attempts failed for ${FB_URL}" >&2
-            exit 1
-          fi
-          echo "Tarball cached at ${DEST}"
-
-      - name: Install Firebird client library
-        env:
-          FB_VERSION: ${{ steps.fb-version.outputs.fb_version }}
-          FB_TARBALL: ${{ steps.fb-version.outputs.fb_tarball }}
-          FB_EXTRACT_DIR: ${{ steps.fb-version.outputs.fb_extract_dir }}
-        run: |
-          set -eu
-
-          FB_CLIENT_DIR="/opt/firebird-client"
-          mkdir -p "${FB_CLIENT_DIR}"
-
-          # Copy from cache directory to /tmp for extraction
-          cp "/tmp/firebird-cache/${FB_TARBALL}" "/tmp/${FB_TARBALL}"
-
-          echo "Installing Firebird ${FB_VERSION} client library from ${FB_TARBALL}..."
-
-          # Extract tarball
-          cd /tmp
-          tar xzf "${FB_TARBALL}"
-          cd "${FB_EXTRACT_DIR}"
-
-          # Extract buildroot.tar.gz
-          tar xzf buildroot.tar.gz
-
-          # Copy headers and libraries
-          if [ -d "opt/firebird/include" ]; then
-            mkdir -p "${FB_CLIENT_DIR}/include"
-            cp -a opt/firebird/include/* "${FB_CLIENT_DIR}/include/"
-          fi
-          if [ -d "opt/firebird/lib" ]; then
-            mkdir -p "${FB_CLIENT_DIR}/lib"
-            cp -a opt/firebird/lib/* "${FB_CLIENT_DIR}/lib/"
-          fi
-
-          # Debug: Show what we have
-          echo "=== Contents of FB_CLIENT_DIR/lib ==="
-          ls -la "${FB_CLIENT_DIR}/lib/" || echo "No lib directory"
-
-          # Install ALL library files from the Firebird client package
-          # libfbclient depends on libtomcrypt and libtommath - all must be available
-          echo "=== Installing ALL libraries to system paths ==="
-
-          # Copy all actual library files (not symlinks) first
-          for libfile in "${FB_CLIENT_DIR}/lib/"*.so*; do
-            if [ -f "$libfile" ] && [ ! -L "$libfile" ]; then
-              LIBNAME=$(basename "$libfile")
-              echo "Copying actual library: $LIBNAME"
-              cp "$libfile" /usr/lib/
-              cp "$libfile" /usr/local/lib/ 2>/dev/null || true
-            fi
-          done
-
-          # Now create proper symlinks for libfbclient
-          if [ -f /usr/lib/libfbclient.so.*.*.* ] 2>/dev/null; then
-            FBCLIENT_REAL=$(ls /usr/lib/libfbclient.so.*.*.* 2>/dev/null | head -1)
-            FBCLIENT_NAME=$(basename "$FBCLIENT_REAL")
-            echo "Creating symlinks for $FBCLIENT_NAME"
-            ln -sf "$FBCLIENT_NAME" /usr/lib/libfbclient.so.2
-            ln -sf libfbclient.so.2 /usr/lib/libfbclient.so
-            ln -sf "$FBCLIENT_NAME" /usr/local/lib/libfbclient.so.2 2>/dev/null || true
-            ln -sf libfbclient.so.2 /usr/local/lib/libfbclient.so 2>/dev/null || true
-          fi
-
-          # Create symlinks for libtomcrypt if present
-          if [ -f /usr/lib/libtomcrypt.so.*.*.* ] 2>/dev/null; then
-            TOMCRYPT_REAL=$(ls /usr/lib/libtomcrypt.so.*.*.* 2>/dev/null | head -1)
-            TOMCRYPT_NAME=$(basename "$TOMCRYPT_REAL")
-            echo "Creating symlinks for $TOMCRYPT_NAME"
-            ln -sf "$TOMCRYPT_NAME" /usr/lib/libtomcrypt.so.1
-            ln -sf libtomcrypt.so.1 /usr/lib/libtomcrypt.so
-          fi
-
-          # Copy headers directly
-          cp -a "${FB_CLIENT_DIR}/include"/* /usr/include/ 2>/dev/null || true
-
-          # Configure dynamic linker - add all library paths
-          echo "${FB_CLIENT_DIR}/lib" > /etc/ld.so.conf.d/firebird-client.conf
-          echo "/usr/local/lib" >> /etc/ld.so.conf.d/firebird-client.conf
-          echo "/usr/lib" >> /etc/ld.so.conf.d/firebird-client.conf
-          ldconfig
-
-          # Verify installation
-          echo "=== Verifying library installation ==="
-          ldconfig -p | grep -E "(fbclient|tomcrypt)" || echo "Warning: libraries not in ldconfig cache"
-          echo "=== Libraries in /usr/lib ==="
-          ls -la /usr/lib/libfbclient* /usr/lib/libtomcrypt* /usr/lib/libib_util* 2>/dev/null || echo "Some libraries missing"
-          ls -la /usr/include/ibase.h || echo "Warning: ibase.h not in /usr/include"
-
-          # Verify libfbclient can be loaded (check dependencies)
-          echo "=== Checking libfbclient dependencies ==="
-          ldd /usr/lib/libfbclient.so 2>&1 || echo "Warning: could not check libfbclient dependencies"
-
-          # Verify installation
-          if [ ! -f "${FB_CLIENT_DIR}/include/ibase.h" ]; then
-            echo "ERROR: ibase.h not found in ${FB_CLIENT_DIR}/include" >&2
-            ls -la "${FB_CLIENT_DIR}/" || true
-            exit 1
-          fi
-
-          echo "Firebird ${FB_VERSION} client installed successfully"
-          ls -la "${FB_CLIENT_DIR}/include/" | head -5
-          ls -la "${FB_CLIENT_DIR}/lib/" | head -5
-
-      - name: Configure Firebird client authentication
-        run: |
-          set -eu
-          echo "Configuring Firebird client authentication for CI..."
-
-          # Create firebird.conf in multiple locations where libfbclient might look
-          # The key is AuthClient - tells libfbclient which auth plugins to use
-          FB_CONF_CONTENT='# Firebird client configuration for CI
-          # AuthClient: Order of authentication plugins to try
-          # - Srp256: Secure Remote Password (SHA-256) - Firebird 3.0+
-          # - Srp: Secure Remote Password (SHA-1) - Firebird 3.0+
-          # - Legacy_Auth: Legacy authentication (retained for compatibility)
-          AuthClient = Srp256, Srp, Legacy_Auth
-
-          # WireCrypt: Wire encryption setting
-          # - Enabled: Use encryption if available (default for FB3+)
-          # - Disabled: Never use encryption
-          # - Required: Always require encryption
-          WireCrypt = Enabled
-          '
-
-          # Location 1: /opt/firebird-client (where we installed the client)
-          mkdir -p /opt/firebird-client
-          echo "$FB_CONF_CONTENT" > /opt/firebird-client/firebird.conf
-
-          # Location 2: /etc/firebird (system-wide location)
-          mkdir -p /etc/firebird
-          echo "$FB_CONF_CONTENT" > /etc/firebird/firebird.conf
-
-          # Location 3: FB client's expected location
-          mkdir -p /opt/firebird-client/etc
-          echo "$FB_CONF_CONTENT" > /opt/firebird-client/etc/firebird.conf
-
-          echo "=== Firebird client configuration ==="
-          cat /etc/firebird/firebird.conf
-
-      - name: Wait for Firebird service
-        run: |
-          set -eu
-          echo "Waiting for Firebird service to be ready..."
-
-          # Wait for TCP port to be available
-          for i in $(seq 1 60); do
-            if nc -z firebird 3050 2>/dev/null; then
-              echo "Firebird is listening on firebird:3050"
-              # Additional wait for service to be fully ready
-              sleep 5
-              break
-            fi
-            echo "Waiting for Firebird (attempt ${i}/60)..."
-            sleep 2
-          done
-
-          if ! nc -z firebird 3050 2>/dev/null; then
-            echo "ERROR: Firebird service did not start within timeout" >&2
-            exit 1
-          fi
-
-      - name: Build PHP extension
-        run: |
-          set -eu
-
-          export LD_LIBRARY_PATH="/opt/firebird-client/lib:${LD_LIBRARY_PATH:-}"
-          export CFLAGS="-I/opt/firebird-client/include ${CFLAGS:-}"
-          export LDFLAGS="-L/opt/firebird-client/lib ${LDFLAGS:-}"
-
-          echo "PHP Version:"
-          php -v
-
-          echo "Building extension..."
+          cd pdo_fbird
           phpize
-          ./configure --with-firebird=/opt/firebird-client
+          ./configure --with-pdo-fbird --with-firebird=/opt/firebird-client
           make -j"$(nproc)"
-
-          echo "Extension built successfully"
-          ls -la modules/firebird.so
+          echo "pdo_fbird built successfully"
+          ls -la modules/pdo_fbird.so
 
       - name: Verify extension and connection
-        run: |
-          set -eu
-
-          # Ensure Firebird client library is in library path
-          export LD_LIBRARY_PATH="/opt/firebird-client/lib:/usr/local/lib:/usr/lib:${LD_LIBRARY_PATH:-}"
-
-          EXTENSION_PATH="$(pwd)/modules/firebird.so"
-
-          echo "=== Environment ==="
-          echo "FIREBIRD_HOST: ${FIREBIRD_HOST}"
-          echo "FIREBIRD_DB_PATH: ${FIREBIRD_DB_PATH}"
-          echo "ISC_USER: ${ISC_USER}"
-          echo "LD_LIBRARY_PATH: ${LD_LIBRARY_PATH}"
-
-          echo "=== Library check ==="
-          ls -la /usr/lib/libfbclient* 2>/dev/null || echo "No libfbclient in /usr/lib"
-          ldd "${EXTENSION_PATH}" 2>&1 | grep -i fbclient || echo "Could not check library deps"
-
-          echo "=== Testing extension loading ==="
-          php -d "extension=${EXTENSION_PATH}" -m 2>&1 | tee /tmp/modules.txt
-          if ! grep -qi firebird /tmp/modules.txt; then
-            echo "ERROR: Firebird extension failed to load"
-            exit 1
-          fi
-          echo "Firebird extension loaded successfully"
-
-          echo "=== Testing database connection ==="
-          # Use explicit credentials in fbird_connect call (belt and suspenders)
-          php -d "extension=${EXTENSION_PATH}" -r '
-            $host = getenv("FIREBIRD_HOST");
-            $dbPath = getenv("FIREBIRD_DB_PATH");
-            $connStr = $host . ":" . $dbPath;
-            $user = "SYSDBA";
-            $pass = "masterkey";
-
-            echo "Connection string: $connStr\n";
-            echo "User: $user\n";
-
-            // Try connection with explicit credentials
-            $db = @fbird_connect($connStr, $user, $pass);
-            if ($db) {
-              echo "SUCCESS: Connected to database!\n";
-              $res = fbird_query($db, "SELECT 1 FROM RDB\$DATABASE");
-              if ($res) {
-                $row = fbird_fetch_row($res);
-                echo "Query test: SELECT 1 returned " . $row[0] . "\n";
-                fbird_free_result($res);
-              }
-              fbird_close($db);
-              exit(0);
-            }
-
-            $err = fbird_errmsg();
-            echo "Primary connection failed: $err\n";
-
-            // Try alternate database paths
-            $altPaths = [
-              "/var/lib/firebird/data/test.fdb",
-              "/firebird/data/test.fdb",
-              "/tmp/test.fdb"
-            ];
-
-            foreach ($altPaths as $alt) {
-              if ($alt === $dbPath) continue; // Skip if same as primary
-              $altConn = $host . ":" . $alt;
-              echo "Trying alternate: $altConn ... ";
-              $db = @fbird_connect($altConn, $user, $pass);
-              if ($db) {
-                echo "SUCCESS!\n";
-                fbird_close($db);
-                exit(0);
-              }
-              echo "failed\n";
-            }
-
-            echo "ERROR: All connection attempts failed\n";
-            echo "Last error: " . fbird_errmsg() . "\n";
-            exit(1);
-          '
+        uses: ./.github/actions/verify-extension
+        with:
+          mode: full
+          extension-path: modules/firebird.so
+          ld-library-path-extra: /opt/firebird-client/lib
 
       - name: Cache Composer dependencies
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
@@ -591,8 +213,15 @@ jobs:
           set -eu
 
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
+          PDO_FBIRD_PATH="$(pwd)/pdo_fbird/modules/pdo_fbird.so"
           export TEST_PHP_EXECUTABLE="$(which php)"
           export PHP_TEST_SHARED_EXTENSIONS="-d extension=${EXTENSION_PATH}"
+
+          # Add pdo_fbird extension if built
+          if [ -f "$PDO_FBIRD_PATH" ]; then
+            export PHP_TEST_SHARED_EXTENSIONS="${PHP_TEST_SHARED_EXTENSIONS} -d extension=${PDO_FBIRD_PATH}"
+            echo "Added pdo_fbird extension to test configuration"
+          fi
 
           # Add pcntl extension if available
           PCNTL_SO=$(find $(php-config --extension-dir) -name "pcntl.so" 2>/dev/null || true)
@@ -611,7 +240,7 @@ jobs:
 
       - name: Upload test failure diffs
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-diffs-php${{ matrix.php-version }}-fb${{ matrix.firebird-version }}
           path: tests/**/*.diff
@@ -632,6 +261,7 @@ jobs:
   macos-build:
     name: macOS ${{ matrix.arch }} (build-only)
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
 
     strategy:
       fail-fast: false
@@ -645,14 +275,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Ensure VERSION.txt file
-        run: |
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            echo "${GITHUB_REF#refs/tags/v}" > VERSION.txt
-          elif [ ! -f VERSION.txt ]; then
-            echo "ERROR: Cannot determine version" >&2
-            exit 1
-          fi
+      - name: Ensure VERSION.txt
+        uses: ./.github/actions/version
 
       - name: Install PHP via Homebrew
         run: |
@@ -758,8 +382,12 @@ jobs:
 
           make -j"$(sysctl -n hw.ncpu)"
 
+          # Build pdo_fbird as separate extension
+          (cd pdo_fbird && phpize && ./configure --with-pdo-fbird --with-firebird="${FB_CLIENT_DIR}" && make -j"$(sysctl -n hw.ncpu)")
+
           echo "Extension built successfully"
           ls -la modules/firebird.so
+          ls -la pdo_fbird/modules/pdo_fbird.so
           file modules/firebird.so
 
       - name: Patch extension RPATH
@@ -789,24 +417,8 @@ jobs:
           otool -L "$EXTENSION_PATH"
 
       - name: Verify extension loads
-        run: |
-          set -eu
-
-          EXTENSION_PATH="$(pwd)/modules/firebird.so"
-
-          # Set library path for Firebird client (belt and suspenders with RPATH)
-          export DYLD_LIBRARY_PATH="/tmp/firebird-client/lib:${DYLD_LIBRARY_PATH:-}"
-
-          echo "=== Verifying extension ==="
-          php -d "extension=${EXTENSION_PATH}" -m 2>&1 | tee /tmp/modules.txt
-
-          if grep -qi firebird /tmp/modules.txt; then
-            echo "✅ Firebird extension loads successfully on macOS ${{ matrix.arch }}"
-          else
-            echo "❌ Firebird extension failed to load"
-            exit 1
-          fi
-
-          # Show extension info
-          php -d "extension=${EXTENSION_PATH}" -r "phpinfo(INFO_MODULES);" 2>&1 | \
-            sed -n '/^firebird$/,/^$/p' | head -20 || true
+        uses: ./.github/actions/verify-extension
+        with:
+          mode: load-only
+          extension-path: modules/firebird.so
+          dyld-library-path-extra: /tmp/firebird-client/lib

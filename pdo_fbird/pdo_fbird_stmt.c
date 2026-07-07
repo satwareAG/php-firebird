@@ -169,7 +169,7 @@ zend_string *php_firebird_preprocess(const char *sql, size_t sql_len,
 static int _pdo_fbird_is_null(pdo_fbird_stmt *S, unsigned idx)
 {
 	if (!S->out_meta) return 0;
-	unsigned null_off = fbm_get_null_offset(IBG(master_instance), S->out_meta, idx);
+	unsigned null_off = fbm_get_null_offset(FBG(master_instance), S->out_meta, idx);
 	short null_flag = 0;
 	memcpy(&null_flag, S->out_buf + null_off, sizeof(short));
 	return (null_flag != 0);
@@ -226,7 +226,7 @@ static int pdo_fbird_stmt_execute(pdo_stmt_t *stmt)
 	S->has_rows = 0;
 
 	void *tr = fbt_get_handle(H->fbt_trans);
-	unsigned stmt_type = fbs_get_type(IBG(master_instance), S->fbs_stmt, S->status);
+	unsigned stmt_type = fbs_get_type(FBG(master_instance), S->fbs_stmt, S->status);
 
 	/* SELECT / stored proc with output → open cursor */
 	if (stmt_type == isc_info_sql_stmt_select ||
@@ -235,7 +235,7 @@ static int pdo_fbird_stmt_execute(pdo_stmt_t *stmt)
 
 		unsigned cursor_flags = S->scrollable ? 0x1 : 0; /* CURSOR_TYPE_SCROLLABLE */
 		int rc = fbs_open_cursor(
-			IBG(master_instance), S->fbs_stmt, tr,
+			FBG(master_instance), S->fbs_stmt, tr,
 			S->in_buf, S->in_meta,
 			cursor_flags, S->status
 		);
@@ -248,7 +248,7 @@ static int pdo_fbird_stmt_execute(pdo_stmt_t *stmt)
 	} else {
 		/* DML / DDL */
 		int rc = fbs_execute(
-			IBG(master_instance), S->fbs_stmt, tr,
+			FBG(master_instance), S->fbs_stmt, tr,
 			S->in_buf, S->in_meta,
 			S->out_buf, S->out_meta,
 			S->status
@@ -258,7 +258,7 @@ static int pdo_fbird_stmt_execute(pdo_stmt_t *stmt)
 			return 0;
 		}
 		ISC_UINT64 aff = fbs_get_affected_records(
-			IBG(master_instance), S->fbs_stmt, S->status);
+			FBG(master_instance), S->fbs_stmt, S->status);
 		stmt->row_count = (zend_long)aff;
 
 		/* Only autocommit for DML/DDL — never for SELECT (cursor still open) */
@@ -282,27 +282,27 @@ static int pdo_fbird_stmt_fetch(pdo_stmt_t *stmt,
 	if (S->scrollable) {
 		switch (ori) {
 			case PDO_FETCH_ORI_FIRST:
-				rc = fbs_fetch_first(IBG(master_instance), S->fbs_stmt, S->out_buf, S->status);
+				rc = fbs_fetch_first(FBG(master_instance), S->fbs_stmt, S->out_buf, S->status);
 				break;
 			case PDO_FETCH_ORI_LAST:
-				rc = fbs_fetch_last(IBG(master_instance), S->fbs_stmt, S->out_buf, S->status);
+				rc = fbs_fetch_last(FBG(master_instance), S->fbs_stmt, S->out_buf, S->status);
 				break;
 			case PDO_FETCH_ORI_ABS:
-				rc = fbs_fetch_absolute(IBG(master_instance), S->fbs_stmt, (int)offset, S->out_buf, S->status);
+				rc = fbs_fetch_absolute(FBG(master_instance), S->fbs_stmt, (int)offset, S->out_buf, S->status);
 				break;
 			case PDO_FETCH_ORI_REL:
-				rc = fbs_fetch_relative(IBG(master_instance), S->fbs_stmt, (int)offset, S->out_buf, S->status);
+				rc = fbs_fetch_relative(FBG(master_instance), S->fbs_stmt, (int)offset, S->out_buf, S->status);
 				break;
 			case PDO_FETCH_ORI_PRIOR:
-				rc = fbs_fetch_prior(IBG(master_instance), S->fbs_stmt, S->out_buf, S->status);
+				rc = fbs_fetch_prior(FBG(master_instance), S->fbs_stmt, S->out_buf, S->status);
 				break;
 			case PDO_FETCH_ORI_NEXT:
 			default:
-				rc = fbs_fetch(IBG(master_instance), S->fbs_stmt, S->out_buf, S->status);
+				rc = fbs_fetch(FBG(master_instance), S->fbs_stmt, S->out_buf, S->status);
 				break;
 		}
 	} else {
-		rc = fbs_fetch(IBG(master_instance), S->fbs_stmt, S->out_buf, S->status);
+		rc = fbs_fetch(FBG(master_instance), S->fbs_stmt, S->out_buf, S->status);
 	}
 
 	if (rc == 1) return 1;   /* row fetched */
@@ -326,13 +326,13 @@ static int pdo_fbird_stmt_describe(pdo_stmt_t *stmt, int colno)
 
 	struct pdo_column_data *col = &stmt->columns[colno];
 
-	const char *alias = fbm_get_alias(IBG(master_instance), S->out_meta, (unsigned)colno);
-	const char *field = fbm_get_field(IBG(master_instance), S->out_meta, (unsigned)colno);
+	const char *alias = fbm_get_alias(FBG(master_instance), S->out_meta, (unsigned)colno);
+	const char *field = fbm_get_field(FBG(master_instance), S->out_meta, (unsigned)colno);
 	const char *name  = (alias && alias[0]) ? alias : (field ? field : "");
 
 	/* §3.2 FETCH_TABLE_NAMES: prepend "TABLE." to column name */
 	if (S->H->fetch_table_names) {
-		const char *relation = fbm_get_relation(IBG(master_instance), S->out_meta, (unsigned)colno);
+		const char *relation = fbm_get_relation(FBG(master_instance), S->out_meta, (unsigned)colno);
 		if (relation && relation[0]) {
 			size_t rlen = strlen(relation);
 			size_t nlen = strlen(name);
@@ -349,10 +349,10 @@ static int pdo_fbird_stmt_describe(pdo_stmt_t *stmt, int colno)
 	} else {
 		col->name = zend_string_init(name, strlen(name), 0);
 	}
-	col->maxlen      = fbm_get_length(IBG(master_instance), S->out_meta, (unsigned)colno);
-	col->precision   = (zend_long)fbm_get_scale(IBG(master_instance), S->out_meta, (unsigned)colno);
+	col->maxlen      = fbm_get_length(FBG(master_instance), S->out_meta, (unsigned)colno);
+	col->precision   = (zend_long)fbm_get_scale(FBG(master_instance), S->out_meta, (unsigned)colno);
 
-	(void)fbm_get_type(IBG(master_instance), S->out_meta, (unsigned)colno); /* type info available if needed */
+	(void)fbm_get_type(FBG(master_instance), S->out_meta, (unsigned)colno); /* type info available if needed */
 	return 1;
 }
 /* }}} */
@@ -479,10 +479,10 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 		return 1;
 	}
 
-	unsigned sql_type = fbm_get_type(IBG(master_instance), S->out_meta, (unsigned)colno);
-	unsigned offset   = fbm_get_offset(IBG(master_instance), S->out_meta, (unsigned)colno);
-	unsigned length   = fbm_get_length(IBG(master_instance), S->out_meta, (unsigned)colno);
-	int      scale    = fbm_get_scale(IBG(master_instance), S->out_meta, (unsigned)colno);
+	unsigned sql_type = fbm_get_type(FBG(master_instance), S->out_meta, (unsigned)colno);
+	unsigned offset   = fbm_get_offset(FBG(master_instance), S->out_meta, (unsigned)colno);
+	unsigned length   = fbm_get_length(FBG(master_instance), S->out_meta, (unsigned)colno);
+	int      scale    = fbm_get_scale(FBG(master_instance), S->out_meta, (unsigned)colno);
 	unsigned char *data = S->out_buf + offset;
 
 	switch (sql_type & ~1) {
@@ -543,7 +543,7 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 		case SQL_TYPE_DATE: {
 			ISC_DATE dt; memcpy(&dt, data, sizeof(ISC_DATE));
 			unsigned year, month, day;
-			fbu_decode_date(IBG(master_instance), dt, &year, &month, &day);
+			fbu_decode_date(FBG(master_instance), dt, &year, &month, &day);
 			char buf[64];
 			if (S->H->date_format) {
 				struct tm tm = {0};
@@ -558,7 +558,7 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 		case SQL_TYPE_TIME: {
 			ISC_TIME tm_val; memcpy(&tm_val, data, sizeof(ISC_TIME));
 			unsigned hours, minutes, seconds, fractions;
-			fbu_decode_time(IBG(master_instance), tm_val, &hours, &minutes, &seconds, &fractions);
+			fbu_decode_time(FBG(master_instance), tm_val, &hours, &minutes, &seconds, &fractions);
 			char buf[64];
 			if (S->H->time_format) {
 				struct tm tm = {0};
@@ -577,7 +577,7 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 		case SQL_TIMESTAMP: {
 			ISC_TIMESTAMP ts; memcpy(&ts, data, sizeof(ISC_TIMESTAMP));
 			unsigned year, month, day, hours, minutes, seconds, fractions;
-			fbu_decode_timestamp(IBG(master_instance), &ts, &year, &month, &day, &hours, &minutes, &seconds, &fractions);
+			fbu_decode_timestamp(FBG(master_instance), &ts, &year, &month, &day, &hours, &minutes, &seconds, &fractions);
 			char buf[80];
 			if (S->H->timestamp_format) {
 				struct tm tm = {0};
@@ -599,7 +599,7 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 			ISC_TIMESTAMP_TZ ts_tz; memcpy(&ts_tz, data, sizeof(ISC_TIMESTAMP_TZ));
 			unsigned year, month, day, hours, minutes, seconds, fractions;
 			char tz_buf[64] = "";
-			fbu_decode_timestamp_tz(IBG(master_instance), &ts_tz, &year, &month, &day, &hours, &minutes, &seconds, &fractions, sizeof(tz_buf), tz_buf);
+			fbu_decode_timestamp_tz(FBG(master_instance), &ts_tz, &year, &month, &day, &hours, &minutes, &seconds, &fractions, sizeof(tz_buf), tz_buf);
 			char buf[128];
 			snprintf(buf, sizeof(buf), "%04u-%02u-%02u %02u:%02u:%02u.%04u %s", year, month, day, hours, minutes, seconds, fractions, tz_buf);
 			ZVAL_STRING(result, buf);
@@ -611,7 +611,7 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 			ISC_TIME_TZ tm_tz; memcpy(&tm_tz, data, sizeof(ISC_TIME_TZ));
 			unsigned hours, minutes, seconds, fractions;
 			char tz_buf[64] = "";
-			fbu_decode_time_tz(IBG(master_instance), &tm_tz, &hours, &minutes, &seconds, &fractions, sizeof(tz_buf), tz_buf);
+			fbu_decode_time_tz(FBG(master_instance), &tm_tz, &hours, &minutes, &seconds, &fractions, sizeof(tz_buf), tz_buf);
 			char buf[128];
 			snprintf(buf, sizeof(buf), "%02u:%02u:%02u.%04u %s", hours, minutes, seconds, fractions, tz_buf);
 			ZVAL_STRING(result, buf);
@@ -621,7 +621,7 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 #ifdef SQL_INT128
 		case SQL_INT128: {
 			char buf[64];
-			if (fbu_int128_to_string(IBG(master_instance), data, scale, buf, sizeof(buf)) == 0) {
+			if (fbu_int128_to_string(FBG(master_instance), data, scale, buf, sizeof(buf)) == 0) {
 				ZVAL_STRING(result, buf);
 			} else {
 				ZVAL_STRINGL(result, (char *)data, length);
@@ -632,7 +632,7 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 #ifdef SQL_DEC16
 		case SQL_DEC16: {
 			char buf[32];
-			if (fbu_decfloat16_to_string(IBG(master_instance), data, buf, sizeof(buf)) == 0) {
+			if (fbu_decfloat16_to_string(FBG(master_instance), data, buf, sizeof(buf)) == 0) {
 				ZVAL_STRING(result, buf);
 			} else {
 				ZVAL_STRINGL(result, (char *)data, length);
@@ -643,7 +643,7 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 #ifdef SQL_DEC34
 		case SQL_DEC34: {
 			char buf[48];
-			if (fbu_decfloat34_to_string(IBG(master_instance), data, buf, sizeof(buf)) == 0) {
+			if (fbu_decfloat34_to_string(FBG(master_instance), data, buf, sizeof(buf)) == 0) {
 				ZVAL_STRING(result, buf);
 			} else {
 				ZVAL_STRINGL(result, (char *)data, length);
@@ -661,11 +661,11 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 				break;
 			}
 			/* Get table/column name for descriptor lookup */
-			const char *rel = fbm_get_relation(IBG(master_instance), S->out_meta, (unsigned)colno);
-			const char *fld = fbm_get_field(IBG(master_instance), S->out_meta, (unsigned)colno);
+			const char *rel = fbm_get_relation(FBG(master_instance), S->out_meta, (unsigned)colno);
+			const char *fld = fbm_get_field(FBG(master_instance), S->out_meta, (unsigned)colno);
 			if (!rel || !fld) { ZVAL_NULL(result); break; }
 			ISC_ARRAY_DESC ar_desc;
-			if (fba_lookup_bounds(IBG(master_instance), attachment, transaction,
+			if (fba_lookup_bounds(FBG(master_instance), attachment, transaction,
 					rel, fld, &ar_desc, S->status) != 0) {
 				ZVAL_NULL(result); break;
 			}
@@ -703,7 +703,7 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 			}
 			ISC_LONG fetch_size = (ISC_LONG)(el_size * total_elems);
 			void *ar_data = ecalloc(1, (size_t)fetch_size);
-			if (fba_get_slice(IBG(master_instance), attachment, transaction,
+			if (fba_get_slice(FBG(master_instance), attachment, transaction,
 					&ar_qd, &ar_desc, ar_data, &fetch_size, S->status) != 0) {
 				efree(ar_data);
 				ZVAL_NULL(result); break;
@@ -721,7 +721,7 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 			ISC_QUAD bid; memcpy(&bid, data, sizeof(ISC_QUAD));
 			void *attachment = fbc_get_attachment(S->H->fbc_conn);
 			void *transaction = fbt_get_handle(S->H->fbt_trans);
-			void *blob = (attachment && transaction) ? fbb_open(IBG(master_instance), attachment, transaction, &bid, 0, NULL, S->H->status) : NULL;
+			void *blob = (attachment && transaction) ? fbb_open(FBG(master_instance), attachment, transaction, &bid, 0, NULL, S->H->status) : NULL;
 			if (!blob) {
 				/* Fallback: return blob ID */
 				char buf[48];
@@ -733,11 +733,11 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 			char seg_buf[4096];
 			unsigned actual_len = 0;
 			int rc;
-			while ((rc = fbb_get_segment(IBG(master_instance), blob, sizeof(seg_buf), seg_buf, &actual_len, S->H->status)) == 0 || rc == 2) {
+			while ((rc = fbb_get_segment(FBG(master_instance), blob, sizeof(seg_buf), seg_buf, &actual_len, S->H->status)) == 0 || rc == 2) {
 				smart_str_appendl(&blob_str, seg_buf, actual_len);
 				if (rc == 0) continue; /* more data */
 			}
-			fbb_close(IBG(master_instance), blob, S->H->status);
+			fbb_close(FBG(master_instance), blob, S->H->status);
 
 			if (type && *type == PDO_PARAM_LOB) {
 				/* Return as PHP stream for LOB binding */
@@ -798,10 +798,10 @@ static int pdo_fbird_stmt_param_hook(pdo_stmt_t *stmt,
 	if (param->paramno < 0 || (unsigned)param->paramno >= S->in_count) return 1;
 
 	unsigned idx    = (unsigned)param->paramno;
-	unsigned offset = fbm_get_offset(IBG(master_instance), S->in_meta, idx);
-	unsigned length = fbm_get_length(IBG(master_instance), S->in_meta, idx);
-	unsigned null_off = fbm_get_null_offset(IBG(master_instance), S->in_meta, idx);
-	unsigned sql_type = fbm_get_type(IBG(master_instance), S->in_meta, idx);
+	unsigned offset = fbm_get_offset(FBG(master_instance), S->in_meta, idx);
+	unsigned length = fbm_get_length(FBG(master_instance), S->in_meta, idx);
+	unsigned null_off = fbm_get_null_offset(FBG(master_instance), S->in_meta, idx);
+	unsigned sql_type = fbm_get_type(FBG(master_instance), S->in_meta, idx);
 	unsigned char *dest = S->in_buf + offset;
 	short *null_flag    = (short *)(S->in_buf + null_off);
 
@@ -875,11 +875,11 @@ static int pdo_fbird_stmt_param_hook(pdo_stmt_t *stmt,
 			void *transaction = fbt_get_handle(S->H->fbt_trans);
 			if (!attachment || !transaction) { memset(dest, 0, sizeof(ISC_QUAD)); break; }
 			/* Get relation/field name from input metadata */
-			const char *rel = fbm_get_relation(IBG(master_instance), S->in_meta, idx);
-			const char *fld = fbm_get_field(IBG(master_instance), S->in_meta, idx);
+			const char *rel = fbm_get_relation(FBG(master_instance), S->in_meta, idx);
+			const char *fld = fbm_get_field(FBG(master_instance), S->in_meta, idx);
 			if (!rel || !fld || !*rel || !*fld) { memset(dest, 0, sizeof(ISC_QUAD)); break; }
 			ISC_ARRAY_DESC ar_desc;
-			if (fba_lookup_bounds(IBG(master_instance), attachment, transaction,
+			if (fba_lookup_bounds(FBG(master_instance), attachment, transaction,
 					rel, fld, &ar_desc, S->status) != 0) {
 				memset(dest, 0, sizeof(ISC_QUAD)); break;
 			}
@@ -946,7 +946,7 @@ static int pdo_fbird_stmt_param_hook(pdo_stmt_t *stmt,
 				elem_idx++;
 			} ZEND_HASH_FOREACH_END();
 			ISC_QUAD array_id = {0, 0};
-			if (fba_put_slice(IBG(master_instance), attachment, transaction,
+			if (fba_put_slice(FBG(master_instance), attachment, transaction,
 					&array_id, &ar_desc, ar_buf, buf_size, S->status) != 0) {
 				efree(ar_buf);
 				memset(dest, 0, sizeof(ISC_QUAD)); break;
@@ -983,7 +983,7 @@ static int pdo_fbird_stmt_set_attribute(pdo_stmt_t *stmt, zend_long attr, zval *
 	switch (attr) {
 		case PDO_ATTR_CURSOR_NAME: {
 			if (Z_TYPE_P(val) != IS_STRING) return 0;
-			fbs_set_cursor_name(IBG(master_instance), S->fbs_stmt,
+			fbs_set_cursor_name(FBG(master_instance), S->fbs_stmt,
 				Z_STRVAL_P(val), S->status);
 			return 1;
 		}

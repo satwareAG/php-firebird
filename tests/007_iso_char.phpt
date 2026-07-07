@@ -40,3 +40,5 @@ INSERT OK
 Row ID: 1
 V_CHAR[1]: 'test1'
 Done
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>

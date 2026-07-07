@@ -61,3 +61,6 @@ Auth failed as expected
 bool(true)
 Host failed as expected
 bool(true)
+
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>

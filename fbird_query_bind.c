@@ -313,41 +313,41 @@ int _php_fbird_safe_copy_sqlvar_data(XSQLVAR *dest_var, const XSQLVAR *src_var, 
  * - fbm_get_null_offset() returns null indicator position
  * - fbm_get_length() returns data length for each parameter
  *
- * @param ib_query Query structure with populated in_sqlda and allocated in_msg_buffer
+ * @param fb_query Query structure with populated in_sqlda and allocated in_msg_buffer
  * @return SUCCESS or FAILURE
  */
-int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query)
+int _php_fbird_xsqlda_to_msg_buffer(fbird_query *fb_query)
 {
 	/* Validate prerequisites */
-	if (!ib_query->in_msg_buffer || !ib_query->in_metadata || !ib_query->in_sqlda) {
+	if (!fb_query->in_msg_buffer || !fb_query->in_metadata || !fb_query->in_sqlda) {
 		return SUCCESS; /* Nothing to transfer - no input parameters */
 	}
 
-	if (ib_query->in_fields_count == 0) {
+	if (fb_query->in_fields_count == 0) {
 		return SUCCESS; /* No parameters */
 	}
 
-	void *master = IBG(master_instance);
+	void *master = FBG(master_instance);
 	if (!master) {
 		_php_fbird_module_error("OO API master instance not available");
 		return FAILURE;
 	}
 
 	/* Transfer each parameter from XSQLDA to message buffer */
-	for (int i = 0; i < ib_query->in_fields_count; i++) {
-		XSQLVAR *var = &ib_query->in_sqlda->sqlvar[i];
+	for (int i = 0; i < fb_query->in_fields_count; i++) {
+		XSQLVAR *var = &fb_query->in_sqlda->sqlvar[i];
 
 		/* Get offsets from metadata */
-		unsigned data_offset = fbm_get_offset(master, ib_query->in_metadata, i);
-		unsigned null_offset = fbm_get_null_offset(master, ib_query->in_metadata, i);
-		unsigned meta_length = fbm_get_length(master, ib_query->in_metadata, i);
+		unsigned data_offset = fbm_get_offset(master, fb_query->in_metadata, i);
+		unsigned null_offset = fbm_get_null_offset(master, fb_query->in_metadata, i);
+		unsigned meta_length = fbm_get_length(master, fb_query->in_metadata, i);
 		/* IMPORTANT: use metadata type, not XSQLVAR type.
 		 * _php_fbird_bind() may change var->sqltype (e.g., to SQL_TEXT for string fallback),
 		 * but the OO API message buffer format must match the original parameter type. */
-		unsigned meta_type = fbm_get_type(master, ib_query->in_metadata, i) & ~1;
+		unsigned meta_type = fbm_get_type(master, fb_query->in_metadata, i) & ~1;
 
 		/* Set null indicator in message buffer */
-		short *null_ptr = (short *)((unsigned char *)ib_query->in_msg_buffer + null_offset);
+		short *null_ptr = (short *)((unsigned char *)fb_query->in_msg_buffer + null_offset);
 		if (var->sqlind && *var->sqlind == -1) {
 			*null_ptr = -1; /* NULL value */
 			continue; /* Skip data transfer for NULL values */
@@ -355,7 +355,7 @@ int _php_fbird_xsqlda_to_msg_buffer(fbird_query *ib_query)
 		*null_ptr = 0; /* Not NULL */
 
 		/* Get destination pointer in message buffer */
-		unsigned char *dest = (unsigned char *)ib_query->in_msg_buffer + data_offset;
+		unsigned char *dest = (unsigned char *)fb_query->in_msg_buffer + data_offset;
 
 		/* Transfer data based on SQL type */
 		if (!var->sqldata) {
@@ -521,10 +521,11 @@ static int _php_fbird_scale_double_to_int64(double dval, int sqlscale, ISC_INT64
 	return SUCCESS;
 }
 
-int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
+int _php_fbird_bind(fbird_query *fb_query, zval *b_vars)
 {
-	BIND_BUF *buf = ib_query->bind_buf;
-	XSQLDA *sqlda = ib_query->in_sqlda;
+	ISC_STATUS status[256];
+	BIND_BUF *buf = fb_query->bind_buf;
+	XSQLDA *sqlda = fb_query->in_sqlda;
 
 	int i, rv = SUCCESS;
 
@@ -679,7 +680,7 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 					/* Use struct tm values for encoding */
 					switch (var->sqltype & ~1) {
 						default: /* == case SQL_TIMESTAMP */
-							buf[i].val.tsval = fbu_encode_timestamp(IBG(master_instance),
+							buf[i].val.tsval = fbu_encode_timestamp(FBG(master_instance),
 								(unsigned)(t.tm_year + 1900),
 								(unsigned)(t.tm_mon + 1),
 								(unsigned)t.tm_mday,
@@ -689,13 +690,13 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 								0);
 							break;
 						case SQL_TYPE_DATE:
-							buf[i].val.dtval = fbu_encode_date(IBG(master_instance),
+							buf[i].val.dtval = fbu_encode_date(FBG(master_instance),
 								(unsigned)(t.tm_year + 1900),
 								(unsigned)(t.tm_mon + 1),
 								(unsigned)t.tm_mday);
 							break;
 						case SQL_TYPE_TIME:
-							buf[i].val.tmval = fbu_encode_time(IBG(master_instance),
+							buf[i].val.tmval = fbu_encode_time(FBG(master_instance),
 								(unsigned)t.tm_hour,
 								(unsigned)t.tm_min,
 								(unsigned)t.tm_sec,
@@ -728,17 +729,17 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 				/* Encode using OO API with parsed components */
 				switch (var->sqltype & ~1) {
 					default: /* == case SQL_TIMESTAMP */
-						buf[i].val.tsval = fbu_encode_timestamp(IBG(master_instance),
+						buf[i].val.tsval = fbu_encode_timestamp(FBG(master_instance),
 							dt.year, dt.month, dt.day,
 							dt.hours, dt.minutes, dt.seconds,
 							dt.fractions);
 						break;
 					case SQL_TYPE_DATE:
-						buf[i].val.dtval = fbu_encode_date(IBG(master_instance),
+						buf[i].val.dtval = fbu_encode_date(FBG(master_instance),
 							dt.year, dt.month, dt.day);
 						break;
 					case SQL_TYPE_TIME:
-						buf[i].val.tmval = fbu_encode_time(IBG(master_instance),
+						buf[i].val.tmval = fbu_encode_time(FBG(master_instance),
 							dt.hours, dt.minutes, dt.seconds,
 							dt.fractions);
 						break;
@@ -750,7 +751,7 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 			case SQL_TIMESTAMP_TZ:
 			case SQL_TIME_TZ:
 				/* Timezone types require Firebird 4.0+ master interface */
-				if (!IBG(master_instance)) {
+				if (!FBG(master_instance)) {
 					_php_fbird_module_error("Parameter %d: Timezone fields require Firebird 4.0+ client library", i+1);
 					rv = FAILURE;
 					continue;
@@ -803,14 +804,14 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 					/* Encode using Firebird 4.0+ API */
 					var->sqldata = (void*)&buf[i].val;
 					if ((var->sqltype & ~1) == SQL_TIME_TZ) {
-						if (fbu_encode_time_tz(IBG(master_instance), &buf[i].val.tmtzval,
+						if (fbu_encode_time_tz(FBG(master_instance), &buf[i].val.tmtzval,
 								dt.hours, dt.minutes, dt.seconds, dt.fractions, dt.timezone) != 0) {
 							_php_fbird_module_error("Parameter %d: Failed to encode TIME WITH TIME ZONE", i+1);
 							rv = FAILURE;
 							continue;
 						}
 					} else {
-						if (fbu_encode_timestamp_tz(IBG(master_instance), &buf[i].val.tstzval,
+						if (fbu_encode_timestamp_tz(FBG(master_instance), &buf[i].val.tstzval,
 								dt.year, dt.month, dt.day, dt.hours, dt.minutes, dt.seconds, dt.fractions, dt.timezone) != 0) {
 							_php_fbird_module_error("Parameter %d: Failed to encode TIMESTAMP WITH TIME ZONE", i+1);
 							rv = FAILURE;
@@ -828,32 +829,32 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
  				php_stream *stream = NULL;
  				php_stream_from_zval_no_verify(stream, b_var);
  				if (stream) {
- 					fbird_blob ib_blob = { 0 };
- 					ib_blob.type = BLOB_INPUT;
- 					ib_blob.fbb_blob = NULL;
+ 					fbird_blob fb_blob = { 0 };
+ 					fb_blob.type = BLOB_INPUT;
+ 					fb_blob.fbb_blob = NULL;
 
- 					if (!ib_query->link || !ib_query->link->fbc_connection) {
+ 					if (!fb_query->link || !fb_query->link->fbc_connection) {
  						_php_fbird_module_error("Parameter %d: OO API connection required for stream BLOB binding", i + 1);
  						return FAILURE;
  					}
- 					if (!ib_query->trans || !ib_query->trans->fbt_transaction) {
+ 					if (!fb_query->trans || !fb_query->trans->fbt_transaction) {
  						_php_fbird_module_error("Parameter %d: OO API transaction required for stream BLOB binding", i + 1);
  						return FAILURE;
  					}
 
- 					void *attachment_ptr = fbc_get_attachment(ib_query->link->fbc_connection);
- 					void *transaction_ptr = fbt_get_handle(ib_query->trans->fbt_transaction);
+ 					void *attachment_ptr = fbc_get_attachment(fb_query->link->fbc_connection);
+ 					void *transaction_ptr = fbt_get_handle(fb_query->trans->fbt_transaction);
  					if (!attachment_ptr || !transaction_ptr) {
  						_php_fbird_module_error("Parameter %d: invalid OO API handles for stream BLOB binding", i + 1);
  						return FAILURE;
  					}
 
- 					ib_blob.fbb_blob = fbb_create(
- 						IBG(master_instance), attachment_ptr, transaction_ptr,
- 						&ib_blob.bl_qd, 0, NULL, IB_STATUS
+ 					fb_blob.fbb_blob = fbb_create(
+ 						FBG(master_instance), attachment_ptr, transaction_ptr,
+ 						&fb_blob.bl_qd, 0, NULL, status
  					);
- 					if (!ib_blob.fbb_blob) {
- 						_php_fbird_error();
+ 					if (!fb_blob.fbb_blob) {
+ 						_php_fbird_error(status);
  						return FAILURE;
  					}
 
@@ -861,22 +862,22 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
  					char chunk[8192];
  					ssize_t read_len;
  					while ((read_len = php_stream_read(stream, chunk, sizeof(chunk))) > 0) {
- 						if (fbb_put_segment(IBG(master_instance), ib_blob.fbb_blob,
- 								(unsigned int)read_len, chunk, IB_STATUS) == 0) {
- 							_php_fbird_error();
- 							fbb_cancel(IBG(master_instance), ib_blob.fbb_blob, IB_STATUS);
- 							fbb_free(ib_blob.fbb_blob);
+ 						if (fbb_put_segment(FBG(master_instance), fb_blob.fbb_blob,
+ 								(unsigned int)read_len, chunk, status) == 0) {
+ 							_php_fbird_error(status);
+ 							fbb_cancel(FBG(master_instance), fb_blob.fbb_blob, status);
+ 							fbb_free(fb_blob.fbb_blob);
  							return FAILURE;
  						}
  					}
 
- 					if (fbb_close(IBG(master_instance), ib_blob.fbb_blob, IB_STATUS) == 0) {
- 						_php_fbird_error();
- 						fbb_free(ib_blob.fbb_blob);
+ 					if (fbb_close(FBG(master_instance), fb_blob.fbb_blob, status) == 0) {
+ 						_php_fbird_error(status);
+ 						fbb_free(fb_blob.fbb_blob);
  						return FAILURE;
  					}
- 					fbb_free(ib_blob.fbb_blob);
- 					buf[i].val.qval = ib_blob.bl_qd;
+ 					fbb_free(fb_blob.fbb_blob);
+ 					buf[i].val.qval = fb_blob.bl_qd;
  					continue;
  				}
  			}
@@ -887,59 +888,59 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
  				!_php_fbird_string_to_quad(Z_STRVAL_P(b_var), &buf[i].val.qval)) {
 
  				/* OO API only: create a blob, write the string into it, then bind by blob id (ISC_QUAD). */
-					fbird_blob ib_blob = { 0 };
-					ib_blob.type = BLOB_INPUT;
-					ib_blob.fbb_blob = NULL;
+					fbird_blob fb_blob = { 0 };
+					fb_blob.type = BLOB_INPUT;
+					fb_blob.fbb_blob = NULL;
 
-					if (!ib_query->link || !ib_query->link->fbc_connection) {
+					if (!fb_query->link || !fb_query->link->fbc_connection) {
 						_php_fbird_module_error("Parameter %d: OO API connection required for BLOB binding", i + 1);
 						return FAILURE;
 					}
-					if (!ib_query->trans || !ib_query->trans->fbt_transaction) {
+					if (!fb_query->trans || !fb_query->trans->fbt_transaction) {
 						_php_fbird_module_error("Parameter %d: OO API transaction required for BLOB binding", i + 1);
 						return FAILURE;
 					}
 
-					void *attachment_ptr = fbc_get_attachment(ib_query->link->fbc_connection);
-					void *transaction_ptr = fbt_get_handle(ib_query->trans->fbt_transaction);
+					void *attachment_ptr = fbc_get_attachment(fb_query->link->fbc_connection);
+					void *transaction_ptr = fbt_get_handle(fb_query->trans->fbt_transaction);
 					if (!attachment_ptr || !transaction_ptr) {
 						_php_fbird_module_error("Parameter %d: invalid OO API connection/transaction for BLOB binding", i + 1);
 						return FAILURE;
 					}
 
-					ib_blob.fbb_blob = fbb_create(
-						IBG(master_instance),
+					fb_blob.fbb_blob = fbb_create(
+						FBG(master_instance),
 						attachment_ptr,
 						transaction_ptr,
-						&ib_blob.bl_qd,
+						&fb_blob.bl_qd,
 						0,
 						NULL,
-						IB_STATUS
+						status
 					);
-					if (!ib_blob.fbb_blob) {
-						_php_fbird_error();
+					if (!fb_blob.fbb_blob) {
+						_php_fbird_error(status);
 						return FAILURE;
 					}
 
 					/* Keep legacy handle pointer in sync for checks in blob helpers. */
 
-					if (_php_fbird_blob_add(b_var, &ib_blob) != SUCCESS) {
+					if (_php_fbird_blob_add(b_var, &fb_blob) != SUCCESS) {
 						/* Try to cancel and free to avoid leaking the server-side blob. */
-						fbb_cancel(IBG(master_instance), ib_blob.fbb_blob, IB_STATUS);
-						fbb_free(ib_blob.fbb_blob);
+						fbb_cancel(FBG(master_instance), fb_blob.fbb_blob, status);
+						fbb_free(fb_blob.fbb_blob);
 						return FAILURE;
 					}
 
 					/* fbb_close returns 1 on success, 0 on error */
-					if (fbb_close(IBG(master_instance), ib_blob.fbb_blob, IB_STATUS) == 0) {
-						_php_fbird_error();
-						fbb_free(ib_blob.fbb_blob);
+					if (fbb_close(FBG(master_instance), fb_blob.fbb_blob, status) == 0) {
+						_php_fbird_error(status);
+						fbb_free(fb_blob.fbb_blob);
 						return FAILURE;
 					}
-					fbb_free(ib_blob.fbb_blob);
-					ib_blob.fbb_blob = NULL;
+					fbb_free(fb_blob.fbb_blob);
+					fb_blob.fbb_blob = NULL;
 
-					buf[i].val.qval = ib_blob.bl_qd;
+					buf[i].val.qval = fb_blob.bl_qd;
 				}
 				continue;
 #ifdef SQL_BOOLEAN
@@ -1005,20 +1006,20 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 					}
 				} else {
 					/* OO API Only: Store array slice via IAttachment::putSlice() */
-					if (!ib_query->link || !ib_query->link->fbc_connection) {
+					if (!fb_query->link || !fb_query->link->fbc_connection) {
 						_php_fbird_module_error("Parameter %d: OO API connection required for array binding", i + 1);
 						rv = FAILURE;
 						continue;
 					}
-					if (!ib_query->trans || !ib_query->trans->fbt_transaction) {
+					if (!fb_query->trans || !fb_query->trans->fbt_transaction) {
 						_php_fbird_module_error("Parameter %d: OO API transaction required for array binding", i + 1);
 						rv = FAILURE;
 						continue;
 					}
 
 				/* Convert the PHP array argument into a contiguous element buffer */
-				void* attachment_ptr = fbc_get_attachment(ib_query->link->fbc_connection);
-				void* transaction_ptr = fbt_get_handle(ib_query->trans->fbt_transaction);
+				void* attachment_ptr = fbc_get_attachment(fb_query->link->fbc_connection);
+				void* transaction_ptr = fbt_get_handle(fb_query->trans->fbt_transaction);
 
 				/* Get table and column names for array lookup.
 				 * OO API input metadata doesn't provide relname/sqlname for anonymous params.
@@ -1026,16 +1027,16 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 				char arr_relname[32] = "";
 				char arr_sqlname[32] = "";
 
-				if (ib_query->in_sqlda->sqlvar[i].relname_length > 0) {
-					strncpy(arr_relname, ib_query->in_sqlda->sqlvar[i].relname, sizeof(arr_relname) - 1);
+				if (fb_query->in_sqlda->sqlvar[i].relname_length > 0) {
+					strncpy(arr_relname, fb_query->in_sqlda->sqlvar[i].relname, sizeof(arr_relname) - 1);
 				}
-				if (ib_query->in_sqlda->sqlvar[i].sqlname_length > 0) {
-					strncpy(arr_sqlname, ib_query->in_sqlda->sqlvar[i].sqlname, sizeof(arr_sqlname) - 1);
+				if (fb_query->in_sqlda->sqlvar[i].sqlname_length > 0) {
+					strncpy(arr_sqlname, fb_query->in_sqlda->sqlvar[i].sqlname, sizeof(arr_sqlname) - 1);
 				}
 
 				/* Parse SQL to extract table/column names if not available from metadata */
-				if ((arr_relname[0] == '\0' || arr_sqlname[0] == '\0') && ib_query->query) {
-					const char *sql = ib_query->query;
+				if ((arr_relname[0] == '\0' || arr_sqlname[0] == '\0') && fb_query->query) {
+					const char *sql = fb_query->query;
 					const char *insert_pos, *table_start, *table_end;
 					const char *cols_start, *cols_end;
 
@@ -1122,15 +1123,15 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 				ISC_ARRAY_DESC ar_desc;
 				/* OO API: Query array descriptor from system tables */
 				if (fba_lookup_bounds(
-						IBG(master_instance),
+						FBG(master_instance),
 						attachment_ptr,
 						transaction_ptr,
 						arr_relname,
 						arr_sqlname,
 						&ar_desc,
-						IB_STATUS
+						status
 					) != 0) {
-					_php_fbird_error();
+					_php_fbird_error(status);
 					rv = FAILURE;
 					continue;
 				}
@@ -1206,16 +1207,16 @@ int _php_fbird_bind(fbird_query *ib_query, zval *b_vars)
 
 					ISC_QUAD array_id = {0, 0};
 					if (fba_put_slice(
-							IBG(master_instance),
+							FBG(master_instance),
 							attachment_ptr,
 							transaction_ptr,
 							&array_id,
 							&ar_desc,
 							array_data,
 							slice_len,
-							IB_STATUS
+							status
 						) != 0) {
-						_php_fbird_error();
+						_php_fbird_error(status);
 						efree(array_data);
 						rv = FAILURE;
 						continue;

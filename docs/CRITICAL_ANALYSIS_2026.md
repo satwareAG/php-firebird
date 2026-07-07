@@ -3,6 +3,17 @@
 > **Update 2026-07-01**: 18 of 24 recommendations shipped in v11.0.0-v11.0.1.
 > Remaining: L1 (LTO), H6 (--CLEAN-- sweep, tracked in #245), M6 (fuzz dictionary),
 > M8 (pointer smuggling audit). See checkboxes below for per-item status.
+>
+> **Update 2026-07-03**: v11.1.0 shipped (tag `v11.1.0`, published 2026-07-02). Remaining items now resolved as follows:
+> - **H6** (`--CLEAN--` sweep): tracked in GitHub issue #245, milestone v12.0.0 - OOP API Completion.
+> - **M6** (fuzz dictionary): **DONE** - `fuzz/dictionary/sql.dict` exists (372 lines).
+> - **L1** (LTO): partially done (Linux release workflow only); full `config.m4` integration tracked in v12.0.0.
+> - **M8** (pointer smuggling audit): tracked in v12.0.0 milestone.
+> - **QH-3c** (`zend_bool` -> `bool`): **DONE** in v11.1.0 (zero occurrences remain).
+> - **QH-4a** (batch OOP migration): **DONE** via #233 (`fbird_batch.c:192` uses `fbird_setup_batch_object()`).
+> - **QH-4b** (`fbird_classes_internal.h` deletion): **DONE** (file absent).
+> - **QH-4c** (service struct unification): **NOT DONE** in v11.1.0; carried over to v12.0.0 as OC-11.
+> - **QH-5** (stubs completeness): **DONE** - procedural stubs in sync at 89/89 functions.
 
 Post-v10.3.6 comprehensive review against 2026 best practices for PHP extension
 development, C/C++ Linux development, and cross-platform distribution.

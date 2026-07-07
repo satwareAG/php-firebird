@@ -94,14 +94,24 @@ bool(true)
 Test 2: Invalid host
 bool(true)
 Test 3: backup with invalid resource
+
+Warning: fbird_backup(): Invalid Firebird service handle in %s on line %d
 bool(true)
 Test 4: restore with invalid resource
+
+Warning: fbird_restore(): Invalid Firebird service handle in %s on line %d
 bool(true)
 Test 5: maintain_db with invalid resource
+
+Warning: fbird_maintain_db(): Invalid Firebird service handle in %s on line %d
 bool(true)
 Test 6: db_info with invalid resource
+
+Warning: fbird_db_info(): Invalid Firebird service handle in %s on line %d
 bool(true)
 Test 7: server_info with invalid resource
+
+Warning: fbird_server_info(): Invalid Firebird service handle in %s on line %d
 bool(true)
 Test 8: detach with invalid resource
 

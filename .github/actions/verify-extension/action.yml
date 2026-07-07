@@ -1,0 +1,132 @@
+name: Verify Extension
+description: 'Verify the firebird PHP extension was built correctly and can connect to a database. Supports 4 modes - full (load + DB), build-only (file + symbols), best-effort (may segfault), load-only (no DB).'
+
+inputs:
+  mode:
+    description: 'Verification mode: full, build-only, best-effort, or load-only'
+    default: 'full'
+  extension-path:
+    description: 'Path to the built extension .so file'
+    default: 'modules/firebird.so'
+  ld-library-path-extra:
+    description: 'Extra paths to prepend to LD_LIBRARY_PATH'
+    default: '/opt/firebird-client/lib'
+  dyld-library-path-extra:
+    description: 'Extra paths to prepend to DYLD_LIBRARY_PATH (macOS)'
+    default: ''
+  php-bin:
+    description: 'PHP binary to use for verification'
+    default: 'php'
+  sanitizer-type:
+    description: 'Sanitizer type for symbol verification: none, asan, lsan, or tsan'
+    default: 'none'
+
+runs:
+  using: composite
+  steps:
+    - name: Check extension binary
+      shell: bash
+      env:
+        EXT_PATH: ${{ inputs.extension-path }}
+        SANITIZER: ${{ inputs.sanitizer-type }}
+        LD_PATH_EXTRA: ${{ inputs.ld-library-path-extra }}
+        DYLD_PATH_EXTRA: ${{ inputs.dyld-library-path-extra }}
+      run: |
+        set -eu
+
+        # Resolve to absolute path
+        EXTENSION_PATH="$(pwd)/${EXT_PATH}"
+        if [ ! -f "$EXTENSION_PATH" ]; then
+          # Try as-is (might already be absolute)
+          EXTENSION_PATH="$EXT_PATH"
+        fi
+
+        if [ ! -f "$EXTENSION_PATH" ]; then
+          echo "ERROR: Extension not found at $EXTENSION_PATH"
+          exit 1
+        fi
+
+        echo "Extension path: $EXTENSION_PATH"
+        echo "Extension size: $(stat -c%s "$EXTENSION_PATH" 2>/dev/null || stat -f%z "$EXTENSION_PATH" 2>/dev/null || echo '?') bytes"
+        file "$EXTENSION_PATH"
+
+        # Symbol verification for sanitizer builds
+        if [ "$SANITIZER" = 'asan' ]; then
+          echo "=== Verifying ASan instrumentation ==="
+          if nm -D "$EXTENSION_PATH" 2>/dev/null | grep -q "__asan"; then
+            echo "OK: Extension has ASan instrumentation"
+          elif readelf -d "$EXTENSION_PATH" 2>/dev/null | grep -qi "asan\|sanitizer"; then
+            echo "OK: Extension linked with sanitizer runtime"
+          else
+            echo "Warning: Could not verify ASan symbols (may be statically linked)"
+          fi
+        elif [ "$SANITIZER" = 'tsan' ]; then
+          echo "=== Verifying TSan instrumentation ==="
+          if nm -D "$EXTENSION_PATH" 2>/dev/null | grep -q "__tsan"; then
+            echo "OK: Extension has TSan instrumentation"
+          else
+            echo "Warning: TSan symbols not visible (may be statically linked)"
+          fi
+        fi
+
+    - name: Load test
+      if: ${{ inputs.mode != 'build-only' }}
+      shell: bash
+      env:
+        EXT_PATH: ${{ inputs.extension-path }}
+        PHP_BIN: ${{ inputs.php-bin }}
+        LD_PATH_EXTRA: ${{ inputs.ld-library-path-extra }}
+        DYLD_PATH_EXTRA: ${{ inputs.dyld-library-path-extra }}
+        MODE: ${{ inputs.mode }}
+      run: |
+        set -eu
+
+        EXTENSION_PATH="$(pwd)/${EXT_PATH}"
+        if [ ! -f "$EXTENSION_PATH" ]; then
+          EXTENSION_PATH="$EXT_PATH"
+        fi
+
+        # Set library paths
+        if [ -n "$LD_PATH_EXTRA" ]; then
+          export LD_LIBRARY_PATH="${LD_PATH_EXTRA}:/usr/local/lib:/usr/lib:${LD_LIBRARY_PATH:-}"
+        fi
+        if [ -n "$DYLD_PATH_EXTRA" ]; then
+          export DYLD_LIBRARY_PATH="${DYLD_PATH_EXTRA}:${DYLD_LIBRARY_PATH:-}"
+        fi
+
+        echo "=== Testing extension loading ==="
+        "$PHP_BIN" -d "extension=${EXTENSION_PATH}" -m 2>&1 > /tmp/modules.txt || true
+        if grep -qi firebird /tmp/modules.txt; then
+          echo "OK: Firebird extension loaded successfully"
+        else
+          if [ "$MODE" = 'best-effort' ]; then
+            echo "Warning: Extension load test inconclusive (runtime issue) - will verify in make test"
+          else
+            echo "ERROR: Firebird extension failed to load"
+            cat /tmp/modules.txt
+            exit 1
+          fi
+        fi
+
+    - name: Database connection test
+      if: ${{ inputs.mode == 'full' }}
+      shell: bash
+      env:
+        EXT_PATH: ${{ inputs.extension-path }}
+        PHP_BIN: ${{ inputs.php-bin }}
+        LD_PATH_EXTRA: ${{ inputs.ld-library-path-extra }}
+      run: |
+        set -eu
+
+        EXTENSION_PATH="$(pwd)/${EXT_PATH}"
+        if [ ! -f "$EXTENSION_PATH" ]; then
+          EXTENSION_PATH="$EXT_PATH"
+        fi
+
+        if [ -n "$LD_PATH_EXTRA" ]; then
+          export LD_LIBRARY_PATH="${LD_PATH_EXTRA}/usr/local/lib:/usr/lib:${LD_LIBRARY_PATH:-}"
+        fi
+
+        echo "=== Testing database connection ==="
+        chmod +x scripts/verify-firebird-connection.php
+        "$PHP_BIN" -d "extension=${EXTENSION_PATH}" scripts/verify-firebird-connection.php

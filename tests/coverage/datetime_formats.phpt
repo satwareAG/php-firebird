@@ -161,3 +161,5 @@ bool(true)
 Test 15: ISO T-separator timestamp stored
 bool(true)
 Done
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

@@ -137,7 +137,7 @@ build_scripts/php-fb-config.bat
 composer.lock
 
 # LSan suppressions (generated)
-scripts/container/analysis/lsan.supp
+scripts/analysis/lsan.supp
 
 # act (GitHub Actions local runner)
 .act.env
@@ -168,3 +168,8 @@ restore.php
 run_events_test.php
 test_error.php
 .env.bak
+pdo_fbird_root.c
+pdo_fbird_driver.c
+pdo_fbird_stmt.c
+pdo_fbird_error.c
+.opencode/

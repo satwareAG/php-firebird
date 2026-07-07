@@ -47,7 +47,8 @@ env:
   FB_VERSION: '5.0.3'
   FB_BUILD: '1683'
 
-permissions: read-all
+permissions:
+  contents: write
 
 jobs:
   # ===========================================================================
@@ -56,33 +57,18 @@ jobs:
   prepare:
     # CI gate removed — relies on pre-tag verification (scripts/verify-ci-green.sh)
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
-      version: ${{ steps.get-version.outputs.version }}
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Get Extension Version
-        id: get-version
-        run: |
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            VERSION="${GITHUB_REF#refs/tags/v}"
-            echo "${VERSION}" > VERSION.txt
-            echo "Updated VERSION.txt from tag: ${VERSION}"
-          elif [ -f VERSION.txt ]; then
-            VERSION=$(cat VERSION.txt | tr -d '[:space:]')
-          else
-            VERSION=$(grep -E '#define PHP_FIREBIRD_VERSION_STRING' php_firebird.h | sed 's/.*"\([^"]*\)".*/\1/' | head -1)
-            if [ -z "$VERSION" ] || [[ "$VERSION" == *"unknown"* ]]; then
-              echo "ERROR: Cannot determine version" >&2
-              exit 1
-            fi
-            echo "${VERSION}" > VERSION.txt
-          fi
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "Extension version: ${VERSION}"
+      - name: Ensure VERSION.txt
+        id: version
+        uses: ./.github/actions/version
 
       - name: Set Build Matrix
         id: set-matrix
@@ -124,6 +110,7 @@ jobs:
   build:
     needs: prepare
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
 
     strategy:
       fail-fast: false
@@ -132,6 +119,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Ensure VERSION.txt
+        uses: ./.github/actions/version
 
       - name: Cache Firebird macOS Package
         id: cache-firebird
@@ -160,28 +150,9 @@ jobs:
 
       - name: Determine PHP Full Version
         id: php-version
-        run: |
-          MINOR="${{ matrix.php }}"
-          LATEST=$(curl -fsSL --retry 3 --retry-delay 5 \
-            "https://www.php.net/releases/index.php?json&version=${MINOR}" \
-            2>/dev/null | jq -r ".\"${MINOR}\".version // empty" 2>/dev/null || true)
-
-          if [ -n "${LATEST}" ] && [[ "${LATEST}" =~ ^${MINOR}\. ]]; then
-            echo "Resolved PHP ${MINOR} latest from php.net: ${LATEST}"
-            FULL_VERSION="${LATEST}"
-          else
-            echo "php.net API unavailable; using known-good fallback"
-            case "${MINOR}" in
-              8.2) FULL_VERSION="8.2.28" ;;
-              8.3) FULL_VERSION="8.3.16" ;;
-              8.4) FULL_VERSION="8.4.4" ;;
-              8.5) FULL_VERSION="8.5.0" ;;
-              *) FULL_VERSION="${MINOR}.0" ;;
-            esac
-          fi
-
-          echo "full_version=${FULL_VERSION}" >> $GITHUB_OUTPUT
-          echo "PHP full version: ${FULL_VERSION}"
+        uses: ./.github/actions/determine-php-version
+        with:
+          php-minor: ${{ matrix.php }}
 
       - name: Install Build Dependencies
         run: |
@@ -268,7 +239,11 @@ jobs:
 
           make -j"$(sysctl -n hw.ncpu)"
 
+          # Build pdo_fbird as separate extension
+          (cd pdo_fbird && phpize && ./configure --with-pdo-fbird --with-firebird="${FB_ROOT}" && make -j"$(sysctl -n hw.ncpu)")
+
           ls -la modules/firebird.so
+          ls -la pdo_fbird/modules/pdo_fbird.so
           file modules/firebird.so
 
       - name: Create Bundle
@@ -292,6 +267,10 @@ jobs:
 
           # Copy extension
           cp modules/firebird.so "${DIST_DIR}/firebird.so"
+          # Copy pdo_fbird.so if built
+          if [ -f pdo_fbird/modules/pdo_fbird.so ]; then
+            cp pdo_fbird/modules/pdo_fbird.so "${DIST_DIR}/pdo_fbird.so"
+          fi
 
           # Bundle libfbclient.dylib and its dependencies
           echo "=== Bundling libraries ==="
@@ -412,7 +391,7 @@ jobs:
           artifact-name: ''
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ${{ steps.bundle.outputs.bundle_name }}
           path: |
@@ -434,68 +413,30 @@ jobs:
     if: |
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
       (github.event_name == 'workflow_dispatch' && inputs.upload_to_release)
+    timeout-minutes: 10
 
     permissions:
       contents: write
 
     steps:
-      - name: Download All Artifacts
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
-        with:
-          path: artifacts
-
-      - name: Prepare Release Assets
-        run: |
-          mkdir -p release-assets
-
-          echo "Downloaded artifacts:"
-          find artifacts -type f -name "*.tar.gz*" | head -40
-
-          find artifacts -name "*.tar.gz" -exec cp {} release-assets/ \;
-          find artifacts -name "*.sha256" -exec cp {} release-assets/ \;
-          find artifacts -name "*.md5" -exec cp {} release-assets/ \;
-          find artifacts -name "*.sbom.cdx.json" -exec cp {} release-assets/ \;
-
-          echo ""
-          echo "Release assets:"
-          ls -la release-assets/
-
-          cd release-assets
-          sha256sum *.tar.gz > CHECKSUMS-SHA256.txt
-          md5sum *.tar.gz > CHECKSUMS-MD5.txt
-
-          echo ""
-          echo "CHECKSUMS-SHA256.txt:"
-          cat CHECKSUMS-SHA256.txt
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Determine Release Tag
         id: release-tag
-        run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
-            TAG="${{ github.event.release.tag_name }}"
-          elif [ "${{ github.event_name }}" = "push" ]; then
-            TAG="${GITHUB_REF#refs/tags/}"
-          elif [ -n "${{ inputs.release_tag }}" ]; then
-            TAG="${{ inputs.release_tag }}"
-          else
-            TAG="v${{ needs.prepare.outputs.version }}"
-          fi
-          echo "tag=${TAG}" >> $GITHUB_OUTPUT
-          echo "Release tag: ${TAG}"
-
-      - name: Upload to Release
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3
+        uses: ./.github/actions/determine-release-tag
         with:
-          tag_name: ${{ steps.release-tag.outputs.tag }}
-          files: |
-            release-assets/*.tar.gz
-            release-assets/*.sha256
-            release-assets/*.md5
-            release-assets/*.sbom.cdx.json
-          fail_on_unmatched_files: false
-          draft: true
+          release-tag-input: ${{ inputs.release_tag }}
+          version: ${{ needs.prepare.outputs.version }}
+
+      - name: Publish bundle artifacts
+        uses: ./.github/actions/publish-bundle-artifacts
+        with:
+          tag: ${{ steps.release-tag.outputs.tag }}
+          expected-count: '4'
+          asset-name-filter: 'macos.*\\.tar\\.gz$'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
 
   # ===========================================================================
   # Test Bundles: Verify precompiled binaries work on macOS
@@ -506,6 +447,7 @@ jobs:
     if: |
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
       github.event_name == 'workflow_dispatch'
+    timeout-minutes: 15
 
     strategy:
       fail-fast: false

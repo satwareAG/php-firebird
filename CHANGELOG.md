@@ -7,6 +7,314 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### v12.0.0 — Stable Release (2026-07-06)
+
+Final stable release. All 10 CI/CD workflows pass on a single tag push
+with zero manual intervention. 16 issues closed. Zero open issues.
+
+#### CI/CD Pipeline Automation (rc.13-rc.25)
+
+- **8 composite actions**: version, install-firebird-client, build-extension,
+  verify-extension, validate-artifacts, determine-php-version,
+  determine-release-tag, publish-bundle-artifacts
+- **5,051 → 3,393 workflow lines (-33%)**
+- **Concurrency fix**: Removed shared concurrency group from release
+  workflows (was causing mutual cancellation on tag push)
+- **Asset-presence polling**: publish-release.yml polls release assets via
+  `gh release view --json assets` instead of workflow status — publishes
+  as soon as assets land, not when workflow runs complete
+- **Windows tag resolution**: Fixed `github.ref_name` misuse on
+  `workflow_dispatch` (was producing malformed build paths)
+- **jq asset filtering**: `endswith()` + `contains()` instead of broken
+  `test()` regex (was returning total count for all platforms)
+- **API-based validation**: Asset counts validated via API before
+  best-effort download (avoids CDN propagation timing issues)
+- **GITHUB_TOKEN**: Passed via `secrets.GITHUB_TOKEN` and `github.token`
+  to composite actions (was empty in composite context)
+
+#### Fixed
+
+- **#311**: SIGSEGV (exit 139) during module shutdown with persistent
+  connections. Replaced `!FBG(in_mshutdown)` with
+  `!(EG(flags) & EG_FLAGS_IN_RESOURCE_SHUTDOWN)` at 3 sites in
+  `fbird_connection.c`. Removed `zend_hash_str_del(&EG(persistent_list))`
+  which caused infinite recursion. The `in_mshutdown` flag was set in
+  `PHP_MSHUTDOWN_FUNCTION` which runs AFTER
+  `zend_destroy_rsrc_list(&EG(persistent_list))` — the function that
+  calls `_php_fbird_close_plink` via `plist_entry_destructor`.
+- **Windows artifact naming**: Double `v` prefix
+  (`php_firebird-vv12.0.0-...`) fixed by adding `version` output to
+  Resolve release tag step.
+- **verify-extension**: Broken pipe on macOS (`tee | grep` with
+  `pipefail`) + missing `/` in `LD_LIBRARY_PATH` concatenation.
+- **publish-bundle-artifacts retry**: `find` instead of glob patterns
+  for file listing (avoids literal glob errors on single-platform uploads).
+
+### rc.12 — CI/CD Pipeline Simplification (2026-07-06)
+
+Major CI/CD refactoring to reduce workflow complexity and duplication.
+All 4 CI workflows pass on all 12 container combinations.
+
+#### CI/CD Pipeline Simplification
+
+- **5 composite actions** created to eliminate duplicated workflow logic:
+  - `version` — checkout + VERSION.txt materialization (tag → file → header fallback with `unknown` rejection)
+  - `install-firebird-client` — Firebird client install (apt deps, cache, download, install, auth, wait). Parameterized for container/non-container jobs via `use-sudo`, `firebird-host`, `extra-apt-packages`.
+  - `build-extension` — phpize + configure + make. Supports CC/CXX, sanitizer flags, LTO, pdo_fbird toggle, pre-build hook for Makefile injection.
+  - `verify-extension` — binary check + load test + DB connection. 4 modes: full, build-only, best-effort, load-only.
+  - `validate-artifacts` — asset count + size validation for release workflows.
+- **Workflow line reduction**: 5,051 → 3,625 lines (-1,426, -28%)
+  - `ci.yml`: 830 → 423 (-49%)
+  - `coverage.yml`: 554 → 251 (-55%)
+  - `sanitizers.yml`: 1,192 → 522 (-56%)
+  - `release-linux.yml`, `release-macos.yml`, `release-windows.yml`: checkout + VERSION.txt logic replaced with composite
+- **Quick wins applied** across all 10 workflows: `timeout-minutes`, `upload-artifact@v7`, `concurrency` groups, minimal `permissions`, `.github/CODEOWNERS` with `**/*.c` coverage.
+- **Windows release upload** (W2): `continue-on-error` replaced with 3-attempt retry loop + Windows-specific asset verification via `gh release view --jq`.
+- **Asset-count assertion** (Q3): `publish-release.yml` validates minimum asset counts per platform before publishing.
+- **`scripts/verify-firebird-connection.php`**: Extracted inline PHP DB connection test into reusable script.
+
+#### Fixed
+
+- **#310**: `TransactionManager::__destruct()` now wraps `fbird_rollback()` in try/catch. On FB4/FB5, implicit transaction invalidation (DDL commit, lock conflict) caused exceptions in THROW mode that `@` suppression cannot catch.
+- **Code review fixups**: Windows retry `if: always()` (runs on upload failure), jq Windows-asset filter (counts only `x86_64.zip`), glob fix (`artifacts/*.zip` not `**/*.zip`), CODEOWNERS `**/*.c` (covers `pdo_fbird/`, `src/cpp/`).
+
+### rc.11 Hotfixes (2026-07-05)
+
+5 issues found during doctrine-firebird-driver integration testing
+against v12.0.0-rc.10, plus 2 additional findings from code review.
+
+#### Fixed
+
+- **#308**: `fbird_get_client_version()` return type corrected from
+  `string` to `float` (arginfo `IS_STRING` -> `IS_DOUBLE`, both stubs
+  updated). The C implementation always returned `double` via
+  `RETURN_DOUBLE`.
+- **#307**: Arginfo parameter type mismatches fixed. 5 functions
+  declared `IS_STRING` but accepted resource/object - changed to `mixed`
+  (`fbird_execute`, `fbird_free_query`, `fbird_num_params`,
+  `fbird_param_info`, `fbird_batch_create`). 4 functions had nullable
+  array NULL-deref risk: arginfo said non-nullable `IS_ARRAY`, stubs
+  said `?array`, C parse accepted null via `a!` - `Z_ARRVAL_P` would
+  dereference NULL. Fixed arginfo to `IS_ARRAY,1` (nullable) + added
+  `Z_TYPE_P` guards. `fbird_trans_start` reverse mismatch fixed
+  (`"a"` -> `"a!"`). `_php_fbird_free_query_impl` now emits
+  `TypeError` for unrecognized argument types (was silent `RETURN_FALSE`).
+- **#306**: 20 arginfo entries changed from `MAY_BE_RESOURCE` to
+  `MAY_BE_OBJECT`. Runtime returns `Firebird\*` objects via
+  `fbird_setup_*_object()` helpers but `ReflectionFunction` reported
+  `resource`. Also added `MAY_BE_LONG` to `fbird_query` and
+  `fbird_execute` for affected row count returns.
+- **#305**: ~40 `php_error_docref(NULL, E_WARNING, ...)` calls replaced
+  with `_php_fbird_module_error(...)` across 10 files. Under
+  `FBIRD_EXCEPTION_MODE_THROW`, these paths now correctly throw
+  `Firebird\Exception` with `errcode=-999` and populate
+  `fbird_errcode()`/`fbird_errmsg()`. 7 silent `RETURN_FALSE` paths
+  also fixed (service handle validation, attachment/transaction NULL).
+  SILENT mode unchanged (still warns via helper).
+
+#### Added
+
+- **#309**: `Firebird\BatchHandle` now exposes 6 OOP methods (was
+  opaque marker with `NULL` methods table):
+  `getBlobAlignment(): int|false`, `setDefaultBpb(string): bool`,
+  `cancel(): bool`, `execute(): array|false`,
+  `add(mixed ...$args): bool`, `addBlob(string, int): string|false`.
+  Each method wraps the same C logic as its procedural counterpart.
+
+#### Tests
+
+- 11 new regression test files (TDD: tests committed before fixes)
+- `fbclient_vers_001.phpt` updated to assert float return type
+
+## [12.0.0] - 2026-07-04
+
+### Summary
+
+Major release completing the OOP API, eliminating all InterBase-era naming,
+separating `pdo_fbird` into a standalone extension, enabling LTO, fixing
+empty Windows DLLs, and resolving every open GitHub issue.
+
+**15 issues closed** (including 9 issues verified as already-resolved and
+closed with references). **Zero open issues remaining.**
+
+### Breaking Changes
+
+- **`pdo_fbird` is now a separate extension** (#258): `pdo_fbird.so` is no
+  longer compiled into `firebird.so`. Users must load both:
+  ```ini
+  extension=firebird.so
+  extension=pdo_fbird.so   ; must be loaded AFTER firebird.so
+  ```
+  The `config.m4` no longer compiles `pdo_fbird/*.c` into the firebird
+  extension. A standalone `pdo_fbird/config.m4` builds `pdo_fbird.so`
+  separately. All release workflows, CI workflows, and build scripts updated.
+
+- **InterBase-era naming eliminated** (#304): All `IB`/`ib_`/`ibase`
+  identifiers renamed to `FB`/`fb_`/`fbird`. The `IBG()` macro is now `FBG()`,
+  `IB_STATUS` is removed (replaced with local `ISC_STATUS status[256]`
+  arrays), and `struct _ib_query` is now `struct _fb_query`. `isc_*`/`ISC_*`
+  Firebird C API types are unchanged.
+
+### Added
+
+- **`Firebird\Event` OOP methods** (OC-2, Phase H): The `Firebird\Event`
+  class now has four working methods: `wait(float $timeout = -1.0): bool`,
+  `cancel(): bool`, `getName(): string`, `getCount(): int`. Previously the
+  class was registered with zero methods — unusable from PHP userland.
+  (`fbird_class_event.c`)
+
+- **LTO support** (#300): `config.m4` now enables `-flto=auto` by default for
+  GCC 8+ builds. Improves performance ~5-10% on query-heavy workloads.
+  Auto-disabled when:
+  - `--disable-fbird-lto` is passed to configure
+  - PHP < 8.3 (libtool 1.5.26 strips `-flto` from linker flags, causing 109
+    test failures on PHP 8.2)
+  - Sanitizers detected (`-fsanitize=` in CFLAGS — incompatible with LTO)
+  - `FBIRD_CONFIGURE_EXTRA=--disable-fbird-lto` env var (for TSan Docker
+    container where sanitizer is injected post-configure via sed)
+
+- **`FBIRD_CONFIGURE_EXTRA` env var**: Allows passing extra configure flags
+  to `scripts/build.sh`. Used by `Dockerfile-tsan` to pass
+  `--disable-fbird-lto` since TSan is injected after configure.
+
+- **OOP test helpers** (OC-6): `tests/common.inc` now provides
+  `oop_connect()`, `oop_begin_transaction()`, `oop_query()`, `oop_close()`
+  for test authors writing OOP-focused tests.
+
+- **Live event test** (OC-3): `tests/fbird_event_live_001.phpt` creates a
+  real Firebird trigger (`POST_EVENT`), inserts a row, and verifies the
+  event callback fires. First test to exercise the actual Firebird C event
+  API end-to-end.
+
+- **10 new OOP test files** (OC-1): Coverage of `Firebird\Connection`,
+  `Transaction`, `Statement`, `ResultSet`, `Blob`, and `Service` lifecycle
+  scenarios including multi-row fetch, re-execute, free/close, closed-conn
+  negative tests, and persistent connection round-trip.
+
+- **Validate/mend cycle test** (OC-10): `fbird_service_validate_mend.phpt`
+  tests the full `FBIRD_RPR_VALIDATE_DB` → `FBIRD_RPR_MEND_DB` → re-validate
+  cycle.
+
+- **Stubs annotation sync test** (#299): `tests/stubs_sync.phpt` validates
+  that `stubs/*.php` function signatures match the arginfo in `firebird.c`.
+
+### Changed
+
+- **`fbird_classes.c` split into 8 per-class files** (OC-12): The 1450-line
+  monolith is now split into `fbird_class_{connection,transaction,statement,
+  resultset,blob,batch,service,event}.c`. `fbird_classes.c` retains only the
+  class registry and entry pointers. Reduces merge conflicts and matches the
+  `fbird_<area>.c` Layer 1 naming pattern.
+
+- **Service struct unified** (OC-11): `fbird_service` and
+  `fbird_service_obj` merged into a single canonical `fbird_service` struct
+  in `fbird_service_types.h`. Eliminates raw pointer casts between the two
+  types.
+
+- **Typed arginfo — procedural API** (OC-7): All 86 previously-untyped
+  procedural parameter arginfos in `firebird.c` now carry typed annotations
+  (`ZEND_ARG_TYPE_INFO`, `ZEND_ARG_OBJ_INFO`). `php --re fbird` now shows
+  typed parameter lists for all functions.
+
+- **Typed arginfo — OOP methods** (OC-8): All 7 OOP method arginfos now
+  carry `ZEND_BEGIN_ARG_WITH_RETURN_TYPE_*` macros. Return types visible via
+  `php --re firebird`.
+
+- **`--CLEAN--` mechanism fixed** (OC-4): Created `tests/clean.inc` with
+  `fbird_clean_table()` helper. All DDL-creating tests now have proper
+  `--CLEAN--` sections that drop tables and backup files.
+
+- **Dual-bridge pattern** (OC-5): 10 test files updated from bare
+  `is_resource()` checks to the dual-bridge pattern
+  (`$x instanceof Firebird\* || is_resource($x)`).
+
+- **Local status arrays** (#304 Phase 3): Replaced 173 uses of the global
+  `IB_STATUS` macro with local `ISC_STATUS status[256]` arrays across ~96
+  functions. Each Firebird API call gets its own stack-local status vector,
+  eliminating the cross-function status-clobbering bug where cleanup calls
+  overwrite original errors. Fiber-safe and callback-safe.
+
+- **`FBG(last_status)` for error reporting** (#304 Phase 2): `fbird_sqlstate()`
+  and `FirebirdException::getSqlState()` read from `FBG(last_status)` instead
+  of the removed `FBG(status)`. `_php_fbird_error()` copies the passed status
+  vector to `FBG(last_status)`.
+
+- **Error infrastructure** (#304 Phase 2): `_php_fbird_error()` now takes
+  `ISC_STATUS *status` as parameter instead of reading from a global. 112
+  call sites updated. `RESET_ERRMSG` clears `last_status`.
+
+### Fixed
+
+- **Empty Windows DLLs** (#257): Release pipeline produced 0-byte DLLs
+  because `download-artifact@v7` without `merge-multiple: true` tried to
+  glob-match directories named `*.zip` instead of files inside them. Fixed
+  with `merge-multiple: true` + DLL size validation step. Also added
+  `pdo_fbird/config.w32` for standalone Windows pdo_fbird builds.
+
+- **Orphaned `proc_open()` child processes** (#303): Event tests using
+  `proc_open()` to run `fbird_wait_event` in a subprocess left zombie
+  children. Fixed by calling `proc_terminate($child, 9)` before
+  `proc_close()` in `fbird_event_live_001.phpt` and
+  `oop_event_methods_001.phpt`. Added `clean_test_environment()` helper to
+  `test_matrix.sh` that kills stale `fbird`/`php` processes between
+  container runs.
+
+### Issues Closed
+
+| Issue | Title | Resolution |
+|-------|-------|------------|
+| #244-#252, #302 | Various (9 issues) | Already resolved in prior releases; closed with commit references |
+| #257 | Empty Windows DLLs | Fixed: `merge-multiple: true` + size validation |
+| #258 | pdo_fbird integrated into firebird.so | Fixed: hard separation, standalone extension |
+| #300 | Enable LTO | Fixed: `-flto=auto` with auto-disable safeguards |
+| #301 | Track IB_STATUS refactoring | Deferred to #304, then resolved via #304 |
+| #303 | Orphaned proc_open children | Fixed: `proc_terminate()` before `proc_close()` |
+| #304 | InterBase-era naming + IB_STATUS | Fixed: 3-phase refactor (1,472 renames, error infra, local status arrays) |
+
+### Renames (#304 Phase 1)
+
+| Old | New | Count |
+|-----|-----|-------|
+| `IBG()` | `FBG()` | 303 |
+| `ib_*` | `fb_*` | 987 |
+| `IB_DEF_*` | `FB_DEF_*` | 5 |
+| `LE_SCVH` | `LE_SVC` | 2 |
+| `struct _ib_query` | `struct _fb_query` | - |
+
+### Build System
+
+- `config.m4`: LTO support, `--disable-fbird-lto`, PDO integration removed
+- `config.w32`: Handles both `--with-firebird` and `--with-pdo-fbird`
+- `pdo_fbird/config.m4`: Standalone pdo_fbird build with `HAVE_PDO_FBIRD`
+- `pdo_fbird/config.w32`: Windows standalone pdo_fbird build
+- `scripts/build.sh`: Builds both extensions, supports `FBIRD_CONFIGURE_EXTRA`
+- `scripts/test.sh`: Loads both `firebird.so` + `pdo_fbird.so`
+- `scripts/test_matrix.sh`: 12-container matrix with `clean_test_environment()`
+- `scripts/build-precompiled.sh`: Copies `pdo_fbird.so` in release bundles
+- All 3 release workflows: pdo_fbird build + bundle step
+- All 3 CI workflows: pdo_fbird build + load
+- `docker/php/Dockerfile-tsan`: `ENV FBIRD_CONFIGURE_EXTRA=--disable-fbird-lto`
+
+### Test Results
+
+| Container | PHP | Firebird | Result |
+|-----------|-----|----------|--------|
+| php82-fb3-dev | 8.2 | 3.0 | PASS |
+| php82-dev | 8.2 | 4.0 | PASS |
+| php82-fb5-dev | 8.2 | 5.0 | PASS |
+| php83-fb3-dev | 8.3 | 3.0 | PASS |
+| php83-dev | 8.3 | 4.0 | PASS |
+| php83-fb5-dev | 8.3 | 5.0 | PASS |
+| php84-fb3-dev | 8.4 | 3.0 | PASS (1 intermittent #303, passes in isolation) |
+| php84-dev | 8.4 | 4.0 | PASS |
+| php84-fb5-dev | 8.4 | 5.0 | PASS |
+| php85-fb3-dev | 8.5 | 3.0 | PASS |
+| php85-dev | 8.5 | 4.0 | PASS |
+| php85-fb5-dev | 8.5 | 5.0 | PASS |
+
+Build verified warning-free. ASAN/TSan builds succeed (test execution limited
+by pre-existing PHP `RTLD_DEEPBIND` incompatibility — not a v12.0.0 regression).
+
 ## [11.1.0] - 2026-07-02
 
 ### Summary
@@ -309,9 +617,6 @@ new objects in all consuming functions — no consumer-side changes required.
   PROCEDURE, DML RETURNING, error path cleanup, and mixed lifecycle scenarios (2120 total iterations
   across all tests). Full codebase audit of all 19 `zend_register_resource()` call sites confirmed
   no additional resource lifecycle bugs.
-- **Static analysis script** `scripts/analysis/check-resource-lifecycle.sh`: Scans all `.c` files
-  for resource registration, ownership transfer, and destructor patterns. Classifies each site as
-  return-to-userland, struct-field/caller-managed, or local. Exits 0 on current codebase.
 
 ## [10.3.4] - 2026-03-30
 
@@ -1447,7 +1752,9 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v11.0.0...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v12.0.0...HEAD
+[12.0.0]: https://github.com/satwareAG/php-firebird/compare/v11.1.0...v12.0.0
+[11.1.0]: https://github.com/satwareAG/php-firebird/compare/v11.0.0...v11.1.0
 [11.0.0]: https://github.com/satwareAG/php-firebird/compare/v10.6.2...v11.0.0
 [10.6.2]: https://github.com/satwareAG/php-firebird/compare/v10.6.1...v10.6.2
 [10.6.1]: https://github.com/satwareAG/php-firebird/compare/v10.6.0...v10.6.1

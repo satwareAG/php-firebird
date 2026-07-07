@@ -11,6 +11,8 @@
 
 set -e
 
+source "$(dirname "$(dirname "$0")")/lib/logging.sh"
+
 # Defaults
 MODE="asan"
 SPECIFIC_TEST=""
@@ -57,13 +59,6 @@ EXT_DIR="${SCRIPT_DIR}/../.."
 
 cd "$EXT_DIR"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-
 # Define tests
 SAN_TESTS=(
     "tests/sanitizer/asan_basic.php"
@@ -79,7 +74,7 @@ if [ "$LIST_TESTS" = true ]; then
     exit 0
 fi
 
-echo -e "${BLUE}=== Sanitizer Testing Suite ===${NC}"
+log_info "=== Sanitizer Testing Suite ==="
 echo "Mode: $MODE"
 if [ -n "$SPECIFIC_TEST" ]; then
     echo "Target: $SPECIFIC_TEST"
@@ -96,7 +91,7 @@ UBSAN_FLAGS="-fsanitize=undefined -fno-sanitize-recover=all"
 IS_ASAN_CONTAINER=false
 if [ -n "$USE_ZEND_ALLOC" ] && [ "$USE_ZEND_ALLOC" -eq 0 ]; then
     IS_ASAN_CONTAINER=true
-    echo -e "${YELLOW}Detected ASan container environment${NC}"
+    log_warn "Detected ASan container environment"
 fi
 
 # Safety cleanup function
@@ -110,7 +105,8 @@ cleanup_build() {
 }
 
 run_asan_build() {
-    echo -e "\n${BLUE}>> Building with AddressSanitizer + LeakSanitizer...${NC}"
+    echo ""
+    log_info "Building with AddressSanitizer + LeakSanitizer..."
 
     cleanup_build
 
@@ -126,11 +122,12 @@ run_asan_build() {
 
     make -j"$(nproc)"
 
-    echo -e "${GREEN}✓ ASan build complete${NC}"
+    log_pass "ASan build complete"
 }
 
 run_ubsan_build() {
-    echo -e "\n${BLUE}>> Building with UndefinedBehaviorSanitizer...${NC}"
+    echo ""
+    log_info "Building with UndefinedBehaviorSanitizer..."
 
     cleanup_build
 
@@ -144,13 +141,14 @@ run_ubsan_build() {
 
     make -j"$(nproc)"
 
-    echo -e "${GREEN}✓ UBSan build complete${NC}"
+    log_pass "UBSan build complete"
 }
 
 run_tests_with_sanitizer() {
     local sanitizer_name=$1
 
-    echo -e "\n${BLUE}>> Running tests with $sanitizer_name...${NC}"
+    echo ""
+    log_info "Running tests with $sanitizer_name..."
 
     # Sanitizer runtime options (PHP-src compatible patterns)
     # exitcode=139 (128+11=SIGSEGV): PHP-src CI convention for ASan detection
@@ -175,18 +173,18 @@ run_tests_with_sanitizer() {
     
     VERIFY_OUTPUT=$(php -d extension=./modules/firebird.so -m 2>&1)
     if ! echo "$VERIFY_OUTPUT" | grep -q "firebird"; then
-        echo -e "${RED}✗ Extension failed to load${NC}"
-        echo -e "${RED}Output:${NC}"
+        log_fail "Extension failed to load"
+        echo "Output:"
         echo "$VERIFY_OUTPUT"
         
         if [ "$IS_ASAN_CONTAINER" = false ] && [ "$sanitizer_name" = "AddressSanitizer" ]; then
-             echo -e "${YELLOW}Hint: You are running ASan tests outside the ASan container.${NC}"
-             echo -e "${YELLOW}      This often fails due to RTLD_DEEPBIND conflicts.${NC}"
-             echo -e "${YELLOW}      Use 'scripts/run-sanitizer.sh' to run in the correct environment.${NC}"
+             log_warn "Hint: You are running ASan tests outside the ASan container."
+             log_warn "      This often fails due to RTLD_DEEPBIND conflicts."
+             log_warn "      Use 'scripts/run-sanitizer.sh' to run in the correct environment."
         fi
         exit 1
     fi
-    echo -e "${GREEN}✓ Extension loaded successfully${NC}"
+    log_pass "Extension loaded successfully"
 
     local FAILED=0
     
@@ -199,7 +197,7 @@ run_tests_with_sanitizer() {
             fi
         done
         if [ ${#TESTS_TO_RUN[@]} -eq 0 ]; then
-            echo -e "${RED}Error: Test '$SPECIFIC_TEST' not found${NC}"
+            log_fail "Error: Test '$SPECIFIC_TEST' not found"
             exit 1
         fi
     else
@@ -218,8 +216,8 @@ run_tests_with_sanitizer() {
             set +e
             php -d extension=./modules/firebird.so "$test" > "$OUTPUT_FILE" 2>&1
             EXIT_CODE=$?
-            set -e
-            
+set -e
+
             if [ $EXIT_CODE -eq 0 ]; then
                 echo -e "${GREEN}PASS${NC}"
                 if [ "$VERBOSE" = true ]; then
@@ -227,23 +225,23 @@ run_tests_with_sanitizer() {
                 fi
             else
                 echo -e "${RED}FAIL${NC}"
-                echo -e "${RED}--- Output ---${NC}"
+                echo "--- Output ---"
                 cat "$OUTPUT_FILE"
-                echo -e "${RED}--------------${NC}"
+                echo "--------------"
                 FAILED=1
             fi
             rm "$OUTPUT_FILE"
         else
-            echo -e "${YELLOW}Warning: Test $test not found${NC}"
+            log_warn "Warning: Test $test not found"
         fi
     done
 
     if [ $FAILED -eq 1 ]; then
-        echo -e "${RED}✗ Sanitizer tests failed${NC}"
+        log_fail "Sanitizer tests failed"
         exit 1
     fi
 
-    echo -e "${GREEN}✓ $sanitizer_name tests completed without sanitizer errors${NC}"
+    log_pass "$sanitizer_name tests completed without sanitizer errors"
 }
 
 # Main execution
@@ -267,4 +265,5 @@ case "$MODE" in
         ;;
 esac
 
-echo -e "\n${GREEN}=== Sanitizer Testing Complete ===${NC}"
+echo ""
+log_pass "=== Sanitizer Testing Complete ==="

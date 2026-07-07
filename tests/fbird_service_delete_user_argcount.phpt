@@ -52,3 +52,6 @@ parameters:
   #0 service_handle (optional=false)
   #1 user_name (optional=false)
 has 'password' parameter: bool(false)
+
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>

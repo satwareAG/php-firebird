@@ -2,8 +2,9 @@
 # Cppcheck static analysis for php-firebird
 # Uses .cppcheck configuration file for suppressions and settings
 set -e
+source "$(dirname "$(dirname "$0")")/lib/logging.sh"
 
-echo "Running Cppcheck static analysis..."
+log_info "Running Cppcheck static analysis..."
 
 # Change to extension root directory
 if [ -d /ext ]; then
@@ -46,8 +47,8 @@ INCLUDE_PATHS=(
     "-I/opt/firebird/include"
 )
 
-echo "PHP Include Dir: $PHP_INCLUDE_DIR"
-echo "PHP API Version: $PHP_API_VERSION"
+log_info "PHP Include Dir: $PHP_INCLUDE_DIR"
+log_info "PHP API Version: $PHP_API_VERSION"
 
 # External header false positive suppressions (absolute paths from compile_commands.json)
 # - missingReturn: Zend EMPTY_SWITCH_DEFAULT_CASE() expands to __builtin_unreachable()
@@ -62,7 +63,7 @@ EXTERNAL_HEADER_SUPPRESSIONS+=(
 
 # Run analysis with appropriate method
 if [ -f compile_commands.json ]; then
-    echo "Using compile_commands.json for whole-program analysis..."
+    log_info "Using compile_commands.json for whole-program analysis..."
     cppcheck \
         --project=compile_commands.json \
         --cppcheck-build-dir="$CPPCHECK_CACHE" \
@@ -78,8 +79,8 @@ if [ -f compile_commands.json ]; then
         --output-file=cppcheck-report.xml \
         2>&1 | tee cppcheck-output.log
 else
-    echo "No compile_commands.json found, using direct file analysis..."
-    echo "Hint: Run scripts/container/analysis/generate_compdb.sh first for better results"
+    log_warn "No compile_commands.json found, using direct file analysis..."
+    log_info "Hint: Run scripts/analysis/generate_compdb.sh first for better results"
 
     cppcheck \
         "${SOURCE_FILES[@]}" \
@@ -113,21 +114,21 @@ fi
 
 echo ""
 echo "=========================================="
-echo "Cppcheck Report Summary"
+log_info "Cppcheck Report Summary"
 echo "=========================================="
-echo "Errors:      $ERRORS"
-echo "Warnings:    $WARNINGS"
-echo "Performance: $PERFORMANCE"
-echo "Portability: $PORTABILITY"
+log_info "Errors:      $ERRORS"
+log_info "Warnings:    $WARNINGS"
+log_info "Performance: $PERFORMANCE"
+log_info "Portability: $PORTABILITY"
 echo "=========================================="
 
 # Block on errors only
 if [ "$ERRORS" -gt 0 ]; then
     echo ""
-    echo "❌ Cppcheck found $ERRORS errors"
+    log_error "Cppcheck found $ERRORS errors"
     if command -v xmllint &> /dev/null; then
         echo ""
-        echo "Error details:"
+        log_info "Error details:"
         xmllint --xpath '//error[@severity="error"]' cppcheck-report.xml 2>/dev/null || cat cppcheck-report.xml
     else
         grep 'severity="error"' cppcheck-report.xml || true
@@ -137,10 +138,10 @@ fi
 
 if [ "$WARNINGS" -gt 0 ]; then
     echo ""
-    echo "⚠️  Cppcheck found $WARNINGS warnings (review recommended)"
+    log_warn "Cppcheck found $WARNINGS warnings (review recommended)"
 fi
 
 echo ""
-echo "✅ Cppcheck analysis completed successfully"
-echo "   Full report: cppcheck-report.xml"
-echo "   Build cache: $CPPCHECK_CACHE/"
+log_pass "Cppcheck analysis completed successfully"
+log_info "   Full report: cppcheck-report.xml"
+log_info "   Build cache: $CPPCHECK_CACHE/"

@@ -410,9 +410,9 @@ cppcheck --suppressions-list=.cppcheck-suppressions \
 **Generate `compile_commands.json`** for whole-program analysis:
 
 **Scripts Created:**
-- `scripts/container/analysis/generate_compdb.sh` - Generates `compile_commands.json` using `bear` or `compiledb`
-- `scripts/container/analysis/cppcheck.sh` - Enhanced to use `compile_commands.json` when available
-- `scripts/container/analysis/clang_tidy.sh` - Enhanced with all 15 source files
+- `scripts/analysis/generate_compdb.sh` - Generates `compile_commands.json` using `bear` or `compiledb`
+- `scripts/analysis/cppcheck.sh` - Enhanced to use `compile_commands.json` when available
+- `scripts/analysis/clang_tidy.sh` - Enhanced with all 15 source files
 
 **Docker Images Updated:**
 - All Dockerfiles now include `bear` and `python3-pip` for compilation database generation
@@ -420,9 +420,9 @@ cppcheck --suppressions-list=.cppcheck-suppressions \
 **Usage:**
 ```bash
 # Inside Docker container
-./scripts/container/analysis/generate_compdb.sh  # Generate compile_commands.json
-./scripts/container/analysis/cppcheck.sh         # Run cppcheck with full context
-./scripts/container/analysis/clang_tidy.sh       # Run clang-tidy analysis
+./scripts/analysis/generate_compdb.sh  # Generate compile_commands.json
+./scripts/analysis/cppcheck.sh         # Run cppcheck with full context
+./scripts/analysis/clang_tidy.sh       # Run clang-tidy analysis
 ```
 
 ### Long-Term Enhancement ✅ IMPLEMENTED

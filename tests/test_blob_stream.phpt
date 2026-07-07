@@ -10,7 +10,7 @@ $db = fbird_connect($test_base);
 
 echo "1. Create BLOB Stream\n";
 $stream = fbird_blob_create_stream($db);
-if (!is_resource($stream)) {
+if (!is_resource($stream) && !$stream instanceof \Firebird\Blob) {
     echo "fbird_blob_create_stream failed\n";
 } else {
     echo "Stream created. Writing data...\n";

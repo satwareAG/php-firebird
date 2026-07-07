@@ -9,7 +9,9 @@ on:
     branches: [main, master, satware-main]
 
 # Cancel in-progress runs for the same branch
-permissions: read-all
+permissions:
+  contents: read
+  security-events: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -22,6 +24,7 @@ jobs:
   php-analysis:
     name: PHP Static Analysis
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -61,6 +64,7 @@ jobs:
   stubs-sync:
     name: Stubs Sync Check
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -71,12 +75,18 @@ jobs:
           chmod +x scripts/check-stubs-sync.sh
           bash scripts/check-stubs-sync.sh
 
+      - name: Check --CLEAN-- sections for DDL tests
+        run: |
+          chmod +x scripts/check-clean-sections.sh
+          bash scripts/check-clean-sections.sh
+
   # ==========================================================================
   # C/C++ Static Analysis (clang-tidy + cppcheck)
   # ==========================================================================
   c-analysis:
     name: C/C++ Static Analysis
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -196,6 +206,7 @@ jobs:
   version-stamps:
     name: Version Stamps Check
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -212,6 +223,7 @@ jobs:
   secrets-scan:
     name: Secret Detection
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -250,6 +262,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [php-analysis, stubs-sync, c-analysis, version-stamps, secrets-scan]
     if: always()
+    timeout-minutes: 15
 
     steps:
       - name: Check job results

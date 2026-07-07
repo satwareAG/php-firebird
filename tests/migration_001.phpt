@@ -94,3 +94,5 @@ Blocker created.
 Blocker removed manually.
 Force Drop after blocker removal returned TRUE.
 Test complete.
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>

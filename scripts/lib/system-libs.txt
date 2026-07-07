@@ -1,0 +1,24 @@
+# scripts/lib/system-libs.txt - System library whitelist/blacklist
+# =============================================================================
+# Single source of truth for libraries that should NOT be bundled in
+# precompiled packages (they are provided by the OS).
+#
+# Format: one library basename pattern per line.
+# Lines starting with # are comments.
+#
+# Used by:
+#   scripts/build-precompiled.sh  — skip these during dependency bundling
+#   scripts/verify-bundle.sh      — fail if any of these are found in bundle
+# =============================================================================
+
+# --- Linux (glibc/musl) ---
+libc.so
+libpthread.so
+libdl.so
+libm.so
+librt.so
+ld-linux
+
+# --- macOS ---
+libSystem.B.dylib
+libc++.1.dylib

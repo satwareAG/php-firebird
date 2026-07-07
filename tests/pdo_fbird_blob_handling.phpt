@@ -29,6 +29,7 @@ echo "row2 content is null: " . var_export($rows[1]['CONTENT'], true) . "\n";
 $stmt = $pdo->query("SELECT id, content FROM blob_test WHERE id = 1");
 $stmt->bindColumn('CONTENT', $blob, PDO::PARAM_LOB);
 $stmt->fetch(PDO::FETCH_BOUND);
+// PDO LOB: may be a stream resource or a string depending on driver
 if (is_resource($blob)) {
     $stream_content = stream_get_contents($blob);
     echo "stream content: $stream_content\n";

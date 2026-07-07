@@ -124,3 +124,5 @@ bool(true)
 Test 6: NULL array
 bool(true)
 Done
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

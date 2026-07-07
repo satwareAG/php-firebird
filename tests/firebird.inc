@@ -74,6 +74,11 @@ if ($fbDbDirEnv !== false && $fbDbDirEnv !== '') {
 	$test_base = !empty($host) ? $host . ':' . $tmp : $tmp;
 }
 
+// Store the test DB path so --CLEAN-- sections (separate PHP process)
+// can find and drop the actual test database via tests/clean.inc
+$cleanMarker = sys_get_temp_dir() . '/php_fbird_test_db_' . bin2hex(random_bytes(4));
+@file_put_contents($cleanMarker, $test_base);
+
 function init_db()
 {
 	global $test_base, $user, $password;

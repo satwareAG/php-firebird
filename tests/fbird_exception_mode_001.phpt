@@ -26,10 +26,15 @@ $result = fbird_set_exception_mode(FBIRD_EXCEPTION_MODE_THROW);
 var_dump($result === true);
 var_dump(fbird_get_exception_mode() === FBIRD_EXCEPTION_MODE_THROW);
 
-// Test 5: Invalid mode returns false
+// Test 5: Invalid mode throws in THROW mode (HF-4a: _php_fbird_module_error)
 echo "\nInvalid mode:\n";
-$result = @fbird_set_exception_mode(999);
-var_dump($result === false);
+try {
+    @fbird_set_exception_mode(999);
+    echo "FAIL: no exception\n";
+} catch (Firebird\Exception $e) {
+    echo "caught: " . substr($e->getMessage(), 0, 35) . "...\n";
+    echo "errcode: " . $e->getCode() . "\n";
+}
 
 // Test 6: Reset to SILENT
 echo "\nReset to SILENT:\n";
@@ -39,7 +44,7 @@ var_dump(fbird_get_exception_mode() === FBIRD_EXCEPTION_MODE_SILENT);
 
 echo "\nDone\n";
 ?>
---EXPECT--
+--EXPECTF--
 Constants defined:
 bool(true)
 bool(true)
@@ -58,7 +63,8 @@ bool(true)
 bool(true)
 
 Invalid mode:
-bool(true)
+caught: %s...
+errcode: -999
 
 Reset to SILENT:
 bool(true)

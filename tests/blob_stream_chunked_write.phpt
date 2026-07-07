@@ -60,7 +60,7 @@ foreach ($sizes as $size) {
     }
 
     // M3: fbird_blob_create() returns Firebird\Blob object (or legacy resource)
-    $blobType = is_resource($blob) ? get_resource_type($blob) : (is_object($blob) ? get_class($blob) : gettype($blob));
+    $blobType = $blob instanceof \Firebird\Blob ? 'Firebird\\Blob' : (is_resource($blob) ? get_resource_type($blob) : gettype($blob));
     echo "  - Blob created (type: " . $blobType . ")\n";
 
     // Write in chunks (same pattern as doctrine-firebird-driver)
@@ -180,11 +180,4 @@ Testing with 65536 bytes:
 Done!
 
 --CLEAN--
-<?php
-require_once 'firebird.inc';
-$db = @fbird_connect($test_base, $user, $password);
-if ($db) {
-    @fbird_query($db, "DROP TABLE test_stream_blob");
-    @fbird_close($db);
-}
-?>
+<?php require_once __DIR__ . '/clean.inc'; ?>

@@ -63,7 +63,7 @@ void _php_fbird_free_event(fbird_event *event)
 	event->state = DEAD;
 
 	if (event->fbe_events) {
-		fbe_cancel(IBG(master_instance), event->fbe_events, NULL);
+		fbe_cancel(FBG(master_instance), event->fbe_events, NULL);
 		fbe_free(event->fbe_events);
 		event->fbe_events = NULL;
 	}
@@ -100,6 +100,11 @@ void _php_fbird_free_event(fbird_event *event)
 			event->result_buffer = NULL;
 		}
 
+		if (event->last_fired_event) {
+			efree(event->last_fired_event);
+			event->last_fired_event = NULL;
+		}
+
 		for (i = 0; i < event->event_count; ++i) {
 			if (event->events[i]) {
 				efree(event->events[i]);
@@ -130,7 +135,7 @@ static void _php_fbird_event_block(unsigned short count, char **events,
 	unsigned short *l, unsigned char **event_buf, unsigned char **result_buf)
 {
 	/**
-	 * The Interbase API uses variadic arguments which we can't easily
+	 * The Firebird API uses variadic arguments which we can't easily
 	 * construct at runtime, but the maximum is 15 events.
 	 */
 	*l = (unsigned short) fbe_event_block(event_buf, result_buf, count,
@@ -141,8 +146,9 @@ static void _php_fbird_event_block(unsigned short count, char **events,
 
 PHP_FUNCTION(fbird_wait_event)
 {
+	ISC_STATUS status[256];
 	zval *args;
-	fbird_db_link *ib_link;
+	fbird_db_link *fb_link;
 	int num_args;
 	unsigned char *event_buffer, *result_buffer;
 	char *events[15];
@@ -163,7 +169,7 @@ PHP_FUNCTION(fbird_wait_event)
 
 	/* Determine if first argument is a link resource or Firebird\Connection object */
 	if (Z_TYPE(args[0]) == IS_RESOURCE) {
-		if ((ib_link = (fbird_db_link *)zend_fetch_resource2_ex(&args[0], "Firebird link", le_link, le_plink)) == NULL) {
+		if ((fb_link = (fbird_db_link *)zend_fetch_resource2_ex(&args[0], "Firebird link", le_link, le_plink)) == NULL) {
 			RETURN_FALSE;
 		}
 		i = 1;
@@ -172,11 +178,11 @@ PHP_FUNCTION(fbird_wait_event)
 		/* M3: Accept Firebird\Connection objects */
 		zend_resource *_conn_res = fbird_connection_get_resource(Z_OBJ_P(&args[0]));
 		if (!_conn_res || !_conn_res->ptr) {
-			php_error_docref(NULL, E_WARNING,
+			_php_fbird_module_error(
 				"fbird_wait_event(): Firebird\\Connection object has no valid resource");
 			RETURN_FALSE;
 		}
-		ib_link = (fbird_db_link *)_conn_res->ptr;
+		fb_link = (fbird_db_link *)_conn_res->ptr;
 		i = 1;
 	} else {
 		/* First arg is neither a resource nor a Firebird\Connection object.
@@ -191,7 +197,7 @@ PHP_FUNCTION(fbird_wait_event)
 		if (ZEND_NUM_ARGS() > 15) {
 			WRONG_PARAM_COUNT;
 		}
-		if ((ib_link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), "Firebird link", le_link, le_plink)) == NULL) {
+		if ((fb_link = (fbird_db_link *)zend_fetch_resource2(FBG(default_link), "Firebird link", le_link, le_plink)) == NULL) {
 			RETURN_FALSE;
 		}
 	}
@@ -217,12 +223,11 @@ PHP_FUNCTION(fbird_wait_event)
 	 * The first wait/count cycle establishes the baseline.
 	 */
 	{
-		ISC_STATUS init_status[20];
 		ISC_ULONG init_counts[15];
-		void *attachment_ptr = fbc_get_attachment(ib_link->fbc_connection);
-		if (fbe_wait_for_event_oo(init_status, attachment_ptr, buffer_size, event_buffer, result_buffer)) {
+		void *attachment_ptr = fbc_get_attachment(fb_link->fbc_connection);
+		if (fbe_wait_for_event_oo(status, attachment_ptr, buffer_size, event_buffer, result_buffer)) {
 			/* Initial wait failed - likely connection issue */
-			_php_fbird_error();
+			_php_fbird_error(status);
 			_php_fbird_event_free(event_buffer, result_buffer);
 			RETURN_FALSE;
 		}
@@ -231,9 +236,9 @@ PHP_FUNCTION(fbird_wait_event)
 
 	/* Now wait for actual events */
 	{
-		void *attachment_ptr = fbc_get_attachment(ib_link->fbc_connection);
-		if (fbe_wait_for_event_oo(IB_STATUS, attachment_ptr, buffer_size, event_buffer, result_buffer)) {
-			_php_fbird_error();
+		void *attachment_ptr = fbc_get_attachment(fb_link->fbc_connection);
+		if (fbe_wait_for_event_oo(status, attachment_ptr, buffer_size, event_buffer, result_buffer)) {
+			_php_fbird_error(status);
 			_php_fbird_event_free(event_buffer, result_buffer);
 			RETURN_FALSE;
 		}
@@ -257,7 +262,7 @@ PHP_FUNCTION(fbird_wait_event)
 PHP_FUNCTION(fbird_set_event_handler)
 {
 	zval *args, *cb_arg;
-	fbird_db_link *ib_link;
+	fbird_db_link *fb_link;
 	fbird_event *event;
 	unsigned short i = 1, buffer_size;
 	int num_args;
@@ -289,13 +294,13 @@ PHP_FUNCTION(fbird_set_event_handler)
 				instanceof_function(Z_OBJCE_P(&args[0]), fbird_connection_ce)) {
 			link_res = fbird_connection_get_resource(Z_OBJ_P(&args[0]));
 			if (!link_res || !link_res->ptr) {
-				php_error_docref(NULL, E_WARNING,
+				_php_fbird_module_error(
 					"fbird_set_event_handler(): Firebird\\Connection object has no valid resource");
 				RETURN_FALSE;
 			}
-			ib_link = (fbird_db_link *)link_res->ptr;
+			fb_link = (fbird_db_link *)link_res->ptr;
 		} else {
-			if ((ib_link = (fbird_db_link *)zend_fetch_resource2_ex(&args[0], "Firebird link", le_link, le_plink)) == NULL) {
+			if ((fb_link = (fbird_db_link *)zend_fetch_resource2_ex(&args[0], "Firebird link", le_link, le_plink)) == NULL) {
 				RETURN_FALSE;
 			}
 			link_res = Z_RES(args[0]);
@@ -308,10 +313,10 @@ PHP_FUNCTION(fbird_set_event_handler)
 
 		cb_arg = &args[0];
 
-		if ((ib_link = (fbird_db_link *)zend_fetch_resource2(IBG(default_link), "Firebird link", le_link, le_plink)) == NULL) {
+		if ((fb_link = (fbird_db_link *)zend_fetch_resource2(FBG(default_link), "Firebird link", le_link, le_plink)) == NULL) {
 			RETURN_FALSE;
 		}
-		link_res = IBG(default_link);
+		link_res = FBG(default_link);
 	}
 
 	/* Validate callback is callable */
@@ -326,13 +331,14 @@ PHP_FUNCTION(fbird_set_event_handler)
 	event = (fbird_event *) safe_emalloc(sizeof(fbird_event), 1, 0);
 	event->link_res = link_res;
 	GC_ADDREF(link_res);
-	event->link = ib_link;
+	event->link = fb_link;
 	event->event_count = 0;
 	event->state = NEW;
 	event->needs_reregistration = 0;
 	event->buffer_size = 0;
 	event->callback_count = 0;
 	event->max_callbacks = 1000; /* Safety limit for polling */
+	event->last_fired_event = NULL;
 	event->event_id = 0;
 	event->event_buffer = NULL;
 	event->result_buffer = NULL;
@@ -368,8 +374,8 @@ PHP_FUNCTION(fbird_set_event_handler)
 
 	/* Mark as active and add to link's event list */
 	event->state = ACTIVE;
-	event->event_next = ib_link->event_head;
-	ib_link->event_head = event;
+	event->event_next = fb_link->event_head;
+	fb_link->event_head = event;
 
 	/* M3 Phase H3: return Firebird\Event object — object owns fbird_event* directly.
 	 * fbird_event_free_obj() will call _php_fbird_free_event() + efree() on GC. */
@@ -377,9 +383,9 @@ PHP_FUNCTION(fbird_set_event_handler)
 }
 
 #ifndef PHP_WIN32
-/* Signal handler for alarm-based timeout */
-static volatile sig_atomic_t fbird_timeout_occurred = 0;
-static void fbird_timeout_handler(int sig) {
+/* Signal handler for alarm-based timeout (shared with fbird_class_event.c) */
+volatile sig_atomic_t fbird_timeout_occurred = 0;
+void fbird_timeout_handler(int sig) {
 	(void)sig;
 	fbird_timeout_occurred = 1;
 }
@@ -387,6 +393,7 @@ static void fbird_timeout_handler(int sig) {
 
 PHP_FUNCTION(fbird_poll_event)
 {
+	ISC_STATUS status[256];
 	zval *event_arg;
 	zend_long timeout_ms = -1;  /* Default: block forever */
 	fbird_event *event;
@@ -489,11 +496,10 @@ PHP_FUNCTION(fbird_poll_event)
 	 * SIGALRM timeout set above so it cannot block indefinitely.
 	 */
 	if (event->needs_reregistration) {
-		ISC_STATUS init_status[20];
 		ISC_ULONG init_counts[15];
 		void *attachment_ptr = fbc_get_attachment(event->link->fbc_connection);
 
-		if (fbe_wait_for_event_oo(init_status, attachment_ptr,
+		if (fbe_wait_for_event_oo(status, attachment_ptr,
 				event->buffer_size, event->event_buffer, event->result_buffer)) {
 			/* Wait failed - check if our timeout interrupted it */
 #ifndef PHP_WIN32
@@ -510,7 +516,7 @@ PHP_FUNCTION(fbird_poll_event)
 				}
 			}
 #endif
-			_php_fbird_error();
+			_php_fbird_error(status);
 			event->state = DEAD;
 			RETURN_FALSE;
 		}
@@ -523,7 +529,7 @@ PHP_FUNCTION(fbird_poll_event)
 	 * Use isc_wait_for_event() synchronously.
 	 * This blocks until an event fires OR until interrupted by SIGALRM.
 	 */
-	wait_result = fbe_wait_for_event_oo(IB_STATUS, fbc_get_attachment(event->link->fbc_connection),
+	wait_result = fbe_wait_for_event_oo(status, fbc_get_attachment(event->link->fbc_connection),
 			event->buffer_size, event->event_buffer, event->result_buffer);
 
 #ifndef PHP_WIN32
@@ -555,7 +561,7 @@ PHP_FUNCTION(fbird_poll_event)
 		/* On Unix, EINTR from timeout is handled above via fbird_timeout_occurred flag.
 		 * If we get here with an error, it's a real error. */
 #endif
-		_php_fbird_error();
+		_php_fbird_error(status);
 		event->state = DEAD;
 		RETURN_FALSE;
 	}
@@ -573,6 +579,11 @@ PHP_FUNCTION(fbird_poll_event)
 			ZVAL_STRING(&args[0], event->events[i]);
 
 			event->callback_count++;
+
+			if (event->last_fired_event) {
+				efree(event->last_fired_event);
+			}
+			event->last_fired_event = estrdup(event->events[i]);
 
 			/**
 			 * Call the PHP callback - THREAD-SAFE!

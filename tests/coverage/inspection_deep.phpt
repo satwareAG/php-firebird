@@ -141,8 +141,8 @@ if ($trans) {
     $create_sql = "CREATE TABLE TEST_DROP_TABLE (ID INTEGER PRIMARY KEY, NAME VARCHAR(50))";
     $stmt = fbird_query($trans, $create_sql);
     
-    if ($stmt === true || is_resource($stmt)) {
-        if (is_resource($stmt)) fbird_free_query($stmt);
+    if ($stmt === true || $stmt instanceof \Firebird\Statement || is_resource($stmt)) {
+        if ($stmt instanceof \Firebird\Statement || is_resource($stmt)) fbird_free_query($stmt);
         fbird_commit($trans);
         
         // Verify table exists
@@ -150,7 +150,7 @@ if ($trans) {
         if ($trans2) {
             $check_sql = "SELECT COUNT(*) FROM RDB\$RELATIONS WHERE RDB\$RELATION_NAME = 'TEST_DROP_TABLE'";
             $result = fbird_query($trans2, $check_sql);
-            if (is_resource($result)) {
+            if ($result instanceof \Firebird\ResultSet || is_resource($result)) {
                 $row = fbird_fetch_row($result);
                 fbird_free_query($result);
                 fbird_commit($trans2);
@@ -175,7 +175,7 @@ if ($trans) {
                     if ($trans4) {
                         $check_sql2 = "SELECT COUNT(*) FROM RDB\$RELATIONS WHERE RDB\$RELATION_NAME = 'TEST_DROP_TABLE'";
                         $result2 = fbird_query($trans4, $check_sql2);
-                        if (is_resource($result2)) {
+                        if ($result2 instanceof \Firebird\ResultSet || is_resource($result2)) {
                             $row2 = fbird_fetch_row($result2);
                             fbird_free_query($result2);
                             fbird_commit($trans4);
@@ -208,8 +208,8 @@ if ($trans) {
     $create_sql = "CREATE TABLE TEST_DROP_TABLE2 (ID INTEGER)";
     $stmt = fbird_query($trans, $create_sql);
     
-    if ($stmt === true || is_resource($stmt)) {
-        if (is_resource($stmt)) fbird_free_query($stmt);
+    if ($stmt === true || $stmt instanceof \Firebird\Statement || is_resource($stmt)) {
+        if ($stmt instanceof \Firebird\Statement || is_resource($stmt)) fbird_free_query($stmt);
         fbird_commit($trans);
         
         // Drop with transaction resource
@@ -357,3 +357,5 @@ Connected to Firebird
 %A   PASS - Returned false for non-existent table
 
 === All Inspection Error Tests Complete ===
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

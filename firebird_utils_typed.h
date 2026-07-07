@@ -140,8 +140,8 @@ static inline int fbu_insert_field_info_typed(
 
 static inline int fbu_insert_aliases_typed(
         fbc_master_t *master, ISC_STATUS *status,
-        fbird_query *ib_query, fbs_statement_t *stmt) {
-    return fbu_insert_aliases(_FBTP(master), status, ib_query, _FBTP(stmt));
+        fbird_query *fb_query, fbs_statement_t *stmt) {
+    return fbu_insert_aliases(_FBTP(master), status, fb_query, _FBTP(stmt));
 }
 
 /* =========================================================================

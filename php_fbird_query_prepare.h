@@ -15,10 +15,10 @@
 /**
  * Get statement type and field counts for a prepared query.
  *
- * @param ib_query The query structure to populate with metadata.
+ * @param fb_query The query structure to populate with metadata.
  * @return SUCCESS on success, FAILURE on error.
  */
-int _php_fbird_set_query_info(fbird_query *ib_query);
+int _php_fbird_set_query_info(fbird_query *fb_query);
 
 /**
  * Allocate and prepare a query.
@@ -51,9 +51,9 @@ void _php_fbird_free_xsqlda(XSQLDA *sqlda);
 /**
  * Free query structure and all associated resources.
  *
- * @param ib_query The query structure to free.
+ * @param fb_query The query structure to free.
  */
-void _php_fbird_free_query(fbird_query *ib_query);
+void _php_fbird_free_query(fbird_query *fb_query);
 
 /**
  * Resource destructor for query resources.

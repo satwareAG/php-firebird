@@ -22,7 +22,7 @@ ISC_DATE fbu_encode_date(void *master_ptr, unsigned year, unsigned month, unsign
  * Extract SQLCODE from a Firebird status vector.
  * Wraps isc_sqlcode() to isolate the legacy isc_* call in firebird_utils.cpp.
  *
- * @param status_vector ISC_STATUS array (typically IB_STATUS)
+ * @param status_vector ISC_STATUS array (local status[256])
  * @return SQLCODE value (negative for errors, 0 for success)
  */
 long fbu_sqlcode(const ISC_STATUS *status_vector);
@@ -112,7 +112,7 @@ void fbu_decode_timestamp(void *master_ptr, const ISC_TIMESTAMP* timestamp,
 /**
  * Create a database connection using the Firebird OO API.
  *
- * @param master_ptr Pointer to IMaster interface (from IBG(master_instance))
+ * @param master_ptr Pointer to IMaster interface (from FBG(master_instance))
  * @param database Database path (null-terminated)
  * @param db_len Length of database path
  * @param user Username (null-terminated, may be NULL)
@@ -344,7 +344,7 @@ int fbt_get_info(
 /**
  * Prepare a statement using OO API.
  *
- * @param master_ptr IMaster interface pointer (from IBG(master_instance))
+ * @param master_ptr IMaster interface pointer (from FBG(master_instance))
  * @param attachment_ptr IAttachment pointer (from fbc_get_attachment())
  * @param transaction_ptr ITransaction pointer (from fbt_get_handle())
  * @param sql SQL statement text
@@ -1091,7 +1091,7 @@ int fbu_decfloat34_to_string(void *master_ptr, const void *value,
 
 int fbu_insert_field_info(void *master_ptr, ISC_STATUS* status, int is_outvar, int num,
   zval *into_array, void *statement_ptr);
-int fbu_insert_aliases(void *master_ptr, ISC_STATUS* status, fbird_query *ib_query,
+int fbu_insert_aliases(void *master_ptr, ISC_STATUS* status, fbird_query *fb_query,
   void *statement_ptr);
 
 /**

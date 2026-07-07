@@ -191,3 +191,5 @@ Array
     [1] => 1000
 )
 end of test
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>

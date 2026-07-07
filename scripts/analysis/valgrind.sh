@@ -14,15 +14,10 @@
 
 set -e
 
+source "$(dirname "$(dirname "$0")")/lib/logging.sh"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
 
 # Parse mode
 MODE="${1:-quick}"
@@ -37,10 +32,10 @@ case "$MODE" in
         ;;
 esac
 
-echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║        Valgrind Memory Analysis for PHP Firebird             ║${NC}"
-echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
-echo -e "Mode: ${YELLOW}$MODE${NC}"
+log_info "╔══════════════════════════════════════════════════════════════╗"
+log_info "║        Valgrind Memory Analysis for PHP Firebird             ║"
+log_info "╚══════════════════════════════════════════════════════════════╝"
+log_info "Mode: $MODE"
 echo ""
 
 # ============================================================================
@@ -71,12 +66,12 @@ for path in "./modules/firebird.so" "/ext/modules/firebird.so" "$PROJECT_ROOT/mo
 done
 
 if [ -z "$EXT_PATH" ]; then
-    echo -e "${RED}ERROR: firebird.so not found. Build the extension first.${NC}"
+    log_error "ERROR: firebird.so not found. Build the extension first."
     exit 1
 fi
 
-echo -e "PHP Binary: ${YELLOW}$PHP_BINARY${NC}"
-echo -e "Extension:  ${YELLOW}$EXT_PATH${NC}"
+log_info "PHP Binary: $PHP_BINARY"
+log_info "Extension:  $EXT_PATH"
 
 # ============================================================================
 # Locate Suppressions File
@@ -99,10 +94,10 @@ fi
 
 SUPP_OPTS=""
 if [ -n "$SUPP_FILE" ]; then
-    echo -e "Suppressions: ${YELLOW}$SUPP_FILE${NC}"
+    log_info "Suppressions: $SUPP_FILE"
     SUPP_OPTS="--suppressions=$SUPP_FILE"
 else
-    echo -e "${YELLOW}⚠ No suppressions file found (expect noise from PHP/Firebird internals)${NC}"
+    log_warn "No suppressions file found (expect noise from PHP/Firebird internals)"
 fi
 
 echo ""
@@ -133,28 +128,30 @@ FAILED=0
 # Quick Mode: Extension Load Test
 # ============================================================================
 run_quick_tests() {
-    echo -e "${BLUE}═══ Quick Tests: Extension Loading ═══${NC}"
-    
-    echo -e "\n${BLUE}>> Test 1: Basic extension load...${NC}"
+    log_info "═══ Quick Tests: Extension Loading ═══"
+
+    echo ""
+    log_info "Test 1: Basic extension load..."
     if valgrind $VALGRIND_OPTS $PHP_BINARY -d extension="$EXT_PATH" -r "echo 'Extension loaded successfully\n';" 2>&1; then
-        echo -e "${GREEN}✓ Extension load test passed${NC}"
+        log_pass "Extension load test passed"
     else
-        echo -e "${RED}✗ Extension load test failed${NC}"
+        log_fail "Extension load test failed"
         FAILED=1
     fi
-    
-    echo -e "\n${BLUE}>> Test 2: Client version function...${NC}"
+
+    echo ""
+    log_info "Test 2: Client version function..."
     if valgrind $VALGRIND_OPTS $PHP_BINARY -d extension="$EXT_PATH" -r '
-        if (function_exists("fbu_get_client_version")) {
-            $v = fbu_get_client_version(null);
+        if (function_exists("fbird_get_client_version")) {
+            $v = fbird_get_client_version(null);
             echo "Client version: $v\n";
         } else {
-            echo "fbu_get_client_version not available\n";
+            echo "fbird_get_client_version not available\n";
         }
     ' 2>&1; then
-        echo -e "${GREEN}✓ Client version test passed${NC}"
+        log_pass "Client version test passed"
     else
-        echo -e "${RED}✗ Client version test failed${NC}"
+        log_fail "Client version test failed"
         FAILED=1
     fi
 }
@@ -165,12 +162,14 @@ run_quick_tests() {
 run_full_tests() {
     run_quick_tests
     
-    echo -e "\n${BLUE}═══ Full Tests: Function Coverage ═══${NC}"
-    
+    echo ""
+    log_info "═══ Full Tests: Function Coverage ═══"
+
     # Test Firebird connection if database is available
     DB_PATH="${FIREBIRD_DB_PATH:-/var/lib/firebird/data/test.fdb}"
-    
-    echo -e "\n${BLUE}>> Test 3: Database connection cycle...${NC}"
+
+    echo ""
+    log_info "Test 3: Database connection cycle..."
     if valgrind $VALGRIND_OPTS $PHP_BINARY -d extension="$EXT_PATH" -r "
         \$db = @fbird_connect('$DB_PATH');
         if (\$db) {
@@ -181,22 +180,23 @@ run_full_tests() {
             echo \"Connection failed (expected if no Firebird server)\n\";
         }
     " 2>&1; then
-        echo -e "${GREEN}✓ Connection cycle test passed${NC}"
+        log_pass "Connection cycle test passed"
     else
-        echo -e "${RED}✗ Connection cycle test failed${NC}"
+        log_fail "Connection cycle test failed"
         FAILED=1
     fi
-    
-    echo -e "\n${BLUE}>> Test 4: Error handling...${NC}"
+
+    echo ""
+    log_info "Test 4: Error handling..."
     if valgrind $VALGRIND_OPTS $PHP_BINARY -d extension="$EXT_PATH" -r '
         // Test error message functions without connection
         $err = @fbird_errmsg();
         $code = @fbird_errcode();
-        echo "Error functions work: msg='$err' code=$code\n";
+        echo "Error functions work: msg='\''$err'\'' code=$code\n";
     ' 2>&1; then
-        echo -e "${GREEN}✓ Error handling test passed${NC}"
+        log_pass "Error handling test passed"
     else
-        echo -e "${RED}✗ Error handling test failed${NC}"
+        log_fail "Error handling test failed"
         FAILED=1
     fi
 }
@@ -207,9 +207,10 @@ run_full_tests() {
 run_phpt_tests() {
     run_full_tests
     
-    echo -e "\n${BLUE}═══ PHPT Test Suite Under Valgrind ═══${NC}"
-    echo -e "${YELLOW}Note: This is slow but provides comprehensive memory coverage${NC}"
-    
+    echo ""
+    log_info "═══ PHPT Test Suite Under Valgrind ═══"
+    log_warn "Note: This is slow but provides comprehensive memory coverage"
+
     # Find tests directory
     TESTS_DIR=""
     for path in "$PROJECT_ROOT/tests" "/ext/tests" "./tests"; do
@@ -218,9 +219,9 @@ run_phpt_tests() {
             break
         fi
     done
-    
+
     if [ -z "$TESTS_DIR" ]; then
-        echo -e "${RED}ERROR: tests directory not found${NC}"
+        log_error "ERROR: tests directory not found"
         FAILED=1
         return
     fi
@@ -237,20 +238,22 @@ run_phpt_tests() {
     
     for test in "${CRITICAL_TESTS[@]}"; do
         if [ -f "$TESTS_DIR/$test" ]; then
-            echo -e "\n${BLUE}>> Running $test under Valgrind...${NC}"
-            
+            echo ""
+            log_info "Running $test under Valgrind..."
+
             # Extract --FILE-- section and run it
             # This is a simplified approach; for full accuracy use run-tests.php with -m flag
             if php "$PROJECT_ROOT/run-tests.php" -m -p "valgrind $VALGRIND_OPTS $PHP_BINARY" "$TESTS_DIR/$test" 2>&1; then
-                echo -e "${GREEN}✓ $test passed${NC}"
+                log_pass "$test passed"
             else
-                echo -e "${YELLOW}⚠ $test had warnings (review output)${NC}"
+                log_warn "$test had warnings (review output)"
             fi
         fi
     done
-    
+
     # Alternative: Use make test with Valgrind
-    echo -e "\n${BLUE}>> Running make test with Valgrind (sample)...${NC}"
+    echo ""
+    log_info "Running make test with Valgrind (sample)..."
     if [ -f Makefile ]; then
         # Run just a few tests to verify
         TEST_PHP_EXECUTABLE="valgrind $VALGRIND_OPTS $PHP_BINARY" \
@@ -271,12 +274,12 @@ esac
 # Summary
 # ============================================================================
 echo ""
-echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
+log_info "╔══════════════════════════════════════════════════════════════╗"
 if [ $FAILED -eq 0 ]; then
-    echo -e "${GREEN}║            ✓ Valgrind Analysis Complete - No Leaks          ║${NC}"
+    log_pass "║            Valgrind Analysis Complete - No Leaks          ║"
 else
-    echo -e "${RED}║            ✗ Valgrind Analysis Found Issues                  ║${NC}"
+    log_fail "║            Valgrind Analysis Found Issues                  ║"
 fi
-echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+log_info "╚══════════════════════════════════════════════════════════════╝"
 
 exit $FAILED

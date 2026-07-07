@@ -57,10 +57,4 @@ Date: 24-03-2026
 Time: 15:30:45
 
 --CLEAN--
-<?php
-require_once 'firebird.inc';
-$db = @fbird_connect($test_base, $user, $password);
-if ($db) {
-    @fbird_close($db);
-}
-?>
+<?php require_once __DIR__ . '/clean.inc'; ?>

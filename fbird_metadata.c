@@ -60,7 +60,7 @@ void _php_fbird_insert_alias(HashTable *ht, const char *alias)
 	zend_symtable_str_update(ht, alias, alias_len, &t2);
 }
 
-void _php_fbird_field_info(zval *return_value, fbird_query *ib_query, int is_outvar, int num)
+void _php_fbird_field_info(zval *return_value, fbird_query *fb_query, int is_outvar, int num)
 {
 	unsigned short len;
 	char buf[16], *s = buf;
@@ -68,13 +68,13 @@ void _php_fbird_field_info(zval *return_value, fbird_query *ib_query, int is_out
 	XSQLVAR *var;
 
  if(is_outvar){
-        sqlda = ib_query->out_sqlda;
+        sqlda = fb_query->out_sqlda;
         if (sqlda == NULL) {
             _php_fbird_module_error("Trying to get field info from a non-select query");
             RETURN_FALSE;
         }
     } else {
-        sqlda = ib_query->in_sqlda;
+        sqlda = fb_query->in_sqlda;
         /* For parameter metadata, return false quietly when not available */
         if (sqlda == NULL) {
             RETURN_FALSE;
@@ -102,7 +102,7 @@ void _php_fbird_field_info(zval *return_value, fbird_query *ib_query, int is_out
 	 * so the XSQLDA data path provides complete field information.
 	 *
 	 * The legacy fbu_insert_field_info() path using get_statement_interface is disabled
-	 * because it requires ib_query->stmt.stmt (legacy isc_stmt_handle) which is no longer
+	 * because it requires fb_query->stmt.stmt (legacy isc_stmt_handle) which is no longer
 	 * available in OO API mode.
 	 */
 	{
@@ -254,7 +254,7 @@ PHP_FUNCTION(fbird_field_info)
 {
 	zval *result_arg;
 	zend_long field_arg;
-	fbird_query *ib_query;
+	fbird_query *fb_query;
 
 	RESET_ERRMSG;
 
@@ -263,18 +263,18 @@ PHP_FUNCTION(fbird_field_info)
 	}
 
 	/* Validate first argument is a query resource with proper error messages */
-	FBIRD_VALIDATE_QUERY_EX(result_arg, 1, ib_query);
-	if (!ib_query) {
+	FBIRD_VALIDATE_QUERY_EX(result_arg, 1, fb_query);
+	if (!fb_query) {
 		RETURN_FALSE;
 	}
 
-	_php_fbird_field_info(return_value, ib_query, 1, (ISC_SHORT)field_arg);
+	_php_fbird_field_info(return_value, fb_query, 1, (ISC_SHORT)field_arg);
 }
 
 PHP_FUNCTION(fbird_num_params)
 {
 	zval *result;
-	fbird_query *ib_query;
+	fbird_query *fb_query;
 
 	RESET_ERRMSG;
 
@@ -283,8 +283,8 @@ PHP_FUNCTION(fbird_num_params)
 	}
 
 	/* Validate first argument is a query resource with proper error messages */
-	FBIRD_VALIDATE_QUERY_EX(result, 1, ib_query);
-	if (!ib_query) {
+	FBIRD_VALIDATE_QUERY_EX(result, 1, fb_query);
+	if (!fb_query) {
 		RETURN_FALSE;
 	}
 
@@ -292,14 +292,14 @@ PHP_FUNCTION(fbird_num_params)
 	 * Firebird 3.0+ OO API - use cached parameter count from IMessageMetadata
 	 * Set during query preparation via fbs_get_input_count()
 	 */
-	RETURN_LONG(ib_query->in_fields_count);
+	RETURN_LONG(fb_query->in_fields_count);
 }
 
 PHP_FUNCTION(fbird_param_info)
 {
 	zval *result_arg;
 	zend_long field_arg;
-	fbird_query *ib_query;
+	fbird_query *fb_query;
 
 	RESET_ERRMSG;
 
@@ -308,18 +308,18 @@ PHP_FUNCTION(fbird_param_info)
 	}
 
 	/* Validate first argument is a query resource with proper error messages */
-	FBIRD_VALIDATE_QUERY_EX(result_arg, 1, ib_query);
-	if (!ib_query) {
+	FBIRD_VALIDATE_QUERY_EX(result_arg, 1, fb_query);
+	if (!fb_query) {
 		RETURN_FALSE;
 	}
 
-	_php_fbird_field_info(return_value, ib_query, 0, field_arg);
+	_php_fbird_field_info(return_value, fb_query, 0, field_arg);
 }
 
 PHP_FUNCTION(fbird_num_fields)
 {
 	zval *result;
-	fbird_query *ib_query;
+	fbird_query *fb_query;
 
 	RESET_ERRMSG;
 
@@ -328,8 +328,8 @@ PHP_FUNCTION(fbird_num_fields)
 	}
 
 	/* Validate first argument is a query resource with proper error messages */
-	FBIRD_VALIDATE_QUERY_EX(result, 1, ib_query);
-	if (!ib_query) {
+	FBIRD_VALIDATE_QUERY_EX(result, 1, fb_query);
+	if (!fb_query) {
 		RETURN_FALSE;
 	}
 
@@ -337,7 +337,7 @@ PHP_FUNCTION(fbird_num_fields)
 	 * Firebird 3.0+ OO API - use cached field count from IMessageMetadata
 	 * Set during query preparation via fbs_get_output_count()
 	 */
-	RETURN_LONG(ib_query->out_fields_count);
+	RETURN_LONG(fb_query->out_fields_count);
 }
 
 // We can't rely on aliasname coming from XSQLVAR if we want long field names
@@ -370,10 +370,10 @@ static char *_php_fbird_rtrim_alias(const char *alias)
 	return result;
 }
 
-int _php_fbird_alloc_ht_aliases(fbird_query *ib_query)
+int _php_fbird_alloc_ht_aliases(fbird_query *fb_query)
 {
-	ALLOC_HASHTABLE(ib_query->ht_aliases);
-	zend_hash_init(ib_query->ht_aliases, ib_query->out_fields_count, NULL, ZVAL_PTR_DTOR, 0);
+	ALLOC_HASHTABLE(fb_query->ht_aliases);
+	zend_hash_init(fb_query->ht_aliases, fb_query->out_fields_count, NULL, ZVAL_PTR_DTOR, 0);
 
 	/* OO API alias extraction - supports long field names (63 chars in FB 4.0+)
 	 *
@@ -381,14 +381,14 @@ int _php_fbird_alloc_ht_aliases(fbird_query *ib_query)
 	 * The OO API's fbm_get_alias() returns the full name, so we read directly
 	 * from IMessageMetadata to support Firebird 4.0+ long identifiers.
 	 */
-	for(size_t i = 0; i < ib_query->out_fields_count; i++){
+	for(size_t i = 0; i < fb_query->out_fields_count; i++){
 		const char *base_alias = "";
 		const char *base_field = "";
 
 		/* Prefer OO API metadata for full-length names (supports 63+ chars) */
-		if (ib_query->out_metadata) {
-			const char *alias_str = fbm_get_alias(IBG(master_instance), ib_query->out_metadata, (unsigned)i);
-			const char *field_str = fbm_get_field(IBG(master_instance), ib_query->out_metadata, (unsigned)i);
+		if (fb_query->out_metadata) {
+			const char *alias_str = fbm_get_alias(FBG(master_instance), fb_query->out_metadata, (unsigned)i);
+			const char *field_str = fbm_get_field(FBG(master_instance), fb_query->out_metadata, (unsigned)i);
 
 			if (alias_str && alias_str[0]) {
 				base_alias = alias_str;
@@ -396,9 +396,9 @@ int _php_fbird_alloc_ht_aliases(fbird_query *ib_query)
 			if (field_str && field_str[0]) {
 				base_field = field_str;
 			}
-		} else if (ib_query->out_sqlda) {
+		} else if (fb_query->out_sqlda) {
 			/* Fallback to XSQLDA (limited to 31 chars) */
-			XSQLVAR *var = &ib_query->out_sqlda->sqlvar[i];
+			XSQLVAR *var = &fb_query->out_sqlda->sqlvar[i];
 			if (var->aliasname[0]) {
 				base_alias = var->aliasname;
 			}
@@ -413,44 +413,44 @@ int _php_fbird_alloc_ht_aliases(fbird_query *ib_query)
 		char *effective_alias = _php_fbird_rtrim_alias(raw_alias);
 
 		/* For DML ... RETURNING (or when SQL text contains RETURNING), preserve prefixes when present */
-		if ((ib_query->statement_type == isc_info_sql_stmt_insert ||
-			 ib_query->statement_type == isc_info_sql_stmt_update ||
-			 ib_query->statement_type == isc_info_sql_stmt_delete) ||
-			_php_fbird_sql_has_returning(ib_query->query)) {
+		if ((fb_query->statement_type == isc_info_sql_stmt_insert ||
+			 fb_query->statement_type == isc_info_sql_stmt_update ||
+			 fb_query->statement_type == isc_info_sql_stmt_delete) ||
+			_php_fbird_sql_has_returning(fb_query->query)) {
 			char full[METADATALENGTH + 6 + 1] = {0};
-			if (_php_fbird_infer_returning_full_alias(ib_query->query, i, full, sizeof(full))) {
-				_php_fbird_insert_alias(ib_query->ht_aliases, full);
+			if (_php_fbird_infer_returning_full_alias(fb_query->query, i, full, sizeof(full))) {
+				_php_fbird_insert_alias(fb_query->ht_aliases, full);
 				efree(effective_alias);
 				continue;
 			} else {
 				char pref[5] = {0};
-				if (_php_fbird_infer_returning_prefix(ib_query->query, i, pref, sizeof(pref)) && pref[0] != '\0') {
+				if (_php_fbird_infer_returning_prefix(fb_query->query, i, pref, sizeof(pref)) && pref[0] != '\0') {
 					char buf[METADATALENGTH + 5 + 1];
 					snprintf(buf, sizeof(buf), "%s%s", pref, effective_alias);
-					_php_fbird_insert_alias(ib_query->ht_aliases, buf);
+					_php_fbird_insert_alias(fb_query->ht_aliases, buf);
 					efree(effective_alias);
 					continue;
 				}
 			}
 		}
 
-		_php_fbird_insert_alias(ib_query->ht_aliases, effective_alias);
+		_php_fbird_insert_alias(fb_query->ht_aliases, effective_alias);
 		efree(effective_alias);
 	}
 
 	return SUCCESS;
 }
 
-void _php_fbird_alloc_ht_ind(fbird_query *ib_query)
+void _php_fbird_alloc_ht_ind(fbird_query *fb_query)
 {
-	ALLOC_HASHTABLE(ib_query->ht_ind);
-	zend_hash_init(ib_query->ht_ind, ib_query->out_fields_count, NULL, ZVAL_PTR_DTOR, 0);
+	ALLOC_HASHTABLE(fb_query->ht_ind);
+	zend_hash_init(fb_query->ht_ind, fb_query->out_fields_count, NULL, ZVAL_PTR_DTOR, 0);
 
 	zval t2;
 	ZVAL_NULL(&t2);
 
-	for(size_t i = 0; i < ib_query->out_fields_count; i++) {
-		zend_hash_index_add(ib_query->ht_ind, i, &t2);
+	for(size_t i = 0; i < fb_query->out_fields_count; i++) {
+		zend_hash_index_add(fb_query->ht_ind, i, &t2);
 	}
 }
 

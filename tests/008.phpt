@@ -111,11 +111,4 @@ OK: Procedure created and event posted
 end of test
 
 --CLEAN--
-<?php
-require_once 'firebird.inc';
-$db = @fbird_connect($test_base, $user, $password);
-if ($db) {
-    @fbird_query($db, "DROP PROCEDURE pevent");
-    @fbird_close($db);
-}
-?>
+<?php require_once __DIR__ . '/clean.inc'; ?>

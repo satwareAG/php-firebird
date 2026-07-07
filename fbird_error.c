@@ -21,8 +21,8 @@ PHP_FUNCTION(fbird_errmsg)
 		return;
 	}
 
-	if (IBG(sql_code) != 0) {
-		RETURN_STRING(IBG(errmsg));
+	if (FBG(sql_code) != 0) {
+		RETURN_STRING(FBG(errmsg));
 	}
 
 	RETURN_FALSE;
@@ -30,17 +30,17 @@ PHP_FUNCTION(fbird_errmsg)
 
 PHP_FUNCTION(fbird_get_client_version)
 {
-	RETURN_DOUBLE((double)IBG(client_major_version) + (double)IBG(client_minor_version) / 10);
+	RETURN_DOUBLE((double)FBG(client_major_version) + (double)FBG(client_minor_version) / 10);
 }
 
 PHP_FUNCTION(fbird_get_client_major_version)
 {
-	RETURN_LONG(IBG(client_major_version));
+	RETURN_LONG(FBG(client_major_version));
 }
 
 PHP_FUNCTION(fbird_get_client_minor_version)
 {
-	RETURN_LONG(IBG(client_minor_version));
+	RETURN_LONG(FBG(client_minor_version));
 }
 
 PHP_FUNCTION(fbird_errcode)
@@ -49,8 +49,8 @@ PHP_FUNCTION(fbird_errcode)
 		return;
 	}
 
-	if (IBG(sql_code) != 0) {
-		RETURN_LONG(IBG(sql_code));
+	if (FBG(sql_code) != 0) {
+		RETURN_LONG(FBG(sql_code));
 	}
 	RETURN_FALSE;
 }
@@ -64,12 +64,12 @@ PHP_FUNCTION(fbird_sqlstate)
 	}
 
 	/* Check if there is an error to report */
-	if (IBG(sql_code) == 0) {
+	if (FBG(sql_code) == 0) {
 		RETURN_FALSE;
 	}
 
-	/* Call fb_sqlstate to get the SQLSTATE code from the status vector */
-	fb_sqlstate(sqlstate, IB_STATUS);
+	/* Call fb_sqlstate to get the SQLSTATE code from the last error status vector */
+	fb_sqlstate(sqlstate, FBG(last_status));
 
 	/* fb_sqlstate always returns a 5-character string, with "00000" for success */
 	if (sqlstate[0] == '0' && sqlstate[1] == '0' && sqlstate[2] == '0' &&
@@ -132,12 +132,12 @@ PHP_FUNCTION(fbird_set_exception_mode)
 	}
 
 	if (mode != FBIRD_EXCEPTION_MODE_SILENT && mode != FBIRD_EXCEPTION_MODE_THROW) {
-		php_error_docref(NULL, E_WARNING,
+		_php_fbird_module_error(
 			"Invalid mode (use FBIRD_EXCEPTION_MODE_SILENT or FBIRD_EXCEPTION_MODE_THROW)");
 		RETURN_FALSE;
 	}
 
-	IBG(exception_mode) = (int)mode;
+	FBG(exception_mode) = (int)mode;
 	RETURN_TRUE;
 }
 
@@ -147,7 +147,7 @@ PHP_FUNCTION(fbird_get_exception_mode)
 		return;
 	}
 
-	RETURN_LONG(IBG(exception_mode));
+	RETURN_LONG(FBG(exception_mode));
 }
 
 PHP_METHOD(FirebirdException, getSqlState)
@@ -158,8 +158,8 @@ PHP_METHOD(FirebirdException, getSqlState)
 		return;
 	}
 
-	/* Call fb_sqlstate to get the SQLSTATE code from the status vector */
-	fb_sqlstate(sqlstate, IB_STATUS);
+	/* Call fb_sqlstate to get the SQLSTATE code from the last error status vector */
+	fb_sqlstate(sqlstate, FBG(last_status));
 
 	/* Always return the SQLSTATE (even if "00000" for compatibility) */
 	RETURN_STRINGL(sqlstate, 5);
@@ -174,28 +174,31 @@ const zend_function_entry firebird_exception_methods[] = {
 };
 
 /* print firebird error and save it for fbird_errmsg() */
-void _php_fbird_error(void)
+void _php_fbird_error(ISC_STATUS *status)
 {
-	char *s = IBG(errmsg);
-	const ISC_STATUS *statusp = IB_STATUS;
+	char *s = FBG(errmsg);
+	const ISC_STATUS *statusp = status;
 	size_t msg_len;
 
-	IBG(sql_code) = fbu_sqlcode(IB_STATUS);
+	/* Store the status vector for fbird_sqlstate() */
+	memcpy(FBG(last_status), status, sizeof(FBG(last_status)));
 
-	msg_len = strlen(IBG(errmsg));
+	FBG(sql_code) = fbu_sqlcode(status);
+
+	msg_len = strlen(FBG(errmsg));
 	while (msg_len < MAX_ERRMSG && fb_interpret(s, MAX_ERRMSG - msg_len - 1, &statusp)) {
 		msg_len = strlen(s);
 		s[msg_len] = ' ';
 		s[msg_len + 1] = '\0';
-		msg_len = s - IBG(errmsg) + msg_len + 1;
-		s = IBG(errmsg) + msg_len;
+		msg_len = s - FBG(errmsg) + msg_len + 1;
+		s = FBG(errmsg) + msg_len;
 	}
 
 	/* Check runtime exception_mode */
-	if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) {
-		zend_throw_exception(firebird_exception_ce, IBG(errmsg), IBG(sql_code));
+	if (FBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) {
+		zend_throw_exception(firebird_exception_ce, FBG(errmsg), FBG(sql_code));
 	} else {
-		php_error_docref(NULL, E_WARNING, "%s", IBG(errmsg));
+		php_error_docref(NULL, E_WARNING, "%s", FBG(errmsg));
 	}
 }
 
@@ -206,17 +209,20 @@ void _php_fbird_module_error(const char *msg, ...)
 
 	va_start(ap, msg);
 
+	/* Module errors have no Firebird status vector — clear last_status */
+	memset(FBG(last_status), 0, sizeof(FBG(last_status)));
+
 	/* vsnprintf NUL terminates the buf and writes at most n-1 chars+NUL */
-	vsnprintf(IBG(errmsg), MAX_ERRMSG, msg, ap);
+	vsnprintf(FBG(errmsg), MAX_ERRMSG, msg, ap);
 	va_end(ap);
 
-	IBG(sql_code) = -999; /* no SQL error */
+	FBG(sql_code) = -999; /* no SQL error */
 
 	/* Check runtime exception_mode */
-	if (IBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) {
-		zend_throw_exception(firebird_exception_ce, IBG(errmsg), IBG(sql_code));
+	if (FBG(exception_mode) == FBIRD_EXCEPTION_MODE_THROW) {
+		zend_throw_exception(firebird_exception_ce, FBG(errmsg), FBG(sql_code));
 	} else {
-		php_error_docref(NULL, E_WARNING, "%s", IBG(errmsg));
+		php_error_docref(NULL, E_WARNING, "%s", FBG(errmsg));
 	}
 }
 

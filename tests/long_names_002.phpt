@@ -65,3 +65,5 @@ array(2) {
   ["🥰🥰🥰🥰🥰🥰🥰ppp"]=>
   int(2)
 }
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>

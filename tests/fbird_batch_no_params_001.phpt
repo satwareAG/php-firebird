@@ -61,11 +61,4 @@ bool(true)
 Done
 
 --CLEAN--
-<?php
-require_once 'firebird.inc';
-$db = @fbird_connect($test_base, $user, $password);
-if ($db) {
-    @fbird_query($db, "DROP TABLE batch_test_180");
-    @fbird_close($db);
-}
-?>
+<?php require_once __DIR__ . '/clean.inc'; ?>

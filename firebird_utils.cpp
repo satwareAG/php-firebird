@@ -223,7 +223,7 @@ namespace {
         }
     }
 
-    int insert_aliases_modern(void* master_ptr, ISC_STATUS* status_vec, fbird_query* ib_query,
+    int insert_aliases_modern(void* master_ptr, ISC_STATUS* status_vec, fbird_query* fb_query,
                              Firebird::IStatement* statement) noexcept {
         try {
             FirebirdMasterWrapper master(master_ptr);
@@ -241,7 +241,7 @@ namespace {
                 return -1;
             }
 
-            assert(cols == ib_query->out_fields_count);
+            assert(cols == fb_query->out_fields_count);
 
             for (unsigned i = 0; i < cols; ++i) {
                 const auto alias = meta_wrapper.getAlias(status_mgr.get(), i);
@@ -250,7 +250,7 @@ namespace {
                 }
 
                 std::string alias_str(alias);
-                _php_fbird_insert_alias(ib_query->ht_aliases, alias_str.c_str());
+                _php_fbird_insert_alias(fb_query->ht_aliases, alias_str.c_str());
             }
 
             return 0;
@@ -277,7 +277,7 @@ namespace fb {
 
 /**
  * Implementation of getMaster() - retrieves the global IMaster instance
- * from PHP extension globals (IBG macro).
+ * from PHP extension globals (FBG macro).
  *
  * This function provides the bridge between the C++ wrapper layer and the
  * PHP extension's global state.
@@ -286,12 +286,12 @@ Firebird::IMaster* getMaster() noexcept {
     // During MSHUTDOWN, the Firebird client library may already be released.
     // Return nullptr to prevent dangling pointer access in persistent connection
     // destructors (fixes pconnect shutdown SIGSEGV — Issue #50, #51).
-    if (IBG(in_mshutdown)) {
+    if (FBG(in_mshutdown)) {
         return nullptr;
     }
-    // IBG(master_instance) is defined in php_fbird_includes.h
+    // FBG(master_instance) is defined in php_fbird_includes.h
     // It's stored as void* for C compatibility
-    return static_cast<Firebird::IMaster*>(IBG(master_instance));
+    return static_cast<Firebird::IMaster*>(FBG(master_instance));
 }
 
 } // namespace fb
@@ -1107,14 +1107,14 @@ extern "C" void fbu_decode_timestamp_tz(void *master_ptr, const ISC_TIMESTAMP_TZ
     }
 }
 
-extern "C" int fbu_insert_aliases(void *master_ptr, ISC_STATUS* status, fbird_query *ib_query, void *statement_ptr)
+extern "C" int fbu_insert_aliases(void *master_ptr, ISC_STATUS* status, fbird_query *fb_query, void *statement_ptr)
 {
-    if (master_ptr == nullptr || ib_query == nullptr || statement_ptr == nullptr) {
+    if (master_ptr == nullptr || fb_query == nullptr || statement_ptr == nullptr) {
         return -1;
     }
 
     auto* statement = static_cast<Firebird::IStatement*>(statement_ptr);
-    return insert_aliases_modern(master_ptr, status, ib_query, statement);
+    return insert_aliases_modern(master_ptr, status, fb_query, statement);
 }
 
 extern "C" int fbu_insert_field_info(void *master_ptr, ISC_STATUS* status, int is_outvar, int num,

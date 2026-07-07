@@ -44,3 +44,5 @@ fbird_close($conn);
 --EXPECT--
 Started transaction with default_trans_params=6 (READ | COMMITTED)
 Insert failed as expected in READ-ONLY transaction
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>

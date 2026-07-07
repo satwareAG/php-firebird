@@ -25,7 +25,8 @@ on:
         description: 'Release tag to build for (optional)'
         required: false
 
-permissions: read-all
+permissions:
+  contents: write
 
 env:
   FIREBIRD_SDK_CACHE_KEY: firebird-sdk-v2
@@ -38,11 +39,15 @@ jobs:
   get-extension-matrix:
     # CI gate removed — relies on pre-tag verification (scripts/verify-ci-green.sh)
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     outputs:
       matrix: ${{ steps.extension-matrix.outputs.matrix }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Ensure VERSION.txt
+        uses: ./.github/actions/version
 
       - name: Get the extension matrix
         id: extension-matrix
@@ -58,6 +63,7 @@ jobs:
   build:
     needs: get-extension-matrix
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.get-extension-matrix.outputs.matrix) }}
@@ -68,28 +74,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Ensure VERSION.txt file
-        shell: pwsh
-        run: |
-          if ("${{ github.ref }}" -like "refs/tags/v*") {
-            $version = "${{ github.ref }}".Substring(11)
-            Set-Content -Path "VERSION.txt" -Value $version
-            Write-Host "Updated VERSION.txt from tag: $version"
-          } elseif (-not (Test-Path "VERSION.txt")) {
-            # Extract from php_firebird.h as fallback
-            $header = Get-Content "php_firebird.h"
-            $match = $header | Select-String -Pattern '#define PHP_FIREBIRD_VERSION_STRING "([^"]+)"'
-            if ($match) {
-              $version = $match.Matches[0].Groups[1].Value
-            } else {
-              Write-Error "Cannot determine version (no tag, no VERSION.txt, no php_firebird.h define)"
-              exit 1
-            }
-            Set-Content -Path "VERSION.txt" -Value $version
-            Write-Host "Created VERSION.txt from header: $version"
-          } else {
-            Write-Host "Using existing VERSION.txt: $(Get-Content VERSION.txt)"
-          }
+      - name: Ensure VERSION.txt
+        uses: ./.github/actions/version
 
       - name: Cache Firebird SDK
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
@@ -114,14 +100,72 @@ jobs:
           echo "FIREBIRD_HOME=$sdkPath" >> $env:GITHUB_ENV
           echo "$sdkPath\bin" >> $env:GITHUB_PATH
 
-      - name: Build Extension
+      - name: Resolve release tag
+        id: reltag
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="${{ inputs.tag }}"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Flatten pdo_fbird sources for Windows build
+        shell: pwsh
+        run: |
+          # The PHP Windows build system (nmake) doesn't create output
+          # subdirectories for source files in subdirectories. Copy the
+          # pdo_fbird source files to the root so they compile without
+          # a subdirectory prefix, avoiding C1083 errors.
+          Copy-Item pdo_fbird/pdo_fbird.c -Destination pdo_fbird_root.c -Force
+          Copy-Item pdo_fbird/pdo_fbird_driver.c -Destination pdo_fbird_driver.c -Force
+          Copy-Item pdo_fbird/pdo_fbird_stmt.c -Destination pdo_fbird_stmt.c -Force
+          Copy-Item pdo_fbird/pdo_fbird_error.c -Destination pdo_fbird_error.c -Force
+
+      - name: Build Extensions
         uses: php/php-windows-builder/extension@c49dae50774b14e0f358d2efa65637b67f1104f6 # v1
         with:
           php-version: ${{ matrix.php-version }}
           arch: ${{ matrix.arch }}
           ts: ${{ matrix.ts }}
-          args: --with-firebird=${{ env.FIREBIRD_HOME }}
+          args: --with-firebird=${{ env.FIREBIRD_HOME }} --with-pdo-fbird=${{ env.FIREBIRD_HOME }}
           run-tests: false
+
+      - name: Package firebird DLL
+        shell: pwsh
+        run: |
+          # The php-windows-builder only packages the last extension built
+          # (pdo_fbird). We manually package the firebird DLL here.
+          $config = '${{ matrix.ts }}' -eq 'ts' ? 'Release_TS' : 'Release'
+          $dllDir = Get-ChildItem -Path "build" -Recurse -Directory -Filter $config |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $dllDir) {
+            Write-Error "Could not find $config output directory"
+            exit 1
+          }
+          $dllPath = Join-Path $dllDir.FullName "php_firebird.dll"
+          if (-not (Test-Path $dllPath)) {
+            Write-Error "php_firebird.dll not found at $dllPath"
+            exit 1
+          }
+          $version = Get-Content VERSION.txt -ErrorAction SilentlyContinue
+          if (-not $version) { $version = '${{ steps.reltag.outputs.tag }}' -replace '^v', '' }
+          $phpVer = '${{ matrix.php-version }}'
+          $tsLabel = '${{ matrix.ts }}' -eq 'ts' ? 'ts' : 'nts'
+          $vsLabel = if ($phpVer -ge '8.4') { 'vs17' } else { 'vs16' }
+          $zipName = "php_firebird-v${version}-${phpVer}-${tsLabel}-${vsLabel}-x86_64.zip"
+          New-Item -ItemType Directory -Force -Path "artifacts\firebird" | Out-Null
+          Copy-Item $dllPath -Destination "artifacts\firebird\php_firebird.dll"
+          Compress-Archive -Path "artifacts\firebird\*" -DestinationPath "artifacts\firebird\$zipName" -Force
+          Write-Host "Packaged: $zipName"
+
+      - name: Upload firebird DLL artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: php_firebird-v${{ steps.reltag.outputs.version }}-${{ matrix.php-version }}-${{ matrix.ts }}
+          path: artifacts/firebird/*.zip
 
   # ===========================================================================
   # Upload artifacts to GitHub Release
@@ -135,28 +179,21 @@ jobs:
     if: |
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
       (github.event_name == 'workflow_dispatch' && inputs.tag != '')
+    timeout-minutes: 10
     steps:
-      - name: Determine release tag
-        id: tag
-        run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
-            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event_name }}" = "push" ]; then
-            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
-          fi
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Download All Build Artifacts
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+      - name: Determine Release Tag
+        id: release-tag
+        uses: ./.github/actions/determine-release-tag
         with:
-          path: artifacts
+          release-tag-input: ${{ inputs.tag }}
 
-      - name: Upload Windows DLLs to GitHub Release
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3
+      - name: Publish bundle artifacts
+        uses: ./.github/actions/publish-bundle-artifacts
         with:
-          tag_name: ${{ steps.tag.outputs.tag }}
-          files: artifacts/**/*.zip
-          fail_on_unmatched_files: true
-          draft: true
+          tag: ${{ steps.release-tag.outputs.tag }}
+          expected-count: '8'
+          asset-name-filter: 'x86_64\\.zip$'
 

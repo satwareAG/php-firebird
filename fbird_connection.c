@@ -17,11 +17,11 @@
 #include "firebird_utils.h"
 #include "fbird_classes.h"
 
-/* Fill ib_link and trans with the correct database link and transaction.
+/* Fill fb_link and trans with the correct database link and transaction.
  * M3: Accepts both legacy zend_resource zvals and Firebird\Connection /
  * Firebird\Transaction objects (weak-ref to the same internal resource). */
 void _php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAMETERS,
-	zval *link_id, fbird_db_link **ib_link, fbird_transaction **trans)
+	zval *link_id, fbird_db_link **fb_link, fbird_transaction **trans)
 {
 	FBDEBUG("Transaction or database link?");
 
@@ -39,7 +39,7 @@ void _php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAMETERS,
 				_php_fbird_module_error("Link id is ambiguous: transaction spans multiple connections.");
 				return;
 			}
-			*ib_link = (*trans)->db_link[0];
+			*fb_link = (*trans)->db_link[0];
 			return;
 		} else if (instanceof_function(Z_OBJCE_P(link_id), fbird_connection_ce)) {
 			FBDEBUG("IS_OBJECT: Firebird\\Connection");
@@ -49,7 +49,7 @@ void _php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAMETERS,
 				return;
 			}
 			*trans = NULL;
-			*ib_link = (fbird_db_link *)cres->ptr;
+			*fb_link = (fbird_db_link *)cres->ptr;
 			return;
 		}
 	}
@@ -57,26 +57,27 @@ void _php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAMETERS,
 	/* Resource path: legacy le_trans or le_link/le_plink */
 	if (Z_TYPE_P(link_id) == IS_RESOURCE && Z_RES_P(link_id)->type == le_trans) {
 		/* Transaction resource: make sure it refers to one link only, then
-		   fetch it; database link is stored in ib_trans->db_link[]. */
+		   fetch it; database link is stored in fb_trans->db_link[]. */
 		FBDEBUG("IS_RESOURCE: le_trans");
 		*trans = (fbird_transaction *)zend_fetch_resource_ex(link_id, LE_TRANS, le_trans);
 		if ((*trans)->link_cnt > 1) {
 			_php_fbird_module_error("Link id is ambiguous: transaction spans multiple connections.");
 			return;
 		}
-		*ib_link = (*trans)->db_link[0];
+		*fb_link = (*trans)->db_link[0];
 		return;
 	}
 	FBDEBUG("IS_RESOURCE: le_[p]link or id not found");
 	/* Database link resource, use default transaction. */
 	*trans = NULL;
-	*ib_link = (fbird_db_link *)zend_fetch_resource2_ex(link_id, LE_LINK, le_link, le_plink);
+	*fb_link = (fbird_db_link *)zend_fetch_resource2_ex(link_id, LE_LINK, le_link, le_plink);
 }
 
 /* destructors ---------------------- */
 
 void _php_fbird_commit_link(fbird_db_link *link)
 {
+	ISC_STATUS status[256];
 	unsigned short i = 0, j;
 	fbird_tr_list *l;
 	fbird_event *e;
@@ -89,14 +90,17 @@ void _php_fbird_commit_link(fbird_db_link *link)
 				/* Default transaction: commit via OO API */
 				if (p->trans->fbt_transaction != NULL) {
 					FBDEBUG("Committing default transaction via OO API...");
-					int res = fbt_commit(p->trans->fbt_transaction, IB_STATUS);
+					int res = fbt_commit(p->trans->fbt_transaction, status);
 					fbt_free(p->trans->fbt_transaction);
 					p->trans->fbt_transaction = NULL;
-					/* Guard error reporting during MSHUTDOWN (Issue #183).
-					 * _php_fbird_error() accesses EG() globals which may be
-					 * destroyed during persistent connection cleanup. */
-					if (res && !IBG(in_mshutdown)) {
-						_php_fbird_error();
+					/* Guard error reporting during resource shutdown (Issue #311).
+					 * Use EG_FLAGS_IN_RESOURCE_SHUTDOWN instead of FBG(in_mshutdown)
+					 * because _php_fbird_commit_link is called from both
+					 * _php_fbird_close_link (regular list, after MSHUTDOWN) and
+					 * _php_fbird_close_plink (persistent list, before MSHUTDOWN).
+					 * The EG flag is set during both request and module shutdown. */
+					if (res && !(EG(flags) & EG_FLAGS_IN_RESOURCE_SHUTDOWN)) {
+						_php_fbird_error(status);
 					}
 				}
 				efree(p->trans); /* default transaction is not a registered resource: clean up */
@@ -104,11 +108,11 @@ void _php_fbird_commit_link(fbird_db_link *link)
 				/* Non-default transaction: rollback via OO API */
 				if (p->trans->fbt_transaction != NULL) {
 					FBDEBUG("Rolling back other transaction via OO API...");
-					int res = fbt_rollback(p->trans->fbt_transaction, IB_STATUS);
+					int res = fbt_rollback(p->trans->fbt_transaction, status);
 					fbt_free(p->trans->fbt_transaction);
 					p->trans->fbt_transaction = NULL;
-					if (res && !IBG(in_mshutdown)) {
-						_php_fbird_error();
+					if (res && !(EG(flags) & EG_FLAGS_IN_RESOURCE_SHUTDOWN)) {
+						_php_fbird_error(status);
 					}
 				}
 				/* set this link pointer to NULL in the transaction */
@@ -147,6 +151,7 @@ void php_fbird_commit_link_rsrc(zend_resource *rsrc)
 
 void _php_fbird_close_link(zend_resource *rsrc)
 {
+	ISC_STATUS status[256];
 	fbird_db_link *link = (fbird_db_link *) rsrc->ptr;
 
 	/* NULL pointer guard (Issue #55): In forked PHPStan workers, rsrc->ptr may be NULL
@@ -157,11 +162,11 @@ void _php_fbird_close_link(zend_resource *rsrc)
 	}
 
 	/* Clear default_link if this resource IS the default link (Issue #183, #184).
-	 * Without this, IBG(default_link) becomes a dangling pointer after the link
+	 * Without this, FBG(default_link) becomes a dangling pointer after the link
 	 * is freed, causing SIGSEGV when doctrine's TransactionManager later tries to
 	 * use the default link via procedural API paths. */
-	if (!IBG(in_mshutdown) && IBG(default_link) == rsrc) {
-		IBG(default_link) = NULL;
+	if (!FBG(in_mshutdown) && FBG(default_link) == rsrc) {
+		FBG(default_link) = NULL;
 	}
 
 #ifndef PHP_WIN32
@@ -175,15 +180,15 @@ void _php_fbird_close_link(zend_resource *rsrc)
 	 * 1. Global init_pid - module-level fork detection
 	 * 2. Per-connection created_pid - connection-level fork detection */
 	pid_t current_pid = getpid();
-	if (IBG(init_pid) != 0 && current_pid != IBG(init_pid)) {
+	if (FBG(init_pid) != 0 && current_pid != FBG(init_pid)) {
 		FBDEBUG("Skipping link cleanup in forked child process (global)");
-		IBG(num_links)--;
+		FBG(num_links)--;
 		efree(link);
 		return;
 	}
 	if (link->created_pid != 0 && current_pid != link->created_pid) {
 		FBDEBUG("Skipping link cleanup in forked child process (per-connection)");
-		IBG(num_links)--;
+		FBG(num_links)--;
 		efree(link);
 		return;
 	}
@@ -193,7 +198,7 @@ void _php_fbird_close_link(zend_resource *rsrc)
 	 *
 	 * CRITICAL: Skip EG() access during MSHUTDOWN (Issue #50, #51, #55).
 	 * During module shutdown, EG(regular_list) may already be destroyed. */
-	if (!IBG(in_mshutdown) &&
+	if (!FBG(in_mshutdown) &&
 		(link->hash_key[0] != '\0' || memcmp(link->hash_key, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16) != 0)) {
 		zend_hash_str_del(&EG(regular_list), link->hash_key, sizeof(link->hash_key) - 1);
 		FBDEBUG("Removed cache entry for normal link");
@@ -204,15 +209,16 @@ void _php_fbird_close_link(zend_resource *rsrc)
 	/* OO API Only: All connections use fbc_disconnect() */
 	if (link->fbc_connection != NULL) {
 		FBDEBUG("Closing normal link via OO API...");
-		fbc_disconnect(link->fbc_connection, IB_STATUS);
+		fbc_disconnect(link->fbc_connection, status);
 		link->fbc_connection = NULL;
 	}
-	IBG(num_links)--;
+	FBG(num_links)--;
 	efree(link);
 }
 
 void _php_fbird_close_plink(zend_resource *rsrc)
 {
+	ISC_STATUS status[256];
 	fbird_db_link *link = (fbird_db_link *) rsrc->ptr;
 
 	/* NULL pointer guard (Issue #55): In forked PHPStan workers, rsrc->ptr may be NULL
@@ -224,42 +230,49 @@ void _php_fbird_close_plink(zend_resource *rsrc)
 
 	/* Clear default_link if this resource IS the default link (Issue #183, #184).
 	 * Mirrors _php_fbird_close_link: persistent resources can also be the default
-	 * link and must clear IBG(default_link) when destroyed to prevent dangling ptr. */
-	if (!IBG(in_mshutdown) && IBG(default_link) == rsrc) {
-		IBG(default_link) = NULL;
+	 * link and must clear FBG(default_link) when destroyed to prevent dangling ptr. */
+	if (!FBG(in_mshutdown) && FBG(default_link) == rsrc) {
+		FBG(default_link) = NULL;
 	}
 
 #ifndef PHP_WIN32
 	/* Fork-safety check (Issue #22, #36): Skip cleanup if we're in a forked child.
 	 * Two-level check for both module-level and connection-level fork detection. */
 	pid_t current_pid = getpid();
-	if (IBG(init_pid) != 0 && current_pid != IBG(init_pid)) {
+	if (FBG(init_pid) != 0 && current_pid != FBG(init_pid)) {
 		FBDEBUG("Skipping persistent link cleanup in forked child process (global)");
-		IBG(num_persistent)--;
-		IBG(num_links)--;
+		FBG(num_persistent)--;
+		FBG(num_links)--;
 		free(link);
 		return;
 	}
 	if (link->created_pid != 0 && current_pid != link->created_pid) {
 		FBDEBUG("Skipping persistent link cleanup in forked child process (per-connection)");
-		IBG(num_persistent)--;
-		IBG(num_links)--;
+		FBG(num_persistent)--;
+		FBG(num_links)--;
 		free(link);
 		return;
 	}
 #endif
 
-	/* Remove cache entries from both regular and persistent lists (Issue #35).
-	 * Persistent connections are cached in EG(persistent_list) with hash key.
+	/* Remove cache entry from EG(regular_list) to prevent UAF (Issue #35).
 	 *
-	 * CRITICAL: Skip EG() access during MSHUTDOWN (Issue #50, #51).
-	 * During module shutdown, EG(regular_list) and EG(persistent_list) may already
-	 * be destroyed, causing SIGSEGV (exit code 139) if accessed. */
-	if (!IBG(in_mshutdown) &&
+	 * CRITICAL: Use EG_FLAGS_IN_RESOURCE_SHUTDOWN instead of FBG(in_mshutdown)
+	 * (Issue #311). The in_mshutdown flag is set in PHP_MSHUTDOWN_FUNCTION,
+	 * but persistent resource destructors run BEFORE MSHUTDOWN (during
+	 * zend_destroy_rsrc_list(&EG(persistent_list)) at zend.c:1118). The
+	 * EG_FLAGS_IN_RESOURCE_SHUTDOWN flag is set at the start of
+	 * zend_shutdown_executor_values(), before EG(regular_list) is destroyed,
+	 * and stays set through module shutdown.
+	 *
+	 * Do NOT call zend_hash_str_del(&EG(persistent_list), ...) here.
+	 * plist_entry_destructor (our caller via zend_hash_graceful_reverse_destroy)
+	 * is already removing this entry. Calling zend_hash_str_del would cause
+	 * infinite recursion. */
+	if (!(EG(flags) & EG_FLAGS_IN_RESOURCE_SHUTDOWN) &&
 		(link->hash_key[0] != '\0' || memcmp(link->hash_key, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16) != 0)) {
 		zend_hash_str_del(&EG(regular_list), link->hash_key, sizeof(link->hash_key) - 1);
-		zend_hash_str_del(&EG(persistent_list), link->hash_key, sizeof(link->hash_key) - 1);
-		FBDEBUG("Removed cache entries for persistent link");
+		FBDEBUG("Removed cache entry from regular list for persistent link");
 	}
 
 	_php_fbird_commit_link(link);
@@ -267,11 +280,11 @@ void _php_fbird_close_plink(zend_resource *rsrc)
 	/* OO API Only: All connections use fbc_disconnect() */
 	if (link->fbc_connection != NULL) {
 		FBDEBUG("Closing permanent link via OO API...");
-		fbc_disconnect(link->fbc_connection, IB_STATUS);
+		fbc_disconnect(link->fbc_connection, status);
 		link->fbc_connection = NULL;
 	}
-	IBG(num_persistent)--;
-	IBG(num_links)--;
+	FBG(num_persistent)--;
+	FBG(num_links)--;
 	free(link);
 }
 
@@ -279,11 +292,12 @@ enum connect_args { DB = 0, USER = 1, PASS = 2, CSET = 3, ROLE = 4, BUF = 0, DLE
 
 int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **out_connection)
 {
+	ISC_STATUS status[256];
     void* connection = NULL;
 
     /* Use OO API as the connection method */
     connection = fbc_connect(
-        IBG(master_instance),
+        FBG(master_instance),
         args[DB], len[DB],                          /* database path */
         args[USER], len[USER],                      /* username */
         args[PASS], len[PASS],                      /* password */
@@ -292,11 +306,11 @@ int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **out_
         (int)largs[BUF],                            /* num_buffers */
         largs[DLECT] ? (int)largs[DLECT] : SQL_DIALECT_CURRENT, /* dialect */
         (int)largs[SYNC],                           /* force_write */
-        IB_STATUS                                   /* status vector */
+        status                                   /* status vector */
     );
 
     if (!connection) {
-        _php_fbird_error();
+        _php_fbird_error(status);
         return FAILURE;
     }
 
@@ -310,8 +324,8 @@ int _php_fbird_attach_db(char **args, size_t *len, zend_long *largs, void **out_
  * Core connection logic extracted from _php_fbird_connect.
  * Accepts plain C arguments (already parsed/defaulted by caller).
  * Returns the new zend_resource* with appropriate refcount adjustments,
- * or NULL on failure (error already set via _php_fbird_error()).
- * Also applies INI-based defaults for empty args and manages IBG(default_link).
+ * or NULL on failure (error already set via _php_fbird_error(status)).
+ * Also applies INI-based defaults for empty args and manages FBG(default_link).
  */
 zend_resource *_php_fbird_connect_link(
 	char *db,      size_t db_len,
@@ -329,7 +343,7 @@ zend_resource *_php_fbird_connect_link(
 	PHP_MD5_CTX hash_context;
 	zend_resource new_index_ptr, *le;
 	void *connection_ptr = NULL;
-	fbird_db_link *ib_link;
+	fbird_db_link *fb_link;
 	zend_resource *result_res = NULL;
 
 	/* Apply INI-based defaults for empty args */
@@ -374,18 +388,18 @@ zend_resource *_php_fbird_connect_link(
 			/* Issue #119: Verify the cached connection is still usable.
 			 * After fbird_close(), fbc_connection may be NULL even though
 			 * the zend_resource still exists with refcount > 0. */
-			ib_link = (fbird_db_link *)xlink->ptr;
-			if (ib_link == NULL || ib_link->fbc_connection == NULL ||
-				!fbc_is_connected(ib_link->fbc_connection)) {
+			fb_link = (fbird_db_link *)xlink->ptr;
+			if (fb_link == NULL || fb_link->fbc_connection == NULL ||
+				!fbc_is_connected(fb_link->fbc_connection)) {
 				/* Stale cache entry — remove and fall through to create new connection */
 				zend_hash_str_del(&EG(regular_list), hash, sizeof(hash)-1);
 			} else {
-				if (IBG(default_link) != xlink) {
+				if (FBG(default_link) != xlink) {
 					GC_ADDREF(xlink);
-					if (IBG(default_link)) {
-						zend_list_delete(IBG(default_link));
+					if (FBG(default_link)) {
+						zend_list_delete(FBG(default_link));
 					}
-					IBG(default_link) = xlink;
+					FBG(default_link) = xlink;
 				}
 				GC_ADDREF(xlink);
 				return xlink;
@@ -404,9 +418,9 @@ zend_resource *_php_fbird_connect_link(
 				return NULL;
 			}
 			/* check if connection has timed out */
-			ib_link = (fbird_db_link *) le->ptr;
-			if (ib_link->fbc_connection && fbc_is_connected(ib_link->fbc_connection)) {
-				result_res = zend_register_resource(ib_link, le_plink);
+			fb_link = (fbird_db_link *) le->ptr;
+			if (fb_link->fbc_connection && fbc_is_connected(fb_link->fbc_connection)) {
+				result_res = zend_register_resource(fb_link, le_plink);
 				break;
 			}
 			zend_hash_str_del(&EG(persistent_list), hash, sizeof(hash)-1);
@@ -414,52 +428,52 @@ zend_resource *_php_fbird_connect_link(
 
 		/* no link found, so we have to open one */
 
-		if ((l = INI_INT("fbird.max_links")) != -1 && IBG(num_links) >= l) {
-			_php_fbird_module_error("Too many open links (%ld)", IBG(num_links));
+		if ((l = INI_INT("fbird.max_links")) != -1 && FBG(num_links) >= l) {
+			_php_fbird_module_error("Too many open links (%ld)", FBG(num_links));
 			return NULL;
 		}
 
-		/* create the ib_link */
+		/* create the fb_link */
 		if (FAILURE == _php_fbird_attach_db(args, len, largs, &connection_ptr)) {
 			return NULL;
 		}
 
 		/* use non-persistent if allowed number of persistent links is exceeded */
-		if (!persistent || ((l = INI_INT("fbird.max_persistent") != -1) && IBG(num_persistent) >= l)) {
-			ib_link = (fbird_db_link *) emalloc(sizeof(fbird_db_link));
-			result_res = zend_register_resource(ib_link, le_link);
+		if (!persistent || ((l = INI_INT("fbird.max_persistent") != -1) && FBG(num_persistent) >= l)) {
+			fb_link = (fbird_db_link *) emalloc(sizeof(fbird_db_link));
+			result_res = zend_register_resource(fb_link, le_link);
 		} else {
-			ib_link = (fbird_db_link *) malloc(sizeof(fbird_db_link));
-			if (!ib_link) {
+			fb_link = (fbird_db_link *) malloc(sizeof(fbird_db_link));
+			if (!fb_link) {
 				return NULL;
 			}
 
 			/* hash it up */
-			if (zend_register_persistent_resource(hash, sizeof(hash)-1, ib_link, le_plink) == NULL) {
-				free(ib_link);
+			if (zend_register_persistent_resource(hash, sizeof(hash)-1, fb_link, le_plink) == NULL) {
+				free(fb_link);
 				return NULL;
 			}
-			result_res = zend_register_resource(ib_link, le_plink);
-			++IBG(num_persistent);
+			result_res = zend_register_resource(fb_link, le_plink);
+			++FBG(num_persistent);
 		}
-		ib_link->dialect = largs[DLECT] ? (unsigned short)largs[DLECT] : SQL_DIALECT_CURRENT;
-		ib_link->tr_list = NULL;
-		ib_link->event_head = NULL;
-		ib_link->is_persistent = persistent;
+		fb_link->dialect = largs[DLECT] ? (unsigned short)largs[DLECT] : SQL_DIALECT_CURRENT;
+		fb_link->tr_list = NULL;
+		fb_link->event_head = NULL;
+		fb_link->is_persistent = persistent;
 
-		ib_link->fbc_connection = connection_ptr;
+		fb_link->fbc_connection = connection_ptr;
 
 		/* Store hash key for cache invalidation on close (Issue #35) */
-		memcpy(ib_link->hash_key, hash, sizeof(hash));
+		memcpy(fb_link->hash_key, hash, sizeof(hash));
 
 		/* Store creation PID for fork-safety detection (Issue #36) */
 #ifndef PHP_WIN32
-		ib_link->created_pid = getpid();
+		fb_link->created_pid = getpid();
 #else
-		ib_link->created_pid = 0;
+		fb_link->created_pid = 0;
 #endif
 
-		++IBG(num_links);
+		++FBG(num_links);
 	} while (0);
 
 	/* add it to the hash */
@@ -467,10 +481,10 @@ zend_resource *_php_fbird_connect_link(
 	new_index_ptr.type = le_index_ptr;
 	zend_hash_str_update_mem(&EG(regular_list), hash, sizeof(hash)-1,
 			(void *) &new_index_ptr, sizeof(zend_resource));
-	if (IBG(default_link)) {
-		zend_list_delete(IBG(default_link));
+	if (FBG(default_link)) {
+		zend_list_delete(FBG(default_link));
 	}
-	IBG(default_link) = result_res;
+	FBG(default_link) = result_res;
 	GC_ADDREF(result_res);  /* default_link ref */
 	GC_ADDREF(result_res);  /* caller ref */
 	return result_res;
@@ -529,18 +543,18 @@ static int _php_fbird_validate_link_resource(zend_resource *link_res, bool is_de
 
 	/* Check resource type and validity directly */
 	if (link_res->type != le_link && link_res->type != le_plink) {
-		/* Wrong type - will be caught by zend_parse_parameters */
+		/* Resource was closed/invalidated — silent no-op (not an error) */
 		return FAILURE;
 	}
 
 	/* Check if resource pointer is valid */
 	if (link_res->ptr == NULL) {
 		/* Correct resource type but invalid/closed - generate warning */
-		php_error_docref(NULL, E_WARNING, "Supplied resource is not a valid database link resource");
+		_php_fbird_module_error("Supplied resource is not a valid database link resource");
 		if (clear_default && is_default_link) {
 			/* Thread-safe: Only clear if we were the default */
-			if (IBG(default_link) == link_res) {
-				IBG(default_link) = NULL;
+			if (FBG(default_link) == link_res) {
+				FBG(default_link) = NULL;
 			}
 		}
 		return FAILURE;
@@ -553,13 +567,13 @@ static int _php_fbird_validate_link_resource(zend_resource *link_res, bool is_de
 static void _php_fbird_adopt_new_default_link(zend_resource *closing_link)
 {
 	/* Only search if we're actually clearing the current default */
-	if (IBG(default_link) != closing_link) {
+	if (FBG(default_link) != closing_link) {
 		return;
 	}
 
 	/* For now, simply clear the default. Full adoption logic can be added in future enhancement.
 	 * This maintains existing behavior while providing the infrastructure for adoption. */
-	IBG(default_link) = NULL;
+	FBG(default_link) = NULL;
 }
 
 /* Helper function for optimized resource cleanup */
@@ -614,21 +628,21 @@ PHP_FUNCTION(fbird_close)
 	/* Determine which link to close */
 	if (ZEND_NUM_ARGS() == 0 || link_arg == NULL) {
 		/* Default link path */
-		link_res = IBG(default_link);
+		link_res = FBG(default_link);
 		is_default_link = true;
 
 		if (link_res == NULL) {
-			php_error_docref(NULL, E_WARNING, "No default connection to close");
+			_php_fbird_module_error("No default connection to close");
 			RETURN_FALSE;
 		}
 	} else {
 		/* Explicit link path: accept resource or Connection object */
 		link_res = _php_fbird_res_from_zval(link_arg);
 		if (link_res == NULL) {
-			php_error_docref(NULL, E_WARNING, "Argument #1 must be a valid Firebird connection resource or Firebird\\Connection object");
+			_php_fbird_module_error("Argument #1 must be a valid Firebird connection resource or Firebird\\Connection object");
 			RETURN_FALSE;
 		}
-		is_default_link = (IBG(default_link) == link_res);
+		is_default_link = (FBG(default_link) == link_res);
 	}
 
 	/* Single validation point - handles all validation efficiently */
@@ -638,7 +652,7 @@ PHP_FUNCTION(fbird_close)
 
 	/* Handle default link management BEFORE closing resource.
 	 * For the explicit-arg case do NOT pre-clear: the resource destructors
-	 * (_php_fbird_close_link / _php_fbird_close_plink) clear IBG(default_link)
+	 * (_php_fbird_close_link / _php_fbird_close_plink) clear FBG(default_link)
 	 * when the resource is actually freed.
 	 *
 	 * Pre-clearing in the explicit-arg path caused a regression (Issue #202):
@@ -714,11 +728,12 @@ static int _php_fbird_is_valid_charset(const char *charset)
    Create a new Firebird database and return a connection resource */
 PHP_FUNCTION(fbird_create_database)
 {
+	ISC_STATUS status[256];
 	char *database = NULL, *username = NULL, *password = NULL, *charset = NULL;
 	size_t database_len, username_len = 0, password_len = 0, charset_len = 0;
 	zend_long page_size = 0;
 	unsigned short dialect = 3;
-	fbird_db_link *ib_link;
+	fbird_db_link *fb_link;
 	char *create_sql = NULL;
 
 	RESET_ERRMSG;
@@ -735,7 +750,7 @@ PHP_FUNCTION(fbird_create_database)
 	/* Validate charset against allowlist to prevent SQL injection via
 	 * DEFAULT CHARACTER SET clause (unquoted identifier). */
 	if (charset && charset_len > 0 && !_php_fbird_is_valid_charset(charset)) {
-		php_error_docref(NULL, E_WARNING,
+		_php_fbird_module_error(
 			"Invalid character set name '%s'", charset);
 		RETURN_FALSE;
 	}
@@ -779,10 +794,10 @@ PHP_FUNCTION(fbird_create_database)
 	}
 
 	void *create_result = fbc_create_database(
-		IBG(master_instance),
+		FBG(master_instance),
 		create_sql,
 		dialect,
-		IB_STATUS
+		status
 	);
 
 	/* Clean up dynamically allocated SQL and escaped strings */
@@ -796,24 +811,24 @@ PHP_FUNCTION(fbird_create_database)
 	}
 
 	if (!create_result) {
-		_php_fbird_error();
+		_php_fbird_error(status);
 		RETURN_FALSE;
 	}
 
-	ib_link = (fbird_db_link *) ecalloc(1, sizeof(fbird_db_link));
-	ib_link->dialect = dialect;
-	ib_link->tr_list = NULL;
-	ib_link->event_head = NULL;
-	ib_link->fbc_connection = create_result;
+	fb_link = (fbird_db_link *) ecalloc(1, sizeof(fbird_db_link));
+	fb_link->dialect = dialect;
+	fb_link->tr_list = NULL;
+	fb_link->event_head = NULL;
+	fb_link->fbc_connection = create_result;
 
 	/* Phase C: register resource and wrap in Firebird\Connection object.
 	 * resource_list holds ref=1; set as default_link adds ref=2 (weak ref in object). */
 	{
-		zend_resource *cres = zend_register_resource(ib_link, le_link);
-		if (IBG(default_link)) {
-			zend_list_delete(IBG(default_link));
+		zend_resource *cres = zend_register_resource(fb_link, le_link);
+		if (FBG(default_link)) {
+			zend_list_delete(FBG(default_link));
 		}
-		IBG(default_link) = cres;
+		FBG(default_link) = cres;
 		GC_ADDREF(cres); /* default_link ref */
 		fbird_setup_connection_object(return_value, cres);
 		/* no GC_DELREF: no extra caller ref was taken */
@@ -823,8 +838,9 @@ PHP_FUNCTION(fbird_create_database)
 
 PHP_FUNCTION(fbird_drop_db)
 {
+	ISC_STATUS status[256];
 	zval *link_arg = NULL;
-	fbird_db_link *ib_link;
+	fbird_db_link *fb_link;
 	fbird_tr_list *l;
 	zend_resource *link_res;
 	int drop_result;
@@ -857,7 +873,7 @@ PHP_FUNCTION(fbird_drop_db)
 		const char *u = username ? username : "SYSDBA";
 		const char *p = password ? password : "masterkey";
 		void *conn = fbc_connect(
-			IBG(master_instance),
+			FBG(master_instance),
 			database, database_len,
 			u, strlen(u),
 			p, strlen(p),
@@ -866,15 +882,15 @@ PHP_FUNCTION(fbird_drop_db)
 			0,        /* num_buffers */
 			3,        /* dialect */
 			-1,       /* force_write */
-			IB_STATUS
+			status
 		);
 		if (!conn) {
-			_php_fbird_error();
+			_php_fbird_error(status);
 			RETURN_FALSE;
 		}
-		drop_result = fbc_drop_database(conn, IB_STATUS);
+		drop_result = fbc_drop_database(conn, status);
 		if (drop_result != 0) {
-			_php_fbird_error();
+			_php_fbird_error(status);
 			RETURN_FALSE;
 		}
 		RETURN_TRUE;
@@ -897,9 +913,9 @@ PHP_FUNCTION(fbird_drop_db)
 	}
 
 	if (ZEND_NUM_ARGS() == 0) {
-		link_res = IBG(default_link);
+		link_res = FBG(default_link);
 		CHECK_LINK(link_res);
-		IBG(default_link) = NULL;
+		FBG(default_link) = NULL;
 	} else {
 		link_res = _php_fbird_res_from_zval(link_arg);
 		if (link_res == NULL) {
@@ -907,26 +923,26 @@ PHP_FUNCTION(fbird_drop_db)
 		}
 	}
 
-	ib_link = (fbird_db_link *)zend_fetch_resource2(link_res, LE_LINK, le_link, le_plink);
+	fb_link = (fbird_db_link *)zend_fetch_resource2(link_res, LE_LINK, le_link, le_plink);
 
-	if (!ib_link) {
+	if (!fb_link) {
 		RETURN_FALSE;
 	}
 
 	/* OO API Only: All connections use fbc_drop_database() */
-	if (ib_link->fbc_connection != NULL) {
+	if (fb_link->fbc_connection != NULL) {
 		FBDEBUG("Dropping database via OO API...");
-		drop_result = fbc_drop_database(ib_link->fbc_connection, IB_STATUS);
+		drop_result = fbc_drop_database(fb_link->fbc_connection, status);
 		if (drop_result != 0) {
-			_php_fbird_error();
+			_php_fbird_error(status);
 			RETURN_FALSE;
 		}
 		/* fbc_drop_database() already frees the connection wrapper */
-		ib_link->fbc_connection = NULL;
+		fb_link->fbc_connection = NULL;
 	}
 
 	/* drop_database() doesn't invalidate the transaction handles */
-	for (l = ib_link->tr_list; l != NULL; l = l->next) {
+	for (l = fb_link->tr_list; l != NULL; l = l->next) {
 		if (l->trans != NULL) {
 			l->trans->fbt_transaction = NULL;
 		}

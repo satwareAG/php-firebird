@@ -93,11 +93,4 @@ echo "DONE\n";
 DONE
 
 --CLEAN--
-<?php
-require_once 'firebird.inc';
-$db = @fbird_connect($test_base, $user, $password);
-if ($db) {
-    @fbird_query($db, "DROP TABLE fbird_stmt_release_002");
-    @fbird_close($db);
-}
-?>
+<?php require_once __DIR__ . '/clean.inc'; ?>

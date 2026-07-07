@@ -90,3 +90,5 @@ Test 5: NULL array roundtrip
 bool(true)
 bool(true)
 Done
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

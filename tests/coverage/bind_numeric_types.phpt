@@ -105,3 +105,5 @@ bool(true)
 Test 8: NULL numeric row
 bool(true)
 Done
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

@@ -1,12 +1,14 @@
 #!/bin/bash
 set -e
 
-echo "Building PHP Firebird extension..."
-
 # Change to extension root directory
 if [ -d /ext ]; then
   cd /ext
 fi
+source "$(dirname "$0")/lib/logging.sh"
+source "$(dirname "$0")/lib/detect-firebird.sh"
+
+log_info "Building PHP Firebird extension..."
 
 # Clean previous builds thoroughly
 # Remove dependency files first - they contain absolute paths to PHP headers
@@ -26,64 +28,37 @@ rm -f configure config.h config.h.in config.log config.status config.nice \
      Makefile Makefile.fragments Makefile.global Makefile.objects \
      build/shtool config.cache libtool 2>/dev/null || true
 
-# Clean any standalone pdo_fbird build artifacts — pdo_fbird is compiled
-# as part of the unified firebird.so via config.m4.  A leftover
-# pdo_fbird/config.h from a standalone build defines COMPILE_DL_PDO_FBIRD
-# which causes duplicate get_module symbols.
-if [ -f pdo_fbird/Makefile ]; then
-    (cd pdo_fbird && make clean 2>/dev/null || true && phpize --clean 2>/dev/null || true)
-fi
-rm -f pdo_fbird/config.h pdo_fbird/config.h.in~ pdo_fbird/config.log \
-     pdo_fbird/config.status pdo_fbird/config.nice 2>/dev/null || true
-
 # Prepare build environment
 phpize
 
-# Auto-detect Firebird paths
-# Priority: FIREBIRD_HOME env > fb_config on PATH (system package) > /opt/firebird > /usr
-#
-# When fb_config is available (system package like Arch libfbclient, Debian
-# firebird-dev, Fedora), pass --with-firebird=yes (no path) and let
-# config.m4 handle cflags/libs/version check via fb_config directly.
-# This avoids fragile sed/dirname parsing and correctly handles multiarch
-# library paths (e.g. /usr/lib/x86_64-linux-gnu on Debian).
-if [ -n "$FIREBIRD_HOME" ] && [ -d "$FIREBIRD_HOME" ]; then
-    FIREBIRD_PATH="$FIREBIRD_HOME"
-    FIREBIRD_INCLUDE="$FIREBIRD_HOME/include"
-    CONFIGURE_ARGS="--with-firebird=$FIREBIRD_PATH"
-    echo "Using FIREBIRD_HOME: $FIREBIRD_PATH"
-elif command -v fb_config >/dev/null 2>&1; then
-    # System-installed libfbclient — let config.m4 query fb_config for
-    # cflags, libs, and Firebird 3.0+ version check.
-    FIREBIRD_PATH="$(dirname "$(dirname "$(command -v fb_config)")")"
-    FIREBIRD_INCLUDE="$(fb_config --cflags)"
-    CONFIGURE_ARGS="--with-firebird=yes"
-    echo "Using system fb_config ($(fb_config --version)): $FIREBIRD_PATH"
-elif [ -d "/opt/firebird" ]; then
-    FIREBIRD_PATH="/opt/firebird"
-    FIREBIRD_INCLUDE="/opt/firebird/include"
-    CONFIGURE_ARGS="--with-firebird=$FIREBIRD_PATH"
-    echo "Auto-detected Firebird at /opt/firebird"
-else
-    FIREBIRD_PATH="/usr"
-    FIREBIRD_INCLUDE="/usr/include/firebird"
-    CONFIGURE_ARGS="--with-firebird=$FIREBIRD_PATH"
-    echo "Using system Firebird at /usr"
-fi
+# Auto-detect Firebird paths using shared helper
+detect_firebird
 
 # Configure with Firebird paths
 # When using --with-firebird=yes (fb_config mode), config.m4 injects the
 # correct -I flags from fb_config --cflags, so CPPFLAGS is not needed.
 # For explicit path mode, CPPFLAGS ensures headers are found.
 if [ "$CONFIGURE_ARGS" = "--with-firebird=yes" ]; then
-    ./configure $CONFIGURE_ARGS
+    ./configure $CONFIGURE_ARGS ${FBIRD_CONFIGURE_EXTRA:-}
 else
-    CPPFLAGS="-I$FIREBIRD_INCLUDE" ./configure $CONFIGURE_ARGS
+    CPPFLAGS="-I$FIREBIRD_INCLUDE" ./configure $CONFIGURE_ARGS ${FBIRD_CONFIGURE_EXTRA:-}
 fi
 
 # Build
 make -j$(nproc)
 
-echo "Build completed. Extension is available at: $(pwd)/modules/firebird.so"
-echo "Firebird client library: $FIREBIRD_PATH"
-echo "Note: pdo_fbird PDO driver is integrated into firebird.so (no separate build needed)"
+log_info "Build completed. Extension is available at: $(pwd)/modules/firebird.so"
+log_info "Firebird client library: $FIREBIRD_PATH"
+
+# Build pdo_fbird as separate extension (depends on firebird.so symbols)
+if [ -d pdo_fbird ] && [ -f pdo_fbird/config.m4 ]; then
+    log_info "Building pdo_fbird as separate extension..."
+    (cd pdo_fbird && \
+        phpize && \
+        ./configure --with-pdo-fbird --with-firebird="$FIREBIRD_PATH" ${FBIRD_CONFIGURE_EXTRA:-} && \
+        make -j$(nproc))
+    log_info "pdo_fbird extension: $(pwd)/pdo_fbird/modules/pdo_fbird.so"
+    log_info "Note: pdo_fbird PDO driver is a separate extension (load after firebird)"
+else
+    log_info "Note: pdo_fbird not built (pdo_fbird/config.m4 not found)"
+fi

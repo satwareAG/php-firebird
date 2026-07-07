@@ -161,3 +161,5 @@ bool(true)
 Test 10: fbird_fetch_object with flags
 bool(true)
 Done
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

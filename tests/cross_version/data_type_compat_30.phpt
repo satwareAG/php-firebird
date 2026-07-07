@@ -29,3 +29,6 @@ echo "done\n";
 ?>
 --EXPECT--
 done
+
+--CLEAN--
+<?php // Tests SKIP on FB3 (needs FB4+), no DDL executed ?>

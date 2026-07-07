@@ -65,8 +65,8 @@ for this migration path.
 
 ### Privacy boundary
 
-amicron-platform is a private repository at `~/internal/amicron-platform` (Gitea:
-`git.satware.ai`). The public php-firebird CI cannot clone it directly. Per the
+amicron-platform is a private repository at `~/internal/amicron-platform` (internal
+git server). The public php-firebird CI cannot clone it directly. Per the
 IPADP L3 conformance privacy rules, no private repo URLs or references may appear
 in public CI workflows.
 

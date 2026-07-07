@@ -489,10 +489,9 @@ jobs:
           set -eu
           TEST_PHP_EXECUTABLE=$(which php) \
           TEST_PHP_ARGS="-n" \
-          php -n \
+          php -n run-tests.php \
             -d extension=firebird.so \
             -d extension=pdo_fbird.so \
-            run-tests.php \
             -p $(which php) \
             tests/pdo_fbird/conformance/
 
@@ -559,9 +558,8 @@ jobs:
           if ls tests/parity/*.phpt 1>/dev/null 2>&1; then
             TEST_PHP_EXECUTABLE=$(which php) \
             TEST_PHP_ARGS="-n" \
-            php -n \
+            php -n run-tests.php \
               -d extension=firebird.so \
-              run-tests.php \
               -p $(which php) \
               tests/parity/
           else

@@ -459,7 +459,7 @@ jobs:
           firebird-host: 'localhost'
 
       - name: Setup PHP 8.4
-        uses: shivammathur/setup-php@cfb85b80c3d45f1817d4b2742fefa0ce44b56149 # 2.35.0
+        uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
           coverage: none
@@ -533,7 +533,7 @@ jobs:
           firebird-host: 'localhost'
 
       - name: Setup PHP 8.4
-        uses: shivammathur/setup-php@cfb85b80c3d45f1817d4b2742fefa0ce44b56149 # 2.35.0
+        uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
           coverage: none

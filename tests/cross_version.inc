@@ -29,9 +29,10 @@ declare(strict_types=1);
 function cross_version_get_service_map(): array
 {
     return [
-        '3.0' => ['service' => 'firebird30', 'image' => 'firebirdsql/firebird:3.0'],
-        '4.0' => ['service' => 'firebird40', 'image' => 'firebirdsql/firebird:4.0'],
-        '5.0' => ['service' => 'firebird50', 'image' => 'firebirdsql/firebird:5.0'],
+        '2.5' => ['service' => 'firebird25', 'port' => 3051, 'db_path' => '/firebird/data/test.fdb', 'image' => 'jacobalberty/firebird:v2.5.9-ss-jessie'],
+        '3.0' => ['service' => 'firebird30', 'port' => 3050, 'db_path' => '/var/lib/firebird/data/test.fdb', 'image' => 'firebirdsql/firebird:3'],
+        '4.0' => ['service' => 'firebird40', 'port' => 3050, 'db_path' => '/var/lib/firebird/data/test.fdb', 'image' => 'firebirdsql/firebird:4'],
+        '5.0' => ['service' => 'firebird50', 'port' => 3050, 'db_path' => '/var/lib/firebird/data/test.fdb', 'image' => 'firebirdsql/firebird:5'],
     ];
 }
 
@@ -68,12 +69,16 @@ function is_fb_server_available(string $version): bool
     }
 
     $service = $services[$version]['service'];
+    $port = $services[$version]['port'] ?? 3050;
+    $dbPath = $services[$version]['db_path'] ?? '/firebird/data/test.fdb';
 
-    // Try docker-compose service name (when running inside the docker network)
-    $conn = @fbird_connect("{$service}:/firebird/data/test.fdb", 'SYSDBA', 'masterkey');
+    // Try docker-compose service name first (when running inside the docker network,
+    // all FB containers use port 3050 internally)
+    $conn = @fbird_connect("{$service}:{$dbPath}", 'SYSDBA', 'masterkey');
     if (!$conn) {
-        // Also try localhost as fallback (for host-side testing with exposed ports)
-        $conn = @fbird_connect("localhost:/firebird/data/test.fdb", 'SYSDBA', 'masterkey');
+        // Fallback to localhost with version-specific port (for host-side testing
+        // with standalone containers that expose different ports)
+        $conn = @fbird_connect("localhost/{$port}:{$dbPath}", 'SYSDBA', 'masterkey');
     }
 
     if (!$conn) {
@@ -133,14 +138,16 @@ function cross_version_connect(
     }
 
     $service = $services[$version]['service'];
+    $port = $services[$version]['port'] ?? 3050;
+    $dbPath = $services[$version]['db_path'] ?? '/firebird/data/test.fdb';
 
     // Try docker-compose service name first
-    $dsn = "{$service}:/firebird/data/test.fdb";
+    $dsn = "{$service}:{$dbPath}";
     $conn = @fbird_connect($dsn, $user, $pass, $charset);
 
     if (!$conn) {
-        // Fallback to localhost
-        $dsn = "localhost:/firebird/data/test.fdb";
+        // Fallback to localhost with version-specific port
+        $dsn = "localhost/{$port}:{$dbPath}";
         $conn = @fbird_connect($dsn, $user, $pass, $charset);
     }
 

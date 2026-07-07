@@ -26,9 +26,11 @@ $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 echo "OK set ERRMODE_EXCEPTION\n";
 
 // FBIRD-specific attributes
+$pdo->exec("RECREATE TABLE test_attrs (val INT)");
+$pdo->exec("INSERT INTO test_attrs VALUES (1)");
 try {
     $pdo->setAttribute(PDO::FBIRD_ATTR_FETCH_TABLE_NAMES, true);
-    $stmt = $pdo->query("SELECT 1 AS V FROM rdb\$database");
+    $stmt = $pdo->query("SELECT val FROM test_attrs");
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     $keys = array_keys($row);
     echo "OK FETCH_TABLE_NAMES key: " . $keys[0] . "\n";
@@ -37,16 +39,16 @@ try {
     echo "SKIP FETCH_TABLE_NAMES: " . $e->getMessage() . "\n";
 }
 
-// FBIRD transaction isolation levels
+// FBIRD transaction isolation levels - assert round-trip value
 try {
     $pdo->setAttribute(PDO::FBIRD_ATTR_TRANSACTION_ISOLATION_LEVEL, PDO::FBIRD_TXN_READ_COMMITTED);
     $val = $pdo->getAttribute(PDO::FBIRD_ATTR_TRANSACTION_ISOLATION_LEVEL);
-    echo "OK TXN_ISOLATION=READ_COMMITTED: $val\n";
+    echo "OK TXN_ISOLATION round-trip: set=" . PDO::FBIRD_TXN_READ_COMMITTED . " got=$val\n";
 } catch (\Throwable $e) {
     echo "SKIP TXN_ISOLATION: " . $e->getMessage() . "\n";
 }
 
-// Date/time format
+// Date/time format - assert round-trip
 try {
     $pdo->setAttribute(PDO::FBIRD_ATTR_TIMESTAMP_FORMAT, '%Y-%m-%d %H:%M:%S');
     echo "OK set TIMESTAMP_FORMAT\n";
@@ -57,7 +59,7 @@ try {
 echo "=== DONE ===\n";
 ?>
 --CLEAN--
-<?php require_once __DIR__ . '/../../pdo_fbird.inc'; ?>
+<?php require_once __DIR__ . '/../../pdo_fbird.inc'; @$pdo = pdo_fbird_connect([PDO::ATTR_ERRMODE => PDO::ERRMODE_SILENT]); @$pdo->exec("DROP TABLE test_attrs"); ?>
 --EXPECTF--
 === Optional: get/set_attribute ===
 OK ATTR_DRIVER_NAME: fbird
@@ -67,7 +69,7 @@ OK ATTR_CLIENT_VERSION: returned
 OK set ERRMODE_SILENT
 OK set ERRMODE_WARNING
 OK set ERRMODE_EXCEPTION
-%s
-%s
-%s
+OK FETCH_TABLE_NAMES key: %s
+OK TXN_ISOLATION round-trip: set=1 got=1
+OK set TIMESTAMP_FORMAT
 === DONE ===

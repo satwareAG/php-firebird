@@ -5,10 +5,21 @@ v12.1.0 M1-16 (#343)
 --SKIPIF--
 <?php
 require_once __DIR__ . '/skipif.inc';
-// Scrollable cursors require FB 5.0+
-require_once __DIR__ . '/../../firebird.inc';
-$fb_version = get_fb_version();
-if (version_compare($fb_version, '5.0', '<')) die('skip requires FB 5.0+ scrollable cursors');
+// Probe for scrollable cursor support instead of loading firebird.inc
+// (firebird.inc creates a DB + registers shutdown, contradicting PDO test isolation)
+require_once __DIR__ . '/../../pdo_fbird.inc';
+try {
+    $pdo = pdo_fbird_connect();
+    $pdo->exec("RECREATE TABLE test_skip_scroll (id INT)");
+    $pdo->exec("INSERT INTO test_skip_scroll VALUES (1)");
+    $stmt = $pdo->prepare("SELECT id FROM test_skip_scroll",
+        [PDO::ATTR_CURSOR => PDO::CURSOR_SCROLL]);
+    $stmt->execute();
+    $stmt->fetch(PDO::FETCH_NUM, PDO::FETCH_ORI_NEXT);
+    @$stmt->fetch(PDO::FETCH_NUM, PDO::FETCH_ORI_FIRST);
+} catch (\Throwable $e) {
+    die('skip scrollable cursors not supported (requires Firebird 5.0+): ' . $e->getMessage());
+}
 ?>
 --FILE--
 <?php

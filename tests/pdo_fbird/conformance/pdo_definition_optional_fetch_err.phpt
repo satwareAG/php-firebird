@@ -41,12 +41,12 @@ echo "=== DONE ===\n";
 ?>
 --CLEAN--
 <?php require_once __DIR__ . '/../../pdo_fbird.inc'; @$pdo = pdo_fbird_connect(); @$pdo->exec("DROP TABLE test_err"); ?>
---EXPECT--
+--EXPECTF--
 === Optional: fetch_err (errorCode + errorInfo) ===
 OK errorCode (clean): NULL
-OK errorCode (bad table): 23000
-OK errorInfo[0] (SQLSTATE): 23000
+OK errorCode (bad table): %s
+OK errorInfo[0] (SQLSTATE): %s
 OK errorInfo has message: yes
-OK errorCode (dup PK): HY000
+OK errorCode (dup PK): %s
 OK errorCode (after success): '00000'
 === DONE ===

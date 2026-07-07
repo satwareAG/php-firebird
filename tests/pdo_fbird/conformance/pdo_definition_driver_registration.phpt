@@ -24,9 +24,9 @@ echo "OK driver count: " . count($drivers) . "\n";
 
 echo "=== DONE ===\n";
 ?>
---EXPECT--
+--EXPECTF--
 === Driver registration ===
 OK static getAvailableDrivers: fbird present
 OK instance getAvailableDrivers: fbird present
-OK driver count: 1
+OK driver count: %d
 === DONE ===

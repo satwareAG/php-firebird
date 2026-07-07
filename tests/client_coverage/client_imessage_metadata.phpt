@@ -22,3 +22,6 @@ echo "done\n";
 ?>
 --EXPECT--
 done
+
+--CLEAN--
+<?php // Tables dropped in test body ?>

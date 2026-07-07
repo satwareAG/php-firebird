@@ -19,3 +19,6 @@ echo "=== DONE ===\n";
 ?>
 --EXPECT--
 === DONE ===
+
+--CLEAN--
+<?php // Tests SKIP (function not implemented), no DDL executed ?>

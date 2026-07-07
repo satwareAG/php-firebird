@@ -21,9 +21,9 @@ This document defines the documentation philosophy and standards for the php-fir
 Instead of inline documentation, we prefer:
 
 - **README.md** - Quick start and examples-first documentation
-- **docs/API_REFERENCE.md** - Complete function reference
+- **docs/oop-api.md** - Complete function reference
 - **docs/EXAMPLES.md** - Cookbook/recipes for common tasks
-- **docs/MIGRATION.md** - Migration guides between versions
+- **docs/archive/v9-v11-era/MIGRATION-v10-to-v11.md** - Migration guides between versions
 - **CHANGELOG.md** - Change history following Keep a Changelog format
 - **Tests as Documentation** - `.phpt` files serve as executable examples
 

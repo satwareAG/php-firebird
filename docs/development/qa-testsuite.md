@@ -124,7 +124,7 @@ Options:
 
 ```bash
 # Override default server
-./scripts/test_matrix.sh php84-dev firebird25   # Firebird 2.5
+./scripts/test_matrix.sh php84-dev    # Firebird 2.5
 ./scripts/test_matrix.sh php84-dev firebird30   # Firebird 3.0
 ./scripts/test_matrix.sh php84-dev firebird40   # Firebird 4.0
 ./scripts/test_matrix.sh php84-dev firebird50   # Firebird 5.0

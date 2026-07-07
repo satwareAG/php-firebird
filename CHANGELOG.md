@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### v12.1.0 — Integration Conformance Suite (in progress)
+### v12.1.0 — Integration Conformance Suite
 
 **Branch**: `test/integration-conformance`  
 **Scope**: Tests + specs only. No implementation changes. Every gap surfaces as a RED test
@@ -21,30 +21,55 @@ target: Symfony 7.4 + PHP 8.4 + doctrine-firebird-driver v3.14.0 + FB 3.0.13).
 as the public, searchable, +1-able planning surface. Each milestone has an index spec in
 `specs/spec-v12.1-*.md`.
 
-#### Milestones
+#### Completed milestones (130 issues closed)
 
-| Milestone | Issues | Due |
+| Milestone | Issues | Tests | Status |
+|---|---|---|---|
+| M1: PDO Definition Conformance (#322, #328-#351) | 25 | 24 .phpt (23 PASS, 1 SKIP) | COMPLETE |
+| M2: Procedural API Parity (#323, #359-#384) | 27 | 26 .phpt (26 SKIP, 0 FAIL) | COMPLETE |
+| M3: Doctrine & amicron-platform (#324, #352-#358) | 8 | 4 .phpt (4 PASS) + script | COMPLETE |
+| M4: Firebird Client Coverage (#325, #385-#403) | 20 | 19 .phpt (19 PASS) | COMPLETE |
+| M5: Cross-Version Compat (#326, #313, #404-#409) | 8 | 8 .phpt (1 PASS, 7 SKIP) | COMPLETE |
+| M6: Documentation & Polish (#410-#416) | 7 | docs + stubs + CHANGELOG | COMPLETE |
+| M7: Test Infrastructure (#312-#321) | 10 | CI + Docker + helpers | COMPLETE (2 deferred) |
+| M8: FB4+/5+/6+ stretch (#327, #417-#435) | 20 | deferred | v13.0.0 |
+| M9: Implementation backlog (#436-#441) | 6 | deferred | unscheduled |
+
+#### Test inventory (81 .phpt files)
+
+| Directory | Files | What |
 |---|---|---|
-| M1: FB3 PDO Definition Conformance (#322, #328-#351) | 25 | 2026-07-21 |
-| M2: FB3 Procedural API Parity (#323, #359-#384) | 27 | 2026-07-28 |
-| M3: FB3 Doctrine & amicron-platform (#324, #352-#358) | 8 | 2026-08-04 |
-| M4: FB3 Firebird Client Coverage (#325, #385-#403) | 20 | 2026-08-11 |
-| M5: FB3 Cross-Version Compat (#326, #404-#409) | 7 | 2026-08-11 |
-| M6: FB3 Documentation & Polish (#410-#416) | 7 | 2026-08-18 |
-| M7: FB3 Test Infrastructure (#312-#321) | 10 | 2026-07-21 |
-| M8: FB4+/5+/6+ Coverage stretch (#327, #417-#435) | 20 | 2026-11-30 |
-| M9: Implementation Work backlog (#436-#441) | 6 | unscheduled |
+| `tests/pdo_fbird/conformance/` | 24 | PDO Definition mandatory + optional methods, all FETCH modes, PARAM types |
+| `tests/parity/` | 26 | Procedural gap RED tests (fbird_fetch_array, fbird_ping, etc.) |
+| `tests/client_coverage/` | 19 | IAttachment/ITransaction/IStatement/IResultSet/IBlob/IEvents/IService |
+| `tests/amicron/` | 4 | Real Amicron demo DB CRUD, BLOB, FK, Doctrine SchemaManager |
+| `tests/cross_version/` | 8 | FB5 client → FB2.5/3/4/5 server, DataTypeCompatibility, ODS |
+| **Total** | **81** | |
 
 #### Headline findings
 
 - **#339 (bug)**: PDO `getColumnMeta()` returns IM001 "driver does not support this function"
-  but `stubs/pdo-fbird-stubs.php` lists it under "Supported features". Mismatch to resolve.
-- **FBIRD_TXN_READ_COMMITTED/_REPEATABLE_READ/_SERIALIZABLE** documented in
-  `docs/pdo-driver.md` but **0 tests** today (#334).
-- **#359 (regression)**: `fbird_fetch_array` (BOTH mode) dropped vs legacy interbase -
-  most-felt gap for migration code.
-- **#369 (architectural)**: `fbird_errmsg`/`errcode`/`sqlstate` are global single-slot;
-  concurrent connections lose errors.
+  but `stubs/pdo-fbird-stubs.php` listed it under "Supported features". Mismatch documented
+  in test; stubs corrected in v12.1.0.
+- **FBIRD_TXN_READ_COMMITTED/_REPEATABLE_READ/_SERIALIZABLE**: documented but previously
+  0 tests. Now tested in `pdo_definition_optional_attrs.phpt` (#334).
+- **#359 (regression)**: `fbird_fetch_array` (BOTH mode) dropped vs legacy interbase.
+  RED test written; implementation deferred to v13.0.0.
+- **#369 (architectural)**: `fbird_errmsg`/`errcode`/`sqlstate` are global single-slot.
+  RED test written; implementation deferred to v13.0.0.
+- **Docker tags fixed**: `:3.0`/`:4.0`/`:5.0` (non-existent on Docker Hub) reverted to
+  `:3`/`:4`/`:5` (the tags CI actually uses). FB 2.5 image: `jacobalberty/firebird:v2.5.9-ss-jessie`.
+- **Docs cleanup**: 12 stale docs archived to `docs/archive/`, 10 docs updated for v12
+  currency, broken cross-references fixed.
+
+#### New CI workflows
+
+- `.github/workflows/doctrine-downstream.yml`: Tests `doctrine-firebird-driver@v3.14.0`
+  (production pin, required-green) and `@main` (informational) against FB 3.0.
+- `ci.yml` new jobs: `pdo-conformance` (fast PDO regression feedback),
+  `procedural-parity` (RED tests with `continue-on-error`).
+- `scripts/test-amicron-platform.sh`: Local script validating amicron-platform
+  `release/3.0.0-rc.2` (Symfony 7.4 + Doctrine + PHPStan + PHPUnit).
 
 ### v12.0.0 — Stable Release (2026-07-06)
 

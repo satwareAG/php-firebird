@@ -2,7 +2,7 @@
 
 ## Overview
 
-Deployment instructions for the php-firebird extension with C++17 features across Linux, Windows, and macOS platforms. The extension requires C++17 compiler support and PHP 8.1+ minimum version.
+Deployment instructions for the php-firebird extension with C++17 features across Linux, Windows, and macOS platforms. The extension requires C++17 compiler support and PHP 8.2+ minimum version.
 
 > **Breaking Change (v7.0.0):** The extension has been renamed from `interbase` to `firebird`. All functions are now prefixed with `fbird_*` instead of `ibase_*`. Use `extension=firebird` in configuration.
 
@@ -91,7 +91,7 @@ echo "extension=firebird" | sudo tee /etc/php.d/20-firebird.ini
 winget install Microsoft.VisualStudio.2022.BuildTools
 ```
 
-**Install PHP 8.1+ for Windows:**
+**Install PHP 8.2+ for Windows:**
 ```powershell
 # Download from https://windows.php.net/download/
 # Extract to C:\php\

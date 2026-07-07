@@ -941,7 +941,7 @@ fbird_close($conn);
 | `fiber` | `FiberEventPoller` | 1ms | amphp/amp ^3.0 |
 | `auto` | Auto-detect | Varies | Best available |
 
-See the [EventPoller documentation](docs/OO_WRAPPER_IMPLEMENTATION.md) for implementation details.
+See [docs/oop-api.md](docs/oop-api.md) for the `Firebird\Event` class reference.
 
 ## Version Compatibility
 

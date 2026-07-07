@@ -49,8 +49,9 @@ Agents MUST maintain consistency between the three layers when introducing new f
 
 ### Pre-Tag Checklist
 
-1. **Verify CI green**: `bash scripts/verify-ci-green.sh` — all 4 workflows must pass
-2. **Run local test matrix**: `bash scripts/test_matrix.sh` — all 12 containers must pass
+1. **Verify CI green**: `bash scripts/verify-ci-green.sh` — all 5 workflows must pass (ci, code-quality, sanitizers, coverage, doctrine-downstream)
+2. **Run local test matrix**: `bash scripts/test_matrix.sh` — all 16 containers must pass (PHP 8.2-8.5 × FB 3.0/4.0/5.0/2.5)
+3. **Run amicron-platform downstream**: `DBPASS=masterkey bash scripts/test-amicron-platform.sh` — verify customer stack
 3. **Verify version stamps**: `bash scripts/check-version-stamps.sh`
 4. **Update CHANGELOG.md** with release notes
 5. **Bump version**: Update `VERSION.txt` and `stubs/*.php` `@version` tags

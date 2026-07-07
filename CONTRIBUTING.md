@@ -283,7 +283,7 @@ bool statusHasError(Firebird::IStatus* status) {
 }
 ```
 
-See [MODERNIZATION_PLAN_FB3_TO_FB5.md](docs/development/MODERNIZATION_PLAN_FB3_TO_FB5.md) for complete implementation details.
+See [specs/spec-v11-modernization.md](specs/spec-v11-modernization.md) for complete implementation details.
 
 ## Testing Strategy
 

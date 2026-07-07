@@ -196,4 +196,34 @@ final class PDO_FBIRD_Constants
  *
  * Not yet implemented:
  *   - Multiple active result sets on a single connection
+ *   - getColumnMeta() (returns IM001 — driver does not support this function)
+ *     The bundled ext/pdo_firebird has this; pdo_fbird does not yet.
+ *     See issue #339 and specs/spec-v12.1-pdo-conformance.md.
+ *
+ * Procedural gaps (tracked in M2 milestone, tests in tests/parity/):
+ *   - fbird_fetch_array (BOTH mode, regression vs interbase) — #359
+ *   - fbird_ping (procedural, exists in OO) — #360
+ *   - fbird_server_version at connection level — #361
+ *   - fbird_data_seek (procedural scrollable) — #362
+ *   - fbird_fetch_all — #363
+ *   - fbird_fetch_column — #364
+ *   - fbird_fetch_object(class, args) — #365
+ *   - fbird_set_charset / character_set_name / get_charset — #366
+ *   - fbird_bind_param (named, by ref) — #367
+ *   - fbird_bind_result / define_by_name — #368
+ *   - Per-connection error context (currently global) — #369
+ *   - fbird_error_list — #370
+ *   - Structured diagnostic fields — #371
+ *   - fbird_multi_query — #372
+ *   - fbird_meta_data / list_tables / list_fields — #373
+ *   - fbird_escape_literal / escape_identifier — #374
+ *   - fbird_blob_truncate / erase / flush — #375
+ *   - fbird_blob_export (to file) — #376
+ *   - fbird_debug / dump_debug_info / trace — #377
+ *   - fbird_stmt_attr_get / set — #378
+ *   - fbird_result_metadata (pre-execute) — #379
+ *   - fbird_send_long_data — #380
+ *   - fbird_stmt_reset — #381
+ *
+ * See docs/qaplan-v12.1.0.md for prioritized gap list and target versions.
  */

@@ -27,7 +27,7 @@ The DLL filenames follow this convention:
 
 **Example:**
 If you have PHP 8.3 (Thread Safe) x64 and want to use Firebird 5.0 client, download:
-`php_firebird-1.0.0-php8.3-ts-x64-fb5.0.dll`
+`php_firebird-12.0.0-php8.3-ts-x64-fb5.0.dll`
 
 ## 2. Install the Extension
 

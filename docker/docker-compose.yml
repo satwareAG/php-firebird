@@ -310,21 +310,7 @@ services:
       # Fixes: https://github.com/satwareAG/php-firebird/issues/44
       - ./firebird/init-test-db.sh:/docker-entrypoint-initdb.d/init-test-db.sh:ro
 
-  # Firebird 2.5 — backward compatibility testing (FB5 client → FB 2.5 server)
-  # See: specs/spec-v12.1-cross-version-compat.md (#326)
-  firebird25:
-    image: firebirdsql/firebird:2.5-sbr
-    environment:
-      ISC_PASSWORD: masterkey
-      FIREBIRD_DATABASE: test.fdb
-      TZ: Europe/Berlin
-    ports:
-      - "3051:3050"   # 3051 to avoid clash with firebird30/40/50 on 3050
-    volumes:
-      - fb25-data:/firebird/data
-
 volumes:
-  fb25-data:
   fb30-data:
   fb40-data:
   fb50-data:

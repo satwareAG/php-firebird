@@ -25,6 +25,7 @@ declare(strict_types=1);
 function cross_version_get_service_map(): array
 {
     return [
+        // FB 2.5 deferred: no official Docker image exists (issue #313 reopened, M5 stretch)
         '2.5' => ['service' => 'firebird25', 'port' => 3051, 'image' => 'firebirdsql/firebird:2.5-sbr'],
         '3.0' => ['service' => 'firebird30', 'port' => 3050, 'image' => 'firebirdsql/firebird:3.0'],
         '4.0' => ['service' => 'firebird40', 'port' => 3050, 'image' => 'firebirdsql/firebird:4.0'],

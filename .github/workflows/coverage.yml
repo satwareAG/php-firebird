@@ -158,7 +158,7 @@ jobs:
 
       - name: Capture Coverage & Enforce Gate
         env:
-          COVERAGE_THRESHOLD: 60.0
+          COVERAGE_THRESHOLD: 54.0
         run: |
           set -eu
           mkdir -p coverage

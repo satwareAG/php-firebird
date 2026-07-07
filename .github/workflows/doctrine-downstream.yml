@@ -78,6 +78,7 @@ jobs:
           coverage: none
           ini-values: >
             extension=firebird.so
+            extension=pdo_fbird.so
 
       - name: Build php-firebird (firebird.so + pdo_fbird.so)
         run: |

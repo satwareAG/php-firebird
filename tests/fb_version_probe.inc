@@ -52,6 +52,12 @@ function fb_server_supports(string $feature): bool
  */
 function _fb_probe_connect()
 {
+    static $shared = null;
+
+    if ($shared !== null) {
+        return $shared;
+    }
+
     global $host, $user, $password;
 
     $dbEnv = getenv('FIREBIRD_DB_PATH');
@@ -63,7 +69,7 @@ function _fb_probe_connect()
     $hostStr = ($host !== '' && $host !== null) ? $host : 'localhost';
     $connStr = $hostStr . ':' . $db;
 
-    return @fbird_connect($connStr, $user, $password);
+    return $shared = @fbird_connect($connStr, $user, $password);
 }
 
 /**
@@ -108,7 +114,7 @@ function _fb_probe_decfloat(): bool
         @fbird_query($db, "DROP TABLE FB_PROBE_DECFLOAT");
         return $r !== false;
     } finally {
-        @fbird_close($db);
+        /* Don't close the shared connection */
     }
 }
 
@@ -123,7 +129,7 @@ function _fb_probe_int128(): bool
         @fbird_query($db, "DROP TABLE FB_PROBE_INT128");
         return $r !== false;
     } finally {
-        @fbird_close($db);
+        /* Don't close the shared connection */
     }
 }
 
@@ -138,7 +144,7 @@ function _fb_probe_time_tz(): bool
         @fbird_query($db, "DROP TABLE FB_PROBE_TIME_TZ");
         return $r !== false;
     } finally {
-        @fbird_close($db);
+        /* Don't close the shared connection */
     }
 }
 
@@ -153,7 +159,7 @@ function _fb_probe_timestamp_tz(): bool
         @fbird_query($db, "DROP TABLE FB_PROBE_TS_TZ");
         return $r !== false;
     } finally {
-        @fbird_close($db);
+        /* Don't close the shared connection */
     }
 }
 
@@ -164,7 +170,7 @@ function _fb_probe_set_bind(): bool
     try {
         return @fbird_query($db, "SET BIND OF DECFLOAT TO VARCHAR") !== false;
     } finally {
-        @fbird_close($db);
+        /* Don't close the shared connection */
     }
 }
 
@@ -174,12 +180,25 @@ function _fb_probe_batch_dml(): bool
     $db = _fb_probe_connect();
     if (!$db) return false;
     try {
-        $batch = @fbird_batch_create($db, "INSERT INTO RDB\$DATABASE (RDB\$FIELD_NAME) VALUES (?)");
-        if (!$batch) return false;
+        /* fbird_batch_create takes (prepared_stmt, transaction), NOT
+         * (connection, sql). See stubs/firebird-stubs.php and
+         * tests/fbird_batch_multitype_001.phpt for correct usage. */
+        fbird_query($db, "RECREATE TABLE FB_PROBE_BATCH (id INT)");
+        fbird_commit($db);
+        $t = fbird_trans($db);
+        $q = fbird_prepare($t, "INSERT INTO FB_PROBE_BATCH (id) VALUES (?)");
+        $batch = @fbird_batch_create($q, $t);
+        if (!$batch) {
+            fbird_rollback($t);
+            @fbird_query($db, "DROP TABLE FB_PROBE_BATCH");
+            return false;
+        }
         fbird_batch_cancel($batch);
+        fbird_rollback($t);
+        @fbird_query($db, "DROP TABLE FB_PROBE_BATCH");
         return true;
     } finally {
-        @fbird_close($db);
+        /* Don't close the shared connection */
     }
 }
 
@@ -188,12 +207,12 @@ function _fb_probe_packages(): bool
     $db = _fb_probe_connect();
     if (!$db) return false;
     try {
-        @fbird_query($db, "DROP PACKAGE FB_PROBE_PKG");
-        $ok = @fbird_query($db, "CREATE PACKAGE FB_PROBE_PKG AS BEGIN END");
+        /* RECREATE PACKAGE is supported on FB 4.0+ (verified). */
+        $ok = @fbird_query($db, "RECREATE PACKAGE FB_PROBE_PKG AS BEGIN END");
         if ($ok) @fbird_query($db, "DROP PACKAGE FB_PROBE_PKG");
         return $ok !== false;
     } finally {
-        @fbird_close($db);
+        /* Don't close the shared connection */
     }
 }
 
@@ -202,31 +221,63 @@ function _fb_probe_sql_security(): bool
     $db = _fb_probe_connect();
     if (!$db) return false;
     try {
+        /* SQL SECURITY clause is FB4+. CREATE PROCEDURE ... SQL SECURITY DEFINER. */
         @fbird_query($db, "DROP PROCEDURE FB_PROBE_SS");
         $ok = @fbird_query($db, "CREATE PROCEDURE FB_PROBE_SS SQL SECURITY DEFINER AS BEGIN END");
         if ($ok) @fbird_query($db, "DROP PROCEDURE FB_PROBE_SS");
         return $ok !== false;
     } finally {
-        @fbird_close($db);
+        /* Don't close the shared connection */
     }
 }
 
 function _fb_probe_read_consistency(): bool
 {
+    /* isc_tpb_read_consistency is FB4+ but the TPB tag is silently accepted
+     * by FB3 servers (false positive). Gate on server version first, then
+     * verify the transaction actually starts. */
+    if (_fb_get_server_version() < 4.0) return false;
+
     $db = _fb_probe_connect();
     if (!$db) return false;
     try {
-        /* isc_tpb_read_consistency = 22, exposed via 'read_consistency' option
-         * in fbird_trans() or FBIRD_READ_CONSISTENCY constant (bitmask). */
-        $trans = @fbird_trans($db, ['read_consistency' => true]);
+        /* FBIRD_READ_CONSISTENCY = 32768 bitmask flag. See
+         * firebird_utils.cpp:2879: `if (trans_flags & PHP_FBIRD_READ_CONSISTENCY)`. */
+        $trans = @fbird_trans(FBIRD_READ_CONSISTENCY, $db);
         if ($trans) {
             fbird_commit($trans);
             return true;
         }
         return false;
     } finally {
-        @fbird_close($db);
+        /* Don't close the shared connection */
     }
+}
+
+/**
+ * Returns the server version as float (e.g. 4.0, 5.0).
+ * Uses the Service API directly — does not depend on firebird.inc.
+ */
+function _fb_get_server_version(): float
+{
+    static $version = null;
+
+    if ($version !== null) {
+        return $version;
+    }
+
+    global $host, $user, $password;
+    $hostStr = ($host !== '' && $host !== null) ? $host : 'localhost';
+
+    $se = @fbird_service_attach($hostStr, $user, $password);
+    if (!$se) return 0.0;
+
+    $info = fbird_server_info($se, FBIRD_SVC_SERVER_VERSION);
+    @fbird_service_detach($se);
+
+    if (!$info) return 0.0;
+    $parts = explode(' ', $info);
+    return $version = (float) end($parts);
 }
 
 /* ── FB 5.0 probes ────────────────────────────────────────────────────── */
@@ -237,22 +288,19 @@ function _fb_probe_scrollable_cursors(): bool
      * server). The procedural fbird_* API exposes bidirectional fetch via
      * OOP Firebird\Statement or PDO CURSOR_SCROLL. No simple procedural
      * probe; fall back to version check. */
-    require_once __DIR__ . '/firebird.inc';
-    return get_fb_version() >= 5.0;
+    return _fb_get_server_version() >= 5.0;
 }
 
 function _fb_probe_parallel_workers(): bool
 {
     /* Parallel workers are configured via DPB, not SQL. Can't easily probe
      * DPB support without reconnecting. Fall back to version check. */
-    require_once __DIR__ . '/firebird.inc';
-    return get_fb_version() >= 5.0;
+    return _fb_get_server_version() >= 5.0;
 }
 
 function _fb_probe_profiler(): bool
 {
     /* The profiler plugin is invoked via SQL/attachments. Fall back to
      * version check. */
-    require_once __DIR__ . '/firebird.inc';
-    return get_fb_version() >= 5.0;
+    return _fb_get_server_version() >= 5.0;
 }

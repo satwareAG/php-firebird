@@ -1,7 +1,5 @@
 --TEST--
 FB3 SQL features smoke (BOOLEAN, sub-routines, etc.)
---CREDITS--
-v12.1.0 M4 (#399) - Firebird client coverage smoke test
 --SKIPIF--
 <?php require_once __DIR__ . '/skipif.inc'; ?>
 --FILE--
@@ -19,8 +17,9 @@ $res = fbird_query($trx, "INSERT INTO test_fb3f VALUES (3, TRUE, 'c') RETURNING 
 fbird_fetch_row($res);
 fbird_free_result($res);
 fbird_rollback($trx);
-// GEN_ID
-$res = fbird_query($link, "SELECT GEN_ID(GEN_LFDNR, 0) FROM rdb\$database");
+// GEN_ID (create our own generator — don't depend on app-specific ones)
+fbird_query($link, "CREATE SEQUENCE GEN_TEST_FB3F");
+$res = fbird_query($link, "SELECT GEN_ID(GEN_TEST_FB3F, 0) FROM rdb\$database");
 fbird_fetch_row($res);
 fbird_free_result($res);
 // CREATE OR ALTER
@@ -41,6 +40,7 @@ fbird_free_result($res);
 // RECREATE
 fbird_query($link, "RECREATE TABLE test_fb3f2 (id INT)");
 fbird_query($link, "DROP TABLE test_fb3f2");
+fbird_query($link, "DROP SEQUENCE GEN_TEST_FB3F");
 fbird_query($link, "DROP TABLE test_fb3f");
 echo "done\n";
 ?>

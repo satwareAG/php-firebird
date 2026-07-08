@@ -208,35 +208,40 @@ jobs:
         env:
           NO_INTERACTION: 1
           REPORT_EXIT_STATUS: 1
-          TEST_PHP_EXECUTABLE: php
         run: |
           set -eu
 
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
           PDO_FBIRD_PATH="$(pwd)/pdo_fbird/modules/pdo_fbird.so"
-          export TEST_PHP_EXECUTABLE="$(which php)"
-          export PHP_TEST_SHARED_EXTENSIONS="-d extension=${EXTENSION_PATH}"
 
-          # Add pdo_fbird extension if built
+          # Build -d flags: load both extensions explicitly.
+          # jane: make test only loads the main extension; run-tests.php with
+          # explicit -d flags loads both firebird.so AND pdo_fbird.so.
+          EXT_FLAGS="-d extension=${EXTENSION_PATH}"
           if [ -f "$PDO_FBIRD_PATH" ]; then
-            export PHP_TEST_SHARED_EXTENSIONS="${PHP_TEST_SHARED_EXTENSIONS} -d extension=${PDO_FBIRD_PATH}"
-            echo "Added pdo_fbird extension to test configuration"
+            EXT_FLAGS="${EXT_FLAGS} -d extension=${PDO_FBIRD_PATH}"
           fi
 
-          # Add pcntl extension if available
+          # Add pcntl extension if available (needed by fork tests)
           PCNTL_SO=$(find $(php-config --extension-dir) -name "pcntl.so" 2>/dev/null || true)
           if [ -n "$PCNTL_SO" ]; then
-            export PHP_TEST_SHARED_EXTENSIONS="${PHP_TEST_SHARED_EXTENSIONS} -d extension=${PCNTL_SO}"
-            echo "Added pcntl extension to test configuration"
+            EXT_FLAGS="${EXT_FLAGS} -d extension=${PCNTL_SO}"
           fi
 
           echo "Test configuration:"
           echo "  FIREBIRD_HOST=${FIREBIRD_HOST}"
           echo "  FIREBIRD_DB_PATH=${FIREBIRD_DB_PATH}"
-          echo "  PHP_TEST_SHARED_EXTENSIONS=${PHP_TEST_SHARED_EXTENSIONS}"
+          echo "  Extensions: ${EXT_FLAGS}"
 
           echo "Running all PHPT tests..."
-          make test TESTS=tests/ || true
+          TEST_PHP_EXECUTABLE="$(which php)" \
+          php run-tests.php \
+            ${EXT_FLAGS} \
+            -p "$(which php)" \
+            tests/ || TEST_RESULT=$?
+
+          # run-tests.php returns non-zero on test failures
+          exit ${TEST_RESULT:-0}
 
       - name: Upload test failure diffs
         if: always()
@@ -245,14 +250,6 @@ jobs:
           name: test-diffs-php${{ matrix.php-version }}-fb${{ matrix.firebird-version }}
           path: tests/**/*.diff
           if-no-files-found: ignore
-
-      - name: Fail if tests failed
-        run: |
-          if find tests/ -name "*.diff" | grep -q .; then
-            echo "Test failures detected:"
-            find tests/ -name "*.diff" -exec echo "  {}" \;
-            exit 1
-          fi
 
   # ==========================================================================
   # macOS Build Verification (Issue #171)
@@ -423,146 +420,3 @@ jobs:
           extension-path: modules/firebird.so
           dyld-library-path-extra: /tmp/firebird-client/lib
 
-  # ──────────────────────────────────────────────────────────────────────
-  # PDO Conformance: fast feedback on PDO Definition regressions.
-  # Runs only tests/pdo_fbird/conformance/*.phpt on FB 3.0 + PHP 8.4.
-  # See: specs/spec-v12.1-pdo-conformance.md (#322)
-  # ──────────────────────────────────────────────────────────────────────
-  pdo-conformance:
-    name: PDO Conformance (FB 3.0 / PHP 8.4)
-    runs-on: ubuntu-24.04
-    continue-on-error: true  # Remove after 5 consecutive green runs or issue #338 resolves apt-get flakiness
-    timeout-minutes: 10
-
-    services:
-      firebird:
-        image: firebirdsql/firebird:3
-        env:
-          ISC_PASSWORD: masterkey
-          FIREBIRD_DATABASE: test.fdb
-          FIREBIRD_USE_LEGACY_AUTH: 'Enabled'
-        ports:
-          - 3050:3050
-        options: >-
-          --health-cmd="bash -c '</dev/tcp/localhost/3050' 2>/dev/null || exit 1"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Install Firebird client
-        uses: ./.github/actions/install-firebird-client
-        with:
-          firebird-major-version: '5'
-          use-sudo: 'true'
-          firebird-host: 'localhost'
-
-      - name: Setup PHP 8.4
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-          coverage: none
-
-      - name: Build firebird extension
-        run: |
-          set -eu
-          phpize
-          ./configure --with-firebird=/opt/firebird-client
-          make -j"$(nproc)"
-          sudo make install
-
-      - name: Build pdo_fbird extension
-        run: |
-          set -eu
-          cd pdo_fbird
-          phpize
-          ./configure --with-pdo-fbird --with-firebird=/opt/firebird-client
-          make -j"$(nproc)"
-          sudo make install
-
-      - name: Run PDO conformance tests
-        env:
-          FIREBIRD_HOST: localhost
-          FIREBIRD_DB_PATH: /var/lib/firebird/data/test.fdb
-        run: |
-          set -eu
-          TEST_PHP_EXECUTABLE=$(which php) \
-          TEST_PHP_ARGS="-n" \
-          php -n run-tests.php \
-            -d extension=firebird.so \
-            -d extension=pdo_fbird.so \
-            -p $(which php) \
-            tests/pdo_fbird/conformance/
-
-  # ──────────────────────────────────────────────────────────────────────
-  # Procedural Parity: track procedural gap closure progress.
-  # Runs tests/parity/*.phpt. RED tests use --SKIPIF-- so CI stays green.
-  # continue-on-error: true until feat/* branches merge.
-  # See: specs/spec-v12.1-procedural-parity.md (#323)
-  # ──────────────────────────────────────────────────────────────────────
-  procedural-parity:
-    name: Procedural Parity (FB 3.0 / PHP 8.4)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    continue-on-error: true
-
-    services:
-      firebird:
-        image: firebirdsql/firebird:3
-        env:
-          ISC_PASSWORD: masterkey
-          FIREBIRD_DATABASE: test.fdb
-          FIREBIRD_USE_LEGACY_AUTH: 'Enabled'
-        ports:
-          - 3050:3050
-        options: >-
-          --health-cmd="bash -c '</dev/tcp/localhost/3050' 2>/dev/null || exit 1"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Install Firebird client
-        uses: ./.github/actions/install-firebird-client
-        with:
-          firebird-major-version: '5'
-          use-sudo: 'true'
-          firebird-host: 'localhost'
-
-      - name: Setup PHP 8.4
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-          coverage: none
-
-      - name: Build firebird extension
-        run: |
-          set -eu
-          phpize
-          ./configure --with-firebird=/opt/firebird-client
-          make -j"$(nproc)"
-          sudo make install
-
-      - name: Run procedural parity tests
-        env:
-          FIREBIRD_HOST: localhost
-          FIREBIRD_DB_PATH: /var/lib/firebird/data/test.fdb
-        run: |
-          set -eu
-          # Create the parity test directory if it doesn't exist yet
-          mkdir -p tests/parity
-          # Only run if test files exist
-          if ls tests/parity/*.phpt 1>/dev/null 2>&1; then
-            TEST_PHP_EXECUTABLE=$(which php) \
-            TEST_PHP_ARGS="-n" \
-            php -n run-tests.php \
-              -d extension=firebird.so \
-              -p $(which php) \
-              tests/parity/
-          else
-            echo "No parity tests yet (tests/parity/ directory empty)"
-          fi

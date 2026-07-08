@@ -11,9 +11,8 @@ if (!is_fb_server_available("4.0")) die('skip FB 4.0 server not available');
 <?php
 require_once __DIR__ . '/skipif.inc';
 $conn = cross_version_connect("4.0");
+fbird_query($conn, "RECREATE TABLE test_dtc25 (id INT, flag BOOLEAN, dval DECFLOAT(16), ival INT128)");
 $trx = fbird_trans($conn);
-@fbird_query($trx, "DROP TABLE test_dtc25");
-fbird_query($trx, "RECREATE TABLE test_dtc25 (id INT, flag BOOLEAN, dval DECFLOAT(16), ival INT128)");
 fbird_query($trx, "INSERT INTO test_dtc25 VALUES (1, TRUE, 3.14, 999999999999999999)");
 fbird_commit($trx);
 $res = fbird_query($conn, "SELECT flag, dval, ival FROM test_dtc25 WHERE id = 1");

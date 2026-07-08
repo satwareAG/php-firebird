@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### v13.0.0 — FB4+/FB5+ Feature Coverage (in progress)
+
+**Spec**: `specs/spec-v13.0-fb4-plus-coverage.md` (#327)
+**Focus**: Surface FB4.0/FB5.0 server-side features for doctrine-firebird-driver
+downstream (amicron-platform FB3 support complete in v12.1.0).
+
+#### Added
+
+- `tests/fb_version_probe.inc` — shared capability-probe helper (`fb_server_supports()`)
+  for FB4+/FB5+ feature detection. 12 feature probes: DECFLOAT, INT128, TIME_TZ,
+  TIMESTAMP_TZ, SET_BIND, BATCH_DML, PACKAGES, SQL_SECURITY, STATEMENT_TIMEOUT,
+  READ_CONSISTENCY, SCROLLABLE_CURSORS, PARALLEL_WORKERS, PROFILER.
+- `tests/pdo_fbird/pdo_fbird_timestamp_tz.phpt` — PDO end-to-end coverage for FB4+
+  TIME/TIMESTAMP WITH TIME ZONE (#419): INSERT/SELECT, NULL, UPDATE, AT TIME ZONE,
+  EXTRACT(TIMEZONE_*), SET BIND OF TIME ZONE TO LEGACY.
+- `tests/pdo_fbird/pdo_fbird_decfloat.phpt` — DECFLOAT(16/34) precision and SET BIND
+  coverage (#417): basic precision, large values, scientific notation, NULL,
+  SET BIND TO DOUBLE PRECISION, SET BIND TO VARCHAR.
+- `tests/pdo_fbird/pdo_fbird_int128.phpt` — INT128 precision and SET BIND coverage
+  (#418): basic round-trip, max/min values, beyond INT64 range, NUMERIC(38,4) scale,
+  SET BIND TO BIGINT.
+- `tests/pdo_fbird/pdo_fbird_scrollable_cursor_edge_cases.phpt` — FB5+ scrollable
+  cursor BOF/EOF and edge cases (#426): EOF/BOF detection, cursor repositioning
+  after BOF/EOF, empty result set, single row, out-of-bounds ABS/REL,
+  cross-orientation navigation.
+- `specs/spec-v13.0-fb4-plus-coverage.md` — milestone index spec (#327): FB4+/FB5+
+  coverage tables, version gating strategy (capability-probe SKIPIF), downstream
+  priority (doctrine-firebird-driver), current implementation state inventory.
+
+#### Changed
+
+- `pdo_fbird/pdo_fbird_stmt.c`: Scrollable cursors now remain open after BOF/EOF,
+  enabling repositioning (FETCH_ORI_FIRST/LAST/ABS/REL) after hitting a boundary.
+  Previously, any `0` return (BOF/EOF) closed the cursor. Forward-only behavior
+  unchanged. (#426)
+- `tests/pdo_fbird/conformance/pdo_definition_fetch_orientation.phpt`: Extended
+  from 4/6 to 6/6 FETCH_ORI orientations (added PRIOR, REL). (#426)
+
+#### Known issues
+
+- PDO parameterized binding of TIME/TIMESTAMP WITH TIME ZONE fails with error
+  335544913 "value exceeds the range for valid timestamps". Procedural
+  `fbird_execute` works fine. Tests use SQL literal INSERTs as workaround.
+
 ### v12.1.0 — Integration Conformance Suite
 
 **Branch**: `test/integration-conformance`  

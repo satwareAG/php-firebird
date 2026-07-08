@@ -88,6 +88,7 @@ function _fb_probe_feature(string $feature): bool
         case 'BATCH_DML':        return _fb_probe_batch_dml();
         case 'PACKAGES':         return _fb_probe_packages();
         case 'SQL_SECURITY':     return _fb_probe_sql_security();
+        case 'STATEMENT_TIMEOUT': return _fb_probe_statement_timeout();
         case 'READ_CONSISTENCY': return _fb_probe_read_consistency();
 
         /* ── FB 5.0 features ─────────────────────────────────────────── */
@@ -231,6 +232,19 @@ function _fb_probe_sql_security(): bool
     }
 }
 
+function _fb_probe_statement_timeout(): bool
+{
+    /* Statement timeout is an attachment-level setting (FB4+).
+     * Probe by executing SET STATEMENT TIMEOUT — FB3 will reject the syntax. */
+    $db = _fb_probe_connect();
+    if (!$db) return false;
+    try {
+        return @fbird_query($db, "SET STATEMENT TIMEOUT 1000") !== false;
+    } finally {
+        /* Don't close the shared connection */
+    }
+}
+
 function _fb_probe_read_consistency(): bool
 {
     /* isc_tpb_read_consistency is FB4+ but the TPB tag is silently accepted
@@ -241,9 +255,12 @@ function _fb_probe_read_consistency(): bool
     $db = _fb_probe_connect();
     if (!$db) return false;
     try {
-        /* FBIRD_READ_CONSISTENCY = 32768 bitmask flag. See
-         * firebird_utils.cpp:2879: `if (trans_flags & PHP_FBIRD_READ_CONSISTENCY)`. */
-        $trans = @fbird_trans(FBIRD_READ_CONSISTENCY, $db);
+        /* FBIRD_READ_CONSISTENCY (32768) only takes effect when combined
+         * with FBIRD_COMMITTED (8) — see firebird_utils.cpp TPB builder:
+         * isc_tpb_read_consistency is only inserted inside the
+         * PHP_FBIRD_COMMITTED branch. Without it, falls through to
+         * default SNAPSHOT (isc_tpb_concurrency). */
+        $trans = @fbird_trans(FBIRD_COMMITTED | FBIRD_READ_CONSISTENCY, $db);
         if ($trans) {
             fbird_commit($trans);
             return true;

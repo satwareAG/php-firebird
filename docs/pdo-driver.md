@@ -242,3 +242,47 @@ The driver maps Firebird GDS error codes to standard SQLSTATE codes:
 | Array Fields | No | **✅ Yes (Read/Write)** |
 | lastInsertId() | No | **✅ Yes (via sequence)** |
 | Scrollable Cursors | No | **✅ Yes (FB 5.0+)** |
+
+## PDO Definition Conformance
+
+Per `ext/pdo/pdo_dbh.c` and `pdo_stmt.c`, every PDO driver must implement
+mandatory methods and may implement optional methods.
+
+### Mandatory methods (all implemented)
+
+| Method | Status |
+|--------|--------|
+| closer (dbh) | Implemented |
+| preparer (dbh) | Implemented |
+| doer (dbh) | Implemented |
+| begin (dbh) | Implemented |
+| commit (dbh) | Implemented |
+| rollback (dbh) | Implemented |
+| executer (stmt) | Implemented |
+| fetcher (stmt) | Implemented |
+| describer (stmt) | Implemented |
+| get_col (stmt) | Implemented |
+
+### Optional methods
+
+| Method | Status | Notes |
+|--------|--------|-------|
+| quoter | Implemented | PDO::quote() doubles single quotes |
+| last_id | Implemented | lastInsertId($sequence) via GEN_ID |
+| fetch_err | Implemented | errorCode() + errorInfo() with GDS-to-SQLSTATE mapping |
+| get_attribute | Implemented | All standard PDO::ATTR_* + FBIRD_ATTR_* |
+| set_attribute | Implemented | Including FBIRD_ATTR_TRANSACTION_ISOLATION_LEVEL |
+| check_liveness | Implemented | ATTR_CONNECTION_STATUS, fb_ping |
+| in_transaction | Implemented | inTransaction() |
+| persistent_shutdown | Implemented | Clean shutdown of persistent connections |
+| param_hook | Implemented | All PARAM_EVT_* events |
+| cursor_closer | Implemented | closeCursor() |
+| get_column_meta | **NOT IMPLEMENTED** | Returns IM001. See issue #339. |
+| next_rowset | **NOT IMPLEMENTED** | nextRowset() returns false. See issue #340. |
+| get_driver_methods | Not applicable | No driver-specific PDO methods |
+
+### Standard PDO constants tested
+
+All 13 FETCH modes, all 6 FETCH_ORI_* orientations (FB5+), all 3 ERRMODE modes,
+all 3 CASE modes, all 3 NULL handling modes, all standard PARAM_* types.
+See `tests/pdo_fbird/conformance/` (24 test files, 23 PASS + 1 SKIP).

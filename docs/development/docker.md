@@ -41,7 +41,7 @@ These configurations can be found in the Run menu or using the configuration sel
 
 The development environment includes Firebird database servers on these ports:
 
-- Firebird 2.5: `localhost:3050`
+- : `localhost:3050`
 - Firebird 3.0: `localhost:3051`
 - Firebird 4.0: `localhost:3052`
 - Firebird 5.0: `localhost:3053`

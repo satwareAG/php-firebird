@@ -1,0 +1,150 @@
+name: Doctrine Downstream
+
+# Tests php-firebird against the doctrine-firebird-driver test suite.
+# doctrine-firebird-driver is the primary downstream consumer per specs/metadata.json.
+# Catches regressions before they ship (the rc.11 hotfixes #305-#309 came from
+# exactly this kind of downstream integration testing).
+
+on:
+  pull_request:
+    paths:
+      - '**.c'
+      - '**.cpp'
+      - '**.h'
+      - '**.hpp'
+      - 'config.m4'
+      - 'config.w32'
+      - 'pdo_fbird/**'
+      - 'stubs/**'
+      - '.github/workflows/doctrine-downstream.yml'
+  schedule:
+    - cron: '0 2 * * 0'  # Weekly Sunday 02:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' && github.event_name != 'workflow_dispatch' }}
+
+jobs:
+  doctrine-test:
+    name: doctrine-firebird-driver ${{ matrix.doctrine-ref }} / PHP ${{ matrix.php-version }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # v3.14.0: production pin from amicron-platform release/3.0.0-rc.2 composer.lock
+        # main: future development (informational — continue-on-error)
+        doctrine-ref: ['v3.14.0', 'main']
+        php-version: ['8.4']
+
+    # Allow 'main' ref to fail without blocking the PR
+    continue-on-error: ${{ matrix.doctrine-ref == 'main' }}
+
+    services:
+      firebird:
+        image: firebirdsql/firebird:3.0
+        env:
+          ISC_PASSWORD: masterkey
+          FIREBIRD_DATABASE: test.fdb
+          FIREBIRD_USE_LEGACY_AUTH: 'Enabled'
+        ports:
+          - 3050:3050
+        options: >-
+          --health-cmd="bash -c '</dev/tcp/localhost/3050' 2>/dev/null || exit 1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout php-firebird
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Install Firebird client
+        uses: ./.github/actions/install-firebird-client
+        with:
+          firebird-major-version: '5'
+          use-sudo: 'true'
+          firebird-host: 'localhost'
+
+      - name: Setup PHP ${{ matrix.php-version }}
+        uses: shivammathur/setup-php@cfb85b80c3d45f1817d4b2742fefa0ce44b56149 # 2.35.0
+        with:
+          php-version: ${{ matrix.php-version }}
+          coverage: none
+          ini-values: >
+            extension=firebird.so
+            extension=pdo_fbird.so
+
+      - name: Build firebird extension
+        run: |
+          set -eu
+          phpize
+          ./configure --with-firebird=/opt/firebird-client
+          make -j"$(nproc)"
+
+      - name: Build pdo_fbird extension
+        run: |
+          set -eu
+          cd pdo_fbird
+          phpize
+          ./configure --with-pdo-fbird --with-firebird=/opt/firebird-client
+          make -j"$(nproc)"
+
+      - name: Install extensions
+        run: |
+          set -eu
+          sudo make install
+          cd pdo_fbird && sudo make install
+          # Verify both extensions load
+          php -m | grep -i firebird
+          php -m | grep -i pdo_fbird || php -m | grep -i 'PDO drivers' | grep -i fbird
+
+      - name: Configure Firebird test database
+        env:
+          FIREBIRD_HOST: localhost
+        run: |
+          set -eu
+          # doctrine-firebird-driver expects test DB at specific path
+          # The service container already created test.fdb via FIREBIRD_DATABASE env
+          echo "FIREBIRD_TEST_DSN=fbird:host=localhost;dbname=/firebird/data/test.fdb;charset=UTF8" >> "$GITHUB_ENV"
+          echo "FIREBIRD_TEST_USER=SYSDBA" >> "$GITHUB_ENV"
+          echo "FIREBIRD_TEST_PASSWORD=masterkey" >> "$GITHUB_ENV"
+
+      - name: Checkout doctrine-firebird-driver@${{ matrix.doctrine-ref }}
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          repository: satwareAG/doctrine-firebird-driver
+          ref: ${{ matrix.doctrine-ref }}
+          path: doctrine-firebird-driver
+
+      - name: Install doctrine-firebird-driver dependencies
+        working-directory: doctrine-firebird-driver
+        run: |
+          set -eu
+          composer install --no-interaction --prefer-dist
+
+      - name: Run doctrine-firebird-driver test suite
+        working-directory: doctrine-firebird-driver
+        env:
+          FIREBIRD_TEST_DSN: ${{ env.FIREBIRD_TEST_DSN }}
+          FIREBIRD_TEST_USER: ${{ env.FIREBIRD_TEST_USER }}
+          FIREBIRD_TEST_PASSWORD: ${{ env.FIREBIRD_TEST_PASSWORD }}
+        run: |
+          set -eu
+          # doctrine-firebird-driver uses its own bootstrap; verify connection first
+          php -r "
+            try {
+              \$pdo = new PDO(getenv('FIREBIRD_TEST_DSN'), getenv('FIREBIRD_TEST_USER'), getenv('FIREBIRD_TEST_PASSWORD'));
+              echo 'Firebird connection OK: ' . \$pdo->getAttribute(PDO::ATTR_SERVER_VERSION) . PHP_EOL;
+            } catch (PDOException \$e) {
+              echo 'Firebird connection FAILED: ' . \$e->getMessage() . PHP_EOL;
+              exit(1);
+            }
+          "
+          # Run the test suite
+          vendor/bin/phpunit --colors=never

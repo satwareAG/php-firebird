@@ -60,8 +60,10 @@ fi
 if [ -n "$1" ]; then
     TARGETS=("$1")
 else
-    # Test all PHP containers across all supported Firebird client libraries (12 combinations)
+    # Test all PHP containers across all supported Firebird client libraries
     # Sanitizer containers (php83-tsan, php83-asan) excluded by default - use explicitly
+    # jane: FB 2.5 client containers not defined in docker-compose.yml;
+    # cross-version tests use FB5 client → FB 2.5 server (not FB 2.5 client)
     TARGETS=(
         "php82-fb3-dev" "php82-dev" "php82-fb5-dev"
         "php83-fb3-dev" "php83-dev" "php83-fb5-dev"
@@ -77,6 +79,9 @@ auto_detect_firebird_server() {
     case "$container" in
         *-fb3-*)
             echo "firebird30"
+            ;;
+        *-fb25-*)
+            echo "firebird25"
             ;;
         *-fb5-*|*-tsan)
             # TSan container defaults to firebird50
@@ -96,7 +101,7 @@ auto_detect_firebird_server() {
 FIREBIRD_SERVER=""
 if [ -n "$2" ]; then
     case "$2" in
-        firebird30|firebird40|firebird50)
+        firebird25|firebird30|firebird40|firebird50)
             FIREBIRD_SERVER="$2"
             log_info ">> Firebird Server Target: $FIREBIRD_SERVER"
             ;;

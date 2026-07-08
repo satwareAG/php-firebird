@@ -13,7 +13,7 @@ gaps to achieve 100% coverage.
 **Current State:**
 - **Total PHP Functions:** 65
 - **Total INI Settings:** 14
-- **Existing Test Files:** 102 PHPT files
+- **Existing Test Files:** 274+ PHPT files (v12.0.0)
 - **Current Line Coverage:** ~70.9%
 - **Current Function Coverage:** ~91.5%
 

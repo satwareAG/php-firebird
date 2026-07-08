@@ -7,6 +7,112 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### v12.1.0 — Integration Conformance Suite
+
+**Branch**: `test/integration-conformance`  
+**Scope**: Tests + specs only. No implementation changes. Every gap surfaces as a RED test
+(with `--SKIPIF--` so CI stays green); implementations spawn separate `feat/*` branches
+after v12.1.0 ships.
+
+**Focus**: Best possible driver for Firebird 3.x full support (amicron-platform customer
+target: Symfony 7.4 + PHP 8.4 + doctrine-firebird-driver v3.14.0 + FB 3.0.13).
+
+**Living-spec approach**: 130 GitHub issues across 9 milestones replace static spec files
+as the public, searchable, +1-able planning surface. Each milestone has an index spec in
+`specs/spec-v12.1-*.md`.
+
+#### Completed milestones
+
+| Milestone | Issues | Tests | Status |
+|---|---|---|---|
+| M1: PDO Definition Conformance (#322, #328-#351) | 25 | 17 .phpt (16 PASS, 1 SKIP) | COMPLETE |
+| M2: Procedural API Parity (#323, #359-#384) | 27 | 26 .phpt (26 SKIP, 0 FAIL) | COMPLETE |
+| M3: Doctrine & amicron-platform (#324, #352-#358) | 8 | 4 .phpt (4 PASS) + script | COMPLETE |
+| M4: Firebird Client Coverage (#325, #385-#403) | 20 | 19 .phpt (19 PASS) | COMPLETE |
+| M5: Cross-Version Compat (#326, #313, #404-#409) | 8 | 8 .phpt (1 PASS, 7 SKIP) | COMPLETE |
+| M6: Documentation & Polish (#410-#416) | 7 | docs + stubs + CHANGELOG | COMPLETE |
+| M7: Test Infrastructure (#312-#321) | 10 | CI + Docker + helpers | COMPLETE (2 deferred) |
+| M8: FB4+/5+/6+ stretch (#327, #417-#435) | 20 | deferred | v13.0.0 |
+| M9: Implementation backlog (#436-#441) | 6 | deferred | unscheduled |
+
+#### Test inventory (389 total .phpt files, 82 new in v12.1.0)
+
+| Directory | Files | What |
+|---|---|---|
+| `tests/` (root) | 274 | Existing procedural + OOP + PDO + bug tests |
+| `tests/coverage/` | 40 | Existing coverage tests |
+| `tests/pdo_fbird/conformance/` | 17 | PDO Definition conformance (7 duplicates removed) |
+| `tests/parity/` | 26 | Procedural gap RED tests (fbird_fetch_array, fbird_ping, etc.) |
+| `tests/client_coverage/` | 19 | IAttachment/ITransaction/IStatement/IResultSet/IBlob/IEvents/IService |
+| `tests/amicron/` | 4 | Real Amicron demo DB CRUD, BLOB, FK, Doctrine SchemaManager |
+| `tests/cross_version/` | 8 | FB5 client -> FB2.5/3/4/5 server, DataTypeCompatibility, ODS |
+| `tests/pdo_fbird/` | 1 | Batch DML test |
+| **Total** | **389** | **(82 new in v12.1.0, 307 pre-existing)** |
+
+#### CI test results (v12.1.0 final)
+
+| Firebird | PHP 8.2 | PHP 8.3 | PHP 8.4 | PHP 8.5 |
+|---|---|---|---|---|
+| FB 3.0 | 238P/151S/0F | 238P/151S/0F | 238P/151S/0F | 238P/151S/0F |
+| FB 4.0 | 264P/125S/0F | 264P/125S/0F | 264P/125S/0F | 264P/125S/0F |
+| FB 5.0 | 261P/128S/0F | 261P/128S/0F | 261P/128S/0F | 261P/128S/0F |
+
+4,668 test executions across 12 containers. 0 failures.
+
+#### Headline findings
+
+- **#339 (bug)**: PDO `getColumnMeta()` returns IM001 "driver does not support this function"
+  but `stubs/pdo-fbird-stubs.php` listed it under "Supported features". Mismatch documented
+  in test; stubs corrected in v12.1.0.
+- **FBIRD_TXN_READ_COMMITTED/_REPEATABLE_READ/_SERIALIZABLE**: documented but previously
+  0 tests. Now tested in `pdo_definition_optional_attrs.phpt` (#334).
+- **#359 (regression)**: `fbird_fetch_array` (BOTH mode) dropped vs legacy interbase.
+  RED test written; implementation deferred to v13.0.0.
+- **#369 (architectural)**: `fbird_errmsg`/`errcode`/`sqlstate` are global single-slot.
+  RED test written; implementation deferred to v13.0.0.
+- **Docker tags fixed**: `:3.0`/`:4.0`/`:5.0` (non-existent on Docker Hub) reverted to
+  `:3`/`:4`/`:5` (the tags CI actually uses). FB 2.5 image: `jacobalberty/firebird:v2.5.9-ss-jessie`.
+- **Docs cleanup**: 14 stale docs archived to `docs/archive/`, 10 docs updated for v12
+  currency, broken cross-references fixed.
+
+#### Release candidate history (rc.1-rc.11)
+
+| Tag | Key fix |
+|---|---|
+| rc.1-rc.7 | Version stamps, gitleaks allowlist, CI image tags, --CLEAN-- sections, setup-php SHA |
+| rc.8 | `continue-on-error` on pdo-conformance (masked real failures) |
+| rc.9 | Replace `make test` with `run-tests.php` + explicit `-d extension=` flags; delete redundant CI jobs; delete 7 duplicate conformance tests; fix 3 test bugs (events hang, cross_version DDL, fb3_sql_features generator) |
+| rc.10 | Don't double-load pcntl (PHP containers already have it via php.ini) |
+| rc.11 | Reviewer fixes: remove 4 undefined fb25-dev targets from test_matrix.sh; fix `\$` parse errors in 22 parity tests; fix test-local.sh dead code |
+
+#### Critical CI fix: PDO test loading
+
+**Root cause**: `make test` only loads the main extension (`firebird.so`) via its generated
+Makefile. The `PHP_TEST_SHARED_EXTENSIONS` env var is not used by the extension Makefile's
+`test` target. As a result, `pdo_fbird.so` was NEVER loaded in CI. All 50+ existing PDO
+tests SKIPPED silently since the project's inception.
+
+**Fix**: Replaced `make test TESTS=tests/` with direct `run-tests.php` invocation:
+```bash
+php run-tests.php -d extension=firebird.so -d extension=pdo_fbird.so -p $(which php) tests/
+```
+
+**pcntl gotcha**: PHP Docker containers load `pcntl` via `docker-php-ext-install` (php.ini).
+Adding `-d extension=pcntl.so` when already loaded causes "Module already loaded" warning
+in every test's output, failing all 238 tests. Fix: check `extension_loaded('pcntl')` before
+adding the `-d` flag.
+
+#### CI workflow changes
+
+- **Deleted**: `pdo-conformance` job (redundant - main matrix runs same tests)
+- **Deleted**: `procedural-parity` job (redundant - main matrix runs same tests)
+- **Removed**: Both `continue-on-error: true` flags (were masking real failures)
+- **Added**: `.github/workflows/doctrine-downstream.yml`: Tests `doctrine-firebird-driver@v3.14.0`
+  against FB 3.0.
+- **Added**: `scripts/test-amicron-platform.sh`: Local script validating amicron-platform
+  `release/3.0.0-rc.2` (Symfony 7.4 + Doctrine + PHPStan + PHPUnit).
+- **Added**: `scripts/test-local.sh`: Docker-based CI replication (~30s turnaround).
+
 ### v12.0.0 — Stable Release (2026-07-06)
 
 Final stable release. All 10 CI/CD workflows pass on a single tag push

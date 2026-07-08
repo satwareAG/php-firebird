@@ -12,7 +12,7 @@ total_ddl=0
 total_clean=0
 
 # Find all .phpt files that contain DDL statements
-for f in tests/*.phpt tests/coverage/*.phpt tests/pdo_fbird/*.phpt; do
+for f in tests/*.phpt tests/coverage/*.phpt tests/pdo_fbird/*.phpt tests/pdo_fbird/conformance/*.phpt tests/parity/*.phpt tests/client_coverage/*.phpt tests/cross_version/*.phpt tests/amicron/*.phpt; do
 	[ -f "$f" ] || continue
 
 	# Check for DDL keywords (case-insensitive)

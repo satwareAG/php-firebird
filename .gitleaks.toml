@@ -26,7 +26,7 @@ tags = ["ipadp", "privacy", "L2"]
 [allowlist]
 description = "php-firebird repository allowlist"
 
-# Exclude vendor directory (third-party code) and IDE files
+# Exclude vendor directory, IDE files, and test fixtures (known credentials)
 paths = [
     '''vendor/.*''',
     '''node_modules/.*''',
@@ -38,6 +38,11 @@ paths = [
     '''scripts/morning-health-check\.sh''',
     '''NEXT_STEPS\.md''',
     '''docs/UPSTREAM_ISSUE_ANALYSIS\.md''',
+    # Test files use known Firebird credentials (masterkey/klopf) against local Docker
+    '''tests/.*\.phpt$''',
+    '''tests/.*\.inc$''',
+    '''tests/.*\.php$''',
+    '''specs/.*.md$''',
 ]
 
 # Exclude test debug scripts (contain Docker base image GPG keys, not secrets)
@@ -54,11 +59,15 @@ regexes = [
     '''C28D937575603EB4ABB''',
 ]
 
-# Sodium cryptographic function names are not secrets
+# Sodium cryptographic function names and Firebird test credentials are not secrets
+# - masterkey: well-known SYSDBA default password (used in all Firebird test files)
+# - klopf: Amicron demo DB public credential (from amicron-software.de demo download)
 stopwords = [
     "sodium_crypto_aead",
     "CURLOPT_TLS13_CIPHERS",
     "chacha20poly1305",
     "xchacha20poly1305",
     "aegis256",
+    "masterkey",
+    "klopf",
 ]

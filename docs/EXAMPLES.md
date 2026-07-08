@@ -1117,6 +1117,6 @@ fbird_close($db_inventory);
 
 ## See Also
 
-- [API Reference](API_REFERENCE.md) - Complete function documentation
+- [API Reference](oop-api.md) - Complete function documentation
 - [CHANGELOG](../CHANGELOG.md) - Version history
 - [Documentation Standards](DOCUMENTATION_STANDARDS.md) - Contributing guidelines

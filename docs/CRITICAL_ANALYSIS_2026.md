@@ -1,3 +1,4 @@
+> **Update 2026-07-07: v12.0.0 shipped. v12.1.0 integration conformance suite in progress. Remaining items: M8 (pointer smoking), L1 (LTO partial). All other items resolved.**
 # php-firebird Critical Analysis - March 2026
 
 > **Update 2026-07-01**: 18 of 24 recommendations shipped in v11.0.0-v11.0.1.

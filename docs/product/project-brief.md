@@ -1,6 +1,6 @@
 # php-firebird — Project Brief
 
-**Version**: 10.6.0
+**Version**: 12.0.0
 **Last Updated**: 2026-04-01
 **Status**: Stable — v10.6.0 Released
 

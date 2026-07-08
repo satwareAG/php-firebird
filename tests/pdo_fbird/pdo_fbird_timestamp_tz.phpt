@@ -77,8 +77,10 @@ echo "After SET BIND TO LEGACY - ts_tz: " . $row['TS_TZ'] . "\n";
  * Anchor at start (HH:MM:SS) without end anchor to tolerate fractional seconds. */
 echo "time_tz has no TZ name: " . (preg_match('/^\d{2}:\d{2}:\d{2}/', trim($row['TIME_TZ'])) ? 'yes' : 'no') . "\n";
 
-/* Close all connections explicitly — SET BIND connections must be released
- * before subsequent tests (e.g. service_backup_restore) can create databases. */
+/* Close all statements and connections explicitly — PDOStatement holds a
+ * ref to its parent PDO, so unset $stmt before $pdo to actually release
+ * the connection before subsequent tests (e.g. service_backup_restore). */
+unset($stmt);
 unset($pdo2);
 unset($pdo);
 

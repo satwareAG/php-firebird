@@ -3,7 +3,7 @@
 [![CI](https://github.com/satwareAG/php-firebird/actions/workflows/ci.yml/badge.svg)](https://github.com/satwareAG/php-firebird/actions/workflows/ci.yml)
 [![License: PHP-3.01](https://img.shields.io/badge/License-PHP--3.01-blue.svg)](LICENSE)
 [![PHP 8.2+](https://img.shields.io/badge/PHP-8.2%2B-8892BF.svg)](https://www.php.net/)
-[![Version](https://img.shields.io/badge/version-12.0.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-12.1.0-blue.svg)](CHANGELOG.md)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/satwareAG/php-firebird)
 
 A high-performance PHP extension providing native connectivity to Firebird databases. This modernized version targets PHP 8.2+ with C++17 standards and comprehensive development tooling.
@@ -603,16 +603,31 @@ This extension was originally forked from PHP's `ext/interbase`. The rename to `
 ## Testing
 
 ### Running Tests
+
+`make test` only loads `firebird.so` (the main extension). To test PDO
+functionality, use `run-tests.php` with explicit extension loading:
+
 ```bash
-# All tests
-make test
+# Build both extensions first
+phpize && ./configure && make
+cd pdo_fbird && phpize && ./configure && make && cd ..
 
-# Specific tests
-php run-tests.php tests/fbird_connect_001.phpt
+# All tests (loads both firebird.so AND pdo_fbird.so)
+php run-tests.php \
+  -d extension=modules/firebird.so \
+  -d extension=pdo_fbird/modules/pdo_fbird.so \
+  -p $(which php) \
+  tests/
 
-# With specific Firebird version
-FB_VERSION=5.0 make test
+# Specific test file
+php run-tests.php \
+  -d extension=modules/firebird.so \
+  -d extension=pdo_fbird/modules/pdo_fbird.so \
+  -p $(which php) \
+  tests/fbird_connect_001.phpt
 ```
+
+The CI runs 389 `.phpt` tests across 12 containers (PHP 8.2-8.5 x FB 3.0/4.0/5.0).
 
 ### Test Environment Setup
 ```bash
@@ -625,7 +640,7 @@ EXIT;
 export TEST_DB_PATH=/tmp/test.fdb
 export TEST_DB_USER=SYSDBA  
 export TEST_DB_PASS=masterkey
-make test
+php run-tests.php -d extension=modules/firebird.so tests/
 ```
 
 ## Troubleshooting
@@ -945,7 +960,7 @@ See [docs/oop-api.md](docs/oop-api.md) for the `Firebird\Event` class reference.
 
 ## Version Compatibility
 
-### Current Version: 12.0.0 (Stable Release)
+### Current Version: 12.1.0 (Stable Release)
 
 **Supported PHP Versions:**
 - PHP 8.2 (fully supported, minimum)

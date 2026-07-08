@@ -7,7 +7,7 @@
 - [scripts/build.sh](scripts/build.sh): Build extension (phpize + configure)
 - [scripts/qa.sh](scripts/qa.sh): QA matrix runner (PHP 8.2-8.5 x FB 3.0-5.0)
 - [tests/firebird.inc](tests/firebird.inc): Test harness with per-test DB isolation
-- [VERSION.txt](VERSION.txt): Current version (12.1.0-dev)
+- [VERSION.txt](VERSION.txt): Current version (12.1.0)
 
 ## Architecture
 - Layer 1 (Procedural): `fbird_*` functions in `*.c` files

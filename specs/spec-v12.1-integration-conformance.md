@@ -15,7 +15,7 @@ Raise php-firebird driver quality to match:
 
 ## Background
 
-v12.0.0 shipped 315 `.phpt` tests but audit revealed gaps:
+v12.0.0 shipped 307 `.phpt` tests but audit revealed gaps:
 - PDO Definition: 9 of 13 FETCH modes untested, `getColumnMeta` returns IM001 despite stubs claiming support, `FBIRD_TXN_*` isolation levels documented but untested
 - Procedural: `fbird_fetch_array` (BOTH mode) regression vs legacy interbase, `fbird_ping` missing in procedural (exists in OO), per-connection error context is global single-slot
 - Firebird client: every interface method reachable but no systematic coverage gate
@@ -35,7 +35,7 @@ Each sub-spec below is an index of GitHub issues. As issues close, the spec stay
 | M5: FB3 Cross-Version Compat | 7 (#326, #404-#409) | 2026-08-11 | #326 |
 | M6: FB3 Documentation & Polish | 7 (#410-#416) | 2026-08-18 | (none, docs only) |
 | M7: FB3 Test Infrastructure | 10 (#312-#321) | 2026-07-21 | (none, infra only) |
-| **v12.1.0 total** | **104** | | |
+| **v12.1.0 total** | **105** | | |
 | M8: FB4+/5+/6+ Coverage (stretch) | 20 (#327, #417-#435) | 2026-11-30 | #327 |
 | M9: Implementation Work (backlog) | 6 (#436-#441) | no due date | (none) |
 
@@ -59,7 +59,7 @@ Each sub-spec below is an index of GitHub issues. As issues close, the spec stay
 - [M3: Doctrine & amicron-platform](spec-v12.1-doctrine-downstream.md) - issue #324
 - [M4: Firebird Client Coverage](spec-v12.1-firebird-client-coverage.md) - issue #325
 - [M5: Cross-Version Compat](spec-v12.1-cross-version-compat.md) - issue #326
-- [M8 (stretch): FB4+/5+/6+ Coverage](spec-v13.0-fb4-plus-coverage.md) - issue #327
+- [M8 (stretch): FB4+/5+/6+ Coverage](https://github.com/satwareAG/php-firebird/milestone/8) - issue #327
 
 ## Out of scope
 

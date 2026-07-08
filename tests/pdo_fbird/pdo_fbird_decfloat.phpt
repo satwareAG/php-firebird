@@ -68,7 +68,7 @@ $pdo->exec("INSERT INTO decfloat_test VALUES (6, 1.23E10, 1.23456789012345678901
 $stmt = $pdo->query("SELECT df16, df34 FROM decfloat_test WHERE id = 6");
 $row = $stmt->fetch(PDO::FETCH_NUM);
 echo "df16 (1.23E10): " . $row[0] . "\n";
-echo "df34 (1.23E-20): " . $row[0] . "\n";
+echo "df34 (1.23E-20): " . $row[1] . "\n";
 
 echo "\n=== Test 6: NULL values ===\n";
 $pdo->exec("INSERT INTO decfloat_test (id, df16, df34) VALUES (7, NULL, NULL)");

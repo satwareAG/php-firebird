@@ -73,8 +73,9 @@ $stmt = $pdo2->query("SELECT time_tz, ts_tz FROM pdo_tz_test WHERE id = 2");
 $row = $stmt->fetch(PDO::FETCH_ASSOC);
 echo "After SET BIND TO LEGACY - time_tz: " . $row['TIME_TZ'] . "\n";
 echo "After SET BIND TO LEGACY - ts_tz: " . $row['TS_TZ'] . "\n";
-/* Legacy mode strips TZ info — values should not contain timezone names/offsets */
-echo "time_tz has no TZ name: " . (preg_match('/\d{2}:\d{2}:\d{2}$/', trim($row['TIME_TZ'])) ? 'yes' : 'no') . "\n";
+/* Legacy mode strips TZ info — values should not contain timezone names/offsets.
+ * Anchor at start (HH:MM:SS) without end anchor to tolerate fractional seconds. */
+echo "time_tz has no TZ name: " . (preg_match('/^\d{2}:\d{2}:\d{2}/', trim($row['TIME_TZ'])) ? 'yes' : 'no') . "\n";
 
 echo "\nDone.\n";
 ?>

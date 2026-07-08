@@ -50,6 +50,14 @@ echo "OK LAST: id=" . $r[0] . "\n";
 $r = $stmt->fetch(PDO::FETCH_NUM, PDO::FETCH_ORI_ABS, 3);
 echo "OK ABS(3): id=" . $r[0] . "\n";
 
+// FETCH_ORI_PRIOR
+$r = $stmt->fetch(PDO::FETCH_NUM, PDO::FETCH_ORI_PRIOR);
+echo "OK PRIOR: id=" . $r[0] . "\n";
+
+// FETCH_ORI_REL (relative offset)
+$r = $stmt->fetch(PDO::FETCH_NUM, PDO::FETCH_ORI_REL, 1);
+echo "OK REL(1): id=" . $r[0] . "\n";
+
 echo "=== DONE ===\n";
 ?>
 --CLEAN--

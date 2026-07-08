@@ -301,11 +301,37 @@ function _fb_get_server_version(): float
 
 function _fb_probe_scrollable_cursors(): bool
 {
-    /* Scrollable cursors are a driver/client capability (FB5+ client +
-     * server). The procedural fbird_* API exposes bidirectional fetch via
-     * OOP Firebird\Statement or PDO CURSOR_SCROLL. No simple procedural
-     * probe; fall back to version check. */
-    return _fb_get_server_version() >= 5.0;
+    /* Scrollable cursors require BOTH FB5+ client AND server.
+     * Version check alone is insufficient — a FB4 client against a FB5
+     * server will report version >= 5.0 but fail at fetch time with
+     * "feature is not supported" (335544378).
+     * Probe by attempting a PDO scrollable cursor fetch. */
+    if (!in_array('fbird', PDO::getAvailableDrivers())) return false;
+
+    global $host, $user, $password;
+    $hostStr = ($host !== '' && $host !== null) ? $host : 'localhost';
+
+    $dbEnv = getenv('FIREBIRD_DB_PATH');
+    if ($dbEnv === false || $dbEnv === '') {
+        $dbEnv = getenv('FIREBIRD_DATABASE');
+    }
+    $db = ($dbEnv !== false && $dbEnv !== '') ? $dbEnv : '/firebird/data/test.fdb';
+
+    try {
+        $pdo = new PDO("fbird:host={$hostStr};dbname={$db};charset=UTF8", $user, $password,
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_SILENT]);
+        @$pdo->exec("RECREATE TABLE FB_PROBE_SCROLL (id INT)");
+        $pdo->exec("INSERT INTO FB_PROBE_SCROLL VALUES (1)");
+        $stmt = $pdo->prepare("SELECT id FROM FB_PROBE_SCROLL",
+            [PDO::ATTR_CURSOR => PDO::CURSOR_SCROLL]);
+        $stmt->execute();
+        $stmt->fetch(PDO::FETCH_NUM, PDO::FETCH_ORI_NEXT);
+        $r = @$stmt->fetch(PDO::FETCH_NUM, PDO::FETCH_ORI_PRIOR);
+        @$pdo->exec("DROP TABLE FB_PROBE_SCROLL");
+        return $r !== false;
+    } catch (Throwable $e) {
+        return false;
+    }
 }
 
 function _fb_probe_parallel_workers(): bool

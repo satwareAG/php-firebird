@@ -306,9 +306,13 @@ static int pdo_fbird_stmt_fetch(pdo_stmt_t *stmt,
 	}
 
 	if (rc == 1) return 1;   /* row fetched */
-	if (rc == 0) {           /* end of data */
-		S->has_rows = 0;
-		fbs_close_cursor(S->fbs_stmt, S->status);
+	if (rc == 0) {           /* end of data (BOF/EOF) */
+		if (!S->scrollable) {
+			/* Forward-only: close cursor on EOF */
+			S->has_rows = 0;
+			fbs_close_cursor(S->fbs_stmt, S->status);
+		}
+		/* Scrollable: keep cursor open for repositioning */
 		return 0;
 	}
 	/* error */

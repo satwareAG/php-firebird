@@ -10,10 +10,10 @@ require_once __DIR__ . '/../firebird.inc';
 --FILE--
 <?php
 require_once __DIR__ . '/../firebird.inc';
-\$lit = fbird_escape_literal("O'Brien");
-echo "OK escape_literal: \$lit\n";
-\$id = fbird_escape_identifier("My Table");
-echo "OK escape_identifier: \$id\n";
+$lit = fbird_escape_literal("O'Brien");
+echo "OK escape_literal: $lit\n";
+$id = fbird_escape_identifier("My Table");
+echo "OK escape_identifier: $id\n";
 echo "=== DONE ===\n";
 ?>
 --EXPECT--

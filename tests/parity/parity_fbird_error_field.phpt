@@ -10,10 +10,10 @@ require_once __DIR__ . '/../firebird.inc';
 --FILE--
 <?php
 require_once __DIR__ . '/../firebird.inc';
-global \$link;
-@fbird_query(\$link, "SELECT * FROM nonexistent_table_df");
-\$sqlstate = fbird_error_field(\$link, 1); // FBIRD_DIAG_SQLSTATE
-echo "OK error_field SQLSTATE: " . (strlen(\$sqlstate) > 0 ? "returned" : "empty") . "\n";
+global $link;
+@fbird_query($link, "SELECT * FROM nonexistent_table_df");
+$sqlstate = fbird_error_field($link, 1); // FBIRD_DIAG_SQLSTATE
+echo "OK error_field SQLSTATE: " . (strlen($sqlstate) > 0 ? "returned" : "empty") . "\n";
 echo "=== DONE ===\n";
 ?>
 --EXPECT--

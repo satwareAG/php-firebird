@@ -10,9 +10,9 @@ require_once __DIR__ . '/../firebird.inc';
 --FILE--
 <?php
 require_once __DIR__ . '/../firebird.inc';
-global \$link;
-\$ver = fbird_server_version(\$link);
-echo "OK server_version: " . (strlen(\$ver) > 0 ? "returned" : "empty") . "\n";
+global $link;
+$ver = fbird_server_version($link);
+echo "OK server_version: " . (strlen($ver) > 0 ? "returned" : "empty") . "\n";
 echo "=== DONE ===\n";
 ?>
 --EXPECT--

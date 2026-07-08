@@ -10,15 +10,15 @@ require_once __DIR__ . '/../firebird.inc';
 --FILE--
 <?php
 require_once __DIR__ . '/../firebird.inc';
-global \$link, \$test_base;
-fbird_query(\$link, "RECREATE TABLE test_fa (id INT)");
-fbird_query(\$link, "INSERT INTO test_fa VALUES (1)");
-fbird_query(\$link, "INSERT INTO test_fa VALUES (2)");
-\$res = fbird_query(\$link, "SELECT id FROM test_fa ORDER BY id");
-\$rows = fbird_fetch_all(\$res);
-echo "OK fetch_all count: " . count(\$rows) . "\n";
-fbird_free_result(\$res);
-fbird_query(\$link, "DROP TABLE test_fa");
+global $link, $test_base;
+fbird_query($link, "RECREATE TABLE test_fa (id INT)");
+fbird_query($link, "INSERT INTO test_fa VALUES (1)");
+fbird_query($link, "INSERT INTO test_fa VALUES (2)");
+$res = fbird_query($link, "SELECT id FROM test_fa ORDER BY id");
+$rows = fbird_fetch_all($res);
+echo "OK fetch_all count: " . count($rows) . "\n";
+fbird_free_result($res);
+fbird_query($link, "DROP TABLE test_fa");
 echo "=== DONE ===\n";
 ?>
 --EXPECT--

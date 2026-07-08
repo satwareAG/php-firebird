@@ -10,10 +10,10 @@ require_once __DIR__ . '/../firebird.inc';
 --FILE--
 <?php
 require_once __DIR__ . '/../firebird.inc';
-global \$link;
-@fbird_query(\$link, "SELECT * FROM nonexistent_table_el");
-\$errors = fbird_error_list(\$link);
-echo "OK error_list: " . (is_array(\$errors) ? count(\$errors) . " errors" : "not array") . "\n";
+global $link;
+@fbird_query($link, "SELECT * FROM nonexistent_table_el");
+$errors = fbird_error_list($link);
+echo "OK error_list: " . (is_array($errors) ? count($errors) . " errors" : "not array") . "\n";
 echo "=== DONE ===\n";
 ?>
 --EXPECT--

@@ -10,11 +10,11 @@ require_once __DIR__ . '/../firebird.inc';
 --FILE--
 <?php
 require_once __DIR__ . '/../firebird.inc';
-global \$link;
+global $link;
 fbird_debug("test debug message");
 echo "OK debug: called\n";
-\$r = fbird_dump_debug_info(\$link);
-echo "OK dump_debug_info: " . (\$r ? "true" : "false") . "\n";
+$r = fbird_dump_debug_info($link);
+echo "OK dump_debug_info: " . ($r ? "true" : "false") . "\n";
 echo "=== DONE ===\n";
 ?>
 --EXPECT--

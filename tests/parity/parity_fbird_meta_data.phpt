@@ -10,11 +10,11 @@ require_once __DIR__ . '/../firebird.inc';
 --FILE--
 <?php
 require_once __DIR__ . '/../firebird.inc';
-global \$link, \$test_base;
-\$meta = fbird_meta_data(\$link, "RDB\$DATABASE");
-echo "OK meta_data: " . (is_array(\$meta) ? "array" : "other") . "\n";
-\$tables = fbird_list_tables(\$link);
-echo "OK list_tables: " . (is_array(\$tables) ? count(\$tables) . " tables" : "other") . "\n";
+global $link, $test_base;
+$meta = fbird_meta_data($link, "RDB$DATABASE");
+echo "OK meta_data: " . (is_array($meta) ? "array" : "other") . "\n";
+$tables = fbird_list_tables($link);
+echo "OK list_tables: " . (is_array($tables) ? count($tables) . " tables" : "other") . "\n";
 echo "=== DONE ===\n";
 ?>
 --EXPECT--

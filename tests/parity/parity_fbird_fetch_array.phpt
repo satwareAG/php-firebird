@@ -10,12 +10,12 @@ require_once __DIR__ . '/../firebird.inc';
 --FILE--
 <?php
 require_once __DIR__ . '/../firebird.inc';
-global \$link, \$test_base;
-\$res = fbird_query(\$link, "SELECT 1 AS VAL FROM rdb\$database");
-\$row = fbird_fetch_array(\$res);
-echo "OK fetch_array has numeric: " . (isset(\$row[0]) ? "yes" : "no") . "\n";
-echo "OK fetch_array has assoc: " . (isset(\$row["VAL"]) ? "yes" : "no") . "\n";
-fbird_free_result(\$res);
+global $link, $test_base;
+$res = fbird_query($link, "SELECT 1 AS VAL FROM rdb\$database");
+$row = fbird_fetch_array($res);
+echo "OK fetch_array has numeric: " . (isset($row[0]) ? "yes" : "no") . "\n";
+echo "OK fetch_array has assoc: " . (isset($row["VAL"]) ? "yes" : "no") . "\n";
+fbird_free_result($res);
 echo "=== DONE ===\n";
 ?>
 --EXPECT--

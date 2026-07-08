@@ -169,23 +169,22 @@ docker run --rm \
 
         echo "--- Running tests: '"${TEST_PATH}"' ---"
         echo ""
+        # jane: use || to capture exit code because set -e would exit before reaching $?
         TEST_PHP_EXECUTABLE=$(which php) \
         php run-tests.php \
             -d extension="${FIREBIRD_SO}" \
             -d extension="${PDO_FBIRD_SO}" \
             -p "$(which php)" \
-            "'"$TEST_PATH"'"
+            "'"$TEST_PATH"'" || TEST_RESULT=$?
 
-        # run-tests.php exit code: 0 = all pass, non-zero = failures
-        EXIT_CODE=$?
-        if [ $EXIT_CODE -ne 0 ]; then
+        if [ "${TEST_RESULT:-0}" -ne 0 ]; then
             echo ""
-            echo "=== TEST FAILURES DETECTED (exit code ${EXIT_CODE}) ==="
+            echo "=== TEST FAILURES DETECTED (exit code ${TEST_RESULT}) ==="
         else
             echo ""
             echo "=== ALL TESTS PASSED ==="
         fi
-        exit $EXIT_CODE
+        exit ${TEST_RESULT:-0}
     '
 
 RESULT=$?

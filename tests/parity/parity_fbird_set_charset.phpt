@@ -10,10 +10,10 @@ require_once __DIR__ . '/../firebird.inc';
 --FILE--
 <?php
 require_once __DIR__ . '/../firebird.inc';
-global \$link;
-fbird_set_charset(\$link, "UTF8");
-\$cs = fbird_character_set_name(\$link);
-echo "OK character_set_name: \$cs\n";
+global $link;
+fbird_set_charset($link, "UTF8");
+$cs = fbird_character_set_name($link);
+echo "OK character_set_name: $cs\n";
 echo "=== DONE ===\n";
 ?>
 --EXPECT--

@@ -10,11 +10,11 @@ require_once __DIR__ . '/../firebird.inc';
 --FILE--
 <?php
 require_once __DIR__ . '/../firebird.inc';
-global \$link;
-\$stmt = fbird_prepare(\$link, "SELECT 1 FROM rdb\$database");
-\$val = fbird_stmt_attr_get(\$stmt, 1); // FBIRD_STMT_ATTR_PREFETCH
-echo "OK stmt_attr_get: " . var_export(\$val, true) . "\n";
-fbird_free_query(\$stmt);
+global $link;
+$stmt = fbird_prepare($link, "SELECT 1 FROM rdb\$database");
+$val = fbird_stmt_attr_get($stmt, 1); // FBIRD_STMT_ATTR_PREFETCH
+echo "OK stmt_attr_get: " . var_export($val, true) . "\n";
+fbird_free_query($stmt);
 echo "=== DONE ===\n";
 ?>
 --EXPECT--

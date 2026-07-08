@@ -10,11 +10,11 @@ require_once __DIR__ . '/../firebird.inc';
 --FILE--
 <?php
 require_once __DIR__ . '/../firebird.inc';
-global \$link, \$test_base;
-fbird_query(\$link, "RECREATE TABLE test_mq (id INT)");
-\$r = fbird_multi_query(\$link, "INSERT INTO test_mq VALUES (1); INSERT INTO test_mq VALUES (2);");
-echo "OK multi_query: " . (\$r ? "true" : "false") . "\n";
-fbird_query(\$link, "DROP TABLE test_mq");
+global $link, $test_base;
+fbird_query($link, "RECREATE TABLE test_mq (id INT)");
+$r = fbird_multi_query($link, "INSERT INTO test_mq VALUES (1); INSERT INTO test_mq VALUES (2);");
+echo "OK multi_query: " . ($r ? "true" : "false") . "\n";
+fbird_query($link, "DROP TABLE test_mq");
 echo "=== DONE ===\n";
 ?>
 --EXPECT--

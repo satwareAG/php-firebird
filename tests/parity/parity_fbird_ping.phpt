@@ -10,9 +10,9 @@ require_once __DIR__ . '/../firebird.inc';
 --FILE--
 <?php
 require_once __DIR__ . '/../firebird.inc';
-global \$link;
-\$r = fbird_ping(\$link);
-echo "OK ping: " . (\$r ? "true" : "false") . "\n";
+global $link;
+$r = fbird_ping($link);
+echo "OK ping: " . ($r ? "true" : "false") . "\n";
 echo "=== DONE ===\n";
 ?>
 --EXPECT--

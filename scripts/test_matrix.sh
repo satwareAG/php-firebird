@@ -62,12 +62,13 @@ if [ -n "$1" ]; then
 else
     # Test all PHP containers across all supported Firebird client libraries
     # Sanitizer containers (php83-tsan, php83-asan) excluded by default - use explicitly
-    # FB 2.5 uses jacobalberty/firebird:v2.5.9-ss-jessie community image (issue #313)
+    # jane: FB 2.5 client containers not defined in docker-compose.yml;
+    # cross-version tests use FB5 client → FB 2.5 server (not FB 2.5 client)
     TARGETS=(
-        "php82-fb3-dev" "php82-dev" "php82-fb5-dev" "php82-fb25-dev"
-        "php83-fb3-dev" "php83-dev" "php83-fb5-dev" "php83-fb25-dev"
-        "php84-fb3-dev" "php84-dev" "php84-fb5-dev" "php84-fb25-dev"
-        "php85-fb3-dev" "php85-dev" "php85-fb5-dev" "php85-fb25-dev"
+        "php82-fb3-dev" "php82-dev" "php82-fb5-dev"
+        "php83-fb3-dev" "php83-dev" "php83-fb5-dev"
+        "php84-fb3-dev" "php84-dev" "php84-fb5-dev"
+        "php85-fb3-dev" "php85-dev" "php85-fb5-dev"
     )
 fi
 

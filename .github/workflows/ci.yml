@@ -222,10 +222,15 @@ jobs:
             EXT_FLAGS="${EXT_FLAGS} -d extension=${PDO_FBIRD_PATH}"
           fi
 
-          # Add pcntl extension if available (needed by fork tests)
-          PCNTL_SO=$(find $(php-config --extension-dir) -name "pcntl.so" 2>/dev/null || true)
-          if [ -n "$PCNTL_SO" ]; then
-            EXT_FLAGS="${EXT_FLAGS} -d extension=${PCNTL_SO}"
+          # Add pcntl extension if not already loaded (needed by fork tests)
+          # jane: PHP containers load pcntl via docker-php-ext-install; adding
+          # -d extension=pcntl.so when already loaded causes "Module already
+          # loaded" warning in every test, failing all tests.
+          if ! php -r 'exit(extension_loaded("pcntl") ? 0 : 1);' 2>/dev/null; then
+            PCNTL_SO=$(find $(php-config --extension-dir) -name "pcntl.so" 2>/dev/null || true)
+            if [ -n "$PCNTL_SO" ]; then
+              EXT_FLAGS="${EXT_FLAGS} -d extension=${PCNTL_SO}"
+            fi
           fi
 
           echo "Test configuration:"

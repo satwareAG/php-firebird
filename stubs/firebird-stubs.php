@@ -10,7 +10,7 @@
  * This stub file does not contain any implementation.
  *
  * @package   php-firebird-stubs
- * @version   12.1.0-rc.9
+ * @version   12.1.0-rc.10
  * @author    satware AG <info@satware.com>
  * @copyright 2025-2026 satware AG
  * @license   PHP-3.01 https://www.php.net/license/3_01.txt

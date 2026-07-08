@@ -95,8 +95,10 @@ $row = $stmt->fetch(PDO::FETCH_NUM);
 echo "After SET BIND TO VARCHAR - df16: " . $row[0] . "\n";
 echo "After SET BIND TO VARCHAR - df34: " . $row[1] . "\n";
 
-/* Close all connections explicitly — SET BIND connections must be released
- * before subsequent tests (e.g. service_backup_restore) can create databases. */
+/* Close all statements and connections explicitly — PDOStatement holds a
+ * ref to its parent PDO, so unset $stmt before $pdo to actually release
+ * the connection before subsequent tests (e.g. service_backup_restore). */
+unset($stmt);
 unset($pdo3);
 unset($pdo2);
 unset($pdo);

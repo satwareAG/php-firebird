@@ -42,6 +42,35 @@ exercised. v13.0.0 turns those skips into passing tests.
 
 ---
 
+## Downstream Priority
+
+| Downstream | FB Support Need | Status |
+|------------|-----------------|--------|
+| **amicron-platform** | FB 3.0 full | Done (v12.1.0) |
+| **doctrine-firebird-driver** | Full FB (3.0/4.0/5.0+) | v13.0.0 enables FB4+/5+ |
+
+doctrine-firebird-driver already maps FB4+ types in `Firebird4Platform.php`
+but currently **coerces** them to legacy PHP types:
+
+| FB4+ Type | Doctrine Mapping (current) | v13.0.0 enables |
+|-----------|-----------------------------|------------------|
+| `TIMESTAMP WITH TIME ZONE` | `Types::DATETIMETZ_MUTABLE` | Native TZ-aware handling (#419) |
+| `TIME WITH TIME ZONE` | `Types::TIME_MUTABLE` | Native TZ-aware handling (#419) |
+| `INT128` | `Types::BIGINT` (coerced) | Native precision (#418) |
+| `DECFLOAT(16/34)` | `Types::DECIMAL` (coerced) | Native precision (#417) |
+
+Priority within v13.0.0 follows doctrine's downstream needs:
+
+1. **#419** TIME/TIMESTAMP WITH TIME ZONE — doctrine already has format strings + type declarations; needs driver end-to-end
+2. **#417** DECFLOAT + **#418** INT128 — currently coerced; native enables precision-preserving operations
+3. **#420** SET BIND — alternative type coercion path for doctrine
+4. **#426** Scrollable cursors — pagination (LIMIT/OFFSET emulation)
+5. **#421** Batch DML — doctrine has `createBatch()`/`executeBatch()` already
+6. **#422** Statement timeout — connection pooling
+7. **#425** READ CONSISTENCY — transaction isolation
+
+---
+
 ## Version Gating Strategy
 
 ### Compile-time
@@ -50,20 +79,19 @@ Existing `FB_API_VER` preprocessor gates remain the canonical compile-time
 mechanism (28+ sites already use `#if FB_API_VER >= 40` / `>= 50`). No new
 named feature macros are introduced by this spec.
 
-### Runtime SKIPIF (canonical pattern)
+### Runtime SKIPIF
 
-All v13.0.0 tests MUST use the **capability-probe** SKIPIF pattern. Version-
-string parsing (`floatval(PDO::ATTR_SERVER_VERSION) < 4.0`) and
-`is_fb_server_available()` are NOT sanctioned for v13.0.0 tests because:
+Three sanctioned patterns, in order of preference:
 
-1. `fbc_get_server_version()` (`firebird_utils.cpp:744`) returns the **client**
-   library version, not the connected server version, making version-string
-   comparisons unreliable (tracked by #361, Unscheduled milestone).
-2. Capability probing is self-documenting: the SKIPIF block shows exactly which
-   feature is required.
-3. No duplication: one probe pattern, no per-test version-string parsing.
+| Preference | Pattern | When to use | Why |
+|------------|---------|-------------|-----|
+| 1 (preferred) | **Capability probe** — `CREATE TABLE`/`EXECUTE BLOCK` probe-and-cleanup | New feature tests (DECFLOAT, INT128, scrollable cursors, etc.) | Self-documenting (SKIPIF shows exactly which feature is required); robust against config-disabled features and DataTypeCompatibility modes that version detection cannot catch |
+| 2 (acceptable) | `get_fb_version()` from `tests/firebird.inc:168-183` | Version-gated tests where capability probing is impractical (e.g. batch API, timeouts) | Uses Service API (`fbird_server_info` + `FBIRD_SVC_SERVER_VERSION`) to query **real server version** — NOT the unreliable `fbc_get_server_version()` |
+| 3 (acceptable) | `is_fb_server_available()` from `tests/cross_version.inc` | Cross-version tests targeting specific server versions | Docker-compose service probing + `rdb$get_context('SYSTEM','ENGINE_VERSION')` verification |
 
-Canonical pattern (from `tests/pdo_fbird_fb4_datatypes_params.phpt:8-14`):
+**NOT sanctioned**: `floatval(PDO::ATTR_SERVER_VERSION) < 4.0` — `PDO::ATTR_SERVER_VERSION` uses `fbc_get_server_version()` (`firebird_utils.cpp:744`) which returns the **client** library version, not the connected server version (tracked by #361, Unscheduled milestone).
+
+Canonical capability-probe pattern (from `tests/pdo_fbird_fb4_datatypes_params.phpt:8-14`):
 
 ```php
 --SKIPIF--
@@ -91,7 +119,8 @@ Supported feature keys: `DECFLOAT`, `INT128`, `TIME_TZ`, `TIMESTAMP_TZ`,
 `READ_CONSISTENCY`, `SCROLLABLE_CURSORS`, `PARALLEL_WORKERS`, `PROFILER`.
 
 This is a **recommendation**, not a spec deliverable. Each implementation
-issue may adopt the helper or inline its own probe citing this spec.
+issue may adopt the helper, use `get_fb_version()`, or inline its own probe
+citing this spec.
 
 ---
 
@@ -103,7 +132,7 @@ issue may adopt the helper or inline its own probe citing this spec.
 | #418 | INT128 native type | String converter only (`firebird_utils.cpp:1157-1175`, `IUtil->getInt128->toString()`). No string->FB_I128 encoder. | Native or string return (no precision loss), SET BIND rules |
 | #419 | TIME/TIMESTAMP WITH TIME ZONE | Decode/encode helpers exist (`firebird_utils.cpp:1057-1243`, `IUtil->decodeTimeTz/decodeTimeStampTz/encodeTimeTz/encodeTimeStampTz`). No end-to-end test, no SET BIND coverage. | TZ-aware types handled correctly end-to-end, SET BIND works |
 | #420 | SET BIND rule coverage (all rules) | Only `DECFLOAT TO VARCHAR` tested via PDO attr (`tests/pdo_fbird_bind_config.phpt`). `INT128 TO BIGINT` and `TIME ZONE TO LEGACY` tested via raw SQL only (`tests/cross_version/data_type_compat_*.phpt`). PDO attr path: `pdo_fbird.c:63`, `FBIRD_ATTR_SET_BIND=1011`. | All rules tested via PDO attr + SQL, LEGACY mode verified |
-| #421 | Batch DML API (IBatch) full coverage | All 10 `fbird_batch_*` functions implemented (`fbird_batch.c`, gated `#if FB_API_VER >= 40` at line 20). OOP `Firebird\BatchHandle` class exists (`fbird_class_batch.c`). Zero test coverage. | All 10 functions tested, multi-type batch works |
+| #421 | Batch DML API (IBatch) full coverage | All 10 `fbird_batch_*` functions implemented (`fbird_batch.c`, gated `#if FB_API_VER >= 40` at line 20). OOP `Firebird\BatchHandle` class exists (`fbird_class_batch.c`). 13 test files exist covering all 10 functions (create:17, add:10, execute:8, cancel:7, add_blob:4, add_blob_stream:2, set_default_bpb:2, register_blob:1, get_blob_alignment:1, append_blob_data:1). 3 undertested functions need edge-case coverage: `register_blob`, `get_blob_alignment`, `append_blob_data`. | All 10 functions have robust edge-case coverage, multi-type batch works |
 | #422 | Statement + session idle timeout | Zero test coverage. API: `IAttachment::getStatementTimeout/setStatementTimeout/getIdleTimeout/setIdleTimeout` + `IStatement::getTimeout/setTimeout`. `fb::VersionInfo::hasTimeouts()` returns `version_ >= FB40`. | Timeouts enforce correctly (ms for statement, seconds for session) |
 | #423 | Packages + SQL SECURITY {DEFINER/INVOKER} | Zero test coverage. SQL: `CREATE PACKAGE/BODY`, `ALTER DATABASE SET DEFAULT SQL SECURITY`. | Package create/exec works, SQL SECURITY enforced |
 | #424 | EXECUTE STATEMENT rich form + SET/AT TIME ZONE | Zero test coverage. SQL: `SET TIME ZONE <tz|LOCAL>`, `AT TIME ZONE` operator, `EXTRACT(TIMEZONE_HOUR|MINUTE|NAME FROM ...)`. | TZ SQL works end-to-end |
@@ -156,7 +185,7 @@ Features with partial implementations to build on (no reinvention needed):
 | INT128 (FB4+) | `fbu_int128_to_string` via `IUtil->getInt128->toString()` (`firebird_utils.cpp:1157-1175`) | String->FB_I128 encoder, native PHP handling |
 | TimeTz / TimeStampTz (FB4+) | `fbu_decode_time_tz` / `fbu_decode_timestamp_tz` / `fbu_encode_time_tz` / `fbu_encode_timestamp_tz` via `IUtil` (`firebird_utils.cpp:1057-1243`) | End-to-end tests, SET BIND coverage |
 | Scrollable cursors (FB5+) | Full impl in `fb_statement.hpp:332-424` + C wrappers `fbs_fetch_prior/first/last/absolute/relative()` (`firebird_utils.cpp:1392-1425`) | Full 6-orientation test coverage |
-| Batch API (FB4+) | All 10 `fbird_batch_*` funcs + `Firebird\BatchHandle` OOP class | Test coverage (zero today) |
+| Batch API (FB4+) | All 10 `fbird_batch_*` funcs + `Firebird\BatchHandle` OOP class. 13 test files exist (all 10 funcs covered). 3 undertested: `register_blob`, `get_blob_alignment`, `append_blob_data` (1 test each) | Edge-case coverage for 3 undertested functions |
 | SET BIND (FB4+) | PDO attr path (`pdo_fbird.c:63`, `FBIRD_ATTR_SET_BIND=1011`) + SQL path (`fb_connection.hpp:64,368`) | Only 1 of 3 rules tested via PDO attr; LEGACY mode untested |
 
 Features with **zero** implementation (greenfield):
@@ -204,16 +233,16 @@ spec (`spec-v13.1-fb6-coverage.md` or similar) will cover:
 | Issue | Title | Status |
 |-------|-------|--------|
 | #327 | spec: write this file (this spec) | Draft |
-| #417 | feat: FB4 DECFLOAT(16/34) native type support | Open |
-| #418 | feat: FB4 INT128 native type support | Open |
-| #419 | feat: FB4 TIME/TIMESTAMP WITH TIME ZONE | Open |
-| #420 | feat: FB4 SET BIND rule coverage (all rules) | Open |
-| #421 | feat: FB4 batch DML API (IBatch) full coverage | Open |
-| #422 | feat: FB4 statement + session idle timeout | Open |
+| #419 | feat: FB4 TIME/TIMESTAMP WITH TIME ZONE | Open - P1 |
+| #417 | feat: FB4 DECFLOAT(16/34) native type support | Open - P2 |
+| #418 | feat: FB4 INT128 native type support | Open - P2 |
+| #420 | feat: FB4 SET BIND rule coverage (all rules) | Open - P3 |
+| #426 | feat: FB5 scrollable cursors (6 orientations) | Open - P4 |
+| #421 | feat: FB4 batch DML API (IBatch) full coverage | Open - P5 |
+| #422 | feat: FB4 statement + session idle timeout | Open - P6 |
+| #425 | feat: FB4 READ CONSISTENCY transaction isolation | Open - P7 |
 | #423 | feat: FB4 packages + SQL SECURITY {DEFINER/INVOKER} | Open |
 | #424 | feat: FB4 EXECUTE STATEMENT rich form + SET TIME ZONE + AT TIME ZONE | Open |
-| #425 | feat: FB4 READ CONSISTENCY transaction isolation | Open |
-| #426 | feat: FB5 scrollable cursors (6 orientations) | Open |
 | #427 | feat: FB5 parallel workers | Open |
 | #428 | feat: FB5 profiler plugin | Open |
 | #435 | feat: PDO multiple active result sets | Open |

@@ -20,7 +20,7 @@ priority: 2
 2026-07-08
 
 ## Status
-Draft
+In progress — 5 of 13 issues done (#327, #417, #418, #419, #426)
 
 ---
 
@@ -184,7 +184,7 @@ Features with partial implementations to build on (no reinvention needed):
 | DECFLOAT (FB4+) | `fbu_decfloat16_to_string` / `fbu_decfloat34_to_string` via `IUtil->getDecFloat16/34->toString()` (`firebird_utils.cpp:1178-1215`, gated `#if FB_API_VER >= 40`) | Native PHP type, round-trip encoder (string->FB_DEC16/34) |
 | INT128 (FB4+) | `fbu_int128_to_string` via `IUtil->getInt128->toString()` (`firebird_utils.cpp:1157-1175`) | String->FB_I128 encoder, native PHP handling |
 | TimeTz / TimeStampTz (FB4+) | `fbu_decode_time_tz` / `fbu_decode_timestamp_tz` / `fbu_encode_time_tz` / `fbu_encode_timestamp_tz` via `IUtil` (`firebird_utils.cpp:1057-1243`) | End-to-end tests, SET BIND coverage |
-| Scrollable cursors (FB5+) | Full impl in `fb_statement.hpp:332-424` + C wrappers `fbs_fetch_prior/first/last/absolute/relative()` (`firebird_utils.cpp:1392-1425`) | Full 6-orientation test coverage |
+| Scrollable cursors (FB5+) | Full impl in `fb_statement.hpp:332-424` + C wrappers `fbs_fetch_prior/first/last/absolute/relative()` (`firebird_utils.cpp:1392-1425`). BOF/EOF fix in `pdo_fbird_stmt.c` (cursor stays open). Edge-case tests in `pdo_fbird_scrollable_cursor_edge_cases.phpt` | **Done** |
 | Batch API (FB4+) | All 10 `fbird_batch_*` funcs + `Firebird\BatchHandle` OOP class. 13 test files exist (all 10 funcs covered). 3 undertested: `register_blob`, `get_blob_alignment`, `append_blob_data` (1 test each) | Edge-case coverage for 3 undertested functions |
 | SET BIND (FB4+) | PDO attr path (`pdo_fbird.c:63`, `FBIRD_ATTR_SET_BIND=1011`) + SQL path (`fb_connection.hpp:64,368`) | Only 1 of 3 rules tested via PDO attr; LEGACY mode untested |
 
@@ -232,12 +232,12 @@ spec (`spec-v13.1-fb6-coverage.md` or similar) will cover:
 
 | Issue | Title | Status |
 |-------|-------|--------|
-| #327 | spec: write this file (this spec) | Draft |
-| #419 | feat: FB4 TIME/TIMESTAMP WITH TIME ZONE | Open - P1 |
-| #417 | feat: FB4 DECFLOAT(16/34) native type support | Open - P2 |
-| #418 | feat: FB4 INT128 native type support | Open - P2 |
+| #327 | spec: write this file (this spec) | **Done** |
+| #419 | feat: FB4 TIME/TIMESTAMP WITH TIME ZONE | **Done** (P1) |
+| #417 | feat: FB4 DECFLOAT(16/34) native type support | **Done** (P2) |
+| #418 | feat: FB4 INT128 native type support | **Done** (P2) |
 | #420 | feat: FB4 SET BIND rule coverage (all rules) | Open - P3 |
-| #426 | feat: FB5 scrollable cursors (6 orientations) | Open - P4 |
+| #426 | feat: FB5 scrollable cursors (6 orientations) | **Done** (P4) |
 | #421 | feat: FB4 batch DML API (IBatch) full coverage | Open - P5 |
 | #422 | feat: FB4 statement + session idle timeout | Open - P6 |
 | #425 | feat: FB4 READ CONSISTENCY transaction isolation | Open - P7 |

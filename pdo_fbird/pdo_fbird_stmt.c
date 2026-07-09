@@ -22,6 +22,7 @@
 #include "../firebird_utils.h"
 #include "../php_firebird.h"
 #include "../php_fbird_includes.h"
+#include "../fbird_classes.h"
 
 /* {{{ php_firebird_preprocess — replace :name with ? and build name→position map */
 zend_string *php_firebird_preprocess(const char *sql, size_t sql_len,
@@ -640,23 +641,13 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 #endif
 #ifdef SQL_DEC16
 		case SQL_DEC16: {
-			char buf[32];
-			if (fbu_decfloat16_to_string(FBG(master_instance), data, buf, sizeof(buf)) == 0) {
-				ZVAL_STRING(result, buf);
-			} else {
-				ZVAL_STRINGL(result, (char *)data, length);
-			}
+			fbird_setup_decfloat_object(result, 16, data, sizeof(FB_DEC16));
 			break;
 		}
 #endif
 #ifdef SQL_DEC34
 		case SQL_DEC34: {
-			char buf[48];
-			if (fbu_decfloat34_to_string(FBG(master_instance), data, buf, sizeof(buf)) == 0) {
-				ZVAL_STRING(result, buf);
-			} else {
-				ZVAL_STRINGL(result, (char *)data, length);
-			}
+			fbird_setup_decfloat_object(result, 34, data, sizeof(FB_DEC34));
 			break;
 		}
 #endif

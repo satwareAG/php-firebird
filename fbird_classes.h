@@ -16,6 +16,15 @@ extern zend_class_entry *fbird_service_ce;
 extern zend_class_entry *fbird_event_ce;
 extern zend_class_entry *fbird_batch_ce;
 
+#if FB_API_VER >= 40
+extern zend_class_entry *fbird_decfloat_ce;
+void fbird_register_decfloat_class(void);
+void fbird_setup_decfloat_object(zval *return_value, unsigned char precision,
+	const void *raw_bytes, unsigned char byte_len);
+#else
+static zend_class_entry *fbird_decfloat_ce = NULL;
+#endif
+
 void fbird_register_classes(void);
 void fbird_setup_connection_object(zval *return_value, zend_resource *res);
 void fbird_setup_service_object(zval *return_value, zend_resource *res);

@@ -1311,6 +1311,63 @@ extern "C" int fbu_decfloat34_to_string(void *master_ptr, const void *value,
     }
 }
 
+/* Convert string to DECFLOAT(16) */
+extern "C" int fbu_string_to_decfloat16(void *master_ptr, const char *str, void *value)
+{
+    if (!master_ptr || !str || !value) return -1;
+    try {
+        auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+        Firebird::IStatus* fb_status = master->getStatus();
+        Firebird::CheckStatusWrapper status(fb_status);
+        Firebird::IUtil* util = master->getUtilInterface();
+        Firebird::IDecFloat16* df16 = util->getDecFloat16(&status);
+        if (status.isDirty()) return -1;
+        df16->fromString(&status, str, static_cast<FB_DEC16*>(value));
+        if (status.isDirty()) return -1;
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+/* Convert string to DECFLOAT(34) */
+extern "C" int fbu_string_to_decfloat34(void *master_ptr, const char *str, void *value)
+{
+    if (!master_ptr || !str || !value) return -1;
+    try {
+        auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+        Firebird::IStatus* fb_status = master->getStatus();
+        Firebird::CheckStatusWrapper status(fb_status);
+        Firebird::IUtil* util = master->getUtilInterface();
+        Firebird::IDecFloat34* df34 = util->getDecFloat34(&status);
+        if (status.isDirty()) return -1;
+        df34->fromString(&status, str, static_cast<FB_DEC34*>(value));
+        if (status.isDirty()) return -1;
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+/* Convert string to INT128 */
+extern "C" int fbu_string_to_int128(void *master_ptr, const char *str, int scale, void *value)
+{
+    if (!master_ptr || !str || !value) return -1;
+    try {
+        auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+        Firebird::IStatus* fb_status = master->getStatus();
+        Firebird::CheckStatusWrapper status(fb_status);
+        Firebird::IUtil* util = master->getUtilInterface();
+        Firebird::IInt128* i128 = util->getInt128(&status);
+        if (status.isDirty()) return -1;
+        i128->fromString(&status, scale, str, static_cast<FB_I128*>(value));
+        if (status.isDirty()) return -1;
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
 /* Encode timestamp with timezone */
 extern "C" int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* timestamp_tz,
 	unsigned year, unsigned month, unsigned day,

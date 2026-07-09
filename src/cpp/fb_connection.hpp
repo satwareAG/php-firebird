@@ -64,6 +64,10 @@ struct ConnectionParams {
 #ifdef isc_dpb_set_bind
     std::string_view bind_rules;    ///< FB 4.0+: Type binding rules
 #endif
+
+#ifdef isc_dpb_parallel_workers
+    unsigned int parallel_workers = 0; ///< FB 5.0+: Parallel workers (0 = default)
+#endif
 };
 
 /**
@@ -371,6 +375,12 @@ inline Connection Connection::create(Firebird::IMaster* master,
     } else {
         // Default bind rules for INT128/DECFLOAT compatibility
         dpb.setBindRules("INT128 TO VARCHAR;DECFLOAT TO VARCHAR");
+    }
+#endif
+
+#ifdef isc_dpb_parallel_workers
+    if (params.parallel_workers > 0) {
+        dpb.setParallelWorkers(params.parallel_workers);
     }
 #endif
 

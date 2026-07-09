@@ -201,6 +201,18 @@ public:
     }
 #endif
 
+#ifdef isc_dpb_parallel_workers
+    /**
+     * Set parallel workers count (FB 5.0+).
+     * Controls parallelism for sweep and index creation.
+     * 0 = server default, 1 = disabled.
+     */
+    DpbBuilder& setParallelWorkers(unsigned int workers) {
+        insertInt(isc_dpb_parallel_workers, workers);
+        return *this;
+    }
+#endif
+
     // -------------------------------------------------------------------------
     // Buffer Access
     // -------------------------------------------------------------------------

@@ -143,6 +143,12 @@ PHP_FUNCTION(fbird_batch_get_blob_alignment);
 PHP_FUNCTION(fbird_batch_append_blob_data);
 PHP_FUNCTION(fbird_batch_add_blob_stream);
 PHP_FUNCTION(fbird_batch_set_default_bpb);
+
+/* Statement/Session Timeout Functions (Firebird 4.0+) */
+PHP_FUNCTION(fbird_set_statement_timeout);
+PHP_FUNCTION(fbird_get_statement_timeout);
+PHP_FUNCTION(fbird_set_idle_timeout);
+PHP_FUNCTION(fbird_get_idle_timeout);
 #endif /* FB_API_VER >= 40 */
 
 #else

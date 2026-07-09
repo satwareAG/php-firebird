@@ -232,6 +232,40 @@ void* fbc_get_attachment(void* connection);
  */
 unsigned fbc_get_server_version(void* connection);
 
+#if FB_API_VER >= 40
+/**
+ * Set statement execution timeout (FB 4.0+).
+ * @param connection Pointer returned by fbc_connect()
+ * @param ms Timeout in milliseconds (0 = no timeout)
+ * @param status_vector Output status vector
+ * @return 0 on success, -1 on failure
+ */
+int fbc_set_statement_timeout(void* connection, unsigned int ms, ISC_STATUS* status_vector);
+
+/**
+ * Get statement execution timeout (FB 4.0+).
+ * @param connection Pointer returned by fbc_connect()
+ * @return Timeout in milliseconds (0 = no timeout)
+ */
+unsigned int fbc_get_statement_timeout(void* connection);
+
+/**
+ * Set connection idle timeout (FB 4.0+).
+ * @param connection Pointer returned by fbc_connect()
+ * @param sec Timeout in seconds (0 = no timeout)
+ * @param status_vector Output status vector
+ * @return 0 on success, -1 on failure
+ */
+int fbc_set_idle_timeout(void* connection, unsigned int sec, ISC_STATUS* status_vector);
+
+/**
+ * Get connection idle timeout (FB 4.0+).
+ * @param connection Pointer returned by fbc_connect()
+ * @return Timeout in seconds (0 = no timeout)
+ */
+unsigned int fbc_get_idle_timeout(void* connection);
+#endif
+
 /**
  * Retrieve database/connection information via the OO API.
  * Wraps Firebird::IAttachment::getInfo().

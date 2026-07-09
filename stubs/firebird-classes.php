@@ -127,6 +127,18 @@ class Connection
      * @throws Exception
      */
     public function prepare(string $sql, \Firebird\Transaction $transaction): Statement {}
+
+    /** Set statement execution timeout in milliseconds (FB 4.0+, 0 = no timeout). */
+    public function setStatementTimeout(int $milliseconds): bool { return true; }
+
+    /** Get statement execution timeout in milliseconds. */
+    public function getStatementTimeout(): int { return 0; }
+
+    /** Set connection idle timeout in seconds (FB 4.0+, 0 = no timeout). */
+    public function setIdleTimeout(int $seconds): bool { return true; }
+
+    /** Get connection idle timeout in seconds. */
+    public function getIdleTimeout(): int { return 0; }
 }
 
 /**

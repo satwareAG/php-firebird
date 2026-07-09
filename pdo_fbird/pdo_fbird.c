@@ -95,6 +95,14 @@ PHP_MINIT_FUNCTION(pdo_fbird)
 			sizeof("FBIRD_ATTR_EVENT_CANCEL") - 1, PDO_FBIRD_ATTR_EVENT_CANCEL);
 		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_EVENT_COUNT",
 			sizeof("FBIRD_ATTR_EVENT_COUNT") - 1, PDO_FBIRD_ATTR_EVENT_COUNT);
+
+#if FB_API_VER >= 40
+		/* FB 4.0+ Timeout attributes */
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_STATEMENT_TIMEOUT",
+			sizeof("FBIRD_ATTR_STATEMENT_TIMEOUT") - 1, PDO_FBIRD_ATTR_STATEMENT_TIMEOUT);
+		zend_declare_class_constant_long(pdo_ce, "FBIRD_ATTR_IDLE_TIMEOUT",
+			sizeof("FBIRD_ATTR_IDLE_TIMEOUT") - 1, PDO_FBIRD_ATTR_IDLE_TIMEOUT);
+#endif
 	}
 
 	return SUCCESS;

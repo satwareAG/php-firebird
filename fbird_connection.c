@@ -953,4 +953,95 @@ PHP_FUNCTION(fbird_drop_db)
 	RETURN_TRUE;
 }
 
+#if FB_API_VER >= 40
+/* {{{ Statement/Session Timeout Functions (Firebird 4.0+) */
+
+/* Helper: fetch fbird_db_link from a zval link argument */
+static fbird_db_link *_fbird_timeout_get_link(zval *link_arg, zend_resource **out_res)
+{
+	zend_resource *link_res;
+	if (link_arg == NULL || Z_TYPE_P(link_arg) == IS_NULL) {
+		link_res = FBG(default_link);
+	} else {
+		link_res = _php_fbird_res_from_zval(link_arg);
+	}
+	if (!link_res) {
+		_php_fbird_module_error("No valid connection");
+		return NULL;
+	}
+	fbird_db_link *link = (fbird_db_link *)link_res->ptr;
+	if (!link || !link->fbc_connection) {
+		_php_fbird_module_error("Connection is not active");
+		return NULL;
+	}
+	if (out_res) *out_res = link_res;
+	return link;
+}
+
+PHP_FUNCTION(fbird_set_statement_timeout)
+{
+	zval *link_arg = NULL;
+	zend_long ms;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zl", &link_arg, &ms) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	fbird_db_link *link = _fbird_timeout_get_link(link_arg, NULL);
+	if (!link) RETURN_FALSE;
+
+	ISC_STATUS_ARRAY status;
+	RETURN_BOOL(fbc_set_statement_timeout(link->fbc_connection, (unsigned int)ms, status) == 0);
+}
+
+PHP_FUNCTION(fbird_get_statement_timeout)
+{
+	zval *link_arg = NULL;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z!", &link_arg) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	fbird_db_link *link = _fbird_timeout_get_link(link_arg, NULL);
+	if (!link) RETURN_LONG(0);
+
+	RETURN_LONG((zend_long)fbc_get_statement_timeout(link->fbc_connection));
+}
+
+PHP_FUNCTION(fbird_set_idle_timeout)
+{
+	zval *link_arg = NULL;
+	zend_long sec;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zl", &link_arg, &sec) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	fbird_db_link *link = _fbird_timeout_get_link(link_arg, NULL);
+	if (!link) RETURN_FALSE;
+
+	ISC_STATUS_ARRAY status;
+	RETURN_BOOL(fbc_set_idle_timeout(link->fbc_connection, (unsigned int)sec, status) == 0);
+}
+
+PHP_FUNCTION(fbird_get_idle_timeout)
+{
+	zval *link_arg = NULL;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z!", &link_arg) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	fbird_db_link *link = _fbird_timeout_get_link(link_arg, NULL);
+	if (!link) RETURN_LONG(0);
+
+	RETURN_LONG((zend_long)fbc_get_idle_timeout(link->fbc_connection));
+}
+
+#endif /* FB_API_VER >= 40 */
+
 #endif /* HAVE_FIREBIRD */

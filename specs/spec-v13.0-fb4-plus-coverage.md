@@ -234,7 +234,7 @@ spec (`spec-v13.1-fb6-coverage.md` or similar) will cover:
 |-------|-------|--------|
 | #327 | spec: write this file (this spec) | **Done** |
 | #419 | feat: FB4 TIME/TIMESTAMP WITH TIME ZONE | **Done** (P1) |
-| #417 | feat: FB4 DECFLOAT(16/34) native type support | **Done** (P2) |
+| #417 | feat: FB4 DECFLOAT(16/34) native type support | Test coverage done — native type TODO (P2) |
 | #418 | feat: FB4 INT128 native type support | **Done** (P2) |
 | #420 | feat: FB4 SET BIND rule coverage (all rules) | Open - P3 |
 | #426 | feat: FB5 scrollable cursors (6 orientations) | **Done** (P4) |

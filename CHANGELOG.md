@@ -43,6 +43,23 @@ downstream (amicron-platform FB3 support complete in v12.1.0).
 - `specs/spec-v13.0-fb4-plus-coverage.md` — milestone index spec (#327): FB4+/FB5+
   coverage tables, version gating strategy (capability-probe SKIPIF), downstream
   priority (doctrine-firebird-driver), current implementation state inventory.
+- `tests/fbird_packages_001.phpt` — FB4+ packages and SQL SECURITY (#423):
+  CREATE/RECREATE/DROP PACKAGE, package procedure calls, SQL SECURITY
+  DEFINER vs INVOKER, ALTER DATABASE SET DEFAULT SQL SECURITY.
+- `tests/fbird_execute_statement_rich_001.phpt` — FB4+ EXECUTE STATEMENT rich
+  form + SET/AT TIME ZONE (#424): SET TIME ZONE, EXTRACT(TIMEZONE_HOUR|MINUTE),
+  AT TIME ZONE operator, EXECUTE STATEMENT basic form, WITH AUTONOMOUS
+  TRANSACTION, ON EXTERNAL DATA SOURCE.
+- `tests/fbird_profiler_001.phpt` — FB5+ profiler plugin (#428):
+  rdb$profiler.start_session, flush, finish_session, query plg$prof_sessions
+  and plg$prof_requests.
+- `tests/fbird_read_consistency_001.phpt` — FB4+ READ CONSISTENCY (#425):
+  flag path, array-API path, statement-level snapshot verification, auto-restart
+  on UPDATE conflict, TBuilder isolationReadCommittedReadConsistency().
+- `tests/fbird_parallel_workers_001.phpt` — FB5+ parallel workers (#427):
+  MON$PARALLEL_WORKERS, index creation, query verification.
+- `tests/fbird_statement_timeout_001.phpt` — FB4+ statement timeout via SQL
+  (#422 approach A): SET STATEMENT TIMEOUT, timeout enforcement, reset.
 
 #### Changed
 
@@ -52,6 +69,11 @@ downstream (amicron-platform FB3 support complete in v12.1.0).
   unchanged. (#426)
 - `tests/pdo_fbird/conformance/pdo_definition_fetch_orientation.phpt`: Extended
   from 4/6 to 6/6 FETCH_ORI orientations (added PRIOR, REL). (#426)
+- `src/cpp/fb_dpb_builder.hpp`: Added `setParallelWorkers()` (FB5+). (#427)
+- `src/cpp/fb_connection.hpp`: Added `parallel_workers` to `ConnectionParams`,
+  wired in `Connection::create()`. (#427)
+- `firebird_utils.h/.cpp`: Added `fbc_connect_ex()` C wrapper with
+  parallel_workers parameter. (#427)
 
 #### Known issues
 

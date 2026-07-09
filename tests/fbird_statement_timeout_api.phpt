@@ -5,6 +5,7 @@ Firebird 4.0+ statement/session timeout full API (#422 approach B)
 require_once 'skipif.inc';
 require_once __DIR__ . '/fb_version_probe.inc';
 if (!fb_server_supports('STATEMENT_TIMEOUT')) die('skip STATEMENT_TIMEOUT not supported (requires FB4+)');
+if (!in_array('fbird', PDO::getAvailableDrivers())) die('skip pdo_fbird not available');
 ?>
 --FILE--
 <?php

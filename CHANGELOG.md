@@ -63,6 +63,9 @@ downstream (amicron-platform FB3 support complete in v12.1.0).
 - `tests/pdo_fbird/pdo_fbird_mars.phpt` — PDO Multiple Active Result Sets
   (#435): interleaved fetch, close-one-survive-other, re-execute, three
   statements round-robin, commit invalidation, DML-between-SELECTs.
+- `tests/fbird_statement_timeout_api.phpt` — FB4+ statement/session timeout
+  full API (#422 approach B): set/get round-trip for all 3 layers
+  (procedural, PDO, OOP) + timeout enforcement.
 
 #### Changed
 
@@ -85,6 +88,18 @@ downstream (amicron-platform FB3 support complete in v12.1.0).
   (#435)
 - `stubs/pdo-fbird-stubs.php`: Removed "Multiple active result sets" from
   "Not yet implemented" list — MARS was never broken, just untested. (#435)
+- `firebird_utils.h/.cpp`: Added `fbc_set/get_statement_timeout()`,
+  `fbc_set/get_idle_timeout()` C wrappers. (#422)
+- `firebird.c` + `fbird_connection.c`: Added `fbird_set/get_statement_timeout()`,
+  `fbird_set/get_idle_timeout()` procedural functions. (#422)
+- `pdo_fbird/php_pdo_fbird.h` + `pdo_fbird.c` + `pdo_fbird_driver.c`: Added
+  `FBIRD_ATTR_STATEMENT_TIMEOUT=1026`, `FBIRD_ATTR_IDLE_TIMEOUT=1027` PDO
+  attributes with set/get support. (#422)
+- `fbird_class_connection.c`: Added `setStatementTimeout()`,
+  `getStatementTimeout()`, `setIdleTimeout()`, `getIdleTimeout()` OOP methods. (#422)
+- `stubs/firebird-stubs.php`, `stubs/pdo-fbird-stubs.php`,
+  `stubs/firebird-classes.php`, `phpstan/fbird.stub.php`: Updated with
+  timeout API stubs. (#422)
 
 #### Known issues
 

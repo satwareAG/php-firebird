@@ -217,6 +217,11 @@ PHP_METHOD(FirebirdConnection, setStatementTimeout)
 		Z_PARAM_LONG(ms);
 	ZEND_PARSE_PARAMETERS_END();
 
+	if (ms < 0) {
+		zend_argument_value_error(1, "must be non-negative, " ZEND_LONG_FMT " given", ms);
+		RETURN_THROWS();
+	}
+
 	fbird_connection_obj *intern = Z_FBIRD_CONNECTION_P(ZEND_THIS);
 	if (!intern->conn_res || intern->conn_res->type <= 0) RETURN_FALSE;
 	fbird_db_link *link = (fbird_db_link *)intern->conn_res->ptr;
@@ -250,6 +255,11 @@ PHP_METHOD(FirebirdConnection, setIdleTimeout)
 	ZEND_PARSE_PARAMETERS_START(1, 1);
 		Z_PARAM_LONG(sec);
 	ZEND_PARSE_PARAMETERS_END();
+
+	if (sec < 0) {
+		zend_argument_value_error(1, "must be non-negative, " ZEND_LONG_FMT " given", sec);
+		RETURN_THROWS();
+	}
 
 	fbird_connection_obj *intern = Z_FBIRD_CONNECTION_P(ZEND_THIS);
 	if (!intern->conn_res || intern->conn_res->type <= 0) RETURN_FALSE;

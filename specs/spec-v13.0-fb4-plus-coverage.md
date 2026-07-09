@@ -20,7 +20,7 @@ priority: 2
 2026-07-08
 
 ## Status
-In progress — 5 of 13 issues done (#327, #417, #418, #419, #426)
+In progress — 7 of 13 issues done (#327, #417 partial, #418, #419, #420, #421, #426)
 
 ---
 
@@ -236,9 +236,9 @@ spec (`spec-v13.1-fb6-coverage.md` or similar) will cover:
 | #419 | feat: FB4 TIME/TIMESTAMP WITH TIME ZONE | **Done** (P1) |
 | #417 | feat: FB4 DECFLOAT(16/34) native type support | Test coverage done — native type TODO (P2) |
 | #418 | feat: FB4 INT128 native type support | **Done** (P2) |
-| #420 | feat: FB4 SET BIND rule coverage (all rules) | Open - P3 |
+| #420 | feat: FB4 SET BIND rule coverage (all rules) | **Done** (P3) |
 | #426 | feat: FB5 scrollable cursors (6 orientations) | **Done** (P4) |
-| #421 | feat: FB4 batch DML API (IBatch) full coverage | Open - P5 |
+| #421 | feat: FB4 batch DML API (IBatch) full coverage | **Done** (P5) |
 | #422 | feat: FB4 statement + session idle timeout | Open - P6 |
 | #425 | feat: FB4 READ CONSISTENCY transaction isolation | Open - P7 |
 | #423 | feat: FB4 packages + SQL SECURITY {DEFINER/INVOKER} | Open |

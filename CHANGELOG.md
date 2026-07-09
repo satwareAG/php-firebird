@@ -32,6 +32,14 @@ downstream (amicron-platform FB3 support complete in v12.1.0).
   cursor BOF/EOF and edge cases (#426): EOF/BOF detection, cursor repositioning
   after BOF/EOF, empty result set, single row, out-of-bounds ABS/REL,
   cross-orientation navigation.
+- `tests/pdo_fbird/pdo_fbird_set_bind_rules.phpt` — FB4+ SET BIND comprehensive
+  rule coverage (#420): INT128 TO BIGINT, TIME ZONE TO LEGACY, BINARY TO CHAR,
+  multiple chained rules, comprehensive LEGACY mode, PDO attribute write-only
+  verification, TO NATIVE reset.
+- `tests/fbird_batch_gap_coverage_001.phpt` — Batch DML gap coverage (#421):
+  `register_blob` cross-transaction blob registration, `get_blob_alignment`
+  procedural call + value verification, `append_blob_data` multi-chunk + empty +
+  binary data, error path (invalid handle).
 - `specs/spec-v13.0-fb4-plus-coverage.md` — milestone index spec (#327): FB4+/FB5+
   coverage tables, version gating strategy (capability-probe SKIPIF), downstream
   priority (doctrine-firebird-driver), current implementation state inventory.

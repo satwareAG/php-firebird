@@ -195,7 +195,6 @@ final class PDO_FBIRD_Constants
  *   - Connection liveness check via real server ping
  *
  * Not yet implemented:
- *   - Multiple active result sets on a single connection
  *   - getColumnMeta() (returns IM001 — driver does not support this function)
  *     The bundled ext/pdo_firebird has this; pdo_fbird does not yet.
  *     See issue #339 and specs/spec-v12.1-pdo-conformance.md.

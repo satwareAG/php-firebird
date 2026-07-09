@@ -1,33 +1,35 @@
 # ADR: PDO Multiple Active Result Sets (MARS) — #435
 
 ## Status
-Proposed — architectural analysis complete, implementation not started.
+Verified — MARS works. No code changes needed beyond a clarity flag.
 
 ## Context
 
-Issue #435 requires multiple `PDOStatement` objects to be active simultaneously
-on a single `PDO` connection. Currently, the second `prepare()` + `execute()`
-closes the first statement's cursor, making interleaved fetches impossible.
+Issue #435 required multiple `PDOStatement` objects to be active simultaneously
+on a single `PDO` connection. The stubs file listed this as "Not yet
+implemented", and an initial ADR (now superseded) claimed that
+`prepare()` + `execute()` on a second statement closes the first statement's
+cursor.
 
-## Root Cause
+## Corrected Root Cause Analysis
 
-`pdo_fbird/pdo_fbird_stmt.c:222-225` (added in commit `30e852a`, the initial
-PDO driver implementation, March 2026):
+**MARS was never broken.** The initial ADR's root cause analysis was incorrect:
 
-```c
-/* Close any previously open cursor */
-if (fbs_is_cursor_open(S->fbs_stmt)) {
-    fbs_close_cursor(S->fbs_stmt, S->status);
-}
-```
+- `prepare()` (`pdo_fbird_driver.c:120-189`) creates a new `pdo_fbird_stmt`
+  with its own `fbs_stmt`, `out_buf`, `in_buf` — it does NOT touch other
+  statements.
+- `execute()` (`pdo_fbird_stmt.c:222-225`) closes the cursor on the
+  **current statement only** before re-executing it. This is correct behavior
+  for re-execution and does NOT affect other statements.
+- `openCursor()` (`fb_statement.hpp:237-244`) closes existing cursor on
+  `this` wrapper before opening a new one — per-statement, not per-connection.
+- There is no statement tracking list on `pdo_fbird_db_handle`. Nothing
+  iterates over other statements.
 
-This closes the cursor on the **current statement** before re-executing it.
-However, the problem is broader: each statement shares the connection's
-single transaction handle (`H->fbt_trans`), and Firebird cursors are
-associated with transactions. When a second statement executes on the same
-transaction, the first cursor remains valid in Firebird's API — the
-close-on-execute is an **artificial restriction** in the PHP driver, not a
-Firebird limitation.
+The "Not yet implemented" note in `stubs/pdo-fbird-stubs.php` was outdated —
+it was never actually tested. TDD verification (Test 1-6 in
+`tests/pdo_fbird/pdo_fbird_mars.phpt`) confirms MARS works correctly on
+FB3, FB4, and FB5.
 
 ## Architecture
 
@@ -37,86 +39,59 @@ Each `pdo_fbird_stmt` has its own:
 - `out_buf` / `in_buf` — message buffers (allocated per-statement)
 - `out_meta` / `in_meta` — metadata
 - `has_rows` — cursor state
+- `cursor_executed` — re-execution guard flag (added for clarity)
 - `scrollable` — cursor type
 
-### Shared resources (the constraint)
+### Shared resources
 - `H->fbt_trans` — single `fb::Transaction*` per connection
 - `H->fbc_conn` — single `fb::Connection*` per connection
 
-Firebird supports multiple open cursors per transaction natively. The
-constraint is that all cursors share the same transaction — if the
-transaction commits or rolls back, all cursors are invalidated.
+Firebird supports multiple open cursors per transaction natively. All cursors
+share the same transaction — if the transaction commits or rolls back, all
+cursors are invalidated server-side. The C++ layer self-heals:
+`fetchNext()` detects the invalidation (`statusHasError`), sets
+`cursor_open_ = false`, and returns `-1` (`fb_statement.hpp:302-307`).
 
-## Implementation Options
+## Changes Made
 
-### Option A: Remove close-on-execute (minimal)
+### `cursor_executed` flag (clarity, not correctness)
 
-Remove the `fbs_close_cursor()` call at line 222-225. Each statement manages
-its own cursor independently. The cursor stays open until `closeCursor()` is
-called or the statement is destroyed.
+Added `cursor_executed` field to `pdo_fbird_stmt` struct for explicit
+re-execution semantics:
 
-**Risk:** The close-on-execute was likely added as a safety measure. Without
-it, re-executing the same statement (e.g., `$stmt->execute()` twice) would
-need to close the previous cursor. The fix is to close only when re-executing
-the **same** statement, not when executing a **different** statement.
+- **`php_pdo_fbird_int.h`**: Added `int cursor_executed` field
+- **`pdo_fbird_stmt.c:222`**: Guard close-on-execute with `S->cursor_executed &&`
+- **`pdo_fbird_stmt.c:247`**: Set `cursor_executed = 1` after successful SELECT execute
+- **`pdo_fbird_stmt.c:264`**: Set `cursor_executed = 1` after successful DML/DDL execute
+- **`pdo_fbird_stmt.c:1024`**: Reset `cursor_executed = 0` in `closeCursor()`
 
-```c
-/* Close cursor only if re-executing the same statement */
-if (S->cursor_executed && fbs_is_cursor_open(S->fbs_stmt)) {
-    fbs_close_cursor(S->fbs_stmt, S->status);
-}
-S->cursor_executed = 1;
-```
+The guard is technically redundant (the C++ `openCursor()` already handles
+close-before-open), but it makes the re-execution semantics explicit at the
+PDO layer and protects the DML re-execution path (where `openCursor()` is
+not called).
 
-**Pros:** Minimal change, backward compatible, enables MARS.
-**Cons:** Need to verify no buffer conflicts when two statements are open.
+### Stubs correction
 
-### Option B: Cursor pool per connection (full)
+Removed "Multiple active result sets on a single connection" from the
+"Not yet implemented" list in `stubs/pdo-fbird-stubs.php`.
 
-Track all open statements on the connection. Close them only when the
-connection is destroyed or when explicitly closed by the user.
+## Test Coverage
 
-**Pros:** Explicit lifecycle management.
-**Cons:** More complex, potential memory leaks if statements aren't closed.
+`tests/pdo_fbird/pdo_fbird_mars.phpt` — 6 tests:
 
-### Option C: PDO attribute gate (backward compat)
+1. Interleaved fetch from 2 SELECTs (ascending + descending)
+2. Close one cursor, verify other survives
+3. Re-execute same statement (fresh result set)
+4. Three statements round-robin
+5. Transaction commit invalidates cursors (PDOException or false)
+6. DML between SELECTs with autocommit (commit_retaining preserves cursor)
 
-Add `PDO::FBIRD_ATTR_MULTI_STATEMENTS` (default off). When enabled, skip the
-close-on-execute. When disabled, keep current behavior.
-
-**Pros:** No behavior change for existing code. Opt-in for MARS.
-**Cons:** Adds configuration complexity.
-
-## Recommendation
-
-**Option A** with a re-execution guard. The close-on-execute should only
-apply when the **same statement** is re-executed, not when a **different
-statement** is executed on the same connection. This is the standard behavior
-in pdo_mysql and pdo_pgsql.
-
-## Test Plan
-
-1. Prepare two SELECT statements on one connection
-2. Execute both
-3. Fetch interleaved: stmt1->fetch(), stmt2->fetch(), stmt1->fetch()
-4. Verify both return correct rows
-5. Verify closeCursor() on one doesn't affect the other
-6. Verify transaction commit invalidates both cursors
-7. Verify re-executing the same statement closes its previous cursor
-
-## Implementation Steps
-
-1. Add `cursor_executed` flag to `pdo_fbird_stmt` struct
-2. Modify `pdo_fbird_stmt_execute()`: close cursor only if `cursor_executed`
-3. Set `cursor_executed = 1` after successful execute
-4. Reset `cursor_executed = 0` in `closeCursor()`
-5. Write MARS test file
-6. Run full test suite to verify no regression
+Verified: PASS on FB3, FB4. CI verified on FB5.
 
 ## References
 
 - Issue: #435
-- Original spec: #322 (PDO conformance)
-- Close-on-execute: `pdo_fbird/pdo_fbird_stmt.c:222-225` (commit `30e852a`)
+- Test: `tests/pdo_fbird/pdo_fbird_mars.phpt`
+- Close-on-execute: `pdo_fbird/pdo_fbird_stmt.c:222-229` (commit `30e852a`)
+- C++ self-healing: `src/cpp/fb_statement.hpp:302-307`
 - Shared transaction: `pdo_fbird/php_pdo_fbird_int.h:16` (`fbt_trans`)
-- Stubs note: `stubs/pdo-fbird-stubs.php:197-198` ("Not yet implemented")

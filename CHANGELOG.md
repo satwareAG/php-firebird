@@ -60,6 +60,9 @@ downstream (amicron-platform FB3 support complete in v12.1.0).
   MON$PARALLEL_WORKERS, index creation, query verification.
 - `tests/fbird_statement_timeout_001.phpt` — FB4+ statement timeout via SQL
   (#422 approach A): SET STATEMENT TIMEOUT, timeout enforcement, reset.
+- `tests/pdo_fbird/pdo_fbird_mars.phpt` — PDO Multiple Active Result Sets
+  (#435): interleaved fetch, close-one-survive-other, re-execute, three
+  statements round-robin, commit invalidation, DML-between-SELECTs.
 
 #### Changed
 
@@ -74,6 +77,14 @@ downstream (amicron-platform FB3 support complete in v12.1.0).
   wired in `Connection::create()`. (#427)
 - `firebird_utils.h/.cpp`: Added `fbc_connect_ex()` C wrapper with
   parallel_workers parameter. (#427)
+- `pdo_fbird/php_pdo_fbird_int.h`: Added `cursor_executed` flag to
+  `pdo_fbird_stmt` for explicit re-execution semantics. (#435)
+- `pdo_fbird/pdo_fbird_stmt.c`: Close-on-execute now guarded by
+  `cursor_executed` flag — only closes cursor when re-executing the same
+  statement, not when executing a different statement. MARS verified working.
+  (#435)
+- `stubs/pdo-fbird-stubs.php`: Removed "Multiple active result sets" from
+  "Not yet implemented" list — MARS was never broken, just untested. (#435)
 
 #### Known issues
 

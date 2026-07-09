@@ -20,7 +20,7 @@ priority: 2
 2026-07-08
 
 ## Status
-In progress — 10 of 13 issues done (#327, #418, #419, #420, #421, #423, #424, #425, #426, #427, #428). Remaining: #417 (DECFLOAT native type), #422 (full API), #435 (MARS).
+In progress — 11 of 13 issues done (#327, #418, #419, #420, #421, #423, #424, #425, #426, #427, #428, #435). Remaining: #417 (DECFLOAT native type), #422 (full API).
 
 ---
 
@@ -171,7 +171,7 @@ All 10 functions exist in `stubs/firebird-stubs.php` and `fbird_batch.c`:
 
 | Issue | Feature | Current State | Target |
 |-------|---------|---------------|--------|
-| #435 | PDO multiple active result sets (MARS) | Listed as "Not yet implemented" in `stubs/pdo-fbird-stubs.php:197-201`. Architectural: requires cursor pool per connection. Currently second `prepare()` closes first cursor. Original spec ref: #322 (PDO conformance). | Multiple `PDOStatement` objects active simultaneously on single `PDO` connection |
+| #435 | PDO multiple active result sets (MARS) | **Verified working** — MARS was never broken. Close-on-execute is per-statement, not per-connection. Added `cursor_executed` flag for clarity. Removed "Not yet implemented" note from stubs. | Multiple `PDOStatement` objects active simultaneously on single `PDO` connection |
 
 ---
 
@@ -195,7 +195,7 @@ Features with **zero** implementation (greenfield):
 - READ CONSISTENCY tests (#425)
 - Parallel workers tests (#427)
 - Profiler plugin tests (#428)
-- PDO MARS (#435 - architectural)
+- PDO MARS (#435 — verified working, never broken)
 
 ---
 
@@ -245,7 +245,7 @@ spec (`spec-v13.1-fb6-coverage.md` or similar) will cover:
 | #424 | feat: FB4 EXECUTE STATEMENT rich form + SET TIME ZONE + AT TIME ZONE | **Done** |
 | #427 | feat: FB5 parallel workers | **Done** |
 | #428 | feat: FB5 profiler plugin | **Done** |
-| #435 | feat: PDO multiple active result sets | Open |
+| #435 | feat: PDO multiple active result sets | **Done** |
 
 ### Deferred (7 issues - blocked on FB6 Docker image)
 

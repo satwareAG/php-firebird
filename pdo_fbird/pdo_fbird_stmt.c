@@ -219,8 +219,11 @@ static int pdo_fbird_stmt_execute(pdo_stmt_t *stmt)
 	pdo_fbird_stmt    *S = (pdo_fbird_stmt *)stmt->driver_data;
 	pdo_fbird_db_handle *H = S->H;
 
-	/* Close any previously open cursor */
-	if (fbs_is_cursor_open(S->fbs_stmt)) {
+	/* Close previously open cursor before re-executing this statement.
+	 * This only affects the current statement — other statements' cursors
+	 * remain open (MARS). The C++ openCursor() also handles this, but
+	 * we close here too for DML re-execution (where openCursor is not called). */
+	if (S->cursor_executed && fbs_is_cursor_open(S->fbs_stmt)) {
 		fbs_close_cursor(S->fbs_stmt, S->status);
 	}
 	S->has_rows = 0;
@@ -244,6 +247,7 @@ static int pdo_fbird_stmt_execute(pdo_stmt_t *stmt)
 			return 0;
 		}
 		S->has_rows = 1;
+		S->cursor_executed = 1;
 		stmt->row_count = -1; /* unknown for SELECT */
 	} else {
 		/* DML / DDL */
@@ -257,6 +261,7 @@ static int pdo_fbird_stmt_execute(pdo_stmt_t *stmt)
 			pdo_fbird_stmt_error(stmt);
 			return 0;
 		}
+		S->cursor_executed = 1;  /* DML/DDL executed — mark for re-execution guard */
 		ISC_UINT64 aff = fbs_get_affected_records(
 			FBG(master_instance), S->fbs_stmt, S->status);
 		stmt->row_count = (zend_long)aff;
@@ -1020,6 +1025,7 @@ static int pdo_fbird_stmt_cursor_closer(pdo_stmt_t *stmt)
 		fbs_close_cursor(S->fbs_stmt, S->status);
 	}
 	S->has_rows = 0;
+	S->cursor_executed = 0;
 	return 1;
 }
 /* }}} */

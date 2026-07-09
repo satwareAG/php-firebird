@@ -90,6 +90,12 @@ final class PDO_FBIRD_Constants
     /** @since 8.3.0 Execute SET BIND OF <rule> for FB4+ type coercion. */
     public const FBIRD_ATTR_SET_BIND = 1011;
 
+    /** @since 13.0.0 Statement execution timeout in milliseconds (FB4+, 0 = no timeout). */
+    public const FBIRD_ATTR_STATEMENT_TIMEOUT = 1026;
+
+    /** @since 13.0.0 Connection idle timeout in seconds (FB4+, 0 = no timeout). */
+    public const FBIRD_ATTR_IDLE_TIMEOUT = 1027;
+
     // ── Service API attributes ───────────────────────────────────────────
 
     /** @since 8.3.0 Attach to service manager (setAttribute). */

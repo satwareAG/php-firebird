@@ -479,6 +479,27 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_batch_set_default_bpb, 0, 
 ZEND_END_ARG_INFO()
 #endif /* FB_API_VER >= 40 */
 
+#if FB_API_VER >= 40
+/* Statement/Session Timeout Functions (Firebird 4.0+) */
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_set_statement_timeout, 0, 2, _IS_BOOL, 0)
+	ZEND_ARG_INFO(0, link_identifier)
+	ZEND_ARG_TYPE_INFO(0, milliseconds, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_get_statement_timeout, 0, 1, IS_LONG, 0)
+	ZEND_ARG_INFO(0, link_identifier)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_set_idle_timeout, 0, 2, _IS_BOOL, 0)
+	ZEND_ARG_INFO(0, link_identifier)
+	ZEND_ARG_TYPE_INFO(0, seconds, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_get_idle_timeout, 0, 1, IS_LONG, 0)
+	ZEND_ARG_INFO(0, link_identifier)
+ZEND_END_ARG_INFO()
+#endif /* FB_API_VER >= 40 */
+
 static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_connect, 		arginfo_fbird_connect)
 	PHP_FE(fbird_pconnect, 		arginfo_fbird_pconnect)
@@ -585,6 +606,12 @@ static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_batch_append_blob_data, arginfo_fbird_batch_append_blob_data)
 	PHP_FE(fbird_batch_add_blob_stream, arginfo_fbird_batch_add_blob_stream)
 	PHP_FE(fbird_batch_set_default_bpb, arginfo_fbird_batch_set_default_bpb)
+
+	/* Statement/Session Timeout Functions (Firebird 4.0+) */
+	PHP_FE(fbird_set_statement_timeout, arginfo_fbird_set_statement_timeout)
+	PHP_FE(fbird_get_statement_timeout, arginfo_fbird_get_statement_timeout)
+	PHP_FE(fbird_set_idle_timeout,      arginfo_fbird_set_idle_timeout)
+	PHP_FE(fbird_get_idle_timeout,      arginfo_fbird_get_idle_timeout)
 #endif /* FB_API_VER >= 40 */
 
 	PHP_FE_END

@@ -1292,6 +1292,48 @@ function fbird_batch_add_blob_stream(mixed $batch, string $data): bool {}
 function fbird_batch_set_default_bpb(mixed $batch, string $bpb): bool {}
 
 // ============================================================================
+// STATEMENT/SESSION TIMEOUT FUNCTIONS (Firebird 4.0+)
+// ============================================================================
+
+/**
+ * Set statement execution timeout (Firebird 4.0+).
+ *
+ * @param mixed $link_identifier Connection resource or Firebird\Connection
+ * @param int   $milliseconds    Timeout in milliseconds (0 = no timeout)
+ * @return bool True on success
+ * @since 13.0.0
+ */
+function fbird_set_statement_timeout(mixed $link_identifier, int $milliseconds): bool {}
+
+/**
+ * Get statement execution timeout (Firebird 4.0+).
+ *
+ * @param mixed $link_identifier Connection resource or Firebird\Connection
+ * @return int Timeout in milliseconds (0 = no timeout)
+ * @since 13.0.0
+ */
+function fbird_get_statement_timeout(mixed $link_identifier): int {}
+
+/**
+ * Set connection idle timeout (Firebird 4.0+).
+ *
+ * @param mixed $link_identifier Connection resource or Firebird\Connection
+ * @param int   $seconds         Timeout in seconds (0 = no timeout)
+ * @return bool True on success
+ * @since 13.0.0
+ */
+function fbird_set_idle_timeout(mixed $link_identifier, int $seconds): bool {}
+
+/**
+ * Get connection idle timeout (Firebird 4.0+).
+ *
+ * @param mixed $link_identifier Connection resource or Firebird\Connection
+ * @return int Timeout in seconds (0 = no timeout)
+ * @since 13.0.0
+ */
+function fbird_get_idle_timeout(mixed $link_identifier): int {}
+
+// ============================================================================
 // INSPECTION FUNCTIONS
 // ============================================================================
 

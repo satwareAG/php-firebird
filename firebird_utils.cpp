@@ -812,6 +812,32 @@ extern "C" unsigned fbc_get_server_version(void* connection) {
     return conn->getVersion().getVersion();
 }
 
+#if FB_API_VER >= 40
+extern "C" int fbc_set_statement_timeout(void* connection, unsigned int ms, ISC_STATUS* status_vector) {
+    if (!connection) return -1;
+    auto* conn = reinterpret_cast<fb::Connection*>(connection);
+    return conn->setStatementTimeout(ms) ? 0 : -1;
+}
+
+extern "C" unsigned int fbc_get_statement_timeout(void* connection) {
+    if (!connection) return 0;
+    auto* conn = reinterpret_cast<fb::Connection*>(connection);
+    return conn->getStatementTimeout();
+}
+
+extern "C" int fbc_set_idle_timeout(void* connection, unsigned int sec, ISC_STATUS* status_vector) {
+    if (!connection) return -1;
+    auto* conn = reinterpret_cast<fb::Connection*>(connection);
+    return conn->setIdleTimeout(sec) ? 0 : -1;
+}
+
+extern "C" unsigned int fbc_get_idle_timeout(void* connection) {
+    if (!connection) return 0;
+    auto* conn = reinterpret_cast<fb::Connection*>(connection);
+    return conn->getIdleTimeout();
+}
+#endif
+
 #include "src/cpp/fb_transaction.hpp"
 
 extern "C" void* fbt_start(

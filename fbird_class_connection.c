@@ -203,6 +203,79 @@ PHP_METHOD(FirebirdConnection, prepare)
 	fbird_setup_statement_object(return_value, fb_query->res);
 }
 
+#if FB_API_VER >= 40
+/* {{{ Statement/Session Timeout Methods (Firebird 4.0+) */
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_connection_setStatementTimeout, 0, 1, _IS_BOOL, 0)
+	ZEND_ARG_TYPE_INFO(0, milliseconds, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+PHP_METHOD(FirebirdConnection, setStatementTimeout)
+{
+	zend_long ms;
+	ZEND_PARSE_PARAMETERS_START(1, 1);
+		Z_PARAM_LONG(ms);
+	ZEND_PARSE_PARAMETERS_END();
+
+	fbird_connection_obj *intern = Z_FBIRD_CONNECTION_P(ZEND_THIS);
+	if (!intern->conn_res || intern->conn_res->type <= 0) RETURN_FALSE;
+	fbird_db_link *link = (fbird_db_link *)intern->conn_res->ptr;
+	if (!link || !link->fbc_connection) RETURN_FALSE;
+
+	ISC_STATUS_ARRAY status;
+	RETURN_BOOL(fbc_set_statement_timeout(link->fbc_connection, (unsigned int)ms, status) == 0);
+}
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_connection_getStatementTimeout, 0, 0, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+PHP_METHOD(FirebirdConnection, getStatementTimeout)
+{
+	ZEND_PARSE_PARAMETERS_NONE();
+	fbird_connection_obj *intern = Z_FBIRD_CONNECTION_P(ZEND_THIS);
+	if (!intern->conn_res || intern->conn_res->type <= 0) RETURN_LONG(0);
+	fbird_db_link *link = (fbird_db_link *)intern->conn_res->ptr;
+	if (!link || !link->fbc_connection) RETURN_LONG(0);
+
+	RETURN_LONG((zend_long)fbc_get_statement_timeout(link->fbc_connection));
+}
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_connection_setIdleTimeout, 0, 1, _IS_BOOL, 0)
+	ZEND_ARG_TYPE_INFO(0, seconds, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+PHP_METHOD(FirebirdConnection, setIdleTimeout)
+{
+	zend_long sec;
+	ZEND_PARSE_PARAMETERS_START(1, 1);
+		Z_PARAM_LONG(sec);
+	ZEND_PARSE_PARAMETERS_END();
+
+	fbird_connection_obj *intern = Z_FBIRD_CONNECTION_P(ZEND_THIS);
+	if (!intern->conn_res || intern->conn_res->type <= 0) RETURN_FALSE;
+	fbird_db_link *link = (fbird_db_link *)intern->conn_res->ptr;
+	if (!link || !link->fbc_connection) RETURN_FALSE;
+
+	ISC_STATUS_ARRAY status;
+	RETURN_BOOL(fbc_set_idle_timeout(link->fbc_connection, (unsigned int)sec, status) == 0);
+}
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_connection_getIdleTimeout, 0, 0, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+PHP_METHOD(FirebirdConnection, getIdleTimeout)
+{
+	ZEND_PARSE_PARAMETERS_NONE();
+	fbird_connection_obj *intern = Z_FBIRD_CONNECTION_P(ZEND_THIS);
+	if (!intern->conn_res || intern->conn_res->type <= 0) RETURN_LONG(0);
+	fbird_db_link *link = (fbird_db_link *)intern->conn_res->ptr;
+	if (!link || !link->fbc_connection) RETURN_LONG(0);
+
+	RETURN_LONG((zend_long)fbc_get_idle_timeout(link->fbc_connection));
+}
+
+#endif /* FB_API_VER >= 40 */
+
 const zend_function_entry fbird_connection_methods[] = {
 	PHP_ME(FirebirdConnection, __construct,      arginfo_fbird_connection_construct,        ZEND_ACC_PUBLIC)
 	PHP_ME(FirebirdConnection, close,            arginfo_fbird_connection_close,            ZEND_ACC_PUBLIC)
@@ -210,6 +283,12 @@ const zend_function_entry fbird_connection_methods[] = {
 	PHP_ME(FirebirdConnection, ping,             arginfo_fbird_connection_ping,             ZEND_ACC_PUBLIC)
 	PHP_ME(FirebirdConnection, beginTransaction, arginfo_fbird_connection_beginTransaction, ZEND_ACC_PUBLIC)
 	PHP_ME(FirebirdConnection, prepare,          arginfo_fbird_connection_prepare,          ZEND_ACC_PUBLIC)
+#if FB_API_VER >= 40
+	PHP_ME(FirebirdConnection, setStatementTimeout, arginfo_fbird_connection_setStatementTimeout, ZEND_ACC_PUBLIC)
+	PHP_ME(FirebirdConnection, getStatementTimeout, arginfo_fbird_connection_getStatementTimeout, ZEND_ACC_PUBLIC)
+	PHP_ME(FirebirdConnection, setIdleTimeout,      arginfo_fbird_connection_setIdleTimeout,      ZEND_ACC_PUBLIC)
+	PHP_ME(FirebirdConnection, getIdleTimeout,      arginfo_fbird_connection_getIdleTimeout,      ZEND_ACC_PUBLIC)
+#endif
 	PHP_FE_END
 };
 

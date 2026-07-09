@@ -703,6 +703,37 @@ static bool pdo_fbird_handle_set_attribute(pdo_dbh_t *dbh, zend_long attr, zval 
 			return (rows != -1) ? true : false;
 		}
 
+#if FB_API_VER >= 40
+		case PDO_FBIRD_ATTR_STATEMENT_TIMEOUT: {
+			if (!H->fbc_conn) {
+				pdo_raise_impl_error(dbh, NULL, "IM001",
+					"FBIRD_ATTR_STATEMENT_TIMEOUT requires an active connection");
+				return false;
+			}
+			ISC_STATUS_ARRAY status;
+			if (fbc_set_statement_timeout(H->fbc_conn, (unsigned int)zval_get_long(val), status) != 0) {
+				pdo_raise_impl_error(dbh, NULL, "HY000",
+					"Failed to set statement timeout (requires Firebird 4.0+)");
+				return false;
+			}
+			return true;
+		}
+		case PDO_FBIRD_ATTR_IDLE_TIMEOUT: {
+			if (!H->fbc_conn) {
+				pdo_raise_impl_error(dbh, NULL, "IM001",
+					"FBIRD_ATTR_IDLE_TIMEOUT requires an active connection");
+				return false;
+			}
+			ISC_STATUS_ARRAY status;
+			if (fbc_set_idle_timeout(H->fbc_conn, (unsigned int)zval_get_long(val), status) != 0) {
+				pdo_raise_impl_error(dbh, NULL, "HY000",
+					"Failed to set idle timeout (requires Firebird 4.0+)");
+				return false;
+			}
+			return true;
+		}
+#endif
+
 		/* Service API attributes */
 		case PDO_FBIRD_ATTR_SERVICE_ATTACH:
 			return _pdo_fbird_service_ensure_attached(dbh) ? true : false;
@@ -956,6 +987,15 @@ static int pdo_fbird_handle_get_attribute(pdo_dbh_t *dbh, zend_long attr, zval *
 			/* SET BIND is write-only; return empty string for get */
 			ZVAL_STRING(val, "");
 			return 1;
+
+#if FB_API_VER >= 40
+		case PDO_FBIRD_ATTR_STATEMENT_TIMEOUT:
+			ZVAL_LONG(val, H->fbc_conn ? (zend_long)fbc_get_statement_timeout(H->fbc_conn) : 0);
+			return 1;
+		case PDO_FBIRD_ATTR_IDLE_TIMEOUT:
+			ZVAL_LONG(val, H->fbc_conn ? (zend_long)fbc_get_idle_timeout(H->fbc_conn) : 0);
+			return 1;
+#endif
 
 		/* Service API get attributes */
 		case PDO_FBIRD_ATTR_SERVICE_ATTACH:

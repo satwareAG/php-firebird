@@ -50,6 +50,10 @@ PHP_MSHUTDOWN_FUNCTION(pdo_fbird);
 #define PDO_FBIRD_ATTR_EVENT_CANCEL                1024
 #define PDO_FBIRD_ATTR_EVENT_COUNT                 1025
 
+/* FB 4.0+ Timeout attributes */
+#define PDO_FBIRD_ATTR_STATEMENT_TIMEOUT           1026
+#define PDO_FBIRD_ATTR_IDLE_TIMEOUT                1027
+
 /* Transaction isolation level values for PDO_FBIRD_ATTR_TRANSACTION_ISOLATION_LEVEL */
 #define PDO_FBIRD_TXN_READ_COMMITTED   1
 #define PDO_FBIRD_TXN_REPEATABLE_READ  2

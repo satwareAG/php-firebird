@@ -20,7 +20,7 @@ priority: 2
 2026-07-08
 
 ## Status
-In progress — 7 of 13 issues done (#327, #417 partial, #418, #419, #420, #421, #426)
+In progress — 10 of 13 issues done (#327, #418, #419, #420, #421, #423, #424, #425, #426, #427, #428). Remaining: #417 (DECFLOAT native type), #422 (full API), #435 (MARS).
 
 ---
 
@@ -239,12 +239,12 @@ spec (`spec-v13.1-fb6-coverage.md` or similar) will cover:
 | #420 | feat: FB4 SET BIND rule coverage (all rules) | **Done** (P3) |
 | #426 | feat: FB5 scrollable cursors (6 orientations) | **Done** (P4) |
 | #421 | feat: FB4 batch DML API (IBatch) full coverage | **Done** (P5) |
-| #422 | feat: FB4 statement + session idle timeout | Open - P6 |
-| #425 | feat: FB4 READ CONSISTENCY transaction isolation | Open - P7 |
-| #423 | feat: FB4 packages + SQL SECURITY {DEFINER/INVOKER} | Open |
-| #424 | feat: FB4 EXECUTE STATEMENT rich form + SET TIME ZONE + AT TIME ZONE | Open |
-| #427 | feat: FB5 parallel workers | Open |
-| #428 | feat: FB5 profiler plugin | Open |
+| #422 | feat: FB4 statement + session idle timeout | SQL-only done — full API TODO (P6) |
+| #425 | feat: FB4 READ CONSISTENCY transaction isolation | **Done** (P7) |
+| #423 | feat: FB4 packages + SQL SECURITY {DEFINER/INVOKER} | **Done** |
+| #424 | feat: FB4 EXECUTE STATEMENT rich form + SET TIME ZONE + AT TIME ZONE | **Done** |
+| #427 | feat: FB5 parallel workers | **Done** |
+| #428 | feat: FB5 profiler plugin | **Done** |
 | #435 | feat: PDO multiple active result sets | Open |
 
 ### Deferred (7 issues - blocked on FB6 Docker image)

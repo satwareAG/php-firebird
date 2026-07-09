@@ -547,6 +547,69 @@ extern "C" void* fbc_connect(
     }
 }
 
+extern "C" void* fbc_connect_ex(
+    void* master_ptr,
+    const char* database, size_t db_len,
+    const char* user, size_t user_len,
+    const char* password, size_t password_len,
+    const char* charset, size_t charset_len,
+    const char* role, size_t role_len,
+    int num_buffers,
+    int dialect,
+    int force_write,
+    int parallel_workers,
+    ISC_STATUS* status_vector
+) {
+    if (!master_ptr || !database) {
+        return nullptr;
+    }
+
+    try {
+        auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+
+        fb::ConnectionParams params;
+        params.database = std::string_view(database, db_len);
+        if (user && user_len > 0) params.user = std::string_view(user, user_len);
+        if (password && password_len > 0) params.password = std::string_view(password, password_len);
+        if (charset && charset_len > 0) params.charset = std::string_view(charset, charset_len);
+        if (role && role_len > 0) params.role = std::string_view(role, role_len);
+        params.dialect = static_cast<unsigned short>(dialect);
+        if (num_buffers > 0) {
+            params.num_buffers = static_cast<unsigned short>(num_buffers);
+        }
+
+#ifdef isc_dpb_parallel_workers
+        if (parallel_workers > 0) {
+            params.parallel_workers = static_cast<unsigned int>(parallel_workers);
+        }
+#endif
+
+        auto conn = fb::Connection::create(master, params);
+
+        if (!conn.isConnected()) {
+            if (status_vector) {
+                conn.copyLastStatus(status_vector, ISC_STATUS_LENGTH);
+            }
+            return nullptr;
+        }
+
+        return reinterpret_cast<void*>(new fb::Connection(std::move(conn)));
+
+    } catch (const fb::Exception& e) {
+        if (status_vector) {
+            const ISC_STATUS* exc_status = e.statusVector();
+            if (exc_status) {
+                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
+                    status_vector[i] = exc_status[i];
+                }
+            }
+        }
+        return nullptr;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 extern "C" int fbc_disconnect(void* connection, ISC_STATUS* status_vector) {
     if (!connection) {
         return 0;

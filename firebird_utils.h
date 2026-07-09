@@ -143,6 +143,25 @@ void* fbc_connect(
 );
 
 /**
+ * Extended connect with FB 5.0+ parallel workers support.
+ * Same as fbc_connect() but adds parallel_workers parameter.
+ * parallel_workers = 0 means server default.
+ */
+void* fbc_connect_ex(
+    void* master_ptr,
+    const char* database, size_t db_len,
+    const char* user, size_t user_len,
+    const char* password, size_t password_len,
+    const char* charset, size_t charset_len,
+    const char* role, size_t role_len,
+    int num_buffers,
+    int dialect,
+    int force_write,
+    int parallel_workers,
+    ISC_STATUS* status_vector
+);
+
+/**
  * Detach a connection created with fbc_connect().
  *
  * @param connection Pointer returned by fbc_connect()

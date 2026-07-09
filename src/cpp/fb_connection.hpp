@@ -642,6 +642,9 @@ inline bool Connection::setStatementTimeout(unsigned int milliseconds) noexcept 
             statement_timeout_ms_ = milliseconds;
             return true;
         }
+        /* Save error status for C wrapper to extract via copyLastStatus() */
+        last_status_ = StatusWrapper(master_);
+        last_status_.get()->setErrors(status.status()->getErrors());
     } catch (...) {
         // Silently fail
     }
@@ -664,6 +667,9 @@ inline bool Connection::setIdleTimeout(unsigned int seconds) noexcept {
             idle_timeout_sec_ = seconds;
             return true;
         }
+        /* Save error status for C wrapper to extract via copyLastStatus() */
+        last_status_ = StatusWrapper(master_);
+        last_status_.get()->setErrors(status.status()->getErrors());
     } catch (...) {
         // Silently fail
     }

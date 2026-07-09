@@ -816,7 +816,11 @@ extern "C" unsigned fbc_get_server_version(void* connection) {
 extern "C" int fbc_set_statement_timeout(void* connection, unsigned int ms, ISC_STATUS* status_vector) {
     if (!connection) return -1;
     auto* conn = reinterpret_cast<fb::Connection*>(connection);
-    return conn->setStatementTimeout(ms) ? 0 : -1;
+    bool ok = conn->setStatementTimeout(ms);
+    if (!ok && status_vector) {
+        conn->copyLastStatus(status_vector, ISC_STATUS_LENGTH);
+    }
+    return ok ? 0 : -1;
 }
 
 extern "C" unsigned int fbc_get_statement_timeout(void* connection) {
@@ -828,7 +832,11 @@ extern "C" unsigned int fbc_get_statement_timeout(void* connection) {
 extern "C" int fbc_set_idle_timeout(void* connection, unsigned int sec, ISC_STATUS* status_vector) {
     if (!connection) return -1;
     auto* conn = reinterpret_cast<fb::Connection*>(connection);
-    return conn->setIdleTimeout(sec) ? 0 : -1;
+    bool ok = conn->setIdleTimeout(sec);
+    if (!ok && status_vector) {
+        conn->copyLastStatus(status_vector, ISC_STATUS_LENGTH);
+    }
+    return ok ? 0 : -1;
 }
 
 extern "C" unsigned int fbc_get_idle_timeout(void* connection) {

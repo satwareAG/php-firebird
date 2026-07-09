@@ -969,6 +969,14 @@ static fbird_db_link *_fbird_timeout_get_link(zval *link_arg, zend_resource **ou
 		_php_fbird_module_error("No valid connection");
 		return NULL;
 	}
+	/* Validate resource type: must be le_link or le_plink.
+	 * Without this check, a le_trans resource would be type-confused
+	 * as fbird_db_link*, causing a crash when dereferencing fbc_connection. */
+	if (link_res->type != le_link && link_res->type != le_plink) {
+		_php_fbird_module_error("Argument must be a Firebird connection resource, %s given",
+			_fbird_res_type_name(link_res->type));
+		return NULL;
+	}
 	fbird_db_link *link = (fbird_db_link *)link_res->ptr;
 	if (!link || !link->fbc_connection) {
 		_php_fbird_module_error("Connection is not active");
@@ -985,6 +993,11 @@ PHP_FUNCTION(fbird_set_statement_timeout)
 	RESET_ERRMSG;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zl", &link_arg, &ms) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	if (ms < 0) {
+		zend_argument_value_error(2, "must be non-negative, " ZEND_LONG_FMT " given", ms);
 		RETURN_THROWS();
 	}
 
@@ -1017,6 +1030,11 @@ PHP_FUNCTION(fbird_set_idle_timeout)
 	RESET_ERRMSG;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zl", &link_arg, &sec) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	if (sec < 0) {
+		zend_argument_value_error(2, "must be non-negative, " ZEND_LONG_FMT " given", sec);
 		RETURN_THROWS();
 	}
 

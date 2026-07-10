@@ -180,7 +180,7 @@ run_tests_with_sanitizer() {
         if [ "$IS_ASAN_CONTAINER" = false ] && [ "$sanitizer_name" = "AddressSanitizer" ]; then
              log_warn "Hint: You are running ASan tests outside the ASan container."
              log_warn "      This often fails due to RTLD_DEEPBIND conflicts."
-             log_warn "      Use 'scripts/run-sanitizer.sh' to run in the correct environment."
+             log_warn "      Run this script inside a Docker container for correct environment."
         fi
         exit 1
     fi

@@ -283,7 +283,7 @@ bool statusHasError(Firebird::IStatus* status) {
 }
 ```
 
-See [specs/spec-v11-modernization.md](specs/spec-v11-modernization.md) for complete implementation details.
+See [specs/archive/spec-v11-modernization.md](specs/archive/spec-v11-modernization.md) for complete implementation details.
 
 ## Testing Strategy
 

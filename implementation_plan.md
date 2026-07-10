@@ -9,7 +9,7 @@
 [Overview]
 Modernize php-firebird extension API for v11.0 with typed arginfo, call_user_function elimination, and resource-to-object migration.
 
-This plan covers the three remaining v11.0 modernization items (M2, M3, M12) tracked in spec-v11-modernization.md and GitHub issues #175-#177. The implementation order is designed to minimize risk: M2 (typed arginfo) is purely internal and non-breaking, M12 (direct C calls) is an internal refactor of the OOP layer, and M3 (resource-to-object) is the breaking change that affects public API and tests.
+This plan covers the three remaining v11.0 modernization items (M2, M3, M12) tracked in specs/archive/spec-v11-modernization.md and GitHub issues #175-#177. The implementation order is designed to minimize risk: M2 (typed arginfo) is purely internal and non-breaking, M12 (direct C calls) is an internal refactor of the OOP layer, and M3 (resource-to-object) is the breaking change that affects public API and tests.
 
 Current state: 80 of 82 arginfo declarations use untyped `ZEND_BEGIN_ARG_INFO_EX`/`ZEND_BEGIN_ARG_INFO` macros. The OOP layer (fbird_classes.c) uses `call_user_function()` in 6 places to delegate to procedural functions. All procedural functions return PHP resources via `zend_register_resource()`. Firebird\* OOP classes already exist but wrap resource pointers internally.
 

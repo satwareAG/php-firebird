@@ -162,4 +162,4 @@ Each client version is tested independently because `FB_API_VER` determines whic
 - Replace `call_user_function()` with direct C calls (#177)
 - Remove dead `FB_API_VER < 30` code paths (#178)
 - Remove legacy `gds32_ms` fallback from `config.w32` (#179)
-- See `specs/spec-v11-modernization.md` for full scope
+- See `specs/archive/spec-v11-modernization.md` for full scope

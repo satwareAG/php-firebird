@@ -14,12 +14,14 @@ require_once __DIR__ . '/../pdo_fbird.inc';
 /* ============================================================
  * Issue #417: FB4 DECFLOAT(16/34) native type support
  *
- * DECFLOAT currently returns as string (via IUtil->getDecFloat*->toString).
  * These tests verify precision is preserved in the string representation
  * and that SET BIND coercion works correctly.
  *
- * DECFLOAT(16): IEEE 754 decimal64 — 16 significant digits
- * DECFLOAT(34): IEEE 754 decimal128 — 34 significant digits
+ * DECFLOAT(16): IEEE 754 decimal64 - 16 significant digits
+ * DECFLOAT(34): IEEE 754 decimal128 - 34 significant digits
+ *
+ * Note: PDO driver returns DECFLOAT as strings (not Firebird\DecFloat objects).
+ * The procedural API returns Firebird\DecFloat objects on PHP 8.3+.
  * ============================================================ */
 
 $pdo = pdo_fbird_connect();

@@ -641,13 +641,23 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 #endif
 #ifdef SQL_DEC16
 		case SQL_DEC16: {
-			fbird_setup_decfloat_object(result, 16, data, sizeof(FB_DEC16));
+			char buf[48];
+			if (fbu_decfloat16_to_string(FBG(master_instance), data, buf, sizeof(buf)) == 0) {
+				ZVAL_STRING(result, buf);
+			} else {
+				ZVAL_STRINGL(result, (char *)data, length);
+			}
 			break;
 		}
 #endif
 #ifdef SQL_DEC34
 		case SQL_DEC34: {
-			fbird_setup_decfloat_object(result, 34, data, sizeof(FB_DEC34));
+			char buf[48];
+			if (fbu_decfloat34_to_string(FBG(master_instance), data, buf, sizeof(buf)) == 0) {
+				ZVAL_STRING(result, buf);
+			} else {
+				ZVAL_STRINGL(result, (char *)data, length);
+			}
 			break;
 		}
 #endif
@@ -802,6 +812,7 @@ static int pdo_fbird_stmt_param_hook(pdo_stmt_t *stmt,
 	unsigned length = fbm_get_length(FBG(master_instance), S->in_meta, idx);
 	unsigned null_off = fbm_get_null_offset(FBG(master_instance), S->in_meta, idx);
 	unsigned sql_type = fbm_get_type(FBG(master_instance), S->in_meta, idx);
+	int      scale   = fbm_get_scale(FBG(master_instance), S->in_meta, idx);
 	unsigned char *dest = S->in_buf + offset;
 	short *null_flag    = (short *)(S->in_buf + null_off);
 
@@ -848,6 +859,45 @@ static int pdo_fbird_stmt_param_hook(pdo_stmt_t *stmt,
 			*dest = v;
 			break;
 		}
+#ifdef SQL_INT128
+		case SQL_INT128: {
+			zend_string *s = zval_get_string(val);
+			FB_I128 i128;
+			if (fbu_string_to_int128(FBG(master_instance), ZSTR_VAL(s), (int)scale, &i128) == 0) {
+				memcpy(dest, &i128, sizeof(FB_I128));
+			} else {
+				memset(dest, 0, sizeof(FB_I128));
+			}
+			zend_string_release(s);
+			break;
+		}
+#endif
+#ifdef SQL_DEC16
+		case SQL_DEC16: {
+			zend_string *s = zval_get_string(val);
+			FB_DEC16 dec16;
+			if (fbu_string_to_decfloat16(FBG(master_instance), ZSTR_VAL(s), &dec16) == 0) {
+				memcpy(dest, &dec16, sizeof(FB_DEC16));
+			} else {
+				memset(dest, 0, sizeof(FB_DEC16));
+			}
+			zend_string_release(s);
+			break;
+		}
+#endif
+#ifdef SQL_DEC34
+		case SQL_DEC34: {
+			zend_string *s = zval_get_string(val);
+			FB_DEC34 dec34;
+			if (fbu_string_to_decfloat34(FBG(master_instance), ZSTR_VAL(s), &dec34) == 0) {
+				memcpy(dest, &dec34, sizeof(FB_DEC34));
+			} else {
+				memset(dest, 0, sizeof(FB_DEC34));
+			}
+			zend_string_release(s);
+			break;
+		}
+#endif
 		case SQL_VARYING: {
 			zend_string *s = zval_get_string(val);
 			unsigned short slen = (unsigned short)MIN(ZSTR_LEN(s), length);

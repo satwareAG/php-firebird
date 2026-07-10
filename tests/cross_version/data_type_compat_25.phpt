@@ -6,6 +6,25 @@ v12.1.0 M5 (#406) - cross-version compatibility test
 <?php
 require_once __DIR__ . '/skipif.inc';
 if (!is_fb_server_available("4.0")) die('skip FB 4.0 server not available');
+/* FB3 client can CREATE a DECFLOAT table on FB4 server but cannot SELECT
+ * from it - the client library rejects unknown column types. */
+$conn = cross_version_connect("4.0");
+$tr = fbird_trans($conn);
+@fbird_query($tr, "RECREATE TABLE test_dtc25_skip (v DECFLOAT(16))");
+fbird_commit($tr);
+$res = @fbird_query($conn, "SELECT v FROM test_dtc25_skip");
+if (!$res) {
+    $tr = fbird_trans($conn);
+    @fbird_query($tr, "DROP TABLE test_dtc25_skip");
+    fbird_commit($tr);
+    fbird_close($conn);
+    die('skip client library cannot fetch DECFLOAT columns');
+}
+fbird_free_result($res);
+$tr = fbird_trans($conn);
+@fbird_query($tr, "DROP TABLE test_dtc25_skip");
+fbird_commit($tr);
+fbird_close($conn);
 ?>
 --FILE--
 <?php

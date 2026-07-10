@@ -14,6 +14,11 @@ if (!extension_loaded('firebird')) die('skip firebird extension not available');
 if (function_exists('fbird_get_client_major_version') && fbird_get_client_major_version() >= 5) {
     die('skip Firebird 5.0+ requires exclusive DB access for RPR_VALIDATE_DB / PRP_* service operations');
 }
+// FB 3.0 segfaults on RPR_CHECK_DB via the modern OO API (IUtil->startMaintenance).
+// jane: FB3 client segfault, add FB3-specific test isolation when needed
+if (function_exists('fbird_get_client_major_version') && fbird_get_client_major_version() <= 3) {
+    die('skip Firebird 3.0 client segfaults on RPR_CHECK_DB via OO API');
+}
 $host     = getenv('FIREBIRD_HOST') ?: 'localhost';
 $user     = getenv('ISC_USER')      ?: 'SYSDBA';
 $password = getenv('ISC_PASSWORD')  ?: 'masterkey';

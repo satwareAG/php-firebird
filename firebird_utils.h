@@ -27,23 +27,6 @@ ISC_DATE fbu_encode_date(void *master_ptr, unsigned year, unsigned month, unsign
  */
 long fbu_sqlcode(const ISC_STATUS *status_vector);
 
-/**
- * Look up array bounds for a named array column.
- * Wraps isc_array_lookup_bounds() to isolate the legacy call.
- *
- * @param status_vector Output status vector
- * @param db_handle Pointer to isc_db_handle
- * @param tr_handle Pointer to isc_tr_handle
- * @param relation_name Table name (null-terminated)
- * @param field_name Column name (null-terminated)
- * @param desc Output ISC_ARRAY_DESC
- * @return 0 on success, non-zero on failure
- */
-ISC_STATUS fba_array_lookup_bounds(ISC_STATUS *status_vector,
-    isc_db_handle *db_handle, isc_tr_handle *tr_handle,
-    const char *relation_name, const char *field_name,
-    ISC_ARRAY_DESC *desc);
-
 /* Type Encoding/Decoding Functions (OO API via IUtil interface) */
 
 /**
@@ -808,22 +791,6 @@ void fbb_free(void* blob_wrapper);
 /* Firebird OO API Event Functions */
 
 /**
- * Queue events for notification using OO API.
- *
- * @param master_ptr IMaster interface pointer
- * @param attachment_ptr IAttachment pointer (from fbc_get_attachment())
- * @param length Event buffer length
- * @param events Event buffer (from isc_event_block())
- * @param status_vector Output status vector
- * @return Opaque events wrapper pointer, or NULL on error
- */
-void* fbe_queue(void* master_ptr,
-                void* attachment_ptr,
-                unsigned length,
-                const unsigned char* events,
-                ISC_STATUS* status_vector);
-
-/**
  * Cancel queued events.
  *
  * @param master_ptr IMaster interface pointer
@@ -847,15 +814,6 @@ int fbe_has_event_fired(void* events_wrapper);
  * @param events_wrapper Events wrapper pointer
  */
 void fbe_reset_event_fired(void* events_wrapper);
-
-/**
- * Get event data from the last fired event.
- *
- * @param events_wrapper Events wrapper pointer
- * @param length Output: length of event data
- * @return Pointer to event data, or NULL if no event
- */
-const unsigned char* fbe_get_event_data(void* events_wrapper, unsigned* length);
 
 /**
  * Check if events are queued.
@@ -890,22 +848,6 @@ void fbe_event_free(unsigned char* buf);
  */
 unsigned short fbe_event_block(unsigned char** event_buf, unsigned char** result_buf,
                                unsigned short count, ...);
-
-/**
- * Wait synchronously for any of the registered events.
- * Replacement for isc_wait_for_event().
- *
- * @param status_vector  Output status vector
- * @param db_handle_ptr  Pointer to isc_db_handle
- * @param buffer_length  Length of event buffer
- * @param event_buffer   Event buffer (from fbe_event_block())
- * @param result_buffer  Result buffer (from fbe_event_block())
- * @return 0 on success, non-zero on error
- */
-ISC_STATUS fbe_wait_for_event(ISC_STATUS* status_vector, void* db_handle_ptr,
-                              unsigned short buffer_length,
-                              unsigned char* event_buffer,
-                              unsigned char* result_buffer);
 
 /**
  * Wait synchronously for events using OO API attachment pointer.

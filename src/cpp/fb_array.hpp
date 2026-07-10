@@ -229,12 +229,6 @@ inline bool ArrayUtils::getSlice(
         Firebird::IStatus* raw_status = master->getStatus();
         Firebird::CheckStatusWrapper check_status(raw_status);
 
-#ifdef FBIRD_ARRAY_DEBUG
-        fprintf(stderr, "getSlice: attach=%p trans=%p array_id=%08x:%08x sdl_len=%u buf_len=%d\n",
-                (void*)attachment, (void*)transaction,
-                array_id->gds_quad_high, array_id->gds_quad_low,
-                sdl_length, (int)*buffer_length);
-#endif
 
         // Call IAttachment::getSlice
         int result = attachment->getSlice(
@@ -249,14 +243,6 @@ inline bool ArrayUtils::getSlice(
             static_cast<unsigned char*>(buffer)
         );
 
-#ifdef FBIRD_ARRAY_DEBUG
-        fprintf(stderr, "getSlice: returned result=%d, checking status...\n", result);
-        fprintf(stderr, "getSlice: buffer first 20 bytes: ");
-        for (int i = 0; i < 20 && i < (int)*buffer_length; i++) {
-            fprintf(stderr, "%02x ", ((unsigned char*)buffer)[i]);
-        }
-        fprintf(stderr, "\n");
-#endif
 
         if (statusHasError(raw_status)) {
             if (status_vector) {
@@ -318,17 +304,6 @@ inline bool ArrayUtils::putSlice(
         Firebird::IStatus* raw_status = master->getStatus();
         Firebird::CheckStatusWrapper check_status(raw_status);
 
-#ifdef FBIRD_ARRAY_DEBUG
-        fprintf(stderr, "putSlice: attach=%p trans=%p array_id=%08x:%08x sdl_len=%u buf_len=%d\n",
-                (void*)attachment, (void*)transaction,
-                array_id->gds_quad_high, array_id->gds_quad_low,
-                sdl_length, (int)buffer_length);
-        fprintf(stderr, "putSlice: buffer first 20 bytes: ");
-        for (int i = 0; i < 20 && i < buffer_length; i++) {
-            fprintf(stderr, "%02x ", ((unsigned char*)buffer)[i]);
-        }
-        fprintf(stderr, "\n");
-#endif
 
         // Call IAttachment::putSlice
         attachment->putSlice(
@@ -343,9 +318,6 @@ inline bool ArrayUtils::putSlice(
             static_cast<unsigned char*>(const_cast<void*>(buffer))
         );
 
-#ifdef FBIRD_ARRAY_DEBUG
-        fprintf(stderr, "putSlice: returned, checking status...\n");
-#endif
 
         if (statusHasError(raw_status)) {
             if (status_vector) {
@@ -552,17 +524,6 @@ inline bool ArrayUtils::buildSdlFromDesc(
 
     *sdl_length = static_cast<unsigned>(sdl - sdl_buffer);
 
-#ifdef FBIRD_ARRAY_DEBUG
-    fprintf(stderr,
-            "buildSdlFromDesc: rel='%.32s' field='%.32s' dtype=%u dims=%d len=%u SDL=",
-            desc->array_desc_relation_name, desc->array_desc_field_name,
-            (unsigned)desc->array_desc_dtype,
-            desc->array_desc_dimensions, *sdl_length);
-    for (unsigned i = 0; i < *sdl_length && i < 128; i++) {
-        fprintf(stderr, "%02x ", sdl_buffer[i]);
-    }
-    fprintf(stderr, "\n");
-#endif
 
     return true;
 }

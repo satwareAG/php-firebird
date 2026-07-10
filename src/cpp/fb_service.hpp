@@ -284,11 +284,6 @@ public:
      */
     bool isAttached() const { return m_service != nullptr; }
 
-    /**
-     * Get the underlying IService pointer (for advanced usage)
-     */
-    Firebird::IService* get() const { return m_service; }
-
 private:
     Firebird::IService* m_service;
     Firebird::IMaster* m_master;

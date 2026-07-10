@@ -682,7 +682,6 @@ public:
 
     // Accessors
     [[nodiscard]] Firebird::IStatement* getStatement() const noexcept { return statement_; }
-    [[nodiscard]] Firebird::IResultSet* getResultSet() const noexcept { return result_set_; }
     [[nodiscard]] bool isPrepared() const noexcept { return prepared_; }
     [[nodiscard]] bool isCursorOpen() const noexcept { return cursor_open_; }
 

@@ -381,24 +381,6 @@ void _php_fbird_insert_alias(HashTable *ht, const char *alias);
 #define max(a,b) ((a)>(b)?(a):(b))
 #endif
 
-#ifdef PHP_DEBUG
-void fbp_dump_buffer(int len, const unsigned char *buffer);
-void fbp_dump_buffer_raw(int len, const unsigned char *buffer);
-#endif
-
-void fbp_error_ex(long level, const char *, ...)
-    PHP_ATTRIBUTE_FORMAT(printf,2,3);
-
-#ifdef PHP_WIN32
-#define fbp_fatal(msg, ...)   fbp_error_ex(E_ERROR,   msg " (%s:%d)\n", ## __VA_ARGS__, __FILE__, __LINE__)
-#define fbp_warning(msg, ...) fbp_error_ex(E_WARNING, msg " (%s:%d)\n", ## __VA_ARGS__, __FILE__, __LINE__)
-#define fbp_notice(msg, ...)  fbp_error_ex(E_NOTICE,  msg " (%s:%d)\n", ## __VA_ARGS__, __FILE__, __LINE__)
-#else
-#define fbp_fatal(msg, ...)   fbp_error_ex(E_ERROR,   msg " (%s:%d)\n" __VA_OPT__(,) __VA_ARGS__, __FILE__, __LINE__)
-#define fbp_warning(msg, ...) fbp_error_ex(E_WARNING, msg " (%s:%d)\n" __VA_OPT__(,) __VA_ARGS__, __FILE__, __LINE__)
-#define fbp_notice(msg, ...)  fbp_error_ex(E_NOTICE,  msg " (%s:%d)\n" __VA_OPT__(,) __VA_ARGS__, __FILE__, __LINE__)
-#endif
-
 
 typedef void* (ISC_EXPORT *fb_get_master_interface_t)(void);
 

@@ -1206,45 +1206,6 @@ PHP_FUNCTION(fbird_last_insert_id)
 }
 /* }}} */
 
-#if PHP_DEBUG
-void fbp_dump_buffer(int len, const unsigned char *buffer)
-{
-	int i;
-	for (i = 0; i < len; i++) {
-		if(buffer[i] < 32 || buffer[i] > 126)
-			php_printf("0x%02x ", buffer[i]);
-		else
-			php_printf(" [%c] ", buffer[i]);
-		if(i % 16 == 15)php_printf("\n");
-	}
-	if(i > 0)php_printf("\n");
-}
-
-void fbp_dump_buffer_raw(int len, const unsigned char *buffer)
-{
-	int i;
-	for (i = 0; i < len; i++) {
-		php_printf("%c", buffer[i]);
-	}
-}
-#endif
-
-void fbp_error_ex(long level, const char *msg, ...)
-{
-	va_list ap;
-	char buf[1024] = {0};
-
-	va_start(ap, msg);
-
-	/* vsnprintf NUL terminates the buf and writes at most n-1 chars+NUL */
-	vsnprintf(buf, sizeof(buf), msg, ap);
-	va_end(ap);
-
-	// FBG(sql_code) = -999; /* no SQL error */
-
-	php_error(level, "%s", buf);
-}
-
 /* Limbo Transaction Functions (Two-Phase Commit Recovery) */
 PHP_FUNCTION(fbird_get_limbo_transactions)
 {

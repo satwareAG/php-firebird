@@ -64,5 +64,10 @@ echo "=== DONE ===\n";
 <?php require_once __DIR__ . '/../../pdo_fbird.inc'; @$pdo = pdo_fbird_connect([PDO::ATTR_ERRMODE => PDO::ERRMODE_SILENT]); @$pdo->exec("DROP TABLE test_scroll"); ?>
 --EXPECTF--
 === FETCH_ORI orientations (FB5+) ===
-%s
+OK NEXT: id=1
+OK FIRST: id=1
+OK LAST: id=5
+OK ABS(3): id=3
+OK PRIOR: id=2
+OK REL(1): id=3
 === DONE ===

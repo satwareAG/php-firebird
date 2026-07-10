@@ -103,21 +103,10 @@ public:
     }
 
     /**
-     * Explicit conversion to bool for if-statements.
-     */
-    explicit operator bool() const noexcept {
-        return isActive();
-    }
-
-    /**
      * Get the raw ITransaction pointer (for Firebird API calls).
      * @warning Do not release() this pointer; Transaction owns it.
      */
     [[nodiscard]] Firebird::ITransaction* get() noexcept {
-        return transaction_.get();
-    }
-
-    [[nodiscard]] const Firebird::ITransaction* get() const noexcept {
         return transaction_.get();
     }
 

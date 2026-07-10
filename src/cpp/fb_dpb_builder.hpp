@@ -151,30 +151,6 @@ public:
         return *this;
     }
 
-    /**
-     * Set connection timeout in seconds.
-     */
-    DpbBuilder& setConnectTimeout(unsigned int seconds) {
-        insertInt(isc_dpb_connect_timeout, seconds);
-        return *this;
-    }
-
-    /**
-     * Set process ID (for monitoring).
-     */
-    DpbBuilder& setProcessId(int pid) {
-        insertInt(isc_dpb_process_id, pid);
-        return *this;
-    }
-
-    /**
-     * Set process name (for monitoring).
-     */
-    DpbBuilder& setProcessName(std::string_view name) {
-        insertString(isc_dpb_process_name, name);
-        return *this;
-    }
-
     // -------------------------------------------------------------------------
     // FB 4.0+ Parameters
     // -------------------------------------------------------------------------
@@ -239,28 +215,6 @@ public:
             return builder_->getBufferLength(&check_status);
         }
         return static_cast<unsigned int>(buffer_.size());
-    }
-
-    /**
-     * Check if the builder is valid.
-     */
-    [[nodiscard]] bool isValid() const noexcept {
-        return use_builder_ ? (builder_ != nullptr) : !buffer_.empty();
-    }
-
-    /**
-     * Clear all parameters and reset to initial state.
-     * Note: IXpbBuilder::clear() requires CheckStatusWrapper for FB template API
-     */
-    void clear() {
-        if (use_builder_ && builder_ && master_) {
-            // FB 4.0 compatible: use CheckStatusWrapper for template API
-            Firebird::IStatus* raw_status = master_->getStatus();
-            Firebird::CheckStatusWrapper check_status(raw_status);
-            builder_->clear(&check_status);
-        }
-        buffer_.clear();
-        buffer_.push_back(isc_dpb_version1);
     }
 
 private:
@@ -330,42 +284,6 @@ private:
         }
     }
 };
-
-/**
- * Helper to build a standard connection DPB with common parameters.
- */
-[[nodiscard]] inline DpbBuilder createConnectionDpb(
-    Firebird::IMaster* master,
-    std::string_view user = {},
-    std::string_view password = {},
-    std::string_view charset = {},
-    std::string_view role = {},
-    unsigned short dialect = 3,
-    std::optional<unsigned short> num_buffers = std::nullopt) {
-
-    DpbBuilder dpb(master);
-
-    if (!user.empty()) {
-        dpb.setUser(user);
-    }
-    if (!password.empty()) {
-        dpb.setPassword(password);
-    }
-    if (!charset.empty()) {
-        dpb.setCharset(charset);
-    }
-    if (!role.empty()) {
-        dpb.setRole(role);
-    }
-    if (dialect > 0) {
-        dpb.setDialect(dialect);
-    }
-    if (num_buffers.has_value()) {
-        dpb.setNumBuffers(num_buffers.value());
-    }
-
-    return dpb;
-}
 
 } // namespace fb
 

@@ -91,21 +91,12 @@ struct ConnectionParams {
  *       Connection conn = Connection::create(params);
  *       // Use connection...
  *   } catch (const fb::Exception& e) {
- *       // Handle error, e.sqlcode(), e.gdscode(), e.what()
- *   }
+     *       // Handle error, e.what()
+     *   }
  * @endcode
  */
 class Connection {
 public:
-    /**
-     * Factory method to create a new database connection.
-     *
-     * @param params Connection parameters
-     * @return Connection object (throws fb::Exception on failure)
-     * @throws fb::Exception if connection fails
-     */
-    [[nodiscard]] static Connection create(const ConnectionParams& params);
-
     /**
      * Factory method with explicit IMaster (for testing/advanced use).
      *
@@ -129,9 +120,7 @@ public:
      */
     [[nodiscard]] static Connection createFromAttachment(
         Firebird::IMaster* master,
-        Firebird::IAttachment* attachment,
-        std::string database_path,
-        unsigned short dialect);
+        Firebird::IAttachment* attachment);
 
     /**
      * Default constructor creates an invalid (empty) connection.
@@ -159,21 +148,10 @@ public:
     }
 
     /**
-     * Explicit conversion to bool for if-statements.
-     */
-    explicit operator bool() const noexcept {
-        return isConnected();
-    }
-
-    /**
      * Get the raw IAttachment pointer (for Firebird API calls).
      * @warning Do not release() this pointer; Connection owns it.
      */
     [[nodiscard]] Firebird::IAttachment* get() noexcept {
-        return attachment_.get();
-    }
-
-    [[nodiscard]] const Firebird::IAttachment* get() const noexcept {
         return attachment_.get();
     }
 
@@ -183,14 +161,6 @@ public:
     [[nodiscard]] const VersionInfo& getVersion() const noexcept {
         return version_;
     }
-
-    /**
-     * Explicitly detach from the database.
-     * After this call, isConnected() returns false.
-     *
-     * @throws fb::Exception if detach fails
-     */
-    void detach();
 
     /**
      * Detach without throwing exceptions (for use in destructors).
@@ -245,24 +215,6 @@ public:
 #endif // FB_API_VER
 
     // -------------------------------------------------------------------------
-    // Database Information
-    // -------------------------------------------------------------------------
-
-    /**
-     * Get the database path/connection string used for this connection.
-     */
-    [[nodiscard]] const std::string& getDatabasePath() const noexcept {
-        return database_path_;
-    }
-
-    /**
-     * Get the SQL dialect for this connection.
-     */
-    [[nodiscard]] unsigned short getDialect() const noexcept {
-        return dialect_;
-    }
-
-    // -------------------------------------------------------------------------
     // Status Access (for PHP error reporting)
     // -------------------------------------------------------------------------
 
@@ -280,16 +232,12 @@ private:
      * Private constructor from attachment pointer.
      */
     explicit Connection(AttachmentPtr attachment,
-                       Firebird::IMaster* master,
-                       std::string database_path,
-                       unsigned short dialect,
-                       unsigned version);
+                        Firebird::IMaster* master,
+                        unsigned version);
 
     AttachmentPtr attachment_;              ///< RAII-managed attachment
     Firebird::IMaster* master_ = nullptr;   ///< Master interface (not owned)
-    bool dropped_ = false;                  ///< True after dropDatabase() — attachment is invalid
-    std::string database_path_;             ///< Database path for this connection
-    unsigned short dialect_ = 3;            ///< SQL dialect
+    bool dropped_ = false;                  ///< True after dropDatabase() - attachment is invalid
     VersionInfo version_{VersionInfo::FB30}; ///< Client library version
     mutable StatusWrapper last_status_{static_cast<Firebird::IStatus*>(nullptr)}; ///< Last error status
 
@@ -317,14 +265,6 @@ private:
 // =============================================================================
 // Implementation
 // =============================================================================
-
-inline Connection Connection::create(const ConnectionParams& params) {
-    Firebird::IMaster* master = getMaster();
-    if (!master) {
-        throw Exception("Firebird master interface not available");
-    }
-    return create(master, params);
-}
 
 inline Connection Connection::create(Firebird::IMaster* master,
                                      const ConnectionParams& params) {
@@ -426,17 +366,13 @@ inline Connection Connection::create(Firebird::IMaster* master,
     return Connection(
         std::move(attachment),
         master,
-        std::move(db_string),
-        params.dialect,
         client_version
     );
 }
 
 inline Connection Connection::createFromAttachment(
     Firebird::IMaster* master,
-    Firebird::IAttachment* raw_attachment,
-    std::string database_path,
-    unsigned short dialect) {
+    Firebird::IAttachment* raw_attachment) {
 
     if (!master) {
         throw Exception("Firebird master interface is null");
@@ -462,21 +398,15 @@ inline Connection Connection::createFromAttachment(
     return Connection(
         std::move(attachment),
         master,
-        std::move(database_path),
-        dialect,
         client_version
     );
 }
 
 inline Connection::Connection(AttachmentPtr attachment,
                               Firebird::IMaster* master,
-                              std::string database_path,
-                              unsigned short dialect,
                               unsigned version)
     : attachment_(std::move(attachment)),
       master_(master),
-      database_path_(std::move(database_path)),
-      dialect_(dialect),
       version_(version),
       last_status_(master) {
 }
@@ -488,8 +418,6 @@ inline Connection::~Connection() {
 inline Connection::Connection(Connection&& other) noexcept
     : attachment_(std::move(other.attachment_)),
       master_(other.master_),
-      database_path_(std::move(other.database_path_)),
-      dialect_(other.dialect_),
       version_(other.version_),
       last_status_(std::move(other.last_status_)),
       statement_timeout_ms_(other.statement_timeout_ms_),
@@ -502,8 +430,6 @@ inline Connection& Connection::operator=(Connection&& other) noexcept {
         detachNoThrow();
         attachment_ = std::move(other.attachment_);
         master_ = other.master_;
-        database_path_ = std::move(other.database_path_);
-        dialect_ = other.dialect_;
         version_ = other.version_;
         last_status_ = std::move(other.last_status_);
         statement_timeout_ms_ = other.statement_timeout_ms_;
@@ -511,27 +437,6 @@ inline Connection& Connection::operator=(Connection&& other) noexcept {
         other.master_ = nullptr;
     }
     return *this;
-}
-
-inline void Connection::detach() {
-    if (!attachment_) {
-        return;
-    }
-
-    if (!master_) {
-        attachment_.reset();
-        return;
-    }
-
-    CheckStatusScope status(master_);
-    attachment_->detach(status.get());
-
-    if (status.hasError()) {
-        last_status_ = StatusWrapper(master_);
-        throw Exception(status.status());
-    }
-
-    attachment_.reset();
 }
 
 inline bool Connection::pingAttachment(Firebird::IMaster* master) noexcept {

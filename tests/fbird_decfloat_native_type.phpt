@@ -72,8 +72,6 @@ echo "pdo df34 class: " . get_class($row['DF34']) . "\n";
 echo "pdo df34 value: " . $row['DF34']->__toString() . "\n";
 echo "pdo df34 precision: " . $row['DF34']->toPrecision() . "\n";
 
-$pdo->exec("DROP TABLE decfloat_test");
-
 echo "\n=== Test 4: Firebird\\DecFloat constructor ===\n";
 $d = new Firebird\DecFloat("123.456");
 echo "construct value: " . $d->__toString() . "\n";

@@ -68,7 +68,7 @@ jobs:
       - name: Install Firebird client
         uses: ./.github/actions/install-firebird-client
         with:
-          firebird-major-version: '3'
+          firebird-major-version: '5'
           use-sudo: 'true'
           firebird-host: 'localhost'
 

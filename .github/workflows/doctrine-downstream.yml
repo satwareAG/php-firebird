@@ -153,4 +153,4 @@ jobs:
           "
           # Run the test suite (skip ConnectionInfoTest - requires Firebird\DbInfo
           # class not yet implemented in php-firebird, tracked separately)
-          vendor/bin/phpunit --colors=never --filter='^(?!.*ConnectionInfoTest).*$'
+          vendor/bin/phpunit --colors=never --no-coverage --filter='^(?!.*ConnectionInfoTest).*$'

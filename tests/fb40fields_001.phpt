@@ -5,6 +5,9 @@ Test data for fields introduced in FB 4.0
 include("skipif.inc");
 skip_if_fb_lt(4);
 skip_if_fbclient_lt(4);
+/* jane: PHP 8.2 crashes in method dispatch for DecFloat objects.
+ * On PHP < 8.3, DECFLOAT returns strings (compile-time fallback). */
+if (PHP_VERSION_ID < 80300) die('skip DecFloat objects require PHP 8.3+');
 ?>
 --FILE--
 <?php

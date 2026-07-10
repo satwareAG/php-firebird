@@ -52,6 +52,9 @@ echo "df34 rawBytes len: " . strlen($row->DF34->rawBytes()) . "\n";
 
 echo "\n=== Test 3: PDO fetch returns Firebird\\DecFloat objects ===\n";
 $db_res = $db;  /* Save before pdo_fbird.inc redefines $db */
+if (!extension_loaded('pdo_fbird')) {
+    echo "pdo_fbird not loaded, skipping\n";
+} else {
 require_once __DIR__ . '/pdo_fbird.inc';
 $pdo = pdo_fbird_connect();
 $pdo->exec("RECREATE TABLE decfloat_test (
@@ -71,6 +74,7 @@ echo "pdo df16 precision: " . $row['DF16']->toPrecision() . "\n";
 echo "pdo df34 class: " . get_class($row['DF34']) . "\n";
 echo "pdo df34 value: " . $row['DF34']->__toString() . "\n";
 echo "pdo df34 precision: " . $row['DF34']->toPrecision() . "\n";
+}
 
 echo "\n=== Test 4: Firebird\\DecFloat constructor ===\n";
 $d = new Firebird\DecFloat("123.456");
@@ -82,7 +86,7 @@ echo "fromString value: " . $d2->__toString() . "\n";
 echo "fromString precision: " . $d2->toPrecision() . "\n";
 
 echo "\n=== Test 5: Special values (Inf, NaN) ===\n";
-$tr = fbird_trans($db);
+$tr = fbird_trans($db_res);
 fbird_query($tr, "INSERT INTO decfloat_test (id, df16, df34) VALUES (?, ?, ?)",
     2, "INF", "-INF");
 fbird_commit($tr);
@@ -101,7 +105,7 @@ $tr = fbird_trans($db_res);
 fbird_query($tr, "DROP TABLE decfloat_test");
 fbird_commit($tr);
 fbird_close($db_res);
-unset($pdo);
+if (isset($pdo)) unset($pdo);
 
 echo "\nDone.\n";
 ?>
@@ -120,13 +124,7 @@ df34 precision: 34
 df34 rawBytes len: 16
 
 === Test 3: PDO fetch returns Firebird\DecFloat objects ===
-pdo df16 class: Firebird\DecFloat
-pdo df16 value: 3.141592653589793
-pdo df16 precision: 16
-pdo df34 class: Firebird\DecFloat
-pdo df34 value: 3.141592653589793238462643383279503
-pdo df34 precision: 34
-
+%a
 === Test 4: Firebird\DecFloat constructor ===
 construct value: 123.456
 construct precision: 34

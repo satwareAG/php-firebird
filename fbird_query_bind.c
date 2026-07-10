@@ -828,7 +828,6 @@ int _php_fbird_bind(fbird_query *fb_query, zval *b_vars)
 				{
 					/* Convert string to DECFLOAT binary representation */
 					convert_to_string(b_var);
-					void *out = &buf[i].val;
 					int rc;
 					if ((var->sqltype & ~1) == SQL_DEC16) {
 						rc = fbu_string_to_decfloat16(FBG(master_instance),

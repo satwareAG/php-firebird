@@ -113,6 +113,7 @@ jobs:
           echo "FIREBIRD_TEST_DSN=fbird:host=localhost;dbname=/var/lib/firebird/data/test.fdb;charset=UTF8" >> "$GITHUB_ENV"
           echo "FIREBIRD_TEST_USER=SYSDBA" >> "$GITHUB_ENV"
           echo "FIREBIRD_TEST_PASSWORD=masterkey" >> "$GITHUB_ENV"
+          echo "FIREBIRD_DB_PATH=/var/lib/firebird/data/test.fdb" >> "$GITHUB_ENV"
 
       - name: Checkout doctrine-firebird-driver@${{ matrix.doctrine-ref }}
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -133,6 +134,11 @@ jobs:
           FIREBIRD_TEST_DSN: ${{ env.FIREBIRD_TEST_DSN }}
           FIREBIRD_TEST_USER: ${{ env.FIREBIRD_TEST_USER }}
           FIREBIRD_TEST_PASSWORD: ${{ env.FIREBIRD_TEST_PASSWORD }}
+          DB_HOST: localhost
+          DB_DBNAME: ${{ env.FIREBIRD_DB_PATH }}
+          DB_USER: SYSDBA
+          DB_PASSWORD: masterkey
+          DB_CHARSET: UTF8
         run: |
           set -eu
           # doctrine-firebird-driver uses its own bootstrap; verify connection first
@@ -145,5 +151,5 @@ jobs:
               exit(1);
             }
           "
-          # Run the test suite
-          vendor/bin/phpunit --colors=never
+          # Run the test suite (load userland stubs for Firebird\DbInfo etc.)
+          php -d auto_prepend_file="$PWD/stubs/firebird-userland-classes.php" vendor/bin/phpunit --colors=never

@@ -109,7 +109,7 @@ jobs:
           set -eu
           # doctrine-firebird-driver expects test DB at specific path
           # The service container already created test.fdb via FIREBIRD_DATABASE env
-          echo "FIREBIRD_TEST_DSN=fbird:host=localhost;dbname=/firebird/data/test.fdb;charset=UTF8" >> "$GITHUB_ENV"
+          echo "FIREBIRD_TEST_DSN=fbird:host=localhost;dbname=/var/lib/firebird/data/test.fdb;charset=UTF8" >> "$GITHUB_ENV"
           echo "FIREBIRD_TEST_USER=SYSDBA" >> "$GITHUB_ENV"
           echo "FIREBIRD_TEST_PASSWORD=masterkey" >> "$GITHUB_ENV"
 

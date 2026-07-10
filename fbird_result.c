@@ -273,23 +273,22 @@ static int _php_fbird_var_zval(zval *val, void *data, int type, int len,
 		case SQL_DEC34: {
 			/* jane: PHP 8.2 crashes in method dispatch for DecFloat objects.
 			 * Fall back to string conversion on PHP < 8.3. */
+#if PHP_VERSION_ID >= 80300
+			if (type == SQL_DEC16) {
+				fbird_setup_decfloat_object(val, 16, data, sizeof(FB_DEC16));
+			} else {
+				fbird_setup_decfloat_object(val, 34, data, sizeof(FB_DEC34));
+			}
+#else
 			char df_buf[48];
 			int df_rc;
-			if ((var->sqltype & ~1) == SQL_DEC16) {
-#if PHP_VERSION_ID >= 80300
-				fbird_setup_decfloat_object(val, 16, data, sizeof(FB_DEC16));
-#else
+			if (type == SQL_DEC16) {
 				df_rc = fbu_decfloat16_to_string(FBG(master_instance), data, df_buf, sizeof(df_buf));
-				if (df_rc == 0) { ZVAL_STRING(val, df_buf); } else { ZVAL_NULL(val); }
-#endif
 			} else {
-#if PHP_VERSION_ID >= 80300
-				fbird_setup_decfloat_object(val, 34, data, sizeof(FB_DEC34));
-#else
 				df_rc = fbu_decfloat34_to_string(FBG(master_instance), data, df_buf, sizeof(df_buf));
-				if (df_rc == 0) { ZVAL_STRING(val, df_buf); } else { ZVAL_NULL(val); }
-#endif
 			}
+			if (df_rc == 0) { ZVAL_STRING(val, df_buf); } else { ZVAL_NULL(val); }
+#endif
 			break;
 		}
 		case SQL_INT128: {

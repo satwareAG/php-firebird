@@ -141,6 +141,10 @@ jobs:
               echo 'Firebird connection OK: ' . \$pdo->getAttribute(PDO::ATTR_SERVER_VERSION) . PHP_EOL;
             } catch (PDOException \$e) {
               echo 'Firebird connection FAILED: ' . \$e->getMessage() . PHP_EOL;
+              \$ei = \$e->errorInfo;
+              echo 'SQLSTATE: ' . (\$ei[0] ?? 'n/a') . PHP_EOL;
+              echo 'Driver code: ' . (\$ei[1] ?? 'n/a') . PHP_EOL;
+              echo 'Driver message: ' . (\$ei[2] ?? 'n/a') . PHP_EOL;
               exit(1);
             }
           "

@@ -76,9 +76,7 @@ jobs:
         with:
           php-version: ${{ matrix.php-version }}
           coverage: none
-          ini-values: >
-            extension=firebird.so
-            extension=pdo_fbird.so
+          ini-values: extension=firebird.so, extension=pdo_fbird.so
 
       - name: Build firebird extension
         run: |

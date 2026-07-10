@@ -51,7 +51,8 @@ jobs:
         env:
           ISC_PASSWORD: masterkey
           FIREBIRD_DATABASE: test.fdb
-          FIREBIRD_USE_LEGACY_AUTH: 'Enabled'
+          FIREBIRD_USER: SYSDBA
+          FIREBIRD_PASSWORD: masterkey
         ports:
           - 3050:3050
         options: >-
@@ -67,7 +68,7 @@ jobs:
       - name: Install Firebird client
         uses: ./.github/actions/install-firebird-client
         with:
-          firebird-major-version: '5'
+          firebird-major-version: '3'
           use-sudo: 'true'
           firebird-host: 'localhost'
 
@@ -136,33 +137,13 @@ jobs:
           set -eu
           # doctrine-firebird-driver uses its own bootstrap; verify connection first
           php -r "
-            \$dsn = getenv('FIREBIRD_TEST_DSN');
-            \$user = getenv('FIREBIRD_TEST_USER');
-            \$pass = getenv('FIREBIRD_TEST_PASSWORD');
-            echo 'DSN: ' . \$dsn . PHP_EOL;
-
-            // Try PDO first
             try {
-              \$pdo = new PDO(\$dsn, \$user, \$pass);
-              echo 'PDO connection OK: ' . \$pdo->getAttribute(PDO::ATTR_SERVER_VERSION) . PHP_EOL;
+              \$pdo = new PDO(getenv('FIREBIRD_TEST_DSN'), getenv('FIREBIRD_TEST_USER'), getenv('FIREBIRD_TEST_PASSWORD'));
+              echo 'Firebird connection OK: ' . \$pdo->getAttribute(PDO::ATTR_SERVER_VERSION) . PHP_EOL;
             } catch (PDOException \$e) {
-              echo 'PDO FAILED: ' . \$e->getMessage() . PHP_EOL;
-              \$ei = \$e->errorInfo;
-              echo 'PDO errorInfo: ' . json_encode(\$ei) . PHP_EOL;
+              echo 'Firebird connection FAILED: ' . \$e->getMessage() . PHP_EOL;
+              exit(1);
             }
-
-            // Try fbird_connect for a real error message
-            \$conn = @fbird_connect('localhost:/var/lib/firebird/data/test.fdb', \$user, \$pass);
-            if (\$conn) {
-              echo 'fbird_connect OK' . PHP_EOL;
-              fbird_close(\$conn);
-            } else {
-              \$err = fbird_errcode() . ': ' . fbird_errmsg();
-              echo 'fbird_connect FAILED: ' . \$err . PHP_EOL;
-            }
-
-            // If PDO failed, exit
-            if (!isset(\$pdo)) exit(1);
           "
           # Run the test suite
           vendor/bin/phpunit --colors=never

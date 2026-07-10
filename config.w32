@@ -62,6 +62,7 @@ if (PHP_FIREBIRD != 'no') {
                                'fbird_class_service.c ' +
                                'fbird_class_event.c ' +
                                'fbird_class_batch.c ' +
+                               'fbird_class_decfloat.c ' +
                                'firebird_utils.cpp';
 
         // Register extension

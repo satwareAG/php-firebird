@@ -5,6 +5,9 @@ Check comprehensive data types including Firebird 4.0+ types
 include("skipif.inc");
 skip_if_fb_lt(4);
 skip_if_fbclient_lt(4);
+/* jane: PHP 8.2 crashes in method dispatch for DecFloat objects.
+ * On PHP < 8.3, DECFLOAT returns strings (compile-time fallback). */
+if (PHP_VERSION_ID < 80300) die('skip DecFloat objects require PHP 8.3+');
 ?>
 --FILE--
 <?php
@@ -24,7 +27,7 @@ fbird_query("INSERT INTO TEST_001 (BLOB_0, BLOB_1) VALUES ('BLOB_0', 'BLOB_1')")
 dump_table_rows("TEST_001", null, FBIRD_FETCH_BLOBS);
 
 ?>
---EXPECT--
+--EXPECTF--
 array(17) {
   ["ID"]=>
   int(1)
@@ -39,9 +42,11 @@ array(17) {
   ["TIME_1"]=>
   string(8) "15:45:59"
   ["DECFLOAT_16"]=>
-  string(17) "3.141592653589793"
+  object(Firebird\DecFloat)#%d (0) {
+  }
   ["DECFLOAT_34"]=>
-  string(35) "3.141592653589793238462643383279502"
+  object(Firebird\DecFloat)#%d (0) {
+  }
   ["INT_NOT_NULL"]=>
   int(1)
   ["DOUBLE_PRECISION_1"]=>

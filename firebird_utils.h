@@ -1140,6 +1140,34 @@ int fbu_decfloat16_to_string(void *master_ptr, const void *value,
  */
 int fbu_decfloat34_to_string(void *master_ptr, const void *value,
 	char *buffer, unsigned buffer_length);
+
+/**
+ * Convert string to FB_DEC16 (DECFLOAT(16)).
+ * @param master_ptr IMaster pointer
+ * @param str String representation (e.g., "3.141592653589793")
+ * @param value Output: FB_DEC16 value
+ * @return 0 on success, -1 on error
+ */
+int fbu_string_to_decfloat16(void *master_ptr, const char *str, void *value);
+
+/**
+ * Convert string to FB_DEC34 (DECFLOAT(34)).
+ * @param master_ptr IMaster pointer
+ * @param str String representation
+ * @param value Output: FB_DEC34 value
+ * @return 0 on success, -1 on error
+ */
+int fbu_string_to_decfloat34(void *master_ptr, const char *str, void *value);
+
+/**
+ * Convert string to FB_I128 (INT128).
+ * @param master_ptr IMaster pointer
+ * @param str String representation
+ * @param scale Scale factor (negative for decimal places)
+ * @param value Output: FB_I128 value
+ * @return 0 on success, -1 on error
+ */
+int fbu_string_to_int128(void *master_ptr, const char *str, int scale, void *value);
 #endif // FB_API_VER >= 40
 
 int fbu_insert_field_info(void *master_ptr, ISC_STATUS* status, int is_outvar, int num,

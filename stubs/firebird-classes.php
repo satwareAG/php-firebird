@@ -280,3 +280,42 @@ final class BatchHandle
     public function add(mixed ...$args): bool {}
     public function addBlob(string $data, int $blob_type = 0): string|false {}
 }
+
+/**
+ * Container for DECFLOAT(16) and DECFLOAT(34) values from Firebird 4.0+.
+ *
+ * Preserves full decimal floating-point precision without PHP float coercion.
+ * Use __toString() for display, rawBytes() for binary access.
+ * Arithmetic operations are not yet supported (tracked separately).
+ *
+ * @since 13.0.0
+ */
+final class DecFloat
+{
+    /**
+     * Construct from a string representation (e.g., "3.14159").
+     * Automatically selects DEC34 if the value fits, otherwise DEC16.
+     */
+    public function __construct(string $value) {}
+
+    /**
+     * Static factory: create from a string representation.
+     */
+    public static function fromString(string $value): static {}
+
+    /**
+     * Returns the string representation of the DECFLOAT value.
+     * @return non-empty-string
+     */
+    public function __toString(): string { return ''; }
+
+    /**
+     * Returns the precision of this DECFLOAT value (16 or 34).
+     */
+    public function toPrecision(): int { return 0; }
+
+    /**
+     * Returns the raw binary representation (8 bytes for DEC16, 16 bytes for DEC34).
+     */
+    public function rawBytes(): string { return ''; }
+}

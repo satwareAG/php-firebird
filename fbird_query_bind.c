@@ -822,6 +822,48 @@ int _php_fbird_bind(fbird_query *fb_query, zval *b_vars)
 				continue;
 #endif /* FB_API_VER >= 40 */
 
+#if FB_API_VER >= 40
+			case SQL_DEC16:
+			case SQL_DEC34:
+				{
+					/* Convert string to DECFLOAT binary representation */
+					convert_to_string(b_var);
+					int rc;
+					if ((var->sqltype & ~1) == SQL_DEC16) {
+						rc = fbu_string_to_decfloat16(FBG(master_instance),
+							Z_STRVAL_P(b_var), (void *)&buf[i].val.dec16);
+					} else {
+						rc = fbu_string_to_decfloat34(FBG(master_instance),
+							Z_STRVAL_P(b_var), (void *)&buf[i].val.dec34);
+					}
+					if (rc != 0) {
+						_php_fbird_module_error("Parameter %d: failed to parse DECFLOAT value '%s'",
+							i + 1, Z_STRVAL_P(b_var));
+						rv = FAILURE;
+						continue;
+					}
+					var->sqldata = (void *)&buf[i].val;
+				}
+				continue;
+
+			case SQL_INT128:
+				{
+					/* Convert string to INT128 binary representation */
+					convert_to_string(b_var);
+					int rc = fbu_string_to_int128(FBG(master_instance),
+						Z_STRVAL_P(b_var), var->sqlscale,
+						(void *)&buf[i].val.i128);
+					if (rc != 0) {
+						_php_fbird_module_error("Parameter %d: failed to parse INT128 value '%s'",
+							i + 1, Z_STRVAL_P(b_var));
+						rv = FAILURE;
+						continue;
+					}
+					var->sqldata = (void *)&buf[i].val;
+				}
+				continue;
+#endif /* FB_API_VER >= 40 */
+
  		case SQL_BLOB:
 
  			/* §6 Stream support: if a PHP stream resource is passed, read it into a blob */

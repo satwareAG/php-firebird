@@ -269,10 +269,39 @@ static int _php_fbird_var_zval(zval *val, void *data, int type, int len,
 			ZVAL_DOUBLE(val, *(double *) data);
 			break;
 #if FB_API_VER >= 40
-		// These are converted to VARCHAR via isc_dpb_set_bind tag at connect
-		// case SQL_DEC16:
-		// case SQL_DEC34:
-		// case SQL_INT128:
+		case SQL_DEC16:
+		case SQL_DEC34: {
+			/* jane: PHP 8.2 crashes in method dispatch for DecFloat objects.
+			 * Fall back to string conversion on PHP < 8.3. */
+#if PHP_VERSION_ID >= 80300
+			if (type == SQL_DEC16) {
+				fbird_setup_decfloat_object(val, 16, data, sizeof(FB_DEC16));
+			} else {
+				fbird_setup_decfloat_object(val, 34, data, sizeof(FB_DEC34));
+			}
+#else
+			char df_buf[48];
+			int df_rc;
+			if (type == SQL_DEC16) {
+				df_rc = fbu_decfloat16_to_string(FBG(master_instance), data, df_buf, sizeof(df_buf));
+			} else {
+				df_rc = fbu_decfloat34_to_string(FBG(master_instance), data, df_buf, sizeof(df_buf));
+			}
+			if (df_rc == 0) { ZVAL_STRING(val, df_buf); } else { ZVAL_NULL(val); }
+#endif
+			break;
+		}
+		case SQL_INT128: {
+			/* INT128: return as string with scale applied (no native PHP type yet) */
+			char buf[64];
+			if (fbu_int128_to_string(FBG(master_instance), data, scale,
+					buf, sizeof(buf)) == 0) {
+				ZVAL_STRING(val, buf);
+			} else {
+				ZVAL_STRINGL(val, (char *)data, len);
+			}
+			break;
+		}
 		case SQL_TIME_TZ:
 		case SQL_TIMESTAMP_TZ:
 			// Should be converted to VARCHAR via isc_dpb_set_bind tag at

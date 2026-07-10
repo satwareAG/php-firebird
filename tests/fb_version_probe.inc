@@ -112,6 +112,9 @@ function _fb_probe_decfloat(): bool
         if (!@fbird_query($db, "RECREATE TABLE FB_PROBE_DECFLOAT (v DECFLOAT(16))")) return false;
         fbird_query($db, "INSERT INTO FB_PROBE_DECFLOAT VALUES (3.14)");
         $r = fbird_fetch_assoc(fbird_query($db, "SELECT v FROM FB_PROBE_DECFLOAT"));
+        /* Force string conversion to avoid Firebird\DecFloat object surviving into shutdown.
+         * Use __toString() explicitly: PHP 8.2 concat_function crashes with custom objects. */
+        if ($r !== false && is_object($r['V'])) { $s = $r['V']->__toString(); }
         @fbird_query($db, "DROP TABLE FB_PROBE_DECFLOAT");
         return $r !== false;
     } finally {

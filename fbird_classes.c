@@ -110,4 +110,8 @@ void fbird_register_classes(void)
 #else
 	fbird_batch_ce = NULL;
 #endif
+
+#if FB_API_VER >= 40
+	fbird_register_decfloat_class();
+#endif
 }

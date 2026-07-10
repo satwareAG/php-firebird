@@ -373,8 +373,9 @@ inline Connection Connection::create(Firebird::IMaster* master,
     if (!params.bind_rules.empty()) {
         dpb.setBindRules(params.bind_rules);
     } else {
-        // Default bind rules for INT128/DECFLOAT compatibility
-        dpb.setBindRules("INT128 TO VARCHAR;DECFLOAT TO VARCHAR");
+        // Default bind rules: INT128 still coerced to VARCHAR (no native PHP type yet).
+        // DECFLOAT returns as native Firebird\DecFloat object (v13.0.0 breaking change).
+        dpb.setBindRules("INT128 TO VARCHAR");
     }
 #endif
 

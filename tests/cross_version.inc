@@ -144,4 +144,3 @@ function cross_version_connect(
 
     return $conn;
 }
-}

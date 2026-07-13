@@ -66,10 +66,10 @@ elif [ -f "php_firebird.h" ]; then
     DETECTED_VERSION=$(grep -E '#define PHP_FIREBIRD_VERSION_STRING' php_firebird.h 2>/dev/null | sed 's/.*"\([^"]*\)".*/\1/' | head -1 || true)
     # If empty or contains "unknown", use fallback
     if [ -z "$DETECTED_VERSION" ] || [[ "$DETECTED_VERSION" == *"unknown"* ]]; then
-        DETECTED_VERSION="12.0.0"
+        DETECTED_VERSION="12.1.0"
     fi
 else
-    DETECTED_VERSION="12.0.0"
+    DETECTED_VERSION="12.1.0"
 fi
 EXT_VERSION="${EXT_VERSION:-$DETECTED_VERSION}"
 

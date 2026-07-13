@@ -17,7 +17,7 @@ A high-performance PHP extension providing native connectivity to Firebird datab
 - **Modern C++ OO API**: Uses Firebird 3.0+ Object-Oriented API with RAII wrappers — zero legacy `isc_*` calls
 - **Modern PHP**: Optimized for PHP 8.2+ with typed properties and attributes
 - **Layer 1 — `fbird_*` procedural API**: Full-featured function-based interface for Firebird-specific features
-- **Layer 2 — `Firebird\*` OOP classes**: Native C-registered PHP classes (`Connection`, `Transaction`, `Statement`, `ResultSet`, `Blob`, `Service`, `Event`) with Firebird-specific features
+- **Layer 2 — `Firebird\*` OOP classes**: Native C-registered PHP classes (`Exception`, `DatabaseException`, `TransactionException`, `Connection`, `Transaction`, `Statement`, `ResultSet`, `Blob`, `Service`, `Event`, `BatchHandle`, `DecFloat`) with Firebird-specific features
 - **Layer 3 — `pdo_fbird` PDO driver**: Separate `pdo_fbird.so` extension with `fbird:` DSN prefix, compatible with PDO without colliding with PHP's bundled `pdo_firebird`. Load after `firebird.so`.
 - **Exception Mode API**: PDO-style exception handling with runtime switchable error modes (SILENT/THROW)
 - **Memory Safety**: Built with AddressSanitizer and comprehensive static analysis
@@ -664,7 +664,7 @@ phpize8.3  # Ubuntu/Debian versioned phpize
 ```
 
 **Windows Visual Studio version:**
-- Use Visual Studio 2019+ (vs16) for PHP 8.1-8.3
+- Use Visual Studio 2019+ (vs16) for PHP 8.2-8.3
 - Use Visual Studio 2022 (vs17) for PHP 8.4+
 - Ensure Windows SDK 10.0.20348.0+ is installed
 - For compatibility, use same compiler as your PHP build
@@ -767,7 +767,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development guidelines inclu
 
 ### Architecture
 - **Language**: C (main extension) + C++ (utilities) with C++17 standard
-- **API**: Zend Extension API with modern PHP 8.1+ features
+- **API**: Zend Extension API with modern PHP 8.2+ features
 - **Thread Safety**: Support for both ZTS and NTS builds
 - **Memory Model**: RAII principles with automatic resource cleanup
 
@@ -966,7 +966,7 @@ See [docs/oop-api.md](docs/oop-api.md) for the `Firebird\Event` class reference.
 - PHP 8.2 (fully supported, minimum)
 - PHP 8.3 (fully supported)
 - PHP 8.4 (fully supported)
-- PHP 8.5 (development)
+- PHP 8.5 (fully supported)
 
 > **ℹ️ PHP 8.1**: PHP 8.1 reached end-of-life on November 25, 2025 and is no longer supported as of v7.2.0. Please upgrade to PHP 8.2 or newer.
 
@@ -1004,13 +1004,13 @@ php -m | grep -E 'firebird|pdo_fbird'
 
 **Package Compatibility:**
 - **glibc 2.28+** required (Ubuntu 18.10+, Debian 11+, RHEL 8+)
-- **PHP 8.1+** required - use third-party repos if your distribution has an older default
+- **PHP 8.2+** required - use third-party repos if your distribution has an older default
 - **No system Firebird installation needed** - client libraries bundled via `$ORIGIN` rpath
 - **Connects to any Firebird server** (3.0-5.0) using bundled FB 5.x client
 
-**Installing PHP 8.1+ on Older Distributions:**
+**Installing PHP 8.2+ on Older Distributions:**
 
-If your distribution ships with PHP < 8.1, use these third-party repositories:
+If your distribution ships with PHP < 8.2, use these third-party repositories:
 
 ```bash
 # Ubuntu 20.04 / Debian 11 (ondrej/php PPA)
@@ -1027,7 +1027,7 @@ sudo dnf module enable php:remi-8.4
 sudo dnf install -y php php-cli
 ```
 
-After installing PHP 8.1+, install the precompiled extension bundle matching your PHP version.
+After installing PHP 8.2+, install the precompiled extension bundle matching your PHP version.
 
 **Dropped Support:**
 - ❌ PHP 7.x (legacy, security issues)

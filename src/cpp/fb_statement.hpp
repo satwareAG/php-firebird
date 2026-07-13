@@ -107,11 +107,7 @@ public:
         ISC_STATUS* status_vector
     ) noexcept {
         if (!master || !attachment || !sql) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_bad_req_handle;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_bad_req_handle);
             return false;
         }
 
@@ -147,11 +143,7 @@ public:
             return prepared_;
 
         } catch (...) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_except2;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_except2);
             return false;
         }
     }
@@ -170,11 +162,7 @@ public:
         ISC_STATUS* status_vector
     ) noexcept {
         if (!statement_ || !master) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_bad_stmt_handle;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_bad_stmt_handle);
             return false;
         }
 
@@ -200,11 +188,7 @@ public:
             return true;
 
         } catch (...) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_except2;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_except2);
             return false;
         }
     }
@@ -222,11 +206,7 @@ public:
         ISC_STATUS* status_vector
     ) noexcept {
         if (!statement_ || !master) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_bad_stmt_handle;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_bad_stmt_handle);
             return false;
         }
 
@@ -262,11 +242,7 @@ public:
             return cursor_open_;
 
         } catch (...) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_except2;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_except2);
             return false;
         }
     }
@@ -281,11 +257,7 @@ public:
         ISC_STATUS* status_vector
     ) noexcept {
         if (!result_set_ || !master || !cursor_open_) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_bad_stmt_handle;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_bad_stmt_handle);
             return -1;
         }
 
@@ -316,11 +288,7 @@ public:
 
         } catch (...) {
             cursor_open_ = false;
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_except2;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_except2);
             return -1;
         }
     }
@@ -476,11 +444,7 @@ public:
             return true;
 
         } catch (...) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_except2;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_except2);
             result_set_ = nullptr;
             cursor_open_ = false;
             return false;
@@ -537,11 +501,7 @@ public:
             return true;
 
         } catch (...) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_except2;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_except2);
             statement_ = nullptr;
             prepared_ = false;
             return false;
@@ -572,11 +532,7 @@ public:
             return meta;
 
         } catch (...) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_except2;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_except2);
             return nullptr;
         }
     }
@@ -605,11 +561,7 @@ public:
             return meta;
 
         } catch (...) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_except2;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_except2);
             return nullptr;
         }
     }
@@ -638,11 +590,7 @@ public:
             return stmt_type;
 
         } catch (...) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_except2;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_except2);
             return 0;
         }
     }
@@ -671,11 +619,7 @@ public:
             return count;
 
         } catch (...) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_except2;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_except2);
             return 0;
         }
     }

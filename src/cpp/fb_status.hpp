@@ -44,6 +44,31 @@ inline bool statusHasData(Firebird::IStatus* status) noexcept {
 }
 
 /**
+ * Set a 3-element error status vector: [isc_arg_gds, code, isc_arg_end].
+ * Null-safe: if sv is null, does nothing.
+ */
+inline void set_status_error(ISC_STATUS* sv, ISC_STATUS code) noexcept {
+    if (!sv) return;
+    sv[0] = isc_arg_gds;
+    sv[1] = code;
+    sv[2] = isc_arg_end;
+}
+
+/**
+ * Copy error status from CheckStatusWrapper to a legacy ISC_STATUS array.
+ * Null-safe: if sv or status is null, does nothing.
+ * Copies until isc_arg_end or ISC_STATUS_LENGTH-1, then sets last element to isc_arg_end.
+ */
+inline void copy_status_to_sv(ISC_STATUS* sv, Firebird::CheckStatusWrapper* status) noexcept {
+    if (!sv || !status) return;
+    const ISC_STATUS* errors = status->getErrors();
+    for (unsigned i = 0; errors[i] != isc_arg_end && i < ISC_STATUS_LENGTH - 1; ++i) {
+        sv[i] = errors[i];
+    }
+    sv[ISC_STATUS_LENGTH - 1] = isc_arg_end;
+}
+
+/**
  * Exception class for Firebird errors with rich status information.
  * Parses ISC_STATUS vectors into human-readable error messages.
  */

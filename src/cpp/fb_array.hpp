@@ -203,11 +203,7 @@ inline bool ArrayUtils::getSlice(
     ISC_STATUS* status_vector
 ) noexcept {
     if (!master || !attachment || !transaction || !array_id || !desc || !buffer || !buffer_length) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return false;
     }
 
@@ -216,11 +212,7 @@ inline bool ArrayUtils::getSlice(
     unsigned sdl_length = 0;
 
     if (!buildSdlFromDesc(desc, sdl_buffer, &sdl_length)) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_random; // Generic error for SDL build failure
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_random);
         return false;
     }
 
@@ -258,11 +250,7 @@ inline bool ArrayUtils::getSlice(
         return true;
 
     } catch (...) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_except2;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_except2);
         return false;
     }
 }
@@ -278,11 +266,7 @@ inline bool ArrayUtils::putSlice(
     ISC_STATUS* status_vector
 ) noexcept {
     if (!master || !attachment || !transaction || !array_id || !desc || !buffer) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return false;
     }
 
@@ -291,11 +275,7 @@ inline bool ArrayUtils::putSlice(
     unsigned sdl_length = 0;
 
     if (!buildSdlFromDesc(desc, sdl_buffer, &sdl_length)) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_random; // Generic error for SDL build failure
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_random);
         return false;
     }
 
@@ -331,11 +311,7 @@ inline bool ArrayUtils::putSlice(
         return true;
 
     } catch (...) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_except2;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_except2);
         return false;
     }
 }

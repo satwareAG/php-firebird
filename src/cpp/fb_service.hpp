@@ -81,11 +81,7 @@ public:
                 ISC_STATUS* status_vector) noexcept
     {
         if (!master) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_bad_svc_handle;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_bad_svc_handle);
             return false;
         }
 
@@ -100,11 +96,7 @@ public:
         try {
             Firebird::IProvider* provider = master->getDispatcher();
             if (!provider) {
-                if (status_vector) {
-                    status_vector[0] = isc_arg_gds;
-                    status_vector[1] = isc_unavailable;
-                    status_vector[2] = isc_arg_end;
-                }
+                set_status_error(status_vector, isc_unavailable);
                 return false;
             }
 
@@ -116,24 +108,14 @@ public:
             );
 
             if (status.hasData()) {
-                if (status_vector) {
-                    const ISC_STATUS* errors = status.getErrors();
-                    for (unsigned i = 0; errors[i] != isc_arg_end && i < ISC_STATUS_LENGTH - 1; ++i) {
-                        status_vector[i] = errors[i];
-                    }
-                    status_vector[ISC_STATUS_LENGTH - 1] = isc_arg_end;
-                }
+                copy_status_to_sv(status_vector, &status);
                 m_service = nullptr;
                 return false;
             }
 
             return m_service != nullptr;
         } catch (...) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_except2;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_except2);
             m_service = nullptr;
             return false;
         }
@@ -151,11 +133,7 @@ public:
         }
 
         if (!m_master) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_bad_svc_handle;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_bad_svc_handle);
             return false;
         }
 
@@ -163,23 +141,13 @@ public:
         try {
             m_service->detach(&status);
             if (status.hasData()) {
-                if (status_vector) {
-                    const ISC_STATUS* errors = status.getErrors();
-                    for (unsigned i = 0; errors[i] != isc_arg_end && i < ISC_STATUS_LENGTH - 1; ++i) {
-                        status_vector[i] = errors[i];
-                    }
-                    status_vector[ISC_STATUS_LENGTH - 1] = isc_arg_end;
-                }
+                copy_status_to_sv(status_vector, &status);
                 return false;
             }
             m_service = nullptr;
             return true;
         } catch (...) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_except2;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_except2);
             return false;
         }
     }
@@ -196,11 +164,7 @@ public:
                ISC_STATUS* status_vector) noexcept
     {
         if (!m_service || !m_master) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_bad_svc_handle;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_bad_svc_handle);
             return false;
         }
 
@@ -208,22 +172,12 @@ public:
         try {
             m_service->start(&status, spb_length, spb);
             if (status.hasData()) {
-                if (status_vector) {
-                    const ISC_STATUS* errors = status.getErrors();
-                    for (unsigned i = 0; errors[i] != isc_arg_end && i < ISC_STATUS_LENGTH - 1; ++i) {
-                        status_vector[i] = errors[i];
-                    }
-                    status_vector[ISC_STATUS_LENGTH - 1] = isc_arg_end;
-                }
+                copy_status_to_sv(status_vector, &status);
                 return false;
             }
             return true;
         } catch (...) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_except2;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_except2);
             return false;
         }
     }
@@ -246,11 +200,7 @@ public:
                ISC_STATUS* status_vector) noexcept
     {
         if (!m_service || !m_master) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_bad_svc_handle;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_bad_svc_handle);
             return false;
         }
 
@@ -259,22 +209,12 @@ public:
             m_service->query(&status, send_length, send_items,
                             recv_length, recv_items, buffer_length, buffer);
             if (status.hasData()) {
-                if (status_vector) {
-                    const ISC_STATUS* errors = status.getErrors();
-                    for (unsigned i = 0; errors[i] != isc_arg_end && i < ISC_STATUS_LENGTH - 1; ++i) {
-                        status_vector[i] = errors[i];
-                    }
-                    status_vector[ISC_STATUS_LENGTH - 1] = isc_arg_end;
-                }
+                copy_status_to_sv(status_vector, &status);
                 return false;
             }
             return true;
         } catch (...) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_except2;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_except2);
             return false;
         }
     }
@@ -310,22 +250,14 @@ void* fbsvc_attach(void* master_ptr,
                           ISC_STATUS* status_vector)
 {
     if (!master_ptr || !service_name) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_svc_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_svc_handle);
         return nullptr;
     }
 
     auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* wrapper = new (std::nothrow) fb::ServiceWrapper();
     if (!wrapper) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_virmemexh;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_virmemexh);
         return nullptr;
     }
 
@@ -364,11 +296,7 @@ int fbsvc_start(void* master_ptr,
     (void)master_ptr; // Unused, kept for API consistency
 
     if (!service_wrapper) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_svc_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_svc_handle);
         return 0;
     }
 
@@ -392,11 +320,7 @@ int fbsvc_query(void* master_ptr,
     (void)master_ptr; // Unused, kept for API consistency
 
     if (!service_wrapper) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_svc_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_svc_handle);
         return 0;
     }
 

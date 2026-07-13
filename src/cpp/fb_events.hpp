@@ -139,11 +139,7 @@ public:
         }
 
         if (!master) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_bad_db_handle;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_bad_db_handle);
             return false;
         }
 
@@ -151,23 +147,13 @@ public:
         try {
             m_events->cancel(&status);
             if (status.hasData()) {
-                if (status_vector) {
-                    const ISC_STATUS* errors = status.getErrors();
-                    for (unsigned i = 0; errors[i] != isc_arg_end && i < ISC_STATUS_LENGTH - 1; ++i) {
-                        status_vector[i] = errors[i];
-                    }
-                    status_vector[ISC_STATUS_LENGTH - 1] = isc_arg_end;
-                }
+                copy_status_to_sv(status_vector, &status);
                 return false;
             }
             m_events = nullptr;
             return true;
         } catch (...) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_except2;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_except2);
             return false;
         }
     }

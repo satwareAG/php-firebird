@@ -273,6 +273,9 @@ namespace {
 #include "src/cpp/fb_core.hpp"
 #include "src/cpp/fb_connection.hpp"
 
+using fb::set_status_error;
+using fb::copy_status_to_sv;
+
 namespace fb {
 
 /**
@@ -500,6 +503,10 @@ extern "C" void* fbc_connect(
         if (num_buffers > 0) {
             params.num_buffers = static_cast<unsigned short>(num_buffers);
         }
+        if (force_write >= 0) {
+            params.force_write = (bool)force_write;
+            params.force_write_set = true;
+        }
 
         // Create connection using factory method
         auto conn = fb::Connection::create(master, params);
@@ -518,12 +525,7 @@ extern "C" void* fbc_connect(
     } catch (const fb::Exception& e) {
         // Copy error status from exception to output status vector
         if (status_vector) {
-            const ISC_STATUS* exc_status = e.statusVector();
-            if (exc_status) {
-                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
-                    status_vector[i] = exc_status[i];
-                }
-            }
+            copy_status_vector(e.statusVector(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
         }
         return nullptr;
     } catch (...) {
@@ -561,6 +563,10 @@ extern "C" void* fbc_connect_ex(
         if (num_buffers > 0) {
             params.num_buffers = static_cast<unsigned short>(num_buffers);
         }
+        if (force_write >= 0) {
+            params.force_write = (bool)force_write;
+            params.force_write_set = true;
+        }
 
 #ifdef isc_dpb_parallel_workers
         if (parallel_workers > 0) {
@@ -581,12 +587,7 @@ extern "C" void* fbc_connect_ex(
 
     } catch (const fb::Exception& e) {
         if (status_vector) {
-            const ISC_STATUS* exc_status = e.statusVector();
-            if (exc_status) {
-                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
-                    status_vector[i] = exc_status[i];
-                }
-            }
+            copy_status_vector(e.statusVector(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
         }
         return nullptr;
     } catch (...) {
@@ -654,11 +655,7 @@ extern "C" void* fbc_create_database(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !create_sql) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return nullptr;
     }
 
@@ -668,11 +665,7 @@ extern "C" void* fbc_create_database(
         // Get IUtil interface for executeCreateDatabase
         Firebird::IUtil* util = master->getUtilInterface();
         if (!util) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_unavailable;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_unavailable);
             return nullptr;
         }
 
@@ -693,13 +686,7 @@ extern "C" void* fbc_create_database(
         if (check_status.isDirty() || !attachment) {
             // Copy error status
             if (status_vector) {
-                const ISC_STATUS* errors = raw_status->getErrors();
-                if (errors) {
-                    for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
-                        status_vector[i] = errors[i];
-                        if (errors[i] == isc_arg_end) break;
-                    }
-                }
+                copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
             }
             return nullptr;
         }
@@ -727,20 +714,11 @@ extern "C" void* fbc_create_database(
 
     } catch (const fb::Exception& e) {
         if (status_vector) {
-            const ISC_STATUS* exc_status = e.statusVector();
-            if (exc_status) {
-                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
-                    status_vector[i] = exc_status[i];
-                }
-            }
+            copy_status_vector(e.statusVector(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
         }
         return nullptr;
     } catch (...) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_random;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_random);
         return nullptr;
     }
 }
@@ -861,26 +839,12 @@ extern "C" void* fbt_start(
     } catch (const fb::Exception& e) {
         // Copy error status from exception to output status vector
         if (status_vector) {
-            const ISC_STATUS* exc_status = e.statusVector();
-            if (exc_status) {
-                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
-                    status_vector[i] = exc_status[i];
-                }
-            } else {
-                // No status available - set generic error
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_random;
-                status_vector[2] = isc_arg_end;
-            }
+            copy_status_vector(e.statusVector(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
         }
         return nullptr;
     } catch (...) {
         // Unknown exception - set generic error
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_random;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_random);
         return nullptr;
     }
 }
@@ -1040,11 +1004,7 @@ extern "C" int fbt_get_info(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !transaction_ptr || !items || !buffer) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 0;
     }
 
@@ -1071,11 +1031,7 @@ extern "C" int fbt_get_info(
         return 1;
 
     } catch (...) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_except2;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_except2);
         return 0;
     }
 }
@@ -1090,11 +1046,7 @@ extern "C" int fbc_get_info(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !attachment_ptr || !items || !buffer) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_db_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_db_handle);
         return 0;
     }
 
@@ -1121,11 +1073,7 @@ extern "C" int fbc_get_info(
         return 1;
 
     } catch (...) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_except2;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_except2);
         return 0;
     }
 }
@@ -1404,11 +1352,7 @@ extern "C" void* fbs_prepare(
     }
 
     if (!master_ptr || !attachment_ptr || !transaction_ptr || !sql) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return nullptr;
     }
 
@@ -1419,11 +1363,7 @@ extern "C" void* fbs_prepare(
     // Allocate wrapper on heap
     auto* wrapper = new (std::nothrow) fb::StatementWrapper();
     if (!wrapper) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_virmemexh;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_virmemexh);
         return nullptr;
     }
 
@@ -1451,11 +1391,7 @@ extern "C" int fbs_execute(
     }
 
     if (!master_ptr || !statement_ptr) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_stmt_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_stmt_handle);
         return 0;
     }
 
@@ -1483,11 +1419,7 @@ extern "C" int fbs_open_cursor(
     }
 
     if (!master_ptr || !statement_ptr) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_stmt_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_stmt_handle);
         return 0;
     }
 
@@ -1511,11 +1443,7 @@ extern "C" int fbs_fetch(
     }
 
     if (!master_ptr || !statement_ptr) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_stmt_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_stmt_handle);
         return -1;
     }
 
@@ -1699,13 +1627,7 @@ extern "C" int fbs_set_cursor_name(void* master_ptr, void* statement_ptr, const 
         return 1;
     } catch (const Firebird::FbException& e) {
         if (status_vector) {
-            const ISC_STATUS* errors = e.getStatus()->getErrors();
-            if (errors) {
-                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
-                    status_vector[i] = errors[i];
-                    if (errors[i] == isc_arg_end) break;
-                }
-            }
+            copy_status_vector(e.getStatus()->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
         }
         return 0;
     }
@@ -1878,11 +1800,7 @@ extern "C" ISC_STATUS fbe_wait_for_event_oo(ISC_STATUS* status_vector, void* att
                                              unsigned char* result_buffer)
 {
     if (!attachment_ptr) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_db_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_db_handle);
         return isc_bad_db_handle;
     }
     auto* attachment = static_cast<Firebird::IAttachment*>(attachment_ptr);
@@ -1926,11 +1844,7 @@ extern "C" int fba_get_slice(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !attachment_ptr || !transaction_ptr) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 1;
     }
 
@@ -1963,11 +1877,7 @@ extern "C" int fba_put_slice(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !attachment_ptr || !transaction_ptr) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 1;
     }
 
@@ -2000,11 +1910,7 @@ extern "C" int fba_lookup_bounds(
 ) {
 
     if (!master_ptr || !attachment_ptr || !transaction_ptr || !relation_name || !field_name || !desc) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 1;
     }
 
@@ -2117,11 +2023,7 @@ extern "C" int fba_lookup_bounds(
 
         if (*reinterpret_cast<ISC_SHORT*>(outBuf1.get() + fsNullOff) != 0 ||
             *reinterpret_cast<ISC_SHORT*>(outBuf1.get() + fidNullOff) != 0) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_bad_req_handle;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_bad_req_handle);
             rs1->close(&st);
             inMeta1->release();
             outMeta1->release();
@@ -2341,11 +2243,7 @@ extern "C" int fba_lookup_bounds(
                 break;
             default:
                 /* Unsupported element type for now */
-                if (status_vector) {
-                    status_vector[0] = isc_arg_gds;
-                    status_vector[1] = isc_dsql_datatype_err;
-                    status_vector[2] = isc_arg_end;
-                }
+                set_status_error(status_vector, isc_dsql_datatype_err);
                 rs3->close(&st);
                 inMeta3->release();
                 outMeta3->release();
@@ -2409,11 +2307,7 @@ extern "C" int fba_lookup_bounds(
         stmt3->free(&st);
 
         if (desc->array_desc_dimensions == 0) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_bad_req_handle;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_bad_req_handle);
             return 1;
         }
 
@@ -2425,11 +2319,7 @@ extern "C" int fba_lookup_bounds(
         return 0;
 
     } catch (...) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_except2;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_except2);
         return 1;
     }
 }
@@ -2447,11 +2337,7 @@ extern "C" void* fbb_create(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !attachment_ptr || !transaction_ptr || !blob_id) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return nullptr;
     }
 
@@ -2461,11 +2347,7 @@ extern "C" void* fbb_create(
 
     auto* wrapper = new (std::nothrow) fb::BlobWrapper();
     if (!wrapper) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_virmemexh;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_virmemexh);
         return nullptr;
     }
 
@@ -2491,11 +2373,7 @@ extern "C" void* fbb_open(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !attachment_ptr || !transaction_ptr || !blob_id) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return nullptr;
     }
 
@@ -2505,11 +2383,7 @@ extern "C" void* fbb_open(
 
     auto* wrapper = new (std::nothrow) fb::BlobWrapper();
     if (!wrapper) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_virmemexh;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_virmemexh);
         return nullptr;
     }
 
@@ -2529,11 +2403,7 @@ extern "C" int fbb_put_segment(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !blob_wrapper) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_segstr_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_segstr_handle);
         return 0;
     }
 
@@ -2552,11 +2422,7 @@ extern "C" int fbb_get_segment(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !blob_wrapper) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_segstr_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_segstr_handle);
         return -1;
     }
 
@@ -2568,11 +2434,7 @@ extern "C" int fbb_get_segment(
 
 extern "C" int fbb_close(void* master_ptr, void* blob_wrapper, ISC_STATUS* status_vector) {
     if (!master_ptr || !blob_wrapper) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_segstr_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_segstr_handle);
         return 0;
     }
 
@@ -2585,11 +2447,7 @@ extern "C" int fbb_close(void* master_ptr, void* blob_wrapper, ISC_STATUS* statu
 extern "C" int fbb_seek(void* master_ptr, void* blob_wrapper, int whence, int offset,
                         int* result_position, ISC_STATUS* status_vector) {
     if (!master_ptr || !blob_wrapper) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_segstr_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_segstr_handle);
         return 0;
     }
 
@@ -2601,11 +2459,7 @@ extern "C" int fbb_seek(void* master_ptr, void* blob_wrapper, int whence, int of
 
 extern "C" int fbb_cancel(void* master_ptr, void* blob_wrapper, ISC_STATUS* status_vector) {
     if (!master_ptr || !blob_wrapper) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_segstr_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_segstr_handle);
         return 0;
     }
 
@@ -2625,11 +2479,7 @@ extern "C" int fbb_get_info(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !blob_wrapper) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_segstr_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_segstr_handle);
         return 0;
     }
 
@@ -2670,142 +2520,68 @@ extern "C" void fbb_free(void* blob_wrapper) {
  * message buffers and extracting field values during fetch operations.
  * ============================================================================= */
 
-extern "C" unsigned fbm_get_message_length(void* master_ptr, void* metadata_ptr) {
-    if (!master_ptr || !metadata_ptr) return 0;
-
+namespace {
+// Helper to eliminate boilerplate for fbm_* metadata accessors (no-index variants).
+template <typename R, R error_value, typename F>
+inline R fbm_call0(void* master_ptr, void* metadata_ptr, F&& fn) noexcept {
+    if (!master_ptr || !metadata_ptr) return error_value;
     auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
-
     Firebird::CheckStatusWrapper status(master->getStatus());
-    unsigned length = metadata->getMessageLength(&status);
-    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : length;
+    R result = fn(metadata, &status);
+    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? error_value : result;
 }
-
-extern "C" unsigned fbm_get_count(void* master_ptr, void* metadata_ptr) {
-    if (!master_ptr || !metadata_ptr) return 0;
-
+// Helper to eliminate boilerplate for fbm_* metadata accessors (with-index variants).
+template <typename R, R error_value, typename F>
+inline R fbm_call1(void* master_ptr, void* metadata_ptr, unsigned index, F&& fn) noexcept {
+    if (!master_ptr || !metadata_ptr) return error_value;
     auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
-
     Firebird::CheckStatusWrapper status(master->getStatus());
-    unsigned count = metadata->getCount(&status);
-    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : count;
+    R result = fn(metadata, &status, index);
+    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? error_value : result;
 }
+} // anonymous namespace
 
-extern "C" unsigned fbm_get_offset(void* master_ptr, void* metadata_ptr, unsigned index) {
-    if (!master_ptr || !metadata_ptr) return 0;
-
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
-
-    Firebird::CheckStatusWrapper status(master->getStatus());
-    unsigned offset = metadata->getOffset(&status, index);
-    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : offset;
+extern "C" unsigned fbm_get_message_length(void* m, void* md) {
+    return fbm_call0<unsigned, 0u>(m, md, [](auto* md, auto* s) { return md->getMessageLength(s); });
 }
-
-extern "C" unsigned fbm_get_null_offset(void* master_ptr, void* metadata_ptr, unsigned index) {
-    if (!master_ptr || !metadata_ptr) return 0;
-
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
-
-    Firebird::CheckStatusWrapper status(master->getStatus());
-    unsigned offset = metadata->getNullOffset(&status, index);
-    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : offset;
+extern "C" unsigned fbm_get_count(void* m, void* md) {
+    return fbm_call0<unsigned, 0u>(m, md, [](auto* md, auto* s) { return md->getCount(s); });
 }
-
-extern "C" unsigned fbm_get_type(void* master_ptr, void* metadata_ptr, unsigned index) {
-    if (!master_ptr || !metadata_ptr) return 0;
-
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
-
-    Firebird::CheckStatusWrapper status(master->getStatus());
-    unsigned type = metadata->getType(&status, index);
-    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : type;
+extern "C" unsigned fbm_get_offset(void* m, void* md, unsigned i) {
+    return fbm_call1<unsigned, 0u>(m, md, i, [](auto* md, auto* s, auto i) { return md->getOffset(s, i); });
 }
-
-extern "C" unsigned fbm_get_subtype(void* master_ptr, void* metadata_ptr, unsigned index) {
-    if (!master_ptr || !metadata_ptr) return 0;
-
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
-
-    Firebird::CheckStatusWrapper status(master->getStatus());
-    unsigned subtype = metadata->getSubType(&status, index);
-    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : subtype;
+extern "C" unsigned fbm_get_null_offset(void* m, void* md, unsigned i) {
+    return fbm_call1<unsigned, 0u>(m, md, i, [](auto* md, auto* s, auto i) { return md->getNullOffset(s, i); });
 }
-
-extern "C" unsigned fbm_get_length(void* master_ptr, void* metadata_ptr, unsigned index) {
-    if (!master_ptr || !metadata_ptr) return 0;
-
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
-
-    Firebird::CheckStatusWrapper status(master->getStatus());
-    unsigned length = metadata->getLength(&status, index);
-    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : length;
+extern "C" unsigned fbm_get_type(void* m, void* md, unsigned i) {
+    return fbm_call1<unsigned, 0u>(m, md, i, [](auto* md, auto* s, auto i) { return md->getType(s, i); });
 }
-
-extern "C" int fbm_get_scale(void* master_ptr, void* metadata_ptr, unsigned index) {
-    if (!master_ptr || !metadata_ptr) return 0;
-
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
-
-    Firebird::CheckStatusWrapper status(master->getStatus());
-    int scale = metadata->getScale(&status, index);
-    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : scale;
+extern "C" unsigned fbm_get_subtype(void* m, void* md, unsigned i) {
+    return fbm_call1<unsigned, 0u>(m, md, i, [](auto* md, auto* s, auto i) { return md->getSubType(s, i); });
 }
-
-extern "C" unsigned fbm_get_charset(void* master_ptr, void* metadata_ptr, unsigned index) {
-    if (!master_ptr || !metadata_ptr) return 0;
-
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
-
-    Firebird::CheckStatusWrapper status(master->getStatus());
-    unsigned charset = metadata->getCharSet(&status, index);
-    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? 0 : charset;
+extern "C" unsigned fbm_get_length(void* m, void* md, unsigned i) {
+    return fbm_call1<unsigned, 0u>(m, md, i, [](auto* md, auto* s, auto i) { return md->getLength(s, i); });
 }
-
-extern "C" const char* fbm_get_field(void* master_ptr, void* metadata_ptr, unsigned index) {
-    if (!master_ptr || !metadata_ptr) return nullptr;
-
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
-
-    Firebird::CheckStatusWrapper status(master->getStatus());
-    const char* name = metadata->getField(&status, index);
-    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? nullptr : name;
+extern "C" int fbm_get_scale(void* m, void* md, unsigned i) {
+    return fbm_call1<int, 0>(m, md, i, [](auto* md, auto* s, auto i) { return md->getScale(s, i); });
 }
-
-extern "C" const char* fbm_get_alias(void* master_ptr, void* metadata_ptr, unsigned index) {
-    if (!master_ptr || !metadata_ptr) return nullptr;
-
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
-
-    Firebird::CheckStatusWrapper status(master->getStatus());
-    const char* alias = metadata->getAlias(&status, index);
-    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? nullptr : alias;
+extern "C" unsigned fbm_get_charset(void* m, void* md, unsigned i) {
+    return fbm_call1<unsigned, 0u>(m, md, i, [](auto* md, auto* s, auto i) { return md->getCharSet(s, i); });
 }
-
-extern "C" const char* fbm_get_relation(void* master_ptr, void* metadata_ptr, unsigned index) {
-    if (!master_ptr || !metadata_ptr) return nullptr;
-
-    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-    auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
-
-    Firebird::CheckStatusWrapper status(master->getStatus());
-    const char* relation = metadata->getRelation(&status, index);
-    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? nullptr : relation;
+extern "C" const char* fbm_get_field(void* m, void* md, unsigned i) {
+    return fbm_call1<const char*, nullptr>(m, md, i, [](auto* md, auto* s, auto i) { return md->getField(s, i); });
 }
-
+extern "C" const char* fbm_get_alias(void* m, void* md, unsigned i) {
+    return fbm_call1<const char*, nullptr>(m, md, i, [](auto* md, auto* s, auto i) { return md->getAlias(s, i); });
+}
+extern "C" const char* fbm_get_relation(void* m, void* md, unsigned i) {
+    return fbm_call1<const char*, nullptr>(m, md, i, [](auto* md, auto* s, auto i) { return md->getRelation(s, i); });
+}
 extern "C" void fbm_release(void* metadata_ptr) {
     if (!metadata_ptr) return;
-    auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
-    metadata->release();
+    static_cast<Firebird::IMessageMetadata*>(metadata_ptr)->release();
 }
 
 /* =============================================================================
@@ -2823,11 +2599,7 @@ extern "C" unsigned char* fbxpb_build_tpb(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !buffer_length) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return nullptr;
     }
 
@@ -2840,11 +2612,7 @@ extern "C" unsigned char* fbxpb_build_tpb(
         Firebird::IUtil* util = master->getUtilInterface();
 
         if (!util) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_unavailable;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_unavailable);
             return nullptr;
         }
 
@@ -2946,21 +2714,11 @@ extern "C" unsigned char* fbxpb_build_tpb(
 
     } catch (const Firebird::FbException& e) {
         if (status_vector) {
-            const ISC_STATUS* errors = e.getStatus()->getErrors();
-            if (errors) {
-                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
-                    status_vector[i] = errors[i];
-                    if (errors[i] == isc_arg_end) break;
-                }
-            }
+            copy_status_vector(e.getStatus()->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
         }
         return nullptr;
     } catch (...) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_random;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_random);
         return nullptr;
     }
 }
@@ -2983,11 +2741,7 @@ extern "C" int fbt_get_limbo_transactions(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !attachment_ptr || !trans_ids || max_ids == 0) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_db_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_db_handle);
         return -1;
     }
 
@@ -3068,21 +2822,11 @@ extern "C" int fbt_get_limbo_transactions(
 
     } catch (const Firebird::FbException& e) {
         if (status_vector) {
-            const ISC_STATUS* errors = e.getStatus()->getErrors();
-            if (errors) {
-                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
-                    status_vector[i] = errors[i];
-                    if (errors[i] == isc_arg_end) break;
-                }
-            }
+            copy_status_vector(e.getStatus()->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
         }
         return -1;
     } catch (...) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_random;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_random);
         return -1;
     }
 }
@@ -3094,11 +2838,7 @@ extern "C" void* fbt_reconnect(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !attachment_ptr) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_db_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_db_handle);
         return nullptr;
     }
 
@@ -3141,21 +2881,11 @@ extern "C" void* fbt_reconnect(
 
     } catch (const Firebird::FbException& e) {
         if (status_vector) {
-            const ISC_STATUS* errors = e.getStatus()->getErrors();
-            if (errors) {
-                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
-                    status_vector[i] = errors[i];
-                    if (errors[i] == isc_arg_end) break;
-                }
-            }
+            copy_status_vector(e.getStatus()->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
         }
         return nullptr;
     } catch (...) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_random;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_random);
         return nullptr;
     }
 }
@@ -3190,11 +2920,7 @@ extern "C" void* fbbatch_create(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !statement_ptr) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_stmt_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_stmt_handle);
         return nullptr;
     }
 
@@ -3239,11 +2965,7 @@ extern "C" void* fbbatch_create(
         Firebird::IUtil* util = master->getUtilInterface();
         if (!util) {
             inMetadata->release();
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_unavailable;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_unavailable);
             return nullptr;
         }
 
@@ -3296,21 +3018,11 @@ extern "C" void* fbbatch_create(
 
     } catch (const Firebird::FbException& e) {
         if (status_vector) {
-            const ISC_STATUS* errors = e.getStatus()->getErrors();
-            if (errors) {
-                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
-                    status_vector[i] = errors[i];
-                    if (errors[i] == isc_arg_end) break;
-                }
-            }
+            copy_status_vector(e.getStatus()->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
         }
         return nullptr;
     } catch (...) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_random;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_random);
         return nullptr;
     }
 }
@@ -3323,11 +3035,7 @@ extern "C" int fbbatch_add(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !batch_wrapper || !in_buffer) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 0;
     }
 
@@ -3335,11 +3043,7 @@ extern "C" int fbbatch_add(
     auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
 
     if (!wrapper->batch) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 0;
     }
 
@@ -3366,21 +3070,11 @@ extern "C" int fbbatch_add(
 
     } catch (const Firebird::FbException& e) {
         if (status_vector) {
-            const ISC_STATUS* errors = e.getStatus()->getErrors();
-            if (errors) {
-                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
-                    status_vector[i] = errors[i];
-                    if (errors[i] == isc_arg_end) break;
-                }
-            }
+            copy_status_vector(e.getStatus()->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
         }
         return 0;
     } catch (...) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_random;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_random);
         return 0;
     }
 }
@@ -3394,11 +3088,7 @@ extern "C" int fbbatch_execute(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !batch_wrapper || !transaction_ptr) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 0;
     }
 
@@ -3407,11 +3097,7 @@ extern "C" int fbbatch_execute(
     auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
 
     if (!wrapper->batch) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 0;
     }
 
@@ -3468,21 +3154,11 @@ extern "C" int fbbatch_execute(
 
     } catch (const Firebird::FbException& e) {
         if (status_vector) {
-            const ISC_STATUS* errors = e.getStatus()->getErrors();
-            if (errors) {
-                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
-                    status_vector[i] = errors[i];
-                    if (errors[i] == isc_arg_end) break;
-                }
-            }
+            copy_status_vector(e.getStatus()->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
         }
         return 0;
     } catch (...) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_random;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_random);
         return 0;
     }
 }
@@ -3493,11 +3169,7 @@ extern "C" int fbbatch_cancel(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !batch_wrapper) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 0;
     }
 
@@ -3534,21 +3206,11 @@ extern "C" int fbbatch_cancel(
 
     } catch (const Firebird::FbException& e) {
         if (status_vector) {
-            const ISC_STATUS* errors = e.getStatus()->getErrors();
-            if (errors) {
-                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
-                    status_vector[i] = errors[i];
-                    if (errors[i] == isc_arg_end) break;
-                }
-            }
+            copy_status_vector(e.getStatus()->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
         }
         return 0;
     } catch (...) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_random;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_random);
         return 0;
     }
 }
@@ -3598,22 +3260,14 @@ extern "C" void* fbbatch_get_metadata(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !batch_wrapper) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return nullptr;
     }
 
     auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
 
     if (!wrapper->batch) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return nullptr;
     }
 
@@ -3641,21 +3295,11 @@ extern "C" void* fbbatch_get_metadata(
 
     } catch (const Firebird::FbException& e) {
         if (status_vector) {
-            const ISC_STATUS* errors = e.getStatus()->getErrors();
-            if (errors) {
-                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
-                    status_vector[i] = errors[i];
-                    if (errors[i] == isc_arg_end) break;
-                }
-            }
+            copy_status_vector(e.getStatus()->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
         }
         return nullptr;
     } catch (...) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_random;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_random);
         return nullptr;
     }
 }
@@ -3666,22 +3310,14 @@ extern "C" unsigned fbbatch_get_blob_alignment(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !batch_wrapper) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 0;
     }
 
     auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
 
     if (!wrapper->batch) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 0;
     }
 
@@ -3709,21 +3345,11 @@ extern "C" unsigned fbbatch_get_blob_alignment(
 
     } catch (const Firebird::FbException& e) {
         if (status_vector) {
-            const ISC_STATUS* errors = e.getStatus()->getErrors();
-            if (errors) {
-                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
-                    status_vector[i] = errors[i];
-                    if (errors[i] == isc_arg_end) break;
-                }
-            }
+            copy_status_vector(e.getStatus()->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
         }
         return 0;
     } catch (...) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_random;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_random);
         return 0;
     }
 }
@@ -3743,11 +3369,7 @@ extern "C" int fbbatch_add_blob(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !batch_wrapper || !blob_id_out) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 0;
     }
 
@@ -3755,11 +3377,7 @@ extern "C" int fbbatch_add_blob(
     auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
 
     if (!wrapper->batch) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 0;
     }
 
@@ -3794,21 +3412,11 @@ extern "C" int fbbatch_add_blob(
 
     } catch (const Firebird::FbException& e) {
         if (status_vector) {
-            const ISC_STATUS* errors = e.getStatus()->getErrors();
-            if (errors) {
-                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
-                    status_vector[i] = errors[i];
-                    if (errors[i] == isc_arg_end) break;
-                }
-            }
+            copy_status_vector(e.getStatus()->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
         }
         return 0;
     } catch (...) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_random;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_random);
         return 0;
     }
 }
@@ -3821,11 +3429,7 @@ extern "C" int fbbatch_append_blob_data(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !batch_wrapper) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 0;
     }
 
@@ -3833,11 +3437,7 @@ extern "C" int fbbatch_append_blob_data(
     auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
 
     if (!wrapper->batch) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 0;
     }
 
@@ -3864,21 +3464,11 @@ extern "C" int fbbatch_append_blob_data(
 
     } catch (const Firebird::FbException& e) {
         if (status_vector) {
-            const ISC_STATUS* errors = e.getStatus()->getErrors();
-            if (errors) {
-                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
-                    status_vector[i] = errors[i];
-                    if (errors[i] == isc_arg_end) break;
-                }
-            }
+            copy_status_vector(e.getStatus()->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
         }
         return 0;
     } catch (...) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_random;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_random);
         return 0;
     }
 }
@@ -3891,11 +3481,7 @@ extern "C" int fbbatch_add_blob_stream(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !batch_wrapper) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 0;
     }
 
@@ -3903,11 +3489,7 @@ extern "C" int fbbatch_add_blob_stream(
     auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
 
     if (!wrapper->batch) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 0;
     }
 
@@ -3916,11 +3498,7 @@ extern "C" int fbbatch_add_blob_stream(
     // Passing garbage data causes memory access violation inside libfbclient.so
     // (stream parser walks the buffer using the embedded length fields).
     if (length < 12 || data == nullptr) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_segstr_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_segstr_handle);
         return 0;
     }
 
@@ -3947,21 +3525,11 @@ extern "C" int fbbatch_add_blob_stream(
 
     } catch (const Firebird::FbException& e) {
         if (status_vector) {
-            const ISC_STATUS* errors = e.getStatus()->getErrors();
-            if (errors) {
-                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
-                    status_vector[i] = errors[i];
-                    if (errors[i] == isc_arg_end) break;
-                }
-            }
+            copy_status_vector(e.getStatus()->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
         }
         return 0;
     } catch (...) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_random;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_random);
         return 0;
     }
 }
@@ -3974,11 +3542,7 @@ extern "C" int fbbatch_register_blob(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !batch_wrapper || !existing_blob || !batch_blob_id) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 0;
     }
 
@@ -3986,11 +3550,7 @@ extern "C" int fbbatch_register_blob(
     auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
 
     if (!wrapper->batch) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 0;
     }
 
@@ -4018,21 +3578,11 @@ extern "C" int fbbatch_register_blob(
 
     } catch (const Firebird::FbException& e) {
         if (status_vector) {
-            const ISC_STATUS* errors = e.getStatus()->getErrors();
-            if (errors) {
-                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
-                    status_vector[i] = errors[i];
-                    if (errors[i] == isc_arg_end) break;
-                }
-            }
+            copy_status_vector(e.getStatus()->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
         }
         return 0;
     } catch (...) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_random;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_random);
         return 0;
     }
 }
@@ -4045,11 +3595,7 @@ extern "C" int fbbatch_set_default_bpb(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !batch_wrapper) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 0;
     }
 
@@ -4057,21 +3603,13 @@ extern "C" int fbbatch_set_default_bpb(
     auto* wrapper = static_cast<BatchWrapper*>(batch_wrapper);
 
     if (!wrapper->batch) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 0;
     }
 
     // Guard: Firebird 5 dereferences bpb even for length=0 — passing null/empty causes segfault
     if (bpb_length == 0 || bpb == nullptr) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_dpb_content;  /* closest available: invalid param content */
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_dpb_content);
         return 0;
     }
 
@@ -4098,21 +3636,11 @@ extern "C" int fbbatch_set_default_bpb(
 
     } catch (const Firebird::FbException& e) {
         if (status_vector) {
-            const ISC_STATUS* errors = e.getStatus()->getErrors();
-            if (errors) {
-                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
-                    status_vector[i] = errors[i];
-                    if (errors[i] == isc_arg_end) break;
-                }
-            }
+            copy_status_vector(e.getStatus()->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
         }
         return 0;
     } catch (...) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_random;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_random);
         return 0;
     }
 }
@@ -4129,11 +3657,7 @@ extern "C" int fbbatch_execute_detailed(
     ISC_STATUS* status_vector
 ) {
     if (!master_ptr || !batch_wrapper || !transaction_ptr || !result) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 0;
     }
 
@@ -4148,11 +3672,7 @@ extern "C" int fbbatch_execute_detailed(
     auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
 
     if (!wrapper->batch) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_bad_req_handle;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_bad_req_handle);
         return 0;
     }
 
@@ -4290,21 +3810,11 @@ extern "C" int fbbatch_execute_detailed(
 
     } catch (const Firebird::FbException& e) {
         if (status_vector) {
-            const ISC_STATUS* errors = e.getStatus()->getErrors();
-            if (errors) {
-                for (size_t i = 0; i < ISC_STATUS_LENGTH; ++i) {
-                    status_vector[i] = errors[i];
-                    if (errors[i] == isc_arg_end) break;
-                }
-            }
+            copy_status_vector(e.getStatus()->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
         }
         return 0;
     } catch (...) {
-        if (status_vector) {
-            status_vector[0] = isc_arg_gds;
-            status_vector[1] = isc_random;
-            status_vector[2] = isc_arg_end;
-        }
+        set_status_error(status_vector, isc_random);
         return 0;
     }
 }

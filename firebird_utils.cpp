@@ -1192,9 +1192,10 @@ extern "C" int fbu_int128_to_string(void *master_ptr, const void *value, int sca
         Firebird::CheckStatusWrapper status(fb_status);
         Firebird::IUtil* util = master->getUtilInterface();
         Firebird::IInt128* i128 = util->getInt128(&status);
-        if (status.isDirty()) return -1;
+        if (status.isDirty()) { fb_status->dispose(); return -1; }
         i128->toString(&status, static_cast<const FB_I128*>(value), scale, buffer_length, buffer);
-        if (status.isDirty()) return -1;
+        if (status.isDirty()) { fb_status->dispose(); return -1; }
+        fb_status->dispose();
         return 0;
     } catch (...) {
         return -1;
@@ -1212,9 +1213,10 @@ extern "C" int fbu_decfloat16_to_string(void *master_ptr, const void *value,
         Firebird::CheckStatusWrapper status(fb_status);
         Firebird::IUtil* util = master->getUtilInterface();
         Firebird::IDecFloat16* df16 = util->getDecFloat16(&status);
-        if (status.isDirty()) return -1;
+        if (status.isDirty()) { fb_status->dispose(); return -1; }
         df16->toString(&status, static_cast<const FB_DEC16*>(value), buffer_length, buffer);
-        if (status.isDirty()) return -1;
+        if (status.isDirty()) { fb_status->dispose(); return -1; }
+        fb_status->dispose();
         return 0;
     } catch (...) {
         return -1;
@@ -1232,9 +1234,10 @@ extern "C" int fbu_decfloat34_to_string(void *master_ptr, const void *value,
         Firebird::CheckStatusWrapper status(fb_status);
         Firebird::IUtil* util = master->getUtilInterface();
         Firebird::IDecFloat34* df34 = util->getDecFloat34(&status);
-        if (status.isDirty()) return -1;
+        if (status.isDirty()) { fb_status->dispose(); return -1; }
         df34->toString(&status, static_cast<const FB_DEC34*>(value), buffer_length, buffer);
-        if (status.isDirty()) return -1;
+        if (status.isDirty()) { fb_status->dispose(); return -1; }
+        fb_status->dispose();
         return 0;
     } catch (...) {
         return -1;
@@ -1251,9 +1254,10 @@ extern "C" int fbu_string_to_decfloat16(void *master_ptr, const char *str, void 
         Firebird::CheckStatusWrapper status(fb_status);
         Firebird::IUtil* util = master->getUtilInterface();
         Firebird::IDecFloat16* df16 = util->getDecFloat16(&status);
-        if (status.isDirty()) return -1;
+        if (status.isDirty()) { fb_status->dispose(); return -1; }
         df16->fromString(&status, str, static_cast<FB_DEC16*>(value));
-        if (status.isDirty()) return -1;
+        if (status.isDirty()) { fb_status->dispose(); return -1; }
+        fb_status->dispose();
         return 0;
     } catch (...) {
         return -1;
@@ -1270,9 +1274,10 @@ extern "C" int fbu_string_to_decfloat34(void *master_ptr, const char *str, void 
         Firebird::CheckStatusWrapper status(fb_status);
         Firebird::IUtil* util = master->getUtilInterface();
         Firebird::IDecFloat34* df34 = util->getDecFloat34(&status);
-        if (status.isDirty()) return -1;
+        if (status.isDirty()) { fb_status->dispose(); return -1; }
         df34->fromString(&status, str, static_cast<FB_DEC34*>(value));
-        if (status.isDirty()) return -1;
+        if (status.isDirty()) { fb_status->dispose(); return -1; }
+        fb_status->dispose();
         return 0;
     } catch (...) {
         return -1;
@@ -1289,9 +1294,10 @@ extern "C" int fbu_string_to_int128(void *master_ptr, const char *str, int scale
         Firebird::CheckStatusWrapper status(fb_status);
         Firebird::IUtil* util = master->getUtilInterface();
         Firebird::IInt128* i128 = util->getInt128(&status);
-        if (status.isDirty()) return -1;
+        if (status.isDirty()) { fb_status->dispose(); return -1; }
         i128->fromString(&status, scale, str, static_cast<FB_I128*>(value));
-        if (status.isDirty()) return -1;
+        if (status.isDirty()) { fb_status->dispose(); return -1; }
+        fb_status->dispose();
         return 0;
     } catch (...) {
         return -1;
@@ -1606,7 +1612,8 @@ extern "C" int fbs_set_cursor_name(void* master_ptr, void* statement_ptr, const 
     auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
 
     try {
-        Firebird::ThrowStatusWrapper status(master->getStatus());
+        Firebird::IStatus* fb_status = master->getStatus();
+        Firebird::ThrowStatusWrapper status(fb_status);
         Firebird::IStatement* stmt = wrapper->getStatement();
         if (!stmt) {
             if (status_vector) {
@@ -1615,6 +1622,7 @@ extern "C" int fbs_set_cursor_name(void* master_ptr, void* statement_ptr, const 
                 status_vector[2] = isc_bad_stmt_handle;
                 status_vector[3] = isc_arg_end;
             }
+            fb_status->dispose();
             return 0;
         }
 
@@ -1624,6 +1632,7 @@ extern "C" int fbs_set_cursor_name(void* master_ptr, void* statement_ptr, const 
             status_vector[0] = 0;
             status_vector[1] = 0;
         }
+        fb_status->dispose();
         return 1;
     } catch (const Firebird::FbException& e) {
         if (status_vector) {

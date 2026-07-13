@@ -639,21 +639,21 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 			break;
 		}
 #endif
-#ifdef SQL_DEC16
-		case SQL_DEC16: {
-			char buf[48];
-			if (fbu_decfloat16_to_string(FBG(master_instance), data, buf, sizeof(buf)) == 0) {
-				ZVAL_STRING(result, buf);
-			} else {
-				ZVAL_STRINGL(result, (char *)data, length);
-			}
-			break;
-		}
-#endif
-#ifdef SQL_DEC34
+#if defined(SQL_DEC16) || defined(SQL_DEC34)
+		case SQL_DEC16:
 		case SQL_DEC34: {
+			/* jane: SQL_DEC16=576, SQL_DEC34=577. The switch uses `sql_type & ~1`
+			 * to strip the nullable bit, which collapses DEC34 into DEC16
+			 * (577 & ~1 = 576). Must check the ORIGINAL sql_type to pick the
+			 * correct converter - DEC16 reads 8 bytes, DEC34 reads 16 bytes. */
 			char buf[48];
-			if (fbu_decfloat34_to_string(FBG(master_instance), data, buf, sizeof(buf)) == 0) {
+			int rc;
+			if (sql_type == SQL_DEC34) {
+				rc = fbu_decfloat34_to_string(FBG(master_instance), data, buf, sizeof(buf));
+			} else {
+				rc = fbu_decfloat16_to_string(FBG(master_instance), data, buf, sizeof(buf));
+			}
+			if (rc == 0) {
 				ZVAL_STRING(result, buf);
 			} else {
 				ZVAL_STRINGL(result, (char *)data, length);

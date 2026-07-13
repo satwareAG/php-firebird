@@ -50,6 +50,7 @@ public:
             builder_ = master_->getUtilInterface()->getXpbBuilder(
                 &check_status, Firebird::IXpbBuilder::DPB, nullptr, 0);
             use_builder_ = (builder_ != nullptr && !check_status.isDirty());
+            raw_status->dispose();
         }
 
         if (!use_builder_) {
@@ -200,7 +201,9 @@ public:
         if (use_builder_ && builder_ && master_) {
             Firebird::IStatus* raw_status = master_->getStatus();
             Firebird::CheckStatusWrapper check_status(raw_status);
-            return builder_->getBuffer(&check_status);
+            const unsigned char* buf = builder_->getBuffer(&check_status);
+            raw_status->dispose();
+            return buf;
         }
         return buffer_.empty() ? nullptr : buffer_.data();
     }
@@ -212,7 +215,9 @@ public:
         if (use_builder_ && builder_ && master_) {
             Firebird::IStatus* raw_status = master_->getStatus();
             Firebird::CheckStatusWrapper check_status(raw_status);
-            return builder_->getBufferLength(&check_status);
+            unsigned int len = builder_->getBufferLength(&check_status);
+            raw_status->dispose();
+            return len;
         }
         return static_cast<unsigned int>(buffer_.size());
     }
@@ -229,6 +234,7 @@ private:
             Firebird::IStatus* raw_status = master_->getStatus();
             Firebird::CheckStatusWrapper check_status(raw_status);
             builder_->insertString(&check_status, tag, value.data());
+            raw_status->dispose();
         } else {
             // Manual buffer construction
             if (value.length() > 255) {
@@ -247,6 +253,7 @@ private:
             Firebird::IStatus* raw_status = master_->getStatus();
             Firebird::CheckStatusWrapper check_status(raw_status);
             builder_->insertInt(&check_status, tag, value);
+            raw_status->dispose();
         } else {
             buffer_.push_back(tag);
             buffer_.push_back(1); // length

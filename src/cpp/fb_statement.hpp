@@ -135,11 +135,13 @@ public:
 
             if (statusHasError(fb_status)) {
                 copyStatusToVector(fb_status, status_vector);
+                fb_status->dispose();
                 return false;
             }
 
             master_ = master;  // Store for FB4+ closeCursor/free status handling
             prepared_ = (statement_ != nullptr);
+            fb_status->dispose();
             return prepared_;
 
         } catch (...) {
@@ -182,9 +184,11 @@ public:
 
             if (statusHasError(fb_status)) {
                 copyStatusToVector(fb_status, status_vector);
+                fb_status->dispose();
                 return false;
             }
 
+            fb_status->dispose();
             return true;
 
         } catch (...) {
@@ -235,10 +239,12 @@ public:
 
             if (statusHasError(fb_status)) {
                 copyStatusToVector(fb_status, status_vector);
+                fb_status->dispose();
                 return false;
             }
 
             cursor_open_ = (result_set_ != nullptr);
+            fb_status->dispose();
             return cursor_open_;
 
         } catch (...) {
@@ -273,17 +279,18 @@ public:
 
             if (statusHasError(fb_status)) {
                 copyStatusToVector(fb_status, status_vector);
-                /* Mark cursor as closed on error — the result set is likely
-                 * invalidated (e.g. transaction committed/rolled back) */
                 cursor_open_ = false;
+                fb_status->dispose();
                 return -1;
             }
 
             // Firebird::IStatus::RESULT_OK = 0, RESULT_NO_DATA = 100
             if (fetch_result != Firebird::IStatus::RESULT_OK) {
                 cursor_open_ = false;
+                fb_status->dispose();
                 return 0;
             }
+            fb_status->dispose();
             return 1;
 
         } catch (...) {
@@ -308,7 +315,8 @@ public:
             fb_status->init();
             Firebird::CheckStatusWrapper status(fb_status);
             int r = result_set_->fetchPrior(&status, static_cast<unsigned char*>(out_msg));
-            if (statusHasError(fb_status)) { copyStatusToVector(fb_status, status_vector); return -1; }
+            if (statusHasError(fb_status)) { copyStatusToVector(fb_status, status_vector); fb_status->dispose(); return -1; }
+            fb_status->dispose();
             return (r == Firebird::IStatus::RESULT_OK) ? 1 : 0;
         } catch (...) { return -1; }
     }
@@ -328,7 +336,8 @@ public:
             fb_status->init();
             Firebird::CheckStatusWrapper status(fb_status);
             int r = result_set_->fetchFirst(&status, static_cast<unsigned char*>(out_msg));
-            if (statusHasError(fb_status)) { copyStatusToVector(fb_status, status_vector); return -1; }
+            if (statusHasError(fb_status)) { copyStatusToVector(fb_status, status_vector); fb_status->dispose(); return -1; }
+            fb_status->dispose();
             return (r == Firebird::IStatus::RESULT_OK) ? 1 : 0;
         } catch (...) { return -1; }
     }
@@ -348,7 +357,8 @@ public:
             fb_status->init();
             Firebird::CheckStatusWrapper status(fb_status);
             int r = result_set_->fetchLast(&status, static_cast<unsigned char*>(out_msg));
-            if (statusHasError(fb_status)) { copyStatusToVector(fb_status, status_vector); return -1; }
+            if (statusHasError(fb_status)) { copyStatusToVector(fb_status, status_vector); fb_status->dispose(); return -1; }
+            fb_status->dispose();
             return (r == Firebird::IStatus::RESULT_OK) ? 1 : 0;
         } catch (...) { return -1; }
     }
@@ -369,7 +379,8 @@ public:
             fb_status->init();
             Firebird::CheckStatusWrapper status(fb_status);
             int r = result_set_->fetchAbsolute(&status, position, static_cast<unsigned char*>(out_msg));
-            if (statusHasError(fb_status)) { copyStatusToVector(fb_status, status_vector); return -1; }
+            if (statusHasError(fb_status)) { copyStatusToVector(fb_status, status_vector); fb_status->dispose(); return -1; }
+            fb_status->dispose();
             return (r == Firebird::IStatus::RESULT_OK) ? 1 : 0;
         } catch (...) { return -1; }
     }
@@ -390,7 +401,8 @@ public:
             fb_status->init();
             Firebird::CheckStatusWrapper status(fb_status);
             int r = result_set_->fetchRelative(&status, offset, static_cast<unsigned char*>(out_msg));
-            if (statusHasError(fb_status)) { copyStatusToVector(fb_status, status_vector); return -1; }
+            if (statusHasError(fb_status)) { copyStatusToVector(fb_status, status_vector); fb_status->dispose(); return -1; }
+            fb_status->dispose();
             return (r == Firebird::IStatus::RESULT_OK) ? 1 : 0;
         } catch (...) { return -1; }
     }
@@ -428,8 +440,10 @@ public:
                 cursor_open_ = false;
                 if (statusHasError(fb_status_ptr)) {
                     copyStatusToVector(fb_status_ptr, status_vector);
+                    fb_status_ptr->dispose();
                     return false;
                 }
+                fb_status_ptr->dispose();
                 return true;
             }
             // EOF path or no master: release only (server already closed cursor)
@@ -485,8 +499,10 @@ public:
                 prepared_ = false;
                 if (statusHasError(fb_status_ptr)) {
                     copyStatusToVector(fb_status_ptr, status_vector);
+                    fb_status_ptr->dispose();
                     return false;
                 }
+                fb_status_ptr->dispose();
                 return true;
             }
             // Fallback if no master: release only
@@ -526,9 +542,11 @@ public:
 
             if (statusHasError(fb_status)) {
                 copyStatusToVector(fb_status, status_vector);
+                fb_status->dispose();
                 return nullptr;
             }
 
+            fb_status->dispose();
             return meta;
 
         } catch (...) {
@@ -555,9 +573,11 @@ public:
 
             if (statusHasError(fb_status)) {
                 copyStatusToVector(fb_status, status_vector);
+                fb_status->dispose();
                 return nullptr;
             }
 
+            fb_status->dispose();
             return meta;
 
         } catch (...) {
@@ -584,9 +604,11 @@ public:
 
             if (statusHasError(fb_status)) {
                 copyStatusToVector(fb_status, status_vector);
+                fb_status->dispose();
                 return 0;
             }
 
+            fb_status->dispose();
             return stmt_type;
 
         } catch (...) {
@@ -613,9 +635,11 @@ public:
 
             if (statusHasError(fb_status)) {
                 copyStatusToVector(fb_status, status_vector);
+                fb_status->dispose();
                 return 0;
             }
 
+            fb_status->dispose();
             return count;
 
         } catch (...) {

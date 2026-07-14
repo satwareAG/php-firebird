@@ -1013,11 +1013,57 @@ PHP_FUNCTION(fbird_fetch_array)
 	_php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAM_PASSTHRU, FETCH_BOTH);
 }
 
+/* #365: Extended fbird_fetch_object with optional class_name + ctor_args
+ * BC: 2nd arg can be int (fetch_flags) or string (class_name) */
 PHP_FUNCTION(fbird_fetch_object)
 {
-	_php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAM_PASSTHRU, FETCH_ARRAY);
+	zval *res_arg;
+	zval *arg2 = NULL;
+	zval *ctor_args = NULL;
+	fbird_query *fb_query;
+	int fetch_type = FETCH_ARRAY;
+	zend_string *class_name = NULL;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z|z/a", &res_arg, &arg2, &ctor_args) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	FBIRD_VALIDATE_QUERY_EX(res_arg, 1, fb_query);
+	if (!fb_query) RETURN_FALSE;
+
+	if (arg2) {
+		if (Z_TYPE_P(arg2) == IS_STRING) {
+			class_name = Z_STR_P(arg2);
+		} else if (Z_TYPE_P(arg2) == IS_LONG) {
+			fetch_type = (int)Z_LVAL_P(arg2);
+		}
+	}
+
+	_php_fbird_fetch_hash_query(fb_query, fetch_type, 0, return_value);
 
 	if (Z_TYPE_P(return_value) == IS_ARRAY) {
+		if (class_name && ZSTR_LEN(class_name) > 0) {
+			zend_class_entry *ce = zend_lookup_class(class_name);
+			if (ce) {
+				/* Create object and copy array properties into it */
+				zval obj;
+				object_init_ex(&obj, ce);
+				zval *val;
+				zend_string *key;
+				ZEND_HASH_FOREACH_STR_KEY_VAL(Z_ARRVAL_P(return_value), key, val) {
+					if (key) {
+						zend_update_property(ce, Z_OBJ(obj), ZSTR_VAL(key), ZSTR_LEN(key), val);
+					}
+				} ZEND_HASH_FOREACH_END();
+				zval_ptr_dtor(return_value);
+				ZVAL_COPY_VALUE(return_value, &obj);
+				return;
+			}
+			_php_fbird_module_error("Class '%s' not found", ZSTR_VAL(class_name));
+			RETURN_FALSE;
+		}
 		convert_to_object(return_value);
 	}
 }

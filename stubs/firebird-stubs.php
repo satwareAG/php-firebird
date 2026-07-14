@@ -1476,3 +1476,18 @@ function fbird_result_metadata(mixed $query): array|false {}
  * Export a blob to a file.
  */
 function fbird_blob_export(mixed $connection, mixed $blob_id, string $filename): bool {}
+
+/**
+ * Execute multiple SQL statements separated by semicolons.
+ */
+function fbird_multi_query(mixed $link_identifier, string $query): mixed {}
+
+/**
+ * Get a statement attribute.
+ */
+function fbird_stmt_attr_get(mixed $query, int $attribute): int|string|false {}
+
+/**
+ * Set a statement attribute.
+ */
+function fbird_stmt_attr_set(mixed $query, int $attribute, mixed $value): bool {}

@@ -248,6 +248,12 @@ void _php_fbird_field_info(zval *return_value, fbird_query *fb_query, int is_out
 		add_index_string(return_value, 4, s);
 		add_assoc_string(return_value, "type", s);
 	}
+
+	/* #479: Expose BLOB sub_type (0=binary, 1=text) for BLOB fields */
+	if ((var->sqltype & ~1) == SQL_BLOB) {
+		add_index_long(return_value, 5, (zend_long)var->sqlsubtype);
+		add_assoc_long(return_value, "sub_type", (zend_long)var->sqlsubtype);
+	}
 }
 
 PHP_FUNCTION(fbird_field_info)
@@ -314,6 +320,39 @@ PHP_FUNCTION(fbird_param_info)
 	}
 
 	_php_fbird_field_info(return_value, fb_query, 0, field_arg);
+}
+
+/* #379: fbird_result_metadata - return column metadata for all output fields */
+PHP_FUNCTION(fbird_result_metadata)
+{
+	zval *stmt_arg;
+	fbird_query *fb_query;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &stmt_arg) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	FBIRD_VALIDATE_QUERY_EX(stmt_arg, 1, fb_query);
+	if (!fb_query) RETURN_FALSE;
+
+	if (!fb_query->out_sqlda) {
+		_php_fbird_module_error("Statement has no output metadata");
+		RETURN_FALSE;
+	}
+
+	array_init(return_value);
+
+	for (int i = 0; i < fb_query->out_sqlda->sqld; i++) {
+		zval col_info;
+		_php_fbird_field_info(&col_info, fb_query, 1, i);
+		if (Z_TYPE(col_info) == IS_FALSE) {
+			zval_ptr_dtor(&col_info);
+			continue;
+		}
+		add_next_index_zval(return_value, &col_info);
+	}
 }
 
 PHP_FUNCTION(fbird_num_fields)

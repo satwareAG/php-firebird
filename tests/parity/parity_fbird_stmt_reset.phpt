@@ -4,13 +4,12 @@ feat: fbird_stmt_reset (reset for re-execute)
 v12.1.0 M2 (#381) - procedural parity RED test
 --SKIPIF--
 <?php
-if (!function_exists('fbird_stmt_reset')) die('skip gap: fbird_stmt_reset() not yet implemented (see #381)');
 require_once __DIR__ . '/../firebird.inc';
 ?>
 --FILE--
 <?php
 require_once __DIR__ . '/../firebird.inc';
-global $link, $test_base;
+global $test_base; $link = fbird_connect($test_base);
 fbird_query($link, "RECREATE TABLE test_sr (id INT)");
 fbird_query($link, "INSERT INTO test_sr VALUES (1)");
 $stmt = fbird_prepare($link, "SELECT id FROM test_sr WHERE id = ?");
@@ -25,7 +24,6 @@ fbird_query($link, "DROP TABLE test_sr");
 echo "=== DONE ===\n";
 ?>
 --EXPECT--
+OK stmt_reset: 1
 === DONE ===
 
---CLEAN--
-<?php // Tests SKIP (function not implemented), no DDL executed ?>

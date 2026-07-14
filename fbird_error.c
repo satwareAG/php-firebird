@@ -123,6 +123,78 @@ PHP_FUNCTION(fbird_escape_string)
 	RETURN_NEW_STR(escaped);
 }
 
+/* #374: fbird_escape_literal - quote string for SQL literals */
+PHP_FUNCTION(fbird_escape_literal)
+{
+	zend_string *str;
+
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_STR(str)
+	ZEND_PARSE_PARAMETERS_END();
+
+	/* Count single quotes for buffer sizing */
+	size_t quote_count = 0;
+	const char *p = ZSTR_VAL(str);
+	size_t len = ZSTR_LEN(str);
+	for (size_t i = 0; i < len; i++) {
+		if (p[i] == '\'') quote_count++;
+	}
+
+	/* Buffer: original + doubled quotes + 2 wrapping quotes + NUL */
+	zend_string *escaped = zend_string_alloc(len + quote_count + 2, 0);
+	char *out = ZSTR_VAL(escaped);
+
+	*out++ = '\'';
+	for (size_t i = 0; i < len; i++) {
+		if (p[i] == '\'') {
+			*out++ = '\'';
+			*out++ = '\'';
+		} else {
+			*out++ = p[i];
+		}
+	}
+	*out++ = '\'';
+	*out = '\0';
+
+	RETURN_NEW_STR(escaped);
+}
+
+/* #374: fbird_escape_identifier - quote identifier with double quotes */
+PHP_FUNCTION(fbird_escape_identifier)
+{
+	zend_string *str;
+
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_STR(str)
+	ZEND_PARSE_PARAMETERS_END();
+
+	/* Count double quotes for buffer sizing */
+	size_t quote_count = 0;
+	const char *p = ZSTR_VAL(str);
+	size_t len = ZSTR_LEN(str);
+	for (size_t i = 0; i < len; i++) {
+		if (p[i] == '"') quote_count++;
+	}
+
+	/* Buffer: original + doubled quotes + 2 wrapping quotes + NUL */
+	zend_string *escaped = zend_string_alloc(len + quote_count + 2, 0);
+	char *out = ZSTR_VAL(escaped);
+
+	*out++ = '"';
+	for (size_t i = 0; i < len; i++) {
+		if (p[i] == '"') {
+			*out++ = '"';
+			*out++ = '"';
+		} else {
+			*out++ = p[i];
+		}
+	}
+	*out++ = '"';
+	*out = '\0';
+
+	RETURN_NEW_STR(escaped);
+}
+
 PHP_FUNCTION(fbird_set_exception_mode)
 {
 	zend_long mode;

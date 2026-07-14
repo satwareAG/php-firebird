@@ -1434,3 +1434,45 @@ function fbird_drop_table_force(mixed $link_or_trans, string $table_name): bool 
 // Note: Classes in the Firebird namespace are defined in a separate file
 // to comply with PHP namespace rules.
 // See: firebird-classes.php
+
+// #362-#381: M2 procedural parity functions
+
+/**
+ * Seek to a specific row number in a result set.
+ */
+function fbird_data_seek(mixed $result, int $row_number): bool {}
+
+/**
+ * Fetch all rows as an array of associative arrays.
+ */
+function fbird_fetch_all(mixed $result, int $fetch_flags = 0): array|false {}
+
+/**
+ * Fetch the next row and return a single column value.
+ */
+function fbird_fetch_column(mixed $result, int $column = 0): mixed {}
+
+/**
+ * Reset a prepared statement for re-execution (close cursor, keep statement).
+ */
+function fbird_stmt_reset(mixed $query): bool {}
+
+/**
+ * Escape a string for use as a SQL literal (wraps in single quotes, doubles internal quotes).
+ */
+function fbird_escape_literal(string $string): string {}
+
+/**
+ * Escape a string for use as a SQL identifier (wraps in double quotes, doubles internal quotes).
+ */
+function fbird_escape_identifier(string $identifier): string {}
+
+/**
+ * Return metadata for all output columns of a prepared statement.
+ */
+function fbird_result_metadata(mixed $query): array|false {}
+
+/**
+ * Export a blob to a file.
+ */
+function fbird_blob_export(mixed $connection, mixed $blob_id, string $filename): bool {}

@@ -1198,4 +1198,69 @@ PHP_FUNCTION(fbird_blob_seek)
 	RETURN_LONG(result_position);
 }
 
+/* #376: fbird_blob_export - stream blob to file */
+PHP_FUNCTION(fbird_blob_export)
+{
+	zval *link_arg, *blob_id_arg;
+	char *filename;
+	size_t filename_len;
+	fbird_db_link *link;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zzs", &link_arg, &blob_id_arg, &filename, &filename_len) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	/* Open file for writing */
+	php_stream *stream = php_stream_open_wrapper(filename, "wb", REPORT_ERRORS, NULL);
+	if (!stream) {
+		_php_fbird_module_error("Cannot open file '%s' for writing", filename);
+		RETURN_FALSE;
+	}
+
+	/* Call fbird_blob_open to get blob handle */
+	zval fn_name, open_args[2], blob_ret;
+	ZVAL_STRING(&fn_name, "fbird_blob_open");
+	open_args[0] = *link_arg;
+	open_args[1] = *blob_id_arg;
+	call_user_function(EG(function_table), NULL, &fn_name, &blob_ret, 2, open_args);
+	zval_ptr_dtor(&fn_name);
+
+	if (Z_TYPE(blob_ret) == IS_FALSE) {
+		zval_ptr_dtor(&blob_ret);
+		php_stream_close(stream);
+		RETURN_FALSE;
+	}
+
+	/* Read blob in chunks and write to file */
+	zval get_args[2], get_ret;
+	get_args[0] = blob_ret;
+	ZVAL_LONG(&get_args[1], 8192);
+	ZVAL_STRING(&fn_name, "fbird_blob_get");
+
+	bool success = true;
+	while (1) {
+		call_user_function(EG(function_table), NULL, &fn_name, &get_ret, 2, get_args);
+		if (Z_TYPE(get_ret) == IS_FALSE || Z_STRLEN(get_ret) == 0) {
+			zval_ptr_dtor(&get_ret);
+			break;
+		}
+		php_stream_write(stream, Z_STRVAL(get_ret), Z_STRLEN(get_ret));
+		zval_ptr_dtor(&get_ret);
+	}
+	zval_ptr_dtor(&fn_name);
+
+	/* Close blob */
+	ZVAL_STRING(&fn_name, "fbird_blob_close");
+	zval close_ret;
+	call_user_function(EG(function_table), NULL, &fn_name, &close_ret, 1, &blob_ret);
+	zval_ptr_dtor(&fn_name);
+	zval_ptr_dtor(&close_ret);
+	zval_ptr_dtor(&blob_ret);
+
+	php_stream_close(stream);
+	RETURN_BOOL(success);
+}
+
 #endif /* HAVE_FIREBIRD */

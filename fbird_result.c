@@ -1022,6 +1022,124 @@ PHP_FUNCTION(fbird_fetch_object)
 	}
 }
 
+/* #362: fbird_data_seek - seek to specific row (forward-only) */
+PHP_FUNCTION(fbird_data_seek)
+{
+	zval *res_arg;
+	zend_long row_num;
+	fbird_query *fb_query;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zl", &res_arg, &row_num) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	FBIRD_VALIDATE_QUERY_EX(res_arg, 1, fb_query);
+	if (!fb_query) RETURN_FALSE;
+
+	if (row_num < 0) {
+		_php_fbird_module_error("Row number must be non-negative");
+		RETURN_FALSE;
+	}
+
+	/* Forward-only cursor: fetch and discard rows until we reach target */
+	for (zend_long i = 0; i < row_num; i++) {
+		zval row;
+		_php_fbird_fetch_hash_query(fb_query, FETCH_ROW, 0, &row);
+		if (Z_TYPE(row) == IS_FALSE) {
+			_php_fbird_module_error("Row %d does not exist", (int)row_num);
+			RETURN_FALSE;
+		}
+		zval_ptr_dtor(&row);
+	}
+	RETURN_TRUE;
+}
+
+/* #363: fbird_fetch_all - fetch all rows into an array */
+PHP_FUNCTION(fbird_fetch_all)
+{
+	zval *res_arg;
+	zend_long flag = 0;
+	fbird_query *fb_query;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z|l", &res_arg, &flag) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	FBIRD_VALIDATE_QUERY_EX(res_arg, 1, fb_query);
+	if (!fb_query) RETURN_FALSE;
+
+	array_init(return_value);
+
+	while (1) {
+		zval row;
+		_php_fbird_fetch_hash_query(fb_query, FETCH_ARRAY, (int)flag, &row);
+		if (Z_TYPE(row) == IS_FALSE) {
+			zval_ptr_dtor(&row);
+			break;
+		}
+		add_next_index_zval(return_value, &row);
+	}
+}
+
+/* #364: fbird_fetch_column - fetch next row, return single column */
+PHP_FUNCTION(fbird_fetch_column)
+{
+	zval *res_arg;
+	zend_long col = 0;
+	fbird_query *fb_query;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z|l", &res_arg, &col) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	FBIRD_VALIDATE_QUERY_EX(res_arg, 1, fb_query);
+	if (!fb_query) RETURN_FALSE;
+
+	zval row;
+	_php_fbird_fetch_hash_query(fb_query, FETCH_ROW, 0, &row);
+	if (Z_TYPE(row) == IS_FALSE) {
+		zval_ptr_dtor(&row);
+		RETURN_FALSE;
+	}
+
+	zval *val = zend_hash_index_find(Z_ARRVAL(row), (uint32_t)col);
+	if (val) {
+		RETURN_COPY_DEREF(val);
+	} else {
+		zval_ptr_dtor(&row);
+		RETURN_NULL();
+	}
+}
+
+/* #381: fbird_stmt_reset - close cursor, keep prepared statement */
+PHP_FUNCTION(fbird_stmt_reset)
+{
+	zval *res_arg;
+	fbird_query *fb_query;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &res_arg) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	FBIRD_VALIDATE_QUERY_EX(res_arg, 1, fb_query);
+	if (!fb_query) RETURN_FALSE;
+
+	if (!fb_query->fbs_statement) {
+		RETURN_TRUE;  /* No cursor to close */
+	}
+
+	ISC_STATUS status[ISC_STATUS_LENGTH] = {0};
+	RETURN_BOOL(fbs_close_cursor(fb_query->fbs_statement, status));
+}
+
 PHP_FUNCTION(fbird_name_result)
 {
 	ISC_STATUS status[256];

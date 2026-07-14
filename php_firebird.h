@@ -47,6 +47,10 @@ PHP_FUNCTION(fbird_fetch_row);
 PHP_FUNCTION(fbird_fetch_assoc);
 PHP_FUNCTION(fbird_fetch_array);
 PHP_FUNCTION(fbird_fetch_object);
+PHP_FUNCTION(fbird_data_seek);
+PHP_FUNCTION(fbird_fetch_all);
+PHP_FUNCTION(fbird_fetch_column);
+PHP_FUNCTION(fbird_stmt_reset);
 PHP_FUNCTION(fbird_free_result);
 PHP_FUNCTION(fbird_name_result);
 PHP_FUNCTION(fbird_prepare);
@@ -65,6 +69,7 @@ PHP_FUNCTION(fbird_num_params);
 PHP_FUNCTION(fbird_affected_rows);
 PHP_FUNCTION(fbird_field_info);
 PHP_FUNCTION(fbird_param_info);
+PHP_FUNCTION(fbird_result_metadata);
 PHP_FUNCTION(fbird_list_tables);
 PHP_FUNCTION(fbird_list_fields);
 PHP_FUNCTION(fbird_meta_data);
@@ -88,6 +93,7 @@ PHP_FUNCTION(fbird_blob_add);
 PHP_FUNCTION(fbird_blob_cancel);
 PHP_FUNCTION(fbird_blob_open);
 PHP_FUNCTION(fbird_blob_get);
+PHP_FUNCTION(fbird_blob_export);
 PHP_FUNCTION(fbird_blob_close);
 PHP_FUNCTION(fbird_blob_echo);
 PHP_FUNCTION(fbird_blob_info);
@@ -115,6 +121,8 @@ PHP_FUNCTION(fbird_errcode);
 PHP_FUNCTION(fbird_sqlstate);
 
 PHP_FUNCTION(fbird_escape_string);
+PHP_FUNCTION(fbird_escape_literal);
+PHP_FUNCTION(fbird_escape_identifier);
 
 /* Exception Mode API (PDO-style error handling) */
 PHP_FUNCTION(fbird_set_exception_mode);

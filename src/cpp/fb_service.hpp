@@ -23,6 +23,7 @@
 #include <ibase.h>
 #include <cstring>
 #include <memory>
+#include "fb_status.hpp"  // CheckStatusScope, set_status_error, copy_status_to_sv
 
 namespace fb {
 
@@ -243,6 +244,9 @@ private:
  * ============================================================================= */
 
 extern "C" {
+
+using fb::set_status_error;
+using fb::copy_status_to_sv;
 
 /**
  * Attach to the service manager using OO API.

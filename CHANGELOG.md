@@ -7,7 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### v13.0.0 — FB4+/FB5+ Feature Coverage
+### v13.0.0-rc.1 — FB4+/FB5+ Feature Coverage (release candidate)
+
+**Spec**: `specs/spec-v13.0-fb4-plus-coverage.md` (#327)
+**Focus**: Surface FB4.0/FB5.0 server-side features for doctrine-firebird-driver
+downstream (amicron-platform FB3 support complete in v12.1.0).
+**Version**: Development on `12.1.0`; bump to `13.0.0-rc.1` at tag time.
 
 **Spec**: `specs/spec-v13.0-fb4-plus-coverage.md` (#327)
 **Focus**: Surface FB4.0/FB5.0 server-side features for doctrine-firebird-driver

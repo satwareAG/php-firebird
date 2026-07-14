@@ -91,37 +91,33 @@ public:
         }
 
         m_master = master;
-        Firebird::IStatus* fb_status = master->getStatus();
-        Firebird::CheckStatusWrapper status(fb_status);
+        fb::CheckStatusScope scope(master);
+        auto* status = scope.get();
 
         try {
             Firebird::IProvider* provider = master->getDispatcher();
             if (!provider) {
                 set_status_error(status_vector, isc_unavailable);
-                fb_status->dispose();
                 return false;
             }
 
             m_service = provider->attachServiceManager(
-                &status,
+                status,
                 service_name,
                 spb_length,
                 spb
             );
 
-            if (status.hasData()) {
-                copy_status_to_sv(status_vector, &status);
+            if (status->hasData()) {
+                copy_status_to_sv(status_vector, status);
                 m_service = nullptr;
-                fb_status->dispose();
                 return false;
             }
 
-            fb_status->dispose();
             return m_service != nullptr;
         } catch (...) {
             set_status_error(status_vector, isc_except2);
             m_service = nullptr;
-            fb_status->dispose();
             return false;
         }
     }
@@ -142,21 +138,18 @@ public:
             return false;
         }
 
-        Firebird::IStatus* fb_status = m_master->getStatus();
-        Firebird::CheckStatusWrapper status(fb_status);
+        fb::CheckStatusScope scope(m_master);
+        auto* status = scope.get();
         try {
-            m_service->detach(&status);
-            if (status.hasData()) {
-                copy_status_to_sv(status_vector, &status);
-                fb_status->dispose();
+            m_service->detach(status);
+            if (status->hasData()) {
+                copy_status_to_sv(status_vector, status);
                 return false;
             }
             m_service = nullptr;
-            fb_status->dispose();
             return true;
         } catch (...) {
             set_status_error(status_vector, isc_except2);
-            fb_status->dispose();
             return false;
         }
     }
@@ -177,20 +170,17 @@ public:
             return false;
         }
 
-        Firebird::IStatus* fb_status = m_master->getStatus();
-        Firebird::CheckStatusWrapper status(fb_status);
+        fb::CheckStatusScope scope(m_master);
+        auto* status = scope.get();
         try {
-            m_service->start(&status, spb_length, spb);
-            if (status.hasData()) {
-                copy_status_to_sv(status_vector, &status);
-                fb_status->dispose();
+            m_service->start(status, spb_length, spb);
+            if (status->hasData()) {
+                copy_status_to_sv(status_vector, status);
                 return false;
             }
-            fb_status->dispose();
             return true;
         } catch (...) {
             set_status_error(status_vector, isc_except2);
-            fb_status->dispose();
             return false;
         }
     }
@@ -217,21 +207,18 @@ public:
             return false;
         }
 
-        Firebird::IStatus* fb_status = m_master->getStatus();
-        Firebird::CheckStatusWrapper status(fb_status);
+        fb::CheckStatusScope scope(m_master);
+        auto* status = scope.get();
         try {
-            m_service->query(&status, send_length, send_items,
+            m_service->query(status, send_length, send_items,
                             recv_length, recv_items, buffer_length, buffer);
-            if (status.hasData()) {
-                copy_status_to_sv(status_vector, &status);
-                fb_status->dispose();
+            if (status->hasData()) {
+                copy_status_to_sv(status_vector, status);
                 return false;
             }
-            fb_status->dispose();
             return true;
         } catch (...) {
             set_status_error(status_vector, isc_except2);
-            fb_status->dispose();
             return false;
         }
     }

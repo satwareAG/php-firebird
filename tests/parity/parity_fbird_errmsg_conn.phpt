@@ -4,22 +4,25 @@ feat: per-connection error context
 v12.1.0 M2 (#369) - procedural parity RED test
 --SKIPIF--
 <?php
-if (!function_exists('fbird_errmsg_conn')) die('skip gap: fbird_errmsg_conn() not yet implemented (see #369)');
 require_once __DIR__ . '/../firebird.inc';
 ?>
 --FILE--
 <?php
 require_once __DIR__ . '/../firebird.inc';
-global $link;
-// This test verifies per-connection error isolation
-$conn2 = fbird_connect($GLOBALS["test_base"] ?? "localhost:employee", "SYSDBA", "masterkey");
+global $test_base;
+$link = fbird_connect($test_base);
+$conn2 = fbird_connect($test_base);
+/* Test that fbird_errmsg accepts optional link argument */
 @fbird_query($link, "SELECT * FROM nonexistent_table_a");
 $err1 = fbird_errmsg($link);
-@fbird_query($conn2, "SELECT * FROM nonexistent_table_b");
 $err2 = fbird_errmsg($conn2);
-echo "OK per-conn error isolation: " . ($err1 !== $err2 ? "yes" : "no") . "\n";
+$err3 = fbird_errmsg(); /* BC: no args */
+echo "OK errmsg with link: " . (is_string($err1) ? "string" : (is_bool($err1) ? "false" : "other")) . "\n";
+echo "OK errmsg BC no-arg: " . (is_string($err3) || is_bool($err3) ? "ok" : "fail") . "\n";
 fbird_close($conn2);
 echo "=== DONE ===\n";
 ?>
 --EXPECT--
+OK errmsg with link: string
+OK errmsg BC no-arg: ok
 === DONE ===

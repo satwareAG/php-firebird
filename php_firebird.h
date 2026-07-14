@@ -195,3 +195,6 @@ PHP_FUNCTION(fbird_set_session_timezone);
 PHP_FUNCTION(fbird_get_session_timezone);
 #endif
 PHP_FUNCTION(fbird_dump_debug_info);
+void _php_fbird_error_for_link(ISC_STATUS *status, void *link);
+PHP_FUNCTION(fbird_error_list);
+PHP_FUNCTION(fbird_error_field);

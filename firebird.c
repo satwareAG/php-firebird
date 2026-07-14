@@ -40,12 +40,15 @@ static PHP_GINIT_FUNCTION(fbird);
 zend_class_entry *firebird_exception_ce;
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_errmsg, 0, 0, MAY_BE_STRING|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, link_identifier)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_errcode, 0, 0, MAY_BE_LONG|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, link_identifier)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_sqlstate, 0, 0, MAY_BE_STRING|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, link_identifier)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_escape_string, 0, 1, IS_STRING, 0)
@@ -635,6 +638,12 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_get_session_timezone, 0, 0
 ZEND_END_ARG_INFO()
 #endif
 
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_error_list, 0, 0, MAY_BE_ARRAY|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, link_identifier)
+ZEND_END_ARG_INFO()
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_error_field, 0, 0, MAY_BE_ARRAY|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, link_identifier)
+ZEND_END_ARG_INFO()
 static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_connect, 		arginfo_fbird_connect)
 	PHP_FE(fbird_pconnect, 		arginfo_fbird_pconnect)
@@ -707,6 +716,8 @@ static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_errmsg, 		arginfo_fbird_errmsg)
 	PHP_FE(fbird_errcode, 		arginfo_fbird_errcode)
 	PHP_FE(fbird_sqlstate, 		arginfo_fbird_sqlstate)
+	PHP_FE(fbird_error_list, 		arginfo_fbird_error_list)
+	PHP_FE(fbird_error_field, 		arginfo_fbird_error_field)
 	PHP_FE(fbird_escape_string, arginfo_fbird_escape_string)
 	PHP_FE(fbird_escape_literal, arginfo_fbird_escape_literal)
 	PHP_FE(fbird_escape_identifier, arginfo_fbird_escape_identifier)

@@ -939,7 +939,7 @@ function fbird_gen_id(string $generator, int $increment = 1, mixed $link = null)
  * @return string|false Error message or false
  * @since 7.0.0
  */
-function fbird_errmsg(): string|false {}
+function fbird_errmsg(?object $link_identifier = null): string|false {}
 
 /**
  * Return the last error code.
@@ -947,7 +947,7 @@ function fbird_errmsg(): string|false {}
  * @return int|false Error code or false
  * @since 7.0.0
  */
-function fbird_errcode(): int|false {}
+function fbird_errcode(?object $link_identifier = null): int|false {}
 
 /**
  * Return the SQLSTATE error code.
@@ -955,7 +955,7 @@ function fbird_errcode(): int|false {}
  * @return string|false 5-character SQLSTATE code or false
  * @since 7.0.0
  */
-function fbird_sqlstate(): string|false {}
+function fbird_sqlstate(?object $link_identifier = null): string|false {}
 
 /**
  * Escape a string for use in SQL.
@@ -1510,3 +1510,6 @@ function fbird_trace_stop(mixed $service_handle, int $trace_id): bool {}
 function fbird_set_session_timezone(mixed $connection, string $timezone): bool {}
 function fbird_get_session_timezone(?mixed $connection = null): string|false {}
 function fbird_dump_debug_info(?mixed $connection = null): bool {}
+
+function fbird_error_list(?object $link_identifier = null): array|false {}
+function fbird_error_field(?object $link_identifier = null): array|false {}

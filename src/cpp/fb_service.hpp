@@ -23,7 +23,6 @@
 #include <ibase.h>
 #include <cstring>
 #include <memory>
-#include "fb_status.hpp"  // CheckStatusScope, set_status_error, copy_status_to_sv
 
 namespace fb {
 
@@ -92,8 +91,7 @@ public:
         }
 
         m_master = master;
-        fb::CheckStatusScope scope(master);
-        auto* status = scope.get();
+        Firebird::CheckStatusWrapper status(master->getStatus());
 
         try {
             Firebird::IProvider* provider = master->getDispatcher();
@@ -103,14 +101,14 @@ public:
             }
 
             m_service = provider->attachServiceManager(
-                status,
+                &status,
                 service_name,
                 spb_length,
                 spb
             );
 
-            if (status->hasData()) {
-                copy_status_to_sv(status_vector, status);
+            if (status.hasData()) {
+                copy_status_to_sv(status_vector, &status);
                 m_service = nullptr;
                 return false;
             }
@@ -139,12 +137,11 @@ public:
             return false;
         }
 
-        fb::CheckStatusScope scope(m_master);
-        auto* status = scope.get();
+        Firebird::CheckStatusWrapper status(m_master->getStatus());
         try {
-            m_service->detach(status);
-            if (status->hasData()) {
-                copy_status_to_sv(status_vector, status);
+            m_service->detach(&status);
+            if (status.hasData()) {
+                copy_status_to_sv(status_vector, &status);
                 return false;
             }
             m_service = nullptr;
@@ -171,12 +168,11 @@ public:
             return false;
         }
 
-        fb::CheckStatusScope scope(m_master);
-        auto* status = scope.get();
+        Firebird::CheckStatusWrapper status(m_master->getStatus());
         try {
-            m_service->start(status, spb_length, spb);
-            if (status->hasData()) {
-                copy_status_to_sv(status_vector, status);
+            m_service->start(&status, spb_length, spb);
+            if (status.hasData()) {
+                copy_status_to_sv(status_vector, &status);
                 return false;
             }
             return true;
@@ -208,13 +204,12 @@ public:
             return false;
         }
 
-        fb::CheckStatusScope scope(m_master);
-        auto* status = scope.get();
+        Firebird::CheckStatusWrapper status(m_master->getStatus());
         try {
-            m_service->query(status, send_length, send_items,
+            m_service->query(&status, send_length, send_items,
                             recv_length, recv_items, buffer_length, buffer);
-            if (status->hasData()) {
-                copy_status_to_sv(status_vector, status);
+            if (status.hasData()) {
+                copy_status_to_sv(status_vector, &status);
                 return false;
             }
             return true;
@@ -244,9 +239,6 @@ private:
  * ============================================================================= */
 
 extern "C" {
-
-using fb::set_status_error;
-using fb::copy_status_to_sv;
 
 /**
  * Attach to the service manager using OO API.

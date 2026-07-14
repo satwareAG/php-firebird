@@ -225,6 +225,11 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_fetch_assoc, 0, 1, MAY_BE_
 	ZEND_ARG_TYPE_INFO(0, fetch_flags, IS_LONG, 0)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_fetch_array, 0, 1, MAY_BE_ARRAY|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, result)
+	ZEND_ARG_TYPE_INFO(0, fetch_flags, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_fetch_object, 0, 1, MAY_BE_OBJECT|MAY_BE_FALSE)
 	ZEND_ARG_INFO(0, result)
 	ZEND_ARG_TYPE_INFO(0, fetch_flags, IS_LONG, 0)
@@ -377,6 +382,14 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_db_info, 0, 3, MAY_BE_STRI
 	ZEND_ARG_TYPE_INFO(0, argument, IS_LONG, 0)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_ping, 0, 0, _IS_BOOL, 0)
+	ZEND_ARG_INFO(0, link_identifier)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_server_version, 0, 0, MAY_BE_STRING|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, link_identifier)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_server_info, 0, 2, MAY_BE_STRING|MAY_BE_FALSE)
 	ZEND_ARG_INFO(0, service_handle)
 	ZEND_ARG_TYPE_INFO(0, action, IS_LONG, 0)
@@ -504,12 +517,15 @@ static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_connect, 		arginfo_fbird_connect)
 	PHP_FE(fbird_pconnect, 		arginfo_fbird_pconnect)
 	PHP_FE(fbird_close, 		arginfo_fbird_close)
+	PHP_FE(fbird_ping, 			arginfo_fbird_ping)
+	PHP_FE(fbird_server_version, arginfo_fbird_server_version)
 	PHP_FE(fbird_drop_db, 		arginfo_fbird_drop_db)
 	PHP_FE(fbird_create_database, arginfo_fbird_create_database)
 	PHP_FE(fbird_prepare_ex, 	arginfo_fbird_prepare_ex)
 	PHP_FE(fbird_query, 		arginfo_fbird_query)
 	PHP_FE(fbird_fetch_row, 	arginfo_fbird_fetch_row)
 	PHP_FE(fbird_fetch_assoc, 	arginfo_fbird_fetch_assoc)
+	PHP_FE(fbird_fetch_array, 	arginfo_fbird_fetch_array)
 	PHP_FE(fbird_fetch_object, 	arginfo_fbird_fetch_object)
 	PHP_FE(fbird_free_result, 	arginfo_fbird_free_result)
 	PHP_FE(fbird_name_result, 	arginfo_fbird_name_result)

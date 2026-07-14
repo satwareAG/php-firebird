@@ -953,9 +953,6 @@ PHP_FUNCTION(fbird_drop_db)
 	RETURN_TRUE;
 }
 
-#if FB_API_VER >= 40
-/* {{{ Statement/Session Timeout Functions (Firebird 4.0+) */
-
 /* Helper: fetch fbird_db_link from a zval link argument */
 static fbird_db_link *_fbird_timeout_get_link(zval *link_arg, zend_resource **out_res)
 {
@@ -985,6 +982,9 @@ static fbird_db_link *_fbird_timeout_get_link(zval *link_arg, zend_resource **ou
 	if (out_res) *out_res = link_res;
 	return link;
 }
+
+#if FB_API_VER >= 40
+/* {{{ Statement/Session Timeout Functions (Firebird 4.0+) */
 
 PHP_FUNCTION(fbird_set_statement_timeout)
 {
@@ -1061,5 +1061,74 @@ PHP_FUNCTION(fbird_get_idle_timeout)
 }
 
 #endif /* FB_API_VER >= 40 */
+
+/* ==========================================================================
+ * Procedural Parity: fbird_ping, fbird_server_version (#437, #438)
+ * ========================================================================== */
+
+PHP_FUNCTION(fbird_ping)
+{
+	zval *link_arg = NULL;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z!", &link_arg) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	fbird_db_link *link = _fbird_timeout_get_link(link_arg, NULL);
+	if (!link) RETURN_FALSE;
+
+	ISC_STATUS_ARRAY status;
+	RETURN_BOOL(fbc_ping(FBG(master_instance), link->fbc_connection, status));
+}
+
+PHP_FUNCTION(fbird_server_version)
+{
+	zval *link_arg = NULL;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z!", &link_arg) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	fbird_db_link *link = _fbird_timeout_get_link(link_arg, NULL);
+	if (!link) RETURN_FALSE;
+
+	/* Query isc_info_firebird_version from the attachment - lightweight roundtrip */
+	void* attachment = fbc_get_attachment(link->fbc_connection);
+	if (!attachment) {
+		_php_fbird_module_error("Cannot get attachment handle");
+		RETURN_FALSE;
+	}
+
+	unsigned char info_items[] = { isc_info_firebird_version };
+	unsigned char info_buffer[256] = {0};
+	ISC_STATUS_ARRAY status;
+
+	if (fbc_get_info(FBG(master_instance), attachment,
+	                 sizeof(info_items), info_items,
+	                 sizeof(info_buffer), info_buffer,
+	                 status) == 0) {
+		_php_fbird_error(status);
+		RETURN_FALSE;
+	}
+
+	/* Parse info buffer: [isc_info_firebird_version][len_lo][len_hi][string data]
+	 * Firebird returns a multi-part string like "LI-V4.0.7.3271 Firebird 4.0 (tcp:SrvName:3050)"
+	 * Doctrine DBAL needs just the version number, so we return the full string and let
+	 * consumers parse it. */
+	if (info_buffer[0] != isc_info_firebird_version) {
+		_php_fbird_module_error("Unexpected info response type %d", (int)info_buffer[0]);
+		RETURN_FALSE;
+	}
+
+	unsigned short len = (unsigned short)info_buffer[1] | ((unsigned short)info_buffer[2] << 8);
+	if (len == 0 || len >= sizeof(info_buffer) - 3) {
+		_php_fbird_module_error("Invalid server version response length");
+		RETURN_FALSE;
+	}
+
+	RETURN_STRINGL((const char *)(info_buffer + 3), len);
+}
 
 #endif /* HAVE_FIREBIRD */

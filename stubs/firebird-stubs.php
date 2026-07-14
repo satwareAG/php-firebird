@@ -356,6 +356,20 @@ function fbird_pconnect(
 function fbird_close(mixed $connection = null): bool {}
 
 /**
+ * Ping a server connection to check if it is still alive.
+ * @param resource|null $connection Connection handle (defaults to last opened)
+ * @return bool True if connection is alive, false otherwise.
+ */
+function fbird_ping(?object $connection = null): bool {}
+
+/**
+ * Get the Firebird server version string from a connection.
+ * @param resource|null $connection Connection handle (defaults to last opened)
+ * @return string|false Version string (e.g. "LI-V4.0.7.3271 Firebird 4.0 ..."), or false on error.
+ */
+function fbird_server_version(?object $connection = null): string|false {}
+
+/**
  * Drop a Firebird database.
  *
  * @param mixed $connection Connection resource or database path (v9.0.0+)
@@ -558,6 +572,14 @@ function fbird_fetch_row(mixed $result, int $fetch_flags = 0): array|false {}
  * @since 7.0.0
  */
 function fbird_fetch_assoc(mixed $result, int $fetch_flags = 0): array|false {}
+
+/**
+ * Fetch a row as an array with both numeric and associative indices.
+ * @param resource $result Result handle from fbird_query()
+ * @param int $fetch_flags Optional fetch flags (e.g. FBIRD_FETCH_BLOBS)
+ * @return array|false Array with both numeric and associative keys, or false on no more rows.
+ */
+function fbird_fetch_array(mixed $result, int $fetch_flags = 0): array|false {}
 
 /**
  * Fetch a row as an object.

@@ -34,6 +34,7 @@
 
 #define FETCH_ROW       1
 #define FETCH_ARRAY     2
+#define FETCH_BOTH      (FETCH_ROW | FETCH_ARRAY)  /* 3 - both numeric and assoc keys */
 
 typedef struct {
 	unsigned short vary_length;
@@ -271,8 +272,9 @@ static int _php_fbird_var_zval(zval *val, void *data, int type, int len,
 #if FB_API_VER >= 40
  		case SQL_DEC16:
  		case SQL_DEC34: {
-			/* jane: PHP 8.2 crashes in method dispatch for DecFloat objects.
-			 * Fall back to string conversion on PHP < 8.3. */
+			/* jane: PHP 8.2 crashes in var_dump() for DecFloat objects (#472).
+			 * Fall back to string conversion on PHP < 8.3. Bug confirmed still
+			 * present in PHP 8.2.31 (2026-06-24 build). */
 #if PHP_VERSION_ID >= 80300
 			if (type == SQL_DEC16) {
 				fbird_setup_decfloat_object(val, 16, data, sizeof(FB_DEC16));
@@ -750,7 +752,7 @@ void _php_fbird_fetch_hash_query(
 	}
 
 	HashTable *ht_ret;
-	if(!(fetch_type & FETCH_ROW)) {
+	if(fetch_type & FETCH_ARRAY) {
 		if(!fb_query->ht_aliases){
 			if(_php_fbird_alloc_ht_aliases(fb_query)){
 				_php_fbird_error(status);
@@ -952,6 +954,26 @@ void _php_fbird_fetch_hash_query(
 		zend_hash_move_forward_ex(ht_ret, &pos);
 	}
 
+	/* For FETCH_BOTH: add numeric indices alongside associative keys */
+	if(fetch_type == FETCH_BOTH) {
+		unsigned count = fb_query->out_fields_count;
+		if(count > 0) {
+			zval *values = safe_emalloc(count, sizeof(zval), 0);
+			unsigned i = 0;
+			zval *src;
+			ZEND_HASH_FOREACH_VAL(ht_ret, src) {
+				if(i < count) {
+					ZVAL_COPY(&values[i], src);
+					i++;
+				}
+			} ZEND_HASH_FOREACH_END();
+			for(i = 0; i < count; i++) {
+				zend_hash_index_update(ht_ret, i, &values[i]);
+			}
+			efree(values);
+		}
+	}
+
 	RETVAL_ARR(ht_ret);
 }
 
@@ -984,6 +1006,11 @@ PHP_FUNCTION(fbird_fetch_row)
 PHP_FUNCTION(fbird_fetch_assoc)
 {
 	_php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAM_PASSTHRU, FETCH_ARRAY);
+}
+
+PHP_FUNCTION(fbird_fetch_array)
+{
+	_php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAM_PASSTHRU, FETCH_BOTH);
 }
 
 PHP_FUNCTION(fbird_fetch_object)

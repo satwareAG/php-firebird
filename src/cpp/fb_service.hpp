@@ -23,6 +23,7 @@
 #include <ibase.h>
 #include <cstring>
 #include <memory>
+#include "fb_status.hpp"  // set_status_error, copy_status_to_sv (used in extern "C" block below)
 
 namespace fb {
 
@@ -239,6 +240,12 @@ private:
  * ============================================================================= */
 
 extern "C" {
+
+// jane: make fb:: helpers visible to the extern "C" block below.
+// fb_status.hpp defines them inside namespace fb; the C interface functions
+// call them unqualified. These using declarations make the header self-contained.
+using fb::set_status_error;
+using fb::copy_status_to_sv;
 
 /**
  * Attach to the service manager using OO API.

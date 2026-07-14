@@ -167,38 +167,6 @@ TEST_F(FirebirdWrappersTest, MetadataWrapperMoveSemantics) {
 
 #endif // FB_API_VER >= 40
 
-// Test modern status vector operations
-TEST_F(FirebirdWrappersTest, StatusVectorOperations) {
-    ISC_STATUS source[5] = {1, 2, 3, 4, isc_arg_end};
-    ISC_STATUS destination[10] = {0};
-
-    // Test the modern fbu_copy_status function
-    fbu_copy_status(source, destination, 10);
-
-    // Verify correct copying with termination
-    EXPECT_EQ(destination[0], 1);
-    EXPECT_EQ(destination[1], 2);
-    EXPECT_EQ(destination[2], 3);
-    EXPECT_EQ(destination[3], 4);
-    EXPECT_EQ(destination[4], isc_arg_end);
-}
-
-TEST_F(FirebirdWrappersTest, StatusVectorNullPointerSafety) {
-    ISC_STATUS destination[5] = {99, 99, 99, 99, 99}; // Initialize to detect changes
-
-    // Test null pointer safety
-    fbu_copy_status(nullptr, destination, 5);
-    EXPECT_EQ(destination[0], 99); // Should remain unchanged
-
-    ISC_STATUS source[2] = {1, isc_arg_end};
-    fbu_copy_status(source, nullptr, 2);
-    // Should not crash (verified by reaching this point)
-
-    // Test zero length safety
-    fbu_copy_status(source, destination, 0);
-    EXPECT_EQ(destination[0], 99); // Should remain unchanged
-}
-
 // Integration test - verify extern "C" functions work with new classes
 TEST_F(FirebirdWrappersTest, ExternCFunctionCompatibility) {
     void* master_ptr = getMasterPtr();

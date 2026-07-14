@@ -7,13 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### v13.0.0 — FB4+/FB5+ Feature Coverage (in progress)
+### v13.0.0-rc.1 — FB4+/FB5+ Feature Coverage (release candidate)
+
+**Spec**: `specs/spec-v13.0-fb4-plus-coverage.md` (#327)
+**Focus**: Surface FB4.0/FB5.0 server-side features for doctrine-firebird-driver
+downstream (amicron-platform FB3 support complete in v12.1.0).
+**Version**: Development on `12.1.0`; bump to `13.0.0-rc.1` at tag time.
 
 **Spec**: `specs/spec-v13.0-fb4-plus-coverage.md` (#327)
 **Focus**: Surface FB4.0/FB5.0 server-side features for doctrine-firebird-driver
 downstream (amicron-platform FB3 support complete in v12.1.0).
 
 #### Added
+
+##### DECFLOAT Native Type (#417, PR #475)
+
+- `pdo_fbird/pdo_fbird_stmt.c`: DECFLOAT detection via `length >= 16` for
+  DEC16/DEC34 distinction (unambiguous regardless of nullable bit or client
+  version). PDO returns DECFLOAT as strings (not Firebird\DecFloat objects).
+- `firebird_utils.cpp`: IStatus `dispose()` in 7 DECFLOAT/INT128 conversion
+  functions (fixes memory leak in utility paths).
+- `src/cpp/fb_statement.hpp`: IStatus `dispose()` in 13 StatementWrapper
+  methods.
+- `src/cpp/fb_dpb_builder.hpp`: IStatus `dispose()` in constructor + 4 methods.
+- `src/cpp/fb_service.hpp`: Self-contained header (includes `fb_status.hpp`
+  + `using` declarations for `set_status_error`/`copy_status_to_sv`).
+
+##### CI / Local Parity
+
+- `.github/workflows/ci.yml`: `FIREBIRD_DB_DIR=/tmp` env var (root cause fix:
+  procedural + PDO paths shared same database, causing metadata lock on
+  `RECREATE TABLE` from different connections).
+- `.github/workflows/ci.yml`: `--set-timeout 15` (was default 60s).
+- `.github/workflows/code-quality.yml`: Triggers on `feat/**` branches.
+- `docker/php/Dockerfile-8.{2,3,4,5}`: Official FB4 client tarball (was apt
+  `firebird-dev` which installs FB3 headers, compiling out all
+  `#if FB_API_VER >= 40` code).
+- `pdo_fbird/config.m4`: Reads `VERSION.txt` for `PHP_PDO_FBIRD_VERSION`
+  (was hardcoded `1.0.0`).
+- `pdo_fbird_driver.c`: Removed excess NULL in `pdo_dbh_methods` initializer
+  (17 -> 16 fields). (#469)
+- `tests/fb3_wire_protocol.phpt`: Uses `getenv('FIREBIRD_HOST')` instead of
+  hardcoded `"localhost"`. (#474)
+- `scripts/verify-ci-parity.sh`: Automated check for FB_API_VER,
+  FIREBIRD_DB_DIR, `--set-timeout`.
+
+##### Documentation
+
+- `AGENTS.md`: Local/CI Environment Parity (3 rules), IStatus disposal rules
+  (safe/unsafe patterns), test timeout, verify-ci-parity in Pre-Tag Checklist.
+- `CONTRIBUTING.md`: Local/CI Test Parity section, IStatus Disposal Rules
+  with decision matrix.
+- `docs/CODE_REVIEW_2026-07-14.md`: Full code review for the branch.
+
+##### Ponytail Audit Cleanup (~6,500 lines removed)
+
+- Deleted 8 dead scripts, 9 dead docs, 17 completed specs (archived to
+  `specs/archive/`).
+- Removed 5 dead test helper functions from `tests/functions.inc`.
+- Consolidated 13 status-copy loops into `set_status_error()` +
+  `copy_status_to_sv()` helpers + `fbm_*` template.
+- Removed dead C/C++ code (unreachable branches, unused variables).
+- Fixed stale PHP 8.1 references, branch alias, dead links in docs/stubs.
+- `stubs/pdo-fbird-stubs.php`: Removed "Multiple active result sets" from
+  "Not yet implemented" list (MARS was never broken, just untested).
+
+##### Earlier v13.0.0 Features
 
 - `tests/fb_version_probe.inc` — shared capability-probe helper (`fb_server_supports()`)
   for FB4+/FB5+ feature detection. 12 feature probes: DECFLOAT, INT128, TIME_TZ,

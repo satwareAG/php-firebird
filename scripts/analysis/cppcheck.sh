@@ -80,7 +80,7 @@ if [ -f compile_commands.json ]; then
         2>&1 | tee cppcheck-output.log
 else
     log_warn "No compile_commands.json found, using direct file analysis..."
-    log_info "Hint: Run scripts/analysis/generate_compdb.sh first for better results"
+    log_info "Hint: Generate compile_commands.json via 'bear -- make' for better results"
 
     cppcheck \
         "${SOURCE_FILES[@]}" \

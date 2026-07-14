@@ -127,70 +127,6 @@ public:
     }
 
     /**
-     * Queue events for async notification
-     *
-     * @param master     IMaster instance
-     * @param attachment IAttachment to queue events on
-     * @param length     Length of events buffer
-     * @param events     Event buffer from isc_event_block
-     * @param status_vector Output status vector for errors
-     * @return true on success, false on failure
-     *
-     * NOTE: Currently not actively used - extension uses isc_wait_for_event()
-     * for thread-safe synchronous polling. Prepared for future async support.
-     */
-    bool queue(Firebird::IMaster* master, Firebird::IAttachment* attachment,
-               unsigned int length, const unsigned char* events,
-               ISC_STATUS* status_vector) noexcept
-    {
-        if (!master || !attachment) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_bad_db_handle;
-                status_vector[2] = isc_arg_end;
-            }
-            return false;
-        }
-
-        // Create callback if not exists
-        if (!m_callback) {
-            m_callback = new (std::nothrow) EventCallback();
-            if (!m_callback) {
-                if (status_vector) {
-                    status_vector[0] = isc_arg_gds;
-                    status_vector[1] = isc_virmemexh;
-                    status_vector[2] = isc_arg_end;
-                }
-                return false;
-            }
-        }
-        m_callback->reset();
-
-        Firebird::CheckStatusWrapper status(master->getStatus());
-        try {
-            m_events = attachment->queEvents(&status, m_callback, length, events);
-            if (status.hasData()) {
-                if (status_vector) {
-                    const ISC_STATUS* errors = status.getErrors();
-                    for (unsigned i = 0; errors[i] != isc_arg_end && i < ISC_STATUS_LENGTH - 1; ++i) {
-                        status_vector[i] = errors[i];
-                    }
-                    status_vector[ISC_STATUS_LENGTH - 1] = isc_arg_end;
-                }
-                return false;
-            }
-            return true;
-        } catch (...) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_except2;
-                status_vector[2] = isc_arg_end;
-            }
-            return false;
-        }
-    }
-
-    /**
      * Cancel the queued event
      *
      * @param master IMaster instance
@@ -203,11 +139,7 @@ public:
         }
 
         if (!master) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_bad_db_handle;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_bad_db_handle);
             return false;
         }
 
@@ -215,23 +147,13 @@ public:
         try {
             m_events->cancel(&status);
             if (status.hasData()) {
-                if (status_vector) {
-                    const ISC_STATUS* errors = status.getErrors();
-                    for (unsigned i = 0; errors[i] != isc_arg_end && i < ISC_STATUS_LENGTH - 1; ++i) {
-                        status_vector[i] = errors[i];
-                    }
-                    status_vector[ISC_STATUS_LENGTH - 1] = isc_arg_end;
-                }
+                copy_status_to_sv(status_vector, &status);
                 return false;
             }
             m_events = nullptr;
             return true;
         } catch (...) {
-            if (status_vector) {
-                status_vector[0] = isc_arg_gds;
-                status_vector[1] = isc_except2;
-                status_vector[2] = isc_arg_end;
-            }
+            set_status_error(status_vector, isc_except2);
             return false;
         }
     }
@@ -256,11 +178,6 @@ public:
      * Check if events are queued
      */
     bool isActive() const { return m_events != nullptr; }
-
-    /**
-     * Get the underlying IEvents pointer (for advanced usage)
-     */
-    Firebird::IEvents* get() const { return m_events; }
 
 private:
     Firebird::IEvents* m_events;

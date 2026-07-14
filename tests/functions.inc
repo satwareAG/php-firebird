@@ -103,7 +103,8 @@ function dump_rows($q, int $flags = 0) {
 
 function dump_table_rows($table, $tr = null, int $flags = 0) {
     if($tr)$args[] = $tr;
-    $args[] = sprintf('SELECT * FROM "%s"', $table);
+    // jane: ORDER BY ensures deterministic row order across CI runs
+    $args[] = sprintf('SELECT * FROM "%s" ORDER BY 1', $table);
 
     dump_rows(fbird_query(...$args), $flags);
 }
@@ -128,10 +129,6 @@ function skip_if_fb_gt($v) {
     if(($cv = get_fb_version()) > $v)die("skip Firebird server version $cv > $v");
 }
 
-/** @var float $v */
-function skip_if_fb_gte($v) {
-    if(($cv = get_fb_version()) >= $v)die("skip Firebird server version $cv >= $v");
-}
 
 function skip_if_fbclient_lt(float $v): void {
     if(!function_exists("fbird_get_client_version"))die("skip Firebird client library version (undefined) < $v");
@@ -149,20 +146,9 @@ function skip_if_ext_lt(int $v): void {
     if(FBIRD_VER < $v)die("Skip FBIRD_VER ".FBIRD_VER." < $v");
 }
 
-function skip_if_ext_gte(int $v): void {
-    if(defined('FBIRD_VER')) {
-        if(FBIRD_VER >= $v)die("Skip FBIRD_VER ".FBIRD_VER." >= $v");
-    }
-}
-
 function skip_if_php_lt(float $v): void {
     $cv = (float)PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;
     if($cv < $v)die("skip PHP version $cv < $v");
-}
-
-function skip_if_php_gte(float $v): void {
-    $cv = (float)PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;
-    if($cv >= $v)die("skip PHP version $cv >= $v");
 }
 
 function fbird_query_bulk(array $queries, $tr = null) {

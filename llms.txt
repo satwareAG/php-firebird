@@ -23,7 +23,7 @@
 ## Specs & Planning
 - [specs/metadata.json](specs/metadata.json): IPADP dependency graph and project metadata
 - [NEXT_STEPS.md](NEXT_STEPS.md): Roadmap and release status
-- [docs/VERSIONING_STRATEGY.md](docs/VERSIONING_STRATEGY.md): Versioning policy
+- [docs/archive/VERSIONING_STRATEGY.md](docs/archive/VERSIONING_STRATEGY.md): Versioning policy (archived)
 
 ## Stubs (IDE/phpstan)
 - [stubs/firebird-stubs.php](stubs/firebird-stubs.php): Procedural API constants and signatures

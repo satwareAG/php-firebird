@@ -50,7 +50,7 @@ echo "df34 value: " . $row->DF34->__toString() . "\n";
 echo "df34 precision: " . $row->DF34->toPrecision() . "\n";
 echo "df34 rawBytes len: " . strlen($row->DF34->rawBytes()) . "\n";
 
-echo "\n=== Test 3: PDO fetch returns Firebird\\DecFloat objects ===\n";
+echo "\n=== Test 3: PDO fetch returns DECFLOAT values (as strings) ===\n";
 $db_res = $db;  /* Save before pdo_fbird.inc redefines $db */
 if (!extension_loaded('pdo_fbird')) {
     echo "pdo_fbird not loaded, skipping\n";
@@ -67,13 +67,11 @@ $stmt = $pdo->query("SELECT df16, df34 FROM decfloat_test WHERE id = 1");
 $row = $stmt->fetch(PDO::FETCH_ASSOC);
 $stmt->closeCursor();
 
-echo "pdo df16 class: " . get_class($row['DF16']) . "\n";
-echo "pdo df16 value: " . $row['DF16']->__toString() . "\n";
-echo "pdo df16 precision: " . $row['DF16']->toPrecision() . "\n";
+echo "pdo df16 type: " . gettype($row['DF16']) . "\n";
+echo "pdo df16 value: " . $row['DF16'] . "\n";
 
-echo "pdo df34 class: " . get_class($row['DF34']) . "\n";
-echo "pdo df34 value: " . $row['DF34']->__toString() . "\n";
-echo "pdo df34 precision: " . $row['DF34']->toPrecision() . "\n";
+echo "pdo df34 type: " . gettype($row['DF34']) . "\n";
+echo "pdo df34 value: " . $row['DF34'] . "\n";
 }
 
 echo "\n=== Test 4: Firebird\\DecFloat constructor ===\n";
@@ -123,7 +121,7 @@ df34 value: 3.141592653589793238462643383279503
 df34 precision: 34
 df34 rawBytes len: 16
 
-=== Test 3: PDO fetch returns Firebird\DecFloat objects ===
+=== Test 3: PDO fetch returns DECFLOAT values (as strings) ===
 %a
 === Test 4: Firebird\DecFloat constructor ===
 construct value: 123.456

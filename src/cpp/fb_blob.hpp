@@ -38,12 +38,7 @@ inline void clearStatusVector(ISC_STATUS* status_vector) noexcept {
  */
 inline void copyStatusVector(Firebird::CheckStatusWrapper* status, ISC_STATUS* status_vector) noexcept {
     if (!status || !status_vector) return;
-    const ISC_STATUS* errors = status->getErrors();
-    if (errors) {
-        for (int i = 0; i < ISC_STATUS_LENGTH && errors[i] != isc_arg_end; ++i) {
-            status_vector[i] = errors[i];
-        }
-    }
+    copy_status_to_sv(status_vector, status);
 }
 
 /**
@@ -569,13 +564,6 @@ public:
     }
 
     /**
-     * Set blob ID (for opening existing blob).
-     */
-    void setBlobId(const ISC_QUAD& id) noexcept {
-        blob_id_ = id;
-    }
-
-    /**
      * Get raw IBlob pointer.
      */
     [[nodiscard]] Firebird::IBlob* getBlob() const noexcept {
@@ -587,16 +575,6 @@ public:
      */
     [[nodiscard]] bool isOpen() const noexcept {
         return blob_ != nullptr;
-    }
-
-    /**
-     * Release ownership of blob handle (for transfer to legacy code).
-     */
-    Firebird::IBlob* release() noexcept {
-        Firebird::IBlob* result = blob_;
-        blob_ = nullptr;
-        owns_blob_ = false;
-        return result;
     }
 };
 

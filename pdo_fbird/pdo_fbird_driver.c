@@ -1220,7 +1220,7 @@ const struct pdo_dbh_methods pdo_fbird_dbh_methods = {
 	pdo_fbird_fetch_error_func,
 	pdo_fbird_handle_get_attribute,
 	pdo_fbird_check_liveness,
-	NULL, NULL, NULL, NULL, NULL,
+	NULL, NULL, NULL, NULL,
 };
 /* }}} */
 

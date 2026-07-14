@@ -269,8 +269,8 @@ static int _php_fbird_var_zval(zval *val, void *data, int type, int len,
 			ZVAL_DOUBLE(val, *(double *) data);
 			break;
 #if FB_API_VER >= 40
-		case SQL_DEC16:
-		case SQL_DEC34: {
+ 		case SQL_DEC16:
+ 		case SQL_DEC34: {
 			/* jane: PHP 8.2 crashes in method dispatch for DecFloat objects.
 			 * Fall back to string conversion on PHP < 8.3. */
 #if PHP_VERSION_ID >= 80300

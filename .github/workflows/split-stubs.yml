@@ -1,6 +1,5 @@
 # Mono-repo subtree split workflow for php-firebird-stubs
 # Splits the stubs/ directory to the dedicated satwareAG/php-firebird-stubs repository
-# See: docs/research/mono-repo-stubs-strategy.md
 
 name: Split Stubs Package
 

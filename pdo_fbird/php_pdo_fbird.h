@@ -10,7 +10,10 @@
 
 #include "php.h"
 
-#define PHP_PDO_FBIRD_VERSION "1.0.0"
+/* Version: defined by configure from VERSION.txt (matches main extension) */
+#ifndef PHP_PDO_FBIRD_VERSION
+#  define PHP_PDO_FBIRD_VERSION "0.0.0-unknown"
+#endif
 #define PHP_PDO_FBIRD_EXTNAME "pdo_fbird"
 
 extern zend_module_entry pdo_fbird_module_entry;

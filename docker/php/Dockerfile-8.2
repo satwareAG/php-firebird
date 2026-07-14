@@ -1,6 +1,8 @@
 FROM php:8.2-cli AS base
 
 # Install development dependencies
+# jane: no firebird-dev apt package — uses official FB4 client tarball below
+# to match CI environment exactly (CI downloads official tarball, not apt).
 RUN apt-get update && apt-get install -y \
     autoconf \
     build-essential \
@@ -17,7 +19,6 @@ RUN apt-get update && apt-get install -y \
     wget \
     tzdata \
     vim \
-    firebird-dev \
     gdb \
     valgrind \
     lcov \
@@ -29,11 +30,38 @@ RUN apt-get update && apt-get install -y \
     libubsan1 \
     libtsan2 \
     llvm \
-    && ln -s /usr/lib/x86_64-linux-gnu/libfbclient.so /usr/lib/libfbclient.so \
+    libncurses6 \
+    libtommath1 \
+    jq \
+    curl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN docker-php-ext-install pcntl
+# Install official Firebird 4.0 client library (matches CI environment)
+RUN ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /lib/x86_64-linux-gnu/libncurses.so.5 2>/dev/null || true \
+    && ln -sf /usr/lib/x86_64-linux-gnu/libtommath.so.1 /usr/lib/x86_64-linux-gnu/libtommath.so.0 2>/dev/null || true \
+    && ldconfig
+
+RUN set -eux && \
+    mkdir -p /opt/firebird && cd /tmp && \
+    TAG=$(curl -s https://api.github.com/repos/FirebirdSQL/firebird/releases | jq -r '.[] | select(.tag_name | test("^v4\\.")) | .tag_name' | head -n 1) && \
+    ASSET_URL=$(curl -s https://api.github.com/repos/FirebirdSQL/firebird/releases/tags/${TAG} | jq -r '.assets[] | select(.name | test("amd64\\.tar\\.gz$") and (test("debug") | not)) | .browser_download_url' | head -n 1) && \
+    ASSET_NAME=$(basename "${ASSET_URL}") && \
+    wget -q -O firebird.tar.gz "${ASSET_URL}" && \
+    tar xf firebird.tar.gz && \
+    EXTRACT_DIR="${ASSET_NAME%.tar.gz}" && \
+    tar xf "${EXTRACT_DIR}/buildroot.tar.gz" -C /opt/firebird --strip-components=3 && \
+    rm -rf /tmp/Firebird-* /tmp/firebird.tar.gz && ldconfig
+
+RUN ln -sf /opt/firebird/lib/libfbclient.so /usr/lib/libfbclient.so \
+    && ln -sf /opt/firebird/lib/libfbclient.so.2 /usr/lib/libfbclient.so.2 \
+    && ln -sf /opt/firebird/include /usr/include/firebird \
+    && echo "/opt/firebird/lib" > /etc/ld.so.conf.d/firebird.conf \
+    && ldconfig
+
+ENV FIREBIRD=/opt/firebird FIREBIRD_HOME=/opt/firebird LD_LIBRARY_PATH=/opt/firebird/lib:$LD_LIBRARY_PATH
+
+RUN docker-php-ext-install pdo pcntl
 
 # Set up entrypoint
 COPY entrypoint.sh /entrypoint.sh

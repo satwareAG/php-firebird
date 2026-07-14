@@ -170,8 +170,8 @@ No breaking changes. All improvements are backward-compatible.
 - [ ] Cross-reference: `docs/MIGRATION-v10-to-v11.md:8` already says 2024 — confirm unchanged
 
 #### QH-7b: Analysis docs updated (D8/D9)
-- [ ] `docs/CRITICAL_ANALYSIS_2026.md` receives a `## Status as of v11.0.0` section at the top noting that resource-to-object migration is complete (Medium finding resolved)
-- [ ] `docs/VERSIONING_STRATEGY.md` Phase 2 status updated from "Planned (v11.0)" to "IMPLEMENTED (v11.0.0, 2026-04-09)"
+- [ ] `docs/archive/CRITICAL_ANALYSIS_2026.md` receives a `## Status as of v11.0.0` section at the top noting that resource-to-object migration is complete (Medium finding resolved)
+- [ ] `docs/archive/VERSIONING_STRATEGY.md` Phase 2 status updated from "Planned (v11.0)" to "IMPLEMENTED (v11.0.0, 2026-04-09)"
 
 ### QH-8: PDO PAGE_BUFFERS Attribute (S4)
 
@@ -245,8 +245,8 @@ No breaking changes. All improvements are backward-compatible.
 | `scripts/qa.sh` | Remove php81-fb3-dev reference | P2 |
 | `README.md` | Fix PHP 8.1 EOL dates (lines 941, 1004) | P2 |
 | `CHANGELOG.md` | Fix PHP 8.1 EOL date (line 656) | P2 |
-| `docs/CRITICAL_ANALYSIS_2026.md` | Add v11.0.0 status section | P2 |
-| `docs/VERSIONING_STRATEGY.md` | Phase 2 → IMPLEMENTED | P2 |
+| `docs/archive/CRITICAL_ANALYSIS_2026.md` | Add v11.0.0 status section | P2 |
+| `docs/archive/VERSIONING_STRATEGY.md` | Phase 2 → IMPLEMENTED | P2 |
 
 ---
 

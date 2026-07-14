@@ -15,11 +15,6 @@ public:
     explicit VersionInfo(unsigned version) : version_(version) {}
 
     [[nodiscard]] bool hasTimeouts() const noexcept { return version_ >= FB40; }
-    [[nodiscard]] bool hasBatchAPI() const noexcept { return version_ >= FB40; }
-    [[nodiscard]] bool hasTimezones() const noexcept { return version_ >= FB40; }
-    [[nodiscard]] bool hasBlobCaching() const noexcept { return version_ >= FB50; }
-    [[nodiscard]] bool hasProfiler() const noexcept { return version_ >= FB50; }
-    [[nodiscard]] bool hasParallelExec() const noexcept { return version_ >= FB50; }
 
     [[nodiscard]] unsigned getVersion() const noexcept { return version_; }
 

@@ -142,6 +142,10 @@ jobs:
       ISC_USER: SYSDBA
       ISC_PASSWORD: masterkey
       FIREBIRD_HOST: firebird
+      # jane: FIREBIRD_DB_DIR gives each test a unique DB (avoids metadata
+      # lock conflicts between procedural and PDO paths on the same DB).
+      # FIREBIRD_DB_PATH is still set for pdo_fbird.inc (shared test.fdb).
+      FIREBIRD_DB_DIR: /tmp
       FIREBIRD_DB_PATH: ${{ matrix.db-path }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -243,6 +247,7 @@ jobs:
           php run-tests.php \
             ${EXT_FLAGS} \
             -p "$(which php)" \
+            --set-timeout 15 \
             tests/ || TEST_RESULT=$?
 
           # run-tests.php returns non-zero on test failures

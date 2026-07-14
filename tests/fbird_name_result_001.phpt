@@ -20,7 +20,7 @@ fbird_connect($test_base);
     print "---- init ----\n";
     dump_table_rows("TEST1");
 
-    $q = fbird_query("SELECT * FROM TEST1 FOR UPDATE");
+    $q = fbird_query("SELECT * FROM TEST1 ORDER BY I FOR UPDATE");
     fbird_name_result($q, "curs");
 
     $p = fbird_prepare("UPDATE TEST1 SET i = ?, c = ? WHERE CURRENT OF curs");

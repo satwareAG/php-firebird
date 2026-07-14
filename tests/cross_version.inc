@@ -100,21 +100,6 @@ function is_fb_server_available(string $version): bool
     return true;
 }
 
-/**
- * Get list of available Firebird server versions.
- *
- * @return array Array of version strings ('3.0', '4.0', etc.)
- */
-function get_available_fb_versions(): array
-{
-    $available = [];
-    foreach (array_keys(cross_version_get_service_map()) as $version) {
-        if (is_fb_server_available($version)) {
-            $available[] = $version;
-        }
-    }
-    return $available;
-}
 
 /**
  * Connect to a specific Firebird server version.
@@ -158,18 +143,4 @@ function cross_version_connect(
     }
 
     return $conn;
-}
-
-/**
- * Skip the current test if a specific Firebird server version is not available.
- *
- * For use in --SKIPIF-- sections of cross-version tests.
- *
- * @param string $version Firebird version ('3.0', '4.0', '5.0')
- */
-function skip_if_fb_server_not_available(string $version): void
-{
-    if (!is_fb_server_available($version)) {
-        die("skip Firebird {$version} server not available");
-    }
 }

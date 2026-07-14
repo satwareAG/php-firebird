@@ -103,7 +103,8 @@ function dump_rows($q, int $flags = 0) {
 
 function dump_table_rows($table, $tr = null, int $flags = 0) {
     if($tr)$args[] = $tr;
-    $args[] = sprintf('SELECT * FROM "%s"', $table);
+    // jane: ORDER BY ensures deterministic row order across CI runs
+    $args[] = sprintf('SELECT * FROM "%s" ORDER BY 1', $table);
 
     dump_rows(fbird_query(...$args), $flags);
 }

@@ -1491,3 +1491,22 @@ function fbird_stmt_attr_get(mixed $query, int $attribute): int|string|false {}
  * Set a statement attribute.
  */
 function fbird_stmt_attr_set(mixed $query, int $attribute, mixed $value): bool {}
+
+// M2 Procedural Parity: remaining functions (#366-#380, #476-#478)
+
+function fbird_set_charset(mixed $connection, string $charset): bool {}
+function fbird_character_set_name(?mixed $connection = null): string {}
+function fbird_bind_param(mixed $statement, array $params): bool {}
+function fbird_bind_result(mixed $statement, string $column, mixed &$var): bool {}
+function fbird_debug(?string $message = null): bool {}
+function fbird_blob_truncate(mixed $blob_handle): bool {}
+function fbird_blob_erase(mixed $blob_handle): bool {}
+function fbird_blob_flush(mixed $blob_handle): bool {}
+function fbird_send_long_data(mixed $statement, int $param_num, mixed $data): bool {}
+function fbird_nbak(mixed $service_handle, int $level, string $database): bool {}
+function fbird_trace_start(mixed $service_handle, string $config): bool {}
+function fbird_trace_stop(mixed $service_handle, int $trace_id): bool {}
+
+function fbird_set_session_timezone(mixed $connection, string $timezone): bool {}
+function fbird_get_session_timezone(?mixed $connection = null): string|false {}
+function fbird_dump_debug_info(?mixed $connection = null): bool {}

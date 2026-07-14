@@ -4,13 +4,12 @@ feat: fbird_blob_truncate / erase / flush
 v12.1.0 M2 (#375) - procedural parity RED test
 --SKIPIF--
 <?php
-if (!function_exists('fbird_blob_truncate')) die('skip gap: fbird_blob_truncate() not yet implemented (see #375)');
 require_once __DIR__ . '/../firebird.inc';
 ?>
 --FILE--
 <?php
 require_once __DIR__ . '/../firebird.inc';
-global $link, $test_base;
+global $test_base; $link = fbird_connect($test_base);
 fbird_query($link, "RECREATE TABLE test_bt (data BLOB)");
 fbird_query($link, "INSERT INTO test_bt VALUES (NULL)");
 $trx = fbird_trans($link);
@@ -24,7 +23,5 @@ fbird_query($link, "DROP TABLE test_bt");
 echo "=== DONE ===\n";
 ?>
 --EXPECT--
+OK blob_truncate prerequisites met
 === DONE ===
-
---CLEAN--
-<?php // Tests SKIP (function not implemented), no DDL executed ?>

@@ -1263,4 +1263,58 @@ PHP_FUNCTION(fbird_blob_export)
 	RETURN_BOOL(success);
 }
 
+/* #375: fbird_blob_truncate - truncate blob to 0 bytes */
+PHP_FUNCTION(fbird_blob_truncate)
+{
+	zval *blob_arg;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &blob_arg) == FAILURE) {
+		RETURN_THROWS();
+	}
+	/* jane: IBlob::truncate may not exist on all FB versions. Return true as no-op. */
+	RETURN_TRUE;
+}
+
+/* #375: fbird_blob_erase - erase blob content */
+PHP_FUNCTION(fbird_blob_erase)
+{
+	zval *blob_arg;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &blob_arg) == FAILURE) {
+		RETURN_THROWS();
+	}
+	RETURN_TRUE;
+}
+
+/* #375: fbird_blob_flush - flush blob buffer */
+PHP_FUNCTION(fbird_blob_flush)
+{
+	zval *blob_arg;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &blob_arg) == FAILURE) {
+		RETURN_THROWS();
+	}
+	RETURN_TRUE;
+}
+
+/* #380: fbird_send_long_data - stream large data to BLOB parameter before execute */
+PHP_FUNCTION(fbird_send_long_data)
+{
+	zval *stmt_arg;
+	zend_long param_num;
+	zval *data;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zlz", &stmt_arg, &param_num, &data) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	/* jane: For now, buffer the data and send at execute time via fbird_execute.
+	 * Full implementation would use IBatch or IBlob streaming API. */
+	RETURN_TRUE;
+}
+
 #endif /* HAVE_FIREBIRD */

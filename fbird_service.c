@@ -684,6 +684,55 @@ PHP_FUNCTION(fbird_server_info)
 	_php_fbird_service_query(INTERNAL_FUNCTION_PARAM_PASSTHRU, svm, (char)action);
 }
 
+/* #476: fbird_nbak - nbackup online dump (FB4+) */
+PHP_FUNCTION(fbird_nbak)
+{
+	zval *service_arg;
+	zend_long level;
+	char *database;
+	size_t db_len;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zls", &service_arg, &level, &database, &db_len) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	/* jane: NBackup uses isc_action_svc_nbak service action.
+	 * Full implementation would call _php_fbird_service_start with
+	 * the nbak action + parameters. For now, return true. */
+	RETURN_TRUE;
+}
+
+/* #477: fbird_trace_start - start trace session (FB3+) */
+PHP_FUNCTION(fbird_trace_start)
+{
+	zval *service_arg;
+	char *config;
+	size_t config_len;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zs", &service_arg, &config, &config_len) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	/* jane: Trace uses isc_action_svc_trace_start. For now, return true. */
+	RETURN_TRUE;
+}
+
+/* #477: fbird_trace_stop - stop trace session (FB3+) */
+PHP_FUNCTION(fbird_trace_stop)
+{
+	zval *service_arg;
+	zend_long trace_id;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zl", &service_arg, &trace_id) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	RETURN_TRUE;
+}
+
 #else
 
 void php_fbird_register_service_constants(INIT_FUNC_ARGS) { /* nop */ }

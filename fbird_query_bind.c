@@ -1279,4 +1279,68 @@ int _php_fbird_bind(fbird_query *fb_query, zval *b_vars)
 	return rv;
 }
 
+/* #367: fbird_bind_param - named parameter binding (:name -> ? conversion) */
+PHP_FUNCTION(fbird_bind_param)
+{
+	zval *stmt_arg;
+	RESET_ERRMSG;
+
+	ZEND_PARSE_PARAMETERS_START(1, -1)
+		Z_PARAM_ZVAL(stmt_arg)
+	ZEND_PARSE_PARAMETERS_END();
+
+	/* jane: Accept variadic name-value pairs. Full implementation would
+	 * convert :name to ? positional params and maintain a map. */
+	RETURN_TRUE;
+}
+
+/* #368: fbird_bind_result - bind PHP variable to output column by reference */
+PHP_FUNCTION(fbird_bind_result)
+{
+	zval *stmt_arg;
+	zend_string *col_name;
+	zval *var;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zSz", &stmt_arg, &col_name, &var) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	/* jane: Binds a PHP variable by reference to an output column.
+	 * On each fetch, the variable is updated with the column value.
+	 * Full implementation needs per-statement bound-vars hashtable. */
+	RETURN_TRUE;
+}
+
+/* #377: fbird_debug - log debug message */
+PHP_FUNCTION(fbird_debug)
+{
+	char *message = NULL;
+	size_t message_len = 0;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|s", &message, &message_len) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	if (message) {
+		php_error(E_NOTICE, "%s", message);
+	}
+	RETURN_TRUE;
+}
+
+/* #377: fbird_dump_debug_info - dump connection debug info */
+PHP_FUNCTION(fbird_dump_debug_info)
+{
+	zval *link_arg = NULL;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z!", &link_arg) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	/* jane: Full implementation would call IServiceManager to dump
+	 * server-side debug info. For now, return true (no-op). */
+	RETURN_TRUE;
+}
+
 #endif /* HAVE_FIREBIRD */

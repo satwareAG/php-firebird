@@ -177,3 +177,21 @@ PHP_FUNCTION(fbird_stmt_get_timeout);
 #define phpext_firebird_ptr NULL
 
 #endif /* PHP_FIREBIRD_H */
+/* M2 Procedural Parity: charset, bind, blob, debug, service (#366-#380, #476-#478) */
+PHP_FUNCTION(fbird_set_charset);
+PHP_FUNCTION(fbird_character_set_name);
+PHP_FUNCTION(fbird_bind_param);
+PHP_FUNCTION(fbird_bind_result);
+PHP_FUNCTION(fbird_debug);
+PHP_FUNCTION(fbird_blob_truncate);
+PHP_FUNCTION(fbird_blob_erase);
+PHP_FUNCTION(fbird_blob_flush);
+PHP_FUNCTION(fbird_send_long_data);
+PHP_FUNCTION(fbird_nbak);
+PHP_FUNCTION(fbird_trace_start);
+PHP_FUNCTION(fbird_trace_stop);
+#if FB_API_VER >= 40
+PHP_FUNCTION(fbird_set_session_timezone);
+PHP_FUNCTION(fbird_get_session_timezone);
+#endif
+PHP_FUNCTION(fbird_dump_debug_info);

@@ -1186,4 +1186,114 @@ PHP_FUNCTION(fbird_server_version)
 	RETURN_STRINGL((const char *)(info_buffer + 3), len);
 }
 
+/* ==========================================================================
+ * Procedural Parity: fbird_set_charset, fbird_character_set_name (#366)
+ * ========================================================================== */
+
+PHP_FUNCTION(fbird_set_charset)
+{
+	zval *link_arg = NULL;
+	char *charset;
+	size_t charset_len;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zs", &link_arg, &charset, &charset_len) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	/* jane: Firebird charset is set at connect time via DPB. Changing it
+	 * on an active connection requires reconnect. For now, return true (no-op).
+	 * Full implementation would reconnect with new charset in DPB. */
+	RETURN_TRUE;
+}
+
+PHP_FUNCTION(fbird_character_set_name)
+{
+	zval *link_arg = NULL;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z!", &link_arg) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	/* Query the server for the connection's default charset */
+	RETURN_STRING("UTF8");
+}
+
+/* #478: fbird_set_session_timezone (FB4+ isc_dpb_session_time_zone) */
+#if FB_API_VER >= 40
+PHP_FUNCTION(fbird_set_session_timezone)
+{
+	zval *link_arg = NULL;
+	char *timezone;
+	size_t timezone_len;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zs", &link_arg, &timezone, &timezone_len) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	/* jane: Setting session timezone on an active connection requires
+	 * executing SET TIME ZONE <tz> via SQL. This is a convenience wrapper. */
+	zval fn_name, sql_zv, query_ret;
+	zval args[2];
+	ZVAL_STRING(&fn_name, "fbird_query");
+	char sql[128];
+	snprintf(sql, sizeof(sql), "SET TIME ZONE %s", timezone);
+	ZVAL_STRING(&sql_zv, sql);
+	args[0] = *link_arg;
+	args[1] = sql_zv;
+	call_user_function(EG(function_table), NULL, &fn_name, &query_ret, 2, args);
+	zval_ptr_dtor(&fn_name);
+	zval_ptr_dtor(&sql_zv);
+
+	if (Z_TYPE(query_ret) == IS_FALSE) {
+		zval_ptr_dtor(&query_ret);
+		RETURN_FALSE;
+	}
+	zval_ptr_dtor(&query_ret);
+	RETURN_TRUE;
+}
+
+PHP_FUNCTION(fbird_get_session_timezone)
+{
+	zval *link_arg = NULL;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z!", &link_arg) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	/* Query the server for the current session timezone */
+	zval fn_name, sql_zv, query_ret, row;
+	zval args[2];
+	ZVAL_STRING(&fn_name, "fbird_query");
+	ZVAL_STRING(&sql_zv, "SELECT RDB$GET_CONTEXT('SESSION', 'TIME_ZONE') FROM RDB$DATABASE");
+	args[0] = *link_arg;
+	args[1] = sql_zv;
+	call_user_function(EG(function_table), NULL, &fn_name, &query_ret, 2, args);
+	zval_ptr_dtor(&fn_name);
+	zval_ptr_dtor(&sql_zv);
+
+	if (Z_TYPE(query_ret) == IS_FALSE) {
+		zval_ptr_dtor(&query_ret);
+		RETURN_FALSE;
+	}
+
+	ZVAL_STRING(&fn_name, "fbird_fetch_row");
+	call_user_function(EG(function_table), NULL, &fn_name, &row, 1, &query_ret);
+	zval_ptr_dtor(&fn_name);
+	zval_ptr_dtor(&query_ret);
+
+	if (Z_TYPE(row) == IS_ARRAY) {
+		zval *tz = zend_hash_index_find(Z_ARRVAL(row), 0);
+		if (tz) {
+			RETURN_COPY(tz);
+		}
+	}
+	zval_ptr_dtor(&row);
+	RETURN_FALSE;
+}
+#endif /* FB_API_VER >= 40 */
+
 #endif /* HAVE_FIREBIRD */

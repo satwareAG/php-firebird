@@ -71,8 +71,59 @@ in every test's output, failing all tests. Fix: check `extension_loaded('pcntl')
 ### Local testing
 
 - `docker/docker-compose.yml` has 12 PHP containers (8.2-8.5 x FB3/FB4/FB5 client).
-- `scripts/test-local.sh` replicates CI environment from scratch (~30s turnaround).
 - `scripts/test_matrix.sh` runs tests across all 12 containers.
+- `scripts/verify-ci-parity.sh` checks that local Docker client matches CI client.
+
+### CRITICAL: Local/CI Environment Parity
+
+**Never assume "passes locally" means "passes in CI".** The two environments must
+be kept in sync. Three hard-won lessons:
+
+1. **Firebird client version MUST match**: Local Docker containers must use the
+   same Firebird client as CI (official tarball from GitHub releases, NOT Debian
+   apt `firebird-dev`). The apt package installs FB3 client headers, which compiles
+   out all `#if FB_API_VER >= 40` code (DECFLOAT, INT128, timezones). Tests silently
+   skip instead of exercising the code. See: `scripts/verify-ci-parity.sh`.
+
+2. **`FIREBIRD_DB_DIR` MUST be set in CI**: The procedural path (`firebird.inc`)
+   uses `FIREBIRD_DB_DIR` to create a unique database per test. The PDO path
+   (`pdo_fbird.inc`) uses `FIREBIRD_DB_PATH` for the shared database. If only
+   `FIREBIRD_DB_PATH` is set, both paths use the same database, causing metadata
+   lock conflicts when tests do `RECREATE TABLE` from different connections.
+
+3. **Build INSIDE the target container**: `.so` files compiled on a host with a
+   different glibc version will fail to load in Docker containers. Always run
+   `scripts/build.sh` inside the container, never on the host.
+
+### Test timeout
+
+Both CI and local `run-tests.php` use `--set-timeout 15` to kill hanging tests
+in 15 seconds instead of the default 60. This prevents a single hanging test from
+cascading into a 30-minute CI timeout.
+
+### IStatus disposal: read before you dispose
+
+**NEVER call `dispose()` on IStatus objects passed to Firebird API functions that
+may hold internal references.** The Firebird `IServiceManager::attachServiceManager()`
+and similar API calls store the IStatus pointer internally. Disposing it causes
+use-after-free (SIGSEGV) when the service is later used.
+
+**Safe pattern** (for utility functions like DECFLOAT conversion):
+```cpp
+Firebird::IStatus* fb_status = master->getStatus();
+// use fb_status for a single call, then dispose
+fb_status->dispose();
+```
+
+**Unsafe pattern** (for service/statement wrappers):
+```cpp
+// WRONG: provider holds reference to status after this call returns
+provider->attachServiceManager(&status, ...);
+status.dispose(); // USE-AFTER-FREE
+```
+
+When in doubt, let the IStatus leak. It is freed at module shutdown. A leak is
+always better than a crash.
 
 ---
 
@@ -81,11 +132,12 @@ in every test's output, failing all tests. Fix: check `extension_loaded('pcntl')
 ### Pre-Tag Checklist
 
 1. **Verify CI green**: `bash scripts/verify-ci-green.sh` - all 5 workflows must pass (ci, code-quality, sanitizers, coverage, doctrine-downstream)
-2. **Run local test matrix**: `bash scripts/test_matrix.sh` - all 12 containers must pass (PHP 8.2-8.5 x FB 3.0/4.0/5.0)
-3. **Run amicron-platform downstream**: `DBPASS=masterkey bash scripts/test-amicron-platform.sh` - verify customer stack
-4. **Verify version stamps**: `bash scripts/check-version-stamps.sh`
-5. **Update CHANGELOG.md** with release notes
-6. **Bump version**: Update `VERSION.txt` and `stubs/*.php` `@version` tags
+2. **Verify CI parity**: `bash scripts/verify-ci-parity.sh` - local Docker client must match CI
+3. **Run local test matrix**: `bash scripts/test_matrix.sh` - all 12 containers must pass (PHP 8.2-8.5 x FB 3.0/4.0/5.0)
+4. **Run amicron-platform downstream**: `DBPASS=masterkey bash scripts/test-amicron-platform.sh` - verify customer stack
+5. **Verify version stamps**: `bash scripts/check-version-stamps.sh`
+6. **Update CHANGELOG.md** with release notes
+7. **Bump version**: Update `VERSION.txt` and `stubs/*.php` `@version` tags
 
 ### Tagging Rules
 

@@ -296,9 +296,71 @@ See [specs/archive/spec-v11-modernization.md](specs/archive/spec-v11-modernizati
 
 ### Testing Environments
 Use our Docker setup or test against:
-- PHP 8.2, 8.3, 8.4, 8.5-dev
+- PHP 8.2, 8.3, 8.4, 8.5
 - Firebird 3.0, 4.0, 5.0+
-- Linux (Ubuntu, CentOS), Windows 10/11, macOS
+- Linux (Ubuntu, Debian), Windows 10/11, macOS
+
+### CRITICAL: Local/CI Test Parity
+
+Before pushing, always verify that your local test environment matches CI:
+
+```bash
+# Verify local Docker client matches CI (FB_API_VER, FIREBIRD_DB_DIR, --set-timeout)
+bash scripts/verify-ci-parity.sh
+```
+
+**The 3 hard-won rules:**
+
+1. **Use official Firebird client tarballs, not apt `firebird-dev`**. The apt
+   package installs FB3 client headers. All `#if FB_API_VER >= 40` code
+   (DECFLOAT, INT128, timezones) is compiled out. Tests silently skip. CI uses
+   the official tarball and tests the real code.
+
+2. **Always set `FIREBIRD_DB_DIR` alongside `FIREBIRD_DB_PATH`** in any
+   environment that runs the full test suite. Without `FIREBIRD_DB_DIR`,
+   the procedural path (firebird.inc) and PDO path (pdo_fbird.inc) share
+   the same database. `RECREATE TABLE` from one connection blocks on the
+   other's metadata lock.
+
+3. **Build inside the target container**. `.so` files compiled on a host
+   with a different glibc version will fail to load in Docker containers
+   (`GLIBC_2.38 not found`). Always run `scripts/build.sh` inside the
+   container.
+
+### IStatus Disposal Rules
+
+The Firebird OO API uses `IStatus` objects for error reporting. `master->getStatus()`
+returns a new IStatus that must eventually be disposed. But **not all IStatus objects
+can be safely disposed immediately**:
+
+| Pattern | Dispose? | Why |
+|---------|----------|-----|
+| Utility functions (DECFLOAT, INT128 conversion) | YES | IStatus used for a single call, no reference held |
+| ServiceWrapper methods (attach, detach, start, query) | **NO** | `attachServiceManager()` holds internal reference to IStatus |
+| StatementWrapper methods | YES | IStatus used per-call, not stored |
+| ConnectionWrapper methods | Investigate first | May hold reference like ServiceWrapper |
+
+**Safe pattern:**
+```cpp
+Firebird::IStatus* fb_status = master->getStatus();
+Firebird::CheckStatusWrapper status(fb_status);
+// single API call
+result = util->someMethod(&status, ...);
+if (status.isDirty()) { fb_status->dispose(); return error; }
+fb_status->dispose();
+return success;
+```
+
+**Unsafe pattern (causes SIGSEGV on CI):**
+```cpp
+Firebird::IStatus* fb_status = master->getStatus();
+provider->attachServiceManager(fb_status, ...);
+// provider now holds a reference to fb_status internally
+fb_status->dispose(); // USE-AFTER-FREE when service is later used
+```
+
+**When in doubt, let it leak.** IStatus objects are freed at module shutdown.
+A memory leak is always better than a use-after-free crash.
 
 ## Performance Considerations
 

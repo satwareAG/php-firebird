@@ -16,6 +16,18 @@ if test "$PHP_PDO_FBIRD" != "no"; then
 
   AC_DEFINE(HAVE_PDO_FBIRD,1,[Whether pdo_fbird is available])
 
+  dnl Version: read from VERSION.txt (same as main extension)
+  AC_MSG_CHECKING([for PDO fbird version])
+  if test -f "$srcdir/../VERSION.txt"; then
+    PHP_PDO_FBIRD_VERSION=`cat "$srcdir/../VERSION.txt" | tr -d ' \n\r\t'`
+  elif test -f "$srcdir/VERSION.txt"; then
+    PHP_PDO_FBIRD_VERSION=`cat "$srcdir/VERSION.txt" | tr -d ' \n\r\t'`
+  else
+    PHP_PDO_FBIRD_VERSION="0.0.0-unknown"
+  fi
+  AC_MSG_RESULT([$PHP_PDO_FBIRD_VERSION])
+  AC_DEFINE_UNQUOTED([PHP_PDO_FBIRD_VERSION], ["$PHP_PDO_FBIRD_VERSION"], [PDO fbird extension version])
+
   dnl Require PDO headers (PDO may be built-in or shared)
   ifdef([PHP_CHECK_PDO_INCLUDES],
     [PHP_CHECK_PDO_INCLUDES],

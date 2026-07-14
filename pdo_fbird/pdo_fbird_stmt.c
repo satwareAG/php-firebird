@@ -640,15 +640,16 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 		}
 #endif
 #if defined(SQL_DEC16) || defined(SQL_DEC34)
-		case SQL_DEC16:
-		case SQL_DEC34: {
-			/* jane: SQL_DEC16=576, SQL_DEC34=577. The switch uses `sql_type & ~1`
-			 * to strip the nullable bit, which collapses DEC34 into DEC16
-			 * (577 & ~1 = 576). Must check the ORIGINAL sql_type to pick the
-			 * correct converter - DEC16 reads 8 bytes, DEC34 reads 16 bytes. */
+ 		case SQL_DEC16:
+ 		case SQL_DEC34: {
+			/* jane: SQL_DEC16=32760, SQL_DEC34=32762 (even, gap=2). The
+			 * switch uses `sql_type & ~1` which correctly maps nullable
+			 * variants to base types. Use length (8=DEC16, 16=DEC34) as
+			 * the tie-breaker since it is unambiguous regardless of
+			 * nullable bit or client library version. */
 			char buf[48];
 			int rc;
-			if (sql_type == SQL_DEC34) {
+			if (length >= 16) {
 				rc = fbu_decfloat34_to_string(FBG(master_instance), data, buf, sizeof(buf));
 			} else {
 				rc = fbu_decfloat16_to_string(FBG(master_instance), data, buf, sizeof(buf));

@@ -79,7 +79,7 @@ if [ -d "tests" ]; then
     if php -m 2>/dev/null | grep -q pcntl; then
         EXT_ARGS="$EXT_ARGS -d extension=pcntl"
     fi
-    TEST_PHP_EXECUTABLE=$(which php) TEST_PHP_ARGS="-n" php -n run-tests.php $EXT_ARGS $TARGET
+    TEST_PHP_EXECUTABLE=$(which php) TEST_PHP_ARGS="-n" php -n run-tests.php --set-timeout 15 $EXT_ARGS $TARGET
 else
     log_warn "No test directory found. Skipping tests."
 fi

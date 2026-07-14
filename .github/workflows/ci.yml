@@ -243,6 +243,7 @@ jobs:
           php run-tests.php \
             ${EXT_FLAGS} \
             -p "$(which php)" \
+            --set-timeout 15 \
             tests/ || TEST_RESULT=$?
 
           # run-tests.php returns non-zero on test failures

@@ -826,10 +826,10 @@ int _php_fbird_bind(fbird_query *fb_query, zval *b_vars)
 			case SQL_DEC16:
 			case SQL_DEC34:
 				{
-					/* Convert string to DECFLOAT binary representation */
-					convert_to_string(b_var);
-					int rc;
-					if ((var->sqltype & ~1) == SQL_DEC16) {
+				/* Convert string to DECFLOAT binary representation */
+				convert_to_string(b_var);
+				int rc;
+				if ((var->sqltype & ~1) == SQL_DEC16) {
 						rc = fbu_string_to_decfloat16(FBG(master_instance),
 							Z_STRVAL_P(b_var), (void *)&buf[i].val.dec16);
 					} else {

@@ -1579,6 +1579,24 @@ extern "C" void* fbs_get_statement(void* statement_ptr) {
     return wrapper->getStatement();
 }
 
+#if FB_API_VER >= 40
+extern "C" int fbs_set_timeout(void* master_ptr, void* statement_ptr, unsigned int ms, ISC_STATUS* status_vector) {
+    if (!master_ptr || !statement_ptr) return -1;
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    return wrapper->setTimeout(master, ms, status_vector) ? 0 : -1;
+}
+
+extern "C" unsigned int fbs_get_timeout(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector) {
+    if (!master_ptr || !statement_ptr) return 0;
+
+    auto* master = static_cast<Firebird::IMaster*>(master_ptr);
+    auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
+    return wrapper->getTimeout(master, status_vector);
+}
+#endif
+
 extern "C" int fbs_is_prepared(void* statement_ptr) {
     if (!statement_ptr) {
         return 0;

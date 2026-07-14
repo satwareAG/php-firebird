@@ -652,6 +652,29 @@ function fbird_field_info(mixed $result, int $field_number): array|false {}
  */
 function fbird_param_info(mixed $query, int $param_number): array|false {}
 
+/**
+ * List user tables in the database.
+ * @param resource|null $connection Connection handle
+ * @return array|false Array of table names, or false on error.
+ */
+function fbird_list_tables(?object $connection = null): array|false {}
+
+/**
+ * List field names for a table.
+ * @param resource $connection Connection handle
+ * @param string $table_name Table name
+ * @return array|false Array of field names, or false on error.
+ */
+function fbird_list_fields(object $connection, string $table_name): array|false {}
+
+/**
+ * Get metadata for a table's columns (type, length, scale, nullable).
+ * @param resource $connection Connection handle
+ * @param string $table_name Table name
+ * @return array|false Associative array keyed by field name, or false on error.
+ */
+function fbird_meta_data(object $connection, string $table_name): array|false {}
+
 // ============================================================================
 // TRANSACTION FUNCTIONS
 // ============================================================================
@@ -1354,6 +1377,22 @@ function fbird_set_idle_timeout(mixed $link_identifier, int $seconds): bool {}
  * @since 13.0.0
  */
 function fbird_get_idle_timeout(mixed $link_identifier): int {}
+
+/**
+ * Set per-statement execution timeout (Firebird 4.0+).
+ * Overrides the connection-level default for this specific statement.
+ * @param resource $query Statement handle from fbird_prepare()
+ * @param int $milliseconds Timeout in milliseconds (0 = no timeout)
+ * @return bool True on success, false on error.
+ */
+function fbird_stmt_set_timeout(mixed $query, int $milliseconds): bool {}
+
+/**
+ * Get per-statement execution timeout (Firebird 4.0+).
+ * @param resource $query Statement handle from fbird_prepare()
+ * @return int Timeout in milliseconds (0 = no timeout or error).
+ */
+function fbird_stmt_get_timeout(mixed $query): int {}
 
 // ============================================================================
 // INSPECTION FUNCTIONS

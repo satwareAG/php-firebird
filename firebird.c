@@ -316,6 +316,20 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_param_info, 0, 2, MAY_BE_A
 	ZEND_ARG_TYPE_INFO(0, field_number, IS_LONG, 0)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_list_tables, 0, 0, MAY_BE_ARRAY|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, link_identifier)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_list_fields, 0, 2, MAY_BE_ARRAY|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, link_identifier)
+	ZEND_ARG_TYPE_INFO(0, table_name, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_meta_data, 0, 2, MAY_BE_ARRAY|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, link_identifier)
+	ZEND_ARG_TYPE_INFO(0, table_name, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_add_user, 0, 3, _IS_BOOL, 0)
 	ZEND_ARG_INFO(0, service_handle)
 	ZEND_ARG_TYPE_INFO(0, user_name, IS_STRING, 0)
@@ -511,6 +525,15 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_get_idle_timeout, 0, 1, IS_LONG, 0)
 	ZEND_ARG_INFO(0, link_identifier)
 ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_stmt_set_timeout, 0, 2, _IS_BOOL, 0)
+	ZEND_ARG_INFO(0, query)
+	ZEND_ARG_TYPE_INFO(0, milliseconds, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_stmt_get_timeout, 0, 1, IS_LONG, 0)
+	ZEND_ARG_INFO(0, query)
+ZEND_END_ARG_INFO()
 #endif /* FB_API_VER >= 40 */
 
 static const zend_function_entry fbird_functions[] = {
@@ -549,6 +572,9 @@ static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_affected_rows, arginfo_fbird_affected_rows)
 	PHP_FE(fbird_field_info, 	arginfo_fbird_field_info)
 	PHP_FE(fbird_param_info, 	arginfo_fbird_param_info)
+	PHP_FE(fbird_list_tables, 	arginfo_fbird_list_tables)
+	PHP_FE(fbird_list_fields, 	arginfo_fbird_list_fields)
+	PHP_FE(fbird_meta_data, 		arginfo_fbird_meta_data)
 
 	PHP_FE(fbird_trans, 		arginfo_fbird_trans)
 	PHP_FE(fbird_commit, 		arginfo_fbird_commit)
@@ -628,6 +654,8 @@ static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_get_statement_timeout, arginfo_fbird_get_statement_timeout)
 	PHP_FE(fbird_set_idle_timeout,      arginfo_fbird_set_idle_timeout)
 	PHP_FE(fbird_get_idle_timeout,      arginfo_fbird_get_idle_timeout)
+	PHP_FE(fbird_stmt_set_timeout,      arginfo_fbird_stmt_set_timeout)
+	PHP_FE(fbird_stmt_get_timeout,      arginfo_fbird_stmt_get_timeout)
 #endif /* FB_API_VER >= 40 */
 
 	PHP_FE_END

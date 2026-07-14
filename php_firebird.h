@@ -65,6 +65,9 @@ PHP_FUNCTION(fbird_num_params);
 PHP_FUNCTION(fbird_affected_rows);
 PHP_FUNCTION(fbird_field_info);
 PHP_FUNCTION(fbird_param_info);
+PHP_FUNCTION(fbird_list_tables);
+PHP_FUNCTION(fbird_list_fields);
+PHP_FUNCTION(fbird_meta_data);
 
 PHP_FUNCTION(fbird_trans);
 PHP_FUNCTION(fbird_trans_start);
@@ -152,6 +155,10 @@ PHP_FUNCTION(fbird_set_statement_timeout);
 PHP_FUNCTION(fbird_get_statement_timeout);
 PHP_FUNCTION(fbird_set_idle_timeout);
 PHP_FUNCTION(fbird_get_idle_timeout);
+
+/* Per-Statement Timeout Functions (Firebird 4.0+) */
+PHP_FUNCTION(fbird_stmt_set_timeout);
+PHP_FUNCTION(fbird_stmt_get_timeout);
 #endif /* FB_API_VER >= 40 */
 
 #else

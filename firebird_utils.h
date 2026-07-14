@@ -577,6 +577,27 @@ unsigned fbs_get_output_count(void* master_ptr, void* statement_ptr, ISC_STATUS*
  */
 void* fbs_get_statement(void* statement_ptr);
 
+#if FB_API_VER >= 40
+/**
+ * Set per-statement execution timeout (FB 4.0+).
+ * @param master_ptr IMaster interface pointer
+ * @param statement_ptr StatementWrapper pointer
+ * @param ms Timeout in milliseconds (0 = no timeout)
+ * @param status_vector Output ISC_STATUS array
+ * @return 0 on success, -1 on failure
+ */
+int fbs_set_timeout(void* master_ptr, void* statement_ptr, unsigned int ms, ISC_STATUS* status_vector);
+
+/**
+ * Get per-statement execution timeout (FB 4.0+).
+ * @param master_ptr IMaster interface pointer
+ * @param statement_ptr StatementWrapper pointer
+ * @param status_vector Output ISC_STATUS array
+ * @return Timeout in milliseconds (0 = no timeout or error)
+ */
+unsigned int fbs_get_timeout(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
+#endif
+
 /**
  * Check if statement is prepared.
  *

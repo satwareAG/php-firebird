@@ -1060,6 +1060,61 @@ PHP_FUNCTION(fbird_get_idle_timeout)
 	RETURN_LONG((zend_long)fbc_get_idle_timeout(link->fbc_connection));
 }
 
+/* Per-Statement Timeout Functions (Firebird 4.0+) */
+
+PHP_FUNCTION(fbird_stmt_set_timeout)
+{
+	zval *query_arg;
+	zend_long ms;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zl", &query_arg, &ms) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	if (ms < 0) {
+		zend_argument_value_error(2, "must be a non-negative integer");
+		RETURN_THROWS();
+	}
+
+	fbird_query *fb_query;
+	FBIRD_VALIDATE_QUERY_EX(query_arg, 1, fb_query);
+	if (!fb_query) RETURN_FALSE;
+
+	if (!fb_query->fbs_statement) {
+		_php_fbird_module_error("Statement not prepared");
+		RETURN_FALSE;
+	}
+
+	ISC_STATUS_ARRAY status;
+	if (fbs_set_timeout(FBG(master_instance), fb_query->fbs_statement, (unsigned int)ms, status) != 0) {
+		_php_fbird_error(status);
+		RETURN_FALSE;
+	}
+	RETURN_TRUE;
+}
+
+PHP_FUNCTION(fbird_stmt_get_timeout)
+{
+	zval *query_arg;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &query_arg) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	fbird_query *fb_query;
+	FBIRD_VALIDATE_QUERY_EX(query_arg, 1, fb_query);
+	if (!fb_query) RETURN_LONG(0);
+
+	if (!fb_query->fbs_statement) {
+		RETURN_LONG(0);
+	}
+
+	ISC_STATUS_ARRAY status;
+	RETURN_LONG((zend_long)fbs_get_timeout(FBG(master_instance), fb_query->fbs_statement, status));
+}
+
 #endif /* FB_API_VER >= 40 */
 
 /* ==========================================================================

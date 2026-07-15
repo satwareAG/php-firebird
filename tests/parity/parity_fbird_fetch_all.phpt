@@ -24,3 +24,6 @@ echo "=== DONE ===\n";
 OK fetch_all count: 2
 === DONE ===
 
+
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

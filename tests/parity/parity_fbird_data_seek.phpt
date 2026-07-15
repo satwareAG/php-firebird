@@ -26,3 +26,6 @@ echo "=== DONE ===\n";
 OK data_seek to row 2: 3
 === DONE ===
 
+
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

@@ -35,3 +35,6 @@ echo "=== DONE ===\n";
 OK bind_param called: %s
 OK bind_param: %s
 === DONE ===
+
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

@@ -1105,7 +1105,10 @@ function fbird_get_idle_timeout(mixed $link_identifier): int {}
 // v13.0.0 PARITY FUNCTIONS
 // ============================================================================
 
-/** @since 13.0.0 */
+/**
+ * @return array<int, mixed>|false
+ * @since 13.0.0
+ */
 function fbird_fetch_array(mixed $result, int $fetch_flags = 0): array|false {}
 
 /** @since 13.0.0 */
@@ -1117,7 +1120,10 @@ function fbird_server_version(mixed $link_identifier = null): string|false {}
 /** @since 13.0.0 */
 function fbird_data_seek(mixed $result, int $row_number): bool {}
 
-/** @since 13.0.0 */
+/**
+ * @return array<int, array<int, mixed>>
+ * @since 13.0.0
+ */
 function fbird_fetch_all(mixed $result, int $fetch_flags = 0): array {}
 
 /** @since 13.0.0 */
@@ -1132,7 +1138,10 @@ function fbird_escape_identifier(string $value): string {}
 /** @since 13.0.0 */
 function fbird_blob_export(mixed $link_identifier, string $file_path, string $blob_id): bool {}
 
-/** @since 13.0.0 */
+/**
+ * @return array<int, mixed>|false
+ * @since 13.0.0
+ */
 function fbird_result_metadata(mixed $query): array|false {}
 
 /** @since 13.0.0 */
@@ -1192,16 +1201,28 @@ function fbird_set_session_timezone(mixed $link_identifier, string $timezone): b
 /** @since 13.0.0 */
 function fbird_get_session_timezone(mixed $link_identifier = null): string|false {}
 
-/** @since 13.0.0 */
+/**
+ * @return array<int, string>|false
+ * @since 13.0.0
+ */
 function fbird_list_tables(mixed $link_identifier, string $pattern = ''): array|false {}
 
-/** @since 13.0.0 */
+/**
+ * @return array<int, mixed>|false
+ * @since 13.0.0
+ */
 function fbird_list_fields(mixed $link_identifier, string $table_name): array|false {}
 
-/** @since 13.0.0 */
+/**
+ * @return array<int, mixed>|false
+ * @since 13.0.0
+ */
 function fbird_meta_data(mixed $link_identifier, string $table_name): array|false {}
 
-/** @since 13.0.0 */
+/**
+ * @return array<int, mixed>
+ * @since 13.0.0
+ */
 function fbird_error_list(mixed $link_identifier = null): array {}
 
 /** @since 13.0.0 */

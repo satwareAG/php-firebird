@@ -21,3 +21,6 @@ echo "=== DONE ===\n";
 --EXPECTF--
 %s
 === DONE ===
+
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

@@ -19,3 +19,6 @@ echo "=== DONE ===\n";
 --EXPECT--
 OK multi_query: true
 === DONE ===
+
+--CLEAN--
+<?php require_once __DIR__ . '/../clean.inc'; ?>

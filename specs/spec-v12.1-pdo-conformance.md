@@ -21,7 +21,7 @@ priority: 1
 2026-07-07
 
 ## Status
-Approved — execution in progress
+COMPLETE — 25 issues closed (#322, #328-#351). All PDO conformance tests pass.
 
 ---
 

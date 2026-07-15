@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### v13.0.0-rc.2 — Test Isolation + CI Parity Fixes (release candidate)
+
+**Focus**: Fix flaky service tests causing CI failures. Close CI parity gaps
+where coverage and sanitizer workflows silently skipped ALL PDO tests.
+
+#### Fixed
+
+##### Test Isolation — Firebird Service API Fire-and-Forget Pattern
+
+Root cause: `fbird_backup(verbose=false)`, `fbird_maintain_db()`,
+`fbird_add_user()` etc. call `fbsvc_start()` and return immediately while
+the Firebird server processes asynchronously. Sequential operations on a
+shared service handle hit a busy server, causing segfaults or
+"Service is currently busy" warnings.
+
+- `tests/coverage/service_backup_restore.phpt`: Changed all backup/restore
+  calls from `verbose=false` to `verbose=true`. Verbose mode calls
+  `_php_fbird_service_query(isc_info_svc_line)` which blocks until
+  `line_len == 0` (operation complete), guaranteeing sequential isolation.
+- `tests/coverage/service_maintenance_operations.phpt`: Replaced single
+  shared service handle with per-operation `attach_svc`/`detach`/`usleep`
+  via `maintain_and_wait()` helper.
+- `tests/fbird_service_validate_mend_cycle.phpt`: Same per-operation pattern.
+- `tests/fbird_service_db_mgr.phpt`: Same per-operation pattern.
+- `tests/fbird_service_oo_002.phpt`: Changed verbose `false` to `true`.
+- `tests/fbird_service_user.phpt`: Per-operation attach/detach + usleep.
+- `tests/coverage/service_user_advanced.phpt`: Same pattern via `user_op()`.
+
+##### Test Matrix Cleanup
+
+- `scripts/test_matrix.sh` `clean_test_environment()`: Remove `.fbk` backup
+  files (not just `.fdb`), add 3s settle delay between containers. Do NOT
+  kill `fbguard` (risked stopping Firebird containers where fbguard is PID 1).
+- `scripts/build.sh`: Force-remove `modules/firebird.so` and
+  `pdo_fbird/modules/pdo_fbird.so` BEFORE building. The `/ext` bind mount
+  is shared across 12 Docker containers; a stale `.so` from a different
+  PHP API version causes silent test SKIPs or crashes.
+
+##### CI/CD Parity — Coverage + Sanitizer Workflows
+
+- `.github/workflows/coverage.yml`: Switched from `make test` to
+  `run-tests.php` with explicit `-d extension=` flags. `make test` only
+  loads `firebird.so` via the Makefile, and `PHP_TEST_SHARED_EXTENSIONS`
+  env var is NOT read by the Makefile's test target, causing ALL
+  `pdo_fbird` tests to silently SKIP. **Previously 0% pdo_fbird test
+  coverage in the coverage pipeline.**
+- `.github/workflows/sanitizers.yml` (lsan + tsan-zts): Same fix.
+- Both workflows: Added `FIREBIRD_DB_DIR=/tmp` (per-test unique DB,
+  prevents metadata lock conflicts per AGENTS.md rule #2).
+- Both workflows: Added `--set-timeout 15` (kill hanging tests in 15s).
+- Both workflows: Added pcntl double-load guard.
+
+##### Code Quality Fixes
+
+- `phpstan/fbird.stub.php`: Added 36 missing v13.0.0 function stubs (were
+  in `stubs/firebird-stubs.php` but not in the PHPStan stub file, causing
+  `check-stubs-sync.sh` "Stub drift detected" error). Added `@return`
+  PHPDoc with array value type specifications (PHPStan level 8 requirement).
+- `.gitleaks.toml`: Added `docs/sql-reference/.*` to allowlist (directory
+  deleted in commit 313321c but gitleaks scans full git history with
+  `fetch-depth: 0`, triggering false private-key PEM regex on SQL examples).
+- 7 parity test files: Added `--CLEAN--` sections for DDL test hygiene.
+
+#### Known Issues
+
+- `client_iutil.phpt` / `client_iservice.phpt` intermittently crash on CI
+  (Termsig=11). Root cause: `CheckStatusWrapper` auto-disposes `IStatus` in
+  IUtil/IService wrappers. Pre-existing, passes on rerun. Not a regression.
+
+---
+
 ### v13.0.0-rc.1 — FB4+/FB5+ Feature Coverage (release candidate)
 
 **Spec**: `specs/spec-v13.0-fb4-plus-coverage.md` (#327)

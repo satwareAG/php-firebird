@@ -1,6 +1,6 @@
 # Spec: v12.1.0 - Integration Conformance Suite
 
-**Status**: IN PROGRESS  
+**Status**: COMPLETE — all M1-M7 milestones closed (103 issues). v12.1.0 released.
 **Branch**: `test/integration-conformance`  
 **Target release**: v12.1.0 (rc.1 by 2026-08-18, final by 2026-08-25)  
 **Scope**: Tests + specs only. Implementation of gaps spawns separate `feat/*` branches after v12.1.0 ships the red/skip test suite.

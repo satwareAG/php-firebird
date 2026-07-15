@@ -8,7 +8,7 @@ tags: [security, ci-cd, quality, stubs, documentation, pdo, v11.1]
 priority: 12
 ---
 
-> **Status: ACTIVE** — v11.1.0 quality hardening targeting QA audit P1-P2 findings.
+> **Status: COMPLETE** — v11.1.0 released 2026-07-02. All P1-P2 findings resolved.
 
 # Spec: v11.1.0 Quality Hardening
 

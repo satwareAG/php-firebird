@@ -20,7 +20,7 @@ priority: 2
 2026-07-08
 
 ## Status
-In progress — 12 of 13 issues done (#327, #418, #419, #420, #421, #422, #423, #424, #425, #426, #427, #428, #435). Remaining: #417 (DECFLOAT native type). Per-statement timeout tracked in #464.
+COMPLETE (FB4/5) — 15 issues closed (#327, #417-#428, #435). #417 DECFLOAT native type done (PR #475). #464 per-statement timeout done. 7 FB6+ issues (#314, #429-#434) deferred to v14.0.0 (Firebird 6.0 not released).
 
 ---
 

@@ -15,7 +15,7 @@
  *                  'SYSDBA', 'masterkey');
  *
  * @package   php-firebird-stubs
- * @version   13.0.0-rc.1
+ * @version   13.0.0-rc.2
  * @author    satware AG <info@satware.com>
  * @copyright 2025-2026 satware AG
  * @license   PHP-3.01 https://www.php.net/license/3_01.txt

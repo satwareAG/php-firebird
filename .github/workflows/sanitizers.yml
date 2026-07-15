@@ -175,6 +175,7 @@ jobs:
       ISC_USER: SYSDBA
       ISC_PASSWORD: masterkey
       FIREBIRD_HOST: firebird
+      FIREBIRD_DB_DIR: /tmp
       FIREBIRD_DB_PATH: /var/lib/firebird/data/test.fdb
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       LSAN_OPTIONS: "suppressions=lsan.supp:print_suppressions=0:verbosity=1"
@@ -257,19 +258,27 @@ jobs:
 
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
           PDO_FBIRD_PATH="$(pwd)/pdo_fbird/modules/pdo_fbird.so"
-          export TEST_PHP_EXECUTABLE="$(which php)"
-          export PHP_TEST_SHARED_EXTENSIONS="-d extension=${EXTENSION_PATH}"
 
+          # Per AGENTS.md: `make test` only loads firebird.so and ignores
+          # PHP_TEST_SHARED_EXTENSIONS, causing ALL pdo_fbird tests to SKIP.
+          # Fix: use run-tests.php directly with -d extension= flags.
+          EXT_FLAGS="-d extension=${EXTENSION_PATH}"
           if [ -f "$PDO_FBIRD_PATH" ]; then
-            export PHP_TEST_SHARED_EXTENSIONS="${PHP_TEST_SHARED_EXTENSIONS} -d extension=${PDO_FBIRD_PATH}"
+            EXT_FLAGS="${EXT_FLAGS} -d extension=${PDO_FBIRD_PATH}"
           fi
 
-          PCNTL_SO=$(find $(php-config --extension-dir) -name "pcntl.so" 2>/dev/null || true)
-          if [ -n "$PCNTL_SO" ]; then
-            export PHP_TEST_SHARED_EXTENSIONS="${PHP_TEST_SHARED_EXTENSIONS} -d extension=${PCNTL_SO}"
+          # Add pcntl if not already loaded (guard against double-load per AGENTS.md)
+          if ! php -r 'exit(extension_loaded("pcntl") ? 0 : 1);' 2>/dev/null; then
+            PCNTL_SO=$(find $(php-config --extension-dir) -name "pcntl.so" 2>/dev/null || true)
+            if [ -n "$PCNTL_SO" ]; then
+              EXT_FLAGS="${EXT_FLAGS} -d extension=${PCNTL_SO}"
+            fi
           fi
 
-          make test TESTS=tests/ 2>&1 | tee lsan_output.txt || true
+          php run-tests.php ${EXT_FLAGS} \
+            -p "$(which php)" \
+            --set-timeout 15 \
+            tests/ 2>&1 | tee lsan_output.txt || true
 
           if grep -q "Direct leak" lsan_output.txt; then
             echo "::warning::Memory leaks detected (check if in extension code)"
@@ -308,6 +317,7 @@ jobs:
       ISC_USER: SYSDBA
       ISC_PASSWORD: masterkey
       FIREBIRD_HOST: localhost
+      FIREBIRD_DB_DIR: /tmp
       FIREBIRD_DB_PATH: /var/lib/firebird/data/test.fdb
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TSAN_OPTIONS: "suppressions=tsan.supp:halt_on_error=0:second_deadlock_stack=1:history_size=4"
@@ -462,20 +472,25 @@ jobs:
 
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
           PDO_FBIRD_PATH="$(pwd)/pdo_fbird/modules/pdo_fbird.so"
-          export TEST_PHP_EXECUTABLE="$(which php)"
-          export PHP_TEST_SHARED_EXTENSIONS="-d extension=${EXTENSION_PATH}"
 
+          # Per AGENTS.md: `make test` only loads firebird.so and ignores
+          # PHP_TEST_SHARED_EXTENSIONS, causing ALL pdo_fbird tests to SKIP.
+          # Fix: use run-tests.php directly with -d extension= flags.
+          EXT_FLAGS="-d extension=${EXTENSION_PATH}"
           if [ -f "$PDO_FBIRD_PATH" ]; then
-            export PHP_TEST_SHARED_EXTENSIONS="${PHP_TEST_SHARED_EXTENSIONS} -d extension=${PDO_FBIRD_PATH}"
+            EXT_FLAGS="${EXT_FLAGS} -d extension=${PDO_FBIRD_PATH}"
           fi
 
           # Check for pcntl extension (built as shared with our custom PHP)
           PCNTL_SO=$(find /opt/php-tsan -name "pcntl.so" 2>/dev/null | head -1 || true)
           if [ -n "$PCNTL_SO" ]; then
-            export PHP_TEST_SHARED_EXTENSIONS="${PHP_TEST_SHARED_EXTENSIONS} -d extension=${PCNTL_SO}"
+            EXT_FLAGS="${EXT_FLAGS} -d extension=${PCNTL_SO}"
           fi
 
-          make test TESTS=tests/ 2>&1 | tee tsan_output.txt || true
+          php run-tests.php ${EXT_FLAGS} \
+            -p "$(which php)" \
+            --set-timeout 15 \
+            tests/ 2>&1 | tee tsan_output.txt || true
 
           # Report TSan-detected races as warnings
           if grep -q "WARNING: ThreadSanitizer:" tsan_output.txt; then

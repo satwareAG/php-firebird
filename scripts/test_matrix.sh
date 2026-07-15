@@ -145,30 +145,25 @@ clean_test_environment() {
             bash -c "pkill -9 -f 'php.*firebird' 2>/dev/null || true" \
             2>/dev/null || true
     fi
-    # Clean leftover .fdb files AND .fbk backup files on all Firebird server containers.
-    # Orphaned processes hold locks on .fdb files, preventing DROP DATABASE.
-    # Stale .fbk files from service_backup_restore.phpt cause "file exists" errors
-    # and PID reuse can make restore targets collide across containers.
-    # Also kill orphaned Firebird service processes (fb_inet_server) that may still
-    # be processing async backup/maintenance operations from the previous container.
+    # Clean leftover .fdb AND .fbk backup files on all Firebird server containers.
+    # .fdb: orphaned processes hold locks, preventing DROP DATABASE.
+    # .fbk: stale backup files from service_backup_restore.phpt cause "file exists"
+    # errors and PID reuse can make restore targets collide across containers.
     for fb in firebird30 firebird40 firebird50; do
         if [ -n "$(docker compose ps -q "$fb" 2>/dev/null)" ]; then
             docker compose exec -u root "$fb" \
                 bash -c "rm -f /tmp/*.fdb /tmp/*.fbk 2>/dev/null || true" \
                 2>/dev/null || true
-            # Kill orphaned Firebird service worker processes left by async
-            # backup/maintenance operations. These hold the service manager busy,
-            # causing "Service is currently busy" or segfaults in the next container.
-            # jane: firebird main process (pid 1) must survive — only kill children.
-            docker compose exec -u root "$fb" \
-                bash -c 'pkill -9 -f "fb_inet_server.*service" 2>/dev/null; pkill -9 -f "fbguard" 2>/dev/null && sleep 1 && /usr/sbin/fbguard -daemon -forever 2>/dev/null || true' \
-                2>/dev/null || true
         fi
     done
-    # Settle delay: give Firebird servers time to release locks and clean up
-    # internal state after killing orphaned processes. Without this, the next
-    # container's CREATE DATABASE can fail with "metadata lock conflict".
-    sleep 2
+    # Settle delay: give Firebird servers time to finish async service operations
+    # (backup/restore/maintenance) from the previous container and release internal
+    # locks. The service tests now use verbose=true or per-operation attach/detach
+    # + usleep, so they should not leave operations running. This delay is a safety
+    # net for any residual async work. 3s is enough for the tiny test database.
+    # jane: do NOT kill fbguard or fb_inet_server — that risks stopping the Firebird
+    # container (fbguard is often PID 1) and breaking depends_on for all PHP containers.
+    sleep 3
 }
 
 for CONTAINER in "${TARGETS[@]}"; do

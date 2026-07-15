@@ -17,21 +17,39 @@ $new_user = 'PHP_TEST_USR';
 $new_pass = 'pw123456';
 $mod_pass = 'pw654321';
 
-// 1. Attach
-$service = fbird_service_attach($host, $user, $password);
-if (!$service) die("Skip: Check service connection");
+// Firebird service API: fbird_add_user / fbird_modify_user / fbird_delete_user
+// are fire-and-forget (fbsvc_start returns immediately). Sequential operations
+// on a shared handle cause "Service is currently busy" races.
+// Fix: per-operation attach/detach + usleep so the server can finish.
+function svc($host, $user, $password) {
+    for ($i = 0; $i < 3; $i++) {
+        $s = @fbird_service_attach($host, $user, $password);
+        if ($s) return $s;
+        usleep(500000);
+    }
+    die("ERROR: cannot attach to service\n");
+}
 
-// Cleanup (just in case)
-@fbird_delete_user($service, $new_user);
+// Cleanup (just in case) - use a fresh handle
+$s = svc($host, $user, $password);
+@fbird_delete_user($s, $new_user);
+fbird_service_detach($s);
+usleep(200000);
 
 // 2. Add User
 echo "--- Add User ---\n";
-$res = fbird_add_user($service, $new_user, $new_pass, 'Test', 'Middle', 'User');
+$s = svc($host, $user, $password);
+$res = fbird_add_user($s, $new_user, $new_pass, 'Test', 'Middle', 'User');
+fbird_service_detach($s);
+usleep(200000);
 var_dump($res);
 
 // 3. Verify User Exists
 echo "--- Verify User ---\n";
-$users = fbird_server_info($service, FBIRD_SVC_GET_USERS);
+$s = svc($host, $user, $password);
+$users = fbird_server_info($s, FBIRD_SVC_GET_USERS);
+fbird_service_detach($s);
+usleep(200000);
 $found = false;
 foreach ($users as $u) {
     if ($u['user_name'] === $new_user) {
@@ -44,11 +62,17 @@ var_dump($found);
 
 // 4. Modify User
 echo "--- Modify User ---\n";
-$res = fbird_modify_user($service, $new_user, $mod_pass, 'TestMod');
+$s = svc($host, $user, $password);
+$res = fbird_modify_user($s, $new_user, $mod_pass, 'TestMod');
+fbird_service_detach($s);
+usleep(200000);
 var_dump($res);
 
 // 5. Verify Modification
-$users = fbird_server_info($service, FBIRD_SVC_GET_USERS);
+$s = svc($host, $user, $password);
+$users = fbird_server_info($s, FBIRD_SVC_GET_USERS);
+fbird_service_detach($s);
+usleep(200000);
 foreach ($users as $u) {
     if ($u['user_name'] === $new_user) {
         var_dump($u['first_name']);
@@ -58,11 +82,16 @@ foreach ($users as $u) {
 
 // 6. Delete User
 echo "--- Delete User ---\n";
-$res = fbird_delete_user($service, $new_user);
+$s = svc($host, $user, $password);
+$res = fbird_delete_user($s, $new_user);
+fbird_service_detach($s);
+usleep(200000);
 var_dump($res);
 
 // 7. Verify Deletion
-$users = fbird_server_info($service, FBIRD_SVC_GET_USERS);
+$s = svc($host, $user, $password);
+$users = fbird_server_info($s, FBIRD_SVC_GET_USERS);
+fbird_service_detach($s);
 $found = false;
 foreach ($users as $u) {
     if ($u['user_name'] === $new_user) {
@@ -71,8 +100,6 @@ foreach ($users as $u) {
     }
 }
 var_dump($found);
-
-fbird_service_detach($service);
 ?>
 --EXPECT--
 --- Add User ---

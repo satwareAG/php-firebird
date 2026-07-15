@@ -6,8 +6,21 @@ Service: Full validate -> mend -> re-validate cycle (OC-10)
 <?php
 require("firebird.inc");
 
-$service = fbird_service_attach($host, $user, $password);
-if (!$service) die("Skip: Check service connection");
+// Firebird service API: fbird_maintain_db() is fire-and-forget. Sequential
+// operations on a shared handle cause "Service is currently busy" races.
+// Fix: per-operation attach/detach + usleep so the server can finish.
+function svc_op($host, $user, $password, $db_path, $action, $arg = 0) {
+    for ($i = 0; $i < 3; $i++) {
+        $s = @fbird_service_attach($host, $user, $password);
+        if ($s) break;
+        usleep(500000);
+    }
+    if (!$s) die("ERROR: cannot attach to service\n");
+    $r = @fbird_maintain_db($s, $db_path, $action, $arg);
+    fbird_service_detach($s);
+    usleep(200000);
+    return $r;
+}
 
 $db_path = $test_base;
 if (!empty($host) && strpos($test_base, $host . ':') === 0) {
@@ -16,20 +29,19 @@ if (!empty($host) && strpos($test_base, $host . ':') === 0) {
 
 // Step 1: Validate DB (check for errors)
 echo "--- Step 1: Validate DB ---\n";
-$res = fbird_maintain_db($service, $db_path, FBIRD_RPR_VALIDATE_DB, FBIRD_RPR_FULL);
+$res = svc_op($host, $user, $password, $db_path, FBIRD_RPR_VALIDATE_DB, FBIRD_RPR_FULL);
 var_dump($res);
 
 // Step 2: Mend DB (repair any errors found)
 echo "--- Step 2: Mend DB ---\n";
-$res = fbird_maintain_db($service, $db_path, FBIRD_RPR_MEND_DB, FBIRD_RPR_FULL);
+$res = svc_op($host, $user, $password, $db_path, FBIRD_RPR_MEND_DB, FBIRD_RPR_FULL);
 var_dump($res);
 
 // Step 3: Re-validate DB (confirm no remaining errors)
 echo "--- Step 3: Re-validate DB ---\n";
-$res = fbird_maintain_db($service, $db_path, FBIRD_RPR_VALIDATE_DB, FBIRD_RPR_FULL);
+$res = svc_op($host, $user, $password, $db_path, FBIRD_RPR_VALIDATE_DB, FBIRD_RPR_FULL);
 var_dump($res);
 
-fbird_service_detach($service);
 echo "done\n";
 ?>
 --EXPECT--

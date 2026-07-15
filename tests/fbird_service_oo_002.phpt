@@ -42,21 +42,21 @@ function svc_attach($host, $user, $password) {
     die("ERROR: cannot attach to service\n");
 }
 
-// 1. Backup
+// 1. Backup (verbose=true blocks until server finishes the backup)
 $s = svc_attach($host, $user, $password);
-$r = fbird_backup($s, $db_path, $bakfile, 0, false);
+$r = fbird_backup($s, $db_path, $bakfile, 0, true);
 fbird_service_detach($s);
 var_dump($r === true || is_string($r));
 
 // 2. Restore (dest_db is arg2, backup_file is arg3)
 $s = svc_attach($host, $user, $password);
-$r = @fbird_restore($s, $restoredb, $bakfile, FBIRD_RES_CREATE, false);
+$r = @fbird_restore($s, $restoredb, $bakfile, FBIRD_RES_CREATE, true);
 fbird_service_detach($s);
 var_dump($r === true || $r === false || is_string($r));
 
 // 3. Restore REPLACE (overwrite)
 $s = svc_attach($host, $user, $password);
-$r = fbird_restore($s, $restoredb, $bakfile, FBIRD_RES_REPLACE, false);
+$r = fbird_restore($s, $restoredb, $bakfile, FBIRD_RES_REPLACE, true);
 fbird_service_detach($s);
 var_dump($r === true || is_string($r));
 

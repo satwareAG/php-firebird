@@ -38,6 +38,9 @@ paths = [
     '''scripts/morning-health-check\.sh''',
     '''NEXT_STEPS\.md''',
     '''docs/UPSTREAM_ISSUE_ANALYSIS\.md''',
+    # Accidental docs/sql-reference/ dir contained SQL examples that triggered
+    # false private-key PEM regex match (deleted in commit 313321c, still in history)
+    '''docs/sql-reference/.*''',
     # Test files use known Firebird credentials (masterkey/klopf) against local Docker
     '''tests/.*\.phpt$''',
     '''tests/.*\.inc$''',

@@ -1204,7 +1204,6 @@ PHP_FUNCTION(fbird_blob_export)
 	zval *link_arg, *blob_id_arg;
 	char *filename;
 	size_t filename_len;
-	fbird_db_link *link;
 
 	RESET_ERRMSG;
 

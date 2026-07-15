@@ -372,7 +372,6 @@ PHP_FUNCTION(fbird_error_list)
 
 	/* Iterate status vector entries */
 	const ISC_STATUS *p = status;
-	char buf[MAX_ERRMSG];
 	while (*p != isc_arg_end) {
 		char msg[512] = {0};
 		if (fb_interpret(msg, sizeof(msg), &p)) {

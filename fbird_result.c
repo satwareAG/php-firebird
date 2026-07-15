@@ -1022,6 +1022,7 @@ PHP_FUNCTION(fbird_fetch_object)
 	zval *ctor_args = NULL;
 	fbird_query *fb_query;
 	int fetch_type = FETCH_ARRAY;
+	int flag = 0;
 	zend_string *class_name = NULL;
 
 	RESET_ERRMSG;
@@ -1037,11 +1038,11 @@ PHP_FUNCTION(fbird_fetch_object)
 		if (Z_TYPE_P(arg2) == IS_STRING) {
 			class_name = Z_STR_P(arg2);
 		} else if (Z_TYPE_P(arg2) == IS_LONG) {
-			fetch_type = (int)Z_LVAL_P(arg2);
+			flag = (int)Z_LVAL_P(arg2);
 		}
 	}
 
-	_php_fbird_fetch_hash_query(fb_query, fetch_type, 0, return_value);
+	_php_fbird_fetch_hash_query(fb_query, fetch_type, flag, return_value);
 
 	if (Z_TYPE_P(return_value) == IS_ARRAY) {
 		if (class_name && ZSTR_LEN(class_name) > 0) {

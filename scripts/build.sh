@@ -17,6 +17,13 @@ find . -name '*.dep' -delete 2>/dev/null || true
 find . -name '*.lo' -delete 2>/dev/null || true
 rm -rf .libs pdo_fbird/.libs 2>/dev/null || true
 
+# Force-remove stale .so files BEFORE cleaning the Makefile.
+# The /ext directory is a shared bind mount across all 12 Docker containers.
+# If a previous container (e.g. PHP 8.5, API 20250925) left modules/firebird.so
+# and the new build fails partway, the stale binary causes "Module compiled with
+# module API mismatch" warnings → extension fails to load → all tests SKIP silently.
+rm -f modules/firebird.so pdo_fbird/modules/pdo_fbird.so 2>/dev/null || true
+
 if [ -f Makefile ]; then
     make clean 2>/dev/null || true
     phpize --clean 2>/dev/null || true

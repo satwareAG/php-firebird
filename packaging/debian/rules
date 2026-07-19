@@ -25,7 +25,11 @@ FB_ROOT ?= /opt/firebird
 #       /usr/local/lib/php/extensions/no-debug-non-zts-20240924), but
 #       the .deb package should use the Debian path (/usr/lib/php/20240924/).
 #       We extract just the API version number and construct the Debian path.
-PHP_API_VERSION := $(shell $${PHPCONFIG:-php-config} --extension-dir 2>/dev/null | grep -oE '[0-9]+$$' || echo $(PHP_VERSION))
+#       Error if php-config is not available (don't silently fall back to wrong path).
+PHP_API_VERSION := $(shell $${PHPCONFIG:-php-config} --extension-dir 2>/dev/null | grep -oE '[0-9]+$$')
+ifeq ($(strip $(PHP_API_VERSION)),)
+$(error Could not determine PHP API version via php-config --extension-dir. Is php-dev installed?)
+endif
 EXT_DIR := /usr/lib/php/$(PHP_API_VERSION)
 
 %:

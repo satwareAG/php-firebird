@@ -17,7 +17,6 @@
 #   --distros bookworm,noble   Comma-separated distros (default: all)
 #   --archs x86_64             Comma-separated archs (default: all)
 #   --output-dir dist/deb      Output directory (default: dist/deb)
-#   --parallel 4               Max parallel builds (default: nproc)
 #   --verbose                  Verbose output
 #   --help                     Show this help
 #
@@ -36,7 +35,6 @@ PHP_VERSIONS="8.2,8.3,8.4,8.5"
 DISTROS="bookworm,trixie,jammy,noble"
 ARCHS="x86_64,aarch64"
 OUTPUT_DIR="dist/deb"
-PARALLEL="${PARALLEL:-$(nproc 2>/dev/null || echo 4)}"
 VERBOSE=0
 
 # -----------------------------------------------------------------------------
@@ -68,8 +66,6 @@ while [ $# -gt 0 ]; do
         --archs=*) ARCHS="${1#--archs=}"; shift ;;
         --output-dir) OUTPUT_DIR="$2"; shift 2 ;;
         --output-dir=*) OUTPUT_DIR="${1#--output-dir=}"; shift ;;
-        --parallel) PARALLEL="$2"; shift 2 ;;
-        --parallel=*) PARALLEL="${1#--parallel=}"; shift ;;
         --verbose|-v) VERBOSE=1; shift ;;
         --help|-h) usage ;;
         *) echo "ERROR: Unknown argument: $1" >&2; exit 1 ;;
@@ -101,7 +97,6 @@ log_info "  PHP versions: ${PHP_VERSIONS}"
 log_info "  Distros:       ${DISTROS}"
 log_info "  Architectures: ${ARCHS}"
 log_info "  Total packages: $TOTAL"
-log_info "  Parallel: $PARALLEL"
 log_info "  Output: $OUTPUT_DIR"
 echo ""
 
@@ -158,7 +153,7 @@ build_package() {
         return 1
     fi
 
-    local deb_name="php${php_ver//./}-firebird_$(cat VERSION.txt 2>/dev/null || echo 0.0.0)-1_$(echo $arch | sed 's/x86_64/amd64/;s/aarch64/arm64/').deb"
+    local deb_name="php${php_ver}-firebird_$(cat VERSION.txt 2>/dev/null || echo 0.0.0)-1_$(echo $arch | sed 's/x86_64/amd64/;s/aarch64/arm64/').deb"
     local deb_path="${OUTPUT_DIR}/${deb_name}"
 
     # Skip if already built
@@ -249,7 +244,7 @@ generate_apt_metadata() {
             # Copy .deb files for this distro+arch
             local deb_files=()
             for php_ver in "${PHP_VER_LIST[@]}"; do
-                local pattern="${OUTPUT_DIR}/php${php_ver//./}-firebird_*_${deb_arch}.deb"
+                local pattern="${OUTPUT_DIR}/php${php_ver}-firebird_*_${deb_arch}.deb"
                 for f in $pattern; do
                     [ -f "$f" ] && deb_files+=("$f")
                 done

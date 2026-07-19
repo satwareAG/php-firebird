@@ -144,6 +144,7 @@ PHP_METHOD(FirebirdBlob, open)
 	 *       The %08x:%08x sscanf pattern accepts any length hex, so the check
 	 *       only needs to enforce minimum length (13 = 8+1+4).
 	 */
+	ISC_QUAD blob_id;
 	if (id_len < 13 || sscanf(id_str, "%08x:%08x",
 			(unsigned *)&blob_id.gds_quad_high,
 			(unsigned *)&blob_id.gds_quad_low) != 2) {

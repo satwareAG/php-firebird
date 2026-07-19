@@ -1497,9 +1497,12 @@ PHP_FUNCTION(fbird_reconnect_transaction)
 	fb_trans->db_link[0] = fb_link;
 
 	/* Link into connection's transaction list */
-	/* jane: fixed #523 - was allocating a spurious empty head node with trans=NULL
-	 * when tr_list was NULL, then appending the real transaction as a second node.
-	 * Now just appends directly (no placeholder needed). */
+	if (fb_link->tr_list == NULL) {
+		fb_link->tr_list = (fbird_tr_list *)emalloc(sizeof(fbird_tr_list));
+		fb_link->tr_list->trans = NULL;
+		fb_link->tr_list->next = NULL;
+	}
+
 	fbird_tr_list **l;
 	for (l = &fb_link->tr_list; *l != NULL; l = &(*l)->next);
 	*l = (fbird_tr_list *)emalloc(sizeof(fbird_tr_list));

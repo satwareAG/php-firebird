@@ -364,6 +364,14 @@ PHP_FUNCTION(fbird_trans_start)
 	fb_trans->affected_rows = 0;
 	fb_trans->db_link[0] = fb_link;
 
+	/* the first item in the connection-transaction list is reserved for the default transaction */
+	if (fb_link->tr_list == NULL) {
+		fb_link->tr_list = (fbird_tr_list *) emalloc(sizeof(fbird_tr_list));
+		fb_link->tr_list->trans = NULL;
+		fb_link->tr_list->next = NULL;
+	}
+
+	/* link the transaction into the connection-transaction list */
 	fbird_tr_list **l;
 	for (l = &fb_link->tr_list; *l != NULL; l = &(*l)->next);
 	*l = (fbird_tr_list *) emalloc(sizeof(fbird_tr_list));

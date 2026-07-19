@@ -1,0 +1,21 @@
+# Install file mappings for php-firebird
+# The debian/rules override_dh_auto_install target copies files to debian/tmp/
+# This file tells dh_install to move them to the final package locations.
+#
+# Since rules already installs to the correct paths relative to debian/tmp/,
+# dh_install is not strictly needed - the files are already in place.
+# This file exists to satisfy debhelper's expectations.
+
+# Extension .so files (installed by rules to debian/tmp/$(EXT_DIR)/)
+# dh_install picks them up automatically based on the directory structure.
+
+# OO API PHP class files
+usr/share/php/Firebird/*.php usr/share/php/Firebird/
+usr/share/php/Firebird/autoload.php usr/share/php/Firebird/
+
+# Bundled FB5 client libraries
+usr/lib/php-firebird/*.so* usr/lib/php-firebird/
+
+# INI files
+etc/php/*/mods-available/20-firebird.ini etc/php/*/mods-available/
+etc/php/*/mods-available/20-pdo_fbird.ini etc/php/*/mods-available/

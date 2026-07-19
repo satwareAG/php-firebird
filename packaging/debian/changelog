@@ -1,0 +1,11 @@
+php-firebird (13.0.0-1) unstable; urgency=low
+
+  * Initial Debian packaging
+  * Bundled Firebird 5.0 client library (FB4+ code paths always enabled)
+  * RPATH $ORIGIN/../../php-firebird for bundled lib resolution
+  * Provides: php-firebird, php-pdo-fbird
+  * Conflicts: php{VERSION}-interbase (legacy FirebirdSQL/php-firebird)
+  * Supports: PHP 8.2, 8.3, 8.4, 8.5
+  * Architectures: amd64, arm64
+
+ -- satware AG <info@satware.com>  Sat, 19 Jul 2026 13:00:00 +0200

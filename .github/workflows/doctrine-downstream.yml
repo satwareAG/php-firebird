@@ -38,12 +38,17 @@ jobs:
       fail-fast: false
       matrix:
         # v3.14.0: production pin from amicron-platform release/3.0.0-rc.2 composer.lock
-        # main: future development (informational — continue-on-error)
-        doctrine-ref: ['v3.14.0', 'main']
+        #   NOTE: Fails with ext-firebird v13 due to ^12.0 constraint.
+        #   Tracked in doctrine-firebird-driver issue #131.
+        #   Once driver v3.18.0+ is released, update this to the new tag.
+        # 4.4.x: default branch (DBAL 4.x) — accepts ext-firebird * constraint.
+        #   Tests forward compatibility with the driver's development branch.
+        doctrine-ref: ['v3.14.0', '4.4.x']
         php-version: ['8.4']
 
-    # Allow 'main' ref to fail without blocking the PR
-    continue-on-error: ${{ matrix.doctrine-ref == 'main' }}
+    # v3.14.0 expected to fail with ext-firebird v13 (constraint mismatch).
+    # Tracked in doctrine-firebird-driver#131. Update to new tag when available.
+    continue-on-error: ${{ matrix.doctrine-ref == 'v3.14.0' }}
 
     services:
       firebird:

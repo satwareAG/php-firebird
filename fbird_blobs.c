@@ -897,7 +897,10 @@ PHP_FUNCTION(fbird_blob_echo)
 			}
 		} while (result == 0 || result == 2);  /* 0 = success with more, 2 = segment */
 
-		if (result < 0 && result != 1) {  /* 1 = EOF is OK */
+		/* jane: fixed #524 - was `result < 0 && result != 1` but result < 0
+		 * already excludes result == 1, making `&& result != 1` dead code.
+		 * Simplified to just `result < 0` (error; 0=more, 1=EOF, 2=segment boundary). */
+		if (result < 0) {
 			fbb_close(FBG(master_instance), fb_blob_id.fbb_blob, status);
 			fbb_free(fb_blob_id.fbb_blob);
 			break;

@@ -92,7 +92,7 @@ public:
         }
 
         m_master = master;
-        Firebird::CheckStatusWrapper status(master->getStatus());
+        fb::CheckStatusScope status(master);
 
         try {
             Firebird::IProvider* provider = master->getDispatcher();
@@ -102,14 +102,14 @@ public:
             }
 
             m_service = provider->attachServiceManager(
-                &status,
+                status.get(),
                 service_name,
                 spb_length,
                 spb
             );
 
-            if (status.hasData()) {
-                copy_status_to_sv(status_vector, &status);
+            if (status.get()->hasData()) {
+                copy_status_to_sv(status_vector, status.get());
                 m_service = nullptr;
                 return false;
             }
@@ -138,11 +138,11 @@ public:
             return false;
         }
 
-        Firebird::CheckStatusWrapper status(m_master->getStatus());
+        fb::CheckStatusScope status(m_master);
         try {
-            m_service->detach(&status);
-            if (status.hasData()) {
-                copy_status_to_sv(status_vector, &status);
+            m_service->detach(status.get());
+            if (status.get()->hasData()) {
+                copy_status_to_sv(status_vector, status.get());
                 return false;
             }
             m_service = nullptr;
@@ -169,11 +169,11 @@ public:
             return false;
         }
 
-        Firebird::CheckStatusWrapper status(m_master->getStatus());
+        fb::CheckStatusScope status(m_master);
         try {
-            m_service->start(&status, spb_length, spb);
-            if (status.hasData()) {
-                copy_status_to_sv(status_vector, &status);
+            m_service->start(status.get(), spb_length, spb);
+            if (status.get()->hasData()) {
+                copy_status_to_sv(status_vector, status.get());
                 return false;
             }
             return true;
@@ -205,12 +205,12 @@ public:
             return false;
         }
 
-        Firebird::CheckStatusWrapper status(m_master->getStatus());
+        fb::CheckStatusScope status(m_master);
         try {
-            m_service->query(&status, send_length, send_items,
+            m_service->query(status.get(), send_length, send_items,
                             recv_length, recv_items, buffer_length, buffer);
-            if (status.hasData()) {
-                copy_status_to_sv(status_vector, &status);
+            if (status.get()->hasData()) {
+                copy_status_to_sv(status_vector, status.get());
                 return false;
             }
             return true;

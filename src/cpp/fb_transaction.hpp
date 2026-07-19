@@ -185,19 +185,18 @@ inline Transaction Transaction::start(
         throw Exception("Attachment is null - cannot start transaction");
     }
 
-    // Create CheckStatusWrapper for start operation
-    Firebird::IStatus* raw_status = master->getStatus();
-    Firebird::CheckStatusWrapper check_status(raw_status);
+    // jane: fixed #513 - was leaking IStatus via CheckStatusWrapper, now uses CheckStatusScope (RAII)
+    fb::CheckStatusScope status(master);
 
     // Start transaction using OO API
     Firebird::ITransaction* raw_transaction = attachment->startTransaction(
-        &check_status,
+        status.get(),
         tpbLength,
         tpb
     );
 
-    if (fb::statusHasError(raw_status) || !raw_transaction) {
-        throw Exception(raw_status);
+    if (status.hasError() || !raw_transaction) {
+        throw Exception(status.status());
     }
 
     // Wrap in RAII pointer
@@ -266,14 +265,13 @@ inline void Transaction::commit() {
         return;
     }
 
-    Firebird::IStatus* raw_status = master->getStatus();
-    Firebird::CheckStatusWrapper check_status(raw_status);
-    transaction_->commit(&check_status);
+    fb::CheckStatusScope status(master);
+    transaction_->commit(status.get());
 
-    if (fb::statusHasError(raw_status)) {
+    if (status.hasError()) {
         last_status_ = StatusWrapper(master);
-        last_status_.get()->setErrors(raw_status->getErrors());
-        throw Exception(raw_status);
+        last_status_.get()->setErrors(status.status()->getErrors());
+        throw Exception(status.status());
     }
 
     transaction_.reset();
@@ -291,14 +289,13 @@ inline void Transaction::rollback() {
         return;
     }
 
-    Firebird::IStatus* raw_status = master->getStatus();
-    Firebird::CheckStatusWrapper check_status(raw_status);
-    transaction_->rollback(&check_status);
+    fb::CheckStatusScope status(master);
+    transaction_->rollback(status.get());
 
-    if (fb::statusHasError(raw_status)) {
+    if (status.hasError()) {
         last_status_ = StatusWrapper(master);
-        last_status_.get()->setErrors(raw_status->getErrors());
-        throw Exception(raw_status);
+        last_status_.get()->setErrors(status.status()->getErrors());
+        throw Exception(status.status());
     }
 
     transaction_.reset();
@@ -313,14 +310,13 @@ inline void Transaction::commitRetaining() {
         throw Exception("Master interface not available");
     }
 
-    Firebird::IStatus* raw_status = master_->getStatus();
-    Firebird::CheckStatusWrapper check_status(raw_status);
-    transaction_->commitRetaining(&check_status);
+    fb::CheckStatusScope status(master_);
+    transaction_->commitRetaining(status.get());
 
-    if (fb::statusHasError(raw_status)) {
+    if (status.hasError()) {
         last_status_ = StatusWrapper(master_);
-        last_status_.get()->setErrors(raw_status->getErrors());
-        throw Exception(raw_status);
+        last_status_.get()->setErrors(status.status()->getErrors());
+        throw Exception(status.status());
     }
     // Transaction remains active after retaining commit
 }
@@ -334,14 +330,13 @@ inline void Transaction::rollbackRetaining() {
         throw Exception("Master interface not available");
     }
 
-    Firebird::IStatus* raw_status = master_->getStatus();
-    Firebird::CheckStatusWrapper check_status(raw_status);
-    transaction_->rollbackRetaining(&check_status);
+    fb::CheckStatusScope status(master_);
+    transaction_->rollbackRetaining(status.get());
 
-    if (fb::statusHasError(raw_status)) {
+    if (status.hasError()) {
         last_status_ = StatusWrapper(master_);
-        last_status_.get()->setErrors(raw_status->getErrors());
-        throw Exception(raw_status);
+        last_status_.get()->setErrors(status.status()->getErrors());
+        throw Exception(status.status());
     }
     // Transaction remains active after retaining rollback
 }
@@ -355,10 +350,9 @@ inline bool Transaction::rollbackNoThrow() noexcept {
         /* Issue #295: Use getMaster() instead of cached master_ (mirrors 881d375). */
         Firebird::IMaster* master = getMaster();
         if (master) {
-            Firebird::IStatus* raw_status = master->getStatus();
-            Firebird::CheckStatusWrapper check_status(raw_status);
-            transaction_->rollback(&check_status);
-            if (fb::statusHasError(raw_status)) {
+            fb::CheckStatusScope status(master);
+            transaction_->rollback(status.get());
+            if (status.hasError()) {
                 transaction_.reset();
                 return false;
             }

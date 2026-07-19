@@ -213,26 +213,35 @@ void php_fbird_blobs_minit(INIT_FUNC_ARGS)
 
 int _php_fbird_string_to_quad(char const *id, ISC_QUAD *qd)
 {
-	/* Parse format "HHHHHHHH:LLLL" (8 hex digits : 4 hex digits)
-	 * Example: "74292B00:7FFC"
+	/* Parse format "HHHHHHHH:LLLLLLLL" (8 hex digits : 8 hex digits)
+	 * Example: "74292B00:00007FFC" (17 characters total)
+	 * Also accepts shorter low part (e.g. "74292B00:7FFC") via %x lenient parsing.
+	 * jane: fixed #516 - was %hx (16-bit truncation), now %x (full 32-bit low part)
 	 */
 	unsigned int high_part;
-	unsigned short low_part;
+	unsigned int low_part;
 
-	if (sscanf(id, "%x:%hx", &high_part, &low_part) == 2) {
+	if (sscanf(id, "%x:%x", &high_part, &low_part) == 2) {
 		qd->gds_quad_high = (ISC_LONG)high_part;
-		qd->gds_quad_low = (ISC_USHORT)low_part;
+		qd->gds_quad_low = (ISC_ULONG)low_part;
 		return 1;
 	}
 
 	return 0;
 }
 
+	return 0;
+}
+
 zend_string *_php_fbird_quad_to_string(ISC_QUAD const qd)
 {
-	/* Format: "HHHHHHHH:LLLL" (8 hex digits : 4 hex digits) for batch API compatibility
-	 * Example: "74292B00:7FFC" (13 characters total) */
-	return strpprintf(0, "%08x:%04hx", qd.gds_quad_high, (unsigned short)qd.gds_quad_low);
+	/* Format: "HHHHHHHH:LLLLLLLL" (8 hex digits : 8 hex digits) for OOP/PDO interop
+	 * Example: "74292B00:00007FFC" (17 characters total)
+	 * jane: fixed #516 - was %08x:%04hx (13 chars, truncated 32-bit low to 16-bit),
+	 *       now %08x:%08x (17 chars, matches fbird_class_blob.c and pdo_fbird_stmt.c)
+	 * gds_quad_low is ISC_ULONG (32-bit unsigned), per firebird/impl/types_pub.h:194
+	 */
+	return strpprintf(0, "%08x:%08x", qd.gds_quad_high, (unsigned int)qd.gds_quad_low);
 }
 
 typedef struct {

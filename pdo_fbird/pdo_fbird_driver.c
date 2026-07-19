@@ -459,7 +459,11 @@ static int _pdo_fbird_service_ensure_attached(pdo_dbh_t *dbh)
 static char *_pdo_fbird_service_query_line(pdo_dbh_t *dbh, char info_action)
 {
 	pdo_fbird_db_handle *H = (pdo_fbird_db_handle *)dbh->driver_data;
-	static char spb[] = { isc_info_svc_timeout, 10, 0, 0, 0 };
+	/* jane: fixed #519 - SPB cluster format is item(1) + length(2 LE) + value(length bytes).
+	 * Was: { isc_info_svc_timeout, 10, 0, 0, 0 } — length=10 but only 3 bytes follow → buffer overread.
+	 * Now: { isc_info_svc_timeout, 4,0, 10,0,0,0 } — length=4, value=10 (LE int32) = 10 second timeout.
+	 */
+	static const unsigned char spb[] = { isc_info_svc_timeout, 4, 0, 10, 0, 0, 0 };
 	char res_buf[512];
 
 	if (!fbsvc_query(FBG(master_instance), H->fbsvc_service,
@@ -504,7 +508,8 @@ static char *_pdo_fbird_service_query_line(pdo_dbh_t *dbh, char info_action)
 static char *_pdo_fbird_service_query_lines(pdo_dbh_t *dbh)
 {
 	pdo_fbird_db_handle *H = (pdo_fbird_db_handle *)dbh->driver_data;
-	static char spb[] = { isc_info_svc_timeout, 10, 0, 0, 0 };
+	/* jane: fixed #519 - same SPB fix as _pdo_fbird_service_query_line above */
+	static const unsigned char spb[] = { isc_info_svc_timeout, 4, 0, 10, 0, 0, 0 };
 	char info_action = isc_info_svc_line;
 	char res_buf[4096];
 	smart_str output = {0};

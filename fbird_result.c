@@ -1049,9 +1049,30 @@ PHP_FUNCTION(fbird_fetch_object)
 			zend_class_entry *ce = zend_lookup_class(class_name);
 			if (ce) {
 				/* Create object and copy array properties into it */
-				zval obj;
-				object_init_ex(&obj, ce);
-				zval *val;
+			zval obj;
+			object_init_ex(&obj, ce);
+			/* jane: fixed #522 - call constructor with ctor_args if provided */
+			if (ctor_args && Z_TYPE_P(ctor_args) == IS_ARRAY) {
+				uint32_t num_args = zend_hash_num_elements(Z_ARRVAL_P(ctor_args));
+				if (num_args > 0) {
+					zend_function *constructor = Z_OBJCE(obj)->constructor;
+					if (constructor) {
+						zval *args = safe_emalloc(num_args, sizeof(zval), 0);
+						zval *src;
+						uint32_t i = 0;
+						ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(ctor_args), src) {
+							ZVAL_COPY(&args[i], src);
+							i++;
+						} ZEND_HASH_FOREACH_END();
+						zend_call_known_instance_method(constructor, Z_OBJ(obj), NULL, num_args, args);
+						for (i = 0; i < num_args; i++) {
+							zval_ptr_dtor(&args[i]);
+						}
+						efree(args);
+					}
+				}
+			}
+			zval *val;
 				zend_string *key;
 				ZEND_HASH_FOREACH_STR_KEY_VAL(Z_ARRVAL_P(return_value), key, val) {
 					if (key) {

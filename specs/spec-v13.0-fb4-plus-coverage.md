@@ -234,7 +234,7 @@ spec (`spec-v13.1-fb6-coverage.md` or similar) will cover:
 |-------|-------|--------|
 | #327 | spec: write this file (this spec) | **Done** |
 | #419 | feat: FB4 TIME/TIMESTAMP WITH TIME ZONE | **Done** (P1) |
-| #417 | feat: FB4 DECFLOAT(16/34) native type support | Test coverage done — native type TODO (P2) |
+| #417 | feat: FB4 DECFLOAT(16/34) native type support | **Done** (PR #475, native `Firebird\DecFloat` class) |
 | #418 | feat: FB4 INT128 native type support | **Done** (P2) |
 | #420 | feat: FB4 SET BIND rule coverage (all rules) | **Done** (P3) |
 | #426 | feat: FB5 scrollable cursors (6 orientations) | **Done** (P4) |
@@ -249,12 +249,15 @@ spec (`spec-v13.1-fb6-coverage.md` or similar) will cover:
 
 ### Deferred (7 issues - blocked on FB6 Docker image)
 
+All 7 issues closed in `v14.0.0 - FB6+ Feature Coverage` milestone. Implementation
+deferred until Firebird 6.0 is released (no official Docker image or client headers).
+
 | Issue | Title | Status |
 |-------|-------|--------|
-| #314 | ci: add firebird60 Docker service | Open |
-| #429 | feat: FB6 schemas | Open |
-| #430 | feat: FB6 inline blob transfer | Open |
-| #431 | feat: FB6 range-based FOR loop + GENERATE_SERIES() + TVFs | Open |
-| #432 | feat: FB6 named/default procedure arguments | Open |
-| #433 | feat: FB6 WITHIN GROUP ORDER BY + custom aggregate UDR | Open |
-| #434 | feat: FB6 IUtil::executeCreateDatabase2 with DPB | Open |
+| #314 | ci: add firebird60 Docker service | Closed (deferred to v14.0.0) |
+| #429 | feat: FB6 schemas | Closed (deferred to v14.0.0) |
+| #430 | feat: FB6 inline blob transfer | Closed (deferred to v14.0.0) |
+| #431 | feat: FB6 range-based FOR loop + GENERATE_SERIES() + TVFs | Closed (deferred to v14.0.0) |
+| #432 | feat: FB6 named/default procedure arguments | Closed (deferred to v14.0.0) |
+| #433 | feat: FB6 WITHIN GROUP ORDER BY + custom aggregate UDR | Closed (deferred to v14.0.0) |
+| #434 | feat: FB6 IUtil::executeCreateDatabase2 with DPB | Closed (deferred to v14.0.0) |

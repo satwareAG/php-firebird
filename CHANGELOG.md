@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [13.0.0] - 2026-07-19
+
+### v13.0.0 — Stable Release
+
+**Focus**: FB4+/FB5+ feature coverage, DECFLOAT native type, per-connection error
+context, procedural parity functions, and CI stability fixes. Production-ready
+release with full test matrix passing (PHP 8.2-8.5 x FB 3.0/4.0/5.0).
+
+#### Changed (since v13.0.0-rc.2)
+
+- **Service attach test fix**: Replaced hardcoded `"localhost"` with
+  `getenv('FIREBIRD_HOST') ?: 'localhost'` in 3 client_coverage tests
+  (`client_iservice.phpt`, `client_iutil.phpt`, `client_ixpb_builder.phpt`).
+  The Firebird client library's local protocol (Unix socket, triggered by
+  `"localhost"`) can SIGSEGV on connection failure in CI environments. TCP
+  protocol (triggered by hostname) fails gracefully. Matches the pattern
+  already used by `fb3_wire_protocol.phpt`.
+- **Doctrine downstream CI**: Updated to use `doctrine-firebird-driver` v3.18.0
+  tag (ext-firebird `^12.0 || ^13.0` constraint widening). The `4.4.x` branch
+  test remains `continue-on-error` (546 behavioral compat failures, tracked
+  in doctrine-firebird-driver#131).
+- **AGENTS.md**: Corrected IStatus disposal section (was factually wrong about
+  `attachServiceManager` persisting IStatus; verified against Firebird source
+  at `src/jrd/jrd.cpp:4327`, `src/yvalve/why.cpp:6645`). Added service attach
+  test guidance.
+- **Spec status**: Updated `spec-v13.0-fb4-plus-coverage.md` — DECFLOAT native
+  type marked as Done (PR #475), deferred FB6+ issues marked as Closed.
+
+#### Known Issues
+
+- None.
+
 ### v13.0.0-rc.2 — Test Isolation + CI Parity Fixes (release candidate)
 
 **Focus**: Fix flaky service tests causing CI failures. Close CI parity gaps

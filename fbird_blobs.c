@@ -230,9 +230,6 @@ int _php_fbird_string_to_quad(char const *id, ISC_QUAD *qd)
 	return 0;
 }
 
-	return 0;
-}
-
 zend_string *_php_fbird_quad_to_string(ISC_QUAD const qd)
 {
 	/* Format: "HHHHHHHH:LLLLLLLL" (8 hex digits : 8 hex digits) for OOP/PDO interop

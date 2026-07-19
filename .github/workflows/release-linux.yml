@@ -531,10 +531,138 @@ jobs:
           retention-days: 30
 
   # ===========================================================================
+  # PIE ZIP Assets: Repackage .tar.gz bundles as PIE-compatible ZIPs (#511)
+  # ===========================================================================
+  pie-zips:
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+      github.event_name == 'workflow_dispatch'
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Ensure VERSION.txt
+        uses: ./.github/actions/version
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: "*-linux-*"
+          path: bundles
+
+      - name: Create PIE-compatible ZIP assets
+        run: |
+          set -eu
+          VERSION="${{ needs.prepare.outputs.version }}"
+
+          mkdir -p pie-assets
+
+          for tarball in bundles/**/*.tar.gz; do
+            [ -f "$tarball" ] || continue
+
+            # Extract filename components: php-firebird-{ver}-php{XX}-{variant}-linux-{arch}.tar.gz
+            base=$(basename "$tarball" .tar.gz)
+            # e.g. php-firebird-13.1.0-php84-nts-linux-x86_64
+
+            # Extract PHP version (e.g., 84 -> 8.4)
+            php_short=$(echo "$base" | sed -n 's/.*-php\([0-9][0-9]*\)-.*/\1/p')
+            php_ver="${php_short:0:1}.${php_short:1}"
+
+            # Extract variant (nts or zts)
+            variant=$(echo "$base" | sed -n 's/.*-\(nts\|zts\)-.*/\1/p')
+
+            # Extract arch and libc
+            arch=$(echo "$base" | sed -n 's/.*-linux-\(x86_64\|aarch64\).*/\1/p')
+            libc="glibc"
+            if echo "$base" | grep -q "musl"; then
+              libc="musl"
+              arch=$(echo "$base" | sed -n 's/.*-linux-musl-\(x86_64\|aarch64\).*/\1/p')
+            fi
+
+            [ -z "$php_ver" ] && continue
+            [ -z "$variant" ] && continue
+            [ -z "$arch" ] && continue
+
+            # PIE naming: php_{ExtName}-{Version}_php{PhpVer}-{Arch}-{OS}-{Libc}-{TSMode}.{Format}
+            # Example: php_firebird-13.1.0_php8.4-x86_64-linux-glibc-nts.zip
+            pie_name="php_firebird-${VERSION}_php${php_ver}-${arch}-linux-${libc}-${variant}.zip"
+            pie_dir="pie-tmp"
+            mkdir -p "$pie_dir"
+            tar xzf "$tarball" -C "$pie_dir" --strip-components=1
+
+            # PIE ZIP should contain firebird.so at root + lib/ + Firebird/
+            (cd "$pie_dir" && zip -r "../pie-assets/${pie_name}" \
+              firebird.so lib/ Firebird/ 2>/dev/null || \
+              zip -r "../pie-assets/${pie_name}" firebird.so lib/ 2>/dev/null || true)
+
+            rm -rf "$pie_dir"
+            echo "Created: $pie_name"
+          done
+
+          # Also create pdo_fbird ZIPs
+          for tarball in bundles/**/*.tar.gz; do
+            [ -f "$tarball" ] || continue
+            base=$(basename "$tarball" .tar.gz)
+            php_short=$(echo "$base" | sed -n 's/.*-php\([0-9][0-9]*\)-.*/\1/p')
+            php_ver="${php_short:0:1}.${php_short:1}"
+            variant=$(echo "$base" | sed -n 's/.*-\(nts\|zts\)-.*/\1/p')
+            arch=$(echo "$base" | sed -n 's/.*-linux-\(x86_64\|aarch64\).*/\1/p')
+            libc="glibc"
+            if echo "$base" | grep -q "musl"; then
+              libc="musl"
+              arch=$(echo "$base" | sed -n 's/.*-linux-musl-\(x86_64\|aarch64\).*/\1/p')
+            fi
+            [ -z "$php_ver" ] && continue
+            [ -z "$variant" ] && continue
+            [ -z "$arch" ] && continue
+
+            pie_name="php_pdo_fbird-${VERSION}_php${php_ver}-${arch}-linux-${libc}-${variant}.zip"
+            pie_dir="pie-tmp"
+            mkdir -p "$pie_dir"
+            tar xzf "$tarball" -C "$pie_dir" --strip-components=1
+            (cd "$pie_dir" && zip -r "../pie-assets/${pie_name}" pdo_fbird.so lib/ 2>/dev/null || true)
+            rm -rf "$pie_dir"
+            echo "Created: $pie_name"
+          done
+
+          echo "=== PIE ZIP assets created ==="
+          ls -lh pie-assets/*.zip 2>/dev/null || echo "No ZIPs created"
+
+      - name: Upload PIE ZIPs to GitHub Release
+        if: |
+          (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+          (github.event_name == 'workflow_dispatch' && inputs.upload_to_release)
+        run: |
+          set -eu
+          TAG="${{ steps.determine-release-tag.outputs.tag || github.ref_name }}"
+          for zip in pie-assets/*.zip; do
+            [ -f "$zip" ] || continue
+            gh release upload "$TAG" "$zip" --clobber
+            echo "Uploaded: $zip"
+          done
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Upload PIE ZIPs as artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pie-zip-assets
+          path: pie-assets/*.zip
+          if-no-files-found: ignore
+          retention-days: 30
+
+  # ===========================================================================
   # Aggregate and Upload to Release
   # ===========================================================================
   release:
-    needs: [prepare, build, test-bundles]
+    needs: [prepare, build, test-bundles, pie-zips]
     runs-on: ubuntu-24.04
     if: |
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||

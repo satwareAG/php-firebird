@@ -1227,12 +1227,16 @@ PHP_FUNCTION(fbird_blob_export)
 	}
 
 	/* Call fbird_blob_open to get blob handle */
+	/* jane: fixed #525 - use ZVAL_COPY instead of shallow copy to properly
+	 * increment refcounts. call_user_function may modify args. */
 	zval fn_name, open_args[2], blob_ret;
 	ZVAL_STRING(&fn_name, "fbird_blob_open");
-	open_args[0] = *link_arg;
-	open_args[1] = *blob_id_arg;
+	ZVAL_COPY(&open_args[0], link_arg);
+	ZVAL_COPY(&open_args[1], blob_id_arg);
 	call_user_function(EG(function_table), NULL, &fn_name, &blob_ret, 2, open_args);
 	zval_ptr_dtor(&fn_name);
+	zval_ptr_dtor(&open_args[0]);
+	zval_ptr_dtor(&open_args[1]);
 
 	if (Z_TYPE(blob_ret) == IS_FALSE) {
 		zval_ptr_dtor(&blob_ret);
@@ -1242,7 +1246,8 @@ PHP_FUNCTION(fbird_blob_export)
 
 	/* Read blob in chunks and write to file */
 	zval get_args[2], get_ret;
-	get_args[0] = blob_ret;
+	/* jane: fixed #525 - ZVAL_COPY instead of shallow copy */
+	ZVAL_COPY(&get_args[0], &blob_ret);
 	ZVAL_LONG(&get_args[1], 8192);
 	ZVAL_STRING(&fn_name, "fbird_blob_get");
 
@@ -1257,8 +1262,7 @@ PHP_FUNCTION(fbird_blob_export)
 		zval_ptr_dtor(&get_ret);
 	}
 	zval_ptr_dtor(&fn_name);
-
-	/* Close blob */
+	zval_ptr_dtor(&get_args[0]); /* jane: #525 - free ZVAL_COPY'd arg */
 	ZVAL_STRING(&fn_name, "fbird_blob_close");
 	zval close_ret;
 	call_user_function(EG(function_table), NULL, &fn_name, &close_ret, 1, &blob_ret);

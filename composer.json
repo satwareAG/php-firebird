@@ -36,5 +36,19 @@
             "@phpstan",
             "@phpcs"
         ]
+    },
+    "php-ext": {
+        "extension-name": "firebird",
+        "priority": 20,
+        "support-zts": true,
+        "support-nts": true,
+        "configure-options": [
+            {
+                "name": "with-firebird",
+                "description": "Path to Firebird client installation (e.g. /opt/firebird). If not specified, the system default is used.",
+                "needs-value": true
+            }
+        ],
+        "download-url-method": ["pre-packaged-binary", "composer-default"]
     }
 }

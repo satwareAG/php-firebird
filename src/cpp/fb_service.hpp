@@ -108,7 +108,7 @@ public:
                 spb
             );
 
-            if (status.hasData()) {
+            if (status.get()->hasData()) {
                 copy_status_to_sv(status_vector, status.get());
                 m_service = nullptr;
                 return false;
@@ -141,7 +141,7 @@ public:
         fb::CheckStatusScope status(m_master);
         try {
             m_service->detach(status.get());
-            if (status.hasData()) {
+            if (status.get()->hasData()) {
                 copy_status_to_sv(status_vector, status.get());
                 return false;
             }
@@ -172,7 +172,7 @@ public:
         fb::CheckStatusScope status(m_master);
         try {
             m_service->start(status.get(), spb_length, spb);
-            if (status.hasData()) {
+            if (status.get()->hasData()) {
                 copy_status_to_sv(status_vector, status.get());
                 return false;
             }
@@ -209,7 +209,7 @@ public:
         try {
             m_service->query(status.get(), send_length, send_items,
                             recv_length, recv_items, buffer_length, buffer);
-            if (status.hasData()) {
+            if (status.get()->hasData()) {
                 copy_status_to_sv(status_vector, status.get());
                 return false;
             }

@@ -306,10 +306,10 @@ public:
 
             if (statusHasError(status.get())) {
                 // Check for special conditions
-                unsigned state = status.getState();
+                unsigned state = status.get()->getState();
                 if (state & Firebird::IStatus::STATE_WARNINGS) {
                     // EOF or segment - these are not errors
-                    ISC_STATUS err = status.getErrors()[1];
+                    ISC_STATUS err = status.get()->getErrors()[1];
                     if (err == isc_segstr_eof) {
                         clearStatusVector(status_vector);
                         return 1; // EOF
@@ -428,7 +428,7 @@ public:
 
             if (statusHasError(status.get())) {
                 // Ignore "invalid blob handle" error during cancel
-                if (status.getErrors()[1] != isc_bad_segstr_handle) {
+                if (status.get()->getErrors()[1] != isc_bad_segstr_handle) {
                     copyStatusVector(status.get(), status_vector);
                     blob_ = nullptr;
                     owns_blob_ = false;

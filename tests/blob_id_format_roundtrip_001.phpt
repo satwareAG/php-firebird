@@ -50,7 +50,6 @@ v13.0.1 bugfix audit - #516 blob ID format inconsistency
     }
 
     // Test parameter binding with the new 17-char BLOB ID
-    // jane: uses positional ? placeholder with scalar (not associative array)
     $res = fbird_query($trx, "INSERT INTO test_blob_id_516 (v_blob) VALUES (?)", $blob_id);
     if ($res === false) {
         echo "INSERT with blob_id bind: FAIL\n";
@@ -59,14 +58,17 @@ v13.0.1 bugfix audit - #516 blob ID format inconsistency
     }
     fbird_commit($trx);
 
+    // Start a NEW transaction for the SELECT (previous trx is closed after commit)
+    $trx2 = fbird_trans($link);
+
     // Read back the blob via SELECT
-    $sel = fbird_query($link, "SELECT v_blob FROM test_blob_id_516");
+    $sel = fbird_query($trx2, "SELECT v_blob FROM test_blob_id_516");
     if ($sel === false) {
         echo "SELECT: FAIL\n";
     } else {
         $row = fbird_fetch_object($sel);
         if ($row && $row->V_BLOB) {
-            $blob3 = fbird_blob_open($trx, $row->V_BLOB);
+            $blob3 = fbird_blob_open($trx2, $row->V_BLOB);
             $data2 = "";
             while ($chunk = fbird_blob_get($blob3, 1000)) { $data2 .= $chunk; }
             fbird_blob_close($blob3);
@@ -83,6 +85,7 @@ v13.0.1 bugfix audit - #516 blob ID format inconsistency
         fbird_free_result($sel);
     }
 
+    fbird_rollback($trx2);
     fbird_query($link, "DROP TABLE test_blob_id_516");
     fbird_close($link);
     echo "done\n";

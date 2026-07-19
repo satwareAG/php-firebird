@@ -7,7 +7,12 @@ v12.1.0 M4 (#391) - Firebird client coverage smoke test
 --FILE--
 <?php
 require_once __DIR__ . '/skipif.inc';
-$svc = @fbird_service_attach("localhost", "SYSDBA", "masterkey");
+// jane: use FIREBIRD_HOST env var instead of hardcoded "localhost".
+// Hardcoded "localhost" triggers Firebird client's local protocol (Unix
+// socket) which SIGSEGV on connection failure in some CI environments.
+// FIREBIRD_HOST uses TCP which fails gracefully.
+$host = getenv('FIREBIRD_HOST') ?: 'localhost';
+$svc = @fbird_service_attach($host, "SYSDBA", "masterkey");
 if ($svc) {
     @fbird_server_info($svc, 4);
     fbird_service_detach($svc);

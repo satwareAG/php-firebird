@@ -70,11 +70,30 @@ shared service handle hit a busy server, causing segfaults or
   `fetch-depth: 0`, triggering false private-key PEM regex on SQL examples).
 - 7 parity test files: Added `--CLEAN--` sections for DDL test hygiene.
 
+#### Fixed
+
+##### Service Attach Test Crash in CI
+
+Root cause: `client_iservice.phpt`, `client_iutil.phpt`, and `client_ixpb_builder.phpt`
+hardcoded `"localhost"` in `fbird_service_attach()` calls. The Firebird client library
+uses a different protocol for `localhost` (Unix socket / local IPC) vs. hostname (TCP).
+On connection failure, the local protocol path SIGSEGV in some CI environments (Ubuntu
+24.04 runners with specific glibc versions), while TCP fails gracefully.
+
+Fix: Changed to `getenv('FIREBIRD_HOST') ?: 'localhost'` (same pattern as
+`fb3_wire_protocol.phpt` which already worked). 3 files changed, 0 production code
+changed.
+
+Previous incorrect hypothesis: The crash was initially attributed to IStatus UAF in
+`CheckStatusWrapper`. Deep analysis of Firebird source code (`src/jrd/jrd.cpp:4327`,
+`src/yvalve/why.cpp:6645`) disproved this - `attachServiceManager()` does NOT persist
+the caller's IStatus. The code at `fb_service.hpp:95` uses non-owning
+`Firebird::CheckStatusWrapper` (which does NOT dispose), so the hypothesized UAF
+pattern does not exist.
+
 #### Known Issues
 
-- `client_iutil.phpt` / `client_iservice.phpt` intermittently crash on CI
-  (Termsig=11). Root cause: `CheckStatusWrapper` auto-disposes `IStatus` in
-  IUtil/IService wrappers. Pre-existing, passes on rerun. Not a regression.
+- None (the previous `client_iutil.phpt` / `client_iservice.phpt` CI crash is now fixed).
 
 ---
 

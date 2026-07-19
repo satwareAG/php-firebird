@@ -82,6 +82,22 @@ PHP_VER_SHORT="${PHP_VERSION//./}"
 log_info "Building php-firebird .deb for PHP ${PHP_VERSION} on ${DISTRO} (${DEB_ARCH})"
 
 # -----------------------------------------------------------------------------
+# Resolve phpize/php-config commands (try versioned, fall back to unversioned)
+# -----------------------------------------------------------------------------
+
+PHPIZE=$(command -v "phpize${PHP_VERSION}" 2>/dev/null || command -v phpize 2>/dev/null || echo "")
+PHPCONFIG=$(command -v "php-config${PHP_VERSION}" 2>/dev/null || command -v php-config 2>/dev/null || echo "")
+
+if [ -z "$PHPIZE" ] || [ -z "$PHPCONFIG" ]; then
+    log_error "phpize or php-config not found for PHP ${PHP_VERSION}"
+    log_error "  phpize: ${PHPIZE:-not found}"
+    log_error "  php-config: ${PHPCONFIG:-not found}"
+    exit 1
+fi
+
+log "Using: $PHPIZE, $PHPCONFIG"
+
+# -----------------------------------------------------------------------------
 # Resolve script directory (works inside and outside Docker)
 # -----------------------------------------------------------------------------
 
@@ -109,6 +125,30 @@ if [ ! -f "${FB_ROOT}/lib/libfbclient.so" ] || [ ! -f "${FB_ROOT}/include/ibase.
     exit 1
 fi
 
+# jane: config.m4 uses $PHP_LIBDIR from PHP's configure options.
+#       On Debian multiarch: lib/x86_64-linux-gnu (or lib/aarch64-linux-gnu on ARM)
+#       fetch-client.sh installs to lib/, so we need to create the multiarch
+#       subdirectory and symlink the .so files there.
+#       Also handle lib64 for non-Debian distros.
+MULTIARCH_LIBDIR=$($PHPCONFIG --configure-options 2>/dev/null | grep -oP 'with-libdir=\K[^ ]+' || echo "lib")
+log "PHP_LIBDIR: $MULTIARCH_LIBDIR"
+if [ "$MULTIARCH_LIBDIR" != "lib" ]; then
+    # Create multiarch dir as subdirectory of lib/
+    # e.g. /opt/firebird/lib/x86_64-linux-gnu/
+    MULTIARCH_PATH="${FB_ROOT}/lib/${MULTIARCH_LIBDIR}"
+    mkdir -p "$MULTIARCH_PATH" 2>/dev/null || true
+    # Symlink all .so* files from parent lib/ dir
+    cd "${FB_ROOT}/lib"
+    for so in *.so*; do
+        [ -e "$so" ] && ln -sf "../$so" "${MULTIARCH_PATH}/$so" 2>/dev/null || true
+    done
+    cd "$REPO_ROOT"
+    log "Created multiarch symlink dir: $MULTIARCH_PATH"
+fi
+# Also handle lib64 (some distros use lib64 instead of lib)
+rm -rf "${FB_ROOT}/lib64" 2>/dev/null || true
+ln -sf lib "${FB_ROOT}/lib64" 2>/dev/null || true
+
 # -----------------------------------------------------------------------------
 # Step 2: Build the extension (phpize + configure + make)
 # -----------------------------------------------------------------------------
@@ -123,8 +163,8 @@ rm -rf .libs modules/ pdo_fbird/.libs pdo_fbird/modules/ 2>/dev/null || true
 if [ -f Makefile ]; then
     make clean 2>/dev/null || true
 fi
-phpize"${PHP_VERSION}" --clean 2>/dev/null || true
-cd pdo_fbird && phpize"${PHP_VERSION}" --clean 2>/dev/null || true; cd "$REPO_ROOT"
+"$PHPIZE" --clean 2>/dev/null || true
+cd pdo_fbird && "$PHPIZE" --clean 2>/dev/null || true; cd "$REPO_ROOT"
 
 rm -f configure config.h config.h.in config.log config.status config.nice \
      Makefile Makefile.fragments Makefile.global Makefile.objects \
@@ -132,14 +172,14 @@ rm -f configure config.h config.h.in config.log config.status config.nice \
 
 # phpize
 log "Running phpize..."
-phpize"${PHP_VERSION}"
+"$PHPIZE"
 
 # configure
 log "Running configure..."
 export CFLAGS="-I${FB_ROOT}/include"
 export LDFLAGS="-L${FB_ROOT}/lib -Wl,-rpath-link,${FB_ROOT}/lib"
 ./configure \
-    --with-php-config=php-config"${PHP_VERSION}" \
+    --with-php-config="$PHPCONFIG" \
     --with-firebird="${FB_ROOT}"
 
 # make
@@ -149,9 +189,9 @@ make -j"$(nproc)"
 # Build pdo_fbird
 log_info "Building pdo_fbird extension..."
 cd pdo_fbird
-phpize"${PHP_VERSION}"
+"$PHPIZE"
 ./configure \
-    --with-php-config=php-config"${PHP_VERSION}" \
+    --with-php-config="$PHPCONFIG" \
     --with-firebird="${FB_ROOT}"
 make -j"$(nproc)"
 cd "$REPO_ROOT"
@@ -173,7 +213,7 @@ log_info "Extension built successfully"
 # -----------------------------------------------------------------------------
 
 # Get the PHP extension directory
-EXT_DIR=$(php-config"${PHP_VERSION}" --extension-dir)
+EXT_DIR=$("$PHPCONFIG" --extension-dir)
 log "PHP extension dir: ${EXT_DIR}"
 
 # Calculate RPATH: $ORIGIN/../../php-firebird

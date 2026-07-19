@@ -234,7 +234,22 @@ Examples:
 
 ## Bundled Firebird client
 
-All packages bundle `libfbclient.so.5` (Firebird 5.0.x client) with RPATH `$ORIGIN/../lib/php-firebird`. This ensures `#if FB_API_VER >= 40` code paths (DECFLOAT, INT128, time zones, batch DML, `pdo_fbird`) are always enabled regardless of what `firebird-dev` package the distro ships. No `Depends: libfbclient-dev` or `firebird-dev` is declared.
+All packages bundle `libfbclient.so.5` (Firebird 5.0.x client) with RPATH `$ORIGIN/../../php-firebird`. This ensures `#if FB_API_VER >= 40` code paths (DECFLOAT, INT128, time zones, batch DML, `pdo_fbird`) are always enabled regardless of what `firebird-dev` package the distro ships. No `Depends: libfbclient-dev` or `firebird-dev` is declared.
+
+### RPATH calculation
+
+Package layout:
+```
+usr/lib/php/{PHP_API_VERSION}/firebird.so    # e.g. usr/lib/php/20240924/firebird.so
+usr/lib/php-firebird/libfbclient.so.5        # Bundled FB5 client + deps
+```
+
+`$ORIGIN` resolves to `usr/lib/php/20240924/` (the directory containing `firebird.so`). The relative path to `usr/lib/php-firebird/` is `../../php-firebird`:
+- `$ORIGIN/..` = `usr/lib/php/`
+- `$ORIGIN/../..` = `usr/lib/`
+- `$ORIGIN/../../php-firebird` = `usr/lib/php-firebird/` ✓
+
+Verify with: `readelf -d $(php-config --extension-dir)/firebird.so | grep RPATH`
 
 ## Conflicts and migration
 

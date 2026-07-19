@@ -60,8 +60,8 @@ public:
             // Silent close on destruction - errors ignored
             auto* master = getMaster();
             if (master) {
-                Firebird::CheckStatusWrapper status(master->getStatus());
-                blob_->close(&status);
+                fb::CheckStatusScope status(master);
+                blob_->close(status.get());
             }
             blob_ = nullptr;
         }
@@ -84,8 +84,8 @@ public:
             if (blob_ && owns_blob_) {
                 auto* master = getMaster();
                 if (master) {
-                    Firebird::CheckStatusWrapper status(master->getStatus());
-                    blob_->close(&status);
+                    fb::CheckStatusScope status(master);
+                    blob_->close(status.get());
                 }
             }
             blob_ = other.blob_;
@@ -126,19 +126,19 @@ public:
 
         // Close existing blob if any
         if (blob_ && owns_blob_) {
-            Firebird::CheckStatusWrapper close_status(master->getStatus());
-            blob_->close(&close_status);
+            fb::CheckStatusScope close_status(master);
+            blob_->close(close_status.get());
             blob_ = nullptr;
         }
 
-        Firebird::CheckStatusWrapper status(master->getStatus());
+        fb::CheckStatusScope status(master);
 
         try {
-            blob_ = attachment->createBlob(&status, transaction, &blob_id_, bpb_length, bpb);
+            blob_ = attachment->createBlob(status.get(), transaction, &blob_id_, bpb_length, bpb);
 
             // Check both for NULL blob AND error status
-            if (!blob_ || statusHasError(&status)) {
-                copyStatusVector(&status, status_vector);
+            if (!blob_ || statusHasError(status.get())) {
+                copyStatusVector(status.get(), status_vector);
                 if (!blob_ && status_vector && status_vector[1] == 0) {
                     // createBlob returned NULL without setting error
                     status_vector[1] = isc_bad_segstr_handle;
@@ -192,20 +192,20 @@ public:
 
         // Close existing blob if any
         if (blob_ && owns_blob_) {
-            Firebird::CheckStatusWrapper close_status(master->getStatus());
-            blob_->close(&close_status);
+            fb::CheckStatusScope close_status(master);
+            blob_->close(close_status.get());
             blob_ = nullptr;
         }
 
         blob_id_ = *blob_id;
-        Firebird::CheckStatusWrapper status(master->getStatus());
+        fb::CheckStatusScope status(master);
 
         try {
-            blob_ = attachment->openBlob(&status, transaction, &blob_id_, bpb_length, bpb);
+            blob_ = attachment->openBlob(status.get(), transaction, &blob_id_, bpb_length, bpb);
 
             // Check both for NULL blob AND error status
-            if (!blob_ || statusHasError(&status)) {
-                copyStatusVector(&status, status_vector);
+            if (!blob_ || statusHasError(status.get())) {
+                copyStatusVector(status.get(), status_vector);
                 if (!blob_ && status_vector && status_vector[1] == 0) {
                     // openBlob returned NULL without setting error
                     status_vector[1] = isc_bad_segstr_handle;
@@ -251,13 +251,13 @@ public:
             return false;
         }
 
-        Firebird::CheckStatusWrapper status(master->getStatus());
+        fb::CheckStatusScope status(master);
 
         try {
-            blob_->putSegment(&status, length, buffer);
+            blob_->putSegment(status.get(), length, buffer);
 
-            if (statusHasError(&status)) {
-                copyStatusVector(&status, status_vector);
+            if (statusHasError(status.get())) {
+                copyStatusVector(status.get(), status_vector);
                 return false;
             }
 
@@ -299,12 +299,12 @@ public:
             return -1;
         }
 
-        Firebird::CheckStatusWrapper status(master->getStatus());
+        fb::CheckStatusScope status(master);
 
         try {
-            int result = blob_->getSegment(&status, buffer_length, buffer, actual_length);
+            int result = blob_->getSegment(status.get(), buffer_length, buffer, actual_length);
 
-            if (statusHasError(&status)) {
+            if (statusHasError(status.get())) {
                 // Check for special conditions
                 unsigned state = status.getState();
                 if (state & Firebird::IStatus::STATE_WARNINGS) {
@@ -319,7 +319,7 @@ public:
                         return 2; // Segment (partial read)
                     }
                 }
-                copyStatusVector(&status, status_vector);
+                copyStatusVector(status.get(), status_vector);
                 return -1;
             }
 
@@ -369,13 +369,13 @@ public:
             return false;
         }
 
-        Firebird::CheckStatusWrapper status(master->getStatus());
+        fb::CheckStatusScope status(master);
 
         try {
-            blob_->close(&status);
+            blob_->close(status.get());
 
-            if (statusHasError(&status)) {
-                copyStatusVector(&status, status_vector);
+            if (statusHasError(status.get())) {
+                copyStatusVector(status.get(), status_vector);
                 // Still mark as closed to avoid double-close
                 blob_ = nullptr;
                 owns_blob_ = false;
@@ -421,15 +421,15 @@ public:
             return false;
         }
 
-        Firebird::CheckStatusWrapper status(master->getStatus());
+        fb::CheckStatusScope status(master);
 
         try {
-            blob_->cancel(&status);
+            blob_->cancel(status.get());
 
-            if (statusHasError(&status)) {
+            if (statusHasError(status.get())) {
                 // Ignore "invalid blob handle" error during cancel
                 if (status.getErrors()[1] != isc_bad_segstr_handle) {
-                    copyStatusVector(&status, status_vector);
+                    copyStatusVector(status.get(), status_vector);
                     blob_ = nullptr;
                     owns_blob_ = false;
                     return false;
@@ -480,13 +480,13 @@ public:
             return false;
         }
 
-        Firebird::CheckStatusWrapper status(master->getStatus());
+        fb::CheckStatusScope status(master);
 
         try {
-            int new_position = blob_->seek(&status, mode, offset);
+            int new_position = blob_->seek(status.get(), mode, offset);
 
-            if (statusHasError(&status)) {
-                copyStatusVector(&status, status_vector);
+            if (statusHasError(status.get())) {
+                copyStatusVector(status.get(), status_vector);
                 return false;
             }
 
@@ -533,13 +533,13 @@ public:
             return false;
         }
 
-        Firebird::CheckStatusWrapper status(master->getStatus());
+        fb::CheckStatusScope status(master);
 
         try {
-            blob_->getInfo(&status, items_length, items, buffer_length, buffer);
+            blob_->getInfo(status.get(), items_length, items, buffer_length, buffer);
 
-            if (statusHasError(&status)) {
-                copyStatusVector(&status, status_vector);
+            if (statusHasError(status.get())) {
+                copyStatusVector(status.get(), status_vector);
                 return false;
             }
 

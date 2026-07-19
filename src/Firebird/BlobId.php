@@ -56,16 +56,21 @@ final class BlobId implements Stringable
 {
     /**
      * Expected length of BLOB ID string formats:
-     * - Colon format: "HHHHHHHH:LLLL" = 13 chars (standard from php-firebird extension)
+     * - Colon format: "HHHHHHHH:LLLLLLLL" = 17 chars (8 hex : 8 hex, standard from php-firebird extension)
      * - Hex format: "0xHHHHHHHHHHHHHHHH" = 18 chars (legacy format)
+     *
+     * jane: fixed #516 - was 13 chars (8:4 hex, truncated 32-bit gds_quad_low to 16-bit),
+     *       now 17 chars (8:8 hex, full 32-bit gds_quad_low per firebird/impl/types_pub.h:194)
      */
-    public const ID_LENGTH_COLON = 13;
+    public const ID_LENGTH_COLON = 17;
     public const ID_LENGTH_HEX = 18;
 
     /**
-     * Regex patterns for valid BLOB ID formats
+     * Regex patterns for valid BLOB ID formats.
+     * Colon pattern: 8 hex digits : 8 hex digits (17 chars).
+     * Also accepts legacy 13-char format (8:4) for backwards compatibility.
      */
-    private const PATTERN_COLON = '/^[0-9a-fA-F]{8}:[0-9a-fA-F]{4}$/';
+    private const PATTERN_COLON = '/^[0-9a-fA-F]{8}:[0-9a-fA-F]{4,8}$/';
     private const PATTERN_HEX = '/^0x[0-9a-fA-F]{16}$/';
 
     /**
@@ -125,7 +130,7 @@ final class BlobId implements Stringable
             [$highHex, $lowHex] = explode(':', $id);
             $high = hexdec($highHex);
             $low = hexdec($lowHex);
-            $normalized = sprintf('%08X:%04X', $high, $low);
+            $normalized = sprintf('%08X:%08X', $high, $low);
         } else {
             // Hex format: "0xHHHHHHHHHHHHHHHH"
             // Colon format uses high 32 bits + middle 16 bits (not last 16)
@@ -134,7 +139,7 @@ final class BlobId implements Stringable
             // For colon format, use middle 16 bits (positions 8-11, not 12-15)
             $low = hexdec(substr($hex, 8, 4));
             // Normalize to colon format (standard)
-            $normalized = sprintf('%08X:%04X', $high, $low);
+            $normalized = sprintf('%08X:%08X', $high, $low);
         }
 
         return new self($normalized, (int)$high, (int)$low);
@@ -144,13 +149,13 @@ final class BlobId implements Stringable
      * Create a BlobId from high and low 32-bit parts.
      *
      * @param int $high High 32 bits (gds_quad_high)
-     * @param int $low Low 32 bits (gds_quad_low - actually 16 bits used)
+     * @param int $low Low 32 bits (gds_quad_low - full 32-bit unsigned per firebird/impl/types_pub.h:194)
      * @return self
      */
     public static function fromParts(int $high, int $low): self
     {
         // Use colon format (standard)
-        $id = sprintf('%08X:%04X', $high & 0xFFFFFFFF, $low & 0xFFFF);
+        $id = sprintf('%08X:%08X', $high & 0xFFFFFFFF, $low & 0xFFFFFFFF);
         return new self($id, $high, $low);
     }
 
@@ -161,7 +166,7 @@ final class BlobId implements Stringable
      */
     public static function null(): self
     {
-        return new self('00000000:0000', 0, 0);
+        return new self('00000000:00000000', 0, 0);
     }
 
     /**
@@ -182,20 +187,21 @@ final class BlobId implements Stringable
     /**
      * Check if a string is a valid BLOB ID format.
      *
-     * Accepts both colon format ("HHHHHHHH:LLLL") and hex format ("0xHHHHHHHHHHHHHHHH").
+     * Accepts both colon format ("HHHHHHHH:LLLLLLLL" 17-char new, or "HHHHHHHH:LLLL" 13-char legacy)
+     * and hex format ("0xHHHHHHHHHHHHHHHH").
      *
      * @param string $id String to check
      * @return bool True if valid format
      */
     public static function isValidFormat(string $id): bool
     {
-        $len = strlen($id);
-
-        if ($len === self::ID_LENGTH_COLON) {
-            return preg_match(self::PATTERN_COLON, $id) === 1;
+        // jane: #516 - accept both 17-char (new) and 13-char (legacy) colon formats.
+        // PATTERN_COLON uses {4,8} to match both low-part lengths.
+        if (preg_match(self::PATTERN_COLON, $id) === 1) {
+            return true;
         }
 
-        if ($len === self::ID_LENGTH_HEX) {
+        if (strlen($id) === self::ID_LENGTH_HEX) {
             return preg_match(self::PATTERN_HEX, $id) === 1;
         }
 

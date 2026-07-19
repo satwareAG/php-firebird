@@ -119,18 +119,18 @@ echo "\nDone.\n";
 ?>
 --EXPECTF--
 Test 1: Create from valid string
-string(13) "00000001:0002"
+string(17) "00000001:00000002"
 int(1)
 int(2)
 
 Test 2: __toString()
-string(13) "00000001:0002"
-string(13) "00000001:0002"
+string(17) "00000001:00000002"
+string(17) "00000001:00000002"
 
 Test 3: NULL BLOB
 bool(true)
 bool(false)
-string(13) "00000000:0000"
+string(17) "00000000:00000000"
 
 Test 4: Non-NULL check
 bool(false)
@@ -143,7 +143,7 @@ bool(true)
 bool(false)
 
 Test 6: fromParts
-string(13) "00000001:0002"
+string(17) "00000001:00000002"
 bool(true)
 
 Test 7: Invalid format
@@ -162,8 +162,8 @@ bool(false)
 
 Test 10: Case insensitivity and format conversion
 bool(true)
-string(13) "abcdef01:2345"
-string(13) "abcdef01:2345"
+string(17) "abcdef01:00002345"
+string(17) "abcdef01:00002345"
 
 Test 11: Integration with fbird_blob functions
 bool(true)

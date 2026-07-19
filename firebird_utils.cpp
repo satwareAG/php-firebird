@@ -2549,24 +2549,28 @@ extern "C" void fbb_free(void* blob_wrapper) {
 
 namespace {
 // Helper to eliminate boilerplate for fbm_* metadata accessors (no-index variants).
+// jane: fixed #515 - was leaking IStatus via CheckStatusWrapper(master->getStatus()),
+//       now uses fb::CheckStatusScope (RAII, disposes in destructor). These templates
+//       are called per-column-per-row during fetch, so the leak was ~80 bytes * columns * rows.
 template <typename R, R error_value, typename F>
 inline R fbm_call0(void* master_ptr, void* metadata_ptr, F&& fn) noexcept {
     if (!master_ptr || !metadata_ptr) return error_value;
     auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
-    Firebird::CheckStatusWrapper status(master->getStatus());
-    R result = fn(metadata, &status);
-    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? error_value : result;
+    fb::CheckStatusScope status(master);
+    R result = fn(metadata, status.get());
+    return status.hasError() ? error_value : result;
 }
 // Helper to eliminate boilerplate for fbm_* metadata accessors (with-index variants).
+// jane: fixed #515 - same IStatus leak as fbm_call0, now uses fb::CheckStatusScope.
 template <typename R, R error_value, typename F>
 inline R fbm_call1(void* master_ptr, void* metadata_ptr, unsigned index, F&& fn) noexcept {
     if (!master_ptr || !metadata_ptr) return error_value;
     auto* master = static_cast<Firebird::IMaster*>(master_ptr);
     auto* metadata = static_cast<Firebird::IMessageMetadata*>(metadata_ptr);
-    Firebird::CheckStatusWrapper status(master->getStatus());
-    R result = fn(metadata, &status, index);
-    return (status.getState() & Firebird::IStatus::STATE_ERRORS) ? error_value : result;
+    fb::CheckStatusScope status(master);
+    R result = fn(metadata, status.get(), index);
+    return status.hasError() ? error_value : result;
 }
 } // anonymous namespace
 

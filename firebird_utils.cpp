@@ -683,7 +683,7 @@ extern "C" void* fbc_create_database(
             nullptr  // stmtIsCreateDb - not used in modern API
         );
 
-        if (check_status.isDirty() || !attachment) {
+        if (check_status.hasError() || !attachment) {
             // Copy error status
             if (status_vector) {
                 copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
@@ -1012,10 +1012,9 @@ extern "C" int fbt_get_info(
     auto* transaction = static_cast<Firebird::ITransaction*>(transaction_ptr);
 
     try {
-        Firebird::IStatus* fb_status = master->getStatus();
-        Firebird::CheckStatusWrapper status(fb_status);
+        fb::CheckStatusScope status(master);
 
-        transaction->getInfo(&status, items_length, items, buffer_length, buffer);
+        transaction->getInfo(status.get(), items_length, items, buffer_length, buffer);
 
         if (fb::statusHasError(fb_status)) {
             if (status_vector) {
@@ -1054,10 +1053,9 @@ extern "C" int fbc_get_info(
     auto* attachment = static_cast<Firebird::IAttachment*>(attachment_ptr);
 
     try {
-        Firebird::IStatus* fb_status = master->getStatus();
-        Firebird::CheckStatusWrapper status(fb_status);
+        fb::CheckStatusScope status(master);
 
-        attachment->getInfo(&status, items_length, items, buffer_length, buffer);
+        attachment->getInfo(status.get(), items_length, items, buffer_length, buffer);
 
         if (fb::statusHasError(fb_status)) {
             if (status_vector) {
@@ -1086,9 +1084,8 @@ extern "C" void fbu_decode_time_tz(void *master_ptr, const ISC_TIME_TZ* time_tz,
 {
 	auto* master = static_cast<Firebird::IMaster*>(master_ptr);
 	Firebird::IUtil* util = master->getUtilInterface();
-	Firebird::IStatus* fb_status = master->getStatus();
-	Firebird::CheckStatusWrapper status(fb_status);
-	util->decodeTimeTz(&status, time_tz, hours, minutes, seconds, fractions,
+	fb::CheckStatusScope status(master);
+	util->decodeTimeTz(status.get(), time_tz, hours, minutes, seconds, fractions,
 						time_zone_buffer_length, time_zone_buffer);
 }
 
@@ -1167,12 +1164,11 @@ extern "C" int fbu_encode_time_tz(void *master_ptr, ISC_TIME_TZ* time_tz,
     try {
         auto* master = static_cast<Firebird::IMaster*>(master_ptr);
         Firebird::IUtil* util = master->getUtilInterface();
-        Firebird::IStatus* fb_status = master->getStatus();
-        Firebird::CheckStatusWrapper status(fb_status);
+        fb::CheckStatusScope status(master);
 
-        util->encodeTimeTz(&status, time_tz, hours, minutes, seconds, fractions, time_zone);
+        util->encodeTimeTz(status.get(), time_tz, hours, minutes, seconds, fractions, time_zone);
 
-        if (status.isDirty()) {
+        if (status.hasError()) {
             return -1;
         }
         return 0;
@@ -1188,14 +1184,13 @@ extern "C" int fbu_int128_to_string(void *master_ptr, const void *value, int sca
     if (!master_ptr || !value || !buffer || buffer_length == 0) return -1;
     try {
         auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-        Firebird::IStatus* fb_status = master->getStatus();
-        Firebird::CheckStatusWrapper status(fb_status);
+        fb::CheckStatusScope status(master);
         Firebird::IUtil* util = master->getUtilInterface();
-        Firebird::IInt128* i128 = util->getInt128(&status);
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        i128->toString(&status, static_cast<const FB_I128*>(value), scale, buffer_length, buffer);
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        fb_status->dispose();
+        Firebird::IInt128* i128 = util->getInt128(status.get());
+        if (status.hasError()) {  return -1; }
+        i128->toString(status.get(), static_cast<const FB_I128*>(value), scale, buffer_length, buffer);
+        if (status.hasError()) {  return -1; }
+        
         return 0;
     } catch (...) {
         return -1;
@@ -1209,14 +1204,13 @@ extern "C" int fbu_decfloat16_to_string(void *master_ptr, const void *value,
     if (!master_ptr || !value || !buffer || buffer_length == 0) return -1;
     try {
         auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-        Firebird::IStatus* fb_status = master->getStatus();
-        Firebird::CheckStatusWrapper status(fb_status);
+        fb::CheckStatusScope status(master);
         Firebird::IUtil* util = master->getUtilInterface();
-        Firebird::IDecFloat16* df16 = util->getDecFloat16(&status);
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        df16->toString(&status, static_cast<const FB_DEC16*>(value), buffer_length, buffer);
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        fb_status->dispose();
+        Firebird::IDecFloat16* df16 = util->getDecFloat16(status.get());
+        if (status.hasError()) {  return -1; }
+        df16->toString(status.get(), static_cast<const FB_DEC16*>(value), buffer_length, buffer);
+        if (status.hasError()) {  return -1; }
+        
         return 0;
     } catch (...) {
         return -1;
@@ -1230,14 +1224,13 @@ extern "C" int fbu_decfloat34_to_string(void *master_ptr, const void *value,
     if (!master_ptr || !value || !buffer || buffer_length == 0) return -1;
     try {
         auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-        Firebird::IStatus* fb_status = master->getStatus();
-        Firebird::CheckStatusWrapper status(fb_status);
+        fb::CheckStatusScope status(master);
         Firebird::IUtil* util = master->getUtilInterface();
-        Firebird::IDecFloat34* df34 = util->getDecFloat34(&status);
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        df34->toString(&status, static_cast<const FB_DEC34*>(value), buffer_length, buffer);
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        fb_status->dispose();
+        Firebird::IDecFloat34* df34 = util->getDecFloat34(status.get());
+        if (status.hasError()) {  return -1; }
+        df34->toString(status.get(), static_cast<const FB_DEC34*>(value), buffer_length, buffer);
+        if (status.hasError()) {  return -1; }
+        
         return 0;
     } catch (...) {
         return -1;
@@ -1250,14 +1243,13 @@ extern "C" int fbu_string_to_decfloat16(void *master_ptr, const char *str, void 
     if (!master_ptr || !str || !value) return -1;
     try {
         auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-        Firebird::IStatus* fb_status = master->getStatus();
-        Firebird::CheckStatusWrapper status(fb_status);
+        fb::CheckStatusScope status(master);
         Firebird::IUtil* util = master->getUtilInterface();
-        Firebird::IDecFloat16* df16 = util->getDecFloat16(&status);
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        df16->fromString(&status, str, static_cast<FB_DEC16*>(value));
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        fb_status->dispose();
+        Firebird::IDecFloat16* df16 = util->getDecFloat16(status.get());
+        if (status.hasError()) {  return -1; }
+        df16->fromString(status.get(), str, static_cast<FB_DEC16*>(value));
+        if (status.hasError()) {  return -1; }
+        
         return 0;
     } catch (...) {
         return -1;
@@ -1270,14 +1262,13 @@ extern "C" int fbu_string_to_decfloat34(void *master_ptr, const char *str, void 
     if (!master_ptr || !str || !value) return -1;
     try {
         auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-        Firebird::IStatus* fb_status = master->getStatus();
-        Firebird::CheckStatusWrapper status(fb_status);
+        fb::CheckStatusScope status(master);
         Firebird::IUtil* util = master->getUtilInterface();
-        Firebird::IDecFloat34* df34 = util->getDecFloat34(&status);
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        df34->fromString(&status, str, static_cast<FB_DEC34*>(value));
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        fb_status->dispose();
+        Firebird::IDecFloat34* df34 = util->getDecFloat34(status.get());
+        if (status.hasError()) {  return -1; }
+        df34->fromString(status.get(), str, static_cast<FB_DEC34*>(value));
+        if (status.hasError()) {  return -1; }
+        
         return 0;
     } catch (...) {
         return -1;
@@ -1290,14 +1281,13 @@ extern "C" int fbu_string_to_int128(void *master_ptr, const char *str, int scale
     if (!master_ptr || !str || !value) return -1;
     try {
         auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-        Firebird::IStatus* fb_status = master->getStatus();
-        Firebird::CheckStatusWrapper status(fb_status);
+        fb::CheckStatusScope status(master);
         Firebird::IUtil* util = master->getUtilInterface();
-        Firebird::IInt128* i128 = util->getInt128(&status);
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        i128->fromString(&status, scale, str, static_cast<FB_I128*>(value));
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        fb_status->dispose();
+        Firebird::IInt128* i128 = util->getInt128(status.get());
+        if (status.hasError()) {  return -1; }
+        i128->fromString(status.get(), scale, str, static_cast<FB_I128*>(value));
+        if (status.hasError()) {  return -1; }
+        
         return 0;
     } catch (...) {
         return -1;
@@ -1317,13 +1307,12 @@ extern "C" int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* times
     try {
         auto* master = static_cast<Firebird::IMaster*>(master_ptr);
         Firebird::IUtil* util = master->getUtilInterface();
-        Firebird::IStatus* fb_status = master->getStatus();
-        Firebird::CheckStatusWrapper status(fb_status);
+        fb::CheckStatusScope status(master);
 
-        util->encodeTimeStampTz(&status, timestamp_tz, year, month, day,
+        util->encodeTimeStampTz(status.get(), timestamp_tz, year, month, day,
                                 hours, minutes, seconds, fractions, time_zone);
 
-        if (status.isDirty()) {
+        if (status.hasError()) {
             return -1;
         }
         return 0;
@@ -1630,7 +1619,7 @@ extern "C" int fbs_set_cursor_name(void* master_ptr, void* statement_ptr, const 
     auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
 
     try {
-        Firebird::IStatus* fb_status = master->getStatus();
+        fb::CheckStatusScope status(master);
         Firebird::ThrowStatusWrapper status(fb_status);
         Firebird::IStatement* stmt = wrapper->getStatement();
         if (!stmt) {
@@ -1640,17 +1629,17 @@ extern "C" int fbs_set_cursor_name(void* master_ptr, void* statement_ptr, const 
                 status_vector[2] = isc_bad_stmt_handle;
                 status_vector[3] = isc_arg_end;
             }
-            fb_status->dispose();
+            
             return 0;
         }
 
-        stmt->setCursorName(&status, cursor_name);
+        stmt->setCursorName(status.get(), cursor_name);
 
         if (status_vector) {
             status_vector[0] = 0;
             status_vector[1] = 0;
         }
-        fb_status->dispose();
+        
         return 1;
     } catch (const Firebird::FbException& e) {
         if (status_vector) {
@@ -1688,9 +1677,9 @@ extern "C" ISC_INT64 fbs_execute_singleton_int64(
         return 0;
     }
 
-    unsigned msgLen = outMetadata->getMessageLength(&status);
-    unsigned fieldOffset = outMetadata->getOffset(&status, 0);
-    unsigned nullOffset = outMetadata->getNullOffset(&status, 0);
+    unsigned msgLen = outMetadata->getMessageLength(status.get());
+    unsigned fieldOffset = outMetadata->getOffset(status.get(), 0);
+    unsigned nullOffset = outMetadata->getNullOffset(status.get(), 0);
 
     /* Allocate message buffer */
     auto* outMsg = new unsigned char[msgLen];
@@ -1754,7 +1743,7 @@ extern "C" unsigned fbs_get_input_count(void* master_ptr, void* statement_ptr, I
     }
 
     Firebird::CheckStatusWrapper status(master->getStatus());
-    unsigned count = metadata->getCount(&status);
+    unsigned count = metadata->getCount(status.get());
     metadata->release();
 
     return count;
@@ -1778,7 +1767,7 @@ extern "C" unsigned fbs_get_output_count(void* master_ptr, void* statement_ptr, 
     }
 
     Firebird::CheckStatusWrapper status(master->getStatus());
-    unsigned count = metadata->getCount(&status);
+    unsigned count = metadata->getCount(status.get());
     metadata->release();
 
     return count;
@@ -2649,7 +2638,7 @@ extern "C" unsigned char* fbxpb_build_tpb(
 
         // Create IXpbBuilder for TPB construction
         // IXpbBuilder::TPB = 1 (Transaction Parameter Block)
-        Firebird::IXpbBuilder* tpb = util->getXpbBuilder(&status, Firebird::IXpbBuilder::TPB, nullptr, 0);
+        Firebird::IXpbBuilder* tpb = util->getXpbBuilder(status.get(), Firebird::IXpbBuilder::TPB, nullptr, 0);
 
         if (fb::statusHasError(raw_status) || !tpb) {
             if (status_vector) {
@@ -2663,46 +2652,46 @@ extern "C" unsigned char* fbxpb_build_tpb(
 
         // Access mode: READ or WRITE (default WRITE)
         if (trans_flags & PHP_FBIRD_READ) {
-            tpb->insertTag(&status, isc_tpb_read);
+            tpb->insertTag(status.get(), isc_tpb_read);
         } else {
-            tpb->insertTag(&status, isc_tpb_write);
+            tpb->insertTag(status.get(), isc_tpb_write);
         }
 
         // Isolation level (mutually exclusive - check in order of specificity)
         if (trans_flags & PHP_FBIRD_COMMITTED) {
-            tpb->insertTag(&status, isc_tpb_read_committed);
+            tpb->insertTag(status.get(), isc_tpb_read_committed);
 
             // Record versioning for READ COMMITTED
             if (trans_flags & PHP_FBIRD_REC_VERSION) {
-                tpb->insertTag(&status, isc_tpb_rec_version);
+                tpb->insertTag(status.get(), isc_tpb_rec_version);
             } else if (trans_flags & PHP_FBIRD_REC_NO_VERSION) {
-                tpb->insertTag(&status, isc_tpb_no_rec_version);
+                tpb->insertTag(status.get(), isc_tpb_no_rec_version);
             }
 #if FB_API_VER >= 40
             // FB 4.0+ READ CONSISTENCY for snapshot isolation within READ COMMITTED
             if (trans_flags & PHP_FBIRD_READ_CONSISTENCY) {
-                tpb->insertTag(&status, isc_tpb_read_consistency);
+                tpb->insertTag(status.get(), isc_tpb_read_consistency);
             }
 #endif
         } else if (trans_flags & PHP_FBIRD_CONSISTENCY) {
-            tpb->insertTag(&status, isc_tpb_consistency);
+            tpb->insertTag(status.get(), isc_tpb_consistency);
         } else if (trans_flags & PHP_FBIRD_CONCURRENCY) {
-            tpb->insertTag(&status, isc_tpb_concurrency);
+            tpb->insertTag(status.get(), isc_tpb_concurrency);
         } else {
             // Default: SNAPSHOT (concurrency)
-            tpb->insertTag(&status, isc_tpb_concurrency);
+            tpb->insertTag(status.get(), isc_tpb_concurrency);
         }
 
         // Lock resolution: WAIT, NOWAIT, or LOCK_TIMEOUT
         if (trans_flags & PHP_FBIRD_NOWAIT) {
-            tpb->insertTag(&status, isc_tpb_nowait);
+            tpb->insertTag(status.get(), isc_tpb_nowait);
         } else if (trans_flags & PHP_FBIRD_LOCK_TIMEOUT) {
             // Lock timeout requires wait + timeout value
-            tpb->insertTag(&status, isc_tpb_wait);
+            tpb->insertTag(status.get(), isc_tpb_wait);
             // Insert timeout value as 4-byte integer
-            tpb->insertInt(&status, isc_tpb_lock_timeout, static_cast<int>(lock_timeout));
+            tpb->insertInt(status.get(), isc_tpb_lock_timeout, static_cast<int>(lock_timeout));
         } else if (trans_flags & PHP_FBIRD_WAIT) {
-            tpb->insertTag(&status, isc_tpb_wait);
+            tpb->insertTag(status.get(), isc_tpb_wait);
         }
         // Note: if none specified, Firebird defaults to WAIT
 
@@ -2716,8 +2705,8 @@ extern "C" unsigned char* fbxpb_build_tpb(
         }
 
         // Get buffer length and copy to allocated memory
-        unsigned len = tpb->getBufferLength(&status);
-        const unsigned char* buf = tpb->getBuffer(&status);
+        unsigned len = tpb->getBufferLength(status.get());
+        const unsigned char* buf = tpb->getBuffer(status.get());
 
         if (fb::statusHasError(raw_status) || !buf || len == 0) {
             if (status_vector) {
@@ -2788,7 +2777,7 @@ extern "C" int fbt_get_limbo_transactions(
         constexpr unsigned BUFFER_SIZE = 4096;
         unsigned char buffer[BUFFER_SIZE];
 
-        attachment->getInfo(&status, sizeof(info_items), info_items, BUFFER_SIZE, buffer);
+        attachment->getInfo(status.get(), sizeof(info_items), info_items, BUFFER_SIZE, buffer);
 
         if (fb::statusHasError(raw_status)) {
             if (status_vector) {
@@ -2889,7 +2878,7 @@ extern "C" void* fbt_reconnect(
 
         // Reconnect to the limbo transaction
         Firebird::ITransaction* transaction = attachment->reconnectTransaction(
-            &status, sizeof(id_bytes), id_bytes
+            status.get(), sizeof(id_bytes), id_bytes
         );
 
         if (fb::statusHasError(raw_status) || !transaction) {
@@ -2963,7 +2952,7 @@ extern "C" void* fbbatch_create(
         Firebird::CheckStatusWrapper status(raw_status);
 
         // Get input metadata from statement
-        Firebird::IMessageMetadata* inMetadata = statement->getInputMetadata(&status);
+        Firebird::IMessageMetadata* inMetadata = statement->getInputMetadata(status.get());
         if (fb::statusHasError(raw_status) || !inMetadata) {
             if (status_vector) {
                 copy_status_vector(raw_status->getErrors(), ISC_STATUS_LENGTH, status_vector, ISC_STATUS_LENGTH);
@@ -2974,7 +2963,7 @@ extern "C" void* fbbatch_create(
         // Guard: reject zero-length input metadata (Issue #180).
         // libfbclient's createBatch() divides buffer_bytes_size by msg_length
         // internally, causing SIGFPE when msg_length == 0 (parameterless statements).
-        unsigned msgLen = inMetadata->getMessageLength(&status);
+        unsigned msgLen = inMetadata->getMessageLength(status.get());
         if (msgLen == 0) {
             inMetadata->release();
             if (status_vector) {
@@ -3000,7 +2989,7 @@ extern "C" void* fbbatch_create(
             return nullptr;
         }
 
-        Firebird::IXpbBuilder* batchPpb = util->getXpbBuilder(&status, Firebird::IXpbBuilder::BATCH, nullptr, 0);
+        Firebird::IXpbBuilder* batchPpb = util->getXpbBuilder(status.get(), Firebird::IXpbBuilder::BATCH, nullptr, 0);
         if (fb::statusHasError(raw_status) || !batchPpb) {
             inMetadata->release();
             if (status_vector) {
@@ -3009,17 +2998,17 @@ extern "C" void* fbbatch_create(
             return nullptr;
         }
 
-        batchPpb->insertInt(&status, Firebird::IBatch::TAG_BUFFER_BYTES_SIZE, static_cast<int>(buffer_bytes_size));
-        batchPpb->insertInt(&status, Firebird::IBatch::TAG_BLOB_POLICY, Firebird::IBatch::BLOB_ID_ENGINE);
-        batchPpb->insertTag(&status, Firebird::IBatch::TAG_MULTIERROR);
-        batchPpb->insertTag(&status, Firebird::IBatch::TAG_DETAILED_ERRORS);
+        batchPpb->insertInt(status.get(), Firebird::IBatch::TAG_BUFFER_BYTES_SIZE, static_cast<int>(buffer_bytes_size));
+        batchPpb->insertInt(status.get(), Firebird::IBatch::TAG_BLOB_POLICY, Firebird::IBatch::BLOB_ID_ENGINE);
+        batchPpb->insertTag(status.get(), Firebird::IBatch::TAG_MULTIERROR);
+        batchPpb->insertTag(status.get(), Firebird::IBatch::TAG_DETAILED_ERRORS);
 
-        const unsigned parLength = batchPpb->getBufferLength(&status);
-        const unsigned char* par = batchPpb->getBuffer(&status);
+        const unsigned parLength = batchPpb->getBufferLength(status.get());
+        const unsigned char* par = batchPpb->getBuffer(status.get());
 
         // Get batch from statement with the input metadata
         Firebird::IBatch* batch = statement->createBatch(
-            &status,
+            status.get(),
             inMetadata,
             parLength,
             par
@@ -3083,7 +3072,7 @@ extern "C" int fbbatch_add(
         Firebird::CheckStatusWrapper status(raw_status);
 
         // Add messages to batch
-        wrapper->batch->add(&status, count, in_buffer);
+        wrapper->batch->add(status.get(), count, in_buffer);
 
         if (fb::statusHasError(raw_status)) {
             if (status_vector) {
@@ -3137,7 +3126,7 @@ extern "C" int fbbatch_execute(
         Firebird::CheckStatusWrapper status(raw_status);
 
         // Execute the batch
-        Firebird::IBatchCompletionState* completion = wrapper->batch->execute(&status, transaction);
+        Firebird::IBatchCompletionState* completion = wrapper->batch->execute(status.get(), transaction);
 
         if (fb::statusHasError(raw_status)) {
             if (status_vector) {
@@ -3152,14 +3141,14 @@ extern "C" int fbbatch_execute(
         // Get completion statistics
         if (completion) {
             if (total_processed) {
-                *total_processed = completion->getSize(&status);
+                *total_processed = completion->getSize(status.get());
             }
 
             // Count errors
             unsigned errors = 0;
-            unsigned size = completion->getSize(&status);
+            unsigned size = completion->getSize(status.get());
             for (unsigned i = 0; i < size; ++i) {
-                int state = completion->getState(&status, i);
+                int state = completion->getState(status.get(), i);
                 if (state != Firebird::IBatchCompletionState::EXECUTE_FAILED) {
                     // Success
                 } else {
@@ -3219,7 +3208,7 @@ extern "C" int fbbatch_cancel(
         Firebird::IStatus* raw_status = master->getStatus();
         Firebird::CheckStatusWrapper status(raw_status);
 
-        wrapper->batch->cancel(&status);
+        wrapper->batch->cancel(status.get());
 
         if (fb::statusHasError(raw_status)) {
             if (status_vector) {
@@ -3267,7 +3256,7 @@ extern "C" int fbbatch_close(
             try {
                 Firebird::IStatus* raw_status = master->getStatus();
                 Firebird::CheckStatusWrapper status(raw_status);
-                wrapper->batch->close(&status);
+                wrapper->batch->close(status.get());
             } catch (...) {
                 // Ignore errors during close
             }
@@ -3308,7 +3297,7 @@ extern "C" void* fbbatch_get_metadata(
         Firebird::IStatus* raw_status = master->getStatus();
         Firebird::CheckStatusWrapper status(raw_status);
 
-        Firebird::IMessageMetadata* metadata = wrapper->batch->getMetadata(&status);
+        Firebird::IMessageMetadata* metadata = wrapper->batch->getMetadata(status.get());
 
         if (fb::statusHasError(raw_status) || !metadata) {
             if (status_vector) {
@@ -3358,7 +3347,7 @@ extern "C" unsigned fbbatch_get_blob_alignment(
         Firebird::IStatus* raw_status = master->getStatus();
         Firebird::CheckStatusWrapper status(raw_status);
 
-        unsigned alignment = wrapper->batch->getBlobAlignment(&status);
+        unsigned alignment = wrapper->batch->getBlobAlignment(status.get());
 
         if (fb::statusHasError(raw_status)) {
             if (status_vector) {
@@ -3419,7 +3408,7 @@ extern "C" int fbbatch_add_blob(
         // Add BLOB to batch using IBatch::addBlob()
         // addBlob() modifies blob_id_out in-place
         wrapper->batch->addBlob(
-            &status,
+            status.get(),
             length,
             data,
             blob_id_out,
@@ -3477,7 +3466,7 @@ extern "C" int fbbatch_append_blob_data(
         Firebird::CheckStatusWrapper status(raw_status);
 
         // Append data to the current BLOB being constructed
-        wrapper->batch->appendBlobData(&status, length, data);
+        wrapper->batch->appendBlobData(status.get(), length, data);
 
         if (fb::statusHasError(raw_status)) {
             if (status_vector) {
@@ -3538,7 +3527,7 @@ extern "C" int fbbatch_add_blob_stream(
         Firebird::CheckStatusWrapper status(raw_status);
 
         // Stream BLOB data using addBlobStream
-        wrapper->batch->addBlobStream(&status, length, data);
+        wrapper->batch->addBlobStream(status.get(), length, data);
 
         if (fb::statusHasError(raw_status)) {
             if (status_vector) {
@@ -3591,7 +3580,7 @@ extern "C" int fbbatch_register_blob(
 
         // Register an existing BLOB for use in the batch
         // registerBlob() modifies batch_blob_id in-place
-        wrapper->batch->registerBlob(&status, existing_blob, batch_blob_id);
+        wrapper->batch->registerBlob(status.get(), existing_blob, batch_blob_id);
 
         if (fb::statusHasError(raw_status)) {
             if (status_vector) {
@@ -3649,7 +3638,7 @@ extern "C" int fbbatch_set_default_bpb(
         Firebird::CheckStatusWrapper status(raw_status);
 
         // Set default BPB for BLOB operations
-        wrapper->batch->setDefaultBpb(&status, bpb_length, bpb);
+        wrapper->batch->setDefaultBpb(status.get(), bpb_length, bpb);
 
         if (fb::statusHasError(raw_status)) {
             if (status_vector) {
@@ -3712,7 +3701,7 @@ extern "C" int fbbatch_execute_detailed(
         Firebird::CheckStatusWrapper status(raw_status);
 
         // Execute the batch
-        Firebird::IBatchCompletionState* completion = wrapper->batch->execute(&status, transaction);
+        Firebird::IBatchCompletionState* completion = wrapper->batch->execute(status.get(), transaction);
 
         if (fb::statusHasError(raw_status)) {
             if (status_vector) {
@@ -3733,13 +3722,13 @@ extern "C" int fbbatch_execute_detailed(
         }
 
         // Get total count
-        unsigned total = completion->getSize(&status);
+        unsigned total = completion->getSize(status.get());
         result->total_count = total;
 
         // First pass: count errors
         unsigned error_count = 0;
         for (unsigned i = 0; i < total; ++i) {
-            int state = completion->getState(&status, i);
+            int state = completion->getState(status.get(), i);
             if (state == Firebird::IBatchCompletionState::EXECUTE_FAILED) {
                 error_count++;
             }
@@ -3760,7 +3749,7 @@ extern "C" int fbbatch_execute_detailed(
 
                 while (error_idx < error_count) {
                     // Find next error position
-                    unsigned error_pos = completion->findError(&status, search_pos);
+                    unsigned error_pos = completion->findError(status.get(), search_pos);
                     if (error_pos == static_cast<unsigned>(Firebird::IBatchCompletionState::NO_MORE_ERRORS)) {
                         break;  // No more errors
                     }
@@ -3771,7 +3760,7 @@ extern "C" int fbbatch_execute_detailed(
 
                     // Get error status for this position
                     Firebird::IStatus* error_status = master->getStatus();
-                    completion->getStatus(&status, error_status, error_pos);
+                    completion->getStatus(status.get(), error_status, error_pos);
 
                     // Extract SQLSTATE from the status (stored in errors array)
                     // The errors array may contain isc_arg_sql_state followed by the state string

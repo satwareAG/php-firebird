@@ -1,0 +1,98 @@
+Source: php-firebird
+Section: php
+Priority: optional
+Maintainer: satware AG <info@satware.com>
+Build-Depends: debhelper-compat (= 13),
+ php8.4-dev | php8.3-dev | php8.2-dev,
+ libicu-dev,
+ libtommath-dev,
+ patchelf,
+ wget,
+ curl,
+ jq,
+ git
+Standards-Version: 4.7.0
+Homepage: https://github.com/satwareAG/php-firebird
+Vcs-Git: https://github.com/satwareAG/php-firebird.git
+Vcs-Browser: https://github.com/satwareAG/php-firebird
+Rules-Requires-Root: no
+
+Package: php8.2-firebird
+Architecture: amd64 arm64
+Depends: ${shlibs:Depends}, ${misc:Depends}, php8.2-common
+Recommends: php8.2-pdo
+Provides: php-firebird, php-pdo-fbird
+Conflicts: php8.2-interbase
+Replaces: php8.2-interbase
+Description: Modern Firebird database extension for PHP 8.2
+ php-firebird is a modernized PHP extension providing native connectivity
+ to Firebird databases (3.0, 4.0, 5.0+). It is a high-performance
+ replacement for the legacy ext/interbase, written in C/C++17 using the
+ modern Firebird OO API.
+ .
+ This package provides:
+   * Procedural API (fbird_* functions)
+   * OOP API (Firebird\Connection, Firebird\Database, etc.)
+   * PDO driver (pdo_fbird)
+   * Bundled Firebird 5.0 client library (FB4+ features always enabled:
+     DECFLOAT, INT128, TIME/TIMESTAMP WITH TIME ZONE, batch DML)
+
+Package: php8.3-firebird
+Architecture: amd64 arm64
+Depends: ${shlibs:Depends}, ${misc:Depends}, php8.3-common
+Recommends: php8.3-pdo
+Provides: php-firebird, php-pdo-fbird
+Conflicts: php8.3-interbase
+Replaces: php8.3-interbase
+Description: Modern Firebird database extension for PHP 8.3
+ php-firebird is a modernized PHP extension providing native connectivity
+ to Firebird databases (3.0, 4.0, 5.0+). It is a high-performance
+ replacement for the legacy ext/interbase, written in C/C++17 using the
+ modern Firebird OO API.
+ .
+ This package provides:
+   * Procedural API (fbird_* functions)
+   * OOP API (Firebird\Connection, Firebird\Database, etc.)
+   * PDO driver (pdo_fbird)
+   * Bundled Firebird 5.0 client library (FB4+ features always enabled:
+     DECFLOAT, INT128, TIME/TIMESTAMP WITH TIME ZONE, batch DML)
+
+Package: php8.4-firebird
+Architecture: amd64 arm64
+Depends: ${shlibs:Depends}, ${misc:Depends}, php8.4-common
+Recommends: php8.4-pdo
+Provides: php-firebird, php-pdo-fbird
+Conflicts: php8.4-interbase
+Replaces: php8.4-interbase
+Description: Modern Firebird database extension for PHP 8.4
+ php-firebird is a modernized PHP extension providing native connectivity
+ to Firebird databases (3.0, 4.0, 5.0+). It is a high-performance
+ replacement for the legacy ext/interbase, written in C/C++17 using the
+ modern Firebird OO API.
+ .
+ This package provides:
+   * Procedural API (fbird_* functions)
+   * OOP API (Firebird\Connection, Firebird\Database, etc.)
+   * PDO driver (pdo_fbird)
+   * Bundled Firebird 5.0 client library (FB4+ features always enabled:
+     DECFLOAT, INT128, TIME/TIMESTAMP WITH TIME ZONE, batch DML)
+
+Package: php8.5-firebird
+Architecture: amd64 arm64
+Depends: ${shlibs:Depends}, ${misc:Depends}, php8.5-common
+Recommends: php8.5-pdo
+Provides: php-firebird, php-pdo-fbird
+Conflicts: php8.5-interbase
+Replaces: php8.5-interbase
+Description: Modern Firebird database extension for PHP 8.5
+ php-firebird is a modernized PHP extension providing native connectivity
+ to Firebird databases (3.0, 4.0, 5.0+). It is a high-performance
+ replacement for the legacy ext/interbase, written in C/C++17 using the
+ modern Firebird OO API.
+ .
+ This package provides:
+   * Procedural API (fbird_* functions)
+   * OOP API (Firebird\Connection, Firebird\Database, etc.)
+   * PDO driver (pdo_fbird)
+   * Bundled Firebird 5.0 client library (FB4+ features always enabled:
+     DECFLOAT, INT128, TIME/TIMESTAMP WITH TIME ZONE, batch DML)

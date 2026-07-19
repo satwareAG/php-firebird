@@ -1,0 +1,111 @@
+#!/usr/bin/make -f
+# =============================================================================
+# Debian packaging rules for php-firebird
+# =============================================================================
+# 
+# This rules file builds php-firebird for ONE PHP version at a time.
+# The build.sh script invokes dpkg-buildpackage once per PHP version.
+#
+# The FB5 client is bundled (not system firebird-dev) so that
+# #if FB_API_VER >= 40 code paths are always enabled.
+# =============================================================================
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+# PHP version is passed via environment variable (PHP_VERSION=8.4)
+# Default to 8.4 if not set
+PHP_VERSION ?= 8.4
+PHP_VER_SHORT := $(subst .,,$(PHP_VERSION))
+
+# Firebird client directory (bundled by fetch-client.sh)
+FB_ROOT ?= /opt/firebird
+
+# Output directory for built extension
+EXT_DIR := $(shell php-config$(PHP_VERSION) --extension-dir 2>/dev/null || echo /usr/lib/php/$(PHP_VERSION))
+
+%:
+	dh $@
+
+# =============================================================================
+# Build target: compile the extension
+# =============================================================================
+override_dh_auto_build:
+	# Fetch FB5 client if not already present
+	@if [ ! -f $(FB_ROOT)/lib/libfbclient.so ]; then \
+		echo "Fetching FB5 client..."; \
+		bash packaging/fb-client-bundle/fetch-client.sh \
+			--arch $$(dpkg --print-architecture) \
+			--output-dir $(FB_ROOT); \
+	fi
+
+	# Build firebird extension
+	phpize$(PHP_VERSION)
+	./configure \
+		--with-php-config=php-config$(PHP_VERSION) \
+		--with-firebird=$(FB_ROOT)
+	$(MAKE) -j$$(nproc)
+
+	# Build pdo_fbird extension
+	cd pdo_fbird && \
+		phpize$(PHP_VERSION) && \
+		./configure \
+			--with-php-config=php-config$(PHP_VERSION) \
+			--with-firebird=$(FB_ROOT) && \
+		$(MAKE) -j$$(nproc)
+
+# =============================================================================
+# Install target: copy files to debian/tmp/
+# =============================================================================
+override_dh_auto_install:
+	# Create directories
+	mkdir -p debian/tmp/$(EXT_DIR)
+	mkdir -p debian/tmp/usr/share/php/Firebird
+	mkdir -p debian/tmp/usr/lib/php-firebird
+	mkdir -p debian/tmp/etc/php/$(PHP_VERSION)/mods-available
+
+	# Install extension .so files
+	cp modules/firebird.so debian/tmp/$(EXT_DIR)/
+	cp pdo_fbird/modules/pdo_fbird.so debian/tmp/$(EXT_DIR)/
+
+	# Install OO API PHP class files
+	cp src/Firebird/*.php debian/tmp/usr/share/php/Firebird/
+	cp packaging/firebird-autoload.php debian/tmp/usr/share/php/Firebird/
+
+	# Install bundled FB5 client libraries
+	cp -a $(FB_ROOT)/lib/libfbclient.so* debian/tmp/usr/lib/php-firebird/
+	cp -a $(FB_ROOT)/lib/libicu*.so* debian/tmp/usr/lib/php-firebird/ 2>/dev/null || true
+	cp -a $(FB_ROOT)/lib/libtomcrypt.so* debian/tmp/usr/lib/php-firebird/ 2>/dev/null || true
+	cp -a $(FB_ROOT)/lib/libtommath.so* debian/tmp/usr/lib/php-firebird/ 2>/dev/null || true
+	cp -a $(FB_ROOT)/lib/libre2.so* debian/tmp/usr/lib/php-firebird/ 2>/dev/null || true
+
+	# Set RPATH on firebird.so: $ORIGIN/../../php-firebird
+	# jane: EXT_DIR is like /usr/lib/php/20240924, so $ORIGIN/../../php-firebird
+	#       resolves to /usr/lib/php-firebird (up 2 levels from 20240924/)
+	patchelf --force-rpath --set-rpath '$$ORIGIN/../../php-firebird' debian/tmp/$(EXT_DIR)/firebird.so
+	patchelf --force-rpath --set-rpath '$$ORIGIN/../../php-firebird' debian/tmp/$(EXT_DIR)/pdo_fbird.so
+
+	# Set RPATH on bundled libs: $ORIGIN (so they find each other)
+	for lib in debian/tmp/usr/lib/php-firebird/*.so*; do \
+		if [ -f "$$lib" ] && [ ! -L "$$lib" ]; then \
+			patchelf --force-rpath --set-rpath '$$ORIGIN' "$$lib" 2>/dev/null || true; \
+		fi; \
+	done
+
+	# Create INI files
+	echo "extension=firebird.so" > debian/tmp/etc/php/$(PHP_VERSION)/mods-available/20-firebird.ini
+	echo "extension=pdo_fbird.so" > debian/tmp/etc/php/$(PHP_VERSION)/mods-available/20-pdo_fbird.ini
+
+# =============================================================================
+# Skip auto-test (PHPT tests require a running Firebird server)
+# =============================================================================
+override_dh_auto_test:
+
+# =============================================================================
+# Clean target
+# =============================================================================
+override_dh_auto_clean:
+	-$(MAKE) clean 2>/dev/null || true
+	-cd pdo_fbird && $(MAKE) clean 2>/dev/null || true
+	-phpize$(PHP_VERSION) --clean 2>/dev/null || true
+	-cd pdo_fbird && phpize$(PHP_VERSION) --clean 2>/dev/null || true
+	dh_auto_clean

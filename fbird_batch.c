@@ -551,8 +551,12 @@ int fbird_batch_add_impl(fbird_batch *fb_batch, zval *args, int argc)
 #endif
 
 			case SQL_BLOB: {
-				/* BLOB ID as hex string "HHHHHHHH:LLLL" (13 characters)
-				 * Format: 8 hex digits (high 32-bit), colon, 4 hex digits (low 16-bit)
+				/* BLOB ID as hex string "HHHHHHHH:LLLLLLLL" (17 characters)
+				 * Format: 8 hex digits (high 32-bit), colon, 8 hex digits (low 32-bit)
+				 * jane: #516 - was 13 chars (4 hex low), now 17 chars (8 hex low, full 32-bit)
+				/* BLOB ID as hex string "HHHHHHHH:LLLLLLLL" (17 characters)
+				 * Format: 8 hex digits (high 32-bit), colon, 8 hex digits (low 32-bit)
+				 * jane: #516 - was 13 chars (4 hex low), now 17 chars (8 hex low, full 32-bit)
 				 * Example: "74292B00:7FFC"
 				 */
 				convert_to_string(b_var);

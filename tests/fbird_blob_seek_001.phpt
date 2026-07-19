@@ -168,7 +168,7 @@ SEEK_CUR=1
 SEEK_END=2
 
 === Test 2: Create blob with known content ===
-Blob created, ID length: 13
+Blob created, ID length: 17
 
 === Test 3: SEEK_SET (absolute positioning) ===
 Seek to 10 (SEEK_SET): new position = 10

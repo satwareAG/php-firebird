@@ -139,8 +139,12 @@ PHP_METHOD(FirebirdBlob, open)
 		RETURN_THROWS();
 	}
 
-	ISC_QUAD blob_id;
-	if (id_len < 17 || sscanf(id_str, "%08x:%08x",
+	/* jane: fixed #516 - accept both 17-char (new: "XXXXXXXX:XXXXXXXX") and
+	 *       13-char (legacy: "XXXXXXXX:XXXX") blob IDs for backwards compat.
+	 *       The %08x:%08x sscanf pattern accepts any length hex, so the check
+	 *       only needs to enforce minimum length (13 = 8+1+4).
+	 */
+	if (id_len < 13 || sscanf(id_str, "%08x:%08x",
 			(unsigned *)&blob_id.gds_quad_high,
 			(unsigned *)&blob_id.gds_quad_low) != 2) {
 		zend_throw_exception(fbird_query_exception_ce, "Invalid blob ID format", 0);

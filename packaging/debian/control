@@ -19,7 +19,7 @@ Rules-Requires-Root: no
 
 Package: php8.2-firebird
 Architecture: amd64 arm64
-Depends: ${shlibs:Depends}, ${misc:Depends}, php8.2-common
+Depends: ${shlibs:Depends}, ${misc:Depends}, libtommath1, php8.2-common
 Recommends: php8.2-pdo
 Provides: php-firebird, php-pdo-fbird
 Conflicts: php8.2-interbase
@@ -39,7 +39,7 @@ Description: Modern Firebird database extension for PHP 8.2
 
 Package: php8.3-firebird
 Architecture: amd64 arm64
-Depends: ${shlibs:Depends}, ${misc:Depends}, php8.3-common
+Depends: ${shlibs:Depends}, ${misc:Depends}, libtommath1, php8.3-common
 Recommends: php8.3-pdo
 Provides: php-firebird, php-pdo-fbird
 Conflicts: php8.3-interbase
@@ -59,7 +59,7 @@ Description: Modern Firebird database extension for PHP 8.3
 
 Package: php8.4-firebird
 Architecture: amd64 arm64
-Depends: ${shlibs:Depends}, ${misc:Depends}, php8.4-common
+Depends: ${shlibs:Depends}, ${misc:Depends}, libtommath1, php8.4-common
 Recommends: php8.4-pdo
 Provides: php-firebird, php-pdo-fbird
 Conflicts: php8.4-interbase
@@ -79,7 +79,7 @@ Description: Modern Firebird database extension for PHP 8.4
 
 Package: php8.5-firebird
 Architecture: amd64 arm64
-Depends: ${shlibs:Depends}, ${misc:Depends}, php8.5-common
+Depends: ${shlibs:Depends}, ${misc:Depends}, libtommath1, php8.5-common
 Recommends: php8.5-pdo
 Provides: php-firebird, php-pdo-fbird
 Conflicts: php8.5-interbase

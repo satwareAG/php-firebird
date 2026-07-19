@@ -155,7 +155,8 @@ Tag push v*
   +-- Release (macOS)   -> prepare -> build -> test-bundles -> upload (draft:true)
   +-- Release (Windows) -> get-matrix -> build -> upload (draft:true)
   |
-  +-- Split Stubs       -> split stubs/ to satwareAG/php-firebird-stubs
+  +-- Split Packages     -> split stubs/ to satwareAG/php-firebird-stubs
+  |                      -> split pdo_fbird/ to satwareAG/pdo-fbird (PIE)
   |
   +-- Publish Release   -> waits for all 3 platform workflows
                            -> generates SLSA attestations

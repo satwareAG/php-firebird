@@ -1,7 +1,8 @@
-# Mono-repo subtree split workflow for php-firebird-stubs
-# Splits the stubs/ directory to the dedicated satwareAG/php-firebird-stubs repository
+# Mono-repo subtree split workflow
+# Splits stubs/ to satwareAG/php-firebird-stubs and
+# pdo_fbird/ to satwareAG/pdo-fbird (PIE packages for Packagist)
 
-name: Split Stubs Package
+name: Split Packages
 
 on:
   push:
@@ -9,6 +10,7 @@ on:
       - satware-main
     paths:
       - 'stubs/**'
+      - 'pdo_fbird/**'
     tags:
       - 'v*'
   workflow_dispatch:
@@ -17,29 +19,24 @@ permissions:
   contents: read
 
 concurrency:
-  group: split-stubs-${{ github.ref }}
+  group: split-packages-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  split:
-    name: Split stubs/ to dedicated repository
+  split-stubs:
+    name: Split stubs/ to satwareAG/php-firebird-stubs
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
-          fetch-depth: 0  # Full history required for subtree split
+          fetch-depth: 0
 
       - name: Delete existing tag in stubs repo (if re-tagging)
         if: github.ref_type == 'tag'
         run: |
-          # If the tag already exists in the stubs repo (e.g. from a previous split),
-          # try to delete it so the split action can recreate it.
-          # Tag protection rules may block deletion — in that case, the split
-          # action will fail with "tag already exists", which is acceptable
-          # (the stubs repo already has the correct tag from the previous run).
           if gh api -X DELETE "repos/satwareAG/php-firebird-stubs/git/refs/tags/${{ github.ref_name }}" 2>/dev/null; then
             echo "Deleted existing tag ${{ github.ref_name }} in stubs repo"
           else
@@ -51,22 +48,47 @@ jobs:
       - name: Split stubs directory
         uses: danharrin/monorepo-split-github-action@19b2e0cbe3fe3de17309fd0fe95d4e05454f3ab3 # v2.4.0
         env:
-          # PAT environment variable required by the action
           PAT: ${{ secrets.STUBS_REPO_TOKEN }}
         with:
-          # Source directory containing the package
           package_directory: 'stubs'
-          
-          # Target repository in format: organization/repository
           repository_organization: 'satwareAG'
           repository_name: 'php-firebird-stubs'
-          
-          # Git commit identity
           user_email: 'github-actions[bot]@users.noreply.github.com'
           user_name: 'github-actions[bot]'
-          
-          # Branch to push to in the target repository
           branch: 'main'
-          
-          # Preserve tag in split repository (for Packagist versioning)
+          tag: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+
+  split-pdo-fbird:
+    name: Split pdo_fbird/ to satwareAG/pdo-fbird
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Delete existing tag in pdo-fbird repo (if re-tagging)
+        if: github.ref_type == 'tag'
+        run: |
+          if gh api -X DELETE "repos/satwareAG/pdo-fbird/git/refs/tags/${{ github.ref_name }}" 2>/dev/null; then
+            echo "Deleted existing tag ${{ github.ref_name }} in pdo-fbird repo"
+          else
+            echo "Tag ${{ github.ref_name }} could not be deleted (protected or not found) — split will use existing tag"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.PDO_FBIRD_REPO_TOKEN }}
+
+      - name: Split pdo_fbird directory
+        uses: danharrin/monorepo-split-github-action@19b2e0cbe3fe3de17309fd0fe95d4e05454f3ab3 # v2.4.0
+        env:
+          PAT: ${{ secrets.PDO_FBIRD_REPO_TOKEN }}
+        with:
+          package_directory: 'pdo_fbird'
+          repository_organization: 'satwareAG'
+          repository_name: 'pdo-fbird'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          user_name: 'github-actions[bot]'
+          branch: 'main'
           tag: ${{ github.ref_type == 'tag' && github.ref_name || '' }}

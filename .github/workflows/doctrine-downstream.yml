@@ -37,20 +37,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # v3.14.0: production pin from amicron-platform release/3.0.0-rc.2 composer.lock
-        #   NOTE: Fails with ext-firebird v13 due to ^12.0 constraint.
-        #   Tracked in doctrine-firebird-driver issue #131.
-        #   Once driver v3.18.0+ is released, update this to the new tag.
-        # 4.4.x: default branch (DBAL 4.x) — accepts ext-firebird * constraint.
-        #   Tests forward compatibility with the driver's development branch.
-        doctrine-ref: ['v3.14.0', '4.4.x']
+        # v3.18.0: production tag with ext-firebird ^12.0 || ^13.0 constraint
+        #   widening (doctrine-firebird-driver issue #131, tag published 2026-07-19).
+        #   This is the primary downstream test — failures here block the PR.
+        # 4.4.x: default branch (DBAL 4.x) — has 546 test failures with ext-firebird
+        #   v13 due to behavioral changes. Tracked in #131. Informational only.
+        doctrine-ref: ['v3.18.0', '4.4.x']
         php-version: ['8.4']
 
-    # Both refs expected to have issues with ext-firebird v13:
-    # - v3.14.0: constraint mismatch (^12.0 doesn't accept v13). Tracked in #131.
-    # - 4.4.x: 546 test failures (behavioral changes in v13 vs v12). Tracked in #131.
-    # Both are informational — the driver team needs to adapt to v13.
-    continue-on-error: true
+    # 4.4.x has known v13 compatibility issues (546 test failures, tracked in #131).
+    # v3.18.0 is the production pin and MUST pass.
+    continue-on-error: ${{ matrix.doctrine-ref == '4.4.x' }}
 
     services:
       firebird:

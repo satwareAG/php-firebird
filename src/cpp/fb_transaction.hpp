@@ -196,7 +196,7 @@ inline Transaction Transaction::start(
         tpb
     );
 
-    if (check_status.isDirty() || !raw_transaction) {
+    if (fb::statusHasError(raw_status) || !raw_transaction) {
         throw Exception(raw_status);
     }
 
@@ -270,7 +270,7 @@ inline void Transaction::commit() {
     Firebird::CheckStatusWrapper check_status(raw_status);
     transaction_->commit(&check_status);
 
-    if (check_status.isDirty()) {
+    if (fb::statusHasError(raw_status)) {
         last_status_ = StatusWrapper(master);
         last_status_.get()->setErrors(raw_status->getErrors());
         throw Exception(raw_status);
@@ -295,7 +295,7 @@ inline void Transaction::rollback() {
     Firebird::CheckStatusWrapper check_status(raw_status);
     transaction_->rollback(&check_status);
 
-    if (check_status.isDirty()) {
+    if (fb::statusHasError(raw_status)) {
         last_status_ = StatusWrapper(master);
         last_status_.get()->setErrors(raw_status->getErrors());
         throw Exception(raw_status);
@@ -317,7 +317,7 @@ inline void Transaction::commitRetaining() {
     Firebird::CheckStatusWrapper check_status(raw_status);
     transaction_->commitRetaining(&check_status);
 
-    if (check_status.isDirty()) {
+    if (fb::statusHasError(raw_status)) {
         last_status_ = StatusWrapper(master_);
         last_status_.get()->setErrors(raw_status->getErrors());
         throw Exception(raw_status);
@@ -338,7 +338,7 @@ inline void Transaction::rollbackRetaining() {
     Firebird::CheckStatusWrapper check_status(raw_status);
     transaction_->rollbackRetaining(&check_status);
 
-    if (check_status.isDirty()) {
+    if (fb::statusHasError(raw_status)) {
         last_status_ = StatusWrapper(master_);
         last_status_.get()->setErrors(raw_status->getErrors());
         throw Exception(raw_status);
@@ -358,7 +358,7 @@ inline bool Transaction::rollbackNoThrow() noexcept {
             Firebird::IStatus* raw_status = master->getStatus();
             Firebird::CheckStatusWrapper check_status(raw_status);
             transaction_->rollback(&check_status);
-            if (check_status.isDirty()) {
+            if (fb::statusHasError(raw_status)) {
                 transaction_.reset();
                 return false;
             }

@@ -220,21 +220,35 @@ spec (`spec-v13.1-fb6-coverage.md` or similar) will cover:
 ### Other out-of-scope items
 
 - `fbird_server_version` at connection level (#361, Unscheduled milestone) - capability-probe SKIPIF makes it unnecessary for v13.0.0
-- v12.1.0 M2 procedural backlog (#436-#441, Unscheduled milestone)
 - FB 2.5 legacy SQL features
 - Performance benchmarking across FB versions
+
+### Bonus: Out-of-spec items shipped in v13.0.0
+
+The following were originally in the v12.1.0 M2 "Unscheduled" milestone but were
+implemented as part of v13.0.0 (procedural parity + error context + DecFloat
+arithmetic + per-statement timeout):
+
+- #436, #437, #438, #440, #441 - M2 procedural parity (fbird_fetch_array, fbird_ping, fbird_server_version, metadata functions, BLOB sub_type)
+- #439 - per-connection error context + error_list
+- #464 - per-statement timeout (IStatement::getTimeout/setTimeout)
+- #468 - Firebird\DecFloat arithmetic (add/sub/mul/div/compare)
+- #476 - FB4 nbackup online dump service API
+- #477 - FB3 trace service start/stop/config
+- #478 - FB4 session timezone DPB parameter
+- #479 - BLOB sub_type in fbird_field_info()
 
 ---
 
 ## Issue Index
 
-### In scope (13 issues)
+### In scope (15 issues)
 
 | Issue | Title | Status |
 |-------|-------|--------|
 | #327 | spec: write this file (this spec) | **Done** |
 | #419 | feat: FB4 TIME/TIMESTAMP WITH TIME ZONE | **Done** (P1) |
-| #417 | feat: FB4 DECFLOAT(16/34) native type support | **Done** (PR #475, native `Firebird\DecFloat` class) |
+| #417 | feat: FB4 DECFLOAT(16/34) native type support | **Done** (PR #475, native `Firebird\DecFloat` class). Note: native object only on PHP 8.3+; PHP 8.2 falls back to strings (#472, PHP Zend Engine bug). PDO always returns strings. |
 | #418 | feat: FB4 INT128 native type support | **Done** (P2) |
 | #420 | feat: FB4 SET BIND rule coverage (all rules) | **Done** (P3) |
 | #426 | feat: FB5 scrollable cursors (6 orientations) | **Done** (P4) |
@@ -246,6 +260,7 @@ spec (`spec-v13.1-fb6-coverage.md` or similar) will cover:
 | #427 | feat: FB5 parallel workers | **Done** |
 | #428 | feat: FB5 profiler plugin | **Done** |
 | #435 | feat: PDO multiple active result sets | **Done** |
+| #464 | feat: per-statement timeout (IStatement::getTimeout/setTimeout) | **Done** |
 
 ### Deferred (7 issues - blocked on FB6 Docker image)
 

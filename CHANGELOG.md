@@ -37,7 +37,18 @@ release with full test matrix passing (PHP 8.2-8.5 x FB 3.0/4.0/5.0).
 
 #### Known Issues
 
-- None.
+- **PHP 8.2 DECFLOAT degradation**: On PHP 8.2, DECFLOAT values are returned as
+  strings, not `Firebird\DecFloat` objects. This is a PHP Zend Engine bug in
+  method dispatch for `var_dump()` on custom objects (#472, closed as not
+  fixable upstream). Workaround: compile-time `#if PHP_VERSION_ID >= 80300`
+  guard in `fbird_result.c:275-293`. Native `Firebird\DecFloat` objects are
+  available on PHP 8.3+. Revisit when PHP 8.2 reaches EOL (Dec 2026).
+- **PDO TIME/TIMESTAMP WITH TIME ZONE parameterized binding**: PDO parameterized
+  binding of `TIME WITH TIME ZONE` and `TIMESTAMP WITH TIME ZONE` fails with
+  Firebird error 335544913 ("value exceeds the range for valid timestamps").
+  Procedural `fbird_execute` works fine. Tests use SQL literal INSERTs as
+  workaround (`tests/pdo_fbird/pdo_fbird_timestamp_tz.phpt`). Tracked for
+  future investigation.
 
 ### v13.0.0-rc.2 — Test Isolation + CI Parity Fixes (release candidate)
 
@@ -247,6 +258,16 @@ downstream (amicron-platform FB3 support complete in v12.1.0).
 - `tests/fbird_statement_timeout_api.phpt` — FB4+ statement/session timeout
   full API (#422 approach B): set/get round-trip for all 3 layers
   (procedural, PDO, OOP) + timeout enforcement.
+- `tests/fbird_stmt_timeout_001.phpt` — per-statement timeout (#464):
+  `fbird_stmt_set_timeout()` / `fbird_stmt_get_timeout()` round-trip and
+  enforcement at the statement level (distinct from #422 session timeout).
+- `tests/fbird_timeout_review_fixes.phpt` — #422 review fixes: resource type
+  validation, negative value rejection, status_vector population.
+- `tests/fbird_decfloat_native_type.phpt` — #417 native DecFloat class
+  round-trip: DECFLOAT(16) and DECFLOAT(34) values returned as
+  `Firebird\DecFloat` objects (PHP 8.3+) or strings (PHP 8.2 fallback).
+- `tests/cross_version/data_type_compat_25.phpt` — DataTypeCompatibility=2.5
+  mode: FB 2.5 coercion semantics for cross-version client/server scenarios.
 
 #### Changed
 

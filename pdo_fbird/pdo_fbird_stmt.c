@@ -749,6 +749,7 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 				if (rc == 0) continue; /* more data */
 			}
 			fbb_close(FBG(master_instance), blob, S->H->status);
+			fbb_free(blob); /* jane: fixed #517 - was missing, leaked BlobWrapper struct on every BLOB fetch */
 
 			if (type && *type == PDO_PARAM_LOB) {
 				/* Return as PHP stream for LOB binding */

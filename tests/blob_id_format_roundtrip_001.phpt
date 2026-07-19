@@ -3,10 +3,10 @@ BLOB ID format round-trip: string from fbird_blob_close (#516)
 --CREDITS--
 v13.0.1 bugfix audit - #516 blob ID format inconsistency
 --SKIPIF--
-<?php require_once __DIR__ . '/../skipif.inc'; ?>
+<?php require_once __DIR__ . '/skipif.inc'; ?>
 --FILE--
 <?php
-require_once __DIR__ . '/../skipif.inc';
+require_once __DIR__ . '/skipif.inc';
 
 fbird_query($link, "RECREATE TABLE test_blob_id_format (data BLOB)");
 $trx = fbird_trans($link);

@@ -154,7 +154,12 @@ build_package() {
     fi
 
     local deb_name="php${php_ver}-firebird_$(cat VERSION.txt 2>/dev/null || echo 0.0.0)-1_$(echo $arch | sed 's/x86_64/amd64/;s/aarch64/arm64/').deb"
-    local deb_path="${OUTPUT_DIR}/${deb_name}"
+    # jane: per-distro subdirectory to avoid filename collisions across distros
+    # (bookworm/trixie/jammy/noble all produce the same .deb filename)
+    local deb_subdir="${OUTPUT_DIR}/${distro}"
+    local deb_path="${deb_subdir}/${deb_name}"
+
+    mkdir -p "$deb_subdir"
 
     # Skip if already built
     if [ -f "$deb_path" ]; then
@@ -167,7 +172,7 @@ build_package() {
     # Run build.sh inside Docker container
     local result_log="/tmp/build-${php_ver//./}-${distro}-${arch}.log"
     local exit_code=0
-    local abs_output="$(cd "${OUTPUT_DIR}" && pwd)"
+    local abs_output="$(cd "${deb_subdir}" && pwd)"
 
     # Pre-fetch FB5 client on HOST (Docker container can't reach GitHub API reliably)
     # jane: uses /tmp/fb-test-{x64,arm64} naming from fetch-client.sh --arch
@@ -209,8 +214,8 @@ build_package() {
         > "$result_log" 2>&1 || exit_code=$?
 
     if [ $exit_code -eq 0 ]; then
-        # Verify .deb was produced
-        if ls "${OUTPUT_DIR}"/php${php_ver}-firebird_*.deb 1>/dev/null 2>&1; then
+        # Verify .deb was produced (exact path, not glob — avoids false-positive from other distros)
+        if [ -f "${abs_output}/${deb_name}" ]; then
             log_pass "[$idx/$TOTAL] $php_ver/$distro/$arch: $deb_name"
             return 0
         else
@@ -231,29 +236,31 @@ build_package() {
 generate_apt_metadata() {
     log_info "=== Generating APT repo metadata ==="
 
-    # For each distro, create the dists/ structure
+    # Check for dpkg-scanpackages on host
+    if ! command -v dpkg-scanpackages >/dev/null 2>&1; then
+        log "dpkg-scanpackages not found on host — skipping APT metadata (install dpkg-dev)"
+        return 0
+    fi
+
+    # For each distro, create the dists/ structure from per-distro subdir
     for distro in "${DISTRO_LIST[@]}"; do
         local dist_dir="${OUTPUT_DIR}/dists/${distro}/main"
-        local pool_dir="${OUTPUT_DIR}/pool/main/p"
+        local distro_pool="${OUTPUT_DIR}/${distro}"
 
         for arch in "${ARCH_LIST[@]}"; do
             local deb_arch=$(echo "$arch" | sed 's/x86_64/amd64/;s/aarch64/arm64/')
             local arch_dir="${dist_dir}/binary-${deb_arch}"
-            mkdir -p "$arch_dir" "$pool_dir"
+            mkdir -p "$arch_dir"
 
-            # Copy .deb files for this distro+arch
-            local deb_files=()
-            for php_ver in "${PHP_VER_LIST[@]}"; do
-                local pattern="${OUTPUT_DIR}/php${php_ver}-firebird_*_${deb_arch}.deb"
-                for f in $pattern; do
-                    [ -f "$f" ] && deb_files+=("$f")
-                done
-            done
+            # Scan only this distro's subdirectory (not all of OUTPUT_DIR)
+            local deb_count=0
+            if [ -d "$distro_pool" ]; then
+                deb_count=$(find "$distro_pool" -name "*.deb" -type f 2>/dev/null | wc -l)
+            fi
 
-            if [ ${#deb_files[@]} -gt 0 ]; then
-                # Generate Packages.gz
-                dpkg-scanpackages --arch "$deb_arch" "${OUTPUT_DIR}" /dev/null 2>/dev/null | gzip -9 > "${arch_dir}/Packages.gz" || true
-                log_verbose "  $distro/$deb_arch: ${#deb_files[@]} packages"
+            if [ "$deb_count" -gt 0 ]; then
+                dpkg-scanpackages --arch "$deb_arch" "$distro_pool" /dev/null 2>/dev/null | gzip -9 > "${arch_dir}/Packages.gz"
+                log "  $distro/$deb_arch: $deb_count packages"
             fi
         done
     done
@@ -272,7 +279,7 @@ Components: main
 Description: php-firebird native packages for ${distro}
 Date: $(date -Ru)
 EOF
-            log_verbose "  $distro: Release file generated"
+            log "  $distro: Release file generated"
         fi
     done
 
@@ -328,8 +335,7 @@ fi
 
 echo ""
 log_info "Output directory: $OUTPUT_DIR"
-ls -lh "${OUTPUT_DIR}"/*.deb 2>/dev/null | head -20
-echo ""
+find "${OUTPUT_DIR}" -name "*.deb" -type f 2>/dev/null | head -20
 
 if [ $FAILED -eq 0 ]; then
     log_pass "=== All packages built successfully ==="

@@ -1,0 +1,187 @@
+# =============================================================================
+# PHP Firebird Extension - Native Package Build & Deploy Workflow
+# =============================================================================
+#
+# Builds .deb packages on tag push (v13.1.0+) and uploads them to the
+# self-hosted APT repo at packages.satware.com/apt/ via rsync+ssh.
+#
+# Triggers:
+#   - Tag push (v*.*.*) - immutable releases
+#   - Manual dispatch (for testing)
+#
+# Dependencies:
+#   - packaging/debian/build-matrix.sh (#483) - iterates 32 combos
+#   - packaging/debian/build.sh (#482) - single build script
+#   - packaging/fb-client-bundle/fetch-client.sh (#486) - FB5 client
+#   - APT_DEPLOY_SSH_KEY secret - SSH key for rsync to VPS
+#   - APT_GPG_PRIVATE_KEY secret - GPG key for metadata signing
+#
+# =============================================================================
+
+name: Build & Deploy Native Packages
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*.*'
+  workflow_dispatch:
+    inputs:
+      php_versions:
+        description: 'PHP versions (comma-separated)'
+        required: false
+        default: '8.2,8.3,8.4,8.5'
+        type: string
+      distros:
+        description: 'Distros (comma-separated)'
+        required: false
+        default: 'bookworm,trixie,jammy,noble'
+        type: string
+      upload_to_vps:
+        description: 'Upload to packages.satware.com (needs VPS)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: packages-linux-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-deb:
+    name: Build .deb packages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Ensure VERSION.txt
+        uses: ./.github/actions/version
+
+      - name: Build .deb packages
+        run: |
+          set -eu
+          PHP_VERS="${{ inputs.php_versions || '8.2,8.3,8.4,8.5' }}"
+          DISTROS="${{ inputs.distros || 'bookworm,trixie,jammy,noble' }}"
+
+          bash packaging/debian/build-matrix.sh \
+            --php-versions "$PHP_VERS" \
+            --distros "$DISTROS" \
+            --archs "x86_64" \
+            --output-dir dist/deb \
+            --verbose
+
+      - name: Upload .deb artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: deb-packages
+          path: dist/deb/**/*.deb
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload APT metadata
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: apt-metadata
+          path: dist/deb/dists/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  upload-apt:
+    name: Upload to packages.satware.com/apt/
+    needs: build-deb
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.upload_to_vps)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Download .deb artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: deb-packages
+          path: dist/deb
+
+      - name: Download APT metadata
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: apt-metadata
+          path: dist/deb/dists
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.APT_DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "${DEPLOY_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+        env:
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.APT_DEPLOY_KNOWN_HOSTS }}
+
+      - name: Upload .deb files via rsync
+        run: |
+          set -eu
+          # Upload per-distro subdirectories
+          for distro_dir in dist/deb/*/; do
+            distro=$(basename "$distro_dir")
+            [ "$distro" = "dists" ] && continue
+
+            echo "Uploading $distro..."
+            rsync -az --delete \
+              -e "ssh -i ~/.ssh/deploy_key" \
+              "$distro_dir" \
+              "${DEPLOY_USER}@packages.satware.com:/var/www/apt/${distro}/"
+          done
+
+          # Upload APT metadata
+          if [ -d dist/deb/dists ]; then
+            rsync -az \
+              -e "ssh -i ~/.ssh/deploy_key" \
+              dist/deb/dists/ \
+              "${DEPLOY_USER}@packages.satware.com:/var/www/apt/dists/"
+          fi
+        env:
+          DEPLOY_USER: deploy
+
+      - name: Regenerate APT metadata on VPS
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            ${DEPLOY_USER}@packages.satware.com \
+            'cd /var/www/apt && \
+             find . -name "*.deb" -type f | \
+             xargs -I{} dirname {} | sort -u | \
+             while read dir; do \
+               dpkg-scanpackages --arch amd64 "$dir" /dev/null | gzip -9 > "$dir/Packages.gz" 2>/dev/null; \
+             done && \
+             echo "APT metadata regenerated"'
+        env:
+          DEPLOY_USER: deploy
+
+      - name: Sign APT metadata (GPG)
+        if: env.APT_GPG_PRIVATE_KEY != ''
+        run: |
+          echo "${{ secrets.APT_GPG_PRIVATE_KEY }}" | gpg --import
+          ssh -i ~/.ssh/deploy_key \
+            ${DEPLOY_USER}@packages.satware.com \
+            'cd /var/www/apt && \
+             for distro in dists/*/; do \
+               (cd "$distro" && \
+                apt-ftparchive release . > Release && \
+                gpg --batch --yes --sign --detach-sign --armor Release && \
+                gpg --batch --yes --clearsign --armor --output InRelease Release); \
+             done && \
+             echo "APT metadata signed"'
+        env:
+          DEPLOY_USER: deploy
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+
+      - name: Cleanup SSH
+        if: always()
+        run: |
+          rm -f ~/.ssh/deploy_key

@@ -20,7 +20,7 @@ priority: 1
 2026-07-07
 
 ## Status
-Approved - execution in progress
+COMPLETE — 20 issues closed (#325, #385-#403). All FB3 baseline client methods reachable.
 
 ---
 

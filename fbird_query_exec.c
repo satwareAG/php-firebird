@@ -1949,4 +1949,123 @@ PHP_FUNCTION(fbird_query_params_tx)
 	}
 }
 
+/* #372: fbird_multi_query - execute multiple statements separated by ; */
+PHP_FUNCTION(fbird_multi_query)
+{
+	zval *link_arg = NULL;
+	char *sql;
+	size_t sql_len;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zs", &link_arg, &sql, &sql_len) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	/* Split SQL on ; and execute each statement */
+	char *p = sql;
+	char *start = sql;
+	bool first = true;
+
+	while (p <= sql + sql_len) {
+		if (*p == ';' || p == sql + sql_len) {
+			size_t stmt_len = p - start;
+			/* Skip empty statements (leading/trailing/duplicate semicolons) */
+			while (stmt_len > 0 && isspace((unsigned char)*start)) { start++; stmt_len--; }
+			while (stmt_len > 0 && isspace((unsigned char)start[stmt_len-1])) stmt_len--;
+
+			if (stmt_len > 0) {
+				zval fn_name, sql_zv, query_ret;
+				zval args[2];
+				ZVAL_STRING(&fn_name, "fbird_query");
+				ZVAL_STRINGL(&sql_zv, start, stmt_len);
+				args[0] = *link_arg;
+				args[1] = sql_zv;
+				call_user_function(EG(function_table), NULL, &fn_name, &query_ret, 2, args);
+				zval_ptr_dtor(&fn_name);
+				zval_ptr_dtor(&sql_zv);
+
+				if (Z_TYPE(query_ret) == IS_FALSE) {
+					RETURN_FALSE;
+				}
+				if (first) {
+					RETVAL_COPY_VALUE(&query_ret);
+					first = false;
+				} else {
+					zval_ptr_dtor(&query_ret);
+				}
+			}
+			start = p + 1;
+		}
+		p++;
+	}
+
+	if (first) {
+		RETURN_TRUE;  /* No statements to execute */
+	}
+}
+
+/* #378: fbird_stmt_attr_get - get statement attribute */
+PHP_FUNCTION(fbird_stmt_attr_get)
+{
+	zval *stmt_arg;
+	zend_long attr;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zl", &stmt_arg, &attr) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	/* Map generic attributes to FB-specific getters */
+	switch (attr) {
+#if FB_API_VER >= 40
+		case 1026: /* FBIRD_ATTR_STATEMENT_TIMEOUT */
+		{
+			zval fn_name, ret;
+			ZVAL_STRING(&fn_name, "fbird_stmt_get_timeout");
+			call_user_function(EG(function_table), NULL, &fn_name, &ret, 1, stmt_arg);
+			zval_ptr_dtor(&fn_name);
+			RETURN_COPY_VALUE(&ret);
+		}
+#endif
+		default:
+			_php_fbird_module_error("Unknown statement attribute %ld", (long)attr);
+			RETURN_FALSE;
+	}
+}
+
+/* #378: fbird_stmt_attr_set - set statement attribute */
+PHP_FUNCTION(fbird_stmt_attr_set)
+{
+	zval *stmt_arg;
+	zend_long attr;
+	zval *value;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zlz", &stmt_arg, &attr, &value) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	switch (attr) {
+#if FB_API_VER >= 40
+		case 1026: /* FBIRD_ATTR_STATEMENT_TIMEOUT */
+		{
+			zval fn_name, ret;
+			zval args[2] = {*stmt_arg, *value};
+			ZVAL_STRING(&fn_name, "fbird_stmt_set_timeout");
+			call_user_function(EG(function_table), NULL, &fn_name, &ret, 2, args);
+			zval_ptr_dtor(&fn_name);
+			if (Z_TYPE(ret) == IS_FALSE) {
+				zval_ptr_dtor(&ret);
+				RETURN_FALSE;
+			}
+			zval_ptr_dtor(&ret);
+			RETURN_TRUE;
+		}
+#endif
+		default:
+			_php_fbird_module_error("Unknown statement attribute %ld", (long)attr);
+			RETURN_FALSE;
+	}
+}
+
 #endif /* HAVE_FIREBIRD */

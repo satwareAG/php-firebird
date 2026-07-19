@@ -653,6 +653,66 @@ public:
     [[nodiscard]] bool isPrepared() const noexcept { return prepared_; }
     [[nodiscard]] bool isCursorOpen() const noexcept { return cursor_open_; }
 
+#if FB_API_VER >= 40
+    /**
+     * @brief Set per-statement timeout in milliseconds (FB 4.0+).
+     * Overrides the attachment-level default set by IAttachment::setStatementTimeout.
+     */
+    bool setTimeout(Firebird::IMaster* master, unsigned int ms, ISC_STATUS* status_vector) noexcept {
+        if (!statement_ || !master) return false;
+
+        try {
+            Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
+            Firebird::CheckStatusWrapper status(fb_status);
+
+            statement_->setTimeout(&status, ms);
+
+            if (statusHasError(fb_status)) {
+                copyStatusToVector(fb_status, status_vector);
+                fb_status->dispose();
+                return false;
+            }
+
+            fb_status->dispose();
+            return true;
+
+        } catch (...) {
+            set_status_error(status_vector, isc_except2);
+            return false;
+        }
+    }
+
+    /**
+     * @brief Get per-statement timeout in milliseconds (FB 4.0+).
+     * @return Timeout in ms (0 = no timeout), or 0 on error.
+     */
+    unsigned int getTimeout(Firebird::IMaster* master, ISC_STATUS* status_vector) noexcept {
+        if (!statement_ || !master) return 0;
+
+        try {
+            Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
+            Firebird::CheckStatusWrapper status(fb_status);
+
+            unsigned int ms = statement_->getTimeout(&status);
+
+            if (statusHasError(fb_status)) {
+                copyStatusToVector(fb_status, status_vector);
+                fb_status->dispose();
+                return 0;
+            }
+
+            fb_status->dispose();
+            return ms;
+
+        } catch (...) {
+            set_status_error(status_vector, isc_except2);
+            return 0;
+        }
+    }
+#endif
+
 private:
     Firebird::IStatement* statement_{nullptr};
     Firebird::IResultSet* result_set_{nullptr};

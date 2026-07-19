@@ -116,6 +116,10 @@ typedef struct {
 	 * Used by autocommit logic to skip default-tx commit for pconnect
 	 * (Issue #294 — cleanup_db() may drop DB before MSHUTDOWN). */
 	bool is_persistent;
+	/* Per-connection error context (#439). Stored at error time so
+	 * fbird_errmsg($link) returns connection-specific errors. */
+	char errmsg[1024];
+	ISC_STATUS_ARRAY last_status;
 } fbird_db_link;
 
 typedef struct {

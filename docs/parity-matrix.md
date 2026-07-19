@@ -99,3 +99,49 @@ database extensions. Legend: **Y** = supported, **N** = not supported,
 6. **Native SQL_ARRAY field support** (full read/write)
 7. **Service manager** (server_info, db_info, maintain_db, user management)
 8. **Scrollable cursors** (in PDO layer, FB5+)
+
+---
+
+## Firebird Version Feature Reachability
+
+For the full feature-by-feature breakdown of Firebird 3/4/5 capabilities through
+the php-firebird driver, see the [SQL Reference Suite](sql-reference/).
+
+### Quick links by category
+
+| Category | Features | Coverage summary |
+|----------|----------|------------------|
+| [Data Types](sql-reference/cheatsheet/01-data-types.md) | 11 | BOOLEAN, DECFLOAT, INT128, TZ types, identity columns |
+| [SQL Statements](sql-reference/cheatsheet/02-sql-statements.md) | 17 | MERGE, RETURNING *, SKIP LOCKED, batch API |
+| [Window Functions](sql-reference/cheatsheet/03-window-functions.md) | 10 | All via SQL passthrough (Y on all layers) |
+| [PSQL](sql-reference/cheatsheet/04-psql.md) | 15 | Packages, subroutines, DDL triggers, autonomous transactions |
+| [Security](sql-reference/cheatsheet/05-security.md) | 12 | SRP, SQL SECURITY, roles, user management |
+| [Performance](sql-reference/cheatsheet/06-performance.md) | 15 | Read consistency, timeouts, profiler, indices |
+| [Built-in Functions](sql-reference/cheatsheet/07-builtin-functions.md) | 14 | Statistical, crypto, TZ, BLOB_APPEND |
+| [Admin & Ops](sql-reference/cheatsheet/08-admin-ops.md) | 21 | gbak, nbackup, monitoring, trace, replication |
+
+### Master inventory
+
+The [feature inventory](sql-reference/feature-inventory.md) maps all 115
+features to driver-layer status with issue tracking.
+
+### Tracked driver gaps
+
+| Issue | Feature | Status |
+|-------|---------|--------|
+| [#417](https://github.com/satwareAG/php-firebird/issues/417) | FB4 DECFLOAT native type | Open |
+| [#418](https://github.com/satwareAG/php-firebird/issues/418) | FB4 INT128 native type | Open |
+| [#419](https://github.com/satwareAG/php-firebird/issues/419) | FB4 TIME/TIMESTAMP WITH TIME ZONE | Open |
+| [#420](https://github.com/satwareAG/php-firebird/issues/420) | FB4 SET BIND rule coverage | Open |
+| [#421](https://github.com/satwareAG/php-firebird/issues/421) | FB4 batch DML (IBatch) PDO coverage | Open |
+| [#422](https://github.com/satwareAG/php-firebird/issues/422) | FB4 session idle timeout (PDO) | Open |
+| [#423](https://github.com/satwareAG/php-firebird/issues/423) | FB4 packages + SQL SECURITY | Open |
+| [#424](https://github.com/satwareAG/php-firebird/issues/424) | FB4 EXECUTE STATEMENT rich form | Open |
+| [#425](https://github.com/satwareAG/php-firebird/issues/425) | FB4 READ CONSISTENCY (OOP/PDO) | Open |
+| [#426](https://github.com/satwareAG/php-firebird/issues/426) | FB5 scrollable cursors (network) | Open |
+| [#427](https://github.com/satwareAG/php-firebird/issues/427) | FB5 parallel workers | Open |
+| [#428](https://github.com/satwareAG/php-firebird/issues/428) | FB5 profiler plugin | Open |
+| [#464](https://github.com/satwareAG/php-firebird/issues/464) | Per-statement timeout (PDO) | Open |
+| [#476](https://github.com/satwareAG/php-firebird/issues/476) | FB4 nbackup online dump API | Open |
+| [#477](https://github.com/satwareAG/php-firebird/issues/477) | FB3 trace service management | Open |
+| [#478](https://github.com/satwareAG/php-firebird/issues/478) | FB4 session timezone DPB | Open |

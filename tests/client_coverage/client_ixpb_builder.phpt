@@ -14,7 +14,9 @@ if ($conn2) fbird_close($conn2);
 $trx = fbird_trans($link);
 if ($trx) fbird_commit($trx);
 // SPB: service attach
-$svc = @fbird_service_attach("localhost", "SYSDBA", "masterkey");
+// jane: use FIREBIRD_HOST env var - hardcoded "localhost" crashes in CI.
+$host = getenv('FIREBIRD_HOST') ?: 'localhost';
+$svc = @fbird_service_attach($host, "SYSDBA", "masterkey");
 if ($svc) fbird_service_detach($svc);
 echo "done\n";
 ?>

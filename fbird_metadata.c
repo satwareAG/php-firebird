@@ -248,6 +248,12 @@ void _php_fbird_field_info(zval *return_value, fbird_query *fb_query, int is_out
 		add_index_string(return_value, 4, s);
 		add_assoc_string(return_value, "type", s);
 	}
+
+	/* #479: Expose BLOB sub_type (0=binary, 1=text) for BLOB fields */
+	if ((var->sqltype & ~1) == SQL_BLOB) {
+		add_index_long(return_value, 5, (zend_long)var->sqlsubtype);
+		add_assoc_long(return_value, "sub_type", (zend_long)var->sqlsubtype);
+	}
 }
 
 PHP_FUNCTION(fbird_field_info)
@@ -314,6 +320,39 @@ PHP_FUNCTION(fbird_param_info)
 	}
 
 	_php_fbird_field_info(return_value, fb_query, 0, field_arg);
+}
+
+/* #379: fbird_result_metadata - return column metadata for all output fields */
+PHP_FUNCTION(fbird_result_metadata)
+{
+	zval *stmt_arg;
+	fbird_query *fb_query;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &stmt_arg) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	FBIRD_VALIDATE_QUERY_EX(stmt_arg, 1, fb_query);
+	if (!fb_query) RETURN_FALSE;
+
+	if (!fb_query->out_sqlda) {
+		_php_fbird_module_error("Statement has no output metadata");
+		RETURN_FALSE;
+	}
+
+	array_init(return_value);
+
+	for (int i = 0; i < fb_query->out_sqlda->sqld; i++) {
+		zval col_info;
+		_php_fbird_field_info(&col_info, fb_query, 1, i);
+		if (Z_TYPE(col_info) == IS_FALSE) {
+			zval_ptr_dtor(&col_info);
+			continue;
+		}
+		add_next_index_zval(return_value, &col_info);
+	}
 }
 
 PHP_FUNCTION(fbird_num_fields)
@@ -594,6 +633,176 @@ static bool _php_fbird_sql_has_returning(const char *sql)
         p++;
     }
     return 0;
+}
+
+/* ==========================================================================
+ * Procedural Parity: fbird_list_tables, fbird_list_fields, fbird_meta_data (#440)
+ *
+ * These functions query Firebird system tables (RDB$*) to provide schema
+ * introspection. Used by Doctrine DBAL SchemaManager.
+ * ========================================================================== */
+
+static void _fbird_meta_exec_and_collect(
+	zval *return_value,
+	zval *link_zv,
+	const char *sql,
+	const char *key_field,
+	bool use_field_as_key
+) {
+	zval fn_name, sql_zv, query_ret, row;
+	zval args[2];
+
+	/* Call fbird_query($link, $sql) */
+	ZVAL_STRING(&fn_name, "fbird_query");
+	ZVAL_STRING(&sql_zv, sql);
+	args[0] = *link_zv;
+	args[1] = sql_zv;
+	call_user_function(EG(function_table), NULL, &fn_name, &query_ret, 2, args);
+	zval_ptr_dtor(&fn_name);
+	zval_ptr_dtor(&sql_zv);
+
+	if (Z_TYPE(query_ret) == IS_FALSE) {
+		RETVAL_FALSE;
+		return;
+	}
+
+	array_init(return_value);
+
+	/* Loop: fbird_fetch_assoc($query) */
+	ZVAL_STRING(&fn_name, "fbird_fetch_assoc");
+	while (1) {
+		call_user_function(EG(function_table), NULL, &fn_name, &row, 1, &query_ret);
+		if (Z_TYPE(row) == IS_FALSE || Z_TYPE(row) == IS_NULL) {
+			zval_ptr_dtor(&row);
+			break;
+		}
+
+		zval *field_val = zend_hash_str_find(Z_ARRVAL(row), key_field, strlen(key_field));
+		if (field_val) {
+			if (use_field_as_key) {
+				/* meta_data mode: build sub-array with field properties */
+				zval col_info;
+				array_init(&col_info);
+
+				zval *ftype = zend_hash_str_find(Z_ARRVAL(row), "FIELD_TYPE", 10);
+				zval *flen = zend_hash_str_find(Z_ARRVAL(row), "LENGTH", 6);
+				zval *fscale = zend_hash_str_find(Z_ARRVAL(row), "SCALE", 5);
+				zval *fnull = zend_hash_str_find(Z_ARRVAL(row), "NULL_FLAG", 9);
+
+				if (ftype) { Z_TRY_ADDREF_P(ftype); add_assoc_zval(&col_info, "type", ftype); }
+				if (flen) { Z_TRY_ADDREF_P(flen); add_assoc_zval(&col_info, "length", flen); }
+				if (fscale) { Z_TRY_ADDREF_P(fscale); add_assoc_zval(&col_info, "scale", fscale); }
+				if (fnull) { Z_TRY_ADDREF_P(fnull); add_assoc_zval(&col_info, "nullable", fnull); }
+
+				add_assoc_zval(return_value, Z_STRVAL_P(field_val), &col_info);
+			} else {
+				/* list mode: just add value to indexed array */
+				Z_TRY_ADDREF_P(field_val);
+				add_next_index_zval(return_value, field_val);
+			}
+		}
+		zval_ptr_dtor(&row);
+	}
+
+	zval_ptr_dtor(&fn_name);
+
+	/* Free the query resource */
+	ZVAL_STRING(&fn_name, "fbird_free_query");
+	call_user_function(EG(function_table), NULL, &fn_name, &row, 1, &query_ret);
+	zval_ptr_dtor(&fn_name);
+	zval_ptr_dtor(&query_ret);
+	zval_ptr_dtor(&row);
+}
+
+PHP_FUNCTION(fbird_list_tables)
+{
+	zval *link_arg = NULL;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z!", &link_arg) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	/* Resolve default link */
+	zval default_zv;
+	if (link_arg == NULL || Z_TYPE_P(link_arg) == IS_NULL) {
+		if (!FBG(default_link)) {
+			_php_fbird_module_error("No default connection");
+			RETURN_FALSE;
+		}
+		ZVAL_RES(&default_zv, FBG(default_link));
+		link_arg = &default_zv;
+	}
+
+	_fbird_meta_exec_and_collect(return_value, link_arg,
+		"SELECT TRIM(RDB$RELATION_NAME) AS TBL "
+		"FROM RDB$RELATIONS "
+		"WHERE RDB$VIEW_BLR IS NULL "
+		"AND (RDB$SYSTEM_FLAG = 0 OR RDB$SYSTEM_FLAG IS NULL) "
+		"ORDER BY RDB$RELATION_NAME",
+		"TBL", false);
+}
+
+PHP_FUNCTION(fbird_list_fields)
+{
+	zval *link_arg;
+	char *table_name;
+	size_t table_len;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zs", &link_arg, &table_name, &table_len) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	/* Firebird stores unquoted identifiers in uppercase */
+	char upper_name[256] = {0};
+	for (size_t i = 0; i < table_len && i < sizeof(upper_name) - 1; i++) {
+		upper_name[i] = toupper((unsigned char)table_name[i]);
+	}
+
+	char sql[512];
+	snprintf(sql, sizeof(sql),
+		"SELECT TRIM(RDB$FIELD_NAME) AS COL "
+		"FROM RDB$RELATION_FIELDS "
+		"WHERE RDB$RELATION_NAME = '%s' "
+		"ORDER BY RDB$FIELD_POSITION",
+		upper_name);
+
+	_fbird_meta_exec_and_collect(return_value, link_arg, sql, "COL", false);
+}
+
+PHP_FUNCTION(fbird_meta_data)
+{
+	zval *link_arg;
+	char *table_name;
+	size_t table_len;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zs", &link_arg, &table_name, &table_len) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	/* Firebird stores unquoted identifiers in uppercase */
+	char upper_name[256] = {0};
+	for (size_t i = 0; i < table_len && i < sizeof(upper_name) - 1; i++) {
+		upper_name[i] = toupper((unsigned char)table_name[i]);
+	}
+
+	char sql[1024];
+	snprintf(sql, sizeof(sql),
+		"SELECT "
+		"  TRIM(rf.RDB$FIELD_NAME) AS FIELD_NAME, "
+		"  TRIM(f.RDB$FIELD_TYPE) AS FIELD_TYPE, "
+		"  f.RDB$FIELD_LENGTH AS LENGTH, "
+		"  f.RDB$FIELD_SCALE AS SCALE, "
+		"  rf.RDB$NULL_FLAG AS NULL_FLAG "
+		"FROM RDB$RELATION_FIELDS rf "
+		"JOIN RDB$FIELDS f ON rf.RDB$FIELD_SOURCE = f.RDB$FIELD_NAME "
+		"WHERE rf.RDB$RELATION_NAME = '%s' "
+		"ORDER BY rf.RDB$FIELD_POSITION",
+		upper_name);
+
+	_fbird_meta_exec_and_collect(return_value, link_arg, sql, "FIELD_NAME", true);
 }
 
 #endif /* HAVE_FIREBIRD */

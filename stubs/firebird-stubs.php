@@ -10,7 +10,7 @@
  * This stub file does not contain any implementation.
  *
  * @package   php-firebird-stubs
- * @version   12.1.0
+ * @version   13.0.0-rc.2
  * @author    satware AG <info@satware.com>
  * @copyright 2025-2026 satware AG
  * @license   PHP-3.01 https://www.php.net/license/3_01.txt
@@ -356,6 +356,20 @@ function fbird_pconnect(
 function fbird_close(mixed $connection = null): bool {}
 
 /**
+ * Ping a server connection to check if it is still alive.
+ * @param resource|null $connection Connection handle (defaults to last opened)
+ * @return bool True if connection is alive, false otherwise.
+ */
+function fbird_ping(?object $connection = null): bool {}
+
+/**
+ * Get the Firebird server version string from a connection.
+ * @param resource|null $connection Connection handle (defaults to last opened)
+ * @return string|false Version string (e.g. "LI-V4.0.7.3271 Firebird 4.0 ..."), or false on error.
+ */
+function fbird_server_version(?object $connection = null): string|false {}
+
+/**
  * Drop a Firebird database.
  *
  * @param mixed $connection Connection resource or database path (v9.0.0+)
@@ -560,6 +574,14 @@ function fbird_fetch_row(mixed $result, int $fetch_flags = 0): array|false {}
 function fbird_fetch_assoc(mixed $result, int $fetch_flags = 0): array|false {}
 
 /**
+ * Fetch a row as an array with both numeric and associative indices.
+ * @param resource $result Result handle from fbird_query()
+ * @param int $fetch_flags Optional fetch flags (e.g. FBIRD_FETCH_BLOBS)
+ * @return array|false Array with both numeric and associative keys, or false on no more rows.
+ */
+function fbird_fetch_array(mixed $result, int $fetch_flags = 0): array|false {}
+
+/**
  * Fetch a row as an object.
  *
  * @param mixed $result      Result resource
@@ -629,6 +651,29 @@ function fbird_field_info(mixed $result, int $field_number): array|false {}
  * @since 7.0.0
  */
 function fbird_param_info(mixed $query, int $param_number): array|false {}
+
+/**
+ * List user tables in the database.
+ * @param resource|null $connection Connection handle
+ * @return array|false Array of table names, or false on error.
+ */
+function fbird_list_tables(?object $connection = null): array|false {}
+
+/**
+ * List field names for a table.
+ * @param resource $connection Connection handle
+ * @param string $table_name Table name
+ * @return array|false Array of field names, or false on error.
+ */
+function fbird_list_fields(object $connection, string $table_name): array|false {}
+
+/**
+ * Get metadata for a table's columns (type, length, scale, nullable).
+ * @param resource $connection Connection handle
+ * @param string $table_name Table name
+ * @return array|false Associative array keyed by field name, or false on error.
+ */
+function fbird_meta_data(object $connection, string $table_name): array|false {}
 
 // ============================================================================
 // TRANSACTION FUNCTIONS
@@ -894,7 +939,7 @@ function fbird_gen_id(string $generator, int $increment = 1, mixed $link = null)
  * @return string|false Error message or false
  * @since 7.0.0
  */
-function fbird_errmsg(): string|false {}
+function fbird_errmsg(?object $link_identifier = null): string|false {}
 
 /**
  * Return the last error code.
@@ -902,7 +947,7 @@ function fbird_errmsg(): string|false {}
  * @return int|false Error code or false
  * @since 7.0.0
  */
-function fbird_errcode(): int|false {}
+function fbird_errcode(?object $link_identifier = null): int|false {}
 
 /**
  * Return the SQLSTATE error code.
@@ -910,7 +955,7 @@ function fbird_errcode(): int|false {}
  * @return string|false 5-character SQLSTATE code or false
  * @since 7.0.0
  */
-function fbird_sqlstate(): string|false {}
+function fbird_sqlstate(?object $link_identifier = null): string|false {}
 
 /**
  * Escape a string for use in SQL.
@@ -1333,6 +1378,22 @@ function fbird_set_idle_timeout(mixed $link_identifier, int $seconds): bool {}
  */
 function fbird_get_idle_timeout(mixed $link_identifier): int {}
 
+/**
+ * Set per-statement execution timeout (Firebird 4.0+).
+ * Overrides the connection-level default for this specific statement.
+ * @param resource $query Statement handle from fbird_prepare()
+ * @param int $milliseconds Timeout in milliseconds (0 = no timeout)
+ * @return bool True on success, false on error.
+ */
+function fbird_stmt_set_timeout(mixed $query, int $milliseconds): bool {}
+
+/**
+ * Get per-statement execution timeout (Firebird 4.0+).
+ * @param resource $query Statement handle from fbird_prepare()
+ * @return int Timeout in milliseconds (0 = no timeout or error).
+ */
+function fbird_stmt_get_timeout(mixed $query): int {}
+
 // ============================================================================
 // INSPECTION FUNCTIONS
 // ============================================================================
@@ -1373,3 +1434,82 @@ function fbird_drop_table_force(mixed $link_or_trans, string $table_name): bool 
 // Note: Classes in the Firebird namespace are defined in a separate file
 // to comply with PHP namespace rules.
 // See: firebird-classes.php
+
+// #362-#381: M2 procedural parity functions
+
+/**
+ * Seek to a specific row number in a result set.
+ */
+function fbird_data_seek(mixed $result, int $row_number): bool {}
+
+/**
+ * Fetch all rows as an array of associative arrays.
+ */
+function fbird_fetch_all(mixed $result, int $fetch_flags = 0): array|false {}
+
+/**
+ * Fetch the next row and return a single column value.
+ */
+function fbird_fetch_column(mixed $result, int $column = 0): mixed {}
+
+/**
+ * Reset a prepared statement for re-execution (close cursor, keep statement).
+ */
+function fbird_stmt_reset(mixed $query): bool {}
+
+/**
+ * Escape a string for use as a SQL literal (wraps in single quotes, doubles internal quotes).
+ */
+function fbird_escape_literal(string $string): string {}
+
+/**
+ * Escape a string for use as a SQL identifier (wraps in double quotes, doubles internal quotes).
+ */
+function fbird_escape_identifier(string $identifier): string {}
+
+/**
+ * Return metadata for all output columns of a prepared statement.
+ */
+function fbird_result_metadata(mixed $query): array|false {}
+
+/**
+ * Export a blob to a file.
+ */
+function fbird_blob_export(mixed $connection, mixed $blob_id, string $filename): bool {}
+
+/**
+ * Execute multiple SQL statements separated by semicolons.
+ */
+function fbird_multi_query(mixed $link_identifier, string $query): mixed {}
+
+/**
+ * Get a statement attribute.
+ */
+function fbird_stmt_attr_get(mixed $query, int $attribute): int|string|false {}
+
+/**
+ * Set a statement attribute.
+ */
+function fbird_stmt_attr_set(mixed $query, int $attribute, mixed $value): bool {}
+
+// M2 Procedural Parity: remaining functions (#366-#380, #476-#478)
+
+function fbird_set_charset(mixed $connection, string $charset): bool {}
+function fbird_character_set_name(mixed $connection = null): string {}
+function fbird_bind_param(mixed $statement, array $params): bool {}
+function fbird_bind_result(mixed $statement, string $column, mixed &$var): bool {}
+function fbird_debug(?string $message = null): bool {}
+function fbird_blob_truncate(mixed $blob_handle): bool {}
+function fbird_blob_erase(mixed $blob_handle): bool {}
+function fbird_blob_flush(mixed $blob_handle): bool {}
+function fbird_send_long_data(mixed $statement, int $param_num, mixed $data): bool {}
+function fbird_nbak(mixed $service_handle, int $level, string $database): bool {}
+function fbird_trace_start(mixed $service_handle, string $config): bool {}
+function fbird_trace_stop(mixed $service_handle, int $trace_id): bool {}
+
+function fbird_set_session_timezone(mixed $connection, string $timezone): bool {}
+function fbird_get_session_timezone(mixed $connection = null): string|false {}
+function fbird_dump_debug_info(mixed $connection = null): bool {}
+
+function fbird_error_list(?object $link_identifier = null): array|false {}
+function fbird_error_field(?object $link_identifier = null): array|false {}

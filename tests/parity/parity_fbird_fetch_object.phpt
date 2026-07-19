@@ -20,7 +20,6 @@ try {
 } catch (\Throwable $e) {
     fbird_free_result($res);
     fbird_close($conn);
-    die('skip gap: fbird_fetch_object does not accept string class name (see #365)');
 }
 ?>
 --FILE--
@@ -39,4 +38,5 @@ fbird_close($conn);
 echo "=== DONE ===\n";
 ?>
 --EXPECTF--
+OK fetch_object class: yes
 === DONE ===

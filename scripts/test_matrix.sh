@@ -145,15 +145,25 @@ clean_test_environment() {
             bash -c "pkill -9 -f 'php.*firebird' 2>/dev/null || true" \
             2>/dev/null || true
     fi
-    # Clean leftover .fdb files on all Firebird server containers.
-    # Orphaned processes hold locks on these files, preventing DROP DATABASE.
+    # Clean leftover .fdb AND .fbk backup files on all Firebird server containers.
+    # .fdb: orphaned processes hold locks, preventing DROP DATABASE.
+    # .fbk: stale backup files from service_backup_restore.phpt cause "file exists"
+    # errors and PID reuse can make restore targets collide across containers.
     for fb in firebird30 firebird40 firebird50; do
         if [ -n "$(docker compose ps -q "$fb" 2>/dev/null)" ]; then
             docker compose exec -u root "$fb" \
-                bash -c "rm -f /tmp/*.fdb 2>/dev/null || true" \
+                bash -c "rm -f /tmp/*.fdb /tmp/*.fbk 2>/dev/null || true" \
                 2>/dev/null || true
         fi
     done
+    # Settle delay: give Firebird servers time to finish async service operations
+    # (backup/restore/maintenance) from the previous container and release internal
+    # locks. The service tests now use verbose=true or per-operation attach/detach
+    # + usleep, so they should not leave operations running. This delay is a safety
+    # net for any residual async work. 3s is enough for the tiny test database.
+    # jane: do NOT kill fbguard or fb_inet_server — that risks stopping the Firebird
+    # container (fbguard is often PID 1) and breaking depends_on for all PHP containers.
+    sleep 3
 }
 
 for CONTAINER in "${TARGETS[@]}"; do

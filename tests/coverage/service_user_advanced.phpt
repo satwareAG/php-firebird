@@ -30,71 +30,72 @@ $host     = getenv('FIREBIRD_HOST') ?: 'localhost';
 $user     = getenv('ISC_USER')      ?: 'SYSDBA';
 $password = getenv('ISC_PASSWORD')  ?: 'masterkey';
 
-$svc = fbird_service_attach($host, $user, $password);
-if (!$svc) die("ERROR: could not attach to service\n");
-
 $test_user  = 'SVC_TEST_USR1';
 $test_pass  = 'testpw1234';
 
+// Firebird service API: fbird_add_user/modify_user/delete_user are fire-and-forget.
+// Sequential operations on a shared handle cause "Service is currently busy" races.
+// Fix: per-operation attach/detach + usleep so the server can finish.
+function svc($host, $user, $password) {
+    for ($i = 0; $i < 3; $i++) {
+        $s = @fbird_service_attach($host, $user, $password);
+        if ($s) return $s;
+        usleep(500000);
+    }
+    die("ERROR: cannot attach to service\n");
+}
+
+function user_op($host, $user, $password, $fn, ...$args) {
+    $s = svc($host, $user, $password);
+    $r = @$fn($s, ...$args);
+    @fbird_service_detach($s);
+    usleep(200000);
+    return $r;
+}
+
 // Ensure clean state
-@fbird_delete_user($svc, $test_user);
+user_op($host, $user, $password, 'fbird_delete_user', $test_user);
 
 // 1. Add user with minimal fields (username + password only)
 echo "Test 1: Add minimal user\n";
-$r = fbird_add_user($svc, $test_user, $test_pass);
+$r = user_op($host, $user, $password, 'fbird_add_user', $test_user, $test_pass);
 var_dump($r === true);
 
 // 2. Add duplicate user — expect false (already exists)
 echo "Test 2: Add duplicate user\n";
-$r = @fbird_add_user($svc, $test_user, $test_pass);
+$r = user_op($host, $user, $password, 'fbird_add_user', $test_user, $test_pass);
 var_dump($r === false);
-
-// Reconnect: @fbird_add_user failure (duplicate) can invalidate the service handle.
-@fbird_service_detach($svc);
-$svc = fbird_service_attach($host, $user, $password);
-if (!$svc) die("ERROR: could not re-attach to service\n");
 
 // 3. Modify user — change first name
 echo "Test 3: Modify user first name\n";
-$r = fbird_modify_user($svc, $test_user, $test_pass, 'NewFirst');
+$r = user_op($host, $user, $password, 'fbird_modify_user', $test_user, $test_pass, 'NewFirst');
 var_dump($r === true);
 
 // 4. Modify user — change last name only (pass empty string for unchanged params)
 echo "Test 4: Modify user last name\n";
-$r = fbird_modify_user($svc, $test_user, $test_pass, '', '', 'NewLast');
+$r = user_op($host, $user, $password, 'fbird_modify_user', $test_user, $test_pass, '', '', 'NewLast');
 var_dump($r === true);
 
 // 5. Delete user
 echo "Test 5: Delete user\n";
-$r = fbird_delete_user($svc, $test_user);
+$r = user_op($host, $user, $password, 'fbird_delete_user', $test_user);
 var_dump($r === true);
 
 // 6. Delete non-existent user — expect false or warning, not crash
 echo "Test 6: Delete non-existent user\n";
-$r = @fbird_delete_user($svc, $test_user);
+$r = user_op($host, $user, $password, 'fbird_delete_user', $test_user);
 var_dump($r === false || $r === true); // any non-crash result
-
-// Reconnect service before Test 7 — deleting a non-existent user (Test 6) may
-// leave the service handle in a broken state on some Firebird versions.
-@fbird_service_detach($svc);
-$svc = fbird_service_attach($host, $user, $password);
-if (!$svc) die("ERROR: could not re-attach to service\n");
 
 // 7. Add user with all optional fields (firstname, middlename, lastname)
 echo "Test 7: Add user with all fields\n";
-$r = fbird_add_user($svc, $test_user, $test_pass, 'First', 'Middle', 'Last');
+$r = user_op($host, $user, $password, 'fbird_add_user', $test_user, $test_pass, 'First', 'Middle', 'Last');
 var_dump($r === true);
 
 // Note: fbird_server_info(FBIRD_SVC_GET_USERS) causes a segfault on Firebird 3
 // via service API — skip enumeration, trust fbird_add_user return value above.
 
 // Cleanup
-@fbird_service_detach($svc);
-$svc = fbird_service_attach($host, $user, $password);
-if ($svc) {
-    @fbird_delete_user($svc, $test_user);
-    fbird_service_detach($svc);
-}
+user_op($host, $user, $password, 'fbird_delete_user', $test_user);
 
 echo "Done\n";
 ?>

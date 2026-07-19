@@ -20,7 +20,7 @@ priority: 1
 2026-07-07
 
 ## Status
-Approved — execution in progress
+COMPLETE — 8 issues closed (#324, #352-#358). doctrine-firebird-driver v3.14.0 + amicron-platform CI verified.
 
 ---
 

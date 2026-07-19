@@ -1100,3 +1100,136 @@ function fbird_set_idle_timeout(mixed $link_identifier, int $seconds): bool {}
  * @since 13.0.0
  */
 function fbird_get_idle_timeout(mixed $link_identifier): int {}
+
+// ============================================================================
+// v13.0.0 PARITY FUNCTIONS
+// ============================================================================
+
+/**
+ * @return array<int, mixed>|false
+ * @since 13.0.0
+ */
+function fbird_fetch_array(mixed $result, int $fetch_flags = 0): array|false {}
+
+/** @since 13.0.0 */
+function fbird_ping(mixed $link_identifier = null): bool {}
+
+/** @since 13.0.0 */
+function fbird_server_version(mixed $link_identifier = null): string|false {}
+
+/** @since 13.0.0 */
+function fbird_data_seek(mixed $result, int $row_number): bool {}
+
+/**
+ * @return array<int, array<int, mixed>>
+ * @since 13.0.0
+ */
+function fbird_fetch_all(mixed $result, int $fetch_flags = 0): array {}
+
+/** @since 13.0.0 */
+function fbird_fetch_column(mixed $result, int $column = 0): mixed {}
+
+/** @since 13.0.0 */
+function fbird_escape_literal(string $value): string {}
+
+/** @since 13.0.0 */
+function fbird_escape_identifier(string $value): string {}
+
+/** @since 13.0.0 */
+function fbird_blob_export(mixed $link_identifier, string $file_path, string $blob_id): bool {}
+
+/**
+ * @return array<int, mixed>|false
+ * @since 13.0.0
+ */
+function fbird_result_metadata(mixed $query): array|false {}
+
+/** @since 13.0.0 */
+function fbird_stmt_reset(mixed $query): bool {}
+
+/** @since 13.0.0 */
+function fbird_multi_query(mixed $link_identifier, string $query): bool {}
+
+/** @since 13.0.0 */
+function fbird_stmt_attr_get(mixed $query, int $attribute): mixed {}
+
+/** @since 13.0.0 */
+function fbird_stmt_attr_set(mixed $query, int $attribute, mixed $value): bool {}
+
+/** @since 13.0.0 */
+function fbird_set_charset(mixed $link_identifier, string $charset): bool {}
+
+/** @since 13.0.0 */
+function fbird_character_set_name(mixed $link_identifier = null): string {}
+
+/** @since 13.0.0 */
+function fbird_bind_param(mixed $query, string $name, mixed &$value): bool {}
+
+/** @since 13.0.0 */
+function fbird_bind_result(mixed $query, string $name, mixed &$variable): bool {}
+
+/** @since 13.0.0 */
+function fbird_blob_truncate(mixed $blob_handle): bool {}
+
+/** @since 13.0.0 */
+function fbird_blob_erase(mixed $link_identifier, string $blob_id): bool {}
+
+/** @since 13.0.0 */
+function fbird_blob_flush(mixed $blob_handle): bool {}
+
+/** @since 13.0.0 */
+function fbird_debug(mixed $link_identifier = null, string $message = ''): bool {}
+
+/** @since 13.0.0 */
+function fbird_dump_debug_info(mixed $link_identifier = null): bool {}
+
+/** @since 13.0.0 */
+function fbird_send_long_data(mixed $query, int $param_number, string $data): bool {}
+
+/** @since 13.0.0 */
+function fbird_nbak(mixed $link_identifier, string $db_path, int $level): bool {}
+
+/** @since 13.0.0 */
+function fbird_trace_start(mixed $link_identifier, string $file_path, int $flags = 0): bool {}
+
+/** @since 13.0.0 */
+function fbird_trace_stop(mixed $link_identifier): bool {}
+
+/** @since 13.0.0 */
+function fbird_set_session_timezone(mixed $link_identifier, string $timezone): bool {}
+
+/** @since 13.0.0 */
+function fbird_get_session_timezone(mixed $link_identifier = null): string|false {}
+
+/**
+ * @return array<int, string>|false
+ * @since 13.0.0
+ */
+function fbird_list_tables(mixed $link_identifier, string $pattern = ''): array|false {}
+
+/**
+ * @return array<int, mixed>|false
+ * @since 13.0.0
+ */
+function fbird_list_fields(mixed $link_identifier, string $table_name): array|false {}
+
+/**
+ * @return array<int, mixed>|false
+ * @since 13.0.0
+ */
+function fbird_meta_data(mixed $link_identifier, string $table_name): array|false {}
+
+/**
+ * @return array<int, mixed>
+ * @since 13.0.0
+ */
+function fbird_error_list(mixed $link_identifier = null): array {}
+
+/** @since 13.0.0 */
+function fbird_error_field(mixed $link_identifier = null, int $field = 0): mixed {}
+
+/** @since 13.0.0 */
+function fbird_stmt_set_timeout(mixed $query, int $milliseconds): bool {}
+
+/** @since 13.0.0 */
+function fbird_stmt_get_timeout(mixed $query): int {}

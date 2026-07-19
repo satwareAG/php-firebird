@@ -101,29 +101,28 @@ Both CI and local `run-tests.php` use `--set-timeout 15` to kill hanging tests
 in 15 seconds instead of the default 60. This prevents a single hanging test from
 cascading into a 30-minute CI timeout.
 
-### IStatus disposal: read before you dispose
+### IStatus lifecycle: prefer RAII, "let it leak" is safe
 
-**NEVER call `dispose()` on IStatus objects passed to Firebird API functions that
-may hold internal references.** The Firebird `IServiceManager::attachServiceManager()`
-and similar API calls store the IStatus pointer internally. Disposing it causes
-use-after-free (SIGSEGV) when the service is later used.
+**Verification note**: Cross-referenced with Firebird source - `JProvider::attachServiceManager`
+(`src/jrd/jrd.cpp:4327`) uses `ThreadContextHolder` locally; `Dispatcher::attachServiceManager`
+(`src/yvalve/why.cpp:6645`) passes a fresh `FbLocalStatus` to the underlying provider. The
+caller's IStatus is **never** persisted by `attachServiceManager()`.
 
-**Safe pattern** (for utility functions like DECFLOAT conversion):
-```cpp
-Firebird::IStatus* fb_status = master->getStatus();
-// use fb_status for a single call, then dispose
-fb_status->dispose();
-```
+**`Firebird::CheckStatusWrapper` is non-owning**: Per `Interface.h:165-330`, its destructor is
+implicit and does NOT call `dispose()`. Code using
+`Firebird::CheckStatusWrapper status(master->getStatus());` directly is **leaking** the
+IStatus (~80 bytes/call), not disposing it. Use `fb::CheckStatusScope` (RAII) for proper
+lifecycle management.
 
-**Unsafe pattern** (for service/statement wrappers):
-```cpp
-// WRONG: provider holds reference to status after this call returns
-provider->attachServiceManager(&status, ...);
-status.dispose(); // USE-AFTER-FREE
-```
+**Default rule**: Use `fb::CheckStatusScope` for new code. Existing "let it leak" patterns
+are safe but accumulate leaks - acceptable for short-lived CLI, problematic for long-lived
+PHP-FPM workers. When in doubt, let the IStatus leak rather than risk a crash.
 
-When in doubt, let the IStatus leak. It is freed at module shutdown. A leak is
-always better than a crash.
+**Service attach in tests**: Use `getenv('FIREBIRD_HOST') ?: 'localhost'` instead of hardcoded
+`"localhost"`. The Firebird client library's local protocol (Unix socket, triggered by
+`"localhost"`) can SIGSEGV on connection failure in CI environments. TCP protocol (triggered
+by hostname) fails gracefully. See `tests/client_coverage/fb3_wire_protocol.phpt` for the
+correct pattern.
 
 ---
 

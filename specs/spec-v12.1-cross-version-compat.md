@@ -19,7 +19,7 @@ priority: 1
 2026-07-07
 
 ## Status
-Approved - execution in progress
+COMPLETE — 8 issues closed (#326, #313, #404-#409). FB5 client to FB 2.5/3/4/5 verified.
 
 ---
 

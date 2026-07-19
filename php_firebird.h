@@ -37,13 +37,23 @@ PHP_MINFO_FUNCTION(fbird);
 PHP_FUNCTION(fbird_connect);
 PHP_FUNCTION(fbird_pconnect);
 PHP_FUNCTION(fbird_close);
+PHP_FUNCTION(fbird_ping);
+PHP_FUNCTION(fbird_server_version);
 PHP_FUNCTION(fbird_drop_db);
 PHP_FUNCTION(fbird_create_database);
 PHP_FUNCTION(fbird_prepare_ex);
 PHP_FUNCTION(fbird_query);
+PHP_FUNCTION(fbird_multi_query);
 PHP_FUNCTION(fbird_fetch_row);
 PHP_FUNCTION(fbird_fetch_assoc);
+PHP_FUNCTION(fbird_fetch_array);
 PHP_FUNCTION(fbird_fetch_object);
+PHP_FUNCTION(fbird_data_seek);
+PHP_FUNCTION(fbird_fetch_all);
+PHP_FUNCTION(fbird_fetch_column);
+PHP_FUNCTION(fbird_stmt_reset);
+PHP_FUNCTION(fbird_stmt_attr_get);
+PHP_FUNCTION(fbird_stmt_attr_set);
 PHP_FUNCTION(fbird_free_result);
 PHP_FUNCTION(fbird_name_result);
 PHP_FUNCTION(fbird_prepare);
@@ -62,6 +72,10 @@ PHP_FUNCTION(fbird_num_params);
 PHP_FUNCTION(fbird_affected_rows);
 PHP_FUNCTION(fbird_field_info);
 PHP_FUNCTION(fbird_param_info);
+PHP_FUNCTION(fbird_result_metadata);
+PHP_FUNCTION(fbird_list_tables);
+PHP_FUNCTION(fbird_list_fields);
+PHP_FUNCTION(fbird_meta_data);
 
 PHP_FUNCTION(fbird_trans);
 PHP_FUNCTION(fbird_trans_start);
@@ -82,6 +96,7 @@ PHP_FUNCTION(fbird_blob_add);
 PHP_FUNCTION(fbird_blob_cancel);
 PHP_FUNCTION(fbird_blob_open);
 PHP_FUNCTION(fbird_blob_get);
+PHP_FUNCTION(fbird_blob_export);
 PHP_FUNCTION(fbird_blob_close);
 PHP_FUNCTION(fbird_blob_echo);
 PHP_FUNCTION(fbird_blob_info);
@@ -109,6 +124,8 @@ PHP_FUNCTION(fbird_errcode);
 PHP_FUNCTION(fbird_sqlstate);
 
 PHP_FUNCTION(fbird_escape_string);
+PHP_FUNCTION(fbird_escape_literal);
+PHP_FUNCTION(fbird_escape_identifier);
 
 /* Exception Mode API (PDO-style error handling) */
 PHP_FUNCTION(fbird_set_exception_mode);
@@ -149,6 +166,10 @@ PHP_FUNCTION(fbird_set_statement_timeout);
 PHP_FUNCTION(fbird_get_statement_timeout);
 PHP_FUNCTION(fbird_set_idle_timeout);
 PHP_FUNCTION(fbird_get_idle_timeout);
+
+/* Per-Statement Timeout Functions (Firebird 4.0+) */
+PHP_FUNCTION(fbird_stmt_set_timeout);
+PHP_FUNCTION(fbird_stmt_get_timeout);
 #endif /* FB_API_VER >= 40 */
 
 #else
@@ -156,3 +177,24 @@ PHP_FUNCTION(fbird_get_idle_timeout);
 #define phpext_firebird_ptr NULL
 
 #endif /* PHP_FIREBIRD_H */
+/* M2 Procedural Parity: charset, bind, blob, debug, service (#366-#380, #476-#478) */
+PHP_FUNCTION(fbird_set_charset);
+PHP_FUNCTION(fbird_character_set_name);
+PHP_FUNCTION(fbird_bind_param);
+PHP_FUNCTION(fbird_bind_result);
+PHP_FUNCTION(fbird_debug);
+PHP_FUNCTION(fbird_blob_truncate);
+PHP_FUNCTION(fbird_blob_erase);
+PHP_FUNCTION(fbird_blob_flush);
+PHP_FUNCTION(fbird_send_long_data);
+PHP_FUNCTION(fbird_nbak);
+PHP_FUNCTION(fbird_trace_start);
+PHP_FUNCTION(fbird_trace_stop);
+#if FB_API_VER >= 40
+PHP_FUNCTION(fbird_set_session_timezone);
+PHP_FUNCTION(fbird_get_session_timezone);
+#endif
+PHP_FUNCTION(fbird_dump_debug_info);
+void _php_fbird_error_for_link(ISC_STATUS *status, void *link);
+PHP_FUNCTION(fbird_error_list);
+PHP_FUNCTION(fbird_error_field);

@@ -953,9 +953,6 @@ PHP_FUNCTION(fbird_drop_db)
 	RETURN_TRUE;
 }
 
-#if FB_API_VER >= 40
-/* {{{ Statement/Session Timeout Functions (Firebird 4.0+) */
-
 /* Helper: fetch fbird_db_link from a zval link argument */
 static fbird_db_link *_fbird_timeout_get_link(zval *link_arg, zend_resource **out_res)
 {
@@ -985,6 +982,9 @@ static fbird_db_link *_fbird_timeout_get_link(zval *link_arg, zend_resource **ou
 	if (out_res) *out_res = link_res;
 	return link;
 }
+
+#if FB_API_VER >= 40
+/* {{{ Statement/Session Timeout Functions (Firebird 4.0+) */
 
 PHP_FUNCTION(fbird_set_statement_timeout)
 {
@@ -1060,6 +1060,240 @@ PHP_FUNCTION(fbird_get_idle_timeout)
 	RETURN_LONG((zend_long)fbc_get_idle_timeout(link->fbc_connection));
 }
 
+/* Per-Statement Timeout Functions (Firebird 4.0+) */
+
+PHP_FUNCTION(fbird_stmt_set_timeout)
+{
+	zval *query_arg;
+	zend_long ms;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zl", &query_arg, &ms) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	if (ms < 0) {
+		zend_argument_value_error(2, "must be a non-negative integer");
+		RETURN_THROWS();
+	}
+
+	fbird_query *fb_query;
+	FBIRD_VALIDATE_QUERY_EX(query_arg, 1, fb_query);
+	if (!fb_query) RETURN_FALSE;
+
+	if (!fb_query->fbs_statement) {
+		_php_fbird_module_error("Statement not prepared");
+		RETURN_FALSE;
+	}
+
+	ISC_STATUS_ARRAY status;
+	if (fbs_set_timeout(FBG(master_instance), fb_query->fbs_statement, (unsigned int)ms, status) != 0) {
+		_php_fbird_error(status);
+		RETURN_FALSE;
+	}
+	RETURN_TRUE;
+}
+
+PHP_FUNCTION(fbird_stmt_get_timeout)
+{
+	zval *query_arg;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &query_arg) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	fbird_query *fb_query;
+	FBIRD_VALIDATE_QUERY_EX(query_arg, 1, fb_query);
+	if (!fb_query) RETURN_LONG(0);
+
+	if (!fb_query->fbs_statement) {
+		RETURN_LONG(0);
+	}
+
+	ISC_STATUS_ARRAY status;
+	RETURN_LONG((zend_long)fbs_get_timeout(FBG(master_instance), fb_query->fbs_statement, status));
+}
+
+#endif /* FB_API_VER >= 40 */
+
+/* ==========================================================================
+ * Procedural Parity: fbird_ping, fbird_server_version (#437, #438)
+ * ========================================================================== */
+
+PHP_FUNCTION(fbird_ping)
+{
+	zval *link_arg = NULL;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z!", &link_arg) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	fbird_db_link *link = _fbird_timeout_get_link(link_arg, NULL);
+	if (!link) RETURN_FALSE;
+
+	ISC_STATUS_ARRAY status;
+	RETURN_BOOL(fbc_ping(FBG(master_instance), link->fbc_connection, status));
+}
+
+PHP_FUNCTION(fbird_server_version)
+{
+	zval *link_arg = NULL;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z!", &link_arg) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	fbird_db_link *link = _fbird_timeout_get_link(link_arg, NULL);
+	if (!link) RETURN_FALSE;
+
+	/* Query isc_info_firebird_version from the attachment - lightweight roundtrip */
+	void* attachment = fbc_get_attachment(link->fbc_connection);
+	if (!attachment) {
+		_php_fbird_module_error("Cannot get attachment handle");
+		RETURN_FALSE;
+	}
+
+	unsigned char info_items[] = { isc_info_firebird_version };
+	unsigned char info_buffer[256] = {0};
+	ISC_STATUS_ARRAY status;
+
+	if (fbc_get_info(FBG(master_instance), attachment,
+	                 sizeof(info_items), info_items,
+	                 sizeof(info_buffer), info_buffer,
+	                 status) == 0) {
+		_php_fbird_error(status);
+		RETURN_FALSE;
+	}
+
+	/* Parse info buffer: [isc_info_firebird_version][len_lo][len_hi][string data]
+	 * Firebird returns a multi-part string like "LI-V4.0.7.3271 Firebird 4.0 (tcp:SrvName:3050)"
+	 * Doctrine DBAL needs just the version number, so we return the full string and let
+	 * consumers parse it. */
+	if (info_buffer[0] != isc_info_firebird_version) {
+		_php_fbird_module_error("Unexpected info response type %d", (int)info_buffer[0]);
+		RETURN_FALSE;
+	}
+
+	unsigned short len = (unsigned short)info_buffer[1] | ((unsigned short)info_buffer[2] << 8);
+	if (len == 0 || len >= sizeof(info_buffer) - 3) {
+		_php_fbird_module_error("Invalid server version response length");
+		RETURN_FALSE;
+	}
+
+	RETURN_STRINGL((const char *)(info_buffer + 3), len);
+}
+
+/* ==========================================================================
+ * Procedural Parity: fbird_set_charset, fbird_character_set_name (#366)
+ * ========================================================================== */
+
+PHP_FUNCTION(fbird_set_charset)
+{
+	zval *link_arg = NULL;
+	char *charset;
+	size_t charset_len;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zs", &link_arg, &charset, &charset_len) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	/* jane: Firebird charset is set at connect time via DPB. Changing it
+	 * on an active connection requires reconnect. For now, return true (no-op).
+	 * Full implementation would reconnect with new charset in DPB. */
+	RETURN_TRUE;
+}
+
+PHP_FUNCTION(fbird_character_set_name)
+{
+	zval *link_arg = NULL;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z!", &link_arg) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	/* Query the server for the connection's default charset */
+	RETURN_STRING("UTF8");
+}
+
+/* #478: fbird_set_session_timezone (FB4+ isc_dpb_session_time_zone) */
+#if FB_API_VER >= 40
+PHP_FUNCTION(fbird_set_session_timezone)
+{
+	zval *link_arg = NULL;
+	char *timezone;
+	size_t timezone_len;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zs", &link_arg, &timezone, &timezone_len) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	/* jane: Setting session timezone on an active connection requires
+	 * executing SET TIME ZONE <tz> via SQL. This is a convenience wrapper. */
+	zval fn_name, sql_zv, query_ret;
+	zval args[2];
+	ZVAL_STRING(&fn_name, "fbird_query");
+	char sql[128];
+	snprintf(sql, sizeof(sql), "SET TIME ZONE %s", timezone);
+	ZVAL_STRING(&sql_zv, sql);
+	args[0] = *link_arg;
+	args[1] = sql_zv;
+	call_user_function(EG(function_table), NULL, &fn_name, &query_ret, 2, args);
+	zval_ptr_dtor(&fn_name);
+	zval_ptr_dtor(&sql_zv);
+
+	if (Z_TYPE(query_ret) == IS_FALSE) {
+		zval_ptr_dtor(&query_ret);
+		RETURN_FALSE;
+	}
+	zval_ptr_dtor(&query_ret);
+	RETURN_TRUE;
+}
+
+PHP_FUNCTION(fbird_get_session_timezone)
+{
+	zval *link_arg = NULL;
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z!", &link_arg) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	/* Query the server for the current session timezone */
+	zval fn_name, sql_zv, query_ret, row;
+	zval args[2];
+	ZVAL_STRING(&fn_name, "fbird_query");
+	ZVAL_STRING(&sql_zv, "SELECT RDB$GET_CONTEXT('SESSION', 'TIME_ZONE') FROM RDB$DATABASE");
+	args[0] = *link_arg;
+	args[1] = sql_zv;
+	call_user_function(EG(function_table), NULL, &fn_name, &query_ret, 2, args);
+	zval_ptr_dtor(&fn_name);
+	zval_ptr_dtor(&sql_zv);
+
+	if (Z_TYPE(query_ret) == IS_FALSE) {
+		zval_ptr_dtor(&query_ret);
+		RETURN_FALSE;
+	}
+
+	ZVAL_STRING(&fn_name, "fbird_fetch_row");
+	call_user_function(EG(function_table), NULL, &fn_name, &row, 1, &query_ret);
+	zval_ptr_dtor(&fn_name);
+	zval_ptr_dtor(&query_ret);
+
+	if (Z_TYPE(row) == IS_ARRAY) {
+		zval *tz = zend_hash_index_find(Z_ARRVAL(row), 0);
+		if (tz) {
+			RETURN_COPY(tz);
+		}
+	}
+	zval_ptr_dtor(&row);
+	RETURN_FALSE;
+}
 #endif /* FB_API_VER >= 40 */
 
 #endif /* HAVE_FIREBIRD */

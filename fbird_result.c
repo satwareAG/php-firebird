@@ -34,6 +34,7 @@
 
 #define FETCH_ROW       1
 #define FETCH_ARRAY     2
+#define FETCH_BOTH      (FETCH_ROW | FETCH_ARRAY)  /* 3 - both numeric and assoc keys */
 
 typedef struct {
 	unsigned short vary_length;
@@ -271,8 +272,9 @@ static int _php_fbird_var_zval(zval *val, void *data, int type, int len,
 #if FB_API_VER >= 40
  		case SQL_DEC16:
  		case SQL_DEC34: {
-			/* jane: PHP 8.2 crashes in method dispatch for DecFloat objects.
-			 * Fall back to string conversion on PHP < 8.3. */
+			/* jane: PHP 8.2 crashes in var_dump() for DecFloat objects (#472).
+			 * Fall back to string conversion on PHP < 8.3. Bug confirmed still
+			 * present in PHP 8.2.31 (2026-06-24 build). */
 #if PHP_VERSION_ID >= 80300
 			if (type == SQL_DEC16) {
 				fbird_setup_decfloat_object(val, 16, data, sizeof(FB_DEC16));
@@ -750,7 +752,7 @@ void _php_fbird_fetch_hash_query(
 	}
 
 	HashTable *ht_ret;
-	if(!(fetch_type & FETCH_ROW)) {
+	if(fetch_type & FETCH_ARRAY) {
 		if(!fb_query->ht_aliases){
 			if(_php_fbird_alloc_ht_aliases(fb_query)){
 				_php_fbird_error(status);
@@ -952,6 +954,26 @@ void _php_fbird_fetch_hash_query(
 		zend_hash_move_forward_ex(ht_ret, &pos);
 	}
 
+	/* For FETCH_BOTH: add numeric indices alongside associative keys */
+	if(fetch_type == FETCH_BOTH) {
+		unsigned count = fb_query->out_fields_count;
+		if(count > 0) {
+			zval *values = safe_emalloc(count, sizeof(zval), 0);
+			unsigned i = 0;
+			zval *src;
+			ZEND_HASH_FOREACH_VAL(ht_ret, src) {
+				if(i < count) {
+					ZVAL_COPY(&values[i], src);
+					i++;
+				}
+			} ZEND_HASH_FOREACH_END();
+			for(i = 0; i < count; i++) {
+				zend_hash_index_update(ht_ret, i, &values[i]);
+			}
+			efree(values);
+		}
+	}
+
 	RETVAL_ARR(ht_ret);
 }
 
@@ -986,13 +1008,183 @@ PHP_FUNCTION(fbird_fetch_assoc)
 	_php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAM_PASSTHRU, FETCH_ARRAY);
 }
 
+PHP_FUNCTION(fbird_fetch_array)
+{
+	_php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAM_PASSTHRU, FETCH_BOTH);
+}
+
+/* #365: Extended fbird_fetch_object with optional class_name + ctor_args
+ * BC: 2nd arg can be int (fetch_flags) or string (class_name) */
 PHP_FUNCTION(fbird_fetch_object)
 {
-	_php_fbird_fetch_hash(INTERNAL_FUNCTION_PARAM_PASSTHRU, FETCH_ARRAY);
+	zval *res_arg;
+	zval *arg2 = NULL;
+	zval *ctor_args = NULL;
+	fbird_query *fb_query;
+	int fetch_type = FETCH_ARRAY;
+	int flag = 0;
+	zend_string *class_name = NULL;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z|z/a", &res_arg, &arg2, &ctor_args) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	FBIRD_VALIDATE_QUERY_EX(res_arg, 1, fb_query);
+	if (!fb_query) RETURN_FALSE;
+
+	if (arg2) {
+		if (Z_TYPE_P(arg2) == IS_STRING) {
+			class_name = Z_STR_P(arg2);
+		} else if (Z_TYPE_P(arg2) == IS_LONG) {
+			flag = (int)Z_LVAL_P(arg2);
+		}
+	}
+
+	_php_fbird_fetch_hash_query(fb_query, fetch_type, flag, return_value);
 
 	if (Z_TYPE_P(return_value) == IS_ARRAY) {
+		if (class_name && ZSTR_LEN(class_name) > 0) {
+			zend_class_entry *ce = zend_lookup_class(class_name);
+			if (ce) {
+				/* Create object and copy array properties into it */
+				zval obj;
+				object_init_ex(&obj, ce);
+				zval *val;
+				zend_string *key;
+				ZEND_HASH_FOREACH_STR_KEY_VAL(Z_ARRVAL_P(return_value), key, val) {
+					if (key) {
+						zend_update_property(ce, Z_OBJ(obj), ZSTR_VAL(key), ZSTR_LEN(key), val);
+					}
+				} ZEND_HASH_FOREACH_END();
+				zval_ptr_dtor(return_value);
+				ZVAL_COPY_VALUE(return_value, &obj);
+				return;
+			}
+			_php_fbird_module_error("Class '%s' not found", ZSTR_VAL(class_name));
+			RETURN_FALSE;
+		}
 		convert_to_object(return_value);
 	}
+}
+
+/* #362: fbird_data_seek - seek to specific row (forward-only) */
+PHP_FUNCTION(fbird_data_seek)
+{
+	zval *res_arg;
+	zend_long row_num;
+	fbird_query *fb_query;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zl", &res_arg, &row_num) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	FBIRD_VALIDATE_QUERY_EX(res_arg, 1, fb_query);
+	if (!fb_query) RETURN_FALSE;
+
+	if (row_num < 0) {
+		_php_fbird_module_error("Row number must be non-negative");
+		RETURN_FALSE;
+	}
+
+	/* Forward-only cursor: fetch and discard rows until we reach target */
+	for (zend_long i = 0; i < row_num; i++) {
+		zval row;
+		_php_fbird_fetch_hash_query(fb_query, FETCH_ROW, 0, &row);
+		if (Z_TYPE(row) == IS_FALSE) {
+			_php_fbird_module_error("Row %d does not exist", (int)row_num);
+			RETURN_FALSE;
+		}
+		zval_ptr_dtor(&row);
+	}
+	RETURN_TRUE;
+}
+
+/* #363: fbird_fetch_all - fetch all rows into an array */
+PHP_FUNCTION(fbird_fetch_all)
+{
+	zval *res_arg;
+	zend_long flag = 0;
+	fbird_query *fb_query;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z|l", &res_arg, &flag) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	FBIRD_VALIDATE_QUERY_EX(res_arg, 1, fb_query);
+	if (!fb_query) RETURN_FALSE;
+
+	array_init(return_value);
+
+	while (1) {
+		zval row;
+		_php_fbird_fetch_hash_query(fb_query, FETCH_ARRAY, (int)flag, &row);
+		if (Z_TYPE(row) == IS_FALSE) {
+			zval_ptr_dtor(&row);
+			break;
+		}
+		add_next_index_zval(return_value, &row);
+	}
+}
+
+/* #364: fbird_fetch_column - fetch next row, return single column */
+PHP_FUNCTION(fbird_fetch_column)
+{
+	zval *res_arg;
+	zend_long col = 0;
+	fbird_query *fb_query;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z|l", &res_arg, &col) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	FBIRD_VALIDATE_QUERY_EX(res_arg, 1, fb_query);
+	if (!fb_query) RETURN_FALSE;
+
+	zval row;
+	_php_fbird_fetch_hash_query(fb_query, FETCH_ROW, 0, &row);
+	if (Z_TYPE(row) == IS_FALSE) {
+		zval_ptr_dtor(&row);
+		RETURN_FALSE;
+	}
+
+	zval *val = zend_hash_index_find(Z_ARRVAL(row), (uint32_t)col);
+	if (val) {
+		RETURN_COPY_DEREF(val);
+	} else {
+		zval_ptr_dtor(&row);
+		RETURN_NULL();
+	}
+}
+
+/* #381: fbird_stmt_reset - close cursor, keep prepared statement */
+PHP_FUNCTION(fbird_stmt_reset)
+{
+	zval *res_arg;
+	fbird_query *fb_query;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &res_arg) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	FBIRD_VALIDATE_QUERY_EX(res_arg, 1, fb_query);
+	if (!fb_query) RETURN_FALSE;
+
+	if (!fb_query->fbs_statement) {
+		RETURN_TRUE;  /* No cursor to close */
+	}
+
+	ISC_STATUS status[ISC_STATUS_LENGTH] = {0};
+	RETURN_BOOL(fbs_close_cursor(fb_query->fbs_statement, status));
 }
 
 PHP_FUNCTION(fbird_name_result)

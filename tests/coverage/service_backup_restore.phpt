@@ -48,10 +48,19 @@ $pid         = getmypid();
 $backup_file = '/tmp/test_coverage_bkp_' . $pid . '.fbk';
 $restore_db  = '/tmp/test_coverage_rst_' . $pid . '.fdb';
 
+// All backup/restore calls use verbose=true (last arg).
+// Reason: fbird_backup(verbose=false) is fire-and-forget — fbsvc_start() returns
+// immediately while the Firebird server processes the backup asynchronously.
+// The next operation hits a busy server → segfault or "Service is currently busy".
+// verbose=true calls _php_fbird_service_query(isc_info_svc_line) which blocks
+// until the server signals completion (line_len == 0), guaranteeing isolation
+// between sequential service operations.
+// The test already accepts is_string($r) in all checks, so expected output is unchanged.
+
 // 1. Basic backup (no flags)
 echo "Test 1: Basic backup\n";
 $s = attach_svc($host, $user, $password);
-$r = fbird_backup($s, $db_path, $backup_file, 0, false);
+$r = fbird_backup($s, $db_path, $backup_file, 0, true);
 fbird_service_detach($s);
 var_dump($r === true || is_string($r));
 
@@ -62,7 +71,7 @@ var_dump($r === true || is_string($r));
 // We suppress the warning and accept both true and false as valid outcomes.
 echo "Test 2: Backup IGNORE_CHECKSUMS\n";
 $s = attach_svc($host, $user, $password);
-$r = @fbird_backup($s, $db_path, $backup_file, FBIRD_BKP_IGNORE_CHECKSUMS, false);
+$r = @fbird_backup($s, $db_path, $backup_file, FBIRD_BKP_IGNORE_CHECKSUMS, true);
 fbird_service_detach($s);
 var_dump($r === true || $r === false || is_string($r));
 
@@ -72,21 +81,21 @@ var_dump($r === true || $r === false || is_string($r));
 // from a previous maintenance operation. Accept false as a valid outcome.
 echo "Test 3: Backup IGNORE_LIMBO\n";
 $s = attach_svc($host, $user, $password);
-$r = @fbird_backup($s, $db_path, $backup_file, FBIRD_BKP_IGNORE_LIMBO, false);
+$r = @fbird_backup($s, $db_path, $backup_file, FBIRD_BKP_IGNORE_LIMBO, true);
 fbird_service_detach($s);
 var_dump($r === true || $r === false || is_string($r));
 
 // 4. Backup: FBIRD_BKP_METADATA_ONLY
 echo "Test 4: Backup METADATA_ONLY\n";
 $s = attach_svc($host, $user, $password);
-$r = fbird_backup($s, $db_path, $backup_file, FBIRD_BKP_METADATA_ONLY, false);
+$r = fbird_backup($s, $db_path, $backup_file, FBIRD_BKP_METADATA_ONLY, true);
 fbird_service_detach($s);
 var_dump($r === true || is_string($r));
 
 // 5. Backup: FBIRD_BKP_NO_GARBAGE_COLLECT
 echo "Test 5: Backup NO_GARBAGE_COLLECT\n";
 $s = attach_svc($host, $user, $password);
-$r = fbird_backup($s, $db_path, $backup_file, FBIRD_BKP_NO_GARBAGE_COLLECT, false);
+$r = fbird_backup($s, $db_path, $backup_file, FBIRD_BKP_NO_GARBAGE_COLLECT, true);
 fbird_service_detach($s);
 var_dump($r === true || is_string($r));
 
@@ -95,23 +104,23 @@ var_dump($r === true || is_string($r));
 echo "Test 6: Backup combined flags\n";
 $s = attach_svc($host, $user, $password);
 $r = @fbird_backup($s, $db_path, $backup_file,
-    FBIRD_BKP_IGNORE_LIMBO | FBIRD_BKP_NO_GARBAGE_COLLECT, false);
+    FBIRD_BKP_IGNORE_LIMBO | FBIRD_BKP_NO_GARBAGE_COLLECT, true);
 fbird_service_detach($s);
 var_dump($r === true || $r === false || is_string($r));
 
 // 7. Backup: FBIRD_BKP_NON_TRANSPORTABLE — produce final backup for restore tests
 echo "Test 7: Backup NON_TRANSPORTABLE\n";
 $s = attach_svc($host, $user, $password);
-$r = fbird_backup($s, $db_path, $backup_file, FBIRD_BKP_NON_TRANSPORTABLE, false);
+$r = fbird_backup($s, $db_path, $backup_file, FBIRD_BKP_NON_TRANSPORTABLE, true);
 fbird_service_detach($s);
 var_dump($r === true || is_string($r));
 
 // For restore tests: ensure we have a usable backup (non-transportable may not be restorable
 // on FB3, so redo a clean backup without flags).
 $s = attach_svc($host, $user, $password);
-$final_backup = fbird_backup($s, $db_path, $backup_file, 0, false);
+$final_backup = fbird_backup($s, $db_path, $backup_file, 0, true);
 fbird_service_detach($s);
-$backup_ready = ($final_backup === true);
+$backup_ready = ($final_backup === true || is_string($final_backup));
 
 if ($backup_ready) {
     // fbird_restore signature: (svc, $dest_db, $backup_file, $flags, $verbose)
@@ -123,14 +132,14 @@ if ($backup_ready) {
     // returns false. Suppress the warning and accept false as a valid outcome.
     echo "Test 8: Restore CREATE\n";
     $s = attach_svc($host, $user, $password);
-    $r = @fbird_restore($s, $restore_db, $backup_file, FBIRD_RES_CREATE, false);
+    $r = @fbird_restore($s, $restore_db, $backup_file, FBIRD_RES_CREATE, true);
     fbird_service_detach($s);
     var_dump($r === true || $r === false || is_string($r));
 
     // 9. Restore: FBIRD_RES_REPLACE (overwrite existing)
     echo "Test 9: Restore REPLACE\n";
     $s = attach_svc($host, $user, $password);
-    $r = fbird_restore($s, $restore_db, $backup_file, FBIRD_RES_REPLACE, false);
+    $r = fbird_restore($s, $restore_db, $backup_file, FBIRD_RES_REPLACE, true);
     fbird_service_detach($s);
     var_dump($r === true || is_string($r));
 
@@ -138,7 +147,7 @@ if ($backup_ready) {
     echo "Test 10: Restore DEACTIVATE_IDX\n";
     $s = attach_svc($host, $user, $password);
     $r = fbird_restore($s, $restore_db, $backup_file,
-        FBIRD_RES_DEACTIVATE_IDX | FBIRD_RES_REPLACE, false);
+        FBIRD_RES_DEACTIVATE_IDX | FBIRD_RES_REPLACE, true);
     fbird_service_detach($s);
     var_dump($r === true || is_string($r));
 
@@ -146,7 +155,7 @@ if ($backup_ready) {
     echo "Test 11: Restore NO_VALIDITY\n";
     $s = attach_svc($host, $user, $password);
     $r = fbird_restore($s, $restore_db, $backup_file,
-        FBIRD_RES_NO_VALIDITY | FBIRD_RES_REPLACE, false);
+        FBIRD_RES_NO_VALIDITY | FBIRD_RES_REPLACE, true);
     fbird_service_detach($s);
     var_dump($r === true || is_string($r));
 
@@ -154,7 +163,7 @@ if ($backup_ready) {
     echo "Test 12: Restore ONE_AT_A_TIME\n";
     $s = attach_svc($host, $user, $password);
     $r = fbird_restore($s, $restore_db, $backup_file,
-        FBIRD_RES_ONE_AT_A_TIME | FBIRD_RES_REPLACE, false);
+        FBIRD_RES_ONE_AT_A_TIME | FBIRD_RES_REPLACE, true);
     fbird_service_detach($s);
     var_dump($r === true || is_string($r));
 } else {

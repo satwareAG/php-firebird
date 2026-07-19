@@ -4,13 +4,12 @@ feat: fbird_data_seek (procedural scrollable)
 v12.1.0 M2 (#362) - procedural parity RED test
 --SKIPIF--
 <?php
-if (!function_exists('fbird_data_seek')) die('skip gap: fbird_data_seek() not yet implemented (see #362)');
 require_once __DIR__ . '/../firebird.inc';
 ?>
 --FILE--
 <?php
 require_once __DIR__ . '/../firebird.inc';
-global $link, $test_base;
+global $test_base; $link = fbird_connect($test_base);
 fbird_query($link, "RECREATE TABLE test_seek (id INT)");
 fbird_query($link, "INSERT INTO test_seek VALUES (1)");
 fbird_query($link, "INSERT INTO test_seek VALUES (2)");
@@ -24,7 +23,9 @@ fbird_query($link, "DROP TABLE test_seek");
 echo "=== DONE ===\n";
 ?>
 --EXPECT--
+OK data_seek to row 2: 3
 === DONE ===
 
+
 --CLEAN--
-<?php // Tests SKIP (function not implemented), no DDL executed ?>
+<?php require_once __DIR__ . '/../clean.inc'; ?>

@@ -40,16 +40,27 @@ static PHP_GINIT_FUNCTION(fbird);
 zend_class_entry *firebird_exception_ce;
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_errmsg, 0, 0, MAY_BE_STRING|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, link_identifier)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_errcode, 0, 0, MAY_BE_LONG|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, link_identifier)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_sqlstate, 0, 0, MAY_BE_STRING|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, link_identifier)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_escape_string, 0, 1, IS_STRING, 0)
 	ZEND_ARG_TYPE_INFO(0, string, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_escape_literal, 0, 1, IS_STRING, 0)
+	ZEND_ARG_TYPE_INFO(0, string, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_escape_identifier, 0, 1, IS_STRING, 0)
+	ZEND_ARG_TYPE_INFO(0, identifier, IS_STRING, 0)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_set_exception_mode, 0, 1, _IS_BOOL, 0)
@@ -167,6 +178,12 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_blob_get, 0, 2, MAY_BE_STR
 	ZEND_ARG_TYPE_INFO(0, len, IS_LONG, 0)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_blob_export, 0, 3, _IS_BOOL, 0)
+	ZEND_ARG_INFO(0, link_identifier)
+	ZEND_ARG_INFO(0, blob_id)
+	ZEND_ARG_TYPE_INFO(0, filename, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_blob_close, 0, 1, MAY_BE_STRING|MAY_BE_FALSE)
 	ZEND_ARG_INFO(0, blob_handle)
 ZEND_END_ARG_INFO()
@@ -211,6 +228,22 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_query, 0, 0, MAY_BE_OBJECT
 	ZEND_ARG_VARIADIC_INFO(0, bind_arg)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_multi_query, 0, 2, MAY_BE_OBJECT|MAY_BE_LONG|MAY_BE_BOOL)
+	ZEND_ARG_INFO(0, link_identifier)
+	ZEND_ARG_TYPE_INFO(0, query, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_stmt_attr_get, 0, 2, MAY_BE_LONG|MAY_BE_STRING|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, query)
+	ZEND_ARG_TYPE_INFO(0, attribute, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_stmt_attr_set, 0, 3, _IS_BOOL, 0)
+	ZEND_ARG_INFO(0, query)
+	ZEND_ARG_TYPE_INFO(0, attribute, IS_LONG, 0)
+	ZEND_ARG_INFO(0, value)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_affected_rows, 0, 0, IS_LONG, 0)
 	ZEND_ARG_INFO(0, link_identifier)
 ZEND_END_ARG_INFO()
@@ -225,9 +258,33 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_fetch_assoc, 0, 1, MAY_BE_
 	ZEND_ARG_TYPE_INFO(0, fetch_flags, IS_LONG, 0)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_fetch_array, 0, 1, MAY_BE_ARRAY|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, result)
+	ZEND_ARG_TYPE_INFO(0, fetch_flags, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_fetch_object, 0, 1, MAY_BE_OBJECT|MAY_BE_FALSE)
 	ZEND_ARG_INFO(0, result)
 	ZEND_ARG_TYPE_INFO(0, fetch_flags, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_data_seek, 0, 2, _IS_BOOL, 0)
+	ZEND_ARG_INFO(0, result)
+	ZEND_ARG_TYPE_INFO(0, row_number, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_fetch_all, 0, 1, MAY_BE_ARRAY|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, result)
+	ZEND_ARG_TYPE_INFO(0, fetch_flags, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_fetch_column, 0, 1, MAY_BE_STRING|MAY_BE_LONG|MAY_BE_DOUBLE|MAY_BE_NULL|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, result)
+	ZEND_ARG_TYPE_INFO(0, column, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_stmt_reset, 0, 1, _IS_BOOL, 0)
+	ZEND_ARG_INFO(0, query)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_name_result, 0, 2, _IS_BOOL, 0)
@@ -311,6 +368,24 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_param_info, 0, 2, MAY_BE_A
 	ZEND_ARG_TYPE_INFO(0, field_number, IS_LONG, 0)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_result_metadata, 0, 1, MAY_BE_ARRAY|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, query)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_list_tables, 0, 0, MAY_BE_ARRAY|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, link_identifier)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_list_fields, 0, 2, MAY_BE_ARRAY|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, link_identifier)
+	ZEND_ARG_TYPE_INFO(0, table_name, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_meta_data, 0, 2, MAY_BE_ARRAY|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, link_identifier)
+	ZEND_ARG_TYPE_INFO(0, table_name, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_add_user, 0, 3, _IS_BOOL, 0)
 	ZEND_ARG_INFO(0, service_handle)
 	ZEND_ARG_TYPE_INFO(0, user_name, IS_STRING, 0)
@@ -375,6 +450,14 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_db_info, 0, 3, MAY_BE_STRI
 	ZEND_ARG_TYPE_INFO(0, db, IS_STRING, 0)
 	ZEND_ARG_TYPE_INFO(0, action, IS_LONG, 0)
 	ZEND_ARG_TYPE_INFO(0, argument, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_ping, 0, 0, _IS_BOOL, 0)
+	ZEND_ARG_INFO(0, link_identifier)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_server_version, 0, 0, MAY_BE_STRING|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, link_identifier)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_server_info, 0, 2, MAY_BE_STRING|MAY_BE_FALSE)
@@ -498,20 +581,91 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_get_idle_timeout, 0, 1, IS_LONG, 0)
 	ZEND_ARG_INFO(0, link_identifier)
 ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_stmt_set_timeout, 0, 2, _IS_BOOL, 0)
+	ZEND_ARG_INFO(0, query)
+	ZEND_ARG_TYPE_INFO(0, milliseconds, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_stmt_get_timeout, 0, 1, IS_LONG, 0)
+	ZEND_ARG_INFO(0, query)
+ZEND_END_ARG_INFO()
 #endif /* FB_API_VER >= 40 */
 
+/* M2 Parity: arginfo for remaining functions */
+#define FBIRD_SIMPLE_ARGINFO(name, ret) \
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_##name, 0, 0, ret, 0) \
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_set_charset, 0, 2, _IS_BOOL, 0)
+	ZEND_ARG_INFO(0, connection) ZEND_ARG_TYPE_INFO(0, charset, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_character_set_name, 0, 0, IS_STRING, 0)
+	ZEND_ARG_INFO(0, connection)
+ZEND_END_ARG_INFO()
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_bind_param, 0, 1, _IS_BOOL, 0)
+	ZEND_ARG_INFO(0, statement) ZEND_ARG_VARIADIC_INFO(0, vars)
+ZEND_END_ARG_INFO()
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_bind_result, 0, 3, _IS_BOOL, 0)
+	ZEND_ARG_INFO(0, statement) ZEND_ARG_TYPE_INFO(0, column, IS_STRING, 0) ZEND_ARG_INFO(1, var)
+ZEND_END_ARG_INFO()
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_debug, 0, 0, _IS_BOOL, 0)
+	ZEND_ARG_TYPE_INFO(0, message, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_blob_truncate, 0, 1, _IS_BOOL, 0)
+	ZEND_ARG_INFO(0, blob_handle)
+ZEND_END_ARG_INFO()
+#define arginfo_fbird_blob_erase arginfo_fbird_blob_truncate
+#define arginfo_fbird_blob_flush arginfo_fbird_blob_truncate
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_send_long_data, 0, 3, _IS_BOOL, 0)
+	ZEND_ARG_INFO(0, statement) ZEND_ARG_TYPE_INFO(0, param_num, IS_LONG, 0) ZEND_ARG_INFO(0, data)
+ZEND_END_ARG_INFO()
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_nbak, 0, 3, _IS_BOOL, 0)
+	ZEND_ARG_INFO(0, service_handle) ZEND_ARG_TYPE_INFO(0, level, IS_LONG, 0) ZEND_ARG_TYPE_INFO(0, database, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_trace_start, 0, 2, _IS_BOOL, 0)
+	ZEND_ARG_INFO(0, service_handle) ZEND_ARG_TYPE_INFO(0, config, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_trace_stop, 0, 2, _IS_BOOL, 0)
+	ZEND_ARG_INFO(0, service_handle) ZEND_ARG_TYPE_INFO(0, trace_id, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+#if FB_API_VER >= 40
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_set_session_timezone, 0, 2, _IS_BOOL, 0)
+	ZEND_ARG_INFO(0, connection) ZEND_ARG_TYPE_INFO(0, timezone, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_get_session_timezone, 0, 0, MAY_BE_STRING|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, connection)
+ZEND_END_ARG_INFO()
+#endif
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_error_list, 0, 0, MAY_BE_ARRAY|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, link_identifier)
+ZEND_END_ARG_INFO()
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_error_field, 0, 0, MAY_BE_ARRAY|MAY_BE_FALSE)
+	ZEND_ARG_INFO(0, link_identifier)
+ZEND_END_ARG_INFO()
 static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_connect, 		arginfo_fbird_connect)
 	PHP_FE(fbird_pconnect, 		arginfo_fbird_pconnect)
 	PHP_FE(fbird_close, 		arginfo_fbird_close)
+	PHP_FE(fbird_ping, 			arginfo_fbird_ping)
+	PHP_FE(fbird_server_version, arginfo_fbird_server_version)
 	PHP_FE(fbird_drop_db, 		arginfo_fbird_drop_db)
 	PHP_FE(fbird_create_database, arginfo_fbird_create_database)
 	PHP_FE(fbird_prepare_ex, 	arginfo_fbird_prepare_ex)
 	PHP_FE(fbird_query, 		arginfo_fbird_query)
+	PHP_FE(fbird_multi_query, 	arginfo_fbird_multi_query)
 	PHP_FE(fbird_fetch_row, 	arginfo_fbird_fetch_row)
 	PHP_FE(fbird_fetch_assoc, 	arginfo_fbird_fetch_assoc)
+	PHP_FE(fbird_fetch_array, 	arginfo_fbird_fetch_array)
 	PHP_FE(fbird_fetch_object, 	arginfo_fbird_fetch_object)
+	PHP_FE(fbird_data_seek, 		arginfo_fbird_data_seek)
+	PHP_FE(fbird_fetch_all, 	arginfo_fbird_fetch_all)
+	PHP_FE(fbird_fetch_column, 	arginfo_fbird_fetch_column)
 	PHP_FE(fbird_free_result, 	arginfo_fbird_free_result)
+	PHP_FE(fbird_stmt_reset, 	arginfo_fbird_stmt_reset)
+	PHP_FE(fbird_stmt_attr_get, 	arginfo_fbird_stmt_attr_get)
+	PHP_FE(fbird_stmt_attr_set, 	arginfo_fbird_stmt_attr_set)
 	PHP_FE(fbird_name_result, 	arginfo_fbird_name_result)
 	PHP_FE(fbird_prepare, 		arginfo_fbird_prepare)
 	PHP_FE(fbird_execute, 		arginfo_fbird_execute)
@@ -533,6 +687,10 @@ static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_affected_rows, arginfo_fbird_affected_rows)
 	PHP_FE(fbird_field_info, 	arginfo_fbird_field_info)
 	PHP_FE(fbird_param_info, 	arginfo_fbird_param_info)
+	PHP_FE(fbird_result_metadata, arginfo_fbird_result_metadata)
+	PHP_FE(fbird_list_tables, 	arginfo_fbird_list_tables)
+	PHP_FE(fbird_list_fields, 	arginfo_fbird_list_fields)
+	PHP_FE(fbird_meta_data, 		arginfo_fbird_meta_data)
 
 	PHP_FE(fbird_trans, 		arginfo_fbird_trans)
 	PHP_FE(fbird_commit, 		arginfo_fbird_commit)
@@ -547,6 +705,7 @@ static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_blob_close, 	arginfo_fbird_blob_close)
 	PHP_FE(fbird_blob_open, 	arginfo_fbird_blob_open)
 	PHP_FE(fbird_blob_get, 		arginfo_fbird_blob_get)
+	PHP_FE(fbird_blob_export, 	arginfo_fbird_blob_export)
 	PHP_FE(fbird_blob_echo, 	arginfo_fbird_blob_echo)
 	PHP_FE(fbird_blob_import, 	arginfo_fbird_blob_import)
 	PHP_FE(fbird_blob_create_stream,	arginfo_fbird_blob_create)
@@ -557,7 +716,11 @@ static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_errmsg, 		arginfo_fbird_errmsg)
 	PHP_FE(fbird_errcode, 		arginfo_fbird_errcode)
 	PHP_FE(fbird_sqlstate, 		arginfo_fbird_sqlstate)
+	PHP_FE(fbird_error_list, 		arginfo_fbird_error_list)
+	PHP_FE(fbird_error_field, 		arginfo_fbird_error_field)
 	PHP_FE(fbird_escape_string, arginfo_fbird_escape_string)
+	PHP_FE(fbird_escape_literal, arginfo_fbird_escape_literal)
+	PHP_FE(fbird_escape_identifier, arginfo_fbird_escape_identifier)
 	PHP_FE(fbird_set_exception_mode, arginfo_fbird_set_exception_mode)
 	PHP_FE(fbird_get_exception_mode, arginfo_fbird_get_exception_mode)
 
@@ -612,7 +775,27 @@ static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_get_statement_timeout, arginfo_fbird_get_statement_timeout)
 	PHP_FE(fbird_set_idle_timeout,      arginfo_fbird_set_idle_timeout)
 	PHP_FE(fbird_get_idle_timeout,      arginfo_fbird_get_idle_timeout)
+	PHP_FE(fbird_stmt_set_timeout,      arginfo_fbird_stmt_set_timeout)
+	PHP_FE(fbird_stmt_get_timeout,      arginfo_fbird_stmt_get_timeout)
 #endif /* FB_API_VER >= 40 */
+
+	PHP_FE(fbird_set_charset, 		arginfo_fbird_set_charset)
+	PHP_FE(fbird_character_set_name, arginfo_fbird_character_set_name)
+	PHP_FE(fbird_bind_param, 		arginfo_fbird_bind_param)
+	PHP_FE(fbird_bind_result, 		arginfo_fbird_bind_result)
+	PHP_FE(fbird_debug, 			arginfo_fbird_debug)
+	PHP_FE(fbird_dump_debug_info,	arginfo_fbird_debug)
+	PHP_FE(fbird_blob_truncate, 	arginfo_fbird_blob_truncate)
+	PHP_FE(fbird_blob_erase, 		arginfo_fbird_blob_erase)
+	PHP_FE(fbird_blob_flush, 		arginfo_fbird_blob_flush)
+	PHP_FE(fbird_send_long_data, 	arginfo_fbird_send_long_data)
+	PHP_FE(fbird_nbak, 				arginfo_fbird_nbak)
+	PHP_FE(fbird_trace_start, 		arginfo_fbird_trace_start)
+	PHP_FE(fbird_trace_stop, 		arginfo_fbird_trace_stop)
+#if FB_API_VER >= 40
+	PHP_FE(fbird_set_session_timezone, arginfo_fbird_set_session_timezone)
+	PHP_FE(fbird_get_session_timezone, arginfo_fbird_get_session_timezone)
+#endif
 
 	PHP_FE_END
 };

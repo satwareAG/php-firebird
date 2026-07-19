@@ -55,6 +55,10 @@ jobs:
       ISC_USER: SYSDBA
       ISC_PASSWORD: masterkey
       FIREBIRD_HOST: firebird
+      # FIREBIRD_DB_DIR gives each test a unique DB via /tmp, preventing
+      # metadata lock conflicts when tests do RECREATE TABLE from different
+      # connections (per AGENTS.md CI parity rule #2).
+      FIREBIRD_DB_DIR: /tmp
       FIREBIRD_DB_PATH: /var/lib/firebird/data/test.fdb
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -118,22 +122,32 @@ jobs:
 
           EXTENSION_PATH="$(pwd)/modules/firebird.so"
           PDO_FBIRD_PATH="$(pwd)/pdo_fbird/modules/pdo_fbird.so"
-          export TEST_PHP_EXECUTABLE="$(which php)"
-          export PHP_TEST_SHARED_EXTENSIONS="-d extension=${EXTENSION_PATH}"
 
-          # Add pdo_fbird extension if built
+          # Build extension flags - load both firebird and pdo_fbird explicitly.
+          # Per AGENTS.md: `make test` only loads firebird.so via the Makefile,
+          # and PHP_TEST_SHARED_EXTENSIONS env var is NOT read by the Makefile's
+          # test target, causing ALL pdo_fbird tests to silently SKIP.
+          # Fix: use run-tests.php directly with -d extension= flags (like ci.yml).
+          EXT_FLAGS="-d extension=${EXTENSION_PATH}"
           if [ -f "$PDO_FBIRD_PATH" ]; then
-            export PHP_TEST_SHARED_EXTENSIONS="${PHP_TEST_SHARED_EXTENSIONS} -d extension=${PDO_FBIRD_PATH}"
+            EXT_FLAGS="${EXT_FLAGS} -d extension=${PDO_FBIRD_PATH}"
           fi
 
-          # Add pcntl if available
-          PCNTL_SO=$(find $(php-config --extension-dir) -name "pcntl.so" 2>/dev/null || true)
-          if [ -n "$PCNTL_SO" ]; then
-            export PHP_TEST_SHARED_EXTENSIONS="${PHP_TEST_SHARED_EXTENSIONS} -d extension=${PCNTL_SO}"
+          # Add pcntl if available (guard against double-load per AGENTS.md)
+          if ! php -r 'exit(extension_loaded("pcntl") ? 0 : 1);' 2>/dev/null; then
+            PCNTL_SO=$(find $(php-config --extension-dir) -name "pcntl.so" 2>/dev/null || true)
+            if [ -n "$PCNTL_SO" ]; then
+              EXT_FLAGS="${EXT_FLAGS} -d extension=${PCNTL_SO}"
+            fi
           fi
 
           echo "Running all PHPT tests..."
-          make test TESTS=tests/ | tee test_output.txt || true
+          # Use run-tests.php directly (not make test) so both extensions load.
+          # --set-timeout 15 kills hanging tests in 15s instead of default 60s.
+          php run-tests.php ${EXT_FLAGS} \
+            -p "$(which php)" \
+            --set-timeout 15 \
+            tests/ 2>&1 | tee test_output.txt || true
 
           # Parse test results
           FAILED_COUNT=$(grep -oP 'Tests failed\s*:\s*\K\d+' test_output.txt | head -1 || echo "0")

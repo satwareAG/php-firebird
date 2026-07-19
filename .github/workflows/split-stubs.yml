@@ -11,7 +11,6 @@ on:
     paths:
       - 'stubs/**'
       - 'pdo_fbird/**'
-      - 'composer.json'
     tags:
       - 'v*'
   workflow_dispatch:

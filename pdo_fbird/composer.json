@@ -12,7 +12,8 @@
     ],
     "require": {
         "php": ">=8.2",
-        "ext-pdo": "*"
+        "ext-pdo": "*",
+        "ext-firebird": "*"
     },
     "config": {
         "sort-packages": true,
@@ -27,13 +28,8 @@
         "support-nts": true,
         "configure-options": [
             {
-                "name": "with-pdo-fbird",
-                "description": "Path to Firebird client installation (e.g. /opt/firebird). If not specified, the system default is used.",
-                "needs-value": true
-            },
-            {
                 "name": "with-firebird",
-                "description": "Path to Firebird client installation (alternative to with-pdo-fbird).",
+                "description": "Path to Firebird client installation (e.g. /opt/firebird). If not specified, the system default is used.",
                 "needs-value": true
             }
         ],

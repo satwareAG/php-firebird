@@ -218,7 +218,7 @@ inline bool ArrayUtils::getSlice(
 
     try {
         // jane: fixed IStatus leak — was CheckStatusWrapper, now CheckStatusScope (RAII)
-
+        fb::CheckStatusScope check_status(master);
 
         // Call IAttachment::getSlice
         int result = attachment->getSlice(

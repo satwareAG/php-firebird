@@ -20,85 +20,88 @@ PHP_VER_SHORT := $(subst .,,$(PHP_VERSION))
 # Firebird client directory (bundled by fetch-client.sh)
 FB_ROOT ?= /opt/firebird
 
-# Output directory for built extension
-EXT_DIR := $(shell php-config$(PHP_VERSION) --extension-dir 2>/dev/null || echo /usr/lib/php/$(PHP_VERSION))
+# Extension directory: use Debian convention /usr/lib/php/{API_VERSION}/
+# jane: php-config --extension-dir returns Docker path (e.g.
+#       /usr/local/lib/php/extensions/no-debug-non-zts-20240924), but
+#       the .deb package should use the Debian path (/usr/lib/php/20240924/).
+#       We extract just the API version number and construct the Debian path.
+PHP_API_VERSION := $(shell $${PHPCONFIG:-php-config} --extension-dir 2>/dev/null | grep -oE '[0-9]+$$' || echo $(PHP_VERSION))
+EXT_DIR := /usr/lib/php/$(PHP_API_VERSION)
 
 %:
 	dh $@
 
 # =============================================================================
 # Build target: compile the extension
+# jane: build.sh already runs phpize + configure + make before invoking
+#       dpkg-buildpackage. This target checks if the .so files exist and
+#       skips the build if they do. This avoids the phpize8.4 vs phpize
+#       naming issue (Docker uses unversioned, system uses versioned).
 # =============================================================================
 override_dh_auto_build:
-	# Fetch FB5 client if not already present
-	@if [ ! -f $(FB_ROOT)/lib/libfbclient.so ]; then \
-		echo "Fetching FB5 client..."; \
-		bash packaging/fb-client-bundle/fetch-client.sh \
-			--arch $$(dpkg --print-architecture) \
-			--output-dir $(FB_ROOT); \
+	@if [ ! -f modules/firebird.so ]; then \
+		echo "firebird.so not found - building..."; \
+		PHPIZE=$$(command -v phpize$(PHP_VERSION) 2>/dev/null || command -v phpize); \
+		PHPCONFIG=$$(command -v php-config$(PHP_VERSION) 2>/dev/null || command -v php-config); \
+		$$PHPIZE && \
+		./configure --with-php-config=$$PHPCONFIG --with-firebird=$(FB_ROOT) && \
+		$(MAKE) -j$$(nproc); \
+	else \
+		echo "firebird.so already built (by build.sh) - skipping"; \
 	fi
 
-	# Build firebird extension
-	phpize$(PHP_VERSION)
-	./configure \
-		--with-php-config=php-config$(PHP_VERSION) \
-		--with-firebird=$(FB_ROOT)
-	$(MAKE) -j$$(nproc)
-
-	# Build pdo_fbird extension
-	cd pdo_fbird && \
-		phpize$(PHP_VERSION) && \
-		./configure \
-			--with-php-config=php-config$(PHP_VERSION) \
-			--with-firebird=$(FB_ROOT) && \
-		$(MAKE) -j$$(nproc)
+	@if [ ! -f pdo_fbird/modules/pdo_fbird.so ]; then \
+		echo "pdo_fbird.so not found - building..."; \
+		PHPIZE=$$(command -v phpize$(PHP_VERSION) 2>/dev/null || command -v phpize); \
+		PHPCONFIG=$$(command -v php-config$(PHP_VERSION) 2>/dev/null || command -v php-config); \
+		cd pdo_fbird && $$PHPIZE && \
+		./configure --with-php-config=$$PHPCONFIG --with-firebird=$(FB_ROOT) && \
+		$(MAKE) -j$$(nproc); \
+	else \
+		echo "pdo_fbird.so already built (by build.sh) - skipping"; \
+	fi
 
 # =============================================================================
-# Install target: copy files to debian/tmp/
+# Install target: copy files directly to the binary package directory.
+# jane: uses Make variables $(PHP_VERSION) directly (not shell variables)
+#       because each recipe line runs in a separate shell.
 # =============================================================================
 override_dh_auto_install:
-	# Create directories
-	mkdir -p debian/tmp/$(EXT_DIR)
-	mkdir -p debian/tmp/usr/share/php/Firebird
-	mkdir -p debian/tmp/usr/lib/php-firebird
-	mkdir -p debian/tmp/etc/php/$(PHP_VERSION)/mods-available
-
-	# Install extension .so files
-	cp modules/firebird.so debian/tmp/$(EXT_DIR)/
-	cp pdo_fbird/modules/pdo_fbird.so debian/tmp/$(EXT_DIR)/
-
-	# Install OO API PHP class files
-	cp src/Firebird/*.php debian/tmp/usr/share/php/Firebird/
-	cp packaging/firebird-autoload.php debian/tmp/usr/share/php/Firebird/
-
-	# Install bundled FB5 client libraries
-	cp -a $(FB_ROOT)/lib/libfbclient.so* debian/tmp/usr/lib/php-firebird/
-	cp -a $(FB_ROOT)/lib/libicu*.so* debian/tmp/usr/lib/php-firebird/ 2>/dev/null || true
-	cp -a $(FB_ROOT)/lib/libtomcrypt.so* debian/tmp/usr/lib/php-firebird/ 2>/dev/null || true
-	cp -a $(FB_ROOT)/lib/libtommath.so* debian/tmp/usr/lib/php-firebird/ 2>/dev/null || true
-	cp -a $(FB_ROOT)/lib/libre2.so* debian/tmp/usr/lib/php-firebird/ 2>/dev/null || true
-
-	# Set RPATH on firebird.so: $ORIGIN/../../php-firebird
-	# jane: EXT_DIR is like /usr/lib/php/20240924, so $ORIGIN/../../php-firebird
-	#       resolves to /usr/lib/php-firebird (up 2 levels from 20240924/)
-	patchelf --force-rpath --set-rpath '$$ORIGIN/../../php-firebird' debian/tmp/$(EXT_DIR)/firebird.so
-	patchelf --force-rpath --set-rpath '$$ORIGIN/../../php-firebird' debian/tmp/$(EXT_DIR)/pdo_fbird.so
-
-	# Set RPATH on bundled libs: $ORIGIN (so they find each other)
-	for lib in debian/tmp/usr/lib/php-firebird/*.so*; do \
+	PKG_DIR=debian/php$(PHP_VERSION)-firebird; \
+	mkdir -p $${PKG_DIR}/$(EXT_DIR) \
+		$${PKG_DIR}/usr/share/php/Firebird \
+		$${PKG_DIR}/usr/lib/php-firebird \
+		$${PKG_DIR}/etc/php/$(PHP_VERSION)/mods-available; \
+	cp modules/firebird.so $${PKG_DIR}/$(EXT_DIR)/; \
+	cp pdo_fbird/modules/pdo_fbird.so $${PKG_DIR}/$(EXT_DIR)/; \
+	cp src/Firebird/*.php $${PKG_DIR}/usr/share/php/Firebird/; \
+	cp packaging/firebird-autoload.php $${PKG_DIR}/usr/share/php/Firebird/; \
+	cp -a $(FB_ROOT)/lib/libfbclient.so* $${PKG_DIR}/usr/lib/php-firebird/; \
+	cp -a $(FB_ROOT)/lib/libicu*.so* $${PKG_DIR}/usr/lib/php-firebird/ 2>/dev/null || true; \
+	cp -a $(FB_ROOT)/lib/libtomcrypt.so* $${PKG_DIR}/usr/lib/php-firebird/ 2>/dev/null || true; \
+	cp -a $(FB_ROOT)/lib/libtommath.so* $${PKG_DIR}/usr/lib/php-firebird/ 2>/dev/null || true; \
+	cp -a $(FB_ROOT)/lib/libre2.so* $${PKG_DIR}/usr/lib/php-firebird/ 2>/dev/null || true; \
+	patchelf --force-rpath --set-rpath '$$ORIGIN/../../php-firebird' $${PKG_DIR}/$(EXT_DIR)/firebird.so; \
+	patchelf --force-rpath --set-rpath '$$ORIGIN/../../php-firebird' $${PKG_DIR}/$(EXT_DIR)/pdo_fbird.so; \
+	for lib in $${PKG_DIR}/usr/lib/php-firebird/*.so*; do \
 		if [ -f "$$lib" ] && [ ! -L "$$lib" ]; then \
 			patchelf --force-rpath --set-rpath '$$ORIGIN' "$$lib" 2>/dev/null || true; \
 		fi; \
-	done
-
-	# Create INI files
-	echo "extension=firebird.so" > debian/tmp/etc/php/$(PHP_VERSION)/mods-available/20-firebird.ini
-	echo "extension=pdo_fbird.so" > debian/tmp/etc/php/$(PHP_VERSION)/mods-available/20-pdo_fbird.ini
+	done; \
+	echo "extension=firebird.so" > $${PKG_DIR}/etc/php/$(PHP_VERSION)/mods-available/20-firebird.ini; \
+	echo "extension=pdo_fbird.so" > $${PKG_DIR}/etc/php/$(PHP_VERSION)/mods-available/20-pdo_fbird.ini
 
 # =============================================================================
 # Skip auto-test (PHPT tests require a running Firebird server)
 # =============================================================================
 override_dh_auto_test:
+
+# =============================================================================
+# Skip dwz (DWARF optimization) - bundled FB5 client libs don't have debug info
+# jane: dh_dwz fails on libfbclient.so and firebird.so with ".debug_info section
+#       not present". These are pre-compiled binaries, not built with -g.
+# =============================================================================
+override_dh_dwz:
 
 # =============================================================================
 # Clean target

@@ -174,15 +174,35 @@ build_package() {
     local exit_code=0
     local abs_output="$(cd "${OUTPUT_DIR}" && pwd)"
 
+    # Pre-fetch FB5 client on HOST (Docker container can't reach GitHub API reliably)
+    # jane: uses /tmp/fb-test-{x64,arm64} naming from fetch-client.sh --arch
+    local arch_short="x64"
+    case "$arch" in
+        aarch64|arm64) arch_short="arm64" ;;
+        x86_64|amd64) arch_short="x64" ;;
+    esac
+    local fb_host_dir="/tmp/fb-test-${arch_short}"
+    if [ ! -f "${fb_host_dir}/lib/libfbclient.so" ]; then
+        log_verbose "  Pre-fetching FB5 client for $arch on host..."
+        bash "${REPO_ROOT}/packaging/fb-client-bundle/fetch-client.sh" \
+            --arch "$arch" --output-dir "$fb_host_dir" 2>&1 | tail -5 || true
+    fi
+
+    # Mount the FB5 client from host into the container (read-write for multiarch symlinks)
+    local fb_mount="/opt/firebird"
+    local fb_vol=""
+    [ -d "$fb_host_dir" ] && fb_vol="-v ${fb_host_dir}:${fb_mount}"
+
     docker run --rm \
         --platform "$platform" \
         -v "${REPO_ROOT}:/ext" \
         -v "${abs_output}:/output" \
+        $fb_vol \
         -e PHP_VERSION="$php_ver" \
         -e DISTRO="$distro" \
         -e ARCH="$arch" \
         -e OUTPUT_DIR="/output" \
-        -e FB_ROOT="/opt/firebird" \
+        -e FB_ROOT="${fb_mount}" \
         "$docker_image" \
         bash -c "export DEBIAN_FRONTEND=noninteractive && \
                  apt-get update -qq && \
@@ -195,7 +215,7 @@ build_package() {
 
     if [ $exit_code -eq 0 ]; then
         # Verify .deb was produced
-        if ls "${OUTPUT_DIR}"/php${php_ver//./}-firebird_*.deb 1>/dev/null 2>&1; then
+        if ls "${OUTPUT_DIR}"/php${php_ver}-firebird_*.deb 1>/dev/null 2>&1; then
             log_pass "[$idx/$TOTAL] $php_ver/$distro/$arch: $deb_name"
             return 0
         else

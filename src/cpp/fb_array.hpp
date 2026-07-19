@@ -217,14 +217,12 @@ inline bool ArrayUtils::getSlice(
     }
 
     try {
-        // Use CheckStatusWrapper for Firebird template API
-        Firebird::IStatus* raw_status = master->getStatus();
-        Firebird::CheckStatusWrapper check_status(raw_status);
-
+        // jane: fixed IStatus leak — was CheckStatusWrapper, now CheckStatusScope (RAII)
+        fb::CheckStatusScope check_status(master);
 
         // Call IAttachment::getSlice
         int result = attachment->getSlice(
-            &check_status,
+            check_status.get(),
             transaction,
             array_id,
             static_cast<unsigned>(sdl_length),
@@ -236,17 +234,17 @@ inline bool ArrayUtils::getSlice(
         );
 
 
-        if (statusHasError(raw_status)) {
+        if (check_status.hasError()) {
             if (status_vector) {
-                copyStatus(raw_status, status_vector);
+                copyStatus(check_status.status(), status_vector);
             }
-            raw_status->dispose();
+            
             return false;
         }
 
         // Update buffer_length with actual bytes read
         *buffer_length = static_cast<ISC_LONG>(result);
-        raw_status->dispose();
+        
         return true;
 
     } catch (...) {
@@ -280,14 +278,12 @@ inline bool ArrayUtils::putSlice(
     }
 
     try {
-        // Use CheckStatusWrapper for Firebird template API
-        Firebird::IStatus* raw_status = master->getStatus();
-        Firebird::CheckStatusWrapper check_status(raw_status);
-
+        // jane: fixed IStatus leak — was CheckStatusWrapper(raw_status), now CheckStatusScope (RAII)
+        fb::CheckStatusScope check_status(master);
 
         // Call IAttachment::putSlice
         attachment->putSlice(
-            &check_status,
+            check_status.get(),
             transaction,
             array_id,
             static_cast<unsigned>(sdl_length),
@@ -298,16 +294,12 @@ inline bool ArrayUtils::putSlice(
             static_cast<unsigned char*>(const_cast<void*>(buffer))
         );
 
-
-        if (statusHasError(raw_status)) {
+        if (check_status.hasError()) {
             if (status_vector) {
-                copyStatus(raw_status, status_vector);
+                copyStatus(check_status.status(), status_vector);
             }
-            raw_status->dispose();
             return false;
         }
-
-        raw_status->dispose();
         return true;
 
     } catch (...) {

@@ -50,7 +50,7 @@ void _php_fbird_insert_alias(HashTable *ht, const char *alias)
 		alias_len = strlen(alias);
 	}
 
-	while (zend_symtable_str_find_ptr(ht, alias, alias_len) != NULL) {
+	while (zend_symtable_str_find(ht, alias, alias_len) != NULL) {
 		snprintf(buf, sizeof(buf), "%s_%02d", base, i++);
 		alias = buf;
 		alias_len = strlen(alias);

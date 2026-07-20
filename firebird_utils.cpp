@@ -1167,12 +1167,12 @@ extern "C" int fbu_encode_time_tz(void *master_ptr, ISC_TIME_TZ* time_tz,
     try {
         auto* master = static_cast<Firebird::IMaster*>(master_ptr);
         Firebird::IUtil* util = master->getUtilInterface();
-        Firebird::IStatus* fb_status = master->getStatus();
-        Firebird::CheckStatusWrapper status(fb_status);
+        fb::CheckStatusScope status(master);
+        /* RAII: CheckStatusScope handles IStatus lifecycle */
 
-        util->encodeTimeTz(&status, time_tz, hours, minutes, seconds, fractions, time_zone);
+        util->encodeTimeTz(status.get(), time_tz, hours, minutes, seconds, fractions, time_zone);
 
-        if (status.isDirty()) {
+        if (status.hasError()) {
             return -1;
         }
         return 0;
@@ -1188,14 +1188,14 @@ extern "C" int fbu_int128_to_string(void *master_ptr, const void *value, int sca
     if (!master_ptr || !value || !buffer || buffer_length == 0) return -1;
     try {
         auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-        Firebird::IStatus* fb_status = master->getStatus();
-        Firebird::CheckStatusWrapper status(fb_status);
+        fb::CheckStatusScope status(master);
+        /* RAII: CheckStatusScope handles IStatus lifecycle */
         Firebird::IUtil* util = master->getUtilInterface();
-        Firebird::IInt128* i128 = util->getInt128(&status);
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        i128->toString(&status, static_cast<const FB_I128*>(value), scale, buffer_length, buffer);
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        fb_status->dispose();
+        Firebird::IInt128* i128 = util->getInt128(status.get());
+        if (status.hasError()) {  return -1; }
+        i128->toString(status.get(), static_cast<const FB_I128*>(value), scale, buffer_length, buffer);
+        if (status.hasError()) {  return -1; }
+        
         return 0;
     } catch (...) {
         return -1;
@@ -1209,14 +1209,14 @@ extern "C" int fbu_decfloat16_to_string(void *master_ptr, const void *value,
     if (!master_ptr || !value || !buffer || buffer_length == 0) return -1;
     try {
         auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-        Firebird::IStatus* fb_status = master->getStatus();
-        Firebird::CheckStatusWrapper status(fb_status);
+        fb::CheckStatusScope status(master);
+        /* RAII: CheckStatusScope handles IStatus lifecycle */
         Firebird::IUtil* util = master->getUtilInterface();
-        Firebird::IDecFloat16* df16 = util->getDecFloat16(&status);
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        df16->toString(&status, static_cast<const FB_DEC16*>(value), buffer_length, buffer);
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        fb_status->dispose();
+        Firebird::IDecFloat16* df16 = util->getDecFloat16(status.get());
+        if (status.hasError()) {  return -1; }
+        df16->toString(status.get(), static_cast<const FB_DEC16*>(value), buffer_length, buffer);
+        if (status.hasError()) {  return -1; }
+        
         return 0;
     } catch (...) {
         return -1;
@@ -1230,14 +1230,14 @@ extern "C" int fbu_decfloat34_to_string(void *master_ptr, const void *value,
     if (!master_ptr || !value || !buffer || buffer_length == 0) return -1;
     try {
         auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-        Firebird::IStatus* fb_status = master->getStatus();
-        Firebird::CheckStatusWrapper status(fb_status);
+        fb::CheckStatusScope status(master);
+        /* RAII: CheckStatusScope handles IStatus lifecycle */
         Firebird::IUtil* util = master->getUtilInterface();
-        Firebird::IDecFloat34* df34 = util->getDecFloat34(&status);
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        df34->toString(&status, static_cast<const FB_DEC34*>(value), buffer_length, buffer);
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        fb_status->dispose();
+        Firebird::IDecFloat34* df34 = util->getDecFloat34(status.get());
+        if (status.hasError()) {  return -1; }
+        df34->toString(status.get(), static_cast<const FB_DEC34*>(value), buffer_length, buffer);
+        if (status.hasError()) {  return -1; }
+        
         return 0;
     } catch (...) {
         return -1;
@@ -1250,14 +1250,14 @@ extern "C" int fbu_string_to_decfloat16(void *master_ptr, const char *str, void 
     if (!master_ptr || !str || !value) return -1;
     try {
         auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-        Firebird::IStatus* fb_status = master->getStatus();
-        Firebird::CheckStatusWrapper status(fb_status);
+        fb::CheckStatusScope status(master);
+        /* RAII: CheckStatusScope handles IStatus lifecycle */
         Firebird::IUtil* util = master->getUtilInterface();
-        Firebird::IDecFloat16* df16 = util->getDecFloat16(&status);
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        df16->fromString(&status, str, static_cast<FB_DEC16*>(value));
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        fb_status->dispose();
+        Firebird::IDecFloat16* df16 = util->getDecFloat16(status.get());
+        if (status.hasError()) {  return -1; }
+        df16->fromString(status.get(), str, static_cast<FB_DEC16*>(value));
+        if (status.hasError()) {  return -1; }
+        
         return 0;
     } catch (...) {
         return -1;
@@ -1270,14 +1270,14 @@ extern "C" int fbu_string_to_decfloat34(void *master_ptr, const char *str, void 
     if (!master_ptr || !str || !value) return -1;
     try {
         auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-        Firebird::IStatus* fb_status = master->getStatus();
-        Firebird::CheckStatusWrapper status(fb_status);
+        fb::CheckStatusScope status(master);
+        /* RAII: CheckStatusScope handles IStatus lifecycle */
         Firebird::IUtil* util = master->getUtilInterface();
-        Firebird::IDecFloat34* df34 = util->getDecFloat34(&status);
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        df34->fromString(&status, str, static_cast<FB_DEC34*>(value));
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        fb_status->dispose();
+        Firebird::IDecFloat34* df34 = util->getDecFloat34(status.get());
+        if (status.hasError()) {  return -1; }
+        df34->fromString(status.get(), str, static_cast<FB_DEC34*>(value));
+        if (status.hasError()) {  return -1; }
+        
         return 0;
     } catch (...) {
         return -1;
@@ -1290,14 +1290,14 @@ extern "C" int fbu_string_to_int128(void *master_ptr, const char *str, int scale
     if (!master_ptr || !str || !value) return -1;
     try {
         auto* master = static_cast<Firebird::IMaster*>(master_ptr);
-        Firebird::IStatus* fb_status = master->getStatus();
-        Firebird::CheckStatusWrapper status(fb_status);
+        fb::CheckStatusScope status(master);
+        /* RAII: CheckStatusScope handles IStatus lifecycle */
         Firebird::IUtil* util = master->getUtilInterface();
-        Firebird::IInt128* i128 = util->getInt128(&status);
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        i128->fromString(&status, scale, str, static_cast<FB_I128*>(value));
-        if (status.isDirty()) { fb_status->dispose(); return -1; }
-        fb_status->dispose();
+        Firebird::IInt128* i128 = util->getInt128(status.get());
+        if (status.hasError()) {  return -1; }
+        i128->fromString(status.get(), scale, str, static_cast<FB_I128*>(value));
+        if (status.hasError()) {  return -1; }
+        
         return 0;
     } catch (...) {
         return -1;
@@ -1317,13 +1317,13 @@ extern "C" int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* times
     try {
         auto* master = static_cast<Firebird::IMaster*>(master_ptr);
         Firebird::IUtil* util = master->getUtilInterface();
-        Firebird::IStatus* fb_status = master->getStatus();
-        Firebird::CheckStatusWrapper status(fb_status);
+        fb::CheckStatusScope status(master);
+        /* RAII: CheckStatusScope handles IStatus lifecycle */
 
-        util->encodeTimeStampTz(&status, timestamp_tz, year, month, day,
+        util->encodeTimeStampTz(status.get(), timestamp_tz, year, month, day,
                                 hours, minutes, seconds, fractions, time_zone);
 
-        if (status.isDirty()) {
+        if (status.hasError()) {
             return -1;
         }
         return 0;

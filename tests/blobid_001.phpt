@@ -163,7 +163,7 @@ bool(false)
 Test 10: Case insensitivity and format conversion
 bool(true)
 string(17) "abcdef01:00002345"
-string(17) "abcdef01:00002345"
+string(17) "abcdef01:23456789"
 
 Test 11: Integration with fbird_blob functions
 bool(true)

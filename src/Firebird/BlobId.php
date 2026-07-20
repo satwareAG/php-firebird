@@ -106,7 +106,7 @@ final class BlobId implements Stringable
      * Create a BlobId from a string.
      *
      * Supports two formats:
-     * - Colon format: "HHHHHHHH:LLLL" (13 chars, standard from php-firebird extension)
+     * - Colon format: "HHHHHHHH:LLLLLLLL" (17 chars, standard from php-firebird extension)
      * - Hex format: "0xHHHHHHHHHHHHHHHH" (18 chars, legacy)
      *
      * @param string $id BLOB ID string
@@ -119,7 +119,7 @@ final class BlobId implements Stringable
 
         if (!self::isValidFormat($id)) {
             throw new InvalidArgumentException(sprintf(
-                'Invalid BLOB ID format: "%s". Expected formats: "HHHHHHHH:LLLL" or "0xHHHHHHHHHHHHHHHH".',
+                'Invalid BLOB ID format: "%s". Expected formats: "HHHHHHHH:LLLLLLLL" or "0xHHHHHHHHHHHHHHHH".',
                 strlen($id) > 30 ? substr($id, 0, 30) . '...' : $id
             ));
         }
@@ -132,12 +132,10 @@ final class BlobId implements Stringable
             $low = hexdec($lowHex);
             $normalized = sprintf('%08X:%08X', $high, $low);
         } else {
-            // Hex format: "0xHHHHHHHHHHHHHHHH"
-            // Colon format uses high 32 bits + middle 16 bits (not last 16)
+            // Hex format: "0xHHHHHHHHLLLLLLLL" (16 hex digits = 64 bits)
             $hex = substr($id, 2); // Remove "0x" prefix
-            $high = hexdec(substr($hex, 0, 8));
-            // For colon format, use middle 16 bits (positions 8-11, not 12-15)
-            $low = hexdec(substr($hex, 8, 4));
+            $high = hexdec(substr($hex, 0, 8));  // first 8 hex = high 32 bits
+            $low = hexdec(substr($hex, 8, 8));   // next 8 hex = low 32 bits
             // Normalize to colon format (standard)
             $normalized = sprintf('%08X:%08X', $high, $low);
         }

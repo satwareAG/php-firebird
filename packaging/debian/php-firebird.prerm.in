@@ -1,0 +1,17 @@
+#!/bin/sh
+# prerm for php@PHP_VERSION@-firebird
+# Disables the firebird + pdo_fbird extensions before remove/upgrade.
+# See Debian PHP Policy: maintainer scripts call phpenmod/phpdismod.
+set -e
+
+case "$1" in
+    remove|deconfigure)
+        # Disable both extensions for this PHP version.
+        # phpdismod removes the conf.d/ symlinks but leaves mods-available/ intact.
+        phpdismod -v @PHP_VERSION@ firebird pdo_fbird
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

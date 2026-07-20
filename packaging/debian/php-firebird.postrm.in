@@ -1,0 +1,17 @@
+#!/bin/sh
+# postrm for php@PHP_VERSION@-firebird
+# Cleanup after purge. phpdismod already removed symlinks in prerm.
+# See Debian PHP Policy: maintainer scripts call phpenmod/phpdismod.
+set -e
+
+case "$1" in
+    purge)
+        # phpdismod already removed conf.d/ symlinks in prerm.
+        # Nothing more to clean up - mods-available/ .ini files are
+        # owned by the package and removed by dpkg automatically.
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

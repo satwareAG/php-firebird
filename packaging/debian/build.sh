@@ -300,6 +300,25 @@ export FB_ROOT
 export EXT_DIR
 export DEB_ARCH
 
+# Generate per-PHP-version maintainer scripts from templates.
+# Debian Policy: postinst/prerm/postrm must be named debian/php<ver>-<ext>.<script>
+# to be picked up by dpkg-buildpackage for the correct binary package.
+# The templates use @PHP_VERSION@ placeholder (e.g. "8.4") which is substituted here.
+log_info "Generating maintainer scripts for php${PHP_VERSION}-firebird..."
+PKG_NAME="php${PHP_VERSION}-firebird"
+for script in postinst prerm postrm; do
+    TEMPLATE="${DEB_DIR}/php-firebird.${script}.in"
+    OUTPUT="${DEB_DIR}/${PKG_NAME}.${script}"
+    if [ -f "$TEMPLATE" ]; then
+        sed "s/@PHP_VERSION@/${PHP_VERSION}/g" "$TEMPLATE" > "$OUTPUT"
+        chmod 755 "$OUTPUT"
+        log "  Generated ${OUTPUT}"
+    else
+        log_error "  Missing template: ${TEMPLATE}"
+        exit 1
+    fi
+done
+
 # Make rules executable
 chmod +x "${DEB_DIR}/rules"
 

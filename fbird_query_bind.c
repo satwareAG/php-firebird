@@ -926,7 +926,7 @@ int _php_fbird_bind(fbird_query *fb_query, zval *b_vars)
 
  			convert_to_string(b_var);
 
- 			if (Z_STRLEN_P(b_var) != BLOB_ID_LEN ||
+ 			if ((Z_STRLEN_P(b_var) != BLOB_ID_LEN && Z_STRLEN_P(b_var) != BLOB_ID_LEN_LEGACY) ||
  				!_php_fbird_string_to_quad(Z_STRVAL_P(b_var), &buf[i].val.qval)) {
 
  				/* OO API only: create a blob, write the string into it, then bind by blob id (ISC_QUAD). */
@@ -1040,7 +1040,7 @@ int _php_fbird_bind(fbird_query *fb_query, zval *b_vars)
 				if (Z_TYPE_P(b_var) != IS_ARRAY) {
 					convert_to_string(b_var);
 
-					if (Z_STRLEN_P(b_var) != BLOB_ID_LEN ||
+					if ((Z_STRLEN_P(b_var) != BLOB_ID_LEN && Z_STRLEN_P(b_var) != BLOB_ID_LEN_LEGACY) ||
 						!_php_fbird_string_to_quad(Z_STRVAL_P(b_var), &buf[i].val.qval)) {
 
 						_php_fbird_module_error("Parameter %d: invalid array ID",i+1);

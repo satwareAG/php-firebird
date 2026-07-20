@@ -554,14 +554,10 @@ int fbird_batch_add_impl(fbird_batch *fb_batch, zval *args, int argc)
 				/* BLOB ID as hex string "HHHHHHHH:LLLLLLLL" (17 characters)
 				 * Format: 8 hex digits (high 32-bit), colon, 8 hex digits (low 32-bit)
 				 * jane: #516 - was 13 chars (4 hex low), now 17 chars (8 hex low, full 32-bit)
-				/* BLOB ID as hex string "HHHHHHHH:LLLLLLLL" (17 characters)
-				 * Format: 8 hex digits (high 32-bit), colon, 8 hex digits (low 32-bit)
-				 * jane: #516 - was 13 chars (4 hex low), now 17 chars (8 hex low, full 32-bit)
-				 * Example: "74292B00:7FFC"
-				 */
+				 * Example: "74292B00:00007FFC" */
 				convert_to_string(b_var);
 
-				if (Z_STRLEN_P(b_var) == BLOB_ID_LEN &&
+				if (((Z_STRLEN_P(b_var) == BLOB_ID_LEN || Z_STRLEN_P(b_var) == BLOB_ID_LEN_LEGACY)) &&
 					_php_fbird_string_to_quad(Z_STRVAL_P(b_var), (ISC_QUAD *)data_ptr)) {
 					/* Valid BLOB ID parsed and written to message buffer */
 					break;
@@ -742,8 +738,8 @@ PHP_FUNCTION(fbird_batch_register_blob)
 	}
 
 	/* Validate and convert BLOB ID string to ISC_QUAD */
-	if (blob_id_len != BLOB_ID_LEN || !_php_fbird_string_to_quad(blob_id_str, &existing_blob)) {
-		_php_fbird_module_error("Invalid BLOB ID format (expected %d character hex string)", BLOB_ID_LEN);
+	if ((blob_id_len != BLOB_ID_LEN && blob_id_len != BLOB_ID_LEN_LEGACY) || !_php_fbird_string_to_quad(blob_id_str, &existing_blob)) {
+		_php_fbird_module_error("Invalid BLOB ID format (expected %d or %d character hex string)", BLOB_ID_LEN, BLOB_ID_LEN_LEGACY);
 		RETURN_FALSE;
 	}
 

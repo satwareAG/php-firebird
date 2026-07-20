@@ -319,8 +319,10 @@ ZEND_TSRMLS_CACHE_EXTERN()
  *       gds_quad_low is ISC_ULONG (32-bit unsigned) per firebird/impl/types_pub.h:194.
  *       BLOB_ID_MASK changed from %x:%hx (16-bit) to %x:%x (full 32-bit).
  *       Old 13-char IDs still parse correctly via _php_fbird_string_to_quad (uses %x:%x).
+ *       BLOB_ID_LEN_LEGACY is for backwards-compat length checks in binding paths.
  */
-#define BLOB_ID_LEN     17
+#define BLOB_ID_LEN             17
+#define BLOB_ID_LEN_LEGACY      13
 #define BLOB_ID_MASK    "%x:%x"
 
 #define BLOB_INPUT      1

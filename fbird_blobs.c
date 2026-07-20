@@ -222,7 +222,7 @@ int _php_fbird_string_to_quad(char const *id, ISC_QUAD *qd)
 
 	if (sscanf(id, "%x:%x", &high_part, &low_part) == 2) {
 		qd->gds_quad_high = (ISC_LONG)high_part;
-		qd->gds_quad_low = (ISC_USHORT)low_part;
+		qd->gds_quad_low = (ISC_ULONG)low_part;
 		return 1;
 	}
 

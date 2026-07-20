@@ -92,8 +92,8 @@ override_dh_auto_install:
 			patchelf --force-rpath --set-rpath '$$ORIGIN' "$$lib" 2>/dev/null || true; \
 		fi; \
 	done; \
-	echo "extension=firebird.so" > $${PKG_DIR}/etc/php/$(PHP_VERSION)/mods-available/20-firebird.ini; \
-	echo "extension=pdo_fbird.so" > $${PKG_DIR}/etc/php/$(PHP_VERSION)/mods-available/20-pdo_fbird.ini
+	echo "extension=firebird.so" > $${PKG_DIR}/etc/php/$(PHP_VERSION)/mods-available/firebird.ini; \
+	echo "extension=pdo_fbird.so" > $${PKG_DIR}/etc/php/$(PHP_VERSION)/mods-available/pdo_fbird.ini
 
 # =============================================================================
 # Skip auto-test (PHPT tests require a running Firebird server)

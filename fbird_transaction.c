@@ -364,6 +364,11 @@ PHP_FUNCTION(fbird_trans_start)
 	fb_trans->affected_rows = 0;
 	fb_trans->db_link[0] = fb_link;
 
+	/* Sentinel head node: reserves index 0 for the default transaction.
+	 * _php_fbird_commit_link() uses i==0 to distinguish:
+	 *   - Default tx (index 0): commit + efree (not a registered resource)
+	 *   - Explicit tx (index >0): rollback + leave to le_trans destructor
+	 * Do NOT remove this placeholder — see issue #541 investigation. */
 	/* the first item in the connection-transaction list is reserved for the default transaction */
 	if (fb_link->tr_list == NULL) {
 		fb_link->tr_list = (fbird_tr_list *) emalloc(sizeof(fbird_tr_list));
@@ -933,6 +938,11 @@ register_trans:
 		fbird_tr_list **l;
 		fb_trans->db_link[i] = fb_link[i];
 
+		/* Sentinel head node: reserves index 0 for the default transaction.
+		 * _php_fbird_commit_link() uses i==0 to distinguish:
+		 *   - Default tx (index 0): commit + efree (not a registered resource)
+		 *   - Explicit tx (index >0): rollback + leave to le_trans destructor
+		 * Do NOT remove this placeholder — see issue #541 investigation. */
 		/* the first item in the connection-transaction list is reserved for the default transaction */
 		if (fb_link[i]->tr_list == NULL) {
 			fb_link[i]->tr_list = (fbird_tr_list *) emalloc(sizeof(fbird_tr_list));
@@ -959,6 +969,11 @@ int _php_fbird_def_trans(fbird_db_link *fb_link, fbird_transaction **trans)
 		return FAILURE;
 	}
 
+	/* Sentinel head node: reserves index 0 for the default transaction.
+	 * _php_fbird_commit_link() uses i==0 to distinguish:
+	 *   - Default tx (index 0): commit + efree (not a registered resource)
+	 *   - Explicit tx (index >0): rollback + leave to le_trans destructor
+	 * Do NOT remove this placeholder — see issue #541 investigation. */
 	/* the first item in the connection-transaction list is reserved for the default transaction */
 	if (fb_link->tr_list == NULL) {
 		fb_link->tr_list = (fbird_tr_list *) emalloc(sizeof(fbird_tr_list));

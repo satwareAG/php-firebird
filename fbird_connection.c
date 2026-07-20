@@ -83,6 +83,10 @@ void _php_fbird_commit_link(fbird_db_link *link)
 	fbird_event *e;
 	FBDEBUG("Checking transactions to close...");
 
+	/* Position-sensitive cleanup: relies on tr_list sentinel head node pattern.
+	 * Index 0 = default transaction (commit + efree directly, NOT a le_trans resource).
+	 * Index >0 = explicit transaction (rollback + leave to le_trans destructor).
+	 * The sentinel head (trans=NULL placeholder) is allocated at 5 sites — see issue #541. */
 	for (l = link->tr_list; l != NULL; ++i) {
 		fbird_tr_list *p = l;
 		if (p->trans != 0) {

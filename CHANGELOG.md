@@ -7,6 +7,124 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [13.0.1] - 2026-07-20
+
+### v13.0.1 — Post-Release Bugfixes
+
+**Focus**: Fixes for 15 audit bugs found in v13.0.0 source code review, plus
+native Debian packaging, PIE compatibility, and CI infrastructure. All 12 CI
+jobs green (PHP 8.2-8.5 x FB 3.0/4.0/5.0).
+
+#### Fixed
+
+- **#518**: `isDirty()` misuse in transaction methods — transactions silently
+  failed on FB 3.0. Replaced `isDirty()` with `statusHasError()` (checks
+  `STATE_ERRORS` flag) in 6 transaction methods. **Behavior change**: FB3
+  users will no longer see spurious "Unknown Firebird error" exceptions on
+  successful commit/rollback.
+- **#515**: IStatus leak in `fbm_call0`/`fbm_call1` — per-column-per-row leak
+  during fetch (~80 bytes x columns x rows). Migrated to `CheckStatusScope`
+  (RAII).
+- **#512+#513+#514**: IStatus leaks in `fb_blob.hpp`, `fb_transaction.hpp`,
+  `fb_service.hpp` — every BlobWrapper, TransactionWrapper, and
+  ServiceWrapper method leaked ~80 bytes. Migrated to `CheckStatusScope`.
+- **#520+#521**: IStatus leaks on exception paths in `fb_statement.hpp` (15
+  sites) and `firebird_utils.cpp` encoding helpers (6 sites). Migrated to
+  `CheckStatusScope`.
+- **#516**: BLOB ID format inconsistency — procedural API used 13-char
+  (`%x:%hx`, truncated 32-bit `gds_quad_low` to 16 bits), OOP/PDO used 17-char
+  (`%08x:%08x`, full 32-bit). Standardized to 17-char across all layers.
+  **Critical fix**: `_php_fbird_string_to_quad` cast was `(ISC_USHORT)` —
+  truncated 32-bit low part to 16 bits. Fixed to `(ISC_ULONG)`.
+  **Critical fix**: `BlobId::fromString()` used `substr($hex, 8, 4)` —
+  dropped lower 16 bits of hex-format input. Fixed to `substr($hex, 8, 8)`.
+  **Backwards compat**: legacy 13-char BLOB IDs still accepted in binding
+  paths via `BLOB_ID_LEN_LEGACY` constant.
+- **#517**: PDO BLOB fetch leaked `BlobWrapper` struct — missing `fbb_free()`
+  after `fbb_close()`.
+- **#519**: Malformed SPB for service timeout — buffer overread (10 bytes of
+  garbage) + timeout always 0. Fixed SPB construction.
+  **Behavior change**: implicit service query timeout changed from 0 (broken)
+  to 10 seconds.
+- **#524**: Dead condition in `fbird_blob_echo` — `result < 0 && result != 1`
+  was dead code (`result < 0` already excludes `result == 1`).
+- **#522**: `fbird_fetch_object()` ignored `ctor_args` parameter — only
+  called default (zero-arg) constructor. Now passes `ctor_args` to the class
+  constructor. **Behavior change**: constructors are now called with the
+  user-provided args.
+- **#525**: `fbird_blob_export()` shallow-copied zvals without refcount —
+  used `open_args[0] = *link_arg` (no refcount increment). Fixed to
+  `ZVAL_COPY` + `zval_ptr_dtor` after call.
+- **#526**: PDO array binding `array_id` potentially uninitialized — verified
+  correct, added IStatus leak fix in `fb_array.hpp` (`getSlice`/`putSlice`).
+- **#549**: `zend_symtable_str_find_ptr()` returns `NULL` for `IS_NULL` zvals
+  (only non-NULL for `IS_PTR`). `_php_fbird_insert_alias()` used this to check
+  for duplicate column aliases, but stored `ZVAL_NULL` entries — duplicate
+  check always failed, causing 22 columns to collapse to 2 in
+  `tests/003.phpt`. Fixed to use `zend_symtable_str_find()`.
+- **#550**: `.deb` package `.ini` files used `20-` prefix in
+  `mods-available/` — broke `phpenmod` (expects bare names). Extension did not
+  auto-load after `apt install`. Fixed `.ini` naming + added `postinst`/
+  `prerm`/`postrm` maintainer scripts calling `phpenmod`/`phpdismod`.
+
+#### Added (packaging)
+
+- **#481**: Debian packaging skeleton (`control`, `rules`, `changelog`,
+  `copyright`).
+- **#482**: `packaging/debian/build.sh` — single PHP x distro x arch `.deb`
+  build inside Docker.
+- **#483**: `packaging/debian/build-matrix.sh` — 32-package matrix (4 PHP x
+  4 distros x 2 archs) with APT metadata generation.
+- **#486**: `packaging/fb-client-bundle/fetch-client.sh` — arch-aware FB5
+  client downloader with caching.
+- **#492**: `packaging/firebird-autoload.php` — optional PSR-4 autoloader
+  for `Firebird\` userland classes (no `auto_prepend_file`).
+- **#484**: PIE compatibility — `composer.json` `php-ext` section with
+  `extension-name: "firebird"`, `download-url-method: ["pre-packaged-binary",
+  "composer-default"]`.
+- **#509+#510**: PDO split PIE package — `pdo_fbird/composer.json` for
+  `satwareag/pdo-fbird`, `split-stubs.yml` extended to split `pdo_fbird/`.
+- **#487**: `packages-linux.yml` CI workflow — builds `.deb` on tag push,
+  deploys to APT repo.
+- **#511**: PIE ZIP assets in `release-linux.yml` — PIE-compatible ZIP
+  packages for `composer install`.
+- **#489**: `docs/packaging/INSTALL-DEBIAN.md` — end-user APT installation
+  guide.
+- **#493**: `docs/packaging/NAMING.md` — canonical naming convention across
+  Debian, RPM, Alpine, PIE, GitHub Releases.
+
+#### Changed
+
+- **#518**: `isDirty()` → `statusHasError()` in 6 transaction methods (FB3
+  compat). FB3 users will see different behavior — exceptions that were
+  wrongly thrown are now suppressed.
+- **#519**: Service query SPB fix changes implicit timeout from 0 (broken)
+  to 10 seconds.
+- **Encoding helpers**: `isDirty()` → `hasError()` in 7 encoding functions
+  (time_tz, int128, decfloat16, decfloat34). On FB3, encodes that previously
+  returned `-1` (failure) on success will now return `0` (success).
+- **#522**: `fbird_fetch_object()` now passes `ctor_args` to the constructor.
+  Previously the parameter was accepted but silently ignored.
+- **#516**: BLOB ID format changed from 13-char to 17-char. Legacy 13-char
+  IDs still accepted for backwards compatibility.
+
+#### Documented
+
+- **#523/#541**: Transaction list sentinel head node pattern documented at
+  all 5 allocation sites + destruction site. The `trans=NULL` placeholder
+  is a deliberate sentinel head node (not spurious), reserves index 0 for
+  the default transaction. Added regression test
+  `tests/transaction_default_slot.phpt`. v14 follow-up (#554) filed for
+  `is_default` flag refactor.
+
+#### CI
+
+- `packages-linux.yml` workflow for .deb build + deploy.
+- `split-stubs.yml` extended to split `pdo_fbird/` to `satwareAG/pdo-fbird`.
+- `release-linux.yml` extended with `pie-zips` job for PIE ZIP assets.
+- All workflows green: CI, Code Quality, Memory Sanitizers, Linux Code
+  Coverage, CodeQL Security Analysis, Doctrine Downstream.
+
 ## [13.0.0] - 2026-07-19
 
 ### v13.0.0 — Stable Release

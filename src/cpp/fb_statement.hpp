@@ -112,7 +112,7 @@ public:
         }
 
         try {
-            fb::CheckStatusScope status(master);
+            Firebird::IStatus* fb_status = master->getStatus();
             /* CRITICAL: Clear status before call.
              * Firebird's IMaster::getStatus() may return a reusable IStatus instance.
              * If previous calls populated errors, they can leak into subsequent calls
@@ -120,10 +120,12 @@ public:
              *
              * Fixes: tests/003.phpt (stale validation error after suppressed query)
              */
+            fb_status->init();
+            Firebird::CheckStatusWrapper status(fb_status);
 
             // Prepare the statement
             statement_ = attachment->prepare(
-                status.get(),
+                &status,
                 transaction,
                 sql_length ? sql_length : static_cast<unsigned>(std::strlen(sql)),
                 sql,
@@ -131,15 +133,15 @@ public:
                 Firebird::IStatement::PREPARE_PREFETCH_METADATA
             );
 
-            if (status.hasError()) {
-                copyStatusToVector(status.status(), status_vector);
-                
+            if (statusHasError(fb_status)) {
+                copyStatusToVector(fb_status, status_vector);
+                fb_status->dispose();
                 return false;
             }
 
             master_ = master;  // Store for FB4+ closeCursor/free status handling
             prepared_ = (statement_ != nullptr);
-            
+            fb_status->dispose();
             return prepared_;
 
         } catch (...) {
@@ -167,10 +169,12 @@ public:
         }
 
         try {
-            fb::CheckStatusScope status(master);
+            Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
+            Firebird::CheckStatusWrapper status(fb_status);
 
             statement_->execute(
-                status.get(),
+                &status,
                 transaction,
                 in_metadata,
                 static_cast<unsigned char*>(in_msg),
@@ -178,13 +182,13 @@ public:
                 static_cast<unsigned char*>(out_msg)
             );
 
-            if (status.hasError()) {
-                copyStatusToVector(status.status(), status_vector);
-                
+            if (statusHasError(fb_status)) {
+                copyStatusToVector(fb_status, status_vector);
+                fb_status->dispose();
                 return false;
             }
 
-            
+            fb_status->dispose();
             return true;
 
         } catch (...) {
@@ -211,11 +215,13 @@ public:
         }
 
         try {
-            fb::CheckStatusScope status(master);
+            Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
+            Firebird::CheckStatusWrapper status(fb_status);
 
             // Close any existing cursor first
             if (result_set_) {
-                result_set_->close(status.get());
+                result_set_->close(&status);
                 result_set_->release();
                 result_set_ = nullptr;
                 cursor_open_ = false;
@@ -223,7 +229,7 @@ public:
 
             // Open new cursor
             result_set_ = statement_->openCursor(
-                status.get(),
+                &status,
                 transaction,
                 in_metadata,
                 static_cast<unsigned char*>(in_msg),
@@ -231,14 +237,14 @@ public:
                 cursor_flags
             );
 
-            if (status.hasError()) {
-                copyStatusToVector(status.status(), status_vector);
-                
+            if (statusHasError(fb_status)) {
+                copyStatusToVector(fb_status, status_vector);
+                fb_status->dispose();
                 return false;
             }
 
             cursor_open_ = (result_set_ != nullptr);
-            
+            fb_status->dispose();
             return cursor_open_;
 
         } catch (...) {
@@ -262,27 +268,29 @@ public:
         }
 
         try {
-            fb::CheckStatusScope status(master);
+            Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
+            Firebird::CheckStatusWrapper status(fb_status);
 
             int fetch_result = result_set_->fetchNext(
-                status.get(),
+                &status,
                 static_cast<unsigned char*>(out_msg)
             );
 
-            if (status.hasError()) {
-                copyStatusToVector(status.status(), status_vector);
+            if (statusHasError(fb_status)) {
+                copyStatusToVector(fb_status, status_vector);
                 cursor_open_ = false;
-                
+                fb_status->dispose();
                 return -1;
             }
 
             // Firebird::IStatus::RESULT_OK = 0, RESULT_NO_DATA = 100
             if (fetch_result != Firebird::IStatus::RESULT_OK) {
                 cursor_open_ = false;
-                
+                fb_status->dispose();
                 return 0;
             }
-            
+            fb_status->dispose();
             return 1;
 
         } catch (...) {
@@ -303,10 +311,12 @@ public:
     ) noexcept {
         if (!result_set_ || !master) return -1;
         try {
-            fb::CheckStatusScope status(master);
-            int r = result_set_->fetchPrior(status.get(), static_cast<unsigned char*>(out_msg));
-            if (status.hasError()) { copyStatusToVector(status.status(), status_vector);  return -1; }
-            
+            Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
+            Firebird::CheckStatusWrapper status(fb_status);
+            int r = result_set_->fetchPrior(&status, static_cast<unsigned char*>(out_msg));
+            if (statusHasError(fb_status)) { copyStatusToVector(fb_status, status_vector); fb_status->dispose(); return -1; }
+            fb_status->dispose();
             return (r == Firebird::IStatus::RESULT_OK) ? 1 : 0;
         } catch (...) { return -1; }
     }
@@ -322,10 +332,12 @@ public:
     ) noexcept {
         if (!result_set_ || !master) return -1;
         try {
-            fb::CheckStatusScope status(master);
-            int r = result_set_->fetchFirst(status.get(), static_cast<unsigned char*>(out_msg));
-            if (status.hasError()) { copyStatusToVector(status.status(), status_vector);  return -1; }
-            
+            Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
+            Firebird::CheckStatusWrapper status(fb_status);
+            int r = result_set_->fetchFirst(&status, static_cast<unsigned char*>(out_msg));
+            if (statusHasError(fb_status)) { copyStatusToVector(fb_status, status_vector); fb_status->dispose(); return -1; }
+            fb_status->dispose();
             return (r == Firebird::IStatus::RESULT_OK) ? 1 : 0;
         } catch (...) { return -1; }
     }
@@ -341,10 +353,12 @@ public:
     ) noexcept {
         if (!result_set_ || !master) return -1;
         try {
-            fb::CheckStatusScope status(master);
-            int r = result_set_->fetchLast(status.get(), static_cast<unsigned char*>(out_msg));
-            if (status.hasError()) { copyStatusToVector(status.status(), status_vector);  return -1; }
-            
+            Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
+            Firebird::CheckStatusWrapper status(fb_status);
+            int r = result_set_->fetchLast(&status, static_cast<unsigned char*>(out_msg));
+            if (statusHasError(fb_status)) { copyStatusToVector(fb_status, status_vector); fb_status->dispose(); return -1; }
+            fb_status->dispose();
             return (r == Firebird::IStatus::RESULT_OK) ? 1 : 0;
         } catch (...) { return -1; }
     }
@@ -361,10 +375,12 @@ public:
     ) noexcept {
         if (!result_set_ || !master) return -1;
         try {
-            fb::CheckStatusScope status(master);
-            int r = result_set_->fetchAbsolute(status.get(), position, static_cast<unsigned char*>(out_msg));
-            if (status.hasError()) { copyStatusToVector(status.status(), status_vector);  return -1; }
-            
+            Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
+            Firebird::CheckStatusWrapper status(fb_status);
+            int r = result_set_->fetchAbsolute(&status, position, static_cast<unsigned char*>(out_msg));
+            if (statusHasError(fb_status)) { copyStatusToVector(fb_status, status_vector); fb_status->dispose(); return -1; }
+            fb_status->dispose();
             return (r == Firebird::IStatus::RESULT_OK) ? 1 : 0;
         } catch (...) { return -1; }
     }
@@ -381,10 +397,12 @@ public:
     ) noexcept {
         if (!result_set_ || !master) return -1;
         try {
-            fb::CheckStatusScope status(master);
-            int r = result_set_->fetchRelative(status.get(), offset, static_cast<unsigned char*>(out_msg));
-            if (status.hasError()) { copyStatusToVector(status.status(), status_vector);  return -1; }
-            
+            Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
+            Firebird::CheckStatusWrapper status(fb_status);
+            int r = result_set_->fetchRelative(&status, offset, static_cast<unsigned char*>(out_msg));
+            if (statusHasError(fb_status)) { copyStatusToVector(fb_status, status_vector); fb_status->dispose(); return -1; }
+            fb_status->dispose();
             return (r == Firebird::IStatus::RESULT_OK) ? 1 : 0;
         } catch (...) { return -1; }
     }
@@ -414,16 +432,18 @@ public:
             // RESULT_NO_DATA (EOF), the FB server implicitly closes the cursor.
             // If cursor_open_ is false, release() avoids a use-after-free crash.
             if (cursor_open_ && master_) {
-                fb::CheckStatusScope status(master_);
-                result_set_->close(status.get());
+                Firebird::IStatus* fb_status_ptr = master_->getStatus();
+                fb_status_ptr->init();
+                Firebird::CheckStatusWrapper fb_status(fb_status_ptr);
+                result_set_->close(&fb_status);
                 result_set_ = nullptr;  // close() released the interface
                 cursor_open_ = false;
-                if (status.hasError()) {
-                    copyStatusToVector(status.status(), status_vector);
-                    
+                if (statusHasError(fb_status_ptr)) {
+                    copyStatusToVector(fb_status_ptr, status_vector);
+                    fb_status_ptr->dispose();
                     return false;
                 }
-                
+                fb_status_ptr->dispose();
                 return true;
             }
             // EOF path or no master: release only (server already closed cursor)
@@ -471,16 +491,18 @@ public:
             // the prepared statement server-side and releases the interface.
             // Fixes #135 server RAM accumulation for DML via fbird_query().
             if (master_) {
-                fb::CheckStatusScope status(master_);
-                statement_->free(status.get());
+                Firebird::IStatus* fb_status_ptr = master_->getStatus();
+                fb_status_ptr->init();
+                Firebird::CheckStatusWrapper fb_status(fb_status_ptr);
+                statement_->free(&fb_status);
                 statement_ = nullptr;  // free() released the interface
                 prepared_ = false;
-                if (status.hasError()) {
-                    copyStatusToVector(status.status(), status_vector);
-                    
+                if (statusHasError(fb_status_ptr)) {
+                    copyStatusToVector(fb_status_ptr, status_vector);
+                    fb_status_ptr->dispose();
                     return false;
                 }
-                
+                fb_status_ptr->dispose();
                 return true;
             }
             // Fallback if no master: release only
@@ -512,17 +534,19 @@ public:
         if (!statement_ || !master) return nullptr;
 
         try {
-            fb::CheckStatusScope status(master);
+            Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
+            Firebird::CheckStatusWrapper status(fb_status);
 
-            auto* meta = statement_->getInputMetadata(status.get());
+            auto* meta = statement_->getInputMetadata(&status);
 
-            if (status.hasError()) {
-                copyStatusToVector(status.status(), status_vector);
-                
+            if (statusHasError(fb_status)) {
+                copyStatusToVector(fb_status, status_vector);
+                fb_status->dispose();
                 return nullptr;
             }
 
-            
+            fb_status->dispose();
             return meta;
 
         } catch (...) {
@@ -541,17 +565,19 @@ public:
         if (!statement_ || !master) return nullptr;
 
         try {
-            fb::CheckStatusScope status(master);
+            Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
+            Firebird::CheckStatusWrapper status(fb_status);
 
-            auto* meta = statement_->getOutputMetadata(status.get());
+            auto* meta = statement_->getOutputMetadata(&status);
 
-            if (status.hasError()) {
-                copyStatusToVector(status.status(), status_vector);
-                
+            if (statusHasError(fb_status)) {
+                copyStatusToVector(fb_status, status_vector);
+                fb_status->dispose();
                 return nullptr;
             }
 
-            
+            fb_status->dispose();
             return meta;
 
         } catch (...) {
@@ -570,17 +596,19 @@ public:
         if (!statement_ || !master) return 0;
 
         try {
-            fb::CheckStatusScope status(master);
+            Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
+            Firebird::CheckStatusWrapper status(fb_status);
 
-            unsigned stmt_type = statement_->getType(status.get());
+            unsigned stmt_type = statement_->getType(&status);
 
-            if (status.hasError()) {
-                copyStatusToVector(status.status(), status_vector);
-                
+            if (statusHasError(fb_status)) {
+                copyStatusToVector(fb_status, status_vector);
+                fb_status->dispose();
                 return 0;
             }
 
-            
+            fb_status->dispose();
             return stmt_type;
 
         } catch (...) {
@@ -599,17 +627,19 @@ public:
         if (!statement_ || !master) return 0;
 
         try {
-            fb::CheckStatusScope status(master);
+            Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
+            Firebird::CheckStatusWrapper status(fb_status);
 
-            ISC_UINT64 count = statement_->getAffectedRecords(status.get());
+            ISC_UINT64 count = statement_->getAffectedRecords(&status);
 
-            if (status.hasError()) {
-                copyStatusToVector(status.status(), status_vector);
-                
+            if (statusHasError(fb_status)) {
+                copyStatusToVector(fb_status, status_vector);
+                fb_status->dispose();
                 return 0;
             }
 
-            
+            fb_status->dispose();
             return count;
 
         } catch (...) {
@@ -632,17 +662,19 @@ public:
         if (!statement_ || !master) return false;
 
         try {
-            fb::CheckStatusScope status(master);
+            Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
+            Firebird::CheckStatusWrapper status(fb_status);
 
-            statement_->setTimeout(status.get(), ms);
+            statement_->setTimeout(&status, ms);
 
-            if (status.hasError()) {
-                copyStatusToVector(status.status(), status_vector);
-                
+            if (statusHasError(fb_status)) {
+                copyStatusToVector(fb_status, status_vector);
+                fb_status->dispose();
                 return false;
             }
 
-            
+            fb_status->dispose();
             return true;
 
         } catch (...) {
@@ -659,17 +691,19 @@ public:
         if (!statement_ || !master) return 0;
 
         try {
-            fb::CheckStatusScope status(master);
+            Firebird::IStatus* fb_status = master->getStatus();
+            fb_status->init();
+            Firebird::CheckStatusWrapper status(fb_status);
 
-            unsigned int ms = statement_->getTimeout(status.get());
+            unsigned int ms = statement_->getTimeout(&status);
 
-            if (status.hasError()) {
-                copyStatusToVector(status.status(), status_vector);
-                
+            if (statusHasError(fb_status)) {
+                copyStatusToVector(fb_status, status_vector);
+                fb_status->dispose();
                 return 0;
             }
 
-            
+            fb_status->dispose();
             return ms;
 
         } catch (...) {

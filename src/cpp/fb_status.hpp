@@ -265,10 +265,24 @@ public:
     /**
      * Construct from IMaster. Allocates a new IStatus that will be disposed
      * on destruction. If master is null, status() and get() return null.
+     *
+     * CRITICAL: init() is called on the freshly-allocated IStatus because
+     * IMaster::getStatus() may return a reusable (cached) instance. Without
+     * init(), errors from a previous call can leak into the current one,
+     * causing spurious failures on the next hasError() check.
+     *
+     * Fixes: tests/003.phpt (stale validation error after suppressed query,
+     *   originally fixed by explicit fb_status->init() in fb_statement.hpp;
+     *   regression introduced in PR #542 which removed the init() call when
+     *   migrating to CheckStatusScope).
      */
     explicit CheckStatusScope(Firebird::IMaster* master)
         : status_(master ? master->getStatus() : nullptr),
-          wrapper_(status_) {}
+          wrapper_(status_) {
+        if (status_) {
+            status_->init();
+        }
+    }
 
     ~CheckStatusScope() {
         if (status_) {

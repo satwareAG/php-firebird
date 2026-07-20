@@ -74,16 +74,32 @@ class FirebirdStatusManager {
 private:
     ISC_STATUS* target_status_;
     std::unique_ptr<Firebird::ThrowStatusWrapper> status_wrapper_;
+    Firebird::IStatus* raw_status_;
 
 public:
     explicit FirebirdStatusManager(ISC_STATUS* target_status, Firebird::IMaster* master)
         : target_status_(target_status),
-          status_wrapper_(std::make_unique<Firebird::ThrowStatusWrapper>(master->getStatus())) {
+          raw_status_(master->getStatus()),
+          status_wrapper_(std::make_unique<Firebird::ThrowStatusWrapper>(raw_status_)) {
+        // CRITICAL: Clear status before any Firebird API call.
+        // IMaster::getStatus() may return a reusable (cached) IStatus instance.
+        // If previous calls populated errors, they can leak into subsequent calls
+        // causing hasError()/hasData() to return true on stale state.
+        // Fixes: tests/003.phpt (column deduplication aborted by stale validation error)
+        if (raw_status_) {
+            raw_status_->init();
+        }
     }
 
     ~FirebirdStatusManager() {
         if (target_status_ && status_wrapper_->hasData()) {
             copy_status_safe(status_wrapper_->getErrors(), target_status_);
+        }
+        // Destroy wrapper before disposing IStatus (wrapper holds raw pointer).
+        // Original code leaked the IStatus — this also fixes that leak.
+        status_wrapper_.reset();
+        if (raw_status_) {
+            raw_status_->dispose();
         }
     }
 

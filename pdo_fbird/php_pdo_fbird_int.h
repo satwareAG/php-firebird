@@ -8,7 +8,7 @@
 #include "php.h"
 #include "ext/pdo/php_pdo_driver.h"
 #include <ibase.h>
-#include "../firebird_utils.h"
+#include "firebird_utils.h"
 
 /* Per-connection driver data stored in pdo_dbh_t->driver_data */
 typedef struct {

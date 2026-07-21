@@ -1,5 +1,6 @@
-dnl pdo_fbird — PDO driver for Firebird (fbird: DSN prefix)
+dnl pdo_fbird - PDO driver for Firebird (fbird: DSN prefix)
 dnl Separate shared extension depending on the firebird extension.
+dnl Self-contained: shared headers from parent are bundled in this package.
 
 PHP_ARG_WITH([pdo-fbird],
   [for Firebird PDO support (fbird: DSN)],
@@ -16,11 +17,9 @@ if test "$PHP_PDO_FBIRD" != "no"; then
 
   AC_DEFINE(HAVE_PDO_FBIRD,1,[Whether pdo_fbird is available])
 
-  dnl Version: read from VERSION.txt (same as main extension)
+  dnl Version: read from VERSION.txt (bundled in this package)
   AC_MSG_CHECKING([for PDO fbird version])
-  if test -f "$srcdir/../VERSION.txt"; then
-    PHP_PDO_FBIRD_VERSION=`cat "$srcdir/../VERSION.txt" | tr -d ' \n\r\t'`
-  elif test -f "$srcdir/VERSION.txt"; then
+  if test -f "$srcdir/VERSION.txt"; then
     PHP_PDO_FBIRD_VERSION=`cat "$srcdir/VERSION.txt" | tr -d ' \n\r\t'`
   else
     PHP_PDO_FBIRD_VERSION="0.0.0-unknown"
@@ -72,9 +71,6 @@ if test "$PHP_PDO_FBIRD" != "no"; then
 
   PHP_ADD_INCLUDE($FIREBIRD_INCDIR)
   PHP_ADD_LIBRARY_WITH_PATH(fbclient, $FIREBIRD_LIBDIR, PDO_FBIRD_SHARED_LIBADD)
-
-  dnl Also include the parent extension headers
-  PHP_ADD_INCLUDE([$srcdir/..])
 
   PHP_NEW_EXTENSION(pdo_fbird,
     pdo_fbird.c \

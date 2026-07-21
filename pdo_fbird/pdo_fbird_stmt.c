@@ -19,10 +19,10 @@
 #include <time.h>
 #include <math.h>
 #include "zend_smart_str.h"
-#include "../firebird_utils.h"
-#include "../php_firebird.h"
-#include "../php_fbird_includes.h"
-#include "../fbird_classes.h"
+#include "firebird_utils.h"
+#include "php_firebird.h"
+#include "php_fbird_includes.h"
+#include "fbird_classes.h"
 
 /* {{{ php_firebird_preprocess — replace :name with ? and build name→position map */
 zend_string *php_firebird_preprocess(const char *sql, size_t sql_len,

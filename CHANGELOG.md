@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [13.0.2] - 2026-07-21
+
+### Out-of-Tree Build Architecture
+
+- **build-extension action**: Source tree is never written to during builds. All
+  build artifacts go to `BUILD_DIR` (default `/tmp/build-firebird`), copied from
+  source. Prevents stale `.so` files, `.deb` version mismatches, and source tree
+  pollution (#560)
+- **ci.yml / coverage.yml / sanitizers.yml**: `pdo_fbird` build, tests, coverage
+  capture, and sanitizer runs all reference `BUILD_DIR` for extensions and
+  `run-tests.php` (#560)
+- **release-linux.yml / release-macos.yml**: Out-of-tree build pattern for release
+  bundles (#560)
+
+### .deb Packaging Fixes
+
+- **build.sh**: Fixed `find` command to use `-maxdepth 1` and exclude `*dbgsym*`
+  packages. Previously, `find` searched the entire container filesystem, picking
+  stale `13.0.0-1` `.deb` files from `/src/dist/` instead of the freshly built
+  `13.0.1-rc.1-1` file. This caused PHP 8.4 `.deb` to have wrong version (#560)
+- **build.sh**: `REPO_ROOT` repointed to `BUILD_DIR` after source copy, so all
+  `cd "$REPO_ROOT"` calls resolve to the build copy (#560)
+- **build-matrix.sh**: Source mounted read-only (`/src:ro`), build in `/build`
+  (ephemeral `--rm` container). Sury PPA quoting fixed (`$distro` instead of
+  `$(lsb_release -sc)`) (#560)
+
+### Test Fixes
+
+- **fbird_event_live_001.phpt / oop_event_methods_001.phpt**: Use `FBIRD_SO` env
+  var for child process extension path with `realpath()` fallback. Hardcoded
+  `realpath('modules/firebird.so')` failed with out-of-tree builds (#560)
+
 ## [13.0.1-rc.1] - 2026-07-21
 
 ### CI/CD Pipeline Fixes

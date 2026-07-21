@@ -246,6 +246,7 @@ jobs:
           NO_INTERACTION: 1
           REPORT_EXIT_STATUS: 1
           TEST_PHP_EXECUTABLE: php
+          FBIRD_SO: ${{ env.BUILD_DIR }}/modules/firebird.so
         run: |
           set -eu
 
@@ -466,6 +467,7 @@ jobs:
         env:
           NO_INTERACTION: 1
           REPORT_EXIT_STATUS: 1
+          FBIRD_SO: ${{ env.BUILD_DIR }}/modules/firebird.so
         run: |
           set -eu
 

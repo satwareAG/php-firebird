@@ -45,7 +45,7 @@ var_dump($event instanceof \Firebird\Event || is_resource($event));
 
 // Spawn child process to insert (fires trigger on commit)
 $child = proc_open(
-    ['php', '-d', 'extension=' . realpath('modules/firebird.so')],
+    ['php', '-d', 'extension=' . (getenv('FBIRD_SO') ?: realpath('modules/firebird.so'))],
     [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
     $pipes
 );
@@ -85,7 +85,7 @@ $cmd2 = sprintf(
 );
 
 $child2 = proc_open(
-    ['php', '-d', 'extension=' . realpath('modules/firebird.so')],
+    ['php', '-d', 'extension=' . (getenv('FBIRD_SO') ?: realpath('modules/firebird.so'))],
     [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
     $pipes2
 );

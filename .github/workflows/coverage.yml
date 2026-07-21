@@ -183,7 +183,12 @@ jobs:
           mkdir -p coverage
 
           echo "=== Debug: Listing gcno/gcda files ==="
-          find . -name "*.gcno" -o -name "*.gcda" 2>/dev/null | head -20 || true
+          find "${BUILD_DIR}" -name "*.gcno" -o -name "*.gcda" 2>/dev/null | head -20 || true
+
+          # jane: coverage data (.gcno/.gcda) is in BUILD_DIR (out-of-tree build).
+          # Use lcov --directory BUILD_DIR to capture from the correct location.
+          # Run gcov from BUILD_DIR where source files (.c) and .gcda files are.
+          cd "${BUILD_DIR}"
 
           # Run gcov on source files
           echo "Running gcov on source files..."
@@ -206,40 +211,40 @@ jobs:
 
           # Capture coverage using lcov
           echo "Capturing coverage data with lcov..."
-          lcov --directory . --capture --output-file coverage/lcov.info \
+          lcov --directory . --capture --output-file "${GITHUB_WORKSPACE}/coverage/lcov.info" \
             --rc lcov_branch_coverage=0 \
             --no-external \
             --ignore-errors gcov \
             2>&1 || true
 
-          if [ ! -s coverage/lcov.info ]; then
+          if [ ! -s "${GITHUB_WORKSPACE}/coverage/lcov.info" ]; then
             echo "Warning: No coverage data captured"
-            echo "TN:" > coverage/lcov.info
+            echo "TN:" > "${GITHUB_WORKSPACE}/coverage/lcov.info"
           fi
 
           # Filter out system headers, PHP headers, and tests
-          lcov --remove coverage/lcov.info \
+          lcov --remove "${GITHUB_WORKSPACE}/coverage/lcov.info" \
             '/usr/*' \
             '*/php-src/*' \
             '*/tests/*' \
             '*/build/*' \
             '*/modules/*' \
-            --output-file coverage/lcov_filtered.info \
+            --output-file "${GITHUB_WORKSPACE}/coverage/lcov_filtered.info" \
             --rc lcov_branch_coverage=0 \
             2>&1 || true
 
-          if [ ! -s coverage/lcov_filtered.info ]; then
+          if [ ! -s "${GITHUB_WORKSPACE}/coverage/lcov_filtered.info" ]; then
             echo "Warning: No coverage data after filtering"
-            echo "TN:" > coverage/lcov_filtered.info
+            echo "TN:" > "${GITHUB_WORKSPACE}/coverage/lcov_filtered.info"
           fi
 
           # Generate HTML report
-          genhtml coverage/lcov_filtered.info --output-directory coverage/html \
+          genhtml "${GITHUB_WORKSPACE}/coverage/lcov_filtered.info" --output-directory "${GITHUB_WORKSPACE}/coverage/html" \
             --rc lcov_branch_coverage=0 \
             2>&1 || true
 
           echo "Coverage summary:"
-          COVERAGE_OUTPUT=$(lcov --summary coverage/lcov_filtered.info)
+          COVERAGE_OUTPUT=$(lcov --summary "${GITHUB_WORKSPACE}/coverage/lcov_filtered.info")
           echo "$COVERAGE_OUTPUT"
 
           COVERAGE=$(echo "$COVERAGE_OUTPUT" | grep -oP "lines\.*: \K[0-9.]+")

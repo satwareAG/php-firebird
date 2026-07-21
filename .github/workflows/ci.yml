@@ -175,6 +175,9 @@ jobs:
         run: |
           set -eu
           cd pdo_fbird
+          # Remove stale .so before phpize (same rationale as build-extension action)
+          rm -f modules/pdo_fbird.so 2>/dev/null || true
+          phpize --clean
           phpize
           ./configure --with-pdo-fbird --with-firebird=/opt/firebird-client
           make -j"$(nproc)"

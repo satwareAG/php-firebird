@@ -38,9 +38,9 @@ inputs:
     required: false
     default: ''
   phpize-clean:
-    description: 'Run phpize --clean before phpize'
+    description: 'Run phpize --clean and remove stale .so files before phpize. Prevents header/library version mismatches when the source tree is shared between containers with different Firebird client versions (e.g. FB 3.0 vs FB 5.0).'
     required: false
-    default: 'false'
+    default: 'true'
   php-bin-dir:
     description: 'Directory containing php/php-config binaries (prepended to PATH)'
     required: false
@@ -67,6 +67,15 @@ runs:
           export PATH="$PHP_BIN_DIR:$PATH"
         fi
         if [ "$PHPIZE_CLEAN" = 'true' ]; then
+          # Remove stale .so files BEFORE phpize --clean.
+          # jane: The /ext directory is a shared bind mount across all Docker
+          # containers (PHP 8.2-8.5 × FB 3/4/5). If a previous container compiled
+          # against FB 5.0 headers (FB_API_VER=50) and the current container has
+          # FB 3.0 (FB_API_VER=30), the stale .so calls IResultSet::close() which
+          # dispatches through a vtable slot that doesn't exist in FB 3.0's
+          # libfbclient → NULL function pointer → SIGSEGV during shutdown.
+          # See: src/cpp/fb_statement.hpp:409 (#if FB_API_VER >= 40 guard).
+          rm -f modules/firebird.so pdo_fbird/modules/pdo_fbird.so 2>/dev/null || true
           phpize --clean
         fi
         phpize

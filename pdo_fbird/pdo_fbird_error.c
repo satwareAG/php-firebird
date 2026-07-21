@@ -12,7 +12,7 @@
 #include "ext/pdo/php_pdo_driver.h"
 #include "php_pdo_fbird_int.h"
 #include <ibase.h>
-#include "../firebird_utils.h"
+#include "firebird_utils.h"
 
 /* Map common Firebird GDS error codes to SQLSTATE strings */
 static const struct {

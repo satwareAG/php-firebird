@@ -16,9 +16,9 @@
 #include "php_pdo_fbird.h"
 #include "php_pdo_fbird_int.h"
 #include <ibase.h>
-#include "../firebird_utils.h"
-#include "../php_firebird.h"
-#include "../php_fbird_includes.h"
+#include "firebird_utils.h"
+#include "php_firebird.h"
+#include "php_fbird_includes.h"
 
 extern const struct pdo_stmt_methods pdo_fbird_stmt_methods;
 

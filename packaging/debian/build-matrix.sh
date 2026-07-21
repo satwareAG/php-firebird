@@ -207,9 +207,15 @@ build_package() {
     local fb_vol=""
     [ -d "$fb_host_dir" ] && fb_vol="-v ${fb_host_dir}:${fb_mount}"
 
+    # Out-of-tree build: source mounted READ-ONLY, build happens in /build (ephemeral)
+    # jane: No Docker volume for /build — the container is --rm, so /build is
+    # automatically cleaned when the container exits. The source tree at /src
+    # is never written to.
+    local build_dir="/build"
+
     docker run --rm \
         --platform "$platform" \
-        -v "${REPO_ROOT}:/ext" \
+        -v "${REPO_ROOT}:/src:ro" \
         -v "${abs_output}:/output" \
         $fb_vol \
         -e PHP_VERSION="$php_ver" \
@@ -217,6 +223,8 @@ build_package() {
         -e ARCH="$arch" \
         -e OUTPUT_DIR="/output" \
         -e FB_ROOT="${fb_mount}" \
+        -e BUILD_DIR="${build_dir}" \
+        -e SOURCE_DIR="/src" \
         "$docker_image" \
         bash -c "export DEBIAN_FRONTEND=noninteractive && \
                  $(if [ "$(is_ubuntu "$distro")" = "true" ]; then
@@ -224,7 +232,11 @@ build_package() {
                      apt-get install -y -qq lsb-release ca-certificates curl && \
                      curl -sSLo /tmp/keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb && \
                      dpkg -i /tmp/keyring.deb && \
-                     printf 'Types: deb\nURIs: https://packages.sury.org/php/\nSuites: \$(lsb_release -sc)\nComponents: main\nSigned-By: /usr/share/keyrings/debsuryorg-archive-keyring.gpg\n' > /etc/apt/sources.list.d/php.sources && \
+                     echo 'Types: deb' > /etc/apt/sources.list.d/php.sources && \
+                     echo 'URIs: https://packages.sury.org/php/' >> /etc/apt/sources.list.d/php.sources && \
+                     echo 'Suites: $distro' >> /etc/apt/sources.list.d/php.sources && \
+                     echo 'Components: main' >> /etc/apt/sources.list.d/php.sources && \
+                     echo 'Signed-By: /usr/share/keyrings/debsuryorg-archive-keyring.gpg' >> /etc/apt/sources.list.d/php.sources && \
                      apt-get update -qq && \
                      apt-get install -y -qq --no-install-recommends \
                          php${php_ver}-cli php${php_ver}-dev \
@@ -238,7 +250,7 @@ build_package() {
                          libicu-dev libxml2-dev libtommath1 patchelf dpkg-dev debhelper \
                          jq curl wget git ca-certificates &&"
                  fi) \
-                 cd /ext && bash packaging/debian/build.sh --php-version $php_ver --distro $distro --arch $arch --output-dir /output" \
+                 bash /src/packaging/debian/build.sh --php-version $php_ver --distro $distro --arch $arch --output-dir /output --build-dir ${build_dir}" \
         > "$result_log" 2>&1 || exit_code=$?
 
     if [ $exit_code -eq 0 ]; then

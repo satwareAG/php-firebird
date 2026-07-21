@@ -40,7 +40,7 @@ $cmd = sprintf(
 );
 
 $child = proc_open(
-    ['php', '-d', 'extension=' . realpath('modules/firebird.so')],
+    ['php', '-d', 'extension=' . (getenv('FBIRD_SO') ?: realpath('modules/firebird.so'))],
     [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
     $pipes
 );

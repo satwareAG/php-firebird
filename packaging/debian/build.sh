@@ -34,6 +34,7 @@ DISTRO="bookworm"
 ARCH="x86_64"
 FB_ROOT="${FB_ROOT:-/opt/firebird}"
 OUTPUT_DIR="${OUTPUT_DIR:-dist/deb}"
+BUILD_DIR="${BUILD_DIR:-}"
 VERBOSE=0
 
 # -----------------------------------------------------------------------------
@@ -64,6 +65,8 @@ while [ $# -gt 0 ]; do
         --output-dir) OUTPUT_DIR="$2"; shift 2 ;;
         --output-dir=*) OUTPUT_DIR="${1#--output-dir=}"; shift ;;
         --verbose|-v) VERBOSE=1; shift ;;
+        --build-dir) BUILD_DIR="$2"; shift 2 ;;
+        --build-dir=*) BUILD_DIR="${1#--build-dir=}"; shift ;;
         --help|-h) usage ;;
         *) echo "ERROR: Unknown argument: $1" >&2; exit 1 ;;
     esac
@@ -102,7 +105,22 @@ log "Using: $PHPIZE, $PHPCONFIG"
 # -----------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+SOURCE_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
+# Out-of-tree build: if BUILD_DIR is set, copy source there and work from it.
+# jane: REPO_ROOT is repointed to BUILD_DIR so all cd "$REPO_ROOT" calls and
+# packaging/debian/* path references resolve to the build copy, not the
+# read-only source. This prevents build artifacts from polluting the source
+# tree and fixes .deb version mismatches (stale debian/changelog template).
+if [ -n "$BUILD_DIR" ] && [ "$BUILD_DIR" != "$SOURCE_ROOT" ]; then
+    log_info "Out-of-tree build: copying source to ${BUILD_DIR}"
+    mkdir -p "$BUILD_DIR"
+    rm -rf "${BUILD_DIR}"/* "${BUILD_DIR}"/.[!.]* 2>/dev/null || true
+    cp -a "$SOURCE_ROOT"/* "$BUILD_DIR/"
+    REPO_ROOT="$BUILD_DIR"
+else
+    REPO_ROOT="$SOURCE_ROOT"
+fi
 cd "$REPO_ROOT"
 
 # -----------------------------------------------------------------------------
@@ -349,18 +367,23 @@ dpkg-buildpackage -us -uc -b -d 2>&1 || {
 # Step 6: Find and report the .deb file
 # -----------------------------------------------------------------------------
 
-# dpkg-buildpackage puts the .deb in the parent directory
-DEB_FILE=$(find "${REPO_ROOT}/.." -name "php${PHP_VERSION}-firebird_*.deb" -type f | head -n 1)
+# dpkg-buildpackage puts the .deb in the parent directory of REPO_ROOT.
+# jane: -maxdepth 1 is critical - without it, find searches the ENTIRE
+# filesystem (including /src/dist/ which has stale .deb files from previous
+# test runs). head -n 1 would pick the stale 13.0.0-1 file instead of the
+# freshly built 13.0.1-rc.1-1 file. ! -name "*dbgsym*" excludes debug symbol
+# packages that dpkg-buildpackage also produces.
+DEB_FILE=$(find "${REPO_ROOT}/.." -maxdepth 1 -name "php${PHP_VERSION}-firebird_*.deb" -type f ! -name "*dbgsym*" | head -n 1)
 
 if [ -z "$DEB_FILE" ]; then
-    # Fallback: search in current directory
-    DEB_FILE=$(find . -name "php${PHP_VERSION}-firebird_*.deb" -type f | head -n 1)
+    # Fallback: search in current directory (same constraints)
+    DEB_FILE=$(find . -maxdepth 1 -name "php${PHP_VERSION}-firebird_*.deb" -type f ! -name "*dbgsym*" | head -n 1)
 fi
 
 if [ -z "$DEB_FILE" ]; then
     log_error "No .deb file found after build"
     log_error "Searching for any .deb files..."
-    find "${REPO_ROOT}/.." . -name "*.deb" -type f 2>/dev/null | head -10
+    find "${REPO_ROOT}/.." -maxdepth 1 -name "*.deb" -type f ! -name "*dbgsym*" 2>/dev/null | head -10
     exit 1
 fi
 

@@ -225,13 +225,19 @@ jobs:
           export PATH="/opt/php/${{ matrix.php }}-${{ matrix.variant }}/bin:${PATH}"
           export FB_ROOT=/opt/firebird
 
+          # Out-of-tree build: copy source to BUILD_DIR, keep source tree pristine
+          export BUILD_DIR="/tmp/build-firebird"
+          rm -rf "$BUILD_DIR"
+          mkdir -p "$BUILD_DIR"
+          cp -a . "$BUILD_DIR/"
+          cd "$BUILD_DIR"
+          echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_ENV
+
           echo "Building with:"
           php -v | head -1
           echo "Firebird: ${FB_ROOT}"
+          echo "BUILD_DIR: ${BUILD_DIR}"
 
-          phpize --clean 2>/dev/null || true
-
-          # LTO for optimized release binaries
           export CFLAGS="${CFLAGS:-} -O2"
           export LDFLAGS="${LDFLAGS:-} -L${FB_ROOT}/lib"
           phpize
@@ -266,10 +272,10 @@ jobs:
           mkdir -p "${DIST_DIR}/lib"
 
           # Copy extension
-          cp modules/firebird.so "${DIST_DIR}/firebird.so"
+          cp "${BUILD_DIR}/modules/firebird.so" "${DIST_DIR}/firebird.so"
           # Copy pdo_fbird.so if built
-          if [ -f pdo_fbird/modules/pdo_fbird.so ]; then
-            cp pdo_fbird/modules/pdo_fbird.so "${DIST_DIR}/pdo_fbird.so"
+          if [ -f "${BUILD_DIR}/pdo_fbird/modules/pdo_fbird.so" ]; then
+            cp "${BUILD_DIR}/pdo_fbird/modules/pdo_fbird.so" "${DIST_DIR}/pdo_fbird.so"
           fi
 
           # Bundle libfbclient.dylib and its dependencies

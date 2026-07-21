@@ -97,7 +97,7 @@ jobs:
         uses: ./.github/actions/verify-extension
         with:
           mode: build-only
-          extension-path: modules/firebird.so
+          extension-path: ${{ env.BUILD_DIR }}/modules/firebird.so
           ld-library-path-extra: /opt/firebird-client/lib
           sanitizer-type: asan
 
@@ -209,7 +209,7 @@ jobs:
         uses: ./.github/actions/verify-extension
         with:
           mode: full
-          extension-path: modules/firebird.so
+          extension-path: ${{ env.BUILD_DIR }}/modules/firebird.so
           ld-library-path-extra: /opt/firebird-client/lib
 
       - name: Create LSan suppressions file
@@ -256,8 +256,8 @@ jobs:
 
           echo "=== Running tests with LeakSanitizer ==="
 
-          EXTENSION_PATH="$(pwd)/modules/firebird.so"
-          PDO_FBIRD_PATH="$(pwd)/pdo_fbird/modules/pdo_fbird.so"
+          EXTENSION_PATH="${BUILD_DIR}/modules/firebird.so"
+          PDO_FBIRD_PATH="${BUILD_DIR}/pdo_fbird/modules/pdo_fbird.so"
 
           # Per AGENTS.md: `make test` only loads firebird.so and ignores
           # PHP_TEST_SHARED_EXTENSIONS, causing ALL pdo_fbird tests to SKIP.
@@ -429,7 +429,7 @@ jobs:
         uses: ./.github/actions/verify-extension
         with:
           mode: best-effort
-          extension-path: modules/firebird.so
+          extension-path: ${{ env.BUILD_DIR }}/modules/firebird.so
           ld-library-path-extra: /opt/firebird-client/lib
           php-bin: /opt/php-tsan/bin/php
           sanitizer-type: tsan
@@ -470,8 +470,8 @@ jobs:
 
           echo "=== Running tests with ThreadSanitizer (ZTS) ==="
 
-          EXTENSION_PATH="$(pwd)/modules/firebird.so"
-          PDO_FBIRD_PATH="$(pwd)/pdo_fbird/modules/pdo_fbird.so"
+          EXTENSION_PATH="${BUILD_DIR}/modules/firebird.so"
+          PDO_FBIRD_PATH="${BUILD_DIR}/pdo_fbird/modules/pdo_fbird.so"
 
           # Per AGENTS.md: `make test` only loads firebird.so and ignores
           # PHP_TEST_SHARED_EXTENSIONS, causing ALL pdo_fbird tests to SKIP.

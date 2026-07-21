@@ -50,6 +50,7 @@ SKIP_BUILD=false
 GENERATE_CHECKSUMS=true
 VERBOSE=0
 RUN_VERIFY=false
+BUILD_DIR="${BUILD_DIR:-}"  # Set via --build-dir or env var; empty = current dir
 
 # Auto-detect platform
 case "$(uname -s)" in
@@ -356,6 +357,14 @@ while [[ $# -gt 0 ]]; do
             RUN_VERIFY=true
             shift
             ;;
+        --build-dir)
+            BUILD_DIR="$2"
+            shift 2
+            ;;
+        --build-dir=*)
+            BUILD_DIR="${1#--build-dir=}"
+            shift
+            ;;
         --help|-h)
             usage
             ;;
@@ -384,6 +393,15 @@ done
 PHP_VERSION="${PHP_VERSION:-8.4}"
 VARIANT="${VARIANT:-nts}"
 ARCH="${ARCH:-x86_64}"
+
+# Resolve BUILD_DIR: if set, .so files are there; otherwise current directory
+if [ -n "$BUILD_DIR" ]; then
+    FIREBIRD_SO="${BUILD_DIR}/modules/firebird.so"
+    PDO_FBIRD_SO="${BUILD_DIR}/pdo_fbird/modules/pdo_fbird.so"
+else
+    FIREBIRD_SO="modules/firebird.so"
+    PDO_FBIRD_SO="pdo_fbird/modules/pdo_fbird.so"
+fi
 
 # =============================================================================
 # Distribution Naming
@@ -482,8 +500,8 @@ if [ "$SKIP_BUILD" = false ]; then
 fi
 
 # Verify build
-if [ "$DRY_RUN" = 0 ] && [ ! -f "modules/firebird.so" ]; then
-    log_error "Build failed - modules/firebird.so not found"
+if [ "$DRY_RUN" = 0 ] && [ ! -f "$FIREBIRD_SO" ]; then
+    log_error "Build failed - $FIREBIRD_SO not found"
     exit 1
 fi
 
@@ -505,12 +523,12 @@ fi
 log_info "Copying extension..."
 
 if [ "$DRY_RUN" = 1 ]; then
-    log_dry_run "Would copy: modules/firebird.so -> ${DIST_DIR}/"
+    log_dry_run "Would copy: $FIREBIRD_SO -> ${DIST_DIR}/"
 else
-    cp modules/firebird.so "${DIST_DIR}/"
-    # Copy pdo_fbird.so if it was built as a separate extension
-    if [ -f pdo_fbird/modules/pdo_fbird.so ]; then
-        cp pdo_fbird/modules/pdo_fbird.so "${DIST_DIR}/"
+    cp "$FIREBIRD_SO" "${DIST_DIR}/"
+    # Copy pdo_fbird.so if built
+    if [ -f "$PDO_FBIRD_SO" ]; then
+        cp "$PDO_FBIRD_SO" "${DIST_DIR}/"
         log_info "Copied pdo_fbird.so"
     fi
 fi

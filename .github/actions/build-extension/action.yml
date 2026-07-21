@@ -1,5 +1,5 @@
 name: 'Build PHP Extension'
-description: 'Run phpize, configure, and make for the firebird and optional pdo_fbird extensions'
+description: 'Run phpize, configure, and make for the firebird and optional pdo_fbird extensions. Out-of-tree build: source is copied to a build directory, keeping the source tree pristine.'
 inputs:
   firebird-path:
     description: 'Path to Firebird client installation'
@@ -38,7 +38,7 @@ inputs:
     required: false
     default: ''
   phpize-clean:
-    description: 'Run phpize --clean and remove stale .so files before phpize. Prevents header/library version mismatches when the source tree is shared between containers with different Firebird client versions (e.g. FB 3.0 vs FB 5.0).'
+    description: 'Run phpize --clean before phpize (in the build directory)'
     required: false
     default: 'true'
   php-bin-dir:
@@ -53,10 +53,30 @@ inputs:
     description: 'Extra paths to prepend to LD_LIBRARY_PATH'
     required: false
     default: ''
+  build-dir:
+    description: 'Directory for out-of-tree build (source is copied here). Set to BUILD_DIR env var for subsequent steps.'
+    required: false
+    default: '/tmp/build-firebird'
 
 runs:
   using: composite
   steps:
+    - name: Prepare build directory
+      shell: bash
+      env:
+        BUILD_DIR: ${{ inputs.build-dir }}
+      run: |
+        # Out-of-tree build: copy source to BUILD_DIR, keep source tree pristine.
+        # jane: Source tree is NEVER written to. All artifacts (modules/*.so,
+        # config.h, Makefile, debian/, autom4te.cache/) stay in BUILD_DIR.
+        # This prevents stale .so between containers (SIGSEGV fix),
+        # .deb version mismatches, and ensures idempotent builds.
+        rm -rf "$BUILD_DIR"
+        mkdir -p "$BUILD_DIR"
+        cp -a . "$BUILD_DIR/"
+        echo "BUILD_DIR=$BUILD_DIR" >> "$GITHUB_ENV"
+        echo "Source copied to $BUILD_DIR"
+
     - name: phpize
       shell: bash
       env:
@@ -66,20 +86,12 @@ runs:
         if [ -n "$PHP_BIN_DIR" ]; then
           export PATH="$PHP_BIN_DIR:$PATH"
         fi
+        cd "${BUILD_DIR}"
         if [ "$PHPIZE_CLEAN" = 'true' ]; then
-          # Remove stale .so files BEFORE phpize --clean.
-          # jane: The /ext directory is a shared bind mount across all Docker
-          # containers (PHP 8.2-8.5 × FB 3/4/5). If a previous container compiled
-          # against FB 5.0 headers (FB_API_VER=50) and the current container has
-          # FB 3.0 (FB_API_VER=30), the stale .so calls IResultSet::close() which
-          # dispatches through a vtable slot that doesn't exist in FB 3.0's
-          # libfbclient → NULL function pointer → SIGSEGV during shutdown.
-          # See: src/cpp/fb_statement.hpp:409 (#if FB_API_VER >= 40 guard).
           rm -f modules/firebird.so pdo_fbird/modules/pdo_fbird.so 2>/dev/null || true
           phpize --clean
         fi
         phpize
-        # Clean .dep files between PHP versions (absolute paths differ)
         find . -name '*.dep' -delete 2>/dev/null || true
 
     - name: Configure
@@ -103,6 +115,8 @@ runs:
         if [ -n "$LD_PATH_EXTRA" ]; then
           export LD_LIBRARY_PATH="$LD_PATH_EXTRA:${LD_LIBRARY_PATH:-}"
         fi
+
+        cd "${BUILD_DIR}"
 
         ARGS="--with-firebird=$FB_PATH"
         if [ "$BUILD_PDO" = 'true' ]; then
@@ -133,6 +147,7 @@ runs:
       env:
         PRE_BUILD: ${{ inputs.pre-build-script }}
       run: |
+        cd "${BUILD_DIR}"
         eval "$PRE_BUILD"
 
     - name: Build
@@ -147,4 +162,5 @@ runs:
         if [ -n "$LD_PATH_EXTRA" ]; then
           export LD_LIBRARY_PATH="$LD_PATH_EXTRA:${LD_LIBRARY_PATH:-}"
         fi
+        cd "${BUILD_DIR}"
         make -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"

@@ -396,27 +396,24 @@ jobs:
           export FB_ROOT=/opt/firebird
           
           # Ensure Firebird libraries are discoverable regardless of PHP_LIBDIR (lib vs lib64)
-          # config.m4 line 64 uses $PHP_FIREBIRD/$PHP_LIBDIR which may be lib64 on x86_64
-          # Force lib64 -> lib symlink (remove any pre-existing empty dir from source builds)
           rm -rf "${FB_ROOT}/lib64" 2>/dev/null || true
           ln -sf lib "${FB_ROOT}/lib64"
+          
+          # Out-of-tree build: copy source to BUILD_DIR, keep source tree pristine
+          export BUILD_DIR="/tmp/build-firebird"
+          rm -rf "$BUILD_DIR"
+          mkdir -p "$BUILD_DIR"
+          cp -a . "$BUILD_DIR/"
+          cd "$BUILD_DIR"
+          echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_ENV
           
           echo "Building with:"
           php -v | head -1
           echo "Firebird: ${FB_ROOT}"
+          echo "BUILD_DIR: ${BUILD_DIR}"
           
-          # Clean any previous builds
-          phpize --clean 2>/dev/null || true
-          
-          # Build with LTO for optimized release binaries
-          # LTO is now handled by config.m4 (default: enabled, --disable-fbird-lto to opt out)
-          # -rpath-link helps the linker resolve DT_NEEDED transitive dependencies
-          # (e.g. libtommath.so needed by libfbclient.so) during configure link tests
           export LDFLAGS="${LDFLAGS:-} -Wl,-rpath-link,${FB_ROOT}/lib"
           
-          # musl source-built libfbclient is a C++ library; PHP's configure tests
-          # link with cc (C compiler) so we must explicitly add -lstdc++ and the
-          # transitive deps that libfbclient.so DT_NEEDS.
           if [ "${{ matrix.libc }}" = "musl" ]; then
             export LIBS="-lstdc++ -lm"
             echo "musl: added LIBS='${LIBS}' for C++ libfbclient linking"
@@ -450,13 +447,13 @@ jobs:
           echo "FB_ROOT: ${FB_ROOT}"
           echo "EXT_VERSION: ${EXT_VERSION}"
           ls -la "${FB_ROOT}/lib/" || echo "FB_ROOT/lib not found"
-          ls -la modules/ || echo "modules/ not found"
+          ls -la "${BUILD_DIR}/modules/" || echo "modules/ not found"
           which patchelf && patchelf --version || echo "patchelf not found"
           echo "=== End Debug ==="
           
-          # Run build script (skip compilation since already done)
+          # Run build script (skip compilation since already done in BUILD_DIR)
           chmod +x scripts/build-precompiled.sh
-          bash -x scripts/build-precompiled.sh --skip-build --checksums --verbose \
+          bash -x scripts/build-precompiled.sh --skip-build --build-dir "${BUILD_DIR}" --checksums --verbose \
             "${{ matrix.php }}" "${{ matrix.variant }}" "${{ matrix.arch }}" 2>&1
           
           # Get output filename

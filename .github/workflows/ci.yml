@@ -174,8 +174,7 @@ jobs:
         shell: bash
         run: |
           set -eu
-          cd pdo_fbird
-          # Remove stale .so before phpize (same rationale as build-extension action)
+          cd "${BUILD_DIR}/pdo_fbird"
           rm -f modules/pdo_fbird.so 2>/dev/null || true
           phpize --clean
           phpize
@@ -188,7 +187,7 @@ jobs:
         uses: ./.github/actions/verify-extension
         with:
           mode: full
-          extension-path: modules/firebird.so
+          extension-path: ${{ env.BUILD_DIR }}/modules/firebird.so
           ld-library-path-extra: /opt/firebird-client/lib
 
       - name: Cache Composer dependencies
@@ -218,8 +217,8 @@ jobs:
         run: |
           set -eu
 
-          EXTENSION_PATH="$(pwd)/modules/firebird.so"
-          PDO_FBIRD_PATH="$(pwd)/pdo_fbird/modules/pdo_fbird.so"
+          EXTENSION_PATH="${BUILD_DIR}/modules/firebird.so"
+          PDO_FBIRD_PATH="${BUILD_DIR}/pdo_fbird/modules/pdo_fbird.so"
 
           # Build -d flags: load both extensions explicitly.
           # jane: make test only loads the main extension; run-tests.php with

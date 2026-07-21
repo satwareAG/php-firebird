@@ -233,7 +233,7 @@ Branch: `feat/175-typed-arginfo`
 3. Run `scripts/check-stubs-sync.sh`
 4. Add reflection test
 5. Full CI run
-6. Create PR, merge to satware-main
+6. Create PR, merge to main
 
 ### Phase 2: M12 - Direct C Calls (issue #177)
 Branch: `feat/177-direct-c-calls`
@@ -245,7 +245,7 @@ Branch: `feat/177-direct-c-calls`
 5. Replace FirebirdConnection::prepare trans+prepare with direct calls
 6. Remove `fbird_call_fn()` helper
 7. Full CI run + ASAN
-8. Create PR, merge to satware-main
+8. Create PR, merge to main
 
 ### Phase 3: M3 - Resource-to-Object (issue #176)
 Branch: `feat/176-resource-to-object`
@@ -261,4 +261,4 @@ Branch: `feat/176-resource-to-object`
 9. Bump VERSION to 11.0.0
 10. Write migration guide (docs/MIGRATION_V11.md)
 11. Full CI + ASAN + Valgrind
-12. Create PR, merge to satware-main, tag v11.0.0
+12. Create PR, merge to main, tag v11.0.0

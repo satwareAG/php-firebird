@@ -2,10 +2,10 @@
 # verify-ci-green.sh — Pre-tag CI verification
 #
 # Verifies that all required CI workflows have passed on the current
-# HEAD of satware-main before tagging a release. Run BEFORE git tag.
+# HEAD of main before tagging a release. Run BEFORE git tag.
 #
 # Usage: bash scripts/verify-ci-green.sh [branch]
-# Default branch: satware-main
+# Default branch: main
 #
 # Exit codes:
 #   0 = all workflows green
@@ -14,7 +14,7 @@ set -euo pipefail
 
 source "$(dirname "$0")/lib/logging.sh"
 
-BRANCH="${1:-satware-main}"
+BRANCH="${1:-main}"
 REQUIRED_WORKFLOWS=("ci.yml" "code-quality.yml" "sanitizers.yml" "coverage.yml")
 
 log_info "Checking CI status on ${BRANCH}..."

@@ -68,7 +68,7 @@ at runtime when it is not, hiding catastrophic runtime errors from static analys
 ## Split-Stubs Auto-Sync
 
 `stubs/firebird-stubs.php` is automatically synced to the `satwareAG/php-firebird-stubs`
-repository on every push to `satware-main` via `.github/workflows/split-stubs.yml`.
+repository on every push to `main` via `.github/workflows/split-stubs.yml`.
 
 The stubs package is used by `doctrine/orm-firebird-driver` as a Composer dev dependency
 for PHPStan analysis. Any missing stubs will surface as PHPStan errors in that project.

@@ -2,11 +2,11 @@ name: Code Quality
 
 on:
   push:
-    branches: [main, master, satware-main, 'feature/**', 'feat/**', 'fix/**', 'release/**']
+    branches: [main, master, 'feature/**', 'feat/**', 'fix/**', 'release/**']
     tags:
       - 'v[0-9]*.*'
   pull_request:
-    branches: [main, master, satware-main]
+    branches: [main, master]
 
 # Cancel in-progress runs for the same branch
 permissions:

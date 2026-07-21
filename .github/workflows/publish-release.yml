@@ -211,3 +211,22 @@ jobs:
           echo "Release published: https://github.com/${{ github.repository }}/releases/tag/$TAG"
         env:
           GH_TOKEN: ${{ github.token }}
+
+      - name: Trigger Packagist update
+        # jane: Webhooks are unreliable (403 "Invalid github signature").
+        # Instead, call the Packagist API directly after publishing the release.
+        # Requires PACKAGIST_API_TOKEN secret (from https://packagist.org/profile).
+        if: env.PACKAGIST_API_TOKEN != ''
+        run: |
+          for pkg in "satwareag/php-firebird" "satwareag/pdo-fbird"; do
+            repo_url="https://github.com/satwareAG/$(echo "$pkg" | sed 's|satwareag/||')"
+            echo "Triggering Packagist update for $pkg ($repo_url)..."
+            response=$(curl -sS -X POST \
+              -H "Authorization: Bearer $PACKAGIST_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"url\":\"$repo_url\"}" \
+              https://packagist.org/api/update-package 2>&1) || true
+            echo "  Response: $response"
+          done
+        env:
+          PACKAGIST_API_TOKEN: ${{ secrets.PACKAGIST_API_TOKEN }}

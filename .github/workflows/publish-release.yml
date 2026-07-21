@@ -211,3 +211,24 @@ jobs:
           echo "Release published: https://github.com/${{ github.repository }}/releases/tag/$TAG"
         env:
           GH_TOKEN: ${{ github.token }}
+
+      - name: Trigger Packagist update
+        # jane: Call the Packagist API directly after publishing the release.
+        # Webhooks are also configured via Packagist GitHub OAuth sync, but this
+        # provides an explicit, logged fallback in the release workflow.
+        # Requires PACKAGIST_API_TOKEN + PACKAGIST_USERNAME secrets.
+        # Payload format per Packagist docs: {"repository":{"url":"PACKAGE_URL"}}
+        if: env.PACKAGIST_API_TOKEN != ''
+        run: |
+          for pkg in "satwareag/php-firebird" "satwareag/pdo-fbird"; do
+            packagist_url="https://packagist.org/packages/$pkg"
+            echo "Triggering Packagist update for $pkg..."
+            response=$(curl -sS -X POST \
+              "https://packagist.org/api/update-package?username=${PACKAGIST_USERNAME}&apiToken=${PACKAGIST_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"repository\":{\"url\":\"${packagist_url}\"}}" 2>&1) || true
+            echo "  Response: $response"
+          done
+        env:
+          PACKAGIST_API_TOKEN: ${{ secrets.PACKAGIST_API_TOKEN }}
+          PACKAGIST_USERNAME: ${{ secrets.PACKAGIST_USERNAME }}

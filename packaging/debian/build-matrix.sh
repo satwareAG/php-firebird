@@ -117,11 +117,25 @@ get_docker_image() {
     esac
 
     case "$distro" in
+        # Debian: official PHP Docker images exist with Debian codenames
         bookworm) echo "php:${php_ver}-cli-bookworm" ;;
         trixie)   echo "php:${php_ver}-cli-trixie" ;;
-        jammy)    echo "php:${php_ver}-cli-jammy" ;;
-        noble)    echo "php:${php_ver}-cli-noble" ;;
+        # Ubuntu: no official PHP Docker images (only Debian codenames exist).
+        # Use Ubuntu base image + install PHP from packages.sury.org PPA.
+        # jane: PHP Docker images only use Debian codenames (bookworm, trixie),
+        # never Ubuntu codenames (jammy, noble). The Sury PPA provides PHP for
+        # both Debian AND Ubuntu suites.
+        jammy)    echo "ubuntu:22.04" ;;
+        noble)    echo "ubuntu:24.04" ;;
         *) echo ""; return 1 ;;
+    esac
+}
+
+# Check if a distro is Ubuntu (needs Sury PPA for PHP)
+is_ubuntu() {
+    case "$1" in
+        jammy|noble) echo "true" ;;
+        *) echo "false" ;;
     esac
 }
 
@@ -205,11 +219,25 @@ build_package() {
         -e FB_ROOT="${fb_mount}" \
         "$docker_image" \
         bash -c "export DEBIAN_FRONTEND=noninteractive && \
-                 apt-get update -qq && \
-                 apt-get install -y -qq --no-install-recommends \
-                     autoconf build-essential gcc g++ make libtool bison re2c \
-                     libicu-dev libxml2-dev libtommath1 patchelf dpkg-dev debhelper \
-                     jq curl wget git ca-certificates && \
+                 $(if [ "$(is_ubuntu "$distro")" = "true" ]; then
+                     echo "apt-get update -qq && \
+                     apt-get install -y -qq lsb-release ca-certificates curl && \
+                     curl -sSLo /tmp/keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb && \
+                     dpkg -i /tmp/keyring.deb && \
+                     printf 'Types: deb\nURIs: https://packages.sury.org/php/\nSuites: \$(lsb_release -sc)\nComponents: main\nSigned-By: /usr/share/keyrings/debsuryorg-archive-keyring.gpg\n' > /etc/apt/sources.list.d/php.sources && \
+                     apt-get update -qq && \
+                     apt-get install -y -qq --no-install-recommends \
+                         php${php_ver}-cli php${php_ver}-dev \
+                         autoconf build-essential gcc g++ make libtool bison re2c \
+                         libicu-dev libxml2-dev libtommath1 patchelf dpkg-dev debhelper \
+                         jq curl wget git ca-certificates &&"
+                 else
+                     echo "apt-get update -qq && \
+                     apt-get install -y -qq --no-install-recommends \
+                         autoconf build-essential gcc g++ make libtool bison re2c \
+                         libicu-dev libxml2-dev libtommath1 patchelf dpkg-dev debhelper \
+                         jq curl wget git ca-certificates &&"
+                 fi) \
                  cd /ext && bash packaging/debian/build.sh --php-version $php_ver --distro $distro --arch $arch --output-dir /output" \
         > "$result_log" 2>&1 || exit_code=$?
 

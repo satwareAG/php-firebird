@@ -100,6 +100,27 @@ jobs:
           echo "FIREBIRD_HOME=$sdkPath" >> $env:GITHUB_ENV
           echo "$sdkPath\bin" >> $env:GITHUB_PATH
 
+      - name: Check PHP SDK availability
+        shell: pwsh
+        run: |
+          # Check if downloads.php.net is reachable before attempting the build.
+          # jane: php-windows-builder downloads PHP SDK deps from downloads.php.net
+          # which intermittently returns 504 Gateway Timeout. This check gives early
+          # visibility and a retry window before the build step fails.
+          $vs = if ('${{ matrix.php-version }}' -ge '8.4') { 'vs17' } else { 'vs16' }
+          $url = "https://downloads.php.net/~windows/php-sdk/deps/$vs/x64/"
+          for ($i = 1; $i -le 5; $i++) {
+            try {
+              $resp = Invoke-WebRequest -Uri $url -Method Head -TimeoutSec 10
+              Write-Host "PHP SDK available (HTTP $($resp.StatusCode))"
+              exit 0
+            } catch {
+              Write-Host "Attempt $i/5: PHP SDK not available ($($_.Exception.Message))"
+              if ($i -lt 5) { Start-Sleep -Seconds 30 }
+            }
+          }
+          Write-Host "::warning::PHP SDK deps unavailable, build may fail with 504"
+
       - name: Resolve release tag
         id: reltag
         shell: bash

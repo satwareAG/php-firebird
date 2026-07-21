@@ -60,6 +60,12 @@ jobs:
           INTERVAL=30
           ELAPSED=0
 
+          # RC tags: publish with whatever assets are available (minimum: Linux >= 4 OR macOS >= 4)
+          # Stable tags: require all platforms (Linux >= 8, macOS >= 4, Windows >= 8)
+          # jane: RC releases exist for downstream testing — a partial release
+          # (e.g. Windows fails with 504) is still useful for testing Linux/macOS.
+          IS_RC=$(echo "$TAG" | grep -qiE '(rc|beta|alpha|dev)\.' && echo "true" || echo "false")
+
           while [ $ELAPSED -lt $MAX_WAIT ]; do
             ASSETS_JSON=$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets 2>/dev/null || echo '{"assets":[]}')
 
@@ -67,11 +73,20 @@ jobs:
             MACOS=$(echo "$ASSETS_JSON" | jq '[.assets[].name | select(endswith(".tar.gz") and contains("macos"))] | length' 2>/dev/null || echo 0)
             WIN=$(echo "$ASSETS_JSON" | jq '[.assets[].name | select(endswith(".zip") and contains("x86_64"))] | length' 2>/dev/null || echo 0)
 
-            echo "Assets: Linux=$LINUX, macOS=$MACOS, Windows=$WIN (${ELAPSED}s / ${MAX_WAIT}s)"
+            echo "Assets: Linux=$LINUX, macOS=$MACOS, Windows=$WIN (${ELAPSED}s / ${MAX_WAIT}s) RC=$IS_RC"
 
-            if [ "$LINUX" -ge 8 ] && [ "$MACOS" -ge 4 ] && [ "$WIN" -ge 8 ]; then
-              echo "All platform assets present"
-              exit 0
+            if [ "$IS_RC" = "true" ]; then
+              # RC: sufficient if Linux OR macOS assets are present
+              if [ "$LINUX" -ge 4 ] || [ "$MACOS" -ge 4 ]; then
+                echo "RC: sufficient assets for pre-release (Linux=$LINUX, macOS=$MACOS, Windows=$WIN)"
+                exit 0
+              fi
+            else
+              # Stable: require all platforms
+              if [ "$LINUX" -ge 8 ] && [ "$MACOS" -ge 4 ] && [ "$WIN" -ge 8 ]; then
+                echo "All platform assets present"
+                exit 0
+              fi
             fi
 
             sleep $INTERVAL
@@ -95,6 +110,14 @@ jobs:
           TOTAL_COUNT=$(echo "$ASSETS_JSON" | jq '[.assets[].name | select(endswith(".tar.gz") or endswith(".zip"))] | length')
 
           echo "Asset counts: Linux=${LINUX_COUNT}, macOS=${MACOS_COUNT}, Windows=${WINDOWS_COUNT}, Total=${TOTAL_COUNT}"
+
+          # RC tags: skip strict validation (partial releases are OK for testing)
+          if echo "$TAG" | grep -qiE '(rc|beta|alpha|dev)\.'; then
+            echo "RC tag detected — skipping strict asset validation"
+            [ "$TOTAL_COUNT" -ge 4 ] || { echo "ERROR: RC needs at least 4 assets, got $TOTAL_COUNT"; exit 1; }
+            echo "RC: $TOTAL_COUNT assets (sufficient for pre-release)"
+            exit 0
+          fi
 
           fail=0
           [ "$LINUX_COUNT" -lt 8 ] && { echo "ERROR: Linux has only $LINUX_COUNT bundles (expected >= 8)"; fail=1; }

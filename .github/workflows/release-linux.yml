@@ -188,6 +188,7 @@ jobs:
           fi
       
       - name: Install Firebird SDK
+        if: steps.cache-fb-sdk.outputs.cache-hit != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -294,7 +295,21 @@ jobs:
         uses: ./.github/actions/determine-php-version
         with:
           php-minor: ${{ matrix.php }}
-      
+
+      - name: Cache PHP source
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        id: cache-php-src
+        with:
+          path: /tmp/php-src-cached
+          key: php-src-${{ steps.php-version.outputs.full_version }}
+
+      - name: Cache Firebird SDK
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        id: cache-fb-sdk
+        with:
+          path: /opt/firebird
+          key: firebird-sdk-${{ env.FB_VERSION }}-${{ env.FB_BUILD }}-${{ matrix.fb_arch }}
+
       - name: Install PHP ${{ matrix.php }} (${{ matrix.variant }})
         shell: bash
         run: |
@@ -304,14 +319,36 @@ jobs:
           
           echo "Building PHP ${FULL_VERSION} (${VARIANT})..."
           
-          # Download PHP source
-          curl -fsSL "https://www.php.net/distributions/php-${FULL_VERSION}.tar.xz" \
-            -o /tmp/php.tar.xz
-          
-          mkdir -p /tmp/php-src
-          tar -xJf /tmp/php.tar.xz -C /tmp/php-src --strip-components=1
+          # Use cached PHP source if available (avoids 504 from php.net)
+          if [ -d /tmp/php-src-cached/php-src ]; then
+            echo "Using cached PHP source"
+            cp -a /tmp/php-src-cached/php-src /tmp/php-src
+          else
+            # Download PHP source with retry (php.net sometimes returns 504)
+            DELAY=10
+            for attempt in 1 2 3 4 5; do
+              echo "Downloading PHP source (attempt ${attempt}/5)..."
+              if curl -fsSL --retry 3 --retry-delay 5 \
+                  "https://www.php.net/distributions/php-${FULL_VERSION}.tar.xz" \
+                  -o /tmp/php.tar.xz; then
+                FSIZE=$(stat -c%s /tmp/php.tar.xz 2>/dev/null || echo "0")
+                if [ "${FSIZE}" -gt 5000000 ]; then
+                  echo "Download succeeded (${FSIZE} bytes)"
+                  break
+                fi
+                echo "File too small (${FSIZE} bytes), discarding"
+                rm -f /tmp/php.tar.xz
+              fi
+              [ "${attempt}" -lt 5 ] && echo "Sleeping ${DELAY}s..." && sleep "${DELAY}" && DELAY=$((DELAY * 2))
+            done
+            [ -f /tmp/php.tar.xz ] || { echo "ERROR: PHP source download failed after 5 attempts" >&2; exit 1; }
+            
+            mkdir -p /tmp/php-src /tmp/php-src-cached
+            tar -xJf /tmp/php.tar.xz -C /tmp/php-src --strip-components=1
+            cp -a /tmp/php-src /tmp/php-src-cached/
+          fi
           cd /tmp/php-src
-          
+
           # Configure options
           CONFIGURE_OPTS=(
             "--prefix=${INSTALL_DIR}"

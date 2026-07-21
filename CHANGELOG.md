@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [13.0.1-rc.1] - 2026-07-21
+
+### CI/CD Pipeline Fixes
+
+- **build-extension action**: `phpize-clean` default changed from `false` to `true`
+  + stale `.so` removal before `phpize --clean` to prevent header/library version
+  mismatches when the source tree is shared between Docker containers with different
+  Firebird client versions (#558)
+- **ci.yml**: Added stale `.so` removal + `phpize --clean` to `pdo_fbird` standalone
+  build step
+- **.deb packaging**: Fixed Docker image naming for Ubuntu distros — `php:*-cli-jammy`
+  and `php:*-cli-noble` don't exist on Docker Hub. Now uses `ubuntu:22.04`/`ubuntu:24.04`
+  base images + Sury PPA for PHP installation
+- **release-linux.yml**: Added PHP source caching + Firebird SDK caching + retry logic
+  (5 attempts with exponential backoff) for `php.net` 504 errors
+- **release-windows.yml**: Added PHP SDK availability check before build (early
+  visibility + retry for `downloads.php.net` 504 errors)
+- **publish-release.yml**: Relaxed asset requirements for RC tags — publishes as
+  pre-release if Linux >= 4 OR macOS >= 4 assets are present (instead of requiring
+  all platforms). Stable releases still require all platforms.
+- **.gitignore**: Added `/debian/` and `/dist/` build output directories
+
+### SIGSEGV Fix (PHP 8.5/FB3)
+
+- **Root cause**: Stale `.so` compiled against FB 5.0 headers (`FB_API_VER=50`),
+  loaded with FB 3.0 client library. `IResultSet::close()` dispatched through a
+  vtable slot (`deprecatedClose`) that doesn't exist in FB 3.0's `libfbclient`
+  → NULL function pointer → SIGSEGV during shutdown.
+- **Fix**: `phpize --clean` + `rm -f stale .so` before every build (PR #558)
+- **Validation**: 12/12 containers pass (4,321 tests, 0 failures)
+
 ## [13.0.1] - 2026-07-20
 
 ### v13.0.1 — Post-Release Bugfixes

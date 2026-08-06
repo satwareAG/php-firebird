@@ -1,6 +1,7 @@
 {
+  "schema_version": "1.0",
   "name": "php-firebird",
-  "version": "13.0.0",
+  "version": "13.0.3",
   "sdd_source": "https://github.com/satwareAG/spec-kit",
   "forge": "github",
   "visibility": "public",
@@ -8,8 +9,27 @@
   "ipadp": {
     "project_number": 1,
     "conformance_level": "L3",
+    "role": "gluepoint",
     "issue_tracker": "https://github.com/satwareAG/php-firebird/issues",
     "rfc_location": "<internal>/wiki/specs/rfc-interproject-agentic-development.md"
+  },
+  "ipadp_role": {
+    "type": "gluepoint",
+    "description": "Sits between the upstream Firebird C/C++ client library (FirebirdSQL/firebird releases) and downstream doctrine-firebird-driver. Translates the Firebird OO API (IProvider/IAttachment/ITransaction) into PHP procedural (fbird_*) and OOP (Firebird\\*) layers.",
+    "connects": [
+      {
+        "side": "upstream",
+        "project": "FirebirdSQL/firebird",
+        "interface": "C/C++ client library (libfbclient), OO API headers (Interface.h, IdlFbInterfaces.h)",
+        "spec": "Supports FB 3.0, 4.0, 5.0+ via FB_API_VER conditionals"
+      },
+      {
+        "side": "downstream",
+        "project": "doctrine-firebird-driver",
+        "interface": "fbird_* procedural functions + Firebird\\ OOP classes",
+        "spec": "specs/spec-v12.1-doctrine-downstream.md"
+      }
+    ]
   },
   "upstream": {
     "spec-kit": {
@@ -17,6 +37,13 @@
       "forge": "github",
       "local_path": "~/external/spec-kit",
       "role": "methodology-provider"
+    },
+    "FirebirdSQL/firebird": {
+      "url": "https://github.com/FirebirdSQL/firebird",
+      "forge": "github",
+      "local_path": "~/external/firebird",
+      "role": "client library provider (libfbclient, OO API headers)",
+      "version": "5.0.4"
     }
   },
   "downstream": {
@@ -32,6 +59,10 @@
       "visibility": "private",
       "role": "Symfony entity layer (name redacted - private repo)"
     }
+  },
+  "privacy": {
+    "public_to_private_links": [],
+    "notes": "php-firebird is a public GitHub repo. The _private_downstream consumer name is redacted to avoid exposing private GitLab project identity. No public-to-private links exist."
   },
   "morning_protocol": {
     "scripts": "scripts/"

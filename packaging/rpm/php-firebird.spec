@@ -42,10 +42,12 @@ BuildRequires:  patchelf
 BuildRequires:  gcc
 BuildRequires:  gcc-c++
 
-# php-firebird replaces the legacy ext/interbase
+# php-firebird replaces the legacy ext/interbase.
+# jane: Fedora 2026 packaging guidelines say Obsoletes alone is sufficient
+#       for replacement. Conflicts only if coexistence causes real problems.
+#       Obsoletes handles upgrade; Provides keeps dependency resolution working.
 Provides:       php-interbase = %{version}-%{release}
 Obsoletes:      php-interbase < %{version}
-Conflicts:      php-interbase
 
 Requires:       php-common >= %{php_ver}
 

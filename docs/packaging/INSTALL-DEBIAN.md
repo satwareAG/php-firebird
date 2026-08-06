@@ -6,12 +6,23 @@
 - PHP 8.2, 8.3, 8.4, or 8.5 installed via system packages (`apt install php8.4-cli`)
 - `sudo` access for installation
 
-## Quick start
+## Staging vs Production
+
+| Environment | URL | GPG key | Status |
+|---|---|---|---|
+| **Staging** | `packages.auc.de/apt/` | Staging (`B600F371...`) | Live (for testing) |
+| **Production** | `packages.satware.com/apt/` | Production (`E914FA35...`) | Coming soon |
+
+The **staging** repository is live and fully functional. When production is available, switch by replacing the URL and GPG key. The quick start below uses staging URLs; see the production section below for the production alternative.
+
+## Quick start (staging)
 
 ```bash
-# 1. Add the satware APT repository
-curl -fsSL https://packages.satware.com/keys/apt-gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/satware-php-firebird.gpg
-echo "deb [signed-by=/etc/apt/keyrings/satware-php-firebird.gpg] https://packages.satware.com/apt $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/satware-php-firebird.list
+# 1. Add the satware APT repository (staging)
+curl -fsSL https://packages.auc.de/keys/staging-gpg.pub.asc \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/satware-php-firebird.gpg
+echo "deb [signed-by=/etc/apt/keyrings/satware-php-firebird.gpg] https://packages.auc.de/apt $(lsb_release -cs) main" \
+  | sudo tee /etc/apt/sources.list.d/satware-php-firebird.list
 
 # 2. Update package list
 sudo apt update
@@ -23,6 +34,27 @@ sudo apt install php8.4-firebird
 php -m | grep firebird
 php -m | grep pdo_fbird
 ```
+
+Staging GPG fingerprint: `B600F3717315AD4262AB81A95AB7B54BBBC7FED8`
+
+## Production installation
+
+When the production repository at `packages.satware.com` is available:
+
+```bash
+# Import production GPG key
+curl -fsSL https://packages.satware.com/keys/prod-gpg.pub.asc \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/satware-php-firebird.gpg
+
+# Add production APT source
+echo "deb [signed-by=/etc/apt/keyrings/satware-php-firebird.gpg] https://packages.satware.com/apt $(lsb_release -cs) main" \
+  | sudo tee /etc/apt/sources.list.d/satware-php-firebird.list
+
+sudo apt update
+sudo apt install php8.4-firebird
+```
+
+Production GPG fingerprint: `E914FA3545EBA11013D8875D7CA900B9AB260C65`
 
 ## Available packages
 
@@ -95,7 +127,7 @@ sudo apt update
 
 ```bash
 # Check if INI file exists
-ls /etc/php/8.4/mods-available/20-firebird.ini
+ls /etc/php/8.4/mods-available/firebird.ini
 
 # Enable the extension
 sudo phpenmod firebird
@@ -104,7 +136,7 @@ sudo phpenmod firebird
 php -m | grep firebird
 ```
 
-### "libfbclient.so.2: cannot open shared object file"
+### "libfbclient.so.5: cannot open shared object file"
 
 The bundled libraries should resolve via RPATH. If not:
 

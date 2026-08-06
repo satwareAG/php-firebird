@@ -1,0 +1,137 @@
+# =============================================================================
+# APKBUILD for php84-firebird on Alpine Linux 3.21+
+# =============================================================================
+#
+# Builds php-firebird for Alpine Linux 3.21+ (PHP 8.4).
+#
+# Alpine uses musl libc, so the Firebird client library (libfbclient) must be
+# built from source - the official FB5 tarball is glibc-linked. The musl build
+# is handled by firebird-client-musl-build.sh (a separate source file).
+#
+# Package naming: php84-firebird (NOT php84-pecl-firebird).
+# This extension is distributed via PIE (github.com/php/pie) and Packagist,
+# not PECL. PECL is deprecated for new packages.
+#
+# For other PHP versions (php82, php83), create separate APKBUILD files with
+# the correct package name, depends, and makedepends. This is the standard
+# Alpine approach - one APKBUILD per PHP version.
+#
+# Usage:
+#   cd packaging/apk && abuild -r
+#
+# =============================================================================
+
+# Maintainer: satware AG <info@satware.com>
+pkgname=php84-firebird
+pkgver=13.0.3
+pkgrel=0
+pkgdesc="Modern Firebird database extension for PHP 8.4 (fbird_* API + OOP + PDO)"
+url="https://github.com/satwareAG/php-firebird"
+# jane: Firebird v5.0.4 CMake hardcodes -msse4 (x86 instruction set).
+#       aarch64 build fails until Firebird upstream removes this or we patch it.
+arch="x86_64"
+license="PHP-3.01"
+depends="php84-common php84-pdo icu-libs"
+makedepends="
+	php84-dev
+	autoconf
+	automake
+	build-base
+	re2c
+	git
+	cmake
+	ninja
+	icu-dev
+"
+# jane: provides/replaces php84-interbase if it existed on Alpine (legacy ext).
+#       Conflicts is omitted unless a real interbase package exists on Alpine.
+provides="php84-interbase"
+replaces="php84-interbase"
+source="
+	https://github.com/satwareAG/php-firebird/archive/v$pkgver.tar.gz
+	firebird-client-musl-build.sh
+"
+# Run `abuild checksum` after changing source to regenerate checksums.
+sha512sums="
+	SKIP
+	SKIP
+"
+
+# jane: Override builddir - GitHub archive extracts to php-firebird-$pkgver
+#       (repo name), not php84-firebird-$pkgver (package name).
+builddir="$srcdir/php-firebird-$pkgver"
+
+# Firebird client version and build location
+_fbver=5.0.4
+_fbroot="$builddir/_fbclient"
+
+build() {
+	# -------------------------------------------------------------------------
+	# Step 1: Build Firebird client library from source for musl
+	# jane: Alpine uses musl libc. Official FB5 tarball is glibc-linked.
+	#       Must build from source. No RPATH needed - standard linker paths.
+	# -------------------------------------------------------------------------
+	FB_ROOT="$_fbroot" FB_VERSION="$_fbver" \
+		sh "$srcdir"/firebird-client-musl-build.sh
+
+	# Verify the client library was built
+	if [ ! -f "$_fbroot/lib/libfbclient.so" ]; then
+		echo "ERROR: libfbclient.so not found at $_fbroot" >&2
+		return 1
+	fi
+
+	# -------------------------------------------------------------------------
+	# Step 2: Build php-firebird extension (main: firebird.so)
+	# -------------------------------------------------------------------------
+	cd "$builddir"
+
+	phpize84
+	CFLAGS="-I$_fbroot/include" \
+	LDFLAGS="-L$_fbroot/lib -Wl,-rpath-link,$_fbroot/lib" \
+		./configure \
+		--with-php-config=/usr/bin/php-config84 \
+		--with-firebird="$_fbroot"
+	make -j"$(nproc)"
+
+	# -------------------------------------------------------------------------
+	# Step 3: Build pdo_fbird extension (separate .so)
+	# -------------------------------------------------------------------------
+	cd pdo_fbird
+	phpize84
+	CFLAGS="-I$_fbroot/include" \
+	LDFLAGS="-L$_fbroot/lib -Wl,-rpath-link,$_fbroot/lib" \
+		./configure \
+		--with-php-config=/usr/bin/php-config84 \
+		--with-firebird="$_fbroot"
+	make -j"$(nproc)"
+
+	cd "$builddir"
+}
+
+package() {
+	_dir="$builddir"
+	_extdir=$(php-config84 --extension-dir)
+
+	# Extension .so files
+	install -d "$pkgdir"/$_extdir
+	install -m755 "$_dir"/modules/firebird.so "$pkgdir"/$_extdir/
+	install -m755 "$_dir"/pdo_fbird/modules/pdo_fbird.so "$pkgdir"/$_extdir/
+
+	# Bundled FB5 client library (musl-built, not glibc)
+	install -d "$pkgdir"/usr/lib
+	cp -a "$_fbroot"/lib/libfbclient.so* "$pkgdir"/usr/lib/
+
+	# jane: ICU libs come from system icu-libs (in depends), not bundled.
+	#       Bundling to /usr/lib would conflict with Alpine's icu-libs package.
+
+	# OOP API PHP classes + autoloader
+	install -d "$pkgdir"/usr/share/php/Firebird
+	install -m644 "$_dir"/src/Firebird/*.php "$pkgdir"/usr/share/php/Firebird/
+	install -m644 "$_dir"/packaging/firebird-autoload.php \
+		"$pkgdir"/usr/share/php/Firebird/
+
+	# INI files (Alpine convention: /etc/php<ver>/conf.d/)
+	install -d "$pkgdir"/etc/php84/conf.d
+	echo "extension=firebird.so" > "$pkgdir"/etc/php84/conf.d/20_firebird.ini
+	echo "extension=pdo_fbird.so" > "$pkgdir"/etc/php84/conf.d/30_pdo_fbird.ini
+}

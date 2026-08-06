@@ -1,536 +1,0 @@
-Building PHP Firebird extension...
-find . -name \*.gcno -o -name \*.gcda | xargs rm -f
-find . -name \*.lo -o -name \*.o -o -name \*.dep | xargs rm -f
-find . -name \*.la -o -name \*.a | xargs rm -f
-find . -name \*.so | xargs rm -f
-find . -name .libs -a -type d|xargs rm -rf
-rm -f libphp.la      modules/* libs/*
-rm -f ext/opcache/jit/ir/gen_ir_fold_hash
-rm -f ext/opcache/jit/ir/minilua
-rm -f ext/opcache/jit/ir/ir_fold_hash.h
-rm -f ext/opcache/jit/ir/ir_emit_x86.h
-rm -f ext/opcache/jit/ir/ir_emit_aarch64.h
-Cleaning..
-Configuring for:
-PHP Version:             8.5
-PHP Api Version:         20250925
-Zend Module Api No:      20250925
-Zend Extension Api No:   420250925
-Using FIREBIRD_HOME: /opt/firebird
-checking for grep that handles long lines and -e... /usr/bin/grep
-checking for egrep... /usr/bin/grep -E
-checking for a sed that does not truncate output... /usr/bin/sed
-checking build system type... x86_64-pc-linux-gnu
-checking host system type... x86_64-pc-linux-gnu
-checking target system type... x86_64-pc-linux-gnu
-shtool:echo:Warning: unable to determine terminal sequence for bold mode
-shtool:echo:Warning: unable to determine terminal sequence for bold mode
-checking for gawk... no
-checking for nawk... nawk
-checking if nawk is broken... no
-checking for pkg-config... /usr/bin/pkg-config
-checking pkg-config is at least version 0.9.0... yes
-checking for cc... cc
-checking whether the C compiler works... yes
-checking for C compiler default output file name... a.out
-checking for suffix of executables... 
-checking whether we are cross compiling... no
-checking for suffix of object files... o
-checking whether the compiler supports GNU C... yes
-checking whether cc accepts -g... yes
-checking for cc option to enable C11 features... none needed
-checking how to run the C preprocessor... cc -E
-checking for egrep -e... (cached) /usr/bin/grep -E
-checking for icc... no
-checking for suncc... no
-checking for system library directory... lib
-checking if compiler supports -Wl,-rpath,... yes
-checking for PHP prefix... /usr/local
-checking for PHP includes... -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib
-checking for PHP extension directory... /usr/local/lib/php/extensions/no-debug-non-zts-20250925
-checking for PHP installed headers prefix... /usr/local/include/php
-checking if debugging is enabled... no
-checking if PHP is built with thread safety (ZTS)... no
-
-Configuring extension
-checking for Firebird support... yes, shared
-checking for php-firebird version... 11.0.0
-checking for minimum PHP version 8.2... yes (PHP 8.5.5)
-checking for fb_config... no
-checking for isc_detach_database in -lfbclient... yes
-checking for PDO includes... /usr/local/include/php/ext
-checking whether the C compiler accepts -Wall... yes
-checking whether the C compiler accepts -Wextra... yes
-checking whether the C compiler accepts -Wformat-security... no
-checking whether the C compiler accepts -Wno-unused-parameter... yes
-checking whether the C compiler accepts -fstack-protector-strong... yes
-checking whether the C compiler accepts -std=gnu17... yes
-checking for g++... g++
-checking whether the compiler supports GNU C++... yes
-checking whether g++ accepts -g... yes
-checking for g++ option to enable C++11 features... none needed
-checking how to run the C++ preprocessor... g++ -E
-checking whether g++ supports C++17 features with -std=c++17... yes
-
-Configuring libtool
-checking for a sed that does not truncate output... /usr/bin/sed
-checking for ld used by cc... /usr/bin/ld
-checking if the linker (/usr/bin/ld) is GNU ld... yes
-checking for /usr/bin/ld option to reload object files... -r
-checking for BSD-compatible nm... /usr/bin/nm -B
-checking whether ln -s works... yes
-checking how to recognize dependent libraries... pass_all
-checking for stdio.h... yes
-checking for stdlib.h... yes
-checking for string.h... yes
-checking for inttypes.h... yes
-checking for stdint.h... yes
-checking for strings.h... yes
-checking for sys/stat.h... yes
-checking for sys/types.h... yes
-checking for unistd.h... yes
-checking for dlfcn.h... yes
-checking how to run the C++ preprocessor... g++ -E
-checking the maximum length of command line arguments... 1572864
-checking command to parse /usr/bin/nm -B output from cc object... ok
-checking for objdir... .libs
-checking for ar... ar
-checking for ranlib... ranlib
-checking for strip... strip
-checking if cc supports -fno-rtti -fno-exceptions... no
-checking for cc option to produce PIC... -fPIC
-checking if cc PIC flag -fPIC works... yes
-checking if cc static flag -static works... yes
-checking if cc supports -c -o file.o... yes
-checking whether the cc linker (/usr/bin/ld -m elf_x86_64) supports shared libraries... yes
-checking whether -lc should be explicitly linked in... no
-checking dynamic linker characteristics... GNU/Linux ld.so
-checking how to hardcode library paths into programs... immediate
-checking whether stripping libraries is possible... yes
-checking if libtool supports shared libraries... yes
-checking whether to build shared libraries... yes
-checking whether to build static libraries... no
-
-creating libtool
-appending configuration tag "CXX" to libtool
-checking for ld used by g++... /usr/bin/ld -m elf_x86_64
-checking if the linker (/usr/bin/ld -m elf_x86_64) is GNU ld... yes
-checking whether the g++ linker (/usr/bin/ld -m elf_x86_64) supports shared libraries... yes
-checking for g++ option to produce PIC... -fPIC
-checking if g++ PIC flag -fPIC works... yes
-checking if g++ static flag -static works... yes
-checking if g++ supports -c -o file.o... yes
-checking whether the g++ linker (/usr/bin/ld -m elf_x86_64) supports shared libraries... yes
-checking dynamic linker characteristics... GNU/Linux ld.so
-(cached) (cached) checking how to hardcode library paths into programs... immediate
-
-Generating files
-configure: creating build directories
-configure: creating Makefile
-configure: patching config.h.in
-configure: creating ./config.status
-config.status: creating config.h
-STOP_ON_WARN=true: build will fail on any compiler warning
-/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/firebird.c -o firebird.lo  -MMD -MF firebird.dep -MT firebird.lo
-/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_error.c -o fbird_error.lo  -MMD -MF fbird_error.dep -MT fbird_error.lo
-/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_connection.c -o fbird_connection.lo  -MMD -MF fbird_connection.dep -MT fbird_connection.lo
-/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_transaction.c -o fbird_transaction.lo  -MMD -MF fbird_transaction.dep -MT fbird_transaction.lo
-/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_batch.c -o fbird_batch.lo  -MMD -MF fbird_batch.dep -MT fbird_batch.lo
-/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_query_exec.c -o fbird_query_exec.lo  -MMD -MF fbird_query_exec.dep -MT fbird_query_exec.lo
-/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_query_prepare.c -o fbird_query_prepare.lo  -MMD -MF fbird_query_prepare.dep -MT fbird_query_prepare.lo
-/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_query_bind.c -o fbird_query_bind.lo  -MMD -MF fbird_query_bind.dep -MT fbird_query_bind.lo
-/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_query_array.c -o fbird_query_array.lo  -MMD -MF fbird_query_array.dep -MT fbird_query_array.lo
-/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_datetime.c -o fbird_datetime.lo  -MMD -MF fbird_datetime.dep -MT fbird_datetime.lo
-/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_result.c -o fbird_result.lo  -MMD -MF fbird_result.dep -MT fbird_result.lo
-/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_metadata.c -o fbird_metadata.lo  -MMD -MF fbird_metadata.dep -MT fbird_metadata.lo
-/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_service.c -o fbird_service.lo  -MMD -MF fbird_service.dep -MT fbird_service.lo
-/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_events.c -o fbird_events.lo  -MMD -MF fbird_events.dep -MT fbird_events.lo
-/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_blobs.c -o fbird_blobs.lo  -MMD -MF fbird_blobs.dep -MT fbird_blobs.lo
-/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_inspection.c -o fbird_inspection.lo  -MMD -MF fbird_inspection.dep -MT fbird_inspection.lo
-mkdir .libs
- cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include -I/opt/firebird/include -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_metadata.c -MMD -MF fbird_metadata.dep -MT fbird_metadata.lo  -fPIC -DPIC -o .libs/fbird_metadata.o
- cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include -I/opt/firebird/include -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_query_prepare.c -MMD -MF fbird_query_prepare.dep -MT fbird_query_prepare.lo  -fPIC -DPIC -o .libs/fbird_query_prepare.o
- cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include -I/opt/firebird/include -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_events.c -MMD -MF fbird_events.dep -MT fbird_events.lo  -fPIC -DPIC -o .libs/fbird_events.o
- cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include -I/opt/firebird/include -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_connection.c -MMD -MF fbird_connection.dep -MT fbird_connection.lo  -fPIC -DPIC -o .libs/fbird_connection.o
- cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include -I/opt/firebird/include -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_service.c -MMD -MF fbird_service.dep -MT fbird_service.lo  -fPIC -DPIC -o .libs/fbird_service.o
- cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include -I/opt/firebird/include -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_batch.c -MMD -MF fbird_batch.dep -MT fbird_batch.lo  -fPIC -DPIC -o .libs/fbird_batch.o
- cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include -I/opt/firebird/include -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_datetime.c -MMD -MF fbird_datetime.dep -MT fbird_datetime.lo  -fPIC -DPIC -o .libs/fbird_datetime.o
- cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include -I/opt/firebird/include -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_result.c -MMD -MF fbird_result.dep -MT fbird_result.lo  -fPIC -DPIC -o .libs/fbird_result.o
- cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include -I/opt/firebird/include -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_blobs.c -MMD -MF fbird_blobs.dep -MT fbird_blobs.lo  -fPIC -DPIC -o .libs/fbird_blobs.o
- cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include -I/opt/firebird/include -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_error.c -MMD -MF fbird_error.dep -MT fbird_error.lo  -fPIC -DPIC -o .libs/fbird_error.o
- cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include -I/opt/firebird/include -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_query_array.c -MMD -MF fbird_query_array.dep -MT fbird_query_array.lo  -fPIC -DPIC -o .libs/fbird_query_array.o
- cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include -I/opt/firebird/include -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_query_bind.c -MMD -MF fbird_query_bind.dep -MT fbird_query_bind.lo  -fPIC -DPIC -o .libs/fbird_query_bind.o
- cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include -I/opt/firebird/include -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_query_exec.c -MMD -MF fbird_query_exec.dep -MT fbird_query_exec.lo  -fPIC -DPIC -o .libs/fbird_query_exec.o
- cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include -I/opt/firebird/include -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/firebird.c -MMD -MF firebird.dep -MT firebird.lo  -fPIC -DPIC -o .libs/firebird.o
- cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include -I/opt/firebird/include -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_inspection.c -MMD -MF fbird_inspection.dep -MT fbird_inspection.lo  -fPIC -DPIC -o .libs/fbird_inspection.o
- cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include -I/opt/firebird/include -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_transaction.c -MMD -MF fbird_transaction.dep -MT fbird_transaction.lo  -fPIC -DPIC -o .libs/fbird_transaction.o
-/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_classes.c -o fbird_classes.lo  -MMD -MF fbird_classes.dep -MT fbird_classes.lo
-/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/pdo_fbird/pdo_fbird.c -o pdo_fbird/pdo_fbird.lo  -MMD -MF pdo_fbird/pdo_fbird.dep -MT pdo_fbird/pdo_fbird.lo
-/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/pdo_fbird/pdo_fbird_driver.c -o pdo_fbird/pdo_fbird_driver.lo  -MMD -MF pdo_fbird/pdo_fbird_driver.dep -MT pdo_fbird/pdo_fbird_driver.lo
-/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/pdo_fbird/pdo_fbird_stmt.c -o pdo_fbird/pdo_fbird_stmt.lo  -MMD -MF pdo_fbird/pdo_fbird_stmt.dep -MT pdo_fbird/pdo_fbird_stmt.lo
-/bin/bash /ext/libtool --tag=CC --mode=compile cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE   -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/pdo_fbird/pdo_fbird_error.c -o pdo_fbird/pdo_fbird_error.lo  -MMD -MF pdo_fbird/pdo_fbird_error.dep -MT pdo_fbird/pdo_fbird_error.lo
- cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include -I/opt/firebird/include -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/fbird_classes.c -MMD -MF fbird_classes.dep -MT fbird_classes.lo  -fPIC -DPIC -o .libs/fbird_classes.o
-mkdir pdo_fbird/.libs
- cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include -I/opt/firebird/include -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/pdo_fbird/pdo_fbird.c -MMD -MF pdo_fbird/pdo_fbird.dep -MT pdo_fbird/pdo_fbird.lo  -fPIC -DPIC -o pdo_fbird/.libs/pdo_fbird.o
-/bin/bash /ext/libtool --tag=CXX --mode=compile g++ -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2   -std=c++17 -c /ext/firebird_utils.cpp -o firebird_utils.lo  -MMD -MF firebird_utils.dep -MT firebird_utils.lo
- cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include -I/opt/firebird/include -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/pdo_fbird/pdo_fbird_driver.c -MMD -MF pdo_fbird/pdo_fbird_driver.dep -MT pdo_fbird/pdo_fbird_driver.lo  -fPIC -DPIC -o pdo_fbird/.libs/pdo_fbird_driver.o
- cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include -I/opt/firebird/include -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/pdo_fbird/pdo_fbird_stmt.c -MMD -MF pdo_fbird/pdo_fbird_stmt.dep -MT pdo_fbird/pdo_fbird_stmt.lo  -fPIC -DPIC -o pdo_fbird/.libs/pdo_fbird_stmt.o
- cc -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include -I/opt/firebird/include -DHAVE_CONFIG_H -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DZEND_COMPILE_DL_EXT=1 -c /ext/pdo_fbird/pdo_fbird_error.c -MMD -MF pdo_fbird/pdo_fbird_error.dep -MT pdo_fbird/pdo_fbird_error.lo  -fPIC -DPIC -o pdo_fbird/.libs/pdo_fbird_error.o
- g++ -I. -I/ext -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include -I/opt/firebird/include -DHAVE_CONFIG_H -g -O2 -std=c++17 -c /ext/firebird_utils.cpp -MMD -MF firebird_utils.dep -MT firebird_utils.lo  -fPIC -DPIC -o .libs/firebird_utils.o
-/bin/bash /ext/libtool --tag=CXX --mode=link g++ -shared -I/usr/local/include/php -I/usr/local/include/php/main -I/usr/local/include/php/TSRM -I/usr/local/include/php/Zend -I/usr/local/include/php/ext -I/usr/local/include/php/ext/date/lib -I/opt/firebird/include  -I/opt/firebird/include -DHAVE_CONFIG_H  -g -O2 -Wall -Wextra -Wno-unused-parameter -fstack-protector-strong -std=gnu17 -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE    -o firebird.la -export-dynamic -avoid-version -prefer-pic -module -rpath /ext/modules  firebird.lo fbird_error.lo fbird_connection.lo fbird_transaction.lo fbird_batch.lo fbird_query_exec.lo fbird_query_prepare.lo fbird_query_bind.lo fbird_query_array.lo fbird_datetime.lo fbird_result.lo fbird_metadata.lo fbird_service.lo fbird_events.lo fbird_blobs.lo fbird_inspection.lo fbird_classes.lo pdo_fbird/pdo_fbird.lo pdo_fbird/pdo_fbird_driver.lo pdo_fbird/pdo_fbird_stmt.lo pdo_fbird/pdo_fbird_error.lo firebird_utils.lo -Wl,-rpath,/opt/firebird/lib -L/opt/firebird/lib -lfbclient
-g++ -shared -nostdlib /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o  .libs/firebird.o .libs/fbird_error.o .libs/fbird_connection.o .libs/fbird_transaction.o .libs/fbird_batch.o .libs/fbird_query_exec.o .libs/fbird_query_prepare.o .libs/fbird_query_bind.o .libs/fbird_query_array.o .libs/fbird_datetime.o .libs/fbird_result.o .libs/fbird_metadata.o .libs/fbird_service.o .libs/fbird_events.o .libs/fbird_blobs.o .libs/fbird_inspection.o .libs/fbird_classes.o pdo_fbird/.libs/pdo_fbird.o pdo_fbird/.libs/pdo_fbird_driver.o pdo_fbird/.libs/pdo_fbird_stmt.o pdo_fbird/.libs/pdo_fbird_error.o .libs/firebird_utils.o  -L/opt/firebird/lib -lfbclient -L/usr/lib/gcc/x86_64-linux-gnu/14 -L/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu -L/usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib -L/lib/x86_64-linux-gnu -L/lib/../lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-linux-gnu/14/../../.. -lstdc++ -lm -lc -lgcc_s /usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o  -Wl,-rpath -Wl,/opt/firebird/lib -Wl,-soname -Wl,firebird.so -o .libs/firebird.so
-creating firebird.la
-(cd .libs && rm -f firebird.la && ln -s ../firebird.la firebird.la)
-/bin/bash /ext/libtool --tag=CXX --mode=install cp ./firebird.la /ext/modules
-cp ./.libs/firebird.so /ext/modules/firebird.so
-cp ./.libs/firebird.lai /ext/modules/firebird.la
-PATH="$PATH:/sbin" ldconfig -n /ext/modules
-----------------------------------------------------------------------
-Libraries have been installed in:
-   /ext/modules
-
-If you ever happen to want to link against installed libraries
-in a given directory, LIBDIR, you must either use libtool, and
-specify the full pathname of the library, or use the `-LLIBDIR'
-flag during linking and do at least one of the following:
-   - add LIBDIR to the `LD_LIBRARY_PATH' environment variable
-     during execution
-   - add LIBDIR to the `LD_RUN_PATH' environment variable
-     during linking
-   - use the `-Wl,--rpath -Wl,LIBDIR' linker flag
-   - have your system administrator add LIBDIR to `/etc/ld.so.conf'
-
-See any operating system documentation about shared libraries for
-more information, such as the ld(1) and ld.so(8) manual pages.
-----------------------------------------------------------------------
-
-Build complete.
-Don't forget to run 'make test'.
-
-Build completed. Extension is available at: /ext/modules/firebird.so
-Firebird client library: /opt/firebird
-Note: pdo_fbird PDO driver is integrated into firebird.so (no separate build needed)
-Testing PHP Firebird extension...
-PHP Version: 8.5.5
-Extension loaded: YES
-Extension version: 11.0.0
-Running tests...
-
-=====================================================================
-PHP         : /usr/local/bin/php 
-PHP_SAPI    : cli
-PHP_VERSION : 8.5.5
-ZEND_VERSION: 4.5.5
-PHP_OS      : Linux - Linux fa3bd56a5655 6.12.77-1-MANJARO #1 SMP PREEMPT_DYNAMIC Fri, 13 Mar 2026 18:47:31 +0000 x86_64
-INI actual  : /ext
-More .INIs  :  
----------------------------------------------------------------------
-PHP         : /usr/local/bin/php-cgi 
-PHP_SAPI    : cgi-fcgi
-PHP_VERSION : 8.5.5
-ZEND_VERSION: 4.5.5
-PHP_OS      : Linux - Linux fa3bd56a5655 6.12.77-1-MANJARO #1 SMP PREEMPT_DYNAMIC Fri, 13 Mar 2026 18:47:31 +0000 x86_64
-INI actual  : /ext
-More .INIs  : 
---------------------------------------------------------------------- 
----------------------------------------------------------------------
-PHP         : /usr/local/bin/phpdbg 
-PHP_SAPI    : phpdbg
-PHP_VERSION : 8.5.5
-ZEND_VERSION: 4.5.5
-PHP_OS      : Linux - Linux fa3bd56a5655 6.12.77-1-MANJARO #1 SMP PREEMPT_DYNAMIC Fri, 13 Mar 2026 18:47:31 +0000 x86_64
-INI actual  : /ext
-More .INIs  : 
----------------------------------------------------------------------
-CWD         : /ext
-Extra dirs  : 
-VALGRIND    : Not used
-=====================================================================
-Running selected tests.
-TEST 1/277 [tests/002.phpt][1;32mPASS[0m Firebird: connect, close and pconnect [tests/002.phpt] 
-TEST 2/277 [tests/003.phpt][1;33mSKIP[0m Firebird: misc sql types (may take a while) [tests/003.phpt] reason: Firebird server version 3 < 4
-TEST 3/277 [tests/004.phpt][1;32mPASS[0m Firebird: BLOB test [tests/004.phpt] 
-TEST 4/277 [tests/005.phpt][1;32mPASS[0m Firebird: transactions [tests/005.phpt] 
-TEST 5/277 [tests/006.phpt][1;32mPASS[0m Firebird: binding (may take a while) [tests/006.phpt] 
-TEST 6/277 [tests/007.phpt][1;32mPASS[0m Firebird: array handling [tests/007.phpt] 
-TEST 7/277 [tests/007_iso_char.phpt][1;32mPASS[0m Firebird: CHAR(10)[10] array test [tests/007_iso_char.phpt] 
-TEST 8/277 [tests/007_iso_integer.phpt][1;32mPASS[0m Firebird: INTEGER[10] array test [tests/007_iso_integer.phpt] 
-TEST 9/277 [tests/007_iso_varchar10.phpt][1;32mPASS[0m Firebird: VARCHAR(10)[10] small array test [tests/007_iso_varchar10.phpt] 
-TEST 10/277 [tests/007_iso_varchar1000.phpt][1;32mPASS[0m Firebird: VARCHAR[1000][10] array test [tests/007_iso_varchar1000.phpt] 
-TEST 11/277 [tests/008.phpt][1;32mPASS[0m Firebird: event handling basic API [tests/008.phpt] 
-TEST 12/277 [tests/008_timeout.phpt][1;32mPASS[0m Firebird: fbird_poll_event() timeout API and constant [tests/008_timeout.phpt] 
-TEST 13/277 [tests/blob_segfault_after_commit.phpt][1;32mPASS[0m Bug: SIGSEGV when using blob_add after transaction commit/rollback [tests/blob_segfault_after_commit.phpt] 
-TEST 14/277 [tests/blob_stream_chunked_write.phpt][1;32mPASS[0m Test: BLOB creation from PHP stream with chunked writes [tests/blob_stream_chunked_write.phpt] 
-TEST 15/277 [tests/blobid_001.phpt][1;32mPASS[0m BlobId: Type-safe BLOB identifier value object [tests/blobid_001.phpt] 
-TEST 16/277 [tests/bug45373.phpt][1;32mPASS[0m Bug #45373 (php crash on query with errors in params) [tests/bug45373.phpt] 
-TEST 17/277 [tests/bug45575.phpt][1;32mPASS[0m Bug #45575 (Error handling for invalid callback in fbird_set_event_handler) [tests/bug45575.phpt] 
-TEST 18/277 [tests/bug46247_002.phpt][1;32mPASS[0m Bug #46247 (fbird_set_event_handler() is allowing to pass callback without event) [tests/bug46247_002.phpt] 
-TEST 19/277 [tests/bug46247_003.phpt][1;32mPASS[0m Bug #46247 (fbird_set_event_handler() is allowing to pass callback without event) [tests/bug46247_003.phpt] 
-TEST 20/277 [tests/bug46247_004.phpt][1;32mPASS[0m Bug #46247 (fbird_set_event_handler() is allowing to pass callback without event) [tests/bug46247_004.phpt] 
-TEST 21/277 [tests/compare_var_export.phpt][1;32mPASS[0m Compare var_export behavior with standard resources [tests/compare_var_export.phpt] 
-TEST 22/277 [tests/coverage/array_all_types.phpt][1;32mPASS[0m Coverage: fbird_query_array.c all SQL type paths (FLOAT, CHAR, DATE, INTEGER arrays) [tests/coverage/array_all_types.phpt] 
-TEST 23/277 [tests/coverage/array_error_paths.phpt][1;32mPASS[0m Coverage: SQL array fetch behavior — FBIRD_FETCH_ARRAYS flag difference, NULL arrays [tests/coverage/array_error_paths.phpt] 
-TEST 24/277 [tests/coverage/array_more_types.phpt][1;32mPASS[0m Coverage: fbird_query_array.c BIGINT, DOUBLE, TIMESTAMP, TIME, SMALLINT, VARCHAR array paths [tests/coverage/array_more_types.phpt] 
-TEST 25/277 [tests/coverage/array_operations_advanced.phpt][1;32mPASS[0m Coverage: SQL array operations — integer and varchar array roundtrip via fbird_execute [tests/coverage/array_operations_advanced.phpt] 
-TEST 26/277 [tests/coverage/batch_advanced_types.phpt][1;33mSKIP[0m Coverage: Batch API with DATE/TIME/TIMESTAMP/DECIMAL types and NULL values [tests/coverage/batch_advanced_types.phpt] reason: IBatch API not available in this build
-TEST 27/277 [tests/coverage/batch_error_paths.phpt][1;33mSKIP[0m Coverage: Batch API error paths — invalid handle, null params, wrong resource type [tests/coverage/batch_error_paths.phpt] reason: IBatch API not available in this build
-TEST 28/277 [tests/coverage/batch_limits.phpt][1;33mSKIP[0m Coverage: Batch API limits — multiple executes, cancel mid-batch, create+immediate-cancel [tests/coverage/batch_limits.phpt] reason: IBatch API not available in this build
-TEST 29/277 [tests/coverage/bind_array_cannot_determine_table_column.phpt][1;32mPASS[0m Coverage: SQL_ARRAY binding fails with invalid array element conversion [tests/coverage/bind_array_cannot_determine_table_column.phpt] 
-TEST 30/277 [tests/coverage/bind_array_cannot_determine_table_column_update.phpt][1;32mPASS[0m Coverage: SQL_ARRAY binding succeeds for UPDATE statement with array parameter [tests/coverage/bind_array_cannot_determine_table_column_update.phpt] 
-TEST 31/277 [tests/coverage/bind_array_invalid_array_id.phpt][1;32mPASS[0m Coverage: SQL_ARRAY binding rejects non-array scalar with invalid array ID [tests/coverage/bind_array_invalid_array_id.phpt] 
-TEST 32/277 [tests/coverage/bind_boolean_invalid_string.phpt][1;32mPASS[0m Coverage: SQL_BOOLEAN binding rejects non-boolean string [tests/coverage/bind_boolean_invalid_string.phpt] 
-TEST 33/277 [tests/coverage/bind_boolean_must_be_boolean.phpt][1;32mPASS[0m Coverage: SQL_BOOLEAN binding rejects non-boolean non-scalar types [tests/coverage/bind_boolean_must_be_boolean.phpt] 
-TEST 34/277 [tests/coverage/bind_boolean_null.phpt][1;32mPASS[0m Coverage: BOOLEAN column binding — true/false/NULL roundtrip [tests/coverage/bind_boolean_null.phpt] 
-TEST 35/277 [tests/coverage/bind_boolean_numeric_string.phpt][1;32mPASS[0m Coverage: SQL_BOOLEAN binding from numeric/text strings [tests/coverage/bind_boolean_numeric_string.phpt] 
-TEST 36/277 [tests/coverage/bind_edge_cases.phpt][1;32mPASS[0m Coverage: Parameter binding edge cases (INT64, Empty String, Large Blob) [tests/coverage/bind_edge_cases.phpt] 
-TEST 37/277 [tests/coverage/bind_error_paths.phpt][1;32mPASS[0m Coverage: Parameter binding error paths — param count mismatch, bad prepared stmt, type errors [tests/coverage/bind_error_paths.phpt] 
-TEST 38/277 [tests/coverage/bind_long_scaled_out_of_range.phpt][1;32mPASS[0m Coverage: SQL_LONG scaled bind rejects out-of-range value [tests/coverage/bind_long_scaled_out_of_range.phpt] 
-TEST 39/277 [tests/coverage/bind_numeric_types.phpt][1;32mPASS[0m Coverage: Numeric parameter binding — SMALLINT/INTEGER/BIGINT, FLOAT/DOUBLE, DECIMAL/NUMERIC [tests/coverage/bind_numeric_types.phpt] 
-TEST 40/277 [tests/coverage/bind_short_scaled_out_of_range.phpt][1;32mPASS[0m Coverage: SQL_SHORT scaled bind rejects out-of-range value [tests/coverage/bind_short_scaled_out_of_range.phpt] 
-TEST 41/277 [tests/coverage/bind_temporal_numeric.phpt][1;32mPASS[0m Coverage: fbird_query_bind.c string-to-temporal, NUMERIC/DECIMAL scale, BLOB, NULL binding paths [tests/coverage/bind_temporal_numeric.phpt] 
-TEST 42/277 [tests/coverage/bind_temporal_types.phpt][1;32mPASS[0m Coverage: DATE/TIME/TIMESTAMP parameter binding — string, unix int, NULL [tests/coverage/bind_temporal_types.phpt] 
-TEST 43/277 [tests/coverage/blob_as_string_binding.phpt][1;32mPASS[0m Coverage: BLOB parameter binding via string (lines 800-870 fbird_query_bind.c) [tests/coverage/blob_as_string_binding.phpt] 
-TEST 44/277 [tests/coverage/blob_seek_segments.phpt][1;32mPASS[0m Coverage: fb_blob.hpp seek, segmented read, BLOBWrapper paths (lines 124-234) [tests/coverage/blob_seek_segments.phpt] 
-TEST 45/277 [tests/coverage/datetime_formats.phpt][1;32mPASS[0m Coverage: fbird_datetime.c — European, US, ISO-T, fractional-seconds, timezone formats [tests/coverage/datetime_formats.phpt] 
-TEST 46/277 [tests/coverage/events_error_handling.phpt][1;32mPASS[0m Event Handling Error Paths and Edge Cases [tests/coverage/events_error_handling.phpt] 
-TEST 47/277 [tests/coverage/exec_set_transaction.phpt][1;32mPASS[0m Coverage: fbird_query_exec.c SET TRANSACTION / COMMIT / ROLLBACK via fbird_query (lines 120-213) [tests/coverage/exec_set_transaction.phpt] 
-TEST 48/277 [tests/coverage/execute_procedure_returning.phpt][1;32mPASS[0m Coverage: fbird_query_bind.c _php_fbird_safe_copy_sqlvar_data via DML RETURNING [tests/coverage/execute_procedure_returning.phpt] 
-TEST 49/277 [tests/coverage/execute_statement_query.phpt][1;32mPASS[0m Coverage: fbird_execute_statement, fbird_execute_query, fbird_execute_auto paths [tests/coverage/execute_statement_query.phpt] 
-TEST 50/277 [tests/coverage/gen_id_variants.phpt][1;32mPASS[0m Coverage: fbird_gen_id — increments, error paths (long name, invalid chars) [tests/coverage/gen_id_variants.phpt] 
-TEST 51/277 [tests/coverage/inspection_deep.phpt][1;33mSKIP[0m Inspection Functions - Error Paths and Edge Cases [tests/coverage/inspection_deep.phpt] reason: Coverage test skipped in CI/Docker - fbird_kill_attachment blocks
-TEST 52/277 [tests/coverage/phpinfo_ini_display.phpt][1;32mPASS[0m Coverage: firebird.c phpinfo/INI displayer callbacks (php_fbird_password_displayer_cb, php_fbird_trans_displayer) [tests/coverage/phpinfo_ini_display.phpt] 
-TEST 53/277 [tests/coverage/query_array_complex.phpt][1;32mPASS[0m Coverage: Complex array binding in fbird_query/fbird_execute [tests/coverage/query_array_complex.phpt] 
-TEST 54/277 [tests/coverage/query_params_tx.phpt][1;32mPASS[0m fbird_query_params_tx: explicit link + transaction + parameterized SQL [tests/coverage/query_params_tx.phpt] 
-TEST 55/277 [tests/coverage/result_fetch_modes.phpt][1;32mPASS[0m Coverage: fbird_result.c — fetch modes, num_fields, field_info, fetch_object [tests/coverage/result_fetch_modes.phpt] 
-TEST 56/277 [tests/coverage/service_backup_restore.phpt][1;32mPASS[0m Coverage: fbird_backup/fbird_restore with all FBIRD_BKP_* and FBIRD_RES_* options [tests/coverage/service_backup_restore.phpt] 
-TEST 57/277 [tests/coverage/service_error_paths.phpt][1;32mPASS[0m Coverage: Service API error paths and NULL handle guard (PR #70 regression test) [tests/coverage/service_error_paths.phpt] 
-TEST 58/277 [tests/coverage/service_maintenance_operations.phpt][1;32mPASS[0m Coverage: fbird_maintain_db and fbird_db_info with all PRP/RPR constants [tests/coverage/service_maintenance_operations.phpt] 
-TEST 59/277 [tests/coverage/service_user_advanced.phpt][1;32mPASS[0m Coverage: Service user management edge cases (add/modify/delete boundaries) [tests/coverage/service_user_advanced.phpt] 
-TEST 60/277 [tests/coverage/transaction_coverage.phpt][1;32mPASS[0m Coverage: fbird_transaction.c — retain mode, TPB options, multi-db trans [tests/coverage/transaction_coverage.phpt] 
-TEST 61/277 [tests/coverage/transaction_mshutdown_guard.phpt][1;33mSKIP[0m fbird_transaction: _php_fbird_free_trans() must not crash during MSHUTDOWN (issues #78, #79) [tests/coverage/transaction_mshutdown_guard.phpt] reason: cannot connect to Firebird
-TEST 62/277 [tests/create_database_injection.phpt][1;32mPASS[0m Security: fbird_create_database() validates charset allowlist (C1 fix) [tests/create_database_injection.phpt] 
-TEST 63/277 [tests/datatype_001.phpt][1;33mSKIP[0m Check comprehensive data types including Firebird 4.0+ types [tests/datatype_001.phpt] reason: Firebird server version 3 < 4
-TEST 64/277 [tests/datatype_char_utf8.phpt][1;32mPASS[0m Check for data type CHAR(1) and UTF8 [tests/datatype_char_utf8.phpt] 
-TEST 65/277 [tests/datatype_int128.phpt][1;33mSKIP[0m Check for data type INT128 (Firebird 4.0 or above) [tests/datatype_int128.phpt] reason: Firebird server version 3 < 4
-TEST 66/277 [tests/dbinfo_001.phpt][1;32mPASS[0m DbInfo: Rich database information structure [tests/dbinfo_001.phpt] 
-TEST 67/277 [tests/debug_oo.phpt][1;32mPASS[0m debug: close, affectedRows, beginTransaction [tests/debug_oo.phpt] 
-TEST 68/277 [tests/event_poller_wrapper.phpt][1;32mPASS[0m Event Poller Wrapper Classes - Basic Functionality [tests/event_poller_wrapper.phpt] 
-TEST 69/277 [tests/execute_safety_001.phpt][1;32mPASS[0m API Safety: fbird_execute_statement vs fbird_execute_query error validation [tests/execute_safety_001.phpt] 
-TEST 70/277 [tests/fb40fields_001.phpt][1;33mSKIP[0m Test data for fields introduced in FB 4.0 [tests/fb40fields_001.phpt] reason: Firebird server version 3 < 4
-TEST 71/277 [tests/fb40fields_002.phpt][1;33mSKIP[0m Test data for fields introduced in FB 4.0, with older client [tests/fb40fields_002.phpt] reason: Firebird server version 3 < 4
-TEST 72/277 [tests/fbclient_vers_001.phpt][1;32mPASS[0m Get fbclient version [tests/fbclient_vers_001.phpt] 
-TEST 73/277 [tests/fbird_affected_rows_001.phpt][1;32mPASS[0m fbird_affected_rows(): Basic test [tests/fbird_affected_rows_001.phpt] 
-TEST 74/277 [tests/fbird_batch_001.phpt][1;33mSKIP[0m IBatch API: fbird_batch_add() binds parameters into message buffer [tests/fbird_batch_001.phpt] reason: IBatch API (fbird_batch_create) not available in this build
-TEST 75/277 [tests/fbird_batch_add_blob_stream_001.phpt][1;33mSKIP[0m fbird_batch_add_blob_stream: stream BLOB data into batch via IBatch addBlobStream protocol [tests/fbird_batch_add_blob_stream_001.phpt] reason: fbird_batch_add_blob_stream not available (requires FB4+ build)
-TEST 76/277 [tests/fbird_batch_append_blob_data_001.phpt][1;33mSKIP[0m fbird_batch_append_blob_data: append data chunk to in-progress batch BLOB [tests/fbird_batch_append_blob_data_001.phpt] reason: fbird_batch_append_blob_data not available (requires FB4+ build)
-TEST 77/277 [tests/fbird_batch_blob_001.phpt][1;33mSKIP[0m IBatch API: BLOB operations (add_blob, register_blob) [tests/fbird_batch_blob_001.phpt] reason: IBatch API not available (requires Firebird 4.0+)
-TEST 78/277 [tests/fbird_batch_errors_001.phpt][1;33mSKIP[0m fbird_batch_execute() detailed error reporting [tests/fbird_batch_errors_001.phpt] reason: IBatch API requires Firebird 4.0+
-TEST 79/277 [tests/fbird_batch_multitype_001.phpt][1;33mSKIP[0m IBatch API: Comprehensive multi-type batch insert with NULL handling [tests/fbird_batch_multitype_001.phpt] reason: IBatch API (fbird_batch_create) not available in this build
-TEST 80/277 [tests/fbird_batch_no_params_001.phpt][1;33mSKIP[0m fbird_batch_create() rejects statement with no input parameters (Issue #180) [tests/fbird_batch_no_params_001.phpt] reason: IBatch API not available (requires FB_API_VER >= 40)
-TEST 81/277 [tests/fbird_batch_oo_001.phpt][1;33mSKIP[0m Firebird: IBatch OO Wrapper (Batch, BatchResult, BatchError classes) [tests/fbird_batch_oo_001.phpt] reason: : IBatch API requires Firebird 4.0+
-TEST 82/277 [tests/fbird_batch_set_default_bpb_001.phpt][1;33mSKIP[0m fbird_batch_set_default_bpb: set default BLOB Property Block for batch BLOBs [tests/fbird_batch_set_default_bpb_001.phpt] reason: fbird_batch_set_default_bpb not available (requires FB4+ build)
-TEST 83/277 [tests/fbird_blob_001.phpt][1;32mPASS[0m fbird_blob_create() and fbird_blob_cancel() handle invalidation [tests/fbird_blob_001.phpt] 
-TEST 84/277 [tests/fbird_blob_002.phpt][1;32mPASS[0m fbird_blob_get() chunked reading tests [tests/fbird_blob_002.phpt] 
-TEST 85/277 [tests/fbird_blob_003.phpt][1;32mPASS[0m fbird_blob_add() and fbird_blob_get() with >64KB data (segmentation test) [tests/fbird_blob_003.phpt] 
-TEST 86/277 [tests/fbird_blob_coverage.phpt][1;32mPASS[0m Firebird: coverage for blob_info, blob_echo, blob_import [tests/fbird_blob_coverage.phpt] 
-TEST 87/277 [tests/fbird_blob_seek_001.phpt][1;32mPASS[0m fbird_blob_seek() - BLOB seek operations [tests/fbird_blob_seek_001.phpt] 
-TEST 88/277 [tests/fbird_blob_stream_param.phpt][1;32mPASS[0m fbird_execute() with PHP stream as BLOB parameter [tests/fbird_blob_stream_param.phpt] 
-TEST 89/277 [tests/fbird_classes_001.phpt][1;32mPASS[0m Firebird\Exception hierarchy: class registration and instanceof checks [tests/fbird_classes_001.phpt] 
-TEST 90/277 [tests/fbird_classes_002.phpt][1;32mPASS[0m Firebird\Connection: class registration, connect, ping, isConnected, close [tests/fbird_classes_002.phpt] 
-TEST 91/277 [tests/fbird_classes_003.phpt][1;32mPASS[0m Firebird\Transaction: beginTransaction, commit, rollback, isActive [tests/fbird_classes_003.phpt] 
-TEST 92/277 [tests/fbird_classes_004.phpt][1;32mPASS[0m Firebird\Statement and Firebird\ResultSet: prepare, execute, fetch [tests/fbird_classes_004.phpt] 
-TEST 93/277 [tests/fbird_classes_005.phpt][1;32mPASS[0m Firebird\Blob: class registration, write, read, info [tests/fbird_classes_005.phpt] 
-TEST 94/277 [tests/fbird_classes_006.phpt][1;32mPASS[0m Firebird\Service: class registration, attach, getServerVersion, detach [tests/fbird_classes_006.phpt] 
-TEST 95/277 [tests/fbird_close_004.phpt][1;32mPASS[0m fbird_close(): Basic test [tests/fbird_close_004.phpt] 
-TEST 96/277 [tests/fbird_close_005.phpt][1;32mPASS[0m fbird_close(): Make sure passing a string to the function throws an error. [tests/fbird_close_005.phpt] 
-TEST 97/277 [tests/fbird_commit_001.phpt][1;32mPASS[0m fbird_commit(): Make sure the method can be invoked with zero arguments [tests/fbird_commit_001.phpt] 
-TEST 98/277 [tests/fbird_commit_ret_001.phpt][1;32mPASS[0m fbird_commit_ret(): Make sure the method can be invoked with zero arguments [tests/fbird_commit_ret_001.phpt] 
-TEST 99/277 [tests/fbird_commit_ret_lifecycle.phpt][1;32mPASS[0m fbird_commit_ret() resource lifecycle: statements survive, cursors survive (#131) [tests/fbird_commit_ret_lifecycle.phpt] 
-TEST 100/277 [tests/fbird_connect_dpb_001.phpt][1;32mPASS[0m fbird_connect() basic attach and SELECT 1 using defaults [tests/fbird_connect_dpb_001.phpt] 
-TEST 101/277 [tests/fbird_connect_force_new.phpt][1;32mPASS[0m FBIRD_CONNECT_FORCE_NEW constant and functionality [tests/fbird_connect_force_new.phpt] 
-TEST 102/277 [tests/fbird_connect_typed_001.phpt][1;32mPASS[0m Firebird\Connection: typed connection object via OOP layer (Issue #120) [tests/fbird_connect_typed_001.phpt] 
-TEST 103/277 [tests/fbird_connection_info_001.phpt][1;32mPASS[0m fbird_connection_info() - basic functionality [tests/fbird_connection_info_001.phpt] 
-TEST 104/277 [tests/fbird_create_database.phpt][1;32mPASS[0m fbird_create_database() creates a new database [tests/fbird_create_database.phpt] 
-TEST 105/277 [tests/fbird_deprecate_create.phpt][1;32mPASS[0m fbird_query(FBIRD_CREATE) emits E_DEPRECATED [tests/fbird_deprecate_create.phpt] 
-TEST 106/277 [tests/fbird_drop_db_001.phpt][1;32mPASS[0m fbird_drop_db(): Basic test [tests/fbird_drop_db_001.phpt] 
-TEST 107/277 [tests/fbird_drop_db_003.phpt][1;32mPASS[0m fbird_drop_db(): Make sure passing an integer to the function throws an error. [tests/fbird_drop_db_003.phpt] 
-TEST 108/277 [tests/fbird_drop_db_004.phpt][1;32mPASS[0m fbird_drop_db(): Make sure passing null to the function throws an error. [tests/fbird_drop_db_004.phpt] 
-TEST 109/277 [tests/fbird_drop_db_string.phpt][1;32mPASS[0m fbird_drop_db() with connection string instead of resource [tests/fbird_drop_db_string.phpt] 
-TEST 110/277 [tests/fbird_errmsg_001.phpt][1;32mPASS[0m fbird_errmsg(): Basic test [tests/fbird_errmsg_001.phpt] 
-TEST 111/277 [tests/fbird_escape_string_001.phpt][1;32mPASS[0m fbird_escape_string() - Escape strings for SQL queries [tests/fbird_escape_string_001.phpt] 
-TEST 112/277 [tests/fbird_events_error_001.phpt][1;32mPASS[0m fbird_poll_event: error handling paths - dead handler, connection lost detection [tests/fbird_events_error_001.phpt] 
-TEST 113/277 [tests/fbird_exception_default.phpt][1;32mPASS[0m v9: FBIRD_EXCEPTION_MODE_COMPAT constant and THROW mode works [tests/fbird_exception_default.phpt] 
-TEST 114/277 [tests/fbird_exception_mode_001.phpt][1;32mPASS[0m fbird_set_exception_mode() - Runtime exception mode switching [tests/fbird_exception_mode_001.phpt] 
-TEST 115/277 [tests/fbird_exception_mode_002.phpt][1;32mPASS[0m fbird_set_exception_mode() - Exception throwing behavior with database errors [tests/fbird_exception_mode_002.phpt] 
-TEST 116/277 [tests/fbird_execute_reuse.phpt][1;32mPASS[0m fbird_execute() statement reuse with new parameters (#128) [tests/fbird_execute_reuse.phpt] 
-TEST 117/277 [tests/fbird_fetch_date_obj_001.phpt][1;32mPASS[0m FBIRD_FETCH_DATE_OBJ - Fetch date/time columns as DateTimeImmutable objects [tests/fbird_fetch_date_obj_001.phpt] 
-TEST 118/277 [tests/fbird_fetch_eof_no_warning.phpt][1;32mPASS[0m fbird_fetch_* returns false without warning on EOF and closed cursor (#127) [tests/fbird_fetch_eof_no_warning.phpt] 
-TEST 119/277 [tests/fbird_field_info_001.phpt][1;32mPASS[0m fbird_field_info(): basic fields [tests/fbird_field_info_001.phpt] 
-TEST 120/277 [tests/fbird_field_info_002.phpt][1;32mPASS[0m fbird_field_info(): fields introduced in FB 3.0 [tests/fbird_field_info_002.phpt] 
-TEST 121/277 [tests/fbird_field_info_003.phpt][1;33mSKIP[0m fbird_field_info(): fields introduced in FB 4.0 [tests/fbird_field_info_003.phpt] reason: Firebird server version 3 < 4
-TEST 122/277 [tests/fbird_field_info_004.phpt][1;32mPASS[0m fbird_field_info(): basic fields - UTF8 [tests/fbird_field_info_004.phpt] 
-TEST 123/277 [tests/fbird_field_info_005.phpt][1;33mSKIP[0m fbird_field_info(): fields introduced in FB 4.0, with older client [tests/fbird_field_info_005.phpt] reason: Firebird server version 3 < 4
-TEST 124/277 [tests/fbird_free_query_002.phpt][1;32mPASS[0m fbird_free_query(): Basic test [tests/fbird_free_query_002.phpt] 
-TEST 125/277 [tests/fbird_gen_id_001.phpt][1;32mPASS[0m fbird_gen_id() - basic generator operations [tests/fbird_gen_id_001.phpt] 
-TEST 126/277 [tests/fbird_ini_charset.phpt][1;32mPASS[0m fbird default charset INI setting [tests/fbird_ini_charset.phpt] 
-TEST 127/277 [tests/fbird_ini_defaults.phpt][1;32mPASS[0m fbird default connection INI settings [tests/fbird_ini_defaults.phpt] 
-TEST 128/277 [tests/fbird_ini_enable_exceptions.phpt][1;32mPASS[0m fbird.enable_exceptions INI behavior [tests/fbird_ini_enable_exceptions.phpt] 
-TEST 129/277 [tests/fbird_ini_exceptions_default.phpt][1;32mPASS[0m fbird.enable_exceptions default behavior (v9.0.0+) [tests/fbird_ini_exceptions_default.phpt] 
-TEST 130/277 [tests/fbird_ini_formats.phpt][1;32mPASS[0m fbird date/time/timestamp formatting INI settings [tests/fbird_ini_formats.phpt] 
-TEST 131/277 [tests/fbird_ini_trans_ro.phpt][1;32mPASS[0m fbird.default_trans_params INI setting (READ-ONLY) [tests/fbird_ini_trans_ro.phpt] 
-TEST 132/277 [tests/fbird_ini_trans_wr.phpt][1;32mPASS[0m fbird.default_trans_params INI setting (WRITE) [tests/fbird_ini_trans_wr.phpt] 
-TEST 133/277 [tests/fbird_inspection_001.phpt][1;32mPASS[0m fbird_list_table_blockers() - basic test [tests/fbird_inspection_001.phpt] 
-TEST 134/277 [tests/fbird_last_insert_id.phpt][1;32mPASS[0m fbird_last_insert_id() returns current generator value (#130) [tests/fbird_last_insert_id.phpt] 
-TEST 135/277 [tests/fbird_limbo_trans_001.phpt][1;32mPASS[0m fbird_get_limbo_transactions() / fbird_reconnect_transaction(): Limbo transaction recovery [tests/fbird_limbo_trans_001.phpt] 
-TEST 136/277 [tests/fbird_name_result_001.phpt][1;32mPASS[0m fbird_name_result(): basic test [tests/fbird_name_result_001.phpt] 
-TEST 137/277 [tests/fbird_num_combi_001.phpt][1;32mPASS[0m fbird_num_fields() / fbird_num_params(): combined [tests/fbird_num_combi_001.phpt] 
-TEST 138/277 [tests/fbird_num_fields_001.phpt][1;32mPASS[0m fbird_num_fields(): Basic test [tests/fbird_num_fields_001.phpt] 
-TEST 139/277 [tests/fbird_num_fields_003.phpt][1;32mPASS[0m fbird_num_fields(): Make sure passing an integer to the function throws an error. [tests/fbird_num_fields_003.phpt] 
-TEST 140/277 [tests/fbird_num_fields_004.phpt][1;32mPASS[0m fbird_num_fields(): Make sure passing zero arguments to the function throws an error [tests/fbird_num_fields_004.phpt] 
-TEST 141/277 [tests/fbird_num_params_001.phpt][1;32mPASS[0m fbird_num_params(): Basic test [tests/fbird_num_params_001.phpt] 
-TEST 142/277 [tests/fbird_num_params_003.phpt][1;32mPASS[0m fbird_num_params(): Basic test [tests/fbird_num_params_003.phpt] 
-TEST 143/277 [tests/fbird_num_params_004.phpt][1;32mPASS[0m fbird_num_params(): Basic test [tests/fbird_num_params_004.phpt] 
-TEST 144/277 [tests/fbird_param_info_001.phpt][1;32mPASS[0m fbird_param_info(): Basic test [tests/fbird_param_info_001.phpt] 
-TEST 145/277 [tests/fbird_param_info_003.phpt][1;32mPASS[0m fbird_param_info(): Error if called with a single argument [tests/fbird_param_info_003.phpt] 
-TEST 146/277 [tests/fbird_param_info_004.phpt][1;32mPASS[0m fbird_param_info(): Basic test with fbird_query() [tests/fbird_param_info_004.phpt] 
-TEST 147/277 [tests/fbird_pconnect_001.phpt][1;32mPASS[0m fbird_pconnect() - persistent connection test [tests/fbird_pconnect_001.phpt] 
-TEST 148/277 [tests/fbird_pconnect_shutdown_001.phpt][1;32mPASS[0m fbird_pconnect() - clean shutdown without SIGSEGV (Issue #50, #51) [tests/fbird_pconnect_shutdown_001.phpt] 
-TEST 149/277 [tests/fbird_prepare_ex.phpt][1;32mPASS[0m fbird_prepare_ex() with fixed signature [tests/fbird_prepare_ex.phpt] 
-TEST 150/277 [tests/fbird_query_stmt_release_001.phpt][1;32mPASS[0m fbird_query: server-side prepared statements are freed after DML execution (issue #135) [tests/fbird_query_stmt_release_001.phpt] 
-TEST 151/277 [tests/fbird_query_stmt_release_002.phpt][1;33mSKIP[0m fbird_query: FB 4.0+ server-side statement cleanup via IStatement::free() and IResultSet::close() [tests/fbird_query_stmt_release_002.phpt] reason: : Firebird server version < 4.0
-TEST 152/277 [tests/fbird_rollback_001.phpt][1;32mPASS[0m fbird_rollback(): Basic test [tests/fbird_rollback_001.phpt] 
-TEST 153/277 [tests/fbird_rollback_002.phpt][1;32mPASS[0m fbird_rollback(): Make sure the method can be invoked with zero arguments [tests/fbird_rollback_002.phpt] 
-TEST 154/277 [tests/fbird_rollback_ret_001.phpt][1;32mPASS[0m fbird_rollback_ret(): Make sure the method can be invoked with zero arguments [tests/fbird_rollback_ret_001.phpt] 
-TEST 155/277 [tests/fbird_service_001.phpt][1;32mPASS[0m fbird_service_attach() specific error messages [tests/fbird_service_001.phpt] 
-TEST 156/277 [tests/fbird_service_002.phpt][1;32mPASS[0m fbird_server_info() basic and expanded constants [tests/fbird_service_002.phpt] 
-TEST 157/277 [tests/fbird_service_db_mgr.phpt][1;32mPASS[0m fbird_service_db_mgr: Info and Maintenance [tests/fbird_service_db_mgr.phpt] 
-TEST 158/277 [tests/fbird_service_ini_defaults.phpt][1;32mPASS[0m fbird_service_attach() should use INI default credentials (Issue #71) [tests/fbird_service_ini_defaults.phpt] 
-TEST 159/277 [tests/fbird_service_oo_001.phpt][1;32mPASS[0m fbird_service_attach: OO API bridge - attach and retrieve server version [tests/fbird_service_oo_001.phpt] 
-TEST 160/277 [tests/fbird_service_oo_002.phpt][1;32mPASS[0m fbird_backup/fbird_restore: OO API bridge - backup and restore round-trip [tests/fbird_service_oo_002.phpt] 
-TEST 161/277 [tests/fbird_service_user.phpt][1;32mPASS[0m fbird_service_user: Add, Modify, Delete, and List Users [tests/fbird_service_user.phpt] 
-TEST 162/277 [tests/fbird_sqlstate_001.phpt][1;32mPASS[0m fbird_sqlstate() - SQLSTATE error code retrieval [tests/fbird_sqlstate_001.phpt] 
-TEST 163/277 [tests/fbird_trans_002.phpt][1;32mPASS[0m fbird_trans(): Basic operations [tests/fbird_trans_002.phpt] 
-TEST 164/277 [tests/fbird_trans_003.phpt][1;32mPASS[0m fbird_trans(): Check order of link identifier and trans args [tests/fbird_trans_003.phpt] 
-TEST 165/277 [tests/fbird_trans_004.phpt][1;32mPASS[0m fbird_trans(): handles [tests/fbird_trans_004.phpt] 
-TEST 166/277 [tests/fbird_trans_005.phpt][1;32mPASS[0m fbird_trans(): handles [tests/fbird_trans_005.phpt] 
-TEST 167/277 [tests/fbird_trans_006.phpt][1;32mPASS[0m fbird_trans(): handles [tests/fbird_trans_006.phpt] 
-TEST 168/277 [tests/fbird_trans_007.phpt][1;32mPASS[0m fbird_trans(): handles [tests/fbird_trans_007.phpt] 
-TEST 169/277 [tests/fbird_trans_008.phpt][1;32mPASS[0m fbird_trans(): transaction control with SQL [tests/fbird_trans_008.phpt] 
-TEST 170/277 [tests/fbird_trans_009.phpt][1;32mPASS[0m fbird_trans(): transaction control with SQL [tests/fbird_trans_009.phpt] 
-TEST 171/277 [tests/fbird_trans_010.phpt][1;32mPASS[0m fbird_trans(): transaction control with SQL - commit default transaction [tests/fbird_trans_010.phpt] 
-TEST 172/277 [tests/fbird_trans_011.phpt][1;32mPASS[0m fbird_trans(): transaction control with SQL - commit explicitly [tests/fbird_trans_011.phpt] 
-TEST 173/277 [tests/fbird_trans_012.phpt][1;32mPASS[0m fbird_trans(): handles [tests/fbird_trans_012.phpt] 
-TEST 174/277 [tests/fbird_trans_013.phpt][1;32mPASS[0m fbird_trans(): handles [tests/fbird_trans_013.phpt] 
-TEST 175/277 [tests/fbird_trans_014.phpt][1;32mPASS[0m fbird_trans(): Basic test [tests/fbird_trans_014.phpt] 
-TEST 176/277 [tests/fbird_version.phpt][1;32mPASS[0m fbird_version: verify extension version information [tests/fbird_version.phpt] 
-TEST 177/277 [tests/gh135_stmt_leak_001.phpt][1;32mPASS[0m GitHub #135: fbird_query() SELECT must free parent statement immediately (no server leak) [tests/gh135_stmt_leak_001.phpt] 
-TEST 178/277 [tests/gh135_stmt_leak_002.phpt][1;32mPASS[0m GitHub #135: fbird_execute_query() SELECT must free parent statement immediately (no server leak) [tests/gh135_stmt_leak_002.phpt] 
-TEST 179/277 [tests/gh135_stmt_leak_003.phpt][1;32mPASS[0m GitHub #135: fbird_query_params_tx() SELECT must free parent statement immediately (no server leak) [tests/gh135_stmt_leak_003.phpt] 
-TEST 180/277 [tests/gh135_stmt_leak_004.phpt][1;32mPASS[0m GitHub #135: EXECUTE PROCEDURE tight loop must not leak server-side statements [tests/gh135_stmt_leak_004.phpt] 
-TEST 181/277 [tests/gh135_stmt_leak_005.phpt][1;32mPASS[0m GitHub #135: DML RETURNING tight loop must not leak server-side statements (FB 2.1+) [tests/gh135_stmt_leak_005.phpt] 
-TEST 182/277 [tests/gh135_stmt_leak_006.phpt][1;32mPASS[0m GitHub #135: Error path cleanup - failed execute must not leak parent statement [tests/gh135_stmt_leak_006.phpt] 
-TEST 183/277 [tests/gh135_stmt_leak_007.phpt][1;32mPASS[0m GitHub #135: Mixed lifecycle - prepare/execute/free ordering combinations [tests/gh135_stmt_leak_007.phpt] 
-TEST 184/277 [tests/ini_blob_segment_size.phpt][1;32mPASS[0m fbird.blob_segment_size INI setting [tests/ini_blob_segment_size.phpt] 
-TEST 185/277 [tests/ini_default_credentials.phpt][1;32mPASS[0m fbird.default_* INI settings (user, password, db, charset) [tests/ini_default_credentials.phpt] 
-TEST 186/277 [tests/ini_default_trans_params.phpt][1;32mPASS[0m fbird.default_trans_params INI setting [tests/ini_default_trans_params.phpt] 
-TEST 187/277 [tests/ini_enable_exceptions.phpt][1;32mPASS[0m fbird.enable_exceptions INI setting [tests/ini_enable_exceptions.phpt] 
-TEST 188/277 [tests/issue119.phpt][1;32mPASS[0m Issue #119: Regression in fbird_trans_start() with cached connections [tests/issue119.phpt] 
-TEST 189/277 [tests/issue120.phpt][1;32mPASS[0m Issue #120: fbird_connect() return type (Proposal for Connection Object) [tests/issue120.phpt] 
-TEST 190/277 [tests/issue121.phpt][1;32mPASS[0m Issue #121: add fbird_create_database() as a first-class procedural function [tests/issue121.phpt] 
-TEST 191/277 [tests/issue122.phpt][1;32mPASS[0m Issue #122: fbird_drop_db() with connection string overload [tests/issue122.phpt] 
-TEST 192/277 [tests/issue123.phpt][1;32mPASS[0m Issue #123: Exception mode default in v9 (Proposal) [tests/issue123.phpt] 
-TEST 193/277 [tests/issue124.phpt][1;32mPASS[0m Issue #124: fbird_connection_info() procedural API proposal [tests/issue124.phpt] 
-TEST 194/277 [tests/issue125.phpt][1;32mPASS[0m Issue #125: Deprecation of FBIRD_CREATE in fbird_query() [tests/issue125.phpt] 
-TEST 195/277 [tests/issue126.phpt][1;32mPASS[0m Issue #126: Standardize fbird_prepare() and fbird_trans() signatures [tests/issue126.phpt] 
-TEST 196/277 [tests/issue127.phpt][1;32mPASS[0m Issue #127: Clean EOF for fetch functions (No warnings) [tests/issue127.phpt] 
-TEST 197/277 [tests/issue128.phpt][1;32mPASS[0m Issue #128: fbird_execute() statement reuse [tests/issue128.phpt] 
-TEST 198/277 [tests/issue129.phpt][1;32mPASS[0m Issue #129: PHP stream support for BLOB parameters in fbird_execute() [tests/issue129.phpt] 
-TEST 199/277 [tests/issue130.phpt][1;32mPASS[0m Issue #130: fbird_last_insert_id() or normalized RETURNING support [tests/issue130.phpt] 
-TEST 200/277 [tests/issue131.phpt][1;32mPASS[0m Issue #131: fbird_commit_ret() resource lifecycle [tests/issue131.phpt] 
-TEST 201/277 [tests/issue14_transaction_begin_autoload.phpt][1;33mSKIP[0m Issue #14: Transaction::begin() must not require manual include of fbird_trans_begin wrapper [tests/issue14_transaction_begin_autoload.phpt] reason: Firebird\Transaction already registered as internal class
-TEST 202/277 [tests/issue22_pcntl_fork_001.phpt][1;32mPASS[0m Issue #22: No segmentation fault when extension loaded in forked process (pcntl_fork) [tests/issue22_pcntl_fork_001.phpt] 
-TEST 203/277 [tests/issue23_alias_padding_001.phpt][1;32mPASS[0m Issue #23: Column alias trimming — CHAR-padded aliases are returned without trailing spaces [tests/issue23_alias_padding_001.phpt] 
-TEST 204/277 [tests/issue35_001.phpt][1;32mPASS[0m Issue #35: fbird_prepare() fails to find table with SQL that has double quotes on table identifiers [tests/issue35_001.phpt] 
-TEST 205/277 [tests/issue77_001.phpt][1;32mPASS[0m Issue #77: Order of INSERT parameters cause "Incorrect values within SQLDA structure" [tests/issue77_001.phpt] 
-TEST 206/277 [tests/issue89_001.phpt][1;32mPASS[0m Issue #89: Passing result from fbird_prepare() to fbird_fetch_*() causes segfault. [tests/issue89_001.phpt] 
-TEST 207/277 [tests/issue99_001.phpt][1;32mPASS[0m Issue #99: CHAR fields should report as CHAR, not VARCHAR [tests/issue99_001.phpt] 
-TEST 208/277 [tests/long_names_001.phpt][1;33mSKIP[0m Long names: Firebird 4.0 or newer [tests/long_names_001.phpt] reason: Firebird server version 3 < 4
-TEST 209/277 [tests/long_names_002.phpt][1;32mPASS[0m Long names: Firebird 3.0 or older [tests/long_names_002.phpt] 
-TEST 210/277 [tests/migration_001.phpt][1;32mPASS[0m Migration reliability: fbird_drop_table_force logic [tests/migration_001.phpt] 
-TEST 211/277 [tests/oo_service_long_credentials.phpt][1;32mPASS[0m Security: Firebird\Service rejects oversized credentials (C2 fix) [tests/oo_service_long_credentials.phpt] 
-TEST 212/277 [tests/oo_wrapper_batch.phpt][1;33mSKIP[0m Firebird\Batch userland wrapper: fromQuery, add, execute, getRowCount, isExecuted, cancel [tests/oo_wrapper_batch.phpt] reason: cannot connect to Firebird
-TEST 213/277 [tests/oo_wrapper_database.phpt][1;32mPASS[0m Firebird\Database userland wrapper: connect, query, prepare, execute, getInfo, errors [tests/oo_wrapper_database.phpt] 
-TEST 214/277 [tests/oo_wrapper_dbinfo.phpt][1;32mPASS[0m Firebird\DbInfo userland wrapper: fromConnection, getters, toArray, fromArray [tests/oo_wrapper_dbinfo.phpt] 
-TEST 215/277 [tests/oo_wrapper_tbuilder.phpt][1;32mPASS[0m Firebird\TBuilder userland wrapper: fluent transaction builder, isolation, wait, reservations [tests/oo_wrapper_tbuilder.phpt] 
-TEST 216/277 [tests/oo_wrapper_transaction.phpt][1;32mPASS[0m Firebird\TransactionManager userland wrapper: begin, commit, rollback, savepoints, query [tests/oo_wrapper_transaction.phpt] 
-TEST 217/277 [tests/pdo_fbird/pdo_fbird_batch_dml.phpt][1;32mPASS[0m pdo_fbird: PDO::exec() with multiple semicolon-separated DML statements (batch DML) [tests/pdo_fbird/pdo_fbird_batch_dml.phpt] 
-TEST 218/277 [tests/pdo_fbird_001.phpt][1;32mPASS[0m pdo_fbird: basic connection via fbird: DSN prefix [tests/pdo_fbird_001.phpt] 
-TEST 219/277 [tests/pdo_fbird_002.phpt][1;32mPASS[0m pdo_fbird: basic query and fetch [tests/pdo_fbird_002.phpt] 
-TEST 220/277 [tests/pdo_fbird_003.phpt][1;32mPASS[0m pdo_fbird: transaction commit and rollback [tests/pdo_fbird_003.phpt] 
-TEST 221/277 [tests/pdo_fbird_array_fields.phpt][1;32mPASS[0m PDO Firebird: Array field support (read INTEGER and VARCHAR arrays) [tests/pdo_fbird_array_fields.phpt] 
-TEST 222/277 [tests/pdo_fbird_attr_datetime_format.phpt][1;32mPASS[0m pdo_fbird: date/time/timestamp format attributes set/get [tests/pdo_fbird_attr_datetime_format.phpt] 
-TEST 223/277 [tests/pdo_fbird_autocommit.phpt][1;32mPASS[0m pdo_fbird: autocommit mode — basic attribute check [tests/pdo_fbird_autocommit.phpt] 
-TEST 224/277 [tests/pdo_fbird_autocommit_change.phpt][1;32mPASS[0m pdo_fbird: switch autocommit mode mid-connection [tests/pdo_fbird_autocommit_change.phpt] 
-TEST 225/277 [tests/pdo_fbird_bind_config.phpt][1;33mSKIP[0m PDO Firebird: SET BIND attribute (FB 4+ only) [tests/pdo_fbird_bind_config.phpt] reason: requires Firebird 4.0+
-TEST 226/277 [tests/pdo_fbird_blob_handling.phpt][1;32mPASS[0m PDO_FBIRD: BLOB insert via exec, read as string and stream [tests/pdo_fbird_blob_handling.phpt] 
-TEST 227/277 [tests/pdo_fbird_blob_read.phpt][1;32mPASS[0m pdo_fbird: BLOB column reading as string [tests/pdo_fbird_blob_read.phpt] 
-TEST 228/277 [tests/pdo_fbird_blob_stream.phpt][1;32mPASS[0m pdo_fbird: BLOB streaming via bindColumn with PDO::PARAM_LOB [tests/pdo_fbird_blob_stream.phpt] 
-TEST 229/277 [tests/pdo_fbird_bug_error_codes.phpt][1;32mPASS[0m pdo_fbird: SQLSTATE error code mapping [tests/pdo_fbird_bug_error_codes.phpt] 
-TEST 230/277 [tests/pdo_fbird_check_liveness.phpt][1;32mPASS[0m PDO Firebird: check_liveness via fbc_ping() [tests/pdo_fbird_check_liveness.phpt] 
-TEST 231/277 [tests/pdo_fbird_column_metadata.phpt][1;32mPASS[0m pdo_fbird: column metadata via describe and fetch types [tests/pdo_fbird_column_metadata.phpt] 
-TEST 232/277 [tests/pdo_fbird_connect.phpt][1;32mPASS[0m pdo_fbird: connection DSN variants, charset, role [tests/pdo_fbird_connect.phpt] 
-TEST 233/277 [tests/pdo_fbird_datetime_format.phpt][1;32mPASS[0m pdo_fbird: DATE/TIME/TIMESTAMP formatting and custom format attributes [tests/pdo_fbird_datetime_format.phpt] 
-TEST 234/277 [tests/pdo_fbird_ddl.phpt][1;32mPASS[0m pdo_fbird: DDL operations (CREATE, ALTER, DROP) [tests/pdo_fbird_ddl.phpt] 
-TEST 235/277 [tests/pdo_fbird_ddl2.phpt][1;33mSKIP[0m pdo_fbird: DDL — sequences, views, stored procedures [tests/pdo_fbird_ddl2.phpt] reason: requires Firebird 4.0+ (ALTER SEQUENCE RESTART semantics)
-TEST 236/277 [tests/pdo_fbird_dialect.phpt][1;32mPASS[0m pdo_fbird: SQL dialect handling [tests/pdo_fbird_dialect.phpt] 
-TEST 237/277 [tests/pdo_fbird_error_handle.phpt][1;32mPASS[0m pdo_fbird: error handling modes (ERRMODE_EXCEPTION and ERRMODE_WARNING) [tests/pdo_fbird_error_handle.phpt] 
-TEST 238/277 [tests/pdo_fbird_events.phpt][1;32mPASS[0m PDO Firebird: Event API — register, wait, count, cancel [tests/pdo_fbird_events.phpt] 
-TEST 239/277 [tests/pdo_fbird_execute.phpt][1;32mPASS[0m pdo_fbird: INSERT/UPDATE/DELETE/SELECT execute variations [tests/pdo_fbird_execute.phpt] 
-TEST 240/277 [tests/pdo_fbird_execute_block.phpt][1;32mPASS[0m pdo_fbird: EXECUTE BLOCK with named params preserved inside BEGIN...END [tests/pdo_fbird_execute_block.phpt] 
-TEST 241/277 [tests/pdo_fbird_fb4_datatypes.phpt][1;33mSKIP[0m pdo_fbird: FB 4+ datatypes (INT128, DECFLOAT) [tests/pdo_fbird_fb4_datatypes.phpt] reason: Firebird 4.0+ required
-TEST 242/277 [tests/pdo_fbird_fb4_datatypes_params.phpt][1;33mSKIP[0m pdo_fbird: FB4+ datatype parameter binding (INT128, DECFLOAT, TIME_TZ, TIMESTAMP_TZ) [tests/pdo_fbird_fb4_datatypes_params.phpt] reason: FB4+ types not supported: SQLSTATE[23000]: Integrity constraint violation: 335544569 Dynamic SQL Error SQL error code = -104 Token unknown - line 1, column 36 (
-TEST 243/277 [tests/pdo_fbird_fetch_modes.phpt][1;32mPASS[0m pdo_fbird: fetch modes (ASSOC, NUM, BOTH, OBJ, COLUMN, KEY_PAIR) [tests/pdo_fbird_fetch_modes.phpt] 
-TEST 244/277 [tests/pdo_fbird_fetch_table_names.phpt][1;32mPASS[0m pdo_fbird: FETCH_TABLE_NAMES attribute set/get and describe_col prepend [tests/pdo_fbird_fetch_table_names.phpt] 
-TEST 245/277 [tests/pdo_fbird_ignore_parammarks.phpt][1;32mPASS[0m pdo_fbird: placeholder parsing edge cases (colons in strings, comments) [tests/pdo_fbird_ignore_parammarks.phpt] 
-TEST 246/277 [tests/pdo_fbird_last_insert_id.phpt][1;32mPASS[0m PDO Firebird: lastInsertId() with sequence name (#130) [tests/pdo_fbird_last_insert_id.phpt] 
-TEST 247/277 [tests/pdo_fbird_multi_statement.phpt][1;32mPASS[0m pdo_fbird: multiple concurrent statements [tests/pdo_fbird_multi_statement.phpt] 
-TEST 248/277 [tests/pdo_fbird_named_params.phpt][1;32mPASS[0m pdo_fbird: named parameter :name resolution in prepared statements [tests/pdo_fbird_named_params.phpt] 
-TEST 249/277 [tests/pdo_fbird_nullable_binding.phpt][1;32mPASS[0m pdo_fbird: NULL binding on NOT NULL columns via sqltype |= 1 [tests/pdo_fbird_nullable_binding.phpt] 
-TEST 250/277 [tests/pdo_fbird_persistent_connect.phpt][1;32mPASS[0m pdo_fbird: persistent connection attribute handling [tests/pdo_fbird_persistent_connect.phpt] 
-TEST 251/277 [tests/pdo_fbird_quote_001.phpt][1;32mPASS[0m pdo_fbird: PDO::quote() doubles single quotes and wraps in quotes [tests/pdo_fbird_quote_001.phpt] 
-TEST 252/277 [tests/pdo_fbird_rowCount.phpt][1;32mPASS[0m pdo_fbird: rowCount() accuracy after DML operations [tests/pdo_fbird_rowCount.phpt] 
-TEST 253/277 [tests/pdo_fbird_scrollable_cursor.phpt][1;33mSKIP[0m pdo_fbird: scrollable cursor fetch orientations [tests/pdo_fbird_scrollable_cursor.phpt] reason: scrollable cursors not supported (requires Firebird 5.0+ client and server)
-TEST 254/277 [tests/pdo_fbird_service_api.phpt][1;32mPASS[0m PDO Firebird: Service API via PDO attributes [tests/pdo_fbird_service_api.phpt] 
-TEST 255/277 [tests/pdo_fbird_service_backup.phpt][1;32mPASS[0m PDO_FBIRD: Service API backup and restore operations [tests/pdo_fbird_service_backup.phpt] 
-TEST 256/277 [tests/pdo_fbird_stmt_cleanup.phpt][1;32mPASS[0m pdo_fbird: statement cleanup (closeCursor, re-execute, destructor) [tests/pdo_fbird_stmt_cleanup.phpt] 
-TEST 257/277 [tests/pdo_fbird_transaction_access_mode.phpt][1;32mPASS[0m pdo_fbird: WRITABLE_TRANSACTION attribute (read-only vs read-write) [tests/pdo_fbird_transaction_access_mode.phpt] 
-TEST 258/277 [tests/pdo_fbird_txn_isolation_attr.phpt][1;32mPASS[0m pdo_fbird: transaction commit and rollback behavior [tests/pdo_fbird_txn_isolation_attr.phpt] 
-TEST 259/277 [tests/pdo_fbird_txn_isolation_behavior.phpt][1;32mPASS[0m PDO_FBIRD: Transaction isolation level behavior verification [tests/pdo_fbird_txn_isolation_behavior.phpt] 
-TEST 260/277 [tests/proc-001.phpt][1;32mPASS[0m Procedures [tests/proc-001.phpt] 
-TEST 261/277 [tests/repro_segfault_blob.phpt][1;32mPASS[0m Bug: Segfault on resource cleanup with BLOBs [tests/repro_segfault_blob.phpt] 
-TEST 262/277 [tests/repro_var_export_bug.phpt][1;32mPASS[0m M3: fbird_execute() returns Firebird\ResultSet object (var_dump and var_export) [tests/repro_var_export_bug.phpt] 
-TEST 263/277 [tests/resource_type_validation_001.phpt][1;32mPASS[0m Resource type validation: TypeError exceptions for wrong resource types [tests/resource_type_validation_001.phpt] 
-TEST 264/277 [tests/returning_001.phpt][1;32mPASS[0m INSERT / UPDATE using RETURNING [tests/returning_001.phpt] 
-TEST 265/277 [tests/savepoint_001.phpt][1;32mPASS[0m fbird_savepoint(), fbird_rollback_savepoint(), fbird_release_savepoint() [tests/savepoint_001.phpt] 
-TEST 266/277 [tests/savepoint_error_001.phpt][1;32mPASS[0m fbird_savepoint() error handling [tests/savepoint_error_001.phpt] 
-TEST 267/277 [tests/tbuilder_001.phpt][1;32mPASS[0m TBuilder: Fluent transaction parameter builder [tests/tbuilder_001.phpt] 
-TEST 268/277 [tests/test_blob_stream.phpt][1;32mPASS[0m Firebird: Stream Wrapper for BLOBs (Phase 3) - Full Cycle [tests/test_blob_stream.phpt] 
-TEST 269/277 [tests/time_003.phpt][1;32mPASS[0m FBIRD_UNIXTIME: ignore FBIRD_UNIXTIME flag for TIME fields [tests/time_003.phpt] 
-TEST 270/277 [tests/time_004.phpt][1;33mSKIP[0m FBIRD_UNIXTIME: ignore FBIRD_UNIXTIME flag for TIME_TZ fields [tests/time_004.phpt] reason: Firebird server version 3 < 4
-TEST 271/277 [tests/timezone_001.phpt][1;33mSKIP[0m Firebird 4.0+ TIMESTAMP WITH TIME ZONE and TIME WITH TIME ZONE parameterized binding [tests/timezone_001.phpt] reason: Firebird server version 3 < 4
-TEST 272/277 [tests/timezone_002.phpt][1;33mSKIP[0m Firebird 4.0+ timezone types: direct queries and FBIRD_UNIXTIME behavior [tests/timezone_002.phpt] reason: Firebird server version 3 < 4
-TEST 273/277 [tests/timezone_003.phpt][1;33mSKIP[0m Firebird 4.0+ timezone types: UPDATE operations with parameterized binding [tests/timezone_003.phpt] reason: Firebird server version 3 < 4
-TEST 274/277 [tests/trans_tpb_001.phpt][1;32mPASS[0m fbird_trans_start() with new array options and fbird_trans_info() [tests/trans_tpb_001.phpt] 
-TEST 275/277 [tests/trans_tpb_comprehensive.phpt][1;32mPASS[0m Comprehensive TPB (Transaction Parameter Block) feature verification [tests/trans_tpb_comprehensive.phpt] 
-TEST 276/277 [tests/trans_tpb_reservation.phpt][1;32mPASS[0m fbird_trans_start() with Table Reservation (Locking) [tests/trans_tpb_reservation.phpt] 
-TEST 277/277 [tests/use_after_free-002.phpt][1;32mPASS[0m Firebird: use after fbird_free_query() [tests/use_after_free-002.phpt] 
-=====================================================================
-Number of tests :   277               243
-Tests skipped   :    34 ( 12.3%) --------
-Tests warned    :     0 (  0.0%) (  0.0%)
-Tests failed    :     0 (  0.0%) (  0.0%)
-Tests passed    :   243 ( 87.7%) (100.0%)
----------------------------------------------------------------------
-Time taken      : 156.939 seconds
-=====================================================================
-Testing complete.

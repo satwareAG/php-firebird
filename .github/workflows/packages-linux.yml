@@ -2,8 +2,13 @@
 # PHP Firebird Extension - Native Package Build & Deploy Workflow
 # =============================================================================
 #
-# Builds .deb packages on tag push (v13.1.0+) and uploads them to the
-# self-hosted APT repo at packages.satware.com/apt/ via rsync+ssh.
+# Builds .deb, .rpm, and .apk packages on tag push (v13.1.0+) and uploads
+# them as GitHub Release assets. The satis-deploy Gitea runner (spec-008)
+# polls GitHub Releases API and deploys to packages.auc.de (staging).
+#
+# Production deployment to packages.satware.com is deferred until the VPS
+# is provisioned (satis spec-007 Phase D). The upload-apt job is kept
+# but disabled (if: false) for future re-enablement.
 #
 # Triggers:
 #   - Tag push (v*.*.*) - immutable releases
@@ -12,9 +17,10 @@
 # Dependencies:
 #   - packaging/debian/build-matrix.sh (#483) - iterates 32 combos
 #   - packaging/debian/build.sh (#482) - single build script
+#   - packaging/rpm/build.sh (#495) - RPM build inside manylinux
+#   - packaging/apk/APKBUILD (#496) - Alpine APK build
 #   - packaging/fb-client-bundle/fetch-client.sh (#486) - FB5 client
-#   - APT_DEPLOY_SSH_KEY secret - SSH key for rsync to VPS
-#   - APT_GPG_PRIVATE_KEY secret - GPG key for metadata signing
+#   - satis spec-008: Gitea runner downloads from GitHub Release assets
 #
 # =============================================================================
 
@@ -32,24 +38,27 @@ on:
         default: '8.2,8.3,8.4,8.5'
         type: string
       distros:
-        description: 'Distros (comma-separated)'
+        description: 'Distros (comma-separated, deb only)'
         required: false
         default: 'bookworm,trixie,jammy,noble'
         type: string
       upload_to_vps:
-        description: 'Upload to packages.satware.com (needs VPS)'
+        description: 'Upload to packages.satware.com (needs VPS - not ready)'
         required: false
         default: false
         type: boolean
 
 permissions:
-  contents: read
+  contents: write  # jane: needed for uploading release assets
 
 concurrency:
   group: packages-linux-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
+  # ===========================================================================
+  # Job 1: Build .deb packages (Debian/Ubuntu)
+  # ===========================================================================
   build-deb:
     name: Build .deb packages
     runs-on: ubuntu-24.04
@@ -93,12 +102,272 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
+  # ===========================================================================
+  # Job 2: Build .rpm packages (AlmaLinux/Rocky/RHEL/Fedora)
+  # ===========================================================================
+  build-rpm:
+    name: Build .rpm (${{ matrix.distro }}-x86_64)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [el8, el9, fc41]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Ensure VERSION.txt
+        uses: ./.github/actions/version
+
+      - name: Setup build container and PHP version
+        id: container
+        run: |
+          case "${{ matrix.distro }}" in
+            el8)  IMAGE="almalinux:8";  PHP_VER="8.2" ;;
+            el9)  IMAGE="almalinux:9";  PHP_VER="8.2" ;;
+            fc41) IMAGE="fedora:41";   PHP_VER="8.3" ;;
+          esac
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "php_ver=$PHP_VER" >> "$GITHUB_OUTPUT"
+
+      - name: Build .rpm inside container
+        env:
+          PHP_VER: ${{ steps.container.outputs.php_ver }}
+        run: |
+          set -eu
+          IMAGE="${{ steps.container.outputs.image }}"
+
+          docker run --rm \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            -e FB_ROOT=/opt/firebird \
+            -e OUTPUT_DIR=dist/rpm/${{ matrix.distro }} \
+            -e VERBOSE=1 \
+            -e PHP_VER="$PHP_VER" \
+            "$IMAGE" \
+            bash -c '
+              set -eu
+
+              # Install build dependencies.
+              # jane: EL8/9 ship PHP 8.0/8.1 via php-devel. We build against
+              #       the distro default PHP ABI, not a hardcoded version.
+              #       Fedora 41 ships PHP 8.3.
+              if command -v dnf >/dev/null 2>&1; then
+                dnf install -y epel-release 2>/dev/null || true
+                dnf install -y php-devel autoconf automake re2c gcc gcc-c++ make \
+                  patchelf rpm-build cmake ninja-build git tar libtommath-devel
+              else
+                yum install -y epel-release 2>/dev/null || true
+                yum install -y php-devel autoconf automake re2c gcc gcc-c++ make \
+                  patchelf rpm-build cmake ninja-build git tar libtommath-devel
+              fi
+
+              # Build the RPM using the distro-default PHP version.
+              # jane: --php-version resolves phpize${VER}/php-config${VER},
+              #       falling back to unversioned if versioned binary is absent.
+              bash packaging/rpm/build.sh \
+                --php-version "$PHP_VER" \
+                --distro ${{ matrix.distro }} \
+                --arch x86_64 \
+                --output-dir dist/rpm/${{ matrix.distro }} \
+                --verbose
+            '
+
+      - name: Find RPM files
+        id: find
+        run: |
+          set -eu
+          RPM_DIR="dist/rpm/${{ matrix.distro }}"
+          RPM_COUNT=$(find "$RPM_DIR" -name "*.rpm" -type f | wc -l)
+          echo "count=$RPM_COUNT" >> "$GITHUB_OUTPUT"
+          echo "Found $RPM_COUNT .rpm files in $RPM_DIR:"
+          find "$RPM_DIR" -name "*.rpm" -type f -exec ls -lh {} \;
+
+      - name: Upload .rpm artifacts
+        if: steps.find.outputs.count != '0'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: rpm-packages-${{ matrix.distro }}
+          path: dist/rpm/${{ matrix.distro }}/**/*.rpm
+          if-no-files-found: error
+          retention-days: 30
+
+  # ===========================================================================
+  # Job 3: Build .apk packages (Alpine Linux)
+  # ===========================================================================
+  build-apk:
+    name: Build .apk (Alpine 3.21 x86_64)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Ensure VERSION.txt
+        uses: ./.github/actions/version
+
+      - name: Patch APKBUILD pkgver to match tag
+        run: |
+          VERSION=$(cat VERSION.txt)
+          echo "Patching APKBUILD pkgver to $VERSION"
+          sed -i "s/^pkgver=.*/pkgver=$VERSION/" packaging/apk/APKBUILD
+          grep '^pkgver=' packaging/apk/APKBUILD
+
+      - name: Build .apk inside Alpine container
+        run: |
+          set -eu
+          docker run --rm \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            -e VERBOSE=1 \
+            alpine:3.21 \
+            sh -c '
+              set -eu
+
+              # Install build dependencies.
+              # jane: APKBUILD makedepends lists "ninja", not "samurai".
+              apk add --no-cache \
+                alpine-sdk \
+                php84-dev \
+                php84-pdo \
+                autoconf \
+                automake \
+                re2c \
+                build-base \
+                cmake \
+                ninja \
+                git \
+                icu-dev \
+                patchelf
+
+              # Create abuild user (abuild requires non-root)
+              adduser -D -h /home/builder builder
+              addgroup builder abuild
+              echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+              # Generate abuild keypair and install public key.
+              # jane: -i flag installs the key to /etc/apk/keys/ via sudo.
+              #       Without -i, the key stays in ~/.abuild and abuild fails
+              #       to verify its own packages.
+              su builder -c "abuild-keygen -n -i"
+
+              # Run abuild, writing output to the mounted workspace.
+              # jane: abuild writes to REPODEST (default: ~/packages, ephemeral
+              #       in container). Set REPODEST to /workspace/dist/apk so
+              #       .apk files survive container exit.
+              cd packaging/apk
+              su builder -c "REPODEST=/workspace/dist/apk abuild -r"
+            '
+
+      - name: Find APK files
+        id: find
+        run: |
+          set -eu
+          # jane: abuild writes to REPODEST=/workspace/dist/apk.
+          #       Structure: dist/apk/<pkgname>/x86_64/*.apk
+          APK_DIR="dist/apk"
+
+          if [ ! -d "$APK_DIR" ]; then
+            echo "ERROR: $APK_DIR not found" >&2
+            exit 1
+          fi
+
+          APK_COUNT=$(find "$APK_DIR" -name "*.apk" -type f | wc -l)
+          echo "dir=$APK_DIR" >> "$GITHUB_OUTPUT"
+          echo "count=$APK_COUNT" >> "$GITHUB_OUTPUT"
+          echo "Found $APK_COUNT .apk files in $APK_DIR:"
+          find "$APK_DIR" -name "*.apk" -type f -exec ls -lh {} \;
+
+      - name: Upload .apk artifacts
+        if: steps.find.outputs.count != '0'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: apk-packages
+          path: ${{ steps.find.outputs.dir }}/**/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+  # ===========================================================================
+  # Job 4: Upload all packages to GitHub Release (as draft assets)
+  # ===========================================================================
+  # jane: satis spec-008 Gitea runner downloads from GitHub Release assets.
+  #       Actions artifacts expire in 30 days; Release assets are permanent.
+  #       All three formats are uploaded as draft (publish-release.yml flips
+  #       draft:false after validating SLSA attestations).
+  upload-release-assets:
+    name: Upload packages to GitHub Release
+    needs: [build-deb, build-rpm, build-apk]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Download .deb artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: deb-packages
+          path: release-assets/deb
+
+      - name: Download .rpm artifacts (el8)
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: rpm-packages-el8
+          path: release-assets/rpm/el8
+
+      - name: Download .rpm artifacts (el9)
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: rpm-packages-el9
+          path: release-assets/rpm/el9
+
+      - name: Download .rpm artifacts (fc41)
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: rpm-packages-fc41
+          path: release-assets/rpm/fc41
+
+      - name: Download .apk artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: apk-packages
+          path: release-assets/apk
+
+      - name: Flatten package files for release upload
+        run: |
+          set -eu
+          mkdir -p upload
+          # Flatten all packages into upload/ with descriptive names
+          find release-assets -name "*.deb" -exec cp {} upload/ \;
+          find release-assets -name "*.rpm" -exec cp {} upload/ \;
+          find release-assets -name "*.apk" -exec cp {} upload/ \;
+
+          echo "=== Files to upload ==="
+          ls -lh upload/
+          echo "Total: $(find upload -type f | wc -l) files"
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3
+        with:
+          files: upload/*
+          draft: true
+          tag_name: ${{ github.ref_name }}
+
+  # ===========================================================================
+  # Job 5: Upload to packages.satware.com (DISABLED - VPS not provisioned)
+  # ===========================================================================
+  # jane: satis spec-007 Phase D (production VPS) is not yet started.
+  #       packages.satware.com resolves to the Securepoint firewall, not a VPS.
+  #       Re-enable when the VPS is provisioned and SSH deploy key is set up.
   upload-apt:
-    name: Upload to packages.satware.com/apt/
+    name: Upload to packages.satware.com/apt/ (disabled - no VPS)
     needs: build-deb
-    if: |
-      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
-      (github.event_name == 'workflow_dispatch' && inputs.upload_to_vps)
+    if: false  # jane: disabled until packages.satware.com VPS exists (spec-007 Phase D)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 
@@ -127,7 +396,6 @@ jobs:
       - name: Upload .deb files via rsync
         run: |
           set -eu
-          # Upload per-distro subdirectories
           for distro_dir in dist/deb/*/; do
             distro=$(basename "$distro_dir")
             [ "$distro" = "dists" ] && continue
@@ -139,7 +407,6 @@ jobs:
               "${DEPLOY_USER}@packages.satware.com:/var/www/apt/${distro}/"
           done
 
-          # Upload APT metadata
           if [ -d dist/deb/dists ]; then
             rsync -az \
               -e "ssh -i ~/.ssh/deploy_key" \

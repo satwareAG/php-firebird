@@ -23,7 +23,7 @@
 
 # Maintainer: satware AG <info@satware.com>
 pkgname=php84-firebird
-pkgver=13.0.3
+pkgver=13.1.0
 pkgrel=0
 pkgdesc="Modern Firebird database extension for PHP 8.4 (fbird_* API + OOP + PDO)"
 url="https://github.com/satwareAG/php-firebird"

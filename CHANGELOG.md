@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [13.1.0] - 2026-08-08
+
+### Added
+
+- **Transparent DDL commit+restart for explicit transactions (#540)**:
+  When `fbird_query()` detects a DDL statement (`statement_type ==
+  isc_info_sql_stmt_ddl`) on an explicit transaction, it transparently does a
+  hard commit + transaction restart before executing the DDL. This releases all
+  metadata locks from prior cursor activity (e.g., SELECT from `RDB$RELATIONS`
+  in schema introspection) that persist across `fbird_commit_ret()` and would
+  otherwise block DDL indefinitely.
+
+  **Behavioral change**: DDL on explicit transactions now commits pending DML
+  in the same transaction. This is intentional (issue #540 option 3:
+  auto-detection in `fbird_query()`) and matches the doctrine-firebird-driver
+  auto-commit simulation pattern where `fbird_commit_ret()` is used. The
+  transaction handle stays valid — the restart is transparent to the caller.
+
+  Tests: `tests/issue540_metadata_lock_release.phpt` (procedural),
+  `tests/issue540_oop_metadata_lock_release.phpt` (OOP regression).
+
+- **APT install smoke test job (#490)**: New `test-apt-install` job in
+  `packages-linux.yml` that tests end-to-end APT install from the staging
+  repo (`packages.auc.de/apt/`) on Debian 12 and Ubuntu 24.04 with PHP 8.4.
+  Verifies `php -m` shows firebird + pdo_fbird, all `fbird_*` functions exist,
+  RPATH + bundled libs are correct.
+
+- **`docs/packaging/INSTALL-GITHUB.md` documentation (#505)**: Documents `wget + apt install`
+  (Debian/Ubuntu), `wget + dnf install` (Fedora), and `wget + apk add`
+  (Alpine) workflow from GitHub Releases. Cross-referenced in all existing
+  INSTALL docs.
+
+### Downstream Impact
+
+- **doctrine-firebird-driver#153**: `gc_collect_cycles()` workarounds in
+  `SchemaManagerFunctionalTestCase.php` (lines 1867, 1911) can be removed once
+  `ext-firebird ^13.1.0` is the minimum constraint.
+
+### Test Matrix
+
+| PHP | FB3 | FB4 | FB5 | Total |
+|-----|-----|-----|-----|-------|
+| 8.2 | 343 | 385 | 386 | 1,114 |
+| 8.3 | 343 | 388 | 389 | 1,120 |
+| 8.4 | 343 | 388 | 390 | 1,121 |
+| 8.5 | 343 | 388 | 389 | 1,120 |
+
+0 failures across 4,475 test executions.
+
+## [13.0.3] - 2026-07-21
+
+### Fixed
+
+- **pdo-fbird split package self-contained (#563/#564)**: Fixed the split
+  `pdo-fbird` PIE package so it no longer depends on the main `firebird.so`
+  being installed. Each package now bundles its own copy of the Firebird
+  client library via RPATH.
+
 ## [13.0.2] - 2026-07-21
 
 ### Out-of-Tree Build Architecture

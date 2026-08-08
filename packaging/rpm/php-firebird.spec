@@ -31,7 +31,7 @@
 %define _build_id_links none
 
 Name:           php-firebird
-Version:        13.0.3
+Version:        13.1.0
 Release:        1%{?dist}
 Summary:        Modern Firebird database extension for PHP
 
@@ -156,6 +156,11 @@ done
 %doc README.md CHANGELOG.md
 
 %changelog
+* Fri Aug 08 2026 satware AG <info@satware.com> - 13.1.0-1
+- Transparent DDL commit+restart for explicit transactions (#540)
+- APT install smoke test job (#490)
+- INSTALL-GITHUB.md documentation (#505)
+
 * Thu Aug 07 2026 satware AG <info@satware.com> - 13.0.3-1
 - Initial RPM spec for EL8/9 + Fedora
 - Mirrors packaging/debian/ structure with RPM conventions

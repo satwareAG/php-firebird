@@ -112,7 +112,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        distro: [el8, el9, fc41]
+        # jane: el8/el9 temporarily excluded. EL8 ships PHP 8.0, EL9 ships
+        #       PHP 8.1 — php-firebird requires 8.2+. Need Remi repo setup
+        #       before re-enabling. fc41 ships PHP 8.3 (base repo).
+        distro: [fc41]
 
     steps:
       - name: Checkout repository

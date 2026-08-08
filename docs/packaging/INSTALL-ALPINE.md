@@ -107,7 +107,7 @@ doas apk update
 ## Alternative installation methods
 
 - **PIE (Packagist)**: `pie install satwareag/php-firebird` (source build)
-- **GitHub Releases**: Download `.apk` directly from [releases](https://github.com/satwareAG/php-firebird/releases) and `apk add --allow-untrusted <file>.apk`
+- **GitHub Releases**: See [INSTALL-GITHUB.md](INSTALL-GITHUB.md) for `wget + apk add` from releases
 - **Composer (stubs only)**: `composer require satwareag/php-firebird-stubs` (for IDE/PHPStan, not the extension)
 
 ## Troubleshooting

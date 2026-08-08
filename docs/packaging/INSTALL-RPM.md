@@ -109,7 +109,7 @@ sudo rm /etc/yum.repos.d/satware-php-firebird.repo
 ## Alternative installation methods
 
 - **PIE (Packagist)**: `pie install satwareag/php-firebird` (source build)
-- **GitHub Releases**: Download `.rpm` directly from [releases](https://github.com/satwareAG/php-firebird/releases) and `rpm -i`
+- **GitHub Releases**: See [INSTALL-GITHUB.md](INSTALL-GITHUB.md) for `wget + dnf install` from releases
 - **Composer (stubs only)**: `composer require satwareag/php-firebird-stubs` (for IDE/PHPStan, not the extension)
 
 ## Troubleshooting

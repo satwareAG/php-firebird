@@ -299,6 +299,63 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
         }
     }
 
+    /* Issue #540: For DDL on explicit transactions, transparently commit+restart
+     * to release metadata locks from prior cursor activity (e.g., SELECT from
+     * RDB$RELATIONS in schema introspection). Without this, DDL blocks
+     * indefinitely after fbird_commit_ret() because the retained transaction
+     * context holds shared metadata locks.
+     *
+     * This mirrors the autocommit DDL behavior (#294) but for explicit
+     * transactions: hard commit releases all locks, then restart with the
+     * same default TPB parameters. The transaction handle stays valid for
+     * the caller — the restart is transparent.
+     *
+     * Only applies to explicit transactions (trans_res != NULL). The default
+     * transaction is already handled by the #294 autocommit block above. */
+    if (fb_query->statement_type == isc_info_sql_stmt_ddl &&
+        fb_query->trans && fb_query->trans->fbt_transaction &&
+        fb_query->trans_res != NULL &&
+        fb_query->link && fb_query->link->fbc_connection) {
+
+        FBDEBUG("Issue #540: Transparent commit+restart for DDL on explicit transaction");
+
+        /* Hard commit: releases all locks including metadata */
+        if (fbt_commit(fb_query->trans->fbt_transaction, status) != 0) {
+            /* Commit failed — let the DDL execute on the current transaction.
+             * jane: silent on failure — the DDL itself will report any error. */
+            FBDEBUG("Issue #540: commit before DDL failed, continuing on current tx");
+        } else {
+            /* Commit succeeded: free old wrapper, start fresh transaction.
+             * Must NULL the pointer immediately to prevent use-after-free
+             * if fbc_get_attachment or fbt_start fails on the error path. */
+            fbt_free(fb_query->trans->fbt_transaction);
+            fb_query->trans->fbt_transaction = NULL;
+
+            void *attachment = fbc_get_attachment(fb_query->link->fbc_connection);
+            if (attachment != NULL) {
+                /* Restart with empty TPB (Firebird defaults: READ_WRITE,
+                 * WAIT, CONCURRENCY). This matches fbird_trans($conn) with
+                 * no args. jane: not using FBG(default_trans_params) because
+                 * it could be READ-ONLY, which would make DDL fail. */
+                fb_query->trans->fbt_transaction = fbt_start(
+                    FBG(master_instance),
+                    attachment,
+                    0,    /* tpb_len: 0 = Firebird defaults */
+                    NULL, /* tpb: empty */
+                    status
+                );
+
+                if (fb_query->trans->fbt_transaction == NULL) {
+                    _php_fbird_error(status);
+                    goto _php_fbird_ex_error;
+                }
+            } else {
+                _php_fbird_module_error("Failed to get attachment for transaction restart");
+                goto _php_fbird_ex_error;
+            }
+        }
+    }
+
     if (fb_query->fbs_statement && fb_query->trans && fb_query->trans->fbt_transaction) {
         void *transaction_ptr = fbt_get_handle(fb_query->trans->fbt_transaction);
         int oo_api_success = 0;

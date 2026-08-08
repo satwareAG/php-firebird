@@ -48,7 +48,7 @@ makedepends="
 provides="php84-interbase"
 replaces="php84-interbase"
 source="
-	https://github.com/satwareAG/php-firebird/archive/v$pkgver.tar.gz
+	$pkgname-$pkgver.tar.gz::https://github.com/satwareAG/php-firebird/archive/v$pkgver.tar.gz
 	firebird-client-musl-build.sh
 "
 # Run `abuild checksum` after changing source to regenerate checksums.

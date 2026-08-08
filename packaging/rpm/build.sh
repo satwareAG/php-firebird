@@ -244,14 +244,30 @@ RPM_TOPDIR="${REPO_ROOT}/_rpmbuild"
 rm -rf "$RPM_TOPDIR"
 mkdir -p "$RPM_TOPDIR"/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
 
-# Copy spec file and patch Version to match VERSION.txt
+# Copy spec file and patch Version/Release to match VERSION.txt
 # jane: The "Ensure VERSION.txt" GitHub Action overwrites VERSION.txt from the
 #       git tag (e.g. 13.1.0-RC1), but the spec file has the base version
-#       (13.1.0). Patch the spec's Version field to match EXT_VERSION so
-#       rpmbuild's Source0 resolution matches the tarball name.
+#       (13.1.0). RPM spec Version field does NOT allow hyphens, so pre-release
+#       suffixes must go in the Release field (e.g. Release: 0.1.RC1).
+#       Source0 must also be patched because the tarball uses the full version
+#       (php-firebird-13.1.0-RC2.tar.gz) but %{version} is just 13.1.0.
+#       Split EXT_VERSION into base version + pre-release suffix.
 cp packaging/rpm/php-firebird.spec "$RPM_TOPDIR/SPECS/"
-sed -i "s/^Version:.*/Version:        ${EXT_VERSION}/" "$RPM_TOPDIR/SPECS/php-firebird.spec"
-log "Patched spec Version to: ${EXT_VERSION}"
+
+if [[ "$EXT_VERSION" == *-* ]]; then
+    # Pre-release: split "13.1.0-RC2" into version=13.1.0, release=0.1.RC2
+    SPEC_VERSION="${EXT_VERSION%%-*}"
+    SPEC_RELEASE="0.1.${EXT_VERSION#*-}"
+    sed -i "s/^Version:.*/Version:        ${SPEC_VERSION}/" "$RPM_TOPDIR/SPECS/php-firebird.spec"
+    sed -i "s/^Release:.*/Release:        ${SPEC_RELEASE}%{?dist}/" "$RPM_TOPDIR/SPECS/php-firebird.spec"
+    # Patch Source0 to use full version (with pre-release suffix)
+    sed -i "s|Source0:.*|Source0:        php-firebird-${EXT_VERSION}.tar.gz|" "$RPM_TOPDIR/SPECS/php-firebird.spec"
+    log "Patched spec Version=${SPEC_VERSION} Release=${SPEC_RELEASE} Source0=php-firebird-${EXT_VERSION}.tar.gz (pre-release)"
+else
+    # Stable release: patch Version, keep default Release
+    sed -i "s/^Version:.*/Version:        ${EXT_VERSION}/" "$RPM_TOPDIR/SPECS/php-firebird.spec"
+    log "Patched spec Version to: ${EXT_VERSION}"
+fi
 
 # Create source tarball (GitHub archive format: php-firebird-VERSION/)
 # jane: GitHub strips the leading 'v' from tag names in archive directories,

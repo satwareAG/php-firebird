@@ -262,6 +262,8 @@ if [[ "$EXT_VERSION" == *-* ]]; then
     sed -i "s/^Release:.*/Release:        ${SPEC_RELEASE}%{?dist}/" "$RPM_TOPDIR/SPECS/php-firebird.spec"
     # Patch Source0 to use full version (with pre-release suffix)
     sed -i "s|Source0:.*|Source0:        php-firebird-${EXT_VERSION}.tar.gz|" "$RPM_TOPDIR/SPECS/php-firebird.spec"
+    # Patch %setup -n to match tarball directory (includes pre-release suffix)
+    sed -i "s|%setup -q|%setup -q -n php-firebird-${EXT_VERSION}|" "$RPM_TOPDIR/SPECS/php-firebird.spec"
     log "Patched spec Version=${SPEC_VERSION} Release=${SPEC_RELEASE} Source0=php-firebird-${EXT_VERSION}.tar.gz (pre-release)"
 else
     # Stable release: patch Version, keep default Release

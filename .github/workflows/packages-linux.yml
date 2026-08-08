@@ -160,11 +160,11 @@ jobs:
               if command -v dnf >/dev/null 2>&1; then
                 dnf install -y epel-release 2>/dev/null || true
                 dnf install -y php-devel autoconf automake re2c gcc gcc-c++ make \
-                  patchelf rpm-build cmake ninja-build git tar libtommath-devel
+                  patchelf rpm-build cmake ninja-build git tar libtommath-devel jq
               else
                 yum install -y epel-release 2>/dev/null || true
                 yum install -y php-devel autoconf automake re2c gcc gcc-c++ make \
-                  patchelf rpm-build cmake ninja-build git tar libtommath-devel
+                  patchelf rpm-build cmake ninja-build git tar libtommath-devel jq
               fi
 
               # Build the RPM using the distro-default PHP version.
@@ -232,8 +232,12 @@ jobs:
 
               # Install build dependencies.
               # jane: APKBUILD makedepends lists "ninja", not "samurai".
+              #       sudo is needed by abuild-keygen -i to copy the public
+              #       key to /etc/apk/keys/. Without sudo, abuild-keygen
+              #       tries doas (not installed) and fails.
               apk add --no-cache \
                 alpine-sdk \
+                sudo \
                 php84-dev \
                 php84-pdo \
                 autoconf \

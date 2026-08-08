@@ -244,8 +244,14 @@ RPM_TOPDIR="${REPO_ROOT}/_rpmbuild"
 rm -rf "$RPM_TOPDIR"
 mkdir -p "$RPM_TOPDIR"/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
 
-# Copy spec file
+# Copy spec file and patch Version to match VERSION.txt
+# jane: The "Ensure VERSION.txt" GitHub Action overwrites VERSION.txt from the
+#       git tag (e.g. 13.1.0-RC1), but the spec file has the base version
+#       (13.1.0). Patch the spec's Version field to match EXT_VERSION so
+#       rpmbuild's Source0 resolution matches the tarball name.
 cp packaging/rpm/php-firebird.spec "$RPM_TOPDIR/SPECS/"
+sed -i "s/^Version:.*/Version:        ${EXT_VERSION}/" "$RPM_TOPDIR/SPECS/php-firebird.spec"
+log "Patched spec Version to: ${EXT_VERSION}"
 
 # Create source tarball (GitHub archive format: php-firebird-VERSION/)
 # jane: GitHub strips the leading 'v' from tag names in archive directories,

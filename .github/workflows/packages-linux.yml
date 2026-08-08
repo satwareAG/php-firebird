@@ -376,7 +376,95 @@ jobs:
           tag_name: ${{ github.ref_name }}
 
   # ===========================================================================
-  # Job 5: Upload to packages.satware.com (DISABLED - VPS not provisioned)
+  # Job 5: Test APT install from staging repo (#490)
+  # ===========================================================================
+  # jane: staging repo (packages.auc.de/apt/) is deployed by the satis-deploy
+  #       Gitea runner (spec-008) which polls GitHub Releases API.
+  #       This job tests that the staging APT repo is functional end-to-end:
+  #       a fresh container can apt install php-firebird and the extension
+  #       loads with all procedural API functions.
+  #       No `needs` dependency: the staging repo is populated asynchronously
+  #       by satis-deploy, independent of the build jobs in this workflow.
+  #       On tag push: tests whatever version satis-deploy has deployed
+  #       (may be the previous release — satis-deploy runs asynchronously).
+  #       On workflow_dispatch: tests the last released version on staging.
+  test-apt-install:
+    name: Test APT install (${{ matrix.distro }} PHP ${{ matrix.php }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # jane: test one Debian + one Ubuntu, PHP 8.4. More combos can be
+        #       added but these prove the staging repo works end-to-end.
+        include:
+          - distro: debian:12
+            codename: bookworm
+            php: 8.4
+          - distro: ubuntu:24.04
+            codename: noble
+            php: 8.4
+
+    steps:
+      - name: Install php-firebird from staging APT repo
+        run: |
+          set -eu
+          docker run --rm ${{ matrix.distro }} bash -c '
+            set -eu
+            export DEBIAN_FRONTEND=noninteractive
+
+            # Install prerequisites
+            apt-get update -qq
+            apt-get install -y -qq ca-certificates curl gnupg binutils
+
+            # Add Sury PPA (required for PHP 8.4 on Debian 12 / Ubuntu 24.04)
+            # jane: debian:12 ships PHP 8.2, ubuntu:24.04 ships PHP 8.3.
+            #       Sury provides PHP 8.4 packages for both distros.
+            curl -sSLo /tmp/keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb
+            dpkg -i /tmp/keyring.deb
+            echo "deb [signed-by=/usr/share/keyrings/debsuryorg-archive-keyring.gpg] https://packages.sury.org/php/ ${{ matrix.codename }} main" \
+              > /etc/apt/sources.list.d/php-sury.list
+            apt-get update -qq
+            apt-get install -y -qq php${{ matrix.php }}-cli
+
+            # Import staging GPG key
+            mkdir -p /etc/apt/keyrings
+            curl -fsSL https://packages.auc.de/keys/staging-gpg.pub.asc \
+              | gpg --dearmor -o /etc/apt/keyrings/satware-php-firebird.gpg
+
+            # Add staging APT source
+            echo "deb [signed-by=/etc/apt/keyrings/satware-php-firebird.gpg] https://packages.auc.de/apt ${{ matrix.codename }} main" \
+              > /etc/apt/sources.list.d/satware-php-firebird.list
+
+            # Install php-firebird from staging
+            apt-get update -qq
+            apt-get install -y -qq php${{ matrix.php }}-firebird
+
+            # Verify extension is loaded
+            echo "=== Verifying installation ==="
+            php -m | grep -q firebird || { echo "FAIL: firebird not in php -m"; exit 1; }
+            php -m | grep -q pdo_fbird || { echo "FAIL: pdo_fbird not in php -m"; exit 1; }
+
+            # Verify procedural API functions exist (must actually fail on missing)
+            php -r '"'"'function_exists("fbird_connect") or exit(1);'"'"' || { echo "FAIL: fbird_connect missing"; exit 1; }
+            php -r '"'"'function_exists("fbird_query") or exit(1);'"'"' || { echo "FAIL: fbird_query missing"; exit 1; }
+            php -r '"'"'function_exists("fbird_commit_ret") or exit(1);'"'"' || { echo "FAIL: fbird_commit_ret missing"; exit 1; }
+            echo "Procedural API: OK"
+
+            # Verify bundled FB5 client RPATH
+            echo "=== Checking RPATH ==="
+            EXT_DIR=$(php -r '"'"'echo ini_get("extension_dir");'"'"')
+            if [ -z "$EXT_DIR" ]; then
+              EXT_DIR=$(php-config --extension-dir 2>/dev/null || echo "/usr/lib/php/")
+            fi
+            readelf -d "$EXT_DIR/firebird.so" 2>/dev/null | grep -q "RPATH\|RUNPATH" || { echo "WARN: no RPATH found"; }
+            ls /usr/lib/php-firebird/libfbclient* 2>/dev/null || { echo "WARN: bundled libfbclient not found"; }
+
+            echo "=== All checks passed ==="
+          '
+
+  # ===========================================================================
+  # Job 6: Upload to packages.satware.com (DISABLED - VPS not provisioned)
   # ===========================================================================
   # jane: satis spec-007 Phase D (production VPS) is not yet started.
   #       packages.satware.com resolves to the Securepoint firewall, not a VPS.

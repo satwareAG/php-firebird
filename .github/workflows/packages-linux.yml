@@ -255,11 +255,12 @@ jobs:
               addgroup builder abuild
               echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
-              # Generate abuild keypair and install public key.
-              # jane: -i flag installs the key to /etc/apk/keys/ via sudo.
-              #       Without -i, the key stays in ~/.abuild and abuild fails
-              #       to verify its own packages.
-              su builder -c "abuild-keygen -n -i"
+              # Generate abuild keypair and configure.
+              # jane: -a sets PACKAGER_PRIVKEY in abuild.conf (needed by abuild
+              #       to find the signing key). -i installs the public key to
+              #       /etc/apk/keys/ via sudo. -n = non-interactive.
+              #       Both -a and -i are required for abuild -r to work.
+              su builder -c "abuild-keygen -a -i -n"
 
               # Run abuild, writing output to the mounted workspace.
               # jane: abuild writes to REPODEST (default: ~/packages, ephemeral

@@ -300,7 +300,11 @@ if ! command -v rpmbuild >/dev/null 2>&1; then
     exit 1
 fi
 
+# jane: --nodeps skips dependency resolution. The FB5 client is fetched
+#       by build.sh, not installed as an RPM package. Without --nodeps,
+#       rpmbuild fails on the file-based BuildRequires for libfbclient.so.
 rpmbuild -bb \
+    --nodeps \
     --define "_topdir ${RPM_TOPDIR}" \
     --define "php_version ${PHP_VERSION}" \
     --define "fb_root ${FB_ROOT}" \

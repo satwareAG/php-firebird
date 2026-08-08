@@ -24,6 +24,12 @@
 %global ext_dir %(php-config --extension-dir 2>/dev/null || echo /usr/lib64/php/modules)
 %global fb_root %{?fb_root}%{!?fb_root:/opt/firebird}
 
+# jane: FB5 client .so files are pre-built binaries from the official
+#       tarball, not compiled in this RPM build. They lack build-ids
+#       which Fedora's debuginfo processor rejects. Disable it.
+%global debug_package %{nil}
+%define _build_id_links none
+
 Name:           php-firebird
 Version:        13.0.3
 Release:        1%{?dist}

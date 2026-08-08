@@ -261,7 +261,13 @@ jobs:
               #       /etc/apk/keys/ via sudo. -n = non-interactive.
               #       Both -a and -i are required for abuild -r to work.
               su builder -c "abuild-keygen -a -i -n"
- 
+
+              # Make workspace writable by builder (abuild needs to modify
+              # APKBUILD checksums and create build dirs).
+              # jane: GitHub Actions mounts the checkout as root:root.
+              #       abuild runs as builder and needs write access.
+              chown -R builder:abuild /workspace
+
               # Run abuild: first generate checksums, then build.
               # jane: abuild -r enforces sha512sums. SKIP is not accepted
               #       in strict mode. `abuild checksum` downloads sources

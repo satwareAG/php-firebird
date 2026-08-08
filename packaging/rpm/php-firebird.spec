@@ -31,7 +31,8 @@ Summary:        Modern Firebird database extension for PHP
 
 License:        PHP-3.01
 URL:            https://github.com/satwareAG/php-firebird
-Source0:        %{url}/archive/v%{version}.tar.gz
+# jane: build.sh creates tarball as php-firebird-VERSION.tar.gz (not vVERSION.tar.gz)
+Source0:        php-firebird-%{version}.tar.gz
 
 BuildRequires:  php-devel
 BuildRequires:  %{fb_root}/lib/libfbclient.so

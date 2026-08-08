@@ -261,12 +261,15 @@ jobs:
               #       /etc/apk/keys/ via sudo. -n = non-interactive.
               #       Both -a and -i are required for abuild -r to work.
               su builder -c "abuild-keygen -a -i -n"
-
-              # Run abuild, writing output to the mounted workspace.
-              # jane: abuild writes to REPODEST (default: ~/packages, ephemeral
-              #       in container). Set REPODEST to /workspace/dist/apk so
+ 
+              # Run abuild: first generate checksums, then build.
+              # jane: abuild -r enforces sha512sums. SKIP is not accepted
+              #       in strict mode. `abuild checksum` downloads sources
+              #       and computes real checksums, then `abuild -r` builds.
+              #       REPODEST directs output to the mounted workspace so
               #       .apk files survive container exit.
               cd packaging/apk
+              su builder -c "abuild checksum"
               su builder -c "REPODEST=/workspace/dist/apk abuild -r"
             '
 

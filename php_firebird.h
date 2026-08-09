@@ -79,6 +79,7 @@ PHP_FUNCTION(fbird_meta_data);
 
 PHP_FUNCTION(fbird_trans);
 PHP_FUNCTION(fbird_trans_start);
+PHP_FUNCTION(fbird_release_metadata_locks); /* Issue #566 */
 PHP_FUNCTION(fbird_commit);
 PHP_FUNCTION(fbird_rollback);
 PHP_FUNCTION(fbird_commit_ret);

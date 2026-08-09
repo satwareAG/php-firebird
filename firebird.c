@@ -123,6 +123,14 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_trans_start, 0, 1, MAY_BE_
 	ZEND_ARG_TYPE_INFO(0, options, IS_ARRAY, 1)
 ZEND_END_ARG_INFO()
 
+/* Issue #566: fbird_release_metadata_locks — explicit metadata lock release.
+ * Hard-commits the transaction and restarts it with the original TPB,
+ * releasing all metadata locks from prior cursor activity. The transaction
+ * handle stays valid for the caller. */
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_release_metadata_locks, 0, 1, _IS_BOOL, 0)
+	ZEND_ARG_INFO(0, transaction)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_savepoint, 0, 2, _IS_BOOL, 0)
 	ZEND_ARG_INFO(0, trans_handle)
 	ZEND_ARG_TYPE_INFO(0, name, IS_STRING, 0)
@@ -693,6 +701,7 @@ static const zend_function_entry fbird_functions[] = {
 	PHP_FE(fbird_meta_data, 		arginfo_fbird_meta_data)
 
 	PHP_FE(fbird_trans, 		arginfo_fbird_trans)
+	PHP_FE(fbird_release_metadata_locks,	arginfo_fbird_release_metadata_locks)
 	PHP_FE(fbird_commit, 		arginfo_fbird_commit)
 	PHP_FE(fbird_rollback, 		arginfo_fbird_rollback)
 	PHP_FE(fbird_commit_ret, 	arginfo_fbird_commit_ret)
@@ -947,6 +956,7 @@ PHP_INI_BEGIN()
 	STD_PHP_INI_ENTRY_EX("fbird.default_lock_timeout", "0", PHP_INI_ALL, OnUpdateLongGEZero, default_lock_timeout, zend_fbird_globals, fbird_globals, display_link_numbers)
 	STD_PHP_INI_ENTRY_EX("fbird.blob_segment_size", "4096", PHP_INI_ALL, OnUpdateLongGEZero, blob_segment_size, zend_fbird_globals, fbird_globals, display_link_numbers)
 	PHP_INI_ENTRY_EX("fbird.enable_exceptions", "0", PHP_INI_ALL, OnUpdateExceptionMode, zend_ini_boolean_displayer_cb)
+	STD_PHP_INI_ENTRY_EX("fbird.auto_ddl_commit", "0", PHP_INI_ALL, OnUpdateBool, auto_ddl_commit, zend_fbird_globals, fbird_globals, zend_ini_boolean_displayer_cb)
 PHP_INI_END()
 
 #ifdef __GNUC__
@@ -1016,6 +1026,10 @@ static PHP_GINIT_FUNCTION(fbird)
 
 	/* MSHUTDOWN detection flag for safe persistent resource cleanup (Issue #50, #51) */
 	fbird_globals->in_mshutdown = 0;
+
+	/* Issue #566: Transparent DDL commit+restart for explicit transactions.
+	 * Default false: DDL stays in transaction (BC). Opt-in via INI for v13.1.0 behavior. */
+	fbird_globals->auto_ddl_commit = 0;
 }
 
 PHP_MINIT_FUNCTION(fbird)
@@ -1494,6 +1508,8 @@ PHP_FUNCTION(fbird_reconnect_transaction)
 	fb_trans->fbt_transaction = reconnected_trans;
 	fb_trans->link_cnt = 1;
 	fb_trans->affected_rows = 0;
+	fb_trans->open_cursor_count = 0;  /* Issue #566 */
+	fb_trans->stored_tpb_len = 0;     /* Reconnect: default TPB */
 	fb_trans->db_link[0] = fb_link;
 
 	/* Link into connection's transaction list */

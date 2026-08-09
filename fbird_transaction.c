@@ -98,7 +98,7 @@ void _php_fbird_free_trans(zend_resource *rsrc)
 }
 
 
-#define TPB_MAX_SIZE 2048
+/* TPB_MAX_SIZE moved to php_fbird_includes.h for struct access */
 
 void _php_fbird_populate_trans(zend_long trans_argl, zend_long trans_timeout, char *last_tpb, unsigned short *len)
 {
@@ -362,6 +362,11 @@ PHP_FUNCTION(fbird_trans_start)
 
 	fb_trans->link_cnt = 1;
 	fb_trans->affected_rows = 0;
+	fb_trans->open_cursor_count = 0;  /* Issue #566 */
+	fb_trans->stored_tpb_len = tpb_len;
+	if (tpb_len > 0) {
+		memcpy(fb_trans->stored_tpb, last_tpb, tpb_len);
+	}
 	fb_trans->db_link[0] = fb_link;
 
 	/* Sentinel head node: reserves index 0 for the default transaction.
@@ -736,6 +741,95 @@ PHP_FUNCTION(fbird_connection_info)
 	}
 }
 
+/* Issue #566: Explicit metadata lock release for a transaction.
+ *
+ * Does a hard commit (releasing all locks including metadata) and restarts
+ * the transaction with the original TPB. This is the explicit-API alternative
+ * to the transparent #540 commit+restart: callers who need precise control
+ * over when metadata locks are released can call this before DDL operations.
+ *
+ * The transaction handle stays valid for the caller — the restart is transparent.
+ * Open cursors are invalidated by the hard commit (Firebird behavior). */
+PHP_FUNCTION(fbird_release_metadata_locks)
+{
+	ISC_STATUS status[256];
+	zval *arg = NULL;
+	fbird_transaction *trans = NULL;
+	fbird_db_link *fb_link = NULL;
+
+	RESET_ERRMSG;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &arg) == FAILURE) {
+		RETURN_FALSE;
+	}
+
+	ZVAL_DEREF(arg);
+
+	/* Resolve transaction from: Firebird\Transaction object, le_trans resource, or db link */
+	if (Z_TYPE_P(arg) == IS_OBJECT &&
+			instanceof_function(Z_OBJCE_P(arg), fbird_transaction_ce)) {
+		zend_resource *tres = fbird_transaction_get_resource(Z_OBJ_P(arg));
+		if (!tres || !tres->ptr) {
+			_php_fbird_module_error("Firebird\\Transaction object has no active resource");
+			RETURN_FALSE;
+		}
+		trans = (fbird_transaction *)tres->ptr;
+	} else if (Z_TYPE_P(arg) == IS_RESOURCE &&
+			   Z_RES_P(arg)->type == le_trans) {
+		trans = (fbird_transaction *)zend_fetch_resource_ex(arg, LE_TRANS, le_trans);
+	} else {
+		/* Try as link identifier to get default transaction */
+		fb_link = (fbird_db_link *)zend_fetch_resource2_ex(arg, LE_LINK, le_link, le_plink);
+		if (fb_link && fb_link->tr_list && fb_link->tr_list->trans) {
+			trans = fb_link->tr_list->trans;
+		}
+	}
+
+	if (!trans || !trans->fbt_transaction) {
+		_php_fbird_module_error("No active transaction to release metadata locks for");
+		RETURN_FALSE;
+	}
+
+	fb_link = trans->db_link[0];
+	if (!fb_link || !fb_link->fbc_connection) {
+		_php_fbird_module_error("Transaction has no valid database connection");
+		RETURN_FALSE;
+	}
+
+	/* Hard commit: releases all locks including metadata */
+	if (fbt_commit(trans->fbt_transaction, status) != 0) {
+		_php_fbird_error(status);
+		RETURN_FALSE;
+	}
+
+	/* Free the old OO API transaction wrapper */
+	fbt_free(trans->fbt_transaction);
+	trans->fbt_transaction = NULL;
+	trans->open_cursor_count = 0;  /* Cursors invalidated by commit */
+
+	/* Restart with stored TPB */
+	void *attachment = fbc_get_attachment(fb_link->fbc_connection);
+	if (attachment == NULL) {
+		_php_fbird_module_error("Failed to get attachment for transaction restart");
+		RETURN_FALSE;
+	}
+
+	trans->fbt_transaction = fbt_start(
+		FBG(master_instance),
+		attachment,
+		trans->stored_tpb_len,
+		trans->stored_tpb_len > 0 ? trans->stored_tpb : NULL,
+		status
+	);
+
+	if (trans->fbt_transaction == NULL) {
+		_php_fbird_error(status);
+		RETURN_FALSE;
+	}
+
+	RETURN_TRUE;
+}
+
 PHP_FUNCTION(fbird_trans)
 {
 	ISC_STATUS status[256];
@@ -873,11 +967,13 @@ PHP_FUNCTION(fbird_trans)
 					RETURN_FALSE;
 				}
 
-				/* Allocate and register transaction with OO API wrapper */
-				fb_trans = (fbird_transaction *) safe_emalloc(link_cnt-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
-				fb_trans->link_cnt = link_cnt;
-				fb_trans->affected_rows = 0;
-				fb_trans->fbt_transaction = oo_trans;
+			/* Allocate and register transaction with OO API wrapper */
+			fb_trans = (fbird_transaction *) safe_emalloc(link_cnt-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
+			fb_trans->link_cnt = link_cnt;
+			fb_trans->affected_rows = 0;
+			fb_trans->open_cursor_count = 0;  /* Issue #566 */
+			fb_trans->stored_tpb_len = 0;     /* Multi-db TPB not yet stored */
+			fb_trans->fbt_transaction = oo_trans;
 
 				efree(tpb);
 				goto register_trans;
@@ -930,10 +1026,12 @@ PHP_FUNCTION(fbird_trans)
 		fb_trans = (fbird_transaction *) safe_emalloc(link_cnt-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
 		fb_trans->link_cnt = link_cnt;
 		fb_trans->affected_rows = 0;
+		fb_trans->open_cursor_count = 0;  /* Issue #566 */
+		fb_trans->stored_tpb_len = 0;     /* Multi-db TPB not yet stored */
 		fb_trans->fbt_transaction = oo_trans;
 	}
 
-register_trans:
+ register_trans:
 	for (i = 0; i < link_cnt; ++i) {
 		fbird_tr_list **l;
 		fb_trans->db_link[i] = fb_link[i];
@@ -988,6 +1086,8 @@ int _php_fbird_def_trans(fbird_db_link *fb_link, fbird_transaction **trans)
 			tr = (fbird_transaction *) emalloc(sizeof(fbird_transaction));
 			tr->link_cnt = 1;
 			tr->affected_rows = 0;
+			tr->open_cursor_count = 0;  /* Issue #566 */
+			tr->stored_tpb_len = 0;
 			tr->fbt_transaction = NULL;
 			tr->db_link[0] = fb_link;
 			fb_link->tr_list->trans = tr;
@@ -1025,6 +1125,12 @@ int _php_fbird_def_trans(fbird_db_link *fb_link, fbird_transaction **trans)
 			if (tr->fbt_transaction == NULL) {
 				_php_fbird_error(status);
 				return FAILURE;
+			}
+
+			/* Store TPB for future restart (#566/#540) */
+			tr->stored_tpb_len = tpb_len;
+			if (tpb_len > 0) {
+				memcpy(tr->stored_tpb, last_tpb, tpb_len);
 			}
 		}
 		*trans = tr;

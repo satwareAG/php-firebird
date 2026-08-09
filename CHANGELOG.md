@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [13.2.0] - 2026-08-09
+
+### Added
+
+- **`fbird_release_metadata_locks()` — explicit metadata lock release API (#566)**:
+  New procedural function that hard-commits the transaction (releasing all
+  metadata locks from prior cursor activity) and restarts it with the original
+  TPB. The transaction handle stays valid for the caller. Use this before DDL
+  operations if you have open cursors from schema introspection.
+
+- **`Firebird\Transaction::releaseMetadataLocks()` — OOP equivalent (#566)**:
+  Object-oriented wrapper for `fbird_release_metadata_locks()`.
+
+- **`fbird.auto_ddl_commit` INI directive (#566)**:
+  New INI setting (default: `0`). When enabled, the transparent DDL
+  commit+restart fires on ALL DDL statements on explicit transactions,
+  regardless of open cursors (v13.1.0 behavior). Default off preserves
+  transactional DDL semantics (BC).
+
+### Fixed
+
+- **#566: Transparent commit+restart now gated on open cursor count (#540 regression)**:
+  The v13.1.0 fix for #540 fired transparent commit+restart on ALL DDL on
+  explicit transactions. This broke transactional DDL semantics: DML before
+  DDL in the same transaction got committed (doctrine-firebird-driver
+  `TemporaryTableTest` regression). The fix now only fires when
+  `open_cursor_count > 0`, preserving atomicity when no cursors hold locks.
+
+- **TPB preservation on transaction restart (#566)**:
+  The v13.1.0 transparent restart used empty TPB, losing the original
+  isolation level and access mode. TPB is now stored on the transaction
+  struct at creation time and restored on restart.
+
+### Changed
+
+- **`fbird_transaction` struct extended**: Added `open_cursor_count` and
+  `stored_tpb` fields for cursor tracking and TPB preservation. This adds
+  ~2KB per transaction (TPB_MAX_SIZE=2048).
+
 ## [13.1.0] - 2026-08-08
 
 ### Added

@@ -192,13 +192,13 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc)
                 FBDEBUG("Closing open cursor in dtor (OO API)");
                 fbs_close_cursor(fb_query->fbs_statement, status);
                 fb_query->fbs_resultset = NULL;
-                fb_query->is_open = 0;
+                _php_fbird_cursor_closed(fb_query);  /* Issue #566: decrement counter */
                 fb_query->has_more_rows = 0;
                 /* If this is a child result that reused the parent's statement handle,
                  * mirror the cursor state reset to the parent to avoid double-close
                  * warnings on the next fbird_execute(). */
                 if (fb_query->parent) {
-                    fb_query->parent->is_open = 0;
+                    _php_fbird_cursor_closed(fb_query->parent);
                     fb_query->parent->has_more_rows = 0;
                 }
             }

@@ -690,6 +690,23 @@ function fbird_meta_data(object $connection, string $table_name): array|false {}
 function fbird_trans(mixed $link_or_flags = null, mixed ...$args): \Firebird\Transaction|false {}
 
 /**
+ * Release metadata locks by committing and restarting the transaction.
+ *
+ * Does a hard commit (releasing all locks including metadata from prior
+ * cursor activity) and restarts the transaction with the original TPB.
+ * The transaction handle stays valid for the caller.
+ *
+ * Open cursors are invalidated by the hard commit (Firebird behavior).
+ * Call this before DDL operations if you have open cursors from schema
+ * introspection that hold metadata locks.
+ *
+ * @param mixed $transaction Transaction resource or Firebird\Transaction object
+ * @return bool TRUE on success, FALSE on failure
+ * @since 13.2.0
+ */
+function fbird_release_metadata_locks(mixed $transaction): bool {}
+
+/**
  * Start a transaction with options.
  *
  * @param mixed                                     $link    Connection resource

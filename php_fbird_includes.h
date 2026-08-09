@@ -28,6 +28,10 @@
 #define SQLDA_CURRENT_VERSION SQLDA_VERSION1
 #endif
 
+/* Maximum TPB (Transaction Parameter Buffer) size.
+ * Used by fbird_transaction struct for stored_tpb field (#566). */
+#define TPB_MAX_SIZE 2048
+
 /* Metadata identifier length (bytes). FB 4.0+ supports 63 chars (UTF8 = 4 bytes/char) */
 #ifndef METADATALENGTH
 #	if FB_API_VER >= 40
@@ -95,6 +99,9 @@ ZEND_BEGIN_MODULE_GLOBALS(fbird)
 	pid_t init_pid;                 /* PID at initialization for fork-safety detection */
 	int exception_mode;             /* Exception mode: 0=SILENT (default), 1=THROW */
 	bool in_mshutdown;         /* Flag: true during MSHUTDOWN to prevent EG() access */
+	bool auto_ddl_commit;      /* Issue #566: Transparent DDL commit+restart on explicit tx.
+	                            * Default false (BC). When true, fires on ALL DDL regardless
+	                            * of open cursors (v13.1.0 behavior for opt-in users). */
 ZEND_END_MODULE_GLOBALS(fbird)
 
 ZEND_EXTERN_MODULE_GLOBALS(fbird)
@@ -127,6 +134,18 @@ typedef struct {
 	unsigned long affected_rows;
 	/* OO API transaction wrapper (fb::Transaction* from fbt_start()) */
 	void *fbt_transaction;
+	/* Issue #566: Open cursor count for gating #540 transparent commit+restart.
+	 * Incremented when a SELECT cursor is opened on this transaction,
+	 * decremented when the cursor is closed/freed. The #540 commit+restart
+	 * only fires when open_cursor_count > 0, preserving transactional DDL
+	 * semantics when no cursors are holding metadata locks. */
+	unsigned short open_cursor_count;
+	/* Issue #566/#540: Stored TPB for transaction restart after commit.
+	 * Populated at creation time by fbird_trans_start() / _php_fbird_def_trans().
+	 * Used by #540 transparent restart and fbird_release_metadata_locks()
+	 * to restore the original isolation level, access mode, etc. */
+	unsigned short stored_tpb_len;
+	unsigned char stored_tpb[TPB_MAX_SIZE];
 	fbird_db_link *db_link[1]; /* last member */
 } fbird_transaction;
 
@@ -470,6 +489,23 @@ const char *_fbird_res_type_name(int type);
  * M3 Phase G: Also accepts Firebird\ResultSet objects (weak-ref to same resource). */
 /* Issue #297: Exported for OOP Statement::execute() to call directly */
 int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *args, int bind_n);
+
+/* Issue #566: Cursor counter helpers for gating #540 transparent commit+restart.
+ * These centralize is_open management to keep open_cursor_count accurate.
+ * _php_fbird_cursor_opened: Call when a SELECT cursor is opened on a transaction.
+ * _php_fbird_cursor_closed: Call when a SELECT cursor is closed/freed. */
+static inline void _php_fbird_cursor_opened(fbird_query *fb_query) {
+	fb_query->is_open = 1;
+	if (fb_query->trans) {
+		fb_query->trans->open_cursor_count++;
+	}
+}
+static inline void _php_fbird_cursor_closed(fbird_query *fb_query) {
+	if (fb_query->is_open && fb_query->trans && fb_query->trans->open_cursor_count > 0) {
+		fb_query->trans->open_cursor_count--;
+	}
+	fb_query->is_open = 0;
+}
 
 #define FBIRD_VALIDATE_QUERY_EX(zv, argnum, var) do { \
 	/* M3 object path: Firebird\ResultSet accepted alongside resources */ \

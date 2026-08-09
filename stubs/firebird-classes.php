@@ -158,6 +158,22 @@ class Transaction
 
     /** Check whether the transaction is still active. */
     public function isActive(): bool { return true; }
+
+    /**
+     * Release metadata locks by committing and restarting the transaction.
+     *
+     * Does a hard commit (releasing all locks including metadata from prior
+     * cursor activity) and restarts the transaction with the original TPB.
+     * The transaction handle stays valid for the caller.
+     *
+     * Open cursors are invalidated by the hard commit (Firebird behavior).
+     * Call this before DDL operations if you have open cursors from schema
+     * introspection that hold metadata locks.
+     *
+     * @return bool TRUE on success, FALSE on failure
+     * @since 13.2.0
+     */
+    public function releaseMetadataLocks(): bool { return true; }
 }
 
 /**

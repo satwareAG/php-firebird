@@ -138,7 +138,7 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
      if (fb_query->fbs_statement) {
          fbs_close_cursor(fb_query->fbs_statement, status);
      }
-     fb_query->is_open = 0;
+     _php_fbird_cursor_closed(fb_query);
      fb_query->has_more_rows = 0;
  }
 
@@ -181,11 +181,13 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
 					goto _php_fbird_ex_error;
 				}
 
-				trans = (fbird_transaction *) emalloc(sizeof(fbird_transaction));
-				trans->link_cnt = 1;
-				trans->affected_rows = 0;
-				trans->fbt_transaction = new_trans;
-				trans->db_link[0] = fb_query->link;
+			trans = (fbird_transaction *) emalloc(sizeof(fbird_transaction));
+			trans->link_cnt = 1;
+			trans->affected_rows = 0;
+			trans->open_cursor_count = 0;  /* Issue #566 */
+			trans->stored_tpb_len = 0;     /* SET TRANSACTION TPB not stored here */
+			trans->fbt_transaction = new_trans;
+			trans->db_link[0] = fb_query->link;
 
 				/* Sentinel head node: reserves index 0 for the default transaction.
 				 * _php_fbird_commit_link() uses i==0 to distinguish:
@@ -299,49 +301,56 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
         }
     }
 
-    /* Issue #540: For DDL on explicit transactions, transparently commit+restart
+    /* Issue #540/#566: For DDL on explicit transactions, transparently commit+restart
      * to release metadata locks from prior cursor activity (e.g., SELECT from
      * RDB$RELATIONS in schema introspection). Without this, DDL blocks
      * indefinitely after fbird_commit_ret() because the retained transaction
      * context holds shared metadata locks.
      *
-     * This mirrors the autocommit DDL behavior (#294) but for explicit
-     * transactions: hard commit releases all locks, then restart with the
-     * same default TPB parameters. The transaction handle stays valid for
-     * the caller — the restart is transparent.
+     * Issue #566 refinement: Only fire when open_cursor_count > 0, i.e., when
+     * there are open SELECT cursors that could be holding metadata locks.
+     * This preserves Firebird's transactional DDL semantics: DDL after DML
+     * (no open cursors) stays atomic within the transaction. The commit+restart
+     * only fires when cursors are actually open and holding locks.
+     *
+     * If firebird.auto_ddl_commit INI is enabled, fire unconditionally (legacy
+     * v13.1.0 behavior for users who explicitly opt in).
      *
      * Only applies to explicit transactions (trans_res != NULL). The default
      * transaction is already handled by the #294 autocommit block above. */
     if (fb_query->statement_type == isc_info_sql_stmt_ddl &&
         fb_query->trans && fb_query->trans->fbt_transaction &&
         fb_query->trans_res != NULL &&
-        fb_query->link && fb_query->link->fbc_connection) {
+        fb_query->link && fb_query->link->fbc_connection &&
+        (FBG(auto_ddl_commit) || fb_query->trans->open_cursor_count > 0)) {
 
-        FBDEBUG("Issue #540: Transparent commit+restart for DDL on explicit transaction");
+        FBDEBUG("Issue #540/#566: Transparent commit+restart for DDL on explicit transaction");
 
-        /* Hard commit: releases all locks including metadata */
+        /* Hard commit: releases all locks including metadata.
+         * After commit, all open cursors on this transaction are invalidated
+         * (Firebird closes cursors on hard commit). Reset cursor count. */
         if (fbt_commit(fb_query->trans->fbt_transaction, status) != 0) {
             /* Commit failed — let the DDL execute on the current transaction.
              * jane: silent on failure — the DDL itself will report any error. */
-            FBDEBUG("Issue #540: commit before DDL failed, continuing on current tx");
+            FBDEBUG("Issue #540/#566: commit before DDL failed, continuing on current tx");
         } else {
             /* Commit succeeded: free old wrapper, start fresh transaction.
              * Must NULL the pointer immediately to prevent use-after-free
              * if fbc_get_attachment or fbt_start fails on the error path. */
             fbt_free(fb_query->trans->fbt_transaction);
             fb_query->trans->fbt_transaction = NULL;
+            fb_query->trans->open_cursor_count = 0;  /* Cursors invalidated by commit */
 
             void *attachment = fbc_get_attachment(fb_query->link->fbc_connection);
             if (attachment != NULL) {
-                /* Restart with empty TPB (Firebird defaults: READ_WRITE,
-                 * WAIT, CONCURRENCY). This matches fbird_trans($conn) with
-                 * no args. jane: not using FBG(default_trans_params) because
-                 * it could be READ-ONLY, which would make DDL fail. */
+                /* Restart with stored TPB (preserves isolation level, access mode, etc.).
+                 * Issue #566: Use stored_tpb from transaction creation instead of empty TPB.
+                 * Falls back to empty TPB (Firebird defaults) if not stored. */
                 fb_query->trans->fbt_transaction = fbt_start(
                     FBG(master_instance),
                     attachment,
-                    0,    /* tpb_len: 0 = Firebird defaults */
-                    NULL, /* tpb: empty */
+                    fb_query->trans->stored_tpb_len,
+                    fb_query->trans->stored_tpb_len > 0 ? fb_query->trans->stored_tpb : NULL,
                     status
                 );
 
@@ -582,7 +591,7 @@ execute_done:
     if ((fb_query->statement_type == isc_info_sql_stmt_select ||
          fb_query->statement_type == isc_info_sql_stmt_select_for_upd) &&
         (fb_query->out_sqlda || fb_query->fbs_statement)) {
-        fb_query->is_open = 1;
+        _php_fbird_cursor_opened(fb_query);
         fb_query->has_more_rows = 1;
 
         /* OO API SELECT path: return the query resource directly when no SQLDA.
@@ -731,7 +740,7 @@ execute_done:
 
    /* Set result flags - EXECUTE PROCEDURE results are immediately available */
    result_query->has_more_rows = 1; /* Data is available for fetching */
-   result_query->is_open = 1; /* Result can be fetched once */
+   _php_fbird_cursor_opened(result_query); /* Result can be fetched once */
 
    /* Register the result as a new resource - this transfers ownership
     * IMPORTANT: This result does NOT own the statement handle. */
@@ -925,7 +934,7 @@ cleanup_result_query:
 
 			/* Set result flags - parent query remains open, result has independent data */
 			result_query->has_more_rows = 1; /* Data is available for fetching */
-			result_query->is_open = 1; /* Result can be fetched */
+			_php_fbird_cursor_opened(result_query); /* Result can be fetched */
 
    /* Register the result as a new resource - this transfers ownership
     * IMPORTANT: This result does NOT own the statement handle. */
@@ -950,7 +959,7 @@ cleanup_result_query:
     * query resource becoming invalid after fbird_free_result(). */
 
    /* Mark cursor state inherited from parent execute */
-   result_query->is_open = 1;
+   _php_fbird_cursor_opened(result_query);
    result_query->has_more_rows = 1;
 
    /* Success - disable cleanup since resource system now owns the memory */
@@ -1040,7 +1049,7 @@ cleanup_select_result_query:
 
 			if (!fb_query->out_sqlda) { /* no result set is being returned */
 				/* Non-SELECT statements without RETURNING clause - no cursor opened */
-				fb_query->is_open = 0;
+				_php_fbird_cursor_closed(fb_query);
 				fb_query->has_more_rows = 0;
 
 				if (affected_rows) {
@@ -1052,7 +1061,7 @@ cleanup_select_result_query:
 			}
 
 			/* DML with RETURNING clause - cursor is opened but handled by result resource */
-			fb_query->is_open = 0;
+			_php_fbird_cursor_closed(fb_query);
 			fb_query->has_more_rows = 0;
 			break;
 
@@ -1061,18 +1070,18 @@ cleanup_select_result_query:
 			/* SELECT statements (including SELECT ... FOR UPDATE) - cursor is now open and has potential rows.
 			 * Check both legacy (out_sqlda) and OO API (fbs_statement) paths. */
 			if (fb_query->out_sqlda || fb_query->fbs_statement) {
-				fb_query->is_open = 1;
+				_php_fbird_cursor_opened(fb_query);
 				fb_query->has_more_rows = 1;
 			} else {
 				/* SELECT without output - unusual but handle */
-				fb_query->is_open = 0;
+				_php_fbird_cursor_closed(fb_query);
 				fb_query->has_more_rows = 0;
 			}
 			break;
 
 		default:
 			/* Other statement types (DDL, etc.) - no cursor */
-			fb_query->is_open = 0;
+			_php_fbird_cursor_closed(fb_query);
 			fb_query->has_more_rows = 0;
 			RETVAL_TRUE;
 			break;
@@ -1084,7 +1093,7 @@ _php_fbird_ex_error:
 	/* Only clear cursor flags on actual execution error, not on success.
 	 * The OO API path sets these flags correctly before reaching here. */
 	if (rv == FAILURE) {
-		fb_query->is_open = 0;
+		_php_fbird_cursor_closed(fb_query);
 		fb_query->has_more_rows = 0;
 	}
 	return rv;
@@ -1325,7 +1334,7 @@ PHP_FUNCTION(fbird_query)
 	        fb_query->child_head = NULL;
 	        fb_query->fbs_statement = NULL;
 	        fb_query->owns_stmt_handle = 0;
-	        fb_query->is_open = 0;
+	        _php_fbird_cursor_closed(fb_query);
 	    }
 	    /* For EXEC PROCEDURE/DML RETURNING: result has parent=NULL and
 	     * fbs_statement=NULL already, so parent dtor will free the statement
@@ -1805,7 +1814,7 @@ PHP_FUNCTION(fbird_execute_query)
             fb_query->child_head = NULL;
             fb_query->fbs_statement = NULL;
             fb_query->owns_stmt_handle = 0;
-            fb_query->is_open = 0;
+            _php_fbird_cursor_closed(fb_query);
         }
         zend_list_delete(fb_query->res);
     }
@@ -1857,6 +1866,8 @@ PHP_FUNCTION(fbird_execute_auto)
     trans = (fbird_transaction *) emalloc(sizeof(fbird_transaction));
     trans->link_cnt = 1;
     trans->affected_rows = 0;
+    trans->open_cursor_count = 0;  /* Issue #566 */
+    trans->stored_tpb_len = 0;     /* Temp trans: no stored TPB */
     trans->fbt_transaction = oo_trans;
     trans->db_link[0] = link;
     /* We do NOT register this transaction as a resource because it's strictly local scope */
@@ -1998,7 +2009,7 @@ PHP_FUNCTION(fbird_query_params_tx)
             fb_query->child_head = NULL;
             fb_query->fbs_statement = NULL;
             fb_query->owns_stmt_handle = 0;
-            fb_query->is_open = 0;
+            _php_fbird_cursor_closed(fb_query);
         }
         zend_list_delete(fb_query->res);
     }

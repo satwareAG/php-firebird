@@ -25,7 +25,7 @@
 
 # Maintainer: satware AG <info@satware.com>
 pkgname=php84-firebird
-pkgver=13.2.5
+pkgver=13.2.6
 pkgrel=0
 pkgdesc="Modern Firebird database extension for PHP 8.4 (fbird_* API + OOP + PDO)"
 url="https://github.com/satwareAG/php-firebird"
@@ -56,10 +56,6 @@ source="
 	firebird-client-musl-build.sh
 "
 # Run `abuild checksum` after changing source to regenerate checksums.
-sha512sums="
-	SKIP
-	SKIP
-"
 
 # jane: Override builddir - GitHub archive extracts to php-firebird-$pkgver
 #       (repo name), not php84-firebird-$pkgver (package name).
@@ -129,8 +125,12 @@ package() {
 	# jane: libfbclient links against libtommath.so.0 and libtomcrypt.so.
 	#       These are built from bundled extern/ sources and must be shipped
 	#       alongside libfbclient (Alpine has no libtommath/libtomcrypt packages).
-	cp -a "$_fbroot"/lib/libtommath.so* "$pkgdir"/usr/lib/ 2>/dev/null || true
-	cp -a "$_fbroot"/lib/libtomcrypt.so* "$pkgdir"/usr/lib/ 2>/dev/null || true
+	#       Use cp -aL (dereference): Firebird build output has ABSOLUTE symlinks
+	#       pointing to /tmp/firebird-src-.../extern/. cp -a would copy broken
+	#       symlinks; abuild's dependency tracer fails with "Could not find
+	#       owner package" when it follows them to a non-existent path.
+	cp -aL "$_fbroot"/lib/libtommath.so* "$pkgdir"/usr/lib/ 2>/dev/null || true
+	cp -aL "$_fbroot"/lib/libtomcrypt.so* "$pkgdir"/usr/lib/ 2>/dev/null || true
 
 	# Verify all NEEDED shared libraries are shipped (jane: hard error, not || true)
 	# libfbclient.so has NEEDED entries for libtommath.so.0; if it's missing,
@@ -160,3 +160,7 @@ package() {
 	echo "extension=firebird.so" > "$pkgdir"/etc/php84/conf.d/20_firebird.ini
 	echo "extension=pdo_fbird.so" > "$pkgdir"/etc/php84/conf.d/30_pdo_fbird.ini
 }
+sha512sums="
+edc6732a7d5ada7f9ef2493d00ba35a6acb3ff22277504aaf839489bf3846318bab9417439776fa18cb9bac4e4158c19d45b1fcae659230769590c078caac4f4  php84-firebird-13.2.6.tar.gz
+ecab442ee5bdc8efb4d49971912d141dbf17bc9c3722320e81c3bf60e91db0529055b69e871ac5bfc4d61d7019eddebe318e45011384b29fcc4fdf7319781331  firebird-client-musl-build.sh
+"

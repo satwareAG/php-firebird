@@ -73,6 +73,11 @@ in every test's output, failing all tests. Fix: check `extension_loaded('pcntl')
 - `docker/docker-compose.yml` has 12 PHP containers (8.2-8.5 x FB3/FB4/FB5 client).
 - `scripts/test_matrix.sh` runs tests across all 12 containers.
 - `scripts/verify-ci-parity.sh` checks that local Docker client matches CI client.
+- `scripts/test-apk-build.sh` tests Alpine/musl APK compilation locally (~10 min).
+  Run BEFORE tagging any release that touches `packaging/apk/` or
+  `.github/workflows/packages-linux.yml`. CI takes 10+ minutes per tag push;
+  local testing catches compilation errors in minutes, saving multiple
+  yanked-release cycles (learned from v13.2.1-v13.2.3).
 
 ### CRITICAL: Local/CI Environment Parity
 

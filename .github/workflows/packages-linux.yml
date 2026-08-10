@@ -247,6 +247,8 @@ jobs:
                 libtool \
                 git \
                 icu-dev \
+                zlib-dev \
+                ncurses-dev \
                 patchelf
 
               # Create abuild user (abuild requires non-root)

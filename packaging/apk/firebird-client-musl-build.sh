@@ -91,6 +91,14 @@ if [ ! -f "${FB_BUILD_LIB}/libfbclient.so" ]; then
 fi
 cp -a "${FB_BUILD_LIB}/libfbclient.so"* "${FB_ROOT}/lib/" 2>/dev/null || true
 
+# Copy dependency shared libraries that libfbclient links against.
+# jane: libfbclient.so has NEEDED entries for libtommath.so.0 (and
+#       libtomcrypt.so if built). Without these in FB_ROOT/lib, the
+#       PHP extension configure check fails with "undefined reference
+#       to mp_*" because the linker cannot resolve tommath symbols.
+cp -a "${FB_BUILD_LIB}/libtommath.so"* "${FB_ROOT}/lib/" 2>/dev/null || true
+cp -a "${FB_BUILD_LIB}/libtomcrypt.so"* "${FB_ROOT}/lib/" 2>/dev/null || true
+
 # Copy public headers from the build output directory.
 # jane: include_generic copies headers to gen/Release/firebird/include/.
 FB_BUILD_INC="${FBSRC}/gen/Release/firebird/include"

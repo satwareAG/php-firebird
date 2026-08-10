@@ -25,7 +25,7 @@
 
 # Maintainer: satware AG <info@satware.com>
 pkgname=php84-firebird
-pkgver=13.2.4
+pkgver=13.2.5
 pkgrel=0
 pkgdesc="Modern Firebird database extension for PHP 8.4 (fbird_* API + OOP + PDO)"
 url="https://github.com/satwareAG/php-firebird"
@@ -44,6 +44,8 @@ makedepends="
 	git
 	libtool
 	icu-dev
+	zlib-dev
+	ncurses-dev
 "
 # jane: provides/replaces php84-interbase if it existed on Alpine (legacy ext).
 #       Conflicts is omitted unless a real interbase package exists on Alpine.
@@ -88,7 +90,8 @@ build() {
 	cd "$builddir"
 
 	phpize84
-	CFLAGS="-I$_fbroot/include" \
+	CFLAGS="-I$_fbroot/include -I$_fbroot/include/firebird" \
+	CXXFLAGS="-I$_fbroot/include -I$_fbroot/include/firebird" \
 	LDFLAGS="-L$_fbroot/lib -Wl,-rpath-link,$_fbroot/lib" \
 		./configure \
 		--with-php-config=/usr/bin/php-config84 \
@@ -100,7 +103,8 @@ build() {
 	# -------------------------------------------------------------------------
 	cd pdo_fbird
 	phpize84
-	CFLAGS="-I$_fbroot/include" \
+	CFLAGS="-I$_fbroot/include -I$_fbroot/include/firebird" \
+	CXXFLAGS="-I$_fbroot/include -I$_fbroot/include/firebird" \
 	LDFLAGS="-L$_fbroot/lib -Wl,-rpath-link,$_fbroot/lib" \
 		./configure \
 		--with-php-config=/usr/bin/php-config84 \
@@ -122,6 +126,25 @@ package() {
 	# Bundled FB5 client library (musl-built, not glibc)
 	install -d "$pkgdir"/usr/lib
 	cp -a "$_fbroot"/lib/libfbclient.so* "$pkgdir"/usr/lib/
+	# jane: libfbclient links against libtommath.so.0 and libtomcrypt.so.
+	#       These are built from bundled extern/ sources and must be shipped
+	#       alongside libfbclient (Alpine has no libtommath/libtomcrypt packages).
+	cp -a "$_fbroot"/lib/libtommath.so* "$pkgdir"/usr/lib/ 2>/dev/null || true
+	cp -a "$_fbroot"/lib/libtomcrypt.so* "$pkgdir"/usr/lib/ 2>/dev/null || true
+
+	# Verify all NEEDED shared libraries are shipped (jane: hard error, not || true)
+	# libfbclient.so has NEEDED entries for libtommath.so.0; if it's missing,
+	# the extension fails to load at runtime with no build-time error.
+	for needed in $(readelf -d "$_fbroot"/lib/libfbclient.so | grep NEEDED | sed 's/.*\[//;s/\]//'); do
+		case "$needed" in
+			libtommath.so*|libtomcrypt.so*)
+				if ! ls "$pkgdir"/usr/lib/"${needed%%.*}"* >/dev/null 2>&1; then
+					echo "ERROR: libfbclient needs $needed but it was not shipped" >&2
+					return 1
+				fi
+				;;
+		esac
+	done
 
 	# jane: ICU libs come from system icu-libs (in depends), not bundled.
 	#       Bundling to /usr/lib would conflict with Alpine's icu-libs package.

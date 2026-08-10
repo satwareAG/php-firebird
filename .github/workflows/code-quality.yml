@@ -218,6 +218,21 @@ jobs:
           bash scripts/check-version-stamps.sh
 
   # ==========================================================================
+  # Privacy Check (IPADP L2: no private forge URLs in public repo)
+  # ==========================================================================
+  privacy-check:
+    name: Privacy Check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Run privacy rules check
+        run: python3 scripts/test_privacy_rules.py
+
+  # ==========================================================================
   # Secret Detection (Gitleaks CLI - no license required)
   # ==========================================================================
   secrets-scan:
@@ -260,7 +275,7 @@ jobs:
   quality-summary:
     name: Quality Gate
     runs-on: ubuntu-24.04
-    needs: [php-analysis, stubs-sync, c-analysis, version-stamps, secrets-scan]
+    needs: [php-analysis, stubs-sync, c-analysis, version-stamps, secrets-scan, privacy-check]
     if: always()
     timeout-minutes: 15
 
@@ -272,12 +287,14 @@ jobs:
           echo "C/C++ Analysis: ${{ needs.c-analysis.result }}"
           echo "Version Stamps: ${{ needs.version-stamps.result }}"
           echo "Secrets Scan: ${{ needs.secrets-scan.result }}"
+          echo "Privacy Check: ${{ needs.privacy-check.result }}"
 
           if [ "${{ needs.php-analysis.result }}" = "failure" ] || \
              [ "${{ needs.stubs-sync.result }}" = "failure" ] || \
              [ "${{ needs.c-analysis.result }}" = "failure" ] || \
              [ "${{ needs.version-stamps.result }}" = "failure" ] || \
-             [ "${{ needs.secrets-scan.result }}" = "failure" ]; then
+             [ "${{ needs.secrets-scan.result }}" = "failure" ] || \
+             [ "${{ needs.privacy-check.result }}" = "failure" ]; then
             echo "❌ Quality gate failed"
             exit 1
           fi

@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [13.2.1] - 2026-08-10
+
+### Fixed
+
+- **#565: Alpine APK build switched from CMake to autotools**:
+  CMake is a broken third-party build for Firebird: it references
+  `misc/makeHeader.cpp` and `src/msgs/facilities2.sql`, both deleted
+  from the Firebird source tree in 2019/2021 (upstream issue
+  FirebirdSQL/firebird#7152). Switched to autotools with
+  `--enable-client-only --with-builtin-tommath`, which builds only the
+  client library + headers without the deleted bootstrap artifacts.
+
+### Added
+
+- **IPADP L2 Privacy Validation CI check (#567)**:
+  New `scripts/test_privacy_rules.py` scans git-tracked files for private
+  forge URLs (`gitlab.satware.com`, `git.satware.ai`). Added as a
+  `privacy-check` job in the Code Quality workflow, gating the Quality
+  Gate alongside version-stamps and secrets-scan.
+
+### Changed
+
+- **Documentation cleanup**: README version badge updated to 13.2.0
+  (was stale 12.1.0). Stale planning docs (`NEXT_STEPS.md`,
+  `docs/product/project-brief.md`) archived to `docs/archive/` with
+  redirect stubs pointing to CHANGELOG.md and GitHub Milestones.
+
 ## [13.2.0] - 2026-08-09
 
 ### Added

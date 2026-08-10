@@ -31,7 +31,7 @@
 %define _build_id_links none
 
 Name:           php-firebird
-Version:        13.2.0
+Version:        13.2.1
 Release:        1%{?dist}
 Summary:        Modern Firebird database extension for PHP
 

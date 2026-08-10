@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "name": "php-firebird",
-  "version": "13.2.0",
+  "version": "13.2.1",
   "sdd_source": "https://github.com/satwareAG/spec-kit",
   "forge": "github",
   "visibility": "public",

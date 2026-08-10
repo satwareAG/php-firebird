@@ -231,7 +231,7 @@ jobs:
               set -eu
 
               # Install build dependencies.
-              # jane: APKBUILD makedepends lists "ninja", not "samurai".
+              # jane: APKBUILD makedepends uses autotools (libtool, not cmake/ninja).
               #       sudo is needed by abuild-keygen -i to copy the public
               #       key to /etc/apk/keys/. Without sudo, abuild-keygen
               #       tries doas (not installed) and fails.
@@ -244,8 +244,7 @@ jobs:
                 automake \
                 re2c \
                 build-base \
-                cmake \
-                ninja \
+                libtool \
                 git \
                 icu-dev \
                 patchelf
@@ -316,7 +315,8 @@ jobs:
   #       draft:false after validating SLSA attestations).
   upload-release-assets:
     name: Upload packages to GitHub Release
-    # jane: build-apk is blocked on upstream Firebird #9122 (musl CMake).
+    # jane: build-apk previously blocked on upstream Firebird #7152 (broken CMake).
+    #       Fixed by switching to autotools build (configure + make).
     #       Use if: always() to upload deb+rpm even when apk fails.
     needs: [build-deb, build-rpm, build-apk]
     if: startsWith(github.ref, 'refs/tags/') && !cancelled()

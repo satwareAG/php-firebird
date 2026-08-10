@@ -163,12 +163,17 @@ class Transaction
      * Release metadata locks by committing and restarting the transaction.
      *
      * Does a hard commit (releasing all locks including metadata from prior
-     * cursor activity) and restarts the transaction with the original TPB.
-     * The transaction handle stays valid for the caller.
+     * cursor activity) and restarts the transaction. The transaction handle
+     * stays valid for the caller.
      *
      * Open cursors are invalidated by the hard commit (Firebird behavior).
      * Call this before DDL operations if you have open cursors from schema
      * introspection that hold metadata locks.
+     *
+     * Note: The OO path restarts with Firebird default TPB (READ WRITE,
+     * WAIT, CONCURRENCY). For custom TPB preservation across restart, use
+     * the procedural fbird_release_metadata_locks() with a transaction
+     * created via fbird_trans_start().
      *
      * @return bool TRUE on success, FALSE on failure
      * @since 13.2.0

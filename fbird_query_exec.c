@@ -328,7 +328,17 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
 
         /* Hard commit: releases all locks including metadata.
          * After commit, all open cursors on this transaction are invalidated
-         * (Firebird closes cursors on hard commit). Reset cursor count. */
+         * (Firebird closes cursors on hard commit).
+         *
+         * Issue #566 review finding #1: Do NOT reset open_cursor_count to 0 here.
+         * Stale fbird_query objects still have is_open=1 and will decrement the
+         * counter when freed/GC'd. If we reset to 0, a stale query freed after
+         * a new cursor opens would steal the new cursor's decrement, causing
+         * the gate to miss a needed #540 fire.
+         *
+         * Instead, let the counter converge naturally: stale queries decrement
+         * it when freed, new queries increment it. The counter may be temporarily
+         * inflated (safe direction: fires #540 when it might not need to). */
         if (fbt_commit(fb_query->trans->fbt_transaction, status) != 0) {
             /* Commit failed — let the DDL execute on the current transaction.
              * jane: silent on failure — the DDL itself will report any error. */
@@ -339,7 +349,6 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
              * if fbc_get_attachment or fbt_start fails on the error path. */
             fbt_free(fb_query->trans->fbt_transaction);
             fb_query->trans->fbt_transaction = NULL;
-            fb_query->trans->open_cursor_count = 0;  /* Cursors invalidated by commit */
 
             void *attachment = fbc_get_attachment(fb_query->link->fbc_connection);
             if (attachment != NULL) {

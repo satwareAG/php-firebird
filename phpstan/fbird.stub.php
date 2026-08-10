@@ -489,6 +489,15 @@ function fbird_param_info(mixed $query, int $param_number): array|false {}
 function fbird_trans(mixed $link_or_flags = null, mixed ...$args): \Firebird\Transaction|false {}
 
 /**
+ * Release metadata locks by committing and restarting the transaction.
+ *
+ * @param mixed $transaction Transaction resource or Firebird\Transaction object
+ * @return bool
+ * @since 13.2.0
+ */
+function fbird_release_metadata_locks(mixed $transaction): bool {}
+
+/**
  * Start a transaction with options.
  *
  * Legacy form (int bitmask):

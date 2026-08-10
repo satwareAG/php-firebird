@@ -174,7 +174,7 @@ PHP_METHOD(FirebirdTransaction, releaseMetadataLocks)
 		}
 		fbt_free(trans->fbt_transaction);
 		trans->fbt_transaction = NULL;
-		trans->open_cursor_count = 0;
+		/* Do NOT reset open_cursor_count (review finding #1) */
 
 		void *attachment = fbc_get_attachment(fb_link->fbc_connection);
 		if (!attachment) {

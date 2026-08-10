@@ -802,10 +802,11 @@ PHP_FUNCTION(fbird_release_metadata_locks)
 		RETURN_FALSE;
 	}
 
-	/* Free the old OO API transaction wrapper */
+	/* Free the old OO API transaction wrapper.
+	 * Do NOT reset open_cursor_count (review finding #1): stale queries
+	 * will decrement naturally when freed. */
 	fbt_free(trans->fbt_transaction);
 	trans->fbt_transaction = NULL;
-	trans->open_cursor_count = 0;  /* Cursors invalidated by commit */
 
 	/* Restart with stored TPB */
 	void *attachment = fbc_get_attachment(fb_link->fbc_connection);
@@ -972,7 +973,13 @@ PHP_FUNCTION(fbird_trans)
 			fb_trans->link_cnt = link_cnt;
 			fb_trans->affected_rows = 0;
 			fb_trans->open_cursor_count = 0;  /* Issue #566 */
-			fb_trans->stored_tpb_len = 0;     /* Multi-db TPB not yet stored */
+			/* Store TPB for restart (#566 review finding #4). */
+			if (link_cnt == 1 && link0_tpb_len > 0) {
+				fb_trans->stored_tpb_len = link0_tpb_len;
+				memcpy(fb_trans->stored_tpb, last_tpb, link0_tpb_len);
+			} else {
+				fb_trans->stored_tpb_len = 0;
+			}
 			fb_trans->fbt_transaction = oo_trans;
 
 				efree(tpb);
@@ -1027,7 +1034,15 @@ PHP_FUNCTION(fbird_trans)
 		fb_trans->link_cnt = link_cnt;
 		fb_trans->affected_rows = 0;
 		fb_trans->open_cursor_count = 0;  /* Issue #566 */
-		fb_trans->stored_tpb_len = 0;     /* Multi-db TPB not yet stored */
+		/* Store TPB for restart (#566 review finding #4).
+		 * For single-db: use tpb_len + last_tpb (function scope).
+		 * For multi-db: stored_tpb_len=0 (multi-db TPB is complex). */
+		if (link_cnt == 1 && tpb_len > 0) {
+			fb_trans->stored_tpb_len = tpb_len;
+			memcpy(fb_trans->stored_tpb, last_tpb, tpb_len);
+		} else {
+			fb_trans->stored_tpb_len = 0;
+		}
 		fb_trans->fbt_transaction = oo_trans;
 	}
 

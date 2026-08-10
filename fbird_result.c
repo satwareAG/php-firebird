@@ -715,7 +715,7 @@ void _php_fbird_fetch_hash_query(
 				/* Return false silently on closed cursor (e.g. after commit/rollback)
 				 * instead of emitting E_WARNING — see issue #127 */
 				fb_query->has_more_rows = 0;
-				fb_query->is_open = 0;
+				_php_fbird_cursor_closed(fb_query);
 				RETURN_FALSE;
 			}
 
@@ -729,26 +729,26 @@ void _php_fbird_fetch_hash_query(
 			if (fetch_result == 0) {
 				/* End of data */
 				fb_query->has_more_rows = 0;
-				fb_query->is_open = 0;
+				_php_fbird_cursor_closed(fb_query);
 				fbs_close_cursor(fb_query->fbs_statement, status);
 				RETURN_FALSE;
  		} else if (fetch_result == -1) {
 				/* Error or invalidated cursor (e.g. after commit/rollback).
 				 * Return false silently — see issue #127 */
 				fb_query->has_more_rows = 0;
-				fb_query->is_open = 0;
+				_php_fbird_cursor_closed(fb_query);
 				RETURN_FALSE;
 			}
 			/* fetch_result == 1: row fetched into out_msg_buffer */
 		} else {
 			/* Buffered returning: data already in buffer, consume once */
 			fb_query->has_more_rows = 0;
-			fb_query->is_open = 0;
+			_php_fbird_cursor_closed(fb_query);
 		}
 	} else {
 		/* EXEC PROCEDURE - single row already buffered */
 		fb_query->has_more_rows = 0;
-		fb_query->is_open = 0;
+		_php_fbird_cursor_closed(fb_query);
 	}
 
 	HashTable *ht_ret;

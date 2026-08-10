@@ -48,15 +48,19 @@ cd "${FBSRC}"
 export NOCONFIGURE=1
 ./autogen.sh
 
-# Configure: client-only build, no server, no editline, no tomcrypt.
+# Configure: client-only build, no server, built-in tommath + tomcrypt.
 # jane: --enable-client-only sets CLIENT_ONLY_FLG=Y in Makefile.in, which
 #       skips engine, fbintl, utilities, gpre, plugins, examples. Only
 #       yvalve (libfbclient) and include_generic (headers) are built.
-#       --without-tomcrypt avoids a dependency we don't need for the client.
+#       --with-builtin-tommath uses bundled tommath (Alpine lacks libtommath-dev).
+#       --with-builtin-tomcrypt builds bundled tomcrypt from extern/libtomcrypt/.
+#       jane: --without-tomcrypt is broken upstream: TomCryptHash.cpp
+#       unconditionally includes <tomcrypt.h> with no preprocessor guard.
+#       Must build tomcrypt, not skip it.
 ./configure \
     --enable-client-only \
-    --without-tomcrypt \
     --with-builtin-tommath \
+    --with-builtin-tomcrypt \
     --prefix="${FB_ROOT}"
 
 # Build the client library and headers.

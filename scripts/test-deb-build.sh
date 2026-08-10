@@ -17,6 +17,8 @@
 # Usage:
 #   bash scripts/test-deb-build.sh [--php-version 8.4] [--distro noble]
 #
+# Architecture is auto-detected from the host (x86_64 or aarch64).
+#
 # Prerequisites: Docker (image auto-pulled).
 # Duration: ~5 minutes (FB5 client fetch dominates).
 #
@@ -37,6 +39,13 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+# Auto-detect architecture
+case "$(uname -m)" in
+    x86_64) ARCH="x86_64" ;;
+    aarch64|arm64) ARCH="aarch64" ;;
+    *) echo "ERROR: Unsupported arch: $(uname -m)" >&2; exit 1 ;;
+esac
+
 # Map distro to Docker image (mirrors packaging/debian/build-matrix.sh)
 case "$DISTRO" in
     bookworm) IMAGE="php:${PHP_VERSION}-cli-bookworm" ;;
@@ -52,17 +61,21 @@ case "$DISTRO" in
     *) IS_UBUNTU=0 ;;
 esac
 
-echo "=== DEB Build Test ($DISTRO PHP $PHP_VERSION) ==="
+echo "=== DEB Build Test ($DISTRO PHP $PHP_VERSION $ARCH) ==="
 echo "Project: $PROJECT_ROOT"
 echo "Docker image: $IMAGE"
 echo "Started: $(date)"
 echo ""
 
 # Run the full build + install + load test inside a container.
-# Mirrors the CI workflow in .github/workflows/packages-linux.yml (build-deb job).
+# Exercises the same packaging/debian/build.sh as the CI build-deb job.
+# jane: CI pre-fetches FB5 client on the host (GITHUB_TOKEN available) and
+#       mounts it read-only. This script fetches inside the container instead.
+#       Forward GITHUB_TOKEN if set to avoid GitHub API rate limits on repeats.
 docker run --rm \
     -v "$PROJECT_ROOT:/workspace" \
     -w /workspace \
+    -e GITHUB_TOKEN="${GITHUB_TOKEN:-}" \
     "$IMAGE" \
     bash -c '
         set -euo pipefail
@@ -70,6 +83,7 @@ docker run --rm \
         PHP_VERSION="'"$PHP_VERSION"'"
         DISTRO="'"$DISTRO"'"
         IS_UBUNTU='"$IS_UBUNTU"'
+        ARCH="'"$ARCH"'"
 
         echo ">>> Installing build dependencies..."
         export DEBIAN_FRONTEND=noninteractive
@@ -116,13 +130,22 @@ docker run --rm \
         echo ">>> Building php-firebird .deb..."
         cd /workspace
 
-        # Run the build script (fetches FB5 client, builds extensions, dpkg-buildpackage)
+        # Run the build script (fetches FB5 client, builds extensions, dpkg-buildpackage).
+        # jane: pipefail means build.sh failure exits the pipeline non-zero.
+        #       We capture output to a log and show tail for context.
+        #       The `|| true` prevents set -e from exiting before we can show
+        #       the full diagnostic log on failure.
         bash packaging/debian/build.sh \
             --php-version "$PHP_VERSION" \
             --distro "$DISTRO" \
-            --arch x86_64 \
+            --arch "$ARCH" \
             --output-dir /tmp/deb-output \
-            --verbose 2>&1 | tee /tmp/build.log | tail -20
+            --verbose 2>&1 | tee /tmp/build.log | tail -20 || {
+                echo "FAIL: build.sh failed" >&2
+                echo "--- Last 30 lines of build log ---" >&2
+                tail -30 /tmp/build.log >&2
+                exit 1
+            }
 
         # Find the .deb file
         DEB_FILE=$(find /tmp/deb-output -name "*.deb" ! -name "*dbgsym*" -type f | head -1)

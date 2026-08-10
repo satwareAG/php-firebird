@@ -33,10 +33,13 @@ echo "Started: $(date)"
 echo ""
 
 # Run the full build + load test inside an Alpine container.
-# Mirrors the compilation steps in the CI workflow's build-apk job.
+# Exercises the same compilation steps as the CI workflow's build-apk job.
+# jane: Forward GITHUB_TOKEN if set to avoid GitHub API rate limits on
+#       repeated runs (Firebird git clone uses GitHub API).
 docker run --rm \
     -v "$PROJECT_ROOT:/workspace" \
     -w /workspace \
+    -e GITHUB_TOKEN="${GITHUB_TOKEN:-}" \
     alpine:3.21 \
     sh -c '
         set -euo pipefail
@@ -58,7 +61,12 @@ docker run --rm \
 
         echo ">>> Building Firebird client (musl)..."
         FB_ROOT=/tmp/fbclient FB_VERSION=5.0.4 \
-            sh packaging/apk/firebird-client-musl-build.sh 2>&1 | tee /tmp/fb-build.log | tail -5
+            sh packaging/apk/firebird-client-musl-build.sh 2>&1 | tee /tmp/fb-build.log | tail -5 || {
+                echo "FAIL: Firebird client build failed" >&2
+                echo "--- Last 20 lines of build log ---" >&2
+                tail -20 /tmp/fb-build.log >&2
+                exit 1
+            }
 
         # Verify libs
         if [ ! -f /tmp/fbclient/lib/libfbclient.so ]; then
@@ -88,7 +96,12 @@ docker run --rm \
             ./configure \
             --with-php-config=/usr/bin/php-config84 \
             --with-firebird=/tmp/fbclient 2>&1 | tee /tmp/main-configure.log | tail -3
-        make -j"$(nproc)" 2>&1 | tee /tmp/main-build.log | tail -3
+        make -j"$(nproc)" 2>&1 | tee /tmp/main-build.log | tail -3 || {
+                echo "FAIL: php-firebird build failed" >&2
+                echo "--- Last 20 lines of build log ---" >&2
+                tail -20 /tmp/main-build.log >&2
+                exit 1
+            }
 
         if [ ! -f modules/firebird.so ]; then
             echo "FAIL: firebird.so not built" >&2
@@ -107,7 +120,12 @@ docker run --rm \
             ./configure \
             --with-php-config=/usr/bin/php-config84 \
             --with-firebird=/tmp/fbclient 2>&1 | tee /tmp/pdo-configure.log | tail -3
-        make -j"$(nproc)" 2>&1 | tee /tmp/pdo-build.log | tail -3
+        make -j"$(nproc)" 2>&1 | tee /tmp/pdo-build.log | tail -3 || {
+                echo "FAIL: pdo_fbird build failed" >&2
+                echo "--- Last 20 lines of build log ---" >&2
+                tail -20 /tmp/pdo-build.log >&2
+                exit 1
+            }
 
         if [ ! -f modules/pdo_fbird.so ]; then
             echo "FAIL: pdo_fbird.so not built" >&2

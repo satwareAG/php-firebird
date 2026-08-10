@@ -23,9 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **IPADP L2 Privacy Validation CI check (#567)**:
   New `scripts/test_privacy_rules.py` scans git-tracked files for private
-  forge URLs (`gitlab.satware.com`, `git.satware.ai`). Added as a
-  `privacy-check` job in the Code Quality workflow, gating the Quality
-  Gate alongside version-stamps and secrets-scan.
+  forge URLs. Added as a `privacy-check` job in the Code Quality workflow,
+  gating the Quality Gate alongside version-stamps and secrets-scan.
 
 ### Changed
 

@@ -3,7 +3,7 @@
 [![CI](https://github.com/satwareAG/php-firebird/actions/workflows/ci.yml/badge.svg)](https://github.com/satwareAG/php-firebird/actions/workflows/ci.yml)
 [![License: PHP-3.01](https://img.shields.io/badge/License-PHP--3.01-blue.svg)](LICENSE)
 [![PHP 8.2+](https://img.shields.io/badge/PHP-8.2%2B-8892BF.svg)](https://www.php.net/)
-[![Version](https://img.shields.io/badge/version-12.1.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-13.2.0-blue.svg)](CHANGELOG.md)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/satwareAG/php-firebird)
 
 A high-performance PHP extension providing native connectivity to Firebird databases. This modernized version targets PHP 8.2+ with C++17 standards and comprehensive development tooling.
@@ -960,7 +960,7 @@ See [docs/oop-api.md](docs/oop-api.md) for the `Firebird\Event` class reference.
 
 ## Version Compatibility
 
-### Current Version: 12.1.0 (Stable Release)
+### Current Version: 13.2.0 (Stable Release)
 
 **Supported PHP Versions:**
 - PHP 8.2 (fully supported, minimum)
@@ -989,11 +989,11 @@ Starting with v12.0.0, we provide precompiled bundles across Linux (glibc + musl
 
 ```bash
 # Download from GitHub Releases (example: Linux x86_64 glibc)
-wget https://github.com/satwareAG/php-firebird/releases/download/v12.0.0/php-firebird-12.0.0-php84-nts-linux-x86_64.tar.gz
+wget https://github.com/satwareAG/php-firebird/releases/download/v13.2.0/php-firebird-13.2.0-php84-nts-linux-x86_64.tar.gz
 
 # Extract to PHP extension directory
 EXTDIR=$(php -r 'echo ini_get("extension_dir");')
-sudo tar -xzf php-firebird-12.0.0-php84-nts-linux-x86_64.tar.gz -C "$EXTDIR" --strip-components=1
+sudo tar -xzf php-firebird-13.2.0-php84-nts-linux-x86_64.tar.gz -C "$EXTDIR" --strip-components=1
 
 # Enable and verify (both extensions required)
 echo "extension=firebird.so" | sudo tee /etc/php/8.4/mods-available/firebird.ini

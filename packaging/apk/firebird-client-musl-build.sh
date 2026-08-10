@@ -60,45 +60,43 @@ export NOCONFIGURE=1
     --prefix="${FB_ROOT}"
 
 # Build the client library and headers.
-# jane: The full client-only build sequence is:
-#   make external               (cloop, decNumber, int128 - prerequisites)
-#   make updateCloopInterfaces  (generate IdlFbInterfaces.h from IDL)
-#   make yvalve                 (libfbclient.so)
-#   make include_generic        (copy public headers to build dir)
-#   make updateBuildNum         (writeBuildNum.h - needed by some headers)
-#   make export_lists           (linker symbol export lists)
-# We call them explicitly because `make` alone (master_process) also builds
-# the server when CLIENT_ONLY_FLG=N (the default if configure wasn't run
-# correctly). With --enable-client-only, the master_process skips server
-# targets, but calling prerequisites explicitly is safer and clearer.
-make -j"${NPROC}" external
-make -j"${NPROC}" updateCloopInterfaces
-make -j"${NPROC}" yvalve
-make -j"${NPROC}" include_generic
+# jane: Use `make` alone (not individual targets) because the Firebird
+#       build system requires the `all` -> `firebird` -> `master_process`
+#       chain to set TARGET=Release, create the autoconfig.h symlink, and
+#       run `rest` (generates iberror_c.h). Calling `make yvalve` directly
+#       skips these prerequisites and produces broken/missing output.
+#       With --enable-client-only, master_process skips all server targets
+#       (engine, fbintl, utilities, gpre, plugins, examples) and only builds
+#       yvalve (libfbclient) + include_generic (headers).
+make -j"${NPROC}"
 
 # Manually copy the built library and headers to FB_ROOT.
 # jane: Firebird autotools has an install target but it tries to install
 #       the full server layout. We only need the client library + headers.
+#       With TARGET=Release (set by master_process), output goes to
+#       gen/Release/firebird/. The gen/Native/ path is cross-compile only.
 mkdir -p "${FB_ROOT}/lib" "${FB_ROOT}/include"
 
 # Find and copy the built library.
-# jane: autotools outputs to gen/Native/firebird/lib/ (TARGET=Native default).
-FB_BUILD_LIB="${FBSRC}/gen/Native/firebird/lib"
+# jane: autotools outputs to gen/Release/firebird/lib/ on Linux.
+FB_BUILD_LIB="${FBSRC}/gen/Release/firebird/lib"
 if [ ! -f "${FB_BUILD_LIB}/libfbclient.so" ]; then
-    # Search alternative locations
+    # Search alternative locations (e.g. if TARGET differs)
     # jane: guard with || true - set -e would exit silently if find returns empty
     FB_BUILD_LIB=$(find "${FBSRC}/gen" -name "libfbclient.so" -print -quit 2>/dev/null | xargs -r dirname 2>/dev/null || true)
 fi
 cp -a "${FB_BUILD_LIB}/libfbclient.so"* "${FB_ROOT}/lib/" 2>/dev/null || true
 
 # Copy public headers from the build output directory.
-# jane: include_generic copies headers to gen/Native/firebird/include/.
-FB_BUILD_INC="${FBSRC}/gen/Native/firebird/include"
+# jane: include_generic copies headers to gen/Release/firebird/include/.
+FB_BUILD_INC="${FBSRC}/gen/Release/firebird/include"
 if [ -d "${FB_BUILD_INC}/firebird" ]; then
     cp -a "${FB_BUILD_INC}/firebird" "${FB_ROOT}/include/"
 fi
-cp -a "${FB_BUILD_INC}/iberror.h" "${FB_ROOT}/include/" 2>/dev/null || true
-cp -a "${FB_BUILD_INC}/ib_util.h" "${FB_ROOT}/include/" 2>/dev/null || true
+cp -a "${FB_BUILD_INC}/iberror.h" "${FB_ROOT}/include/" 2>/dev/null || \
+    cp -a "${FBSRC}/src/include/iberror.h" "${FB_ROOT}/include/" 2>/dev/null || true
+cp -a "${FB_BUILD_INC}/ib_util.h" "${FB_ROOT}/include/" 2>/dev/null || \
+    cp -a "${FBSRC}/src/include/ib_util.h" "${FB_ROOT}/include/" 2>/dev/null || true
 # ibase.h is in the firebird/ subdirectory (flattened by include_generic)
 cp -a "${FB_BUILD_INC}/firebird/ibase.h" "${FB_ROOT}/include/" 2>/dev/null || \
     cp -a "${FBSRC}/src/include/ibase.h" "${FB_ROOT}/include/" 2>/dev/null || true

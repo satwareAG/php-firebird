@@ -6,7 +6,9 @@
 #
 # Alpine uses musl libc, so the Firebird client library (libfbclient) must be
 # built from source - the official FB5 tarball is glibc-linked. The musl build
-# is handled by firebird-client-musl-build.sh (a separate source file).
+# uses autotools (configure + make --enable-client-only), NOT CMake, because
+# the CMake build references deleted bootstrap artifacts (makeHeader.cpp,
+# facilities2.sql - see FirebirdSQL/firebird#7152).
 #
 # Package naming: php84-firebird (NOT php84-pecl-firebird).
 # This extension is distributed via PIE (github.com/php/pie) and Packagist,
@@ -27,8 +29,9 @@ pkgver=13.2.0
 pkgrel=0
 pkgdesc="Modern Firebird database extension for PHP 8.4 (fbird_* API + OOP + PDO)"
 url="https://github.com/satwareAG/php-firebird"
-# jane: Firebird v5.0.4 CMake hardcodes -msse4 (x86 instruction set).
-#       aarch64 build fails until Firebird upstream removes this or we patch it.
+# jane: arch restricted to x86_64 pending aarch64 testing on Alpine/musl.
+#       The autotools build may support aarch64 (configure.ac has linux_arm64
+#       platform case), but this is untested. Add aarch64 after CI validation.
 arch="x86_64"
 license="PHP-3.01"
 depends="php84-common php84-pdo icu-libs"
@@ -39,8 +42,7 @@ makedepends="
 	build-base
 	re2c
 	git
-	cmake
-	ninja
+	libtool
 	icu-dev
 "
 # jane: provides/replaces php84-interbase if it existed on Alpine (legacy ext).

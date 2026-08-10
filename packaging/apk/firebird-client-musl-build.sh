@@ -7,6 +7,14 @@
 # libc (Alpine Linux). The official FB5 tarball is glibc-linked and cannot be
 # used on Alpine without this.
 #
+# Uses autotools (configure + make), NOT CMake. The CMake build is a broken
+# third-party effort: it references misc/makeHeader.cpp and src/msgs/
+# facilities2.sql, both deleted from the Firebird source tree in 2019/2021
+# (commits 45d5e3aa, ee088c22). The Firebird team does not use CMake
+# (see FirebirdSQL/firebird#7152). Autotools with --enable-client-only
+# builds only the yvalve (libfbclient) + headers, avoiding the missing
+# bootstrap artifacts entirely.
+#
 # Output: installs libfbclient.so + headers to $FB_ROOT
 #
 # Usage (inside alpine:3.21 container):
@@ -20,7 +28,7 @@ FB_ROOT="${FB_ROOT:-/tmp/fbclient}"
 FB_VERSION="${FB_VERSION:-5.0.4}"
 NPROC="${NPROC:-$(nproc 2>/dev/null || echo 2)}"
 
-echo ">>> Building Firebird client v${FB_VERSION} for musl (Alpine)..."
+echo ">>> Building Firebird client v${FB_VERSION} for musl (Alpine) via autotools..."
 
 mkdir -p "${FB_ROOT}"
 
@@ -31,45 +39,72 @@ if [ ! -d "${FBSRC}/.git" ]; then
         https://github.com/FirebirdSQL/firebird.git "${FBSRC}"
 fi
 
-# Build the yvalve target (produces libfbclient.so).
-# jane: Firebird v5.0.4 CMake does NOT support CLIENT_ONLY, install_client,
-#       or install_headers targets. The client library target is "yvalve".
-#       There are no CMake install() commands - must manually copy output.
-mkdir -p "${FBSRC}/build"
-cd "${FBSRC}/build"
+cd "${FBSRC}"
 
-cmake .. \
-    -G Ninja \
-    -DCMAKE_BUILD_TYPE=Release
+# Generate configure from configure.ac (git checkout has no pre-generated configure).
+# jane: autogen.sh runs autoreconf --install --force --verbose then configure.
+#       NOCONFIGURE=1 skips the configure step in autogen.sh so we can pass
+#       our own flags.
+export NOCONFIGURE=1
+./autogen.sh
 
-# Build only the yvalve (client library) target, not the full server.
-# jane: yvalve still pulls in some server build dependencies via CMake
-#       add_dependencies, so the full source tree compiles. This is heavier
-#       than ideal but is the only way to build libfbclient from source.
-ninja -j"${NPROC}" yvalve
+# Configure: client-only build, no server, no editline, no tomcrypt.
+# jane: --enable-client-only sets CLIENT_ONLY_FLG=Y in Makefile.in, which
+#       skips engine, fbintl, utilities, gpre, plugins, examples. Only
+#       yvalve (libfbclient) and include_generic (headers) are built.
+#       --without-tomcrypt avoids a dependency we don't need for the client.
+./configure \
+    --enable-client-only \
+    --without-tomcrypt \
+    --with-builtin-tommath \
+    --prefix="${FB_ROOT}"
+
+# Build the client library and headers.
+# jane: Use `make` alone (not individual targets) because the Firebird
+#       build system requires the `all` -> `firebird` -> `master_process`
+#       chain to set TARGET=Release, create the autoconfig.h symlink, and
+#       run `rest` (generates iberror_c.h). Calling `make yvalve` directly
+#       skips these prerequisites and produces broken/missing output.
+#       With --enable-client-only, master_process skips all server targets
+#       (engine, fbintl, utilities, gpre, plugins, examples) and only builds
+#       yvalve (libfbclient) + include_generic (headers).
+make -j"${NPROC}"
 
 # Manually copy the built library and headers to FB_ROOT.
-# jane: Firebird CMake has no install() targets. Output is in build/gen/.
+# jane: Firebird autotools has an install target but it tries to install
+#       the full server layout. We only need the client library + headers.
+#       With TARGET=Release (set by master_process), output goes to
+#       gen/Release/firebird/. The gen/Native/ path is cross-compile only.
 mkdir -p "${FB_ROOT}/lib" "${FB_ROOT}/include"
 
-# Find the built library (output name is fbclient, symlinked as libfbclient)
-cp -a "${FBSRC}/build/gen/libfbclient.so"* "${FB_ROOT}/lib/" 2>/dev/null || true
-
-# If the library is elsewhere, search for it
-if [ ! -f "${FB_ROOT}/lib/libfbclient.so" ]; then
-    find "${FBSRC}/build" -name "libfbclient.so*" -exec cp -aL {} "${FB_ROOT}/lib/" \;
+# Find and copy the built library.
+# jane: autotools outputs to gen/Release/firebird/lib/ on Linux.
+FB_BUILD_LIB="${FBSRC}/gen/Release/firebird/lib"
+if [ ! -f "${FB_BUILD_LIB}/libfbclient.so" ]; then
+    # Search alternative locations (e.g. if TARGET differs)
+    # jane: guard with || true - set -e would exit silently if find returns empty
+    FB_BUILD_LIB=$(find "${FBSRC}/gen" -name "libfbclient.so" -print -quit 2>/dev/null | xargs -r dirname 2>/dev/null || true)
 fi
+cp -a "${FB_BUILD_LIB}/libfbclient.so"* "${FB_ROOT}/lib/" 2>/dev/null || true
 
-# Copy public headers
-cp -a "${FBSRC}/src/include/firebird" "${FB_ROOT}/include/"
-cp -a "${FBSRC}/src/include/iberror.h" "${FB_ROOT}/include/" 2>/dev/null || true
-# ibase.h is generated during build
-find "${FBSRC}/build" -name "ibase.h" -exec cp {} "${FB_ROOT}/include/" \; 2>/dev/null || true
+# Copy public headers from the build output directory.
+# jane: include_generic copies headers to gen/Release/firebird/include/.
+FB_BUILD_INC="${FBSRC}/gen/Release/firebird/include"
+if [ -d "${FB_BUILD_INC}/firebird" ]; then
+    cp -a "${FB_BUILD_INC}/firebird" "${FB_ROOT}/include/"
+fi
+cp -a "${FB_BUILD_INC}/iberror.h" "${FB_ROOT}/include/" 2>/dev/null || \
+    cp -a "${FBSRC}/src/include/iberror.h" "${FB_ROOT}/include/" 2>/dev/null || true
+cp -a "${FB_BUILD_INC}/ib_util.h" "${FB_ROOT}/include/" 2>/dev/null || \
+    cp -a "${FBSRC}/src/include/ib_util.h" "${FB_ROOT}/include/" 2>/dev/null || true
+# ibase.h is in the firebird/ subdirectory (flattened by include_generic)
+cp -a "${FB_BUILD_INC}/firebird/ibase.h" "${FB_ROOT}/include/" 2>/dev/null || \
+    cp -a "${FBSRC}/src/include/ibase.h" "${FB_ROOT}/include/" 2>/dev/null || true
 
 # Verify
 if [ ! -f "${FB_ROOT}/lib/libfbclient.so" ]; then
     echo "ERROR: libfbclient.so not found after build" >&2
-    find "${FBSRC}/build" -name "*.so*" | head -20
+    find "${FBSRC}/gen" -name "*.so*" | head -20
     return 1
 fi
 

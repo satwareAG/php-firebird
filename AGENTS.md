@@ -78,6 +78,9 @@ in every test's output, failing all tests. Fix: check `extension_loaded('pcntl')
   `.github/workflows/packages-linux.yml`. CI takes 10+ minutes per tag push;
   local testing catches compilation errors in minutes, saving multiple
   yanked-release cycles (learned from v13.2.1-v13.2.3).
+- `scripts/test-deb-build.sh` tests Ubuntu/Debian .deb build locally (~5 min).
+  Run BEFORE tagging any release that touches `packaging/debian/` or
+  `.github/workflows/packages-linux.yml`.
 
 ### CRITICAL: Local/CI Environment Parity
 

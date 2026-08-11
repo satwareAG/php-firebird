@@ -1108,6 +1108,45 @@ _php_fbird_ex_error:
 	return rv;
 }
 
+/* Issue #570: Close all open SELECT cursors on a given transaction.
+ *
+ * Iterates EG(regular_list) to find le_query resources whose transaction
+ * matches target_trans and whose cursor is still open. Closes each cursor
+ * via the OO API (fbs_close_cursor) and decrements open_cursor_count.
+ *
+ * Used by the #294 autocommit retry path: when fbt_commit fails for DDL
+ * on the default transaction, open cursors from prior SELECTs may be
+ * preventing the commit. Closing them and retrying can recover the DDL.
+ *
+ * Returns: number of cursors closed. */
+static int _php_fbird_close_tx_cursors(fbird_transaction *target_trans)
+{
+	int closed = 0;
+	ISC_STATUS cursor_status[256];
+	zend_resource *res;
+
+	if (target_trans == NULL) {
+		return 0;
+	}
+
+	ZEND_HASH_FOREACH_PTR(&EG(regular_list), res) {
+		if (res && res->type == le_query && res->ptr) {
+			fbird_query *fq = (fbird_query *)res->ptr;
+			if (fq->is_open && fq->trans == target_trans) {
+				FBDEBUG("Issue #570: closing open cursor on default tx during commit retry");
+				if (fq->fbs_statement) {
+					fbs_close_cursor(fq->fbs_statement, cursor_status);
+				}
+				_php_fbird_cursor_closed(fq);
+				fq->has_more_rows = 0;
+				closed++;
+			}
+		}
+	} ZEND_HASH_FOREACH_END();
+
+	return closed;
+}
+
 PHP_FUNCTION(fbird_query)
 {
 	ISC_STATUS status[256];
@@ -1307,20 +1346,44 @@ PHP_FUNCTION(fbird_query)
 	 * shutdown, causing MSHUTDOWN crash. The default tx is cleaned up by
 	 * _php_fbird_commit_link during MSHUTDOWN (with #295 getMaster() guard).
 	 *
+	 * Issue #570: fbt_commit() return value is now checked. If commit fails
+	 * for DDL, open cursors from prior SELECTs on the same default tx may be
+	 * blocking the commit. We close them via _php_fbird_close_tx_cursors()
+	 * and retry. If the retry also fails, the error is reported so the caller
+	 * knows the DDL was not committed (previously: silently lost + rolled back
+	 * by fbt_free, which calls rollbackNoThrow).
+	 *
 	 * trans_res == NULL indicates the default (implicit) transaction was used. */
 	{
 		bool is_persistent = (link && link->is_persistent);
 		if (!trans_res && trans && trans->fbt_transaction &&
 			Z_TYPE_P(return_value) != IS_RESOURCE && !is_persistent) {
-			/* Issue #294: Commit + free the default transaction for true autocommit.
-			 * fbt_free calls rollbackNoThrow() (safe — transaction_ is null after
-			 * commit, so it returns early) then deletes the C++ Transaction object.
-			 * If commit fails (e.g., open cursors from a prior SELECT on the same
-			 * default tx), silently continue — the transaction stays valid and
-			 * will be committed at connection close or explicit fbird_commit().
-			 * jane: silent on failure — autocommit is an optimization, not a
-			 * user-initiated commit; reporting cursor-lock errors would be noise. */
-			fbt_commit(trans->fbt_transaction, status);
+
+			int commit_ret = fbt_commit(trans->fbt_transaction, status);
+
+			if (commit_ret != 0) {
+				/* Issue #570: Commit failed. fbt_free() below will call
+				 * rollbackNoThrow(), rolling back the transaction.
+				 * For DDL, attempt cursor cleanup + retry before giving up.
+				 * For all statement types, report the error (previously
+				 * silently swallowed) via _php_fbird_error which respects
+				 * the exception_mode setting (throw or E_WARNING). */
+				if (fb_query->statement_type == isc_info_sql_stmt_ddl &&
+					trans->open_cursor_count > 0) {
+					FBDEBUG("Issue #570: DDL autocommit failed, closing open cursors and retrying");
+					int closed = _php_fbird_close_tx_cursors(trans);
+					if (closed > 0) {
+						commit_ret = fbt_commit(trans->fbt_transaction, status);
+					}
+				}
+				if (commit_ret != 0) {
+					/* Retry failed, not DDL, or no cursors to close:
+					 * report the error so the statement loss is visible.
+					 * fbt_free below rolls back the transaction. */
+					_php_fbird_error(status);
+				}
+			}
+
 			fbt_free(trans->fbt_transaction);
 			trans->fbt_transaction = NULL;
 		}

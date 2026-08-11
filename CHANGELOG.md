@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [13.2.7] - 2026-08-12
+
+### Fixed
+
+- **#570: #294 autocommit silently lost DDL on commit failure**:
+  The `#294 autocommit block` in `PHP_FUNCTION(fbird_query)` called
+  `fbt_commit()` without checking the return value. When commit failed
+  (e.g., open cursors from prior SELECTs on the default transaction),
+  `fbt_free()` called `rollbackNoThrow()`, silently rolling back the
+  DDL/DML. This was the root cause of the intermittent "Table unknown"
+  DDL visibility gap reported by amicron-platform CI.
+
+  Fix: `fbt_commit()` return value is now checked. For DDL, open cursors
+  are closed via the new `_php_fbird_close_tx_cursors()` helper and the
+  commit is retried. For all statement types, commit failures are now
+  reported via `_php_fbird_error()` (throws in exception mode, E_WARNING
+  otherwise) instead of being silently swallowed.
+
+### Added
+
+- **`UPGRADING.md`**: Migration guide documenting v13.0→v13.2 behavior
+  changes: default transaction isolation (SNAPSHOT), `fbird.auto_ddl_commit`
+  INI, `#294` autocommit error reporting, cursor-count gating, and the
+  `fbird_release_metadata_locks()` API.
+
+- **`tests/bug570_ddl_autocommit_with_open_cursor.phpt`**: Regression test
+  covering DDL and DML autocommit on the default transaction when a prior
+  SELECT cursor is still open.
+
 ## [13.2.6] - 2026-08-10
 
 ### Fixed

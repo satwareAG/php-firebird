@@ -71,7 +71,7 @@ fbird_free_result($q);
 // Cleanup: free prepared stmt and commit implicit tx before DDL.
 // Use @ on final commit — prepared statement handle may still hold the table.
 @fbird_commit($dbh);
-fbird_query($dbh, 'DROP TABLE BIND_BOOL_COV');
+@fbird_query($dbh, 'DROP TABLE BIND_BOOL_COV');
 @fbird_commit($dbh);
 fbird_close($dbh);
 

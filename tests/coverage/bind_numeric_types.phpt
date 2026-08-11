@@ -81,7 +81,7 @@ var_dump($row[0] === null && $row[1] === null && $row[2] === null);
 
 // Cleanup: commit implicit tx, then DDL. Use @ on final commit (prepared stmt may hold table).
 @fbird_commit($dbh);
-fbird_query($dbh, 'DROP TABLE BIND_NUM_COV');
+@fbird_query($dbh, 'DROP TABLE BIND_NUM_COV');
 @fbird_commit($dbh);
 fbird_close($dbh);
 

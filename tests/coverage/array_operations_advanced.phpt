@@ -67,7 +67,7 @@ fbird_free_result($q);
 var_dump($row['V_INT'] === null);
 
 // Cleanup
-fbird_query($dbh, "DROP TABLE ARR_ADV_COV");
+@fbird_query($dbh, "DROP TABLE ARR_ADV_COV");
 @fbird_commit($dbh);
 fbird_close($dbh);
 

@@ -123,7 +123,7 @@ var_dump($row[0] !== null);
 
 // Cleanup
 @fbird_commit($dbh);
-fbird_query($dbh, 'DROP TABLE DT_FORMATS_COV');
+@fbird_query($dbh, 'DROP TABLE DT_FORMATS_COV');
 @fbird_commit($dbh);
 fbird_close($dbh);
 

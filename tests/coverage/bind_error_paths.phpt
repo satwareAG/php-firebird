@@ -104,7 +104,7 @@ var_dump($info === false || $info === null);
 
 // Cleanup: @ on final commit — prepared stmt may still hold the table
 @fbird_commit($dbh);
-fbird_query($dbh, 'DROP TABLE BIND_ERR_COV');
+@fbird_query($dbh, 'DROP TABLE BIND_ERR_COV');
 @fbird_commit($dbh);
 fbird_close($dbh);
 

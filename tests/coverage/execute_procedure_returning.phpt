@@ -87,7 +87,7 @@ fbird_commit($dbh);
 
 // Cleanup
 @fbird_commit($dbh);
-fbird_query($dbh, 'DROP TABLE PROC_COV');
+@fbird_query($dbh, 'DROP TABLE PROC_COV');
 @fbird_commit($dbh);
 fbird_close($dbh);
 

@@ -155,7 +155,7 @@ if ($row_count !== 3) {
 echo "\nAll BLOB data verified successfully\n";
 
 // Cleanup (batch auto-closed after execute, just drop table)
-fbird_query($db, 'DROP TABLE BATCH_BLOB_TEST');
+@fbird_query($dbh, 'DROP TABLE BATCH_BLOB_TEST');
 fbird_close($db);
 
 echo "DONE\n";

@@ -91,7 +91,7 @@ var_dump($row[0] !== null && $row[0] !== false);
 
 // Cleanup
 @fbird_commit($dbh);
-fbird_query($dbh, 'DROP TABLE BLOB_STR_COV');
+@fbird_query($dbh, 'DROP TABLE BLOB_STR_COV');
 @fbird_commit($dbh);
 fbird_close($dbh);
 

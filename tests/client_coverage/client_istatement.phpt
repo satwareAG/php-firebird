@@ -19,7 +19,7 @@ fbird_free_query($stmt2);
 $res3 = fbird_query($link, "SELECT id FROM test_istmt");
 fbird_name_result($res3, "MY_CURSOR");
 fbird_free_result($res3);
-fbird_query($link, "DROP TABLE test_istmt");
+@fbird_query($link, "DROP TABLE test_istmt");
 echo "done\n";
 ?>
 --EXPECT--

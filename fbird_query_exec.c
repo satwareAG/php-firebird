@@ -1111,18 +1111,22 @@ _php_fbird_ex_error:
 /* Issue #570: Close all open SELECT cursors on a given transaction.
  *
  * Iterates EG(regular_list) to find le_query resources whose transaction
- * matches target_trans and whose cursor is still open. Closes each cursor
- * via the OO API (fbs_close_cursor) and decrements open_cursor_count.
+ * matches target_trans and whose cursor is still open (PHP-side is_open flag).
  *
  * Used by the #294 autocommit retry path: when fbt_commit fails for DDL
  * on the default transaction, open cursors from prior SELECTs may be
- * preventing the commit. Closing them and retrying can recover the DDL.
+ * blocking the commit. Closing them and retrying can recover the DDL.
  *
- * Returns: number of cursors closed. */
+ * jane: Only updates PHP-side bookkeeping (is_open, cursor_count). Does NOT
+ * call fbs_close_cursor because the statement handle may be stale after a
+ * failed commit attempt (segfault on FB3). The retry fbt_commit handles
+ * server-side cursor cleanup — Firebird closes all cursors during commit
+ * regardless of their state.
+ *
+ * Returns: number of cursors marked closed. */
 static int _php_fbird_close_tx_cursors(fbird_transaction *target_trans)
 {
 	int closed = 0;
-	ISC_STATUS cursor_status[256];
 	zend_resource *res;
 
 	if (target_trans == NULL) {
@@ -1133,10 +1137,7 @@ static int _php_fbird_close_tx_cursors(fbird_transaction *target_trans)
 		if (res && res->type == le_query && res->ptr) {
 			fbird_query *fq = (fbird_query *)res->ptr;
 			if (fq->is_open && fq->trans == target_trans) {
-				FBDEBUG("Issue #570: closing open cursor on default tx during commit retry");
-				if (fq->fbs_statement) {
-					fbs_close_cursor(fq->fbs_statement, cursor_status);
-				}
+				FBDEBUG("Issue #570: marking cursor closed on default tx during commit retry");
 				_php_fbird_cursor_closed(fq);
 				fq->has_more_rows = 0;
 				closed++;

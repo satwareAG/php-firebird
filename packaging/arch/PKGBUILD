@@ -1,0 +1,72 @@
+# Maintainer: satware AG <ja@satware.com>
+# Source-built Arch/Manjaro package for php-firebird.
+#
+# Builds the procedural (fbird_*) and PDO (pdo_fbird) Firebird extensions from
+# the upstream v$pkgver tag, linking against the system libfbclient / libtommath.
+# No rpath, no bundled libs - the result matches the rest of the Arch php-* set.
+#
+# Rebuild after a new release:
+#   1. Bump pkgver and the sha256sums entry (see packaging/arch/README.md).
+#   2. makepkg -si
+#
+# The module is ABI-pinned to the installed php package (Zend Module API). It
+# only loads when built against the same PHP major.minor family. If `php` is
+# upgraded across a module-API boundary, rebuild this package.
+
+pkgname=php-firebird
+pkgver=13.2.7
+pkgrel=1
+pkgdesc="Modern PHP 8 extension: native Firebird connectivity (fbird_* procedural + PDO pdo_fbird), replacement for ext/interbase"
+arch=('x86_64')
+url="https://github.com/satwareAG/php-firebird"
+license=('PHP')
+groups=()
+depends=('php' 'libfbclient' 'libtommath')
+makedepends=('autoconf' 'automake' 'libtool')
+checkdepends=()
+optdepends=()
+provides=('php-pdo-firebird')
+conflicts=()
+replaces=()
+backup=()
+options=('!strip')   # keep module info / debug symbols intact
+install=
+changelog=
+source=("$pkgname-$pkgver.tar.gz::https://github.com/satwareAG/php-firebird/archive/refs/tags/v$pkgver.tar.gz")
+noextract=()
+sha256sums=('9a4359cc7812ff53c0caa7062d0a532f06c1ba092b32aa32b3e1da4e0a6b858e')
+
+build() {
+    cd "$srcdir/$pkgname-$pkgver"
+
+    # Main extension: modules/firebird.so
+    # --with-firebird=yes lets config.m4 query fb_config (provided by libfbclient)
+    # for cflags/libs and the Firebird >= 3.0 version check.
+    phpize
+    ./configure --with-firebird=yes
+    make -j"$(nproc)"
+
+    # PDO driver: pdo_fbird/modules/pdo_fbird.so (separate extension in subdir,
+    # depends on symbols from firebird.so - load order matters at runtime).
+    cd pdo_fbird
+    phpize
+    ./configure --with-pdo-fbird --with-firebird=yes
+    make -j"$(nproc)"
+}
+
+package() {
+    cd "$srcdir/$pkgname-$pkgver"
+
+    # Canonical Arch/Manjaro PHP extension location (matches the `php` package).
+    install -Dm755 modules/firebird.so            "$pkgdir/usr/lib/php/modules/firebird.so"
+    install -Dm755 pdo_fbird/modules/pdo_fbird.so "$pkgdir/usr/lib/php/modules/pdo_fbird.so"
+
+    # ini scan dir: /etc/php/conf.d/ is read by every PHP SAPI on Arch/Manjaro.
+    install -Dm644 /dev/stdin "$pkgdir/etc/php/conf.d/firebird.ini" <<'INI'
+extension=firebird.so
+INI
+    install -Dm644 /dev/stdin "$pkgdir/etc/php/conf.d/pdo_fbird.ini" <<'INI'
+; PDO driver for Firebird (DSN prefix "fbird:"). Must load after firebird.so.
+extension=pdo_fbird.so
+INI
+}

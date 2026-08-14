@@ -362,6 +362,7 @@ PHP_FUNCTION(fbird_trans_start)
 
 	fb_trans->link_cnt = 1;
 	fb_trans->affected_rows = 0;
+	fb_trans->is_default = false;  /* Issue #554 */
 	fb_trans->open_cursor_count = 0;  /* Issue #566 */
 	fb_trans->stored_tpb_len = tpb_len;
 	if (tpb_len > 0) {
@@ -972,6 +973,7 @@ PHP_FUNCTION(fbird_trans)
 			fb_trans = (fbird_transaction *) safe_emalloc(link_cnt-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
 			fb_trans->link_cnt = link_cnt;
 			fb_trans->affected_rows = 0;
+			fb_trans->is_default = false;  /* Issue #554 */
 			fb_trans->open_cursor_count = 0;  /* Issue #566 */
 			/* Store TPB for restart (#566 review finding #4). */
 			if (link_cnt == 1 && link0_tpb_len > 0) {
@@ -1033,6 +1035,7 @@ PHP_FUNCTION(fbird_trans)
 		fb_trans = (fbird_transaction *) safe_emalloc(link_cnt-1, sizeof(fbird_db_link *), sizeof(fbird_transaction));
 		fb_trans->link_cnt = link_cnt;
 		fb_trans->affected_rows = 0;
+		fb_trans->is_default = false;  /* Issue #554 */
 		fb_trans->open_cursor_count = 0;  /* Issue #566 */
 		/* Store TPB for restart (#566 review finding #4).
 		 * For single-db: use tpb_len + last_tpb (function scope).
@@ -1104,6 +1107,7 @@ int _php_fbird_def_trans(fbird_db_link *fb_link, fbird_transaction **trans)
 			tr->open_cursor_count = 0;  /* Issue #566 */
 			tr->stored_tpb_len = 0;
 			tr->fbt_transaction = NULL;
+			tr->is_default = true;  /* Issue #554 */
 			tr->db_link[0] = fb_link;
 			fb_link->tr_list->trans = tr;
 		}

@@ -1508,6 +1508,7 @@ PHP_FUNCTION(fbird_reconnect_transaction)
 	fb_trans->fbt_transaction = reconnected_trans;
 	fb_trans->link_cnt = 1;
 	fb_trans->affected_rows = 0;
+	fb_trans->is_default = false;  /* Issue #554 */
 	fb_trans->open_cursor_count = 0;  /* Issue #566 */
 	fb_trans->stored_tpb_len = 0;     /* Reconnect: default TPB */
 	fb_trans->db_link[0] = fb_link;

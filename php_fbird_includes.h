@@ -134,6 +134,12 @@ typedef struct {
 	unsigned long affected_rows;
 	/* OO API transaction wrapper (fb::Transaction* from fbt_start()) */
 	void *fbt_transaction;
+	/* Issue #554: True for the default (implicit) transaction created by
+	 * _php_fbird_def_trans(). Intended to replace the positional i==0
+	 * sentinel head node convention once callers migrate (#554 follow-up).
+	 * Until then, the positional convention remains load-bearing.
+	 * Only one transaction per connection has this flag. */
+	bool is_default;
 	/* Issue #566: Open cursor count for gating #540 transparent commit+restart.
 	 * Incremented when a SELECT cursor is opened on this transaction,
 	 * decremented when the cursor is closed/freed. The #540 commit+restart

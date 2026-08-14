@@ -184,6 +184,7 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
 			trans = (fbird_transaction *) emalloc(sizeof(fbird_transaction));
 			trans->link_cnt = 1;
 			trans->affected_rows = 0;
+			trans->is_default = false;  /* Issue #554 */
 			trans->open_cursor_count = 0;  /* Issue #566 */
 			trans->stored_tpb_len = 0;     /* SET TRANSACTION TPB not stored here */
 			trans->fbt_transaction = new_trans;
@@ -1939,6 +1940,7 @@ PHP_FUNCTION(fbird_execute_auto)
     trans = (fbird_transaction *) emalloc(sizeof(fbird_transaction));
     trans->link_cnt = 1;
     trans->affected_rows = 0;
+    trans->is_default = false;  /* Issue #554 */
     trans->open_cursor_count = 0;  /* Issue #566 */
     trans->stored_tpb_len = 0;     /* Temp trans: no stored TPB */
     trans->fbt_transaction = oo_trans;

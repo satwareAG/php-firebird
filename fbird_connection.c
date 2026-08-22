@@ -522,8 +522,9 @@ void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 		RETURN_FALSE;
 	}
 	/* Phase C: return Firebird\Connection object instead of raw resource.
-	 * fbird_setup_connection_object stores a weak ref; default_link owns the resource.
-	 * Release the "caller ref" that _php_fbird_connect_link added. */
+	 * fbird_setup_connection_object takes a strong ref for the object (#576);
+	 * the DELREF below releases the "caller ref" that
+	 * _php_fbird_connect_link added, so net the object owns exactly one. */
 	fbird_setup_connection_object(return_value, res);
 	GC_DELREF(res);
 }
@@ -583,14 +584,20 @@ static void _php_fbird_adopt_new_default_link(zend_resource *closing_link)
 /* Helper function for optimized resource cleanup */
 static void _php_fbird_close_resource(zend_resource *link_res)
 {
-	/* For persistent connections, check reference count more carefully */
+	/* Issue #576 + #202 semantics:
+	 * - Persistent link with refcount > 1: other holders (Firebird\
+	 *   Connection objects wrapping the same plink entry, default_link) are
+	 *   still alive - closing the server link would defunct the shared entry
+	 *   under them ("No default connection" regression) and the old code's
+	 *   zend_list_delete here released a ref owned by nobody (undercount ->
+	 *   premature entry free -> heap-use-after-free). Do nothing; the last
+	 *   holder's close()/release closes the link.
+	 * - Otherwise: zend_list_close fires the link dtor exactly once; entry
+	 *   memory is released by the owners' deletes when rc reaches 0. */
 	if (link_res->type == le_plink && GC_REFCOUNT(link_res) > 1) {
-		/* Multiple references exist - just decrease our refcount */
-		zend_list_delete(link_res);
-	} else {
-		/* Safe to close: either non-persistent or no other references */
-		zend_list_close(link_res);
+		return;
 	}
+	zend_list_close(link_res);
 }
 
 /* Helper: extract zend_resource* from either a resource zval or a Firebird\Connection object.
@@ -826,7 +833,8 @@ PHP_FUNCTION(fbird_create_database)
 	fb_link->fbc_connection = create_result;
 
 	/* Phase C: register resource and wrap in Firebird\Connection object.
-	 * resource_list holds ref=1; set as default_link adds ref=2 (weak ref in object). */
+	 * register gives ref=1; default_link ADDREF makes ref=2; the object owns
+	 * a strong ref via fbird_setup_connection_object (#576) -> ref=3. */
 	{
 		zend_resource *cres = zend_register_resource(fb_link, le_link);
 		if (FBG(default_link)) {

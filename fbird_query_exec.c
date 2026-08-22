@@ -82,6 +82,10 @@ static fbird_db_link *_php_fbird_link_from_zval(zval *z)
     return NULL;
 }
 
+/* Issue #572 forward decl: defined further down, used by the DDL
+ * autocommit block in _php_fbird_exec (cursor cleanup + commit retry). */
+static int _php_fbird_close_tx_cursors(fbird_transaction *target_trans);
+
 int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *args, int bind_n)
 {
 	ISC_STATUS status[256];
@@ -626,9 +630,24 @@ execute_done:
         fb_query->link->tr_list &&
         fb_query->link->tr_list->trans == fb_query->trans &&
         !fb_query->link->is_persistent) {
-        ISC_STATUS ddl_status[256];
-        FBDEBUG("Issue #572: autocommit default tx after DDL execute");
-        fbt_commit(fb_query->trans->fbt_transaction, ddl_status);
+        /* Issue #570 parity (review finding): check the commit return value.
+         * On failure, fbt_free() below rolls back silently - close blocking
+         * cursors and retry once for DDL (same as the #570 immediate-query
+         * path); if the retry also fails, report so the loss is visible
+         * instead of returning true for an uncommitted DDL. */
+        int commit_ret = fbt_commit(fb_query->trans->fbt_transaction, status);
+
+        if (commit_ret != 0 && fb_query->trans->open_cursor_count > 0) {
+            FBDEBUG("Issue #572: DDL autocommit failed, closing open cursors and retrying");
+            int closed = _php_fbird_close_tx_cursors(fb_query->trans);
+            if (closed > 0) {
+                commit_ret = fbt_commit(fb_query->trans->fbt_transaction, status);
+            }
+        }
+        if (commit_ret != 0) {
+            _php_fbird_error(status);
+        }
+
         fbt_free(fb_query->trans->fbt_transaction);
         fb_query->trans->fbt_transaction = NULL;
     }

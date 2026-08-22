@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **#572: DDL via `fbird_prepare_ex(...,null)` + execute on the default transaction committed only at connection close**: metadata locks lingered for the connection lifetime, making the DDL invisible to other connections and blocking their no-wait transactions. The default tx now commits immediately after successful DDL execution (with #570-style cursor-close + retry + error report on commit failure). Explicit transactions keep transactional-DDL semantics. Note: a hard commit invalidates open cursors on the same default tx (same trade-off as #566) - an unfetched SELECT result left across a DDL execute will return no rows.
+
 ## [13.2.7] - 2026-08-12
 
 ### Fixed

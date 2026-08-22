@@ -583,14 +583,20 @@ static void _php_fbird_adopt_new_default_link(zend_resource *closing_link)
 /* Helper function for optimized resource cleanup */
 static void _php_fbird_close_resource(zend_resource *link_res)
 {
-	/* For persistent connections, check reference count more carefully */
+	/* Issue #576 + #202 semantics:
+	 * - Persistent link with refcount > 1: other holders (Firebird\
+	 *   Connection objects wrapping the same plink entry, default_link) are
+	 *   still alive - closing the server link would defunct the shared entry
+	 *   under them ("No default connection" regression) and the old code's
+	 *   zend_list_delete here released a ref owned by nobody (undercount ->
+	 *   premature entry free -> heap-use-after-free). Do nothing; the last
+	 *   holder's close()/release closes the link.
+	 * - Otherwise: zend_list_close fires the link dtor exactly once; entry
+	 *   memory is released by the owners' deletes when rc reaches 0. */
 	if (link_res->type == le_plink && GC_REFCOUNT(link_res) > 1) {
-		/* Multiple references exist - just decrease our refcount */
-		zend_list_delete(link_res);
-	} else {
-		/* Safe to close: either non-persistent or no other references */
-		zend_list_close(link_res);
+		return;
 	}
+	zend_list_close(link_res);
 }
 
 /* Helper: extract zend_resource* from either a resource zval or a Firebird\Connection object.

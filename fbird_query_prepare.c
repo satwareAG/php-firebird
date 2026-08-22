@@ -175,9 +175,13 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc)
             /* Break the back-link to avoid cascading frees */
             child->parent = NULL;
             if (child->res) {
-                /* Close child resource which marks it invalid for Zend */
-                zend_list_close(child->res);
+                /* Issue #576: zend_list_close() runs the child dtor synchronously,
+                 * which frees the child struct (_php_fbird_free_query). Clearing
+                 * child->res AFTER the close was a write to freed memory. Write it
+                 * BEFORE, via a local, in both branches (dtor-fires / defunct). */
+                zend_resource *child_res = child->res;
                 child->res = NULL;
+                zend_list_close(child_res);
             }
             child = next;
         }

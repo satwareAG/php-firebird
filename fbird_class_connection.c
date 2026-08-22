@@ -25,10 +25,48 @@ zend_object *fbird_connection_create(zend_class_entry *ce)
 	return &intern->std;
 }
 
+/* Ref-release path shared by FirebirdConnection::close() and object
+ * destruction (#576).
+ *
+ * The object OWNS one reference on the resource entry. Destruction only
+ * drops that ref: while FBG(default_link) (or a userland resource zval)
+ * holds another ref, the link stays open - legacy ext/interbase semantics
+ * relied on by fbird_connect() callers that ignore the return value.
+ * When the last ref drops, list_entry_destructor fires the link dtor.
+ *
+ * explicit_close (user called close()) additionally closes the server link
+ * immediately and releases the default_link ref if we are the default. */
+/* Ref-release path shared by FirebirdConnection::close() and object
+ * destruction (#576).
+ *
+ * The object OWNS one reference on the resource entry. Destruction only
+ * drops that ref: while FBG(default_link) (or a userland resource zval)
+ * holds another ref, the link stays open - legacy ext/interbase semantics
+ * relied on by fbird_connect() callers that ignore the return value.
+ * When the last ref drops, list_entry_destructor fires the link dtor.
+ *
+ * explicit_close (user called close()) additionally closes the server link
+ * immediately and releases the default_link ref if we are the default. */
+static void fbird_connection_obj_release(fbird_connection_obj *intern, bool explicit_close)
+{
+	if (!intern->conn_res) {
+		return;
+	}
+	if (explicit_close) {
+		if (!FBG(in_mshutdown) && FBG(default_link) == intern->conn_res) {
+			FBG(default_link) = NULL;
+			zend_list_delete(intern->conn_res); /* drop default_link ref */
+		}
+		zend_list_close(intern->conn_res);     /* fire link dtor (defunct) */
+	}
+	zend_list_delete(intern->conn_res);        /* drop object's owned ref */
+	intern->conn_res = NULL;
+}
+
 void fbird_connection_free(zend_object *obj)
 {
 	fbird_connection_obj *intern = fbird_connection_from_obj(obj);
-	intern->conn_res = NULL;
+	fbird_connection_obj_release(intern, false);
 	zend_object_std_dtor(obj);
 }
 
@@ -84,8 +122,15 @@ PHP_METHOD(FirebirdConnection, __construct)
 			"Failed to connect to Firebird database", 0);
 		return;
 	}
+	/* Issue #576: the object OWNS this reference (the "caller" ref from
+	 * _php_fbird_connect_link). The previous borrow (GC_DELREF here) tied the
+	 * resource lifetime to FBG(default_link): the next fbird_connect() drops
+	 * that ref (zend_list_delete in _php_fbird_connect_link), the entry is
+	 * efreed, and any later isConnected()/ping()/prepare() on this object
+	 * dereferenced freed memory (heap-use-after-free under ASAN, SIGSEGV in
+	 * the doctrine-firebird-driver suite). Mirror FirebirdStatement's owned
+	 * ref: keep it here, drop it in close()/fbird_connection_free(). */
 	intern->conn_res = res;
-	GC_DELREF(res);
 }
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_connection_close, 0, 0, IS_VOID, 0)
@@ -95,13 +140,7 @@ PHP_METHOD(FirebirdConnection, close)
 {
 	ZEND_PARSE_PARAMETERS_NONE();
 	fbird_connection_obj *intern = Z_FBIRD_CONNECTION_P(ZEND_THIS);
-	if (intern->conn_res) {
-		if (!FBG(in_mshutdown) && FBG(default_link) == intern->conn_res) {
-			FBG(default_link) = NULL;
-		}
-		zend_list_close(intern->conn_res);
-		intern->conn_res = NULL;
-	}
+	fbird_connection_obj_release(intern, true);
 }
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_connection_isConnected, 0, 0, _IS_BOOL, 0)
@@ -313,6 +352,13 @@ void fbird_setup_connection_object(zval *return_value, zend_resource *res)
 	zval_ptr_dtor(return_value);
 	object_init_ex(return_value, fbird_connection_ce);
 	fbird_connection_obj *intern = Z_FBIRD_CONNECTION_P(return_value);
+	/* Issue #576: the object OWNS a reference (was: raw weak pointer, with
+	 * default_link as sole owner). The next fbird_connect() to the same or
+	 * another database drops the default_link ref; the entry was efreed while
+	 * this object still pointed at it -> heap-use-after-free in isConnected()
+	 * et al. Callers compensate: _php_fbird_connect drops the caller ref it
+	 * got from _php_fbird_connect_link; fbird_connection.c:~837 took none. */
+	GC_ADDREF(res);
 	intern->conn_res = res;
 }
 

@@ -27,6 +27,9 @@ var_dump($c->isConnected());
 $c->close();
 var_dump($c->isConnected());
 $c->close(); // second close is a no-op, no crash
+// explicit close() closes the shared server link for ALL holders
+// ($b still wraps the same DSN-cached entry from scenario 1)
+var_dump($b->isConnected());
 
 // Scenario 3 (#576 regression guard for the default-link semantics):
 // an unused fbird_connect() return keeps the default link alive.
@@ -43,6 +46,7 @@ bool(true)
 bool(true)
 bool(true)
 bool(true)
+bool(false)
 bool(false)
 bool(true)
 done

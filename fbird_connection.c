@@ -522,8 +522,9 @@ void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 		RETURN_FALSE;
 	}
 	/* Phase C: return Firebird\Connection object instead of raw resource.
-	 * fbird_setup_connection_object stores a weak ref; default_link owns the resource.
-	 * Release the "caller ref" that _php_fbird_connect_link added. */
+	 * fbird_setup_connection_object takes a strong ref for the object (#576);
+	 * the DELREF below releases the "caller ref" that
+	 * _php_fbird_connect_link added, so net the object owns exactly one. */
 	fbird_setup_connection_object(return_value, res);
 	GC_DELREF(res);
 }

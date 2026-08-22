@@ -832,7 +832,8 @@ PHP_FUNCTION(fbird_create_database)
 	fb_link->fbc_connection = create_result;
 
 	/* Phase C: register resource and wrap in Firebird\Connection object.
-	 * resource_list holds ref=1; set as default_link adds ref=2 (weak ref in object). */
+	 * register gives ref=1; default_link ADDREF makes ref=2; the object owns
+	 * a strong ref via fbird_setup_connection_object (#576) -> ref=3. */
 	{
 		zend_resource *cres = zend_register_resource(fb_link, le_link);
 		if (FBG(default_link)) {

@@ -36,17 +36,6 @@ zend_object *fbird_connection_create(zend_class_entry *ce)
  *
  * explicit_close (user called close()) additionally closes the server link
  * immediately and releases the default_link ref if we are the default. */
-/* Ref-release path shared by FirebirdConnection::close() and object
- * destruction (#576).
- *
- * The object OWNS one reference on the resource entry. Destruction only
- * drops that ref: while FBG(default_link) (or a userland resource zval)
- * holds another ref, the link stays open - legacy ext/interbase semantics
- * relied on by fbird_connect() callers that ignore the return value.
- * When the last ref drops, list_entry_destructor fires the link dtor.
- *
- * explicit_close (user called close()) additionally closes the server link
- * immediately and releases the default_link ref if we are the default. */
 static void fbird_connection_obj_release(fbird_connection_obj *intern, bool explicit_close)
 {
 	if (!intern->conn_res) {

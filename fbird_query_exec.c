@@ -188,22 +188,13 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
 			trans = (fbird_transaction *) emalloc(sizeof(fbird_transaction));
 			trans->link_cnt = 1;
 			trans->affected_rows = 0;
+			trans->is_default = false;  /* Issue #554 */
 			trans->open_cursor_count = 0;  /* Issue #566 */
 			trans->stored_tpb_len = 0;     /* SET TRANSACTION TPB not stored here */
 			trans->fbt_transaction = new_trans;
 			trans->db_link[0] = fb_query->link;
 
-				/* Sentinel head node: reserves index 0 for the default transaction.
-				 * _php_fbird_commit_link() uses i==0 to distinguish:
-				 *   - Default tx (index 0): commit + efree (not a registered resource)
-				 *   - Explicit tx (index >0): rollback + leave to le_trans destructor
-				 * Do NOT remove this placeholder — see issue #541 investigation. */
-				if (fb_query->link->tr_list == NULL) {
-					fb_query->link->tr_list = (fbird_tr_list *) emalloc(sizeof(fbird_tr_list));
-					fb_query->link->tr_list->trans = NULL;
-					fb_query->link->tr_list->next = NULL;
-				}
-
+				/* Issue #554: no sentinel head node — appends handle empty lists. */
 				/* link the transaction into the connection-transaction list */
 				for (l = &fb_query->link->tr_list; *l != NULL; l = &(*l)->next);
 				*l = (fbird_tr_list *) emalloc(sizeof(fbird_tr_list));
@@ -1998,6 +1989,7 @@ PHP_FUNCTION(fbird_execute_auto)
     trans = (fbird_transaction *) emalloc(sizeof(fbird_transaction));
     trans->link_cnt = 1;
     trans->affected_rows = 0;
+    trans->is_default = false;  /* Issue #554 */
     trans->open_cursor_count = 0;  /* Issue #566 */
     trans->stored_tpb_len = 0;     /* Temp trans: no stored TPB */
     trans->fbt_transaction = oo_trans;

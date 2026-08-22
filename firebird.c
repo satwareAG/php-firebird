@@ -1508,22 +1508,13 @@ PHP_FUNCTION(fbird_reconnect_transaction)
 	fb_trans->fbt_transaction = reconnected_trans;
 	fb_trans->link_cnt = 1;
 	fb_trans->affected_rows = 0;
+	fb_trans->is_default = false;  /* Issue #554 */
 	fb_trans->open_cursor_count = 0;  /* Issue #566 */
 	fb_trans->stored_tpb_len = 0;     /* Reconnect: default TPB */
 	fb_trans->db_link[0] = fb_link;
 
 	/* Link into connection's transaction list */
-	/* Sentinel head node: reserves index 0 for the default transaction.
-	 * _php_fbird_commit_link() uses i==0 to distinguish:
-	 *   - Default tx (index 0): commit + efree (not a registered resource)
-	 *   - Explicit tx (index >0): rollback + leave to le_trans destructor
-	 * Do NOT remove this placeholder — see issue #541 investigation. */
-	if (fb_link->tr_list == NULL) {
-		fb_link->tr_list = (fbird_tr_list *)emalloc(sizeof(fbird_tr_list));
-		fb_link->tr_list->trans = NULL;
-		fb_link->tr_list->next = NULL;
-	}
-
+	/* Issue #554: no sentinel head node — appends handle empty lists. */
 	fbird_tr_list **l;
 	for (l = &fb_link->tr_list; *l != NULL; l = &(*l)->next);
 	*l = (fbird_tr_list *)emalloc(sizeof(fbird_tr_list));

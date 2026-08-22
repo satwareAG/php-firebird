@@ -78,19 +78,18 @@ void _php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAMETERS,
 void _php_fbird_commit_link(fbird_db_link *link)
 {
 	ISC_STATUS status[256];
-	unsigned short i = 0, j;
+	unsigned short j;
 	fbird_tr_list *l;
 	fbird_event *e;
 	FBDEBUG("Checking transactions to close...");
 
-	/* Position-sensitive cleanup: relies on tr_list sentinel head node pattern.
-	 * Index 0 = default transaction (commit + efree directly, NOT a le_trans resource).
-	 * Index >0 = explicit transaction (rollback + leave to le_trans destructor).
-	 * The sentinel head (trans=NULL placeholder) is allocated at 5 sites — see issue #541. */
-	for (l = link->tr_list; l != NULL; ++i) {
+	/* Flag-based cleanup (Issue #554): is_default distinguishes
+	 * default transaction (commit + efree directly, NOT a le_trans resource)
+	 * from explicit transaction (rollback + leave to le_trans destructor). */
+	for (l = link->tr_list; l != NULL;) {
 		fbird_tr_list *p = l;
 		if (p->trans != 0) {
-			if (i == 0) {
+			if (p->trans->is_default) {
 				/* Default transaction: commit via OO API */
 				if (p->trans->fbt_transaction != NULL) {
 					FBDEBUG("Committing default transaction via OO API...");

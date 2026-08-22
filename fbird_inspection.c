@@ -224,21 +224,20 @@ static int _fbird_drop_table(fbird_db_link *link, fbird_transaction *trans, cons
 	 * could be stale. Setting db_link[i] = NULL tells the destructor to skip.
 	 * This mirrors what _php_fbird_commit_link() does when closing connections.
 	 *
-	 * IMPORTANT: The first node in tr_list is reserved for the default transaction
-	 * (see _php_fbird_def_trans). We must NOT efree() that first node - just clear
-	 * its trans pointer. Only non-first nodes should be unlinked and freed. */
+	 * IMPORTANT (Issue #554): If this is the default transaction
+	 * (is_default flag), keep the node and just clear its trans pointer so
+	 * the slot can be reused. Explicit transaction nodes are unlinked and freed. */
 	for (unsigned short i = 0; i < trans->link_cnt; ++i) {
 		if (trans->db_link[i] != NULL) {
 			fbird_tr_list **l;
 			for (l = &trans->db_link[i]->tr_list; *l != NULL; l = &(*l)->next) {
 				if ((*l)->trans == trans) {
-					/* Is this the first node (default transaction slot)? */
-					if (*l == trans->db_link[i]->tr_list) {
-						/* Don't free the first node - it's the default trans slot.
-						 * Just clear the trans pointer so it can be reused. */
+					if (trans->is_default) {
+						/* Default tx node: don't free - just clear the trans
+						 * pointer so it can be reused. */
 						(*l)->trans = NULL;
 					} else {
-						/* Non-first node: unlink and free */
+						/* Explicit tx node: unlink and free */
 						fbird_tr_list *p = *l;
 						*l = p->next;
 						efree(p);

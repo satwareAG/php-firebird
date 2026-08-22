@@ -41,6 +41,21 @@ static zend_resource *_php_fbird_trans_res_from_zval(zval *zv)
 #define COMMIT      1
 #define RETAIN      2
 
+/* Issue #554: Find the default transaction in a connection's tr_list.
+ * Returns the fbird_transaction with is_default == true, or NULL if none exists. */
+fbird_transaction *_php_fbird_find_default_trans(fbird_db_link *link)
+{
+	if (link == NULL || link->tr_list == NULL) {
+		return NULL;
+	}
+	for (fbird_tr_list *l = link->tr_list; l != NULL; l = l->next) {
+		if (l->trans != NULL && l->trans->is_default) {
+			return l->trans;
+		}
+	}
+	return NULL;
+}
+
 void _php_fbird_free_trans(zend_resource *rsrc)
 {
 	ISC_STATUS status[256];
@@ -370,18 +385,8 @@ PHP_FUNCTION(fbird_trans_start)
 	}
 	fb_trans->db_link[0] = fb_link;
 
-	/* Sentinel head node: reserves index 0 for the default transaction.
-	 * _php_fbird_commit_link() uses i==0 to distinguish:
-	 *   - Default tx (index 0): commit + efree (not a registered resource)
-	 *   - Explicit tx (index >0): rollback + leave to le_trans destructor
-	 * Do NOT remove this placeholder — see issue #541 investigation. */
-	/* the first item in the connection-transaction list is reserved for the default transaction */
-	if (fb_link->tr_list == NULL) {
-		fb_link->tr_list = (fbird_tr_list *) emalloc(sizeof(fbird_tr_list));
-		fb_link->tr_list->trans = NULL;
-		fb_link->tr_list->next = NULL;
-	}
-
+	/* Issue #554: no sentinel head node — explicit tx appends like any other;
+	 * readers locate the default tx via the is_default flag. */
 	/* link the transaction into the connection-transaction list */
 	fbird_tr_list **l;
 	for (l = &fb_link->tr_list; *l != NULL; l = &(*l)->next);
@@ -781,8 +786,8 @@ PHP_FUNCTION(fbird_release_metadata_locks)
 	} else {
 		/* Try as link identifier to get default transaction */
 		fb_link = (fbird_db_link *)zend_fetch_resource2_ex(arg, LE_LINK, le_link, le_plink);
-		if (fb_link && fb_link->tr_list && fb_link->tr_list->trans) {
-			trans = fb_link->tr_list->trans;
+		if (fb_link) {
+			trans = _php_fbird_find_default_trans(fb_link);  /* Issue #554 */
 		}
 	}
 
@@ -1054,18 +1059,7 @@ PHP_FUNCTION(fbird_trans)
 		fbird_tr_list **l;
 		fb_trans->db_link[i] = fb_link[i];
 
-		/* Sentinel head node: reserves index 0 for the default transaction.
-		 * _php_fbird_commit_link() uses i==0 to distinguish:
-		 *   - Default tx (index 0): commit + efree (not a registered resource)
-		 *   - Explicit tx (index >0): rollback + leave to le_trans destructor
-		 * Do NOT remove this placeholder — see issue #541 investigation. */
-		/* the first item in the connection-transaction list is reserved for the default transaction */
-		if (fb_link[i]->tr_list == NULL) {
-			fb_link[i]->tr_list = (fbird_tr_list *) emalloc(sizeof(fbird_tr_list));
-			fb_link[i]->tr_list->trans = NULL;
-			fb_link[i]->tr_list->next = NULL;
-		}
-
+		/* Issue #554: no sentinel head node — appends handle empty lists. */
 		/* link the transaction into the connection-transaction list */
 		for (l = &fb_link[i]->tr_list; *l != NULL; l = &(*l)->next);
 		*l = (fbird_tr_list *) emalloc(sizeof(fbird_tr_list));
@@ -1085,20 +1079,9 @@ int _php_fbird_def_trans(fbird_db_link *fb_link, fbird_transaction **trans)
 		return FAILURE;
 	}
 
-	/* Sentinel head node: reserves index 0 for the default transaction.
-	 * _php_fbird_commit_link() uses i==0 to distinguish:
-	 *   - Default tx (index 0): commit + efree (not a registered resource)
-	 *   - Explicit tx (index >0): rollback + leave to le_trans destructor
-	 * Do NOT remove this placeholder — see issue #541 investigation. */
-	/* the first item in the connection-transaction list is reserved for the default transaction */
-	if (fb_link->tr_list == NULL) {
-		fb_link->tr_list = (fbird_tr_list *) emalloc(sizeof(fbird_tr_list));
-		fb_link->tr_list->trans = NULL;
-		fb_link->tr_list->next = NULL;
-	}
-
 	if (*trans == NULL) {
-		fbird_transaction *tr = fb_link->tr_list->trans;
+		/* Issue #554: flag-based lookup (was: head-node positional access) */
+		fbird_transaction *tr = _php_fbird_find_default_trans(fb_link);
 
 		if (tr == NULL) {
 			tr = (fbird_transaction *) emalloc(sizeof(fbird_transaction));
@@ -1109,7 +1092,13 @@ int _php_fbird_def_trans(fbird_db_link *fb_link, fbird_transaction **trans)
 			tr->fbt_transaction = NULL;
 			tr->is_default = true;  /* Issue #554 */
 			tr->db_link[0] = fb_link;
-			fb_link->tr_list->trans = tr;
+			/* Issue #554: append like any other transaction (was: install
+			 * into sentinel head node). Readers locate it via is_default. */
+			fbird_tr_list **l;
+			for (l = &fb_link->tr_list; *l != NULL; l = &(*l)->next);
+			*l = (fbird_tr_list *) emalloc(sizeof(fbird_tr_list));
+			(*l)->trans = tr;
+			(*l)->next = NULL;
 		}
 
 		if (tr->fbt_transaction == NULL) {
@@ -1174,12 +1163,12 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 
 	if (ZEND_NUM_ARGS() == 0) {
 		fb_link = (fbird_db_link *)zend_fetch_resource2(FBG(default_link), LE_LINK, le_link, le_plink);
-		if (fb_link->tr_list == NULL || fb_link->tr_list->trans == NULL) {
+		trans = _php_fbird_find_default_trans(fb_link);  /* Issue #554 */
+		if (trans == NULL) {
 			/* this link doesn't have a default transaction */
 			_php_fbird_module_error("Default link has no default transaction");
 			RETURN_FALSE;
 		}
-		trans = fb_link->tr_list->trans;
 	} else {
 		/* one id was passed - could be Firebird\Transaction object, le_trans resource, or db link */
 		ZVAL_DEREF(arg);
@@ -1207,21 +1196,25 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 				RETURN_FALSE;
 			}
 			fb_link = (fbird_db_link *)cres->ptr;
-			if (fb_link->tr_list == NULL || fb_link->tr_list->trans == NULL) {
+			trans = _php_fbird_find_default_trans(fb_link);  /* Issue #554 */
+			if (trans == NULL) {
 				_php_fbird_module_error("Firebird\\Connection object has no default transaction");
 				RETURN_FALSE;
 			}
-			trans = fb_link->tr_list->trans;
 			arg = NULL; /* prevent Z_RES_P(arg) usage below */
 		} else {
 			fb_link = (fbird_db_link *)zend_fetch_resource2_ex(arg, LE_LINK, le_link, le_plink);
 
-			if (!fb_link || fb_link->tr_list == NULL || fb_link->tr_list->trans == NULL) {
+			if (!fb_link) {
+				_php_fbird_module_error("Link has no default transaction");
+				RETURN_FALSE;
+			}
+			trans = _php_fbird_find_default_trans(fb_link);  /* Issue #554 */
+			if (trans == NULL) {
 				/* this link doesn't have a default transaction */
 				_php_fbird_module_error("Link has no default transaction");
 				RETURN_FALSE;
 			}
-			trans = fb_link->tr_list->trans;
 		}
 	}
 

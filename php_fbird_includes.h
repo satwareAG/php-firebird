@@ -384,6 +384,9 @@ void _php_fbird_module_error(const char *, ...)
 		} while (0)
 
 int _php_fbird_def_trans(fbird_db_link *fb_link, fbird_transaction **trans);
+/* Issue #554: Find the default transaction in a connection's tr_list.
+ * Returns the fbird_transaction with is_default == true, or NULL if none exists. */
+fbird_transaction *_php_fbird_find_default_trans(fbird_db_link *link);
 void _php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAMETERS, zval *link_id,
 	fbird_db_link **fb_link, fbird_transaction **trans);
 

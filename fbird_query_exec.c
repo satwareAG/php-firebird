@@ -190,17 +190,7 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
 			trans->fbt_transaction = new_trans;
 			trans->db_link[0] = fb_query->link;
 
-				/* Sentinel head node: reserves index 0 for the default transaction.
-				 * _php_fbird_commit_link() uses i==0 to distinguish:
-				 *   - Default tx (index 0): commit + efree (not a registered resource)
-				 *   - Explicit tx (index >0): rollback + leave to le_trans destructor
-				 * Do NOT remove this placeholder — see issue #541 investigation. */
-				if (fb_query->link->tr_list == NULL) {
-					fb_query->link->tr_list = (fbird_tr_list *) emalloc(sizeof(fbird_tr_list));
-					fb_query->link->tr_list->trans = NULL;
-					fb_query->link->tr_list->next = NULL;
-				}
-
+				/* Issue #554: no sentinel head node — appends handle empty lists. */
 				/* link the transaction into the connection-transaction list */
 				for (l = &fb_query->link->tr_list; *l != NULL; l = &(*l)->next);
 				*l = (fbird_tr_list *) emalloc(sizeof(fbird_tr_list));

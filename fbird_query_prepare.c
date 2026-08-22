@@ -227,8 +227,8 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc)
             /* Issue #294: Commit the default transaction so the next autocommit
              * query starts a fresh transaction with a current snapshot.
              *
-             * Only fire for the DEFAULT transaction (first tr_list node).
-             * fbird_execute_auto() creates a temp transaction not in tr_list —
+             * Only fire for the DEFAULT transaction (is_default flag, #554).
+             * fbird_execute_auto() creates a temp transaction (is_default=false) —
              * freeing it here would cause use-after-free when execute_auto
              * later calls fbt_rollback on the same pointer.
              *
@@ -236,8 +236,7 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc)
              * during shutdown. The default tx is cleaned up by
              * _php_fbird_commit_link during MSHUTDOWN (with #295 guard).
              */
-            bool is_default_tx = (fb_query->link && fb_query->link->tr_list &&
-                fb_query->link->tr_list->trans == fb_query->trans);
+            bool is_default_tx = (fb_query->trans && fb_query->trans->is_default);
             bool is_persistent = (fb_query->link && fb_query->link->is_persistent);
             if (is_default_tx && !is_persistent) {
                 /* jane: silent on failure — see fbird_query_exec.c for rationale */

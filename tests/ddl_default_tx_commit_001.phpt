@@ -54,3 +54,5 @@ bool(true)
 bool(true)
 bool(true)
 done
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>

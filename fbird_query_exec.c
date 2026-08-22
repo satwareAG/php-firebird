@@ -593,6 +593,46 @@ execute_done:
         goto _php_fbird_ex_error;
     }
 
+    /* Issue #572/#578: DDL executed on the DEFAULT transaction must commit
+     * immediately. Before this block, default-tx DDL committed only at
+     * connection close (#294's free-path commit is gated on had_open_cursor,
+     * which DDL statements never have): metadata locks (RDB$RELATION_FIELDS
+     * et al.) lingered for the life of the connection and blocked other
+     * connections' no-wait transactions (customer bug #572; doctrine suite
+     * SERIALIZABLE flake #578).
+     *
+     * The default transaction is implicit-autocommit context (trans_res ==
+     * NULL); users wanting transactional DDL use an explicit transaction,
+     * handled by the #540/#566 block above.
+     *
+     * Mirrors #294 guards: only the link's default tr_list head, skip
+     * persistent links (their cleanup belongs to MSHUTDOWN / #295), skip
+     * during module shutdown.
+     *
+     * Consequence (same trade-off as #566 documents for explicit tx):
+     * a hard commit closes open cursors on this transaction. A default-tx
+     * SELECT result left unfetched across a DDL execute will be invalidated;
+     * its query struct frees safely afterwards (stale-handle errors absorbed
+     * by the status wrapper).
+     *
+     * After the commit, fbt_transaction is NULL; the restart block at the
+     * top of this function transparently recreates the default tx on the
+     * next execute. */
+    if (fb_query->statement_type == isc_info_sql_stmt_ddl &&
+        fb_query->trans && fb_query->trans->fbt_transaction &&
+        fb_query->trans_res == NULL &&
+        !FBG(in_mshutdown) &&
+        fb_query->link && fb_query->link->fbc_connection &&
+        fb_query->link->tr_list &&
+        fb_query->link->tr_list->trans == fb_query->trans &&
+        !fb_query->link->is_persistent) {
+        ISC_STATUS ddl_status[256];
+        FBDEBUG("Issue #572: autocommit default tx after DDL execute");
+        fbt_commit(fb_query->trans->fbt_transaction, ddl_status);
+        fbt_free(fb_query->trans->fbt_transaction);
+        fb_query->trans->fbt_transaction = NULL;
+    }
+
     fb_query->trans->affected_rows = 0;
 
     /* For SELECT statements, mark cursor state as open with rows pending.

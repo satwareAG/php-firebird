@@ -379,6 +379,7 @@ PHP_FUNCTION(fbird_trans_start)
 	fb_trans->affected_rows = 0;
 	fb_trans->is_default = false;  /* Issue #554 */
 	fb_trans->open_cursor_count = 0;  /* Issue #566 */
+	fb_trans->retain_committed = false;  /* Issue #586 */
 	fb_trans->stored_tpb_len = tpb_len;
 	if (tpb_len > 0) {
 		memcpy(fb_trans->stored_tpb, last_tpb, tpb_len);
@@ -792,7 +793,48 @@ static int _php_fbird_trans_commit_restart(fbird_transaction *trans, ISC_STATUS_
 		status
 	);
 
-	return trans->fbt_transaction == NULL ? 1 : 0;
+	if (trans->fbt_transaction == NULL) {
+		return 1;
+	}
+
+	/* Fresh context - nothing retained anymore (Issue #586) */
+	trans->retain_committed = false;
+
+	return 0;
+}
+
+/* Issue #586: lazy release of locks retained by a cursor-holding commit_ret.
+ *
+ * isc_commit_retaining keeps relation locks (SW) at attachment level as long
+ * as the transaction context lives - including locks acquired long before the
+ * retaining commit. When the last open cursor on such a transaction closes,
+ * nothing justifies retention anymore: hard-commit + restart transparently
+ * so the locks do not outlive the cursors (doctrine TM::autoCommit() fires
+ * while result cursors are open; without this the whole schema-init phase
+ * of a suite run leaks system-catalog locks until disconnect - #578/#586).
+ *
+ * Best-effort by design: on failure the state is exactly the pre-fix
+ * behavior (locks retained until disconnect); flag is cleared either way
+ * to avoid retry loops on the idle path. */
+void _php_fbird_trans_release_if_idle(fbird_transaction *trans)
+{
+	ISC_STATUS status[256];
+
+	if (!trans || !trans->retain_committed ||
+	    trans->open_cursor_count != 0 ||
+	    trans->link_cnt != 1 ||
+	    !trans->fbt_transaction ||
+	    FBG(in_mshutdown)) {
+		return;
+	}
+
+	trans->retain_committed = false;
+
+	if (_php_fbird_trans_commit_restart(trans, status) != 0) {
+		/* jane: absorbed on purpose - data was already committed by the
+		 * retaining commit; only lock release failed (pre-fix behavior) */
+		FBDEBUG("Issue #586: idle release commit_restart failed, locks stay retained");
+	}
 }
 
 /* Issue #566: Explicit metadata lock release for a transaction.
@@ -1003,6 +1045,7 @@ PHP_FUNCTION(fbird_trans)
 			fb_trans->affected_rows = 0;
 			fb_trans->is_default = false;  /* Issue #554 */
 			fb_trans->open_cursor_count = 0;  /* Issue #566 */
+			fb_trans->retain_committed = false;  /* Issue #586 */
 			/* Store TPB for restart (#566 review finding #4). */
 			if (link_cnt == 1 && link0_tpb_len > 0) {
 				fb_trans->stored_tpb_len = link0_tpb_len;
@@ -1065,6 +1108,7 @@ PHP_FUNCTION(fbird_trans)
 		fb_trans->affected_rows = 0;
 		fb_trans->is_default = false;  /* Issue #554 */
 		fb_trans->open_cursor_count = 0;  /* Issue #566 */
+		fb_trans->retain_committed = false;  /* Issue #586 */
 		/* Store TPB for restart (#566 review finding #4).
 		 * For single-db: use tpb_len + last_tpb (function scope).
 		 * For multi-db: stored_tpb_len=0 (multi-db TPB is complex). */
@@ -1111,6 +1155,7 @@ int _php_fbird_def_trans(fbird_db_link *fb_link, fbird_transaction **trans)
 			tr->link_cnt = 1;
 			tr->affected_rows = 0;
 			tr->open_cursor_count = 0;  /* Issue #566 */
+			tr->retain_committed = false;  /* Issue #586 */
 			tr->stored_tpb_len = 0;
 			tr->fbt_transaction = NULL;
 			tr->is_default = true;  /* Issue #554 */
@@ -1291,6 +1336,11 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 				result = _php_fbird_trans_commit_restart(trans, status);
 			} else {
 				result = fbt_commit_retaining(trans->fbt_transaction, status);
+				/* Issue #586: cursors kept the retain - release lazily when
+				 * the last cursor closes (_php_fbird_trans_release_if_idle) */
+				if (result == 0) {
+					trans->retain_committed = true;
+				}
 			}
 			break;
 	}
@@ -1303,6 +1353,7 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 	if ((commit & RETAIN) == 0) {
 		fbt_free(trans->fbt_transaction);
 		trans->fbt_transaction = NULL;
+		trans->retain_committed = false;  /* Issue #586: nothing retained anymore */
 	}
 
 	if (result) {

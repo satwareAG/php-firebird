@@ -152,6 +152,12 @@ typedef struct {
 	 * to restore the original isolation level, access mode, etc. */
 	unsigned short stored_tpb_len;
 	unsigned char stored_tpb[TPB_MAX_SIZE];
+	/* Issue #586: set when the last COMMIT|RETAIN actually retained state
+	 * (open cursors existed). When the last cursor closes afterwards,
+	 * _php_fbird_trans_release_if_idle() transparently hard-commits +
+	 * restarts so retained relation locks do not outlive the cursors
+	 * that justified retaining them. */
+	bool retain_committed;
 	fbird_db_link *db_link[1]; /* last member */
 } fbird_transaction;
 
@@ -503,15 +509,31 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
  * These centralize is_open management to keep open_cursor_count accurate.
  * _php_fbird_cursor_opened: Call when a SELECT cursor is opened on a transaction.
  * _php_fbird_cursor_closed: Call when a SELECT cursor is closed/freed. */
+/* Issue #586: lazy release of retained locks (defined in fbird_transaction.c).
+ * Best-effort: hard-commits + restarts a retain_committed transaction whose
+ * last cursor just closed. Errors are absorbed (state stays as-before-fix). */
+void _php_fbird_trans_release_if_idle(fbird_transaction *trans);
 static inline void _php_fbird_cursor_opened(fbird_query *fb_query) {
-	fb_query->is_open = 1;
-	if (fb_query->trans) {
-		fb_query->trans->open_cursor_count++;
+	/* Issue #586: idempotent - the SELECT execute path historically calls
+	 * this twice on the child result (open + "inherited state" re-mark);
+	 * an unconditional increment double-counted and open_cursor_count
+	 * never reached 0 again, breaking #566 gating and the #586 lazy
+	 * release. is_open guards exactly like _php_fbird_cursor_closed. */
+	if (!fb_query->is_open) {
+		fb_query->is_open = 1;
+		if (fb_query->trans) {
+			fb_query->trans->open_cursor_count++;
+		}
 	}
 }
 static inline void _php_fbird_cursor_closed(fbird_query *fb_query) {
 	if (fb_query->is_open && fb_query->trans && fb_query->trans->open_cursor_count > 0) {
 		fb_query->trans->open_cursor_count--;
+		/* Issue #586: last cursor gone - if a prior commit_ret retained
+		 * locks for this cursor, release them now (transparent restart) */
+		if (fb_query->trans->open_cursor_count == 0) {
+			_php_fbird_trans_release_if_idle(fb_query->trans);
+		}
 	}
 	fb_query->is_open = 0;
 }

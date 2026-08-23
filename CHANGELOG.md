@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **#586: `fbird_commit_ret()` retained attachment-level relation locks until disconnect**: `isc_commit_retaining` keeps all relation locks (SW) at attachment level for the connection lifetime, even when the caller has nothing to retain. The doctrine driver's `TransactionManager::autoCommit()` (commit_ret after each DDL/DML) leaked ~10 system-catalog locks per connection, breaking other attachments' SERIALIZABLE no-wait transactions (#578 suite flake). Fix (PR #588, two layers): (1) commit_ret with zero open cursors now hard-commits + transparently restarts with the stored TPB - observably identical except locks are released immediately; (2) when cursors ARE open, the retain is legitimate, and the last cursor close now transparently hard-commits + restarts (lazy release). PR #588 review hardening: `Firebird\Transaction::releaseMetadataLocks()` now shares the commit-restart helper (a stale `retain_committed` flag silently committed later uncommitted DML when the last cursor closed), `fbird_reconnect_transaction()` initializes the flag (garbage-true could hard-commit a limbo transaction), and the helper zero-initializes the status vector (no uninitialized reads in error paths).
+
+### Changed
+
+- **Behavior change (Layer 1/2)**: `fbird_commit_ret()` on a transaction with **zero open cursors** is now a hard commit + restart. Besides releasing locks, a hard commit **invalidates open BLOB handles** on that transaction (`isc_commit_retaining` preserved them). The legacy chunked-blob-import pattern (read blob in a loop with periodic `commit_ret`) must keep a SELECT cursor open or use plain `fbird_commit()` boundaries. PDO (`pdo_fbird`) is unaffected - it calls retaining commit directly. See `UPGRADING.md`.
+
 - **#572: DDL via `fbird_prepare_ex(...,null)` + execute on the default transaction committed only at connection close**: metadata locks lingered for the connection lifetime, making the DDL invisible to other connections and blocking their no-wait transactions. The default tx now commits immediately after successful DDL execution (with #570-style cursor-close + retry + error report on commit failure). Explicit transactions keep transactional-DDL semantics. Note: a hard commit invalidates open cursors on the same default tx (same trade-off as #566) - an unfetched SELECT result left across a DDL execute will return no rows.
 
 ## [13.2.7] - 2026-08-12

@@ -379,6 +379,7 @@ PHP_FUNCTION(fbird_trans_start)
 	fb_trans->affected_rows = 0;
 	fb_trans->is_default = false;  /* Issue #554 */
 	fb_trans->open_cursor_count = 0;  /* Issue #566 */
+	fb_trans->retain_committed = false;  /* Issue #586 */
 	fb_trans->stored_tpb_len = tpb_len;
 	if (tpb_len > 0) {
 		memcpy(fb_trans->stored_tpb, last_tpb, tpb_len);
@@ -747,6 +748,101 @@ PHP_FUNCTION(fbird_connection_info)
 	}
 }
 
+/* Issue #586: shared hard-commit + transparent-restart helper.
+ *
+ * Commits the transaction with a HARD commit (releasing all relation and
+ * metadata locks - isc_commit_retaining would retain them at attachment
+ * level until disconnect), frees the old OO API wrapper and restarts the
+ * transaction with the original stored TPB. The fbird_transaction handle
+ * stays valid for the caller; the restart is transparent.
+ *
+ * Precondition: trans != NULL, trans->fbt_transaction != NULL,
+ * single-link transaction (link_cnt == 1).
+ * Returns 0 on success, nonzero on failure (status zero-initialized then
+ * populated on engine errors; isc_arg_end-terminated on local failures). */
+int _php_fbird_trans_commit_restart(fbird_transaction *trans, ISC_STATUS_ARRAY status)
+{
+	fbird_db_link *fb_link = trans->db_link[0];
+
+	/* PR #588 review: zero-init the vector so _php_fbird_error() callers
+	 * never walk an uninitialized stack buffer when we fail a local
+	 * precondition below without touching status (isc_arg_end == 0). */
+	status[0] = (ISC_STATUS) isc_arg_end;
+	status[1] = 0;
+
+	if (!fb_link || !fb_link->fbc_connection) {
+		return 1;
+	}
+
+	/* Hard commit: releases all locks including metadata */
+	if (fbt_commit(trans->fbt_transaction, status) != 0) {
+		return 1;
+	}
+
+	/* Free the old OO API transaction wrapper.
+	 * Do NOT reset open_cursor_count (review finding #1): stale queries
+	 * will decrement naturally when freed. */
+	fbt_free(trans->fbt_transaction);
+	trans->fbt_transaction = NULL;
+
+	/* Restart with stored TPB */
+	void *attachment = fbc_get_attachment(fb_link->fbc_connection);
+	if (attachment == NULL) {
+		return 1;
+	}
+
+	trans->fbt_transaction = fbt_start(
+		FBG(master_instance),
+		attachment,
+		trans->stored_tpb_len,
+		trans->stored_tpb_len > 0 ? trans->stored_tpb : NULL,
+		status
+	);
+
+	if (trans->fbt_transaction == NULL) {
+		return 1;
+	}
+
+	/* Fresh context - nothing retained anymore (Issue #586) */
+	trans->retain_committed = false;
+
+	return 0;
+}
+
+/* Issue #586: lazy release of locks retained by a cursor-holding commit_ret.
+ *
+ * isc_commit_retaining keeps relation locks (SW) at attachment level as long
+ * as the transaction context lives - including locks acquired long before the
+ * retaining commit. When the last open cursor on such a transaction closes,
+ * nothing justifies retention anymore: hard-commit + restart transparently
+ * so the locks do not outlive the cursors (doctrine TM::autoCommit() fires
+ * while result cursors are open; without this the whole schema-init phase
+ * of a suite run leaks system-catalog locks until disconnect - #578/#586).
+ *
+ * Best-effort by design: on failure the state is exactly the pre-fix
+ * behavior (locks retained until disconnect); flag is cleared either way
+ * to avoid retry loops on the idle path. */
+void _php_fbird_trans_release_if_idle(fbird_transaction *trans)
+{
+	ISC_STATUS status[256];
+
+	if (!trans || !trans->retain_committed ||
+	    trans->open_cursor_count != 0 ||
+	    trans->link_cnt != 1 ||
+	    !trans->fbt_transaction ||
+	    FBG(in_mshutdown)) {
+		return;
+	}
+
+	trans->retain_committed = false;
+
+	if (_php_fbird_trans_commit_restart(trans, status) != 0) {
+		/* jane: absorbed on purpose - data was already committed by the
+		 * retaining commit; only lock release failed (pre-fix behavior) */
+		FBDEBUG("Issue #586: idle release commit_restart failed, locks stay retained");
+	}
+}
+
 /* Issue #566: Explicit metadata lock release for a transaction.
  *
  * Does a hard commit (releasing all locks including metadata) and restarts
@@ -802,34 +898,9 @@ PHP_FUNCTION(fbird_release_metadata_locks)
 		RETURN_FALSE;
 	}
 
-	/* Hard commit: releases all locks including metadata */
-	if (fbt_commit(trans->fbt_transaction, status) != 0) {
-		_php_fbird_error(status);
-		RETURN_FALSE;
-	}
-
-	/* Free the old OO API transaction wrapper.
-	 * Do NOT reset open_cursor_count (review finding #1): stale queries
-	 * will decrement naturally when freed. */
-	fbt_free(trans->fbt_transaction);
-	trans->fbt_transaction = NULL;
-
-	/* Restart with stored TPB */
-	void *attachment = fbc_get_attachment(fb_link->fbc_connection);
-	if (attachment == NULL) {
-		_php_fbird_module_error("Failed to get attachment for transaction restart");
-		RETURN_FALSE;
-	}
-
-	trans->fbt_transaction = fbt_start(
-		FBG(master_instance),
-		attachment,
-		trans->stored_tpb_len,
-		trans->stored_tpb_len > 0 ? trans->stored_tpb : NULL,
-		status
-	);
-
-	if (trans->fbt_transaction == NULL) {
+	/* Hard commit + transparent restart (Issue #586 shared helper):
+	 * releases all locks including metadata, keeps the handle valid */
+	if (_php_fbird_trans_commit_restart(trans, status) != 0) {
 		_php_fbird_error(status);
 		RETURN_FALSE;
 	}
@@ -980,6 +1051,7 @@ PHP_FUNCTION(fbird_trans)
 			fb_trans->affected_rows = 0;
 			fb_trans->is_default = false;  /* Issue #554 */
 			fb_trans->open_cursor_count = 0;  /* Issue #566 */
+			fb_trans->retain_committed = false;  /* Issue #586 */
 			/* Store TPB for restart (#566 review finding #4). */
 			if (link_cnt == 1 && link0_tpb_len > 0) {
 				fb_trans->stored_tpb_len = link0_tpb_len;
@@ -1042,6 +1114,7 @@ PHP_FUNCTION(fbird_trans)
 		fb_trans->affected_rows = 0;
 		fb_trans->is_default = false;  /* Issue #554 */
 		fb_trans->open_cursor_count = 0;  /* Issue #566 */
+		fb_trans->retain_committed = false;  /* Issue #586 */
 		/* Store TPB for restart (#566 review finding #4).
 		 * For single-db: use tpb_len + last_tpb (function scope).
 		 * For multi-db: stored_tpb_len=0 (multi-db TPB is complex). */
@@ -1088,6 +1161,7 @@ int _php_fbird_def_trans(fbird_db_link *fb_link, fbird_transaction **trans)
 			tr->link_cnt = 1;
 			tr->affected_rows = 0;
 			tr->open_cursor_count = 0;  /* Issue #566 */
+			tr->retain_committed = false;  /* Issue #586 */
 			tr->stored_tpb_len = 0;
 			tr->fbt_transaction = NULL;
 			tr->is_default = true;  /* Issue #554 */
@@ -1242,7 +1316,25 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 			result = fbt_rollback_retaining(trans->fbt_transaction, status);
 			break;
 		case (COMMIT | RETAIN):
-			result = fbt_commit_retaining(trans->fbt_transaction, status);
+			/* Issue #586: isc_commit_retaining retains all relation locks
+			 * at attachment level until disconnect. With no open cursor
+			 * there is nothing to preserve: hard commit + restart releases
+			 * the locks and is observably identical for the caller.
+			 * (doctrine TM::autoCommit() flake: #578). Single-link +
+			 * non-MSHUTDOWN only - see _php_fbird_trans_commit_restart(). */
+			if (trans->open_cursor_count == 0 &&
+			    trans->link_cnt == 1 &&
+			    !FBG(in_mshutdown)) {
+				FBDEBUG("Issue #586: commit_ret with no open cursors -> hard commit + restart");
+				result = _php_fbird_trans_commit_restart(trans, status);
+			} else {
+				result = fbt_commit_retaining(trans->fbt_transaction, status);
+				/* Issue #586: cursors kept the retain - release lazily when
+				 * the last cursor closes (_php_fbird_trans_release_if_idle) */
+				if (result == 0) {
+					trans->retain_committed = true;
+				}
+			}
 			break;
 	}
 
@@ -1254,6 +1346,7 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 	if ((commit & RETAIN) == 0) {
 		fbt_free(trans->fbt_transaction);
 		trans->fbt_transaction = NULL;
+		trans->retain_committed = false;  /* Issue #586: nothing retained anymore */
 	}
 
 	if (result) {

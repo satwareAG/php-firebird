@@ -679,6 +679,34 @@ public:
     }
 #endif
 
+    /**
+     * @brief Connection-death invalidation (Issue #591).
+     *
+     * The owning fb::Connection was destroyed (drop_db / disconnect): the
+     * IAttachment and EVERY interface obtained from it (statement_, result_set_)
+     * were released with it. Calling through those pointers is a UAF
+     * (SIGSEGV in closeCursor at request shutdown, PR #590 CI).
+     *
+     * Null the handles WITHOUT release() - the interfaces are already gone -
+     * so the existing null-guards in closeCursor()/free() turn subsequent
+     * calls into no-ops. Mirrors the transaction-handle nulling done by
+     * fbird_drop_db() at the C layer (fbird_connection.c).
+     */
+    void invalidate() noexcept {
+        result_set_ = nullptr;
+        statement_ = nullptr;
+        cursor_open_ = false;
+        prepared_ = false;
+    }
+
+    /// Owning IAttachment identity (raw value, NOT refcounted) - set at
+    /// fbs_prepare() time; used by the connection-death sweep registry.
+    /// jane: identity key only; never dereferenced (attachment may be dead).
+    void* sweep_owner_{nullptr};
+
+    /// Intrusive per-thread registry link (firebird_utils.cpp owns the list).
+    StatementWrapper* sweep_next_{nullptr};
+
 private:
     Firebird::IStatement* statement_{nullptr};
     Firebird::IResultSet* result_set_{nullptr};

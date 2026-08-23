@@ -422,11 +422,42 @@ zend_resource *_php_fbird_connect_link(
 			}
 			/* check if connection has timed out */
 			fb_link = (fbird_db_link *) le->ptr;
-			if (fb_link->fbc_connection && fbc_is_connected(fb_link->fbc_connection)) {
+			if (fb_link && fb_link->fbc_connection && fbc_is_connected(fb_link->fbc_connection)) {
 				result_res = zend_register_resource(fb_link, le_plink);
 				break;
 			}
-			zend_hash_str_del(&EG(persistent_list), hash, sizeof(hash)-1);
+			if (fb_link == NULL) {
+				/* Defunct entry (NULL payload): nothing left to reuse, safe to drop. */
+				zend_hash_str_del(&EG(persistent_list), hash, sizeof(hash)-1);
+			} else {
+				/* Stale persistent link (Issue #582): the server attachment is
+				 * dead but request wrappers referencing fb_link may still be
+				 * alive (le_index_ptr cache sharing, FORCE_NEW pconnect).
+				 * Deleting the entry here would run _php_fbird_close_plink,
+				 * which frees fb_link while those wrappers still point at it -
+				 * their destruction later dereferences freed memory in
+				 * _php_fbird_commit_link (heap-use-after-free).
+				 *
+				 * Instead, revitalize the existing struct in place: attach a
+				 * fresh server connection into it. Entry, struct, and wrapper
+				 * lifetimes stay coupled, and the net link counters are
+				 * unchanged (we replace the attachment, not add a link). */
+				if (FAILURE == _php_fbird_attach_db(args, len, largs, &connection_ptr)) {
+					/* Attach failed (e.g. database dropped): keep the stale-
+					 * but-valid entry so surviving wrappers stay safe. The
+					 * error is already reported by _php_fbird_attach_db. */
+					return NULL;
+				}
+				/* Release dead transaction/event state, mirroring the cleanup
+				 * _php_fbird_close_plink performed on this path. Handles that
+				 * died with the old attachment fail gracefully here (fetched
+				 * per-node status is reported; fbt_free still runs). */
+				_php_fbird_commit_link(fb_link);
+				fb_link->dialect = largs[DLECT] ? (unsigned short)largs[DLECT] : SQL_DIALECT_CURRENT;
+				fb_link->fbc_connection = connection_ptr;
+				result_res = zend_register_resource(fb_link, le_plink);
+				break;
+			}
 		}
 
 		/* no link found, so we have to open one */

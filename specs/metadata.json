@@ -44,6 +44,14 @@
       "local_path": "~/external/firebird",
       "role": "client library provider (libfbclient, OO API headers)",
       "version": "5.0.4"
+    },
+    "php/php-src": {
+      "url": "https://github.com/php/php-src",
+      "forge": "github",
+      "local_path": "~/external/php-src",
+      "role": "Zend Engine API reference (read-only; resource lifecycle, list destructors, executor globals semantics)",
+      "branch": "master",
+      "supported_branches": ["PHP-8.2", "PHP-8.3", "PHP-8.4", "PHP-8.5"]
     }
   },
   "downstream": {

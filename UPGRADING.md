@@ -3,6 +3,31 @@
 This guide covers behavior changes between php-firebird versions that may
 affect existing applications.
 
+## v13.2.x → Unreleased (PR #588)
+
+### `fbird_commit_ret()` with no open cursors is now a hard commit
+
+To stop attachment-level relation lock retention (#578/#586), a retaining
+commit on a transaction with **zero open cursors** now performs a hard
+commit + transparent restart (handle stays valid, stored TPB is restored).
+
+**BLOB handles**: a hard commit invalidates open BLOB handles on that
+transaction; `isc_commit_retaining` preserved them. If you use the legacy
+chunked-blob-import pattern, either keep a SELECT cursor open on the same
+transaction (takes the retaining path, released lazily when the cursor
+closes) or restructure around plain `fbird_commit()` boundaries:
+
+```php
+// Affected: no cursor open -> hard commit -> $blob handle dies
+$blob = fbird_blob_create($c, $tx);
+// ... add segments ...
+fbird_commit_ret($tx);          // blob handle now invalid
+
+// Unaffected patterns:
+// 1. any open SELECT cursor on $tx at commit_ret time (retaining path)
+// 2. PDO firebird (pdo_fbird) - calls retaining commit directly
+```
+
 ## v13.0.x → v13.2.x
 
 ### Default transaction isolation: SNAPSHOT

@@ -158,35 +158,17 @@ PHP_METHOD(FirebirdTransaction, releaseMetadataLocks)
 		RETURN_TRUE;
 	}
 
-	/* Resource path: delegate to fbird_transaction struct */
+	/* Resource path: delegate to fbird_transaction struct.
+	 * PR #588 review: must go through _php_fbird_trans_commit_restart()
+	 * (not a hand-rolled copy) so retain_committed is cleared - a stale
+	 * flag after this hard commit made the later idle release commit
+	 * uncommitted DML transparently. */
 	if (intern->trans_res) {
 		fbird_transaction *trans = (fbird_transaction *)intern->trans_res->ptr;
 		if (!trans || !trans->fbt_transaction) {
 			RETURN_FALSE;
 		}
-		fbird_db_link *fb_link = trans->db_link[0];
-		if (!fb_link || !fb_link->fbc_connection) {
-			RETURN_FALSE;
-		}
-		if (fbt_commit(trans->fbt_transaction, status) != 0) {
-			_php_fbird_error(status);
-			RETURN_FALSE;
-		}
-		fbt_free(trans->fbt_transaction);
-		trans->fbt_transaction = NULL;
-		/* Do NOT reset open_cursor_count (review finding #1) */
-
-		void *attachment = fbc_get_attachment(fb_link->fbc_connection);
-		if (!attachment) {
-			RETURN_FALSE;
-		}
-		trans->fbt_transaction = fbt_start(
-			FBG(master_instance), attachment,
-			trans->stored_tpb_len,
-			trans->stored_tpb_len > 0 ? trans->stored_tpb : NULL,
-			status
-		);
-		if (!trans->fbt_transaction) {
+		if (_php_fbird_trans_commit_restart(trans, status) != 0) {
 			_php_fbird_error(status);
 			RETURN_FALSE;
 		}

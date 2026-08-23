@@ -513,6 +513,14 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
  * Best-effort: hard-commits + restarts a retain_committed transaction whose
  * last cursor just closed. Errors are absorbed (state stays as-before-fix). */
 void _php_fbird_trans_release_if_idle(fbird_transaction *trans);
+/* Issue #586: hard commit + transparent restart with stored TPB.
+ * Returns 0 on success, nonzero on failure. Clears retain_committed on
+ * success - every commit-restart site MUST go through this helper so the
+ * flag never goes stale (PR #588 review finding: hand-rolled copies in the
+ * OOP layer missed the clear and later idle-released uncommitted DML).
+ * Shared by fbird_release_metadata_locks(), _php_fbird_trans_end() and
+ * Firebird\Transaction::releaseMetadataLocks(). */
+int _php_fbird_trans_commit_restart(fbird_transaction *trans, ISC_STATUS_ARRAY status);
 static inline void _php_fbird_cursor_opened(fbird_query *fb_query) {
 	/* Issue #586: idempotent - the SELECT execute path historically calls
 	 * this twice on the child result (open + "inherited state" re-mark);

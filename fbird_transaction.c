@@ -758,11 +758,17 @@ PHP_FUNCTION(fbird_connection_info)
  *
  * Precondition: trans != NULL, trans->fbt_transaction != NULL,
  * single-link transaction (link_cnt == 1).
- * Returns 0 on success, nonzero on failure (status populated on engine
- * errors; unpopulated on local precondition failures). */
-static int _php_fbird_trans_commit_restart(fbird_transaction *trans, ISC_STATUS_ARRAY status)
+ * Returns 0 on success, nonzero on failure (status zero-initialized then
+ * populated on engine errors; isc_arg_end-terminated on local failures). */
+int _php_fbird_trans_commit_restart(fbird_transaction *trans, ISC_STATUS_ARRAY status)
 {
 	fbird_db_link *fb_link = trans->db_link[0];
+
+	/* PR #588 review: zero-init the vector so _php_fbird_error() callers
+	 * never walk an uninitialized stack buffer when we fail a local
+	 * precondition below without touching status (isc_arg_end == 0). */
+	status[0] = (ISC_STATUS) isc_arg_end;
+	status[1] = 0;
 
 	if (!fb_link || !fb_link->fbc_connection) {
 		return 1;
@@ -1311,24 +1317,11 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 			break;
 		case (COMMIT | RETAIN):
 			/* Issue #586: isc_commit_retaining retains all relation locks
-			 * (SW) at attachment level until disconnect - even when the
-			 * caller has nothing to retain. The doctrine driver's
-			 * TransactionManager::autoCommit() path (fbird_commit_ret after
-			 * each DDL/DML executeStatement) therefore left ~10 system-
-			 * catalog relation locks live for the connection's lifetime,
-			 * breaking other attachments' SERIALIZABLE no-wait transactions
-			 * (#578 suite flake, #586).
-			 *
-			 * When no cursor is open on this transaction (open_cursor_count
-			 * == 0) commit_retaining has nothing to preserve: a hard commit
-			 * + immediate restart with the stored TPB is observably
-			 * identical for the caller (handle stays valid, a fresh
-			 * transaction context is active - which is also what retaining
-			 * commit does internally) but releases all locks immediately.
-			 *
-			 * Guards: single-link transactions only (the restart covers
-			 * db_link[0]); skip during MSHUTDOWN (restart pointless there,
-			 * legacy retaining behavior keeps shutdown path unchanged). */
+			 * at attachment level until disconnect. With no open cursor
+			 * there is nothing to preserve: hard commit + restart releases
+			 * the locks and is observably identical for the caller.
+			 * (doctrine TM::autoCommit() flake: #578). Single-link +
+			 * non-MSHUTDOWN only - see _php_fbird_trans_commit_restart(). */
 			if (trans->open_cursor_count == 0 &&
 			    trans->link_cnt == 1 &&
 			    !FBG(in_mshutdown)) {

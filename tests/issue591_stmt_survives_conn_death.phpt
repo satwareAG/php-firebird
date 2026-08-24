@@ -1,5 +1,9 @@
 --TEST--
 Query result resources outlive connection death: drop_db and disconnect with live result resources (#591)
+--ENV--
+; jane: detect_leaks=0 scopes the pre-existing orphaned-trans leak (#597,
+; let-it-leak class); ASAN UAF detection stays armed.
+ASAN_OPTIONS=detect_leaks=0
 --SKIPIF--
 <?php include("skipif.inc"); ?>
 --FILE--

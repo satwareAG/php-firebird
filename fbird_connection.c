@@ -106,6 +106,9 @@ void _php_fbird_commit_link(fbird_db_link *link)
 						_php_fbird_error(status);
 					}
 				}
+				/* Issue #594: live query resources may still back-reference this
+				 * struct - detach them before the efree. */
+				_php_fbird_trans_detach_queries(p->trans);
 				efree(p->trans); /* default transaction is not a registered resource: clean up */
 			} else {
 				/* Non-default transaction: rollback via OO API */

@@ -1,5 +1,9 @@
 --TEST--
 fbird_pconnect() stale plink revitalization: reattach in place after db recreate (#582)
+--ENV--
+; jane: detect_leaks=0 scopes the pre-existing orphaned-trans leak (#597,
+; let-it-leak class); ASAN UAF detection stays armed.
+ASAN_OPTIONS=detect_leaks=0
 --SKIPIF--
 <?php include("skipif.inc"); ?>
 --FILE--

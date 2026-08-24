@@ -323,6 +323,7 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link,
 		FBG(master_instance),
 		attachment_ptr,
 		transaction_ptr,
+		fb_query->link->fbc_connection,  /* #593: owning connection for sweep */
 		query,
 		0,  /* sql_length: 0 = null-terminated */
 		link->dialect,

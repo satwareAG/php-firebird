@@ -668,10 +668,11 @@ public:
         prepared_ = false;
     }
 
-    /// Owning IAttachment identity (raw value, NOT refcounted) - set at
-    /// fbs_prepare() time; used by the connection-death sweep registry.
-    /// jane: identity key only; never dereferenced (attachment may be dead).
-    void* sweep_owner_{nullptr};
+    /// Owning fb::Connection (raw void* to avoid header circularity; cast
+    /// at use in firebird_utils.cpp). Set at fbs_prepare() when the caller
+    /// has a Connection; service-API prepares pass nullptr and manage their
+    /// own synchronous lifetime. jane: never dereferenced here.
+    void* sweep_conn_{nullptr};
 
     /// Intrusive per-thread registry link (firebird_utils.cpp owns the list).
     StatementWrapper* sweep_next_{nullptr};

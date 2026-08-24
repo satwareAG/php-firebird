@@ -545,6 +545,7 @@ void _php_fbird_trans_unreg_batch(struct _fb_batch *b);
  * Shared by fbird_release_metadata_locks(), _php_fbird_trans_end() and
  * Firebird\Transaction::releaseMetadataLocks(). */
 int _php_fbird_trans_commit_restart(fbird_transaction *trans, ISC_STATUS_ARRAY status);
+int _php_fbird_trans_rollback_restart(fbird_transaction *trans, ISC_STATUS_ARRAY status);
 static inline void _php_fbird_cursor_opened(fbird_query *fb_query) {
 	/* Issue #586: idempotent - the SELECT execute path historically calls
 	 * this twice on the child result (open + "inherited state" re-mark);

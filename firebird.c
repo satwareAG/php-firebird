@@ -1284,6 +1284,7 @@ PHP_FUNCTION(fbird_gen_id)
 
 	/* Prepare the query via OO API */
 	stmt = fbs_prepare(FBG(master_instance), attachment, transaction_ptr,
+		NULL,  /* #593 */
 		query, (unsigned)strlen(query), SQL_DIALECT_CURRENT, status);
 	if (!stmt) {
 		_php_fbird_error(status);
@@ -1383,6 +1384,7 @@ PHP_FUNCTION(fbird_last_insert_id)
 	}
 
 	void *stmt = fbs_prepare(FBG(master_instance), attachment, transaction_ptr,
+		NULL,  /* #593 */
 		query, (unsigned)strlen(query), SQL_DIALECT_CURRENT, status);
 	if (!stmt) {
 		_php_fbird_error(status);

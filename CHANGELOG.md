@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **#589: `fbird_rollback_ret()` on a transaction with **zero open cursors** is now a hard rollback + restart** (twin of the #586 commit_ret fix): isc_rollback_retaining retained attachment-level relation locks exactly like isc_commit_retaining - probe confirmed a fresh SERIALIZABLE NOWAIT attachment was blocked over metadata after a retaining rollback. With no cursors there is nothing to preserve; the hard rollback releases all locks and restarts with the stored TPB. Transactions WITH open cursors keep true retaining semantics. See `UPGRADING.md`.
+
 - **`fbird_query(FBIRD_CREATE, ...)` return type (Layer 1)**: returns a `Firebird\Connection` object instead of a raw resource. Code using `is_resource()` on the result must switch to `instanceof Firebird\Connection` (or truthiness, which is unchanged). The FBIRD_CREATE first argument remains deprecated - use `fbird_create_database()`.
 
 - **Behavior change (Layer 1/2)**: `fbird_commit_ret()` on a transaction with **zero open cursors** is now a hard commit + restart. Besides releasing locks, a hard commit **invalidates open BLOB handles** on that transaction (`isc_commit_retaining` preserved them). The legacy chunked-blob-import pattern (read blob in a loop with periodic `commit_ret`) must keep a SELECT cursor open or use plain `fbird_commit()` boundaries. PDO (`pdo_fbird`) is unaffected - it calls retaining commit directly. See `UPGRADING.md`.

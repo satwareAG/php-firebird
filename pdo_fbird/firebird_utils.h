@@ -393,6 +393,7 @@ void* fbs_prepare(
     void* master_ptr,
     void* attachment_ptr,
     void* transaction_ptr,
+    void* connection_ptr,
     const char* sql,
     unsigned sql_length,
     unsigned dialect,

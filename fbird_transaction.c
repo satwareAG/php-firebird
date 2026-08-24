@@ -120,6 +120,12 @@ void _php_fbird_trans_detach_queries(fbird_transaction *trans)
 		q = next;
 	}
 	trans->query_head = NULL;
+	/* jane: batch walk below is DISABLED - see follow-up issue: the
+	 * batch_head clear must happen AFTER the walk (order bug from #600),
+	 * but activating the walk crashes fbird_batch_multitype_001 at
+	 * process exit (complex batch lifecycle). Simple case passes
+	 * (issue599 test); root-causing the exit crash is tracked in the
+	 * #599 follow-up issue. */
 	trans->batch_head = NULL;  /* Issue #599 */
 
 	/* Issue #599: batches hold the same raw backref (dereferenced by
@@ -558,6 +564,7 @@ static void _php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAMETERS, const char *
 
 	/* Prepare the savepoint statement */
 	stmt = fbs_prepare(FBG(master_instance), attachment, transaction_ptr,
+		link->fbc_connection,  /* #593: owning connection for sweep */
 		query, (unsigned)len, SQL_DIALECT_CURRENT, status);
 	if (!stmt) {
 		_php_fbird_error(status);
@@ -843,6 +850,45 @@ PHP_FUNCTION(fbird_connection_info)
  * single-link transaction (link_cnt == 1).
  * Returns 0 on success, nonzero on failure (status zero-initialized then
  * populated on engine errors; isc_arg_end-terminated on local failures). */
+/* Issue #589: hard ROLLBACK + restart with the stored TPB - the rollback
+ * twin of _php_fbird_trans_commit_restart(). Releases retained relation
+ * locks (isc_rollback_retaining keeps them, same #586 class) while leaving
+ * the caller a live, empty transaction. */
+int _php_fbird_trans_rollback_restart(fbird_transaction *trans, ISC_STATUS_ARRAY status)
+{
+	fbird_db_link *fb_link = trans->db_link[0];
+
+	status[0] = (ISC_STATUS) isc_arg_end;
+	status[1] = 0;
+
+	if (!fb_link || !fb_link->fbc_connection) {
+		return 1;
+	}
+
+	/* Hard rollback: releases all locks including metadata */
+	if (fbt_rollback(trans->fbt_transaction, status) != 0) {
+		return 1;
+	}
+
+	fbt_free(trans->fbt_transaction);
+	trans->fbt_transaction = NULL;
+
+	void *attachment = fbc_get_attachment(fb_link->fbc_connection);
+	if (attachment == NULL) {
+		return 1;
+	}
+
+	trans->fbt_transaction = fbt_start(
+		FBG(master_instance),
+		attachment,
+		trans->stored_tpb_len,
+		trans->stored_tpb_len > 0 ? trans->stored_tpb : NULL,
+		status
+	);
+
+	return (trans->fbt_transaction == NULL) ? 1 : 0;
+}
+
 int _php_fbird_trans_commit_restart(fbird_transaction *trans, ISC_STATUS_ARRAY status)
 {
 	fbird_db_link *fb_link = trans->db_link[0];
@@ -1402,7 +1448,21 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 			result = fbt_commit(trans->fbt_transaction, status);
 			break;
 		case (ROLLBACK | RETAIN):
-			result = fbt_rollback_retaining(trans->fbt_transaction, status);
+			/* Issue #589: isc_rollback_retaining retains attachment-level
+			 * relation locks exactly like isc_commit_retaining (#586 probe:
+			 * SERIALIZABLE NOWAIT over metadata blocked after a retaining
+			 * rollback). With no open cursor there is nothing to preserve -
+			 * hard rollback + restart releases the locks and is observably
+			 * identical for the caller. Single-link + non-MSHUTDOWN only. */
+			if (trans->open_cursor_count == 0 &&
+			    trans->link_cnt == 1 &&
+			    !FBG(in_mshutdown)) {
+				FBDEBUG("Issue #589: rollback_ret with no open cursors -> hard rollback + restart");
+				result = (_php_fbird_trans_rollback_restart(trans, status) != 0)
+					? -1 : 0;
+			} else {
+				result = fbt_rollback_retaining(trans->fbt_transaction, status);
+			}
 			break;
 		case (COMMIT | RETAIN):
 			/* Issue #586: isc_commit_retaining retains all relation locks
@@ -1428,8 +1488,9 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 	}
 
 	/* Clear handle for non-retained operations BEFORE checking result.
-	 * The fbt_* functions ALWAYS delete the wrapper (even on error),
-	 * so we must clear our pointer to avoid dangling references.
+	 * fbt_commit()/fbt_rollback() do NOT delete the wrapper (it is
+	 * explicitly freed below via fbt_free), so we clear our pointer and
+	 * free here to avoid dangling references.
 	 * Fixes: #9, #10 - SIGSEGV due to use-after-free of transaction wrapper
 	 */
 	if ((commit & RETAIN) == 0) {

@@ -3,6 +3,18 @@
 This guide covers behavior changes between php-firebird versions that may
 affect existing applications.
 
+## v13.2.x → Unreleased (PR #590)
+
+### `fbird_query(FBIRD_CREATE, ...)` returns a `Firebird\Connection` object
+
+Aligning the runtime with the declared arginfo (#306 follow-up; debug/ASAN
+builds fatal on the old raw-resource return), the deprecated
+`fbird_query(FBIRD_CREATE, $sql)` form now returns the same object type as
+`fbird_connect()`. Truthiness checks are unaffected; `is_resource()` checks
+must switch to `instanceof Firebird\Connection`. The object works everywhere
+the resource did (dual-accept: `fbird_query`, `fbird_close`, `fbird_drop_db`,
+transactions). Prefer `fbird_create_database()`, which is not deprecated.
+
 ## v13.2.x → Unreleased (PR #588)
 
 ### `fbird_commit_ret()` with no open cursors is now a hard commit

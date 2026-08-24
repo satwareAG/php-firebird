@@ -48,50 +48,19 @@ public:
         // prepared statement on FB 4.0+).  If free() was already called by
         // fbs_free(), both pointers are nullptr and free() is a no-op.
         // This is a safety net for abnormal destruction paths (e.g. stack
-        // unwinding, move-assignment displacement) where fbs_free() was
-        // never called.  Fixes GitHub issue #135 (belt-and-suspenders).
+        // unwinding) where fbs_free() was never called.
+        // Fixes GitHub issue #135 (belt-and-suspenders).
         ISC_STATUS dummy[ISC_STATUS_LENGTH] = {0};
         free(dummy);
     }
 
-    // Non-copyable
+    // Non-copyable, non-movable. Instances are heap-allocated by
+    // fbs_prepare() and owned via raw/unique pointers; ownership never
+    // transfers (the connection-death sweep registry in firebird_utils.cpp
+    // links instances with raw sweep_next_ pointers), so move ops would
+    // only risk unregistering the wrong address. (PR #590 review finding 4)
     StatementWrapper(const StatementWrapper&) = delete;
     StatementWrapper& operator=(const StatementWrapper&) = delete;
-
-    // Movable
-    StatementWrapper(StatementWrapper&& other) noexcept
-        : statement_(other.statement_),
-          result_set_(other.result_set_),
-          master_(other.master_),
-          prepared_(other.prepared_),
-          cursor_open_(other.cursor_open_) {
-        other.statement_ = nullptr;
-        other.result_set_ = nullptr;
-        other.master_ = nullptr;
-        other.prepared_ = false;
-        other.cursor_open_ = false;
-    }
-
-    StatementWrapper& operator=(StatementWrapper&& other) noexcept {
-        if (this != &other) {
-            // Clean up current resources
-            if (result_set_) result_set_->release();
-            if (statement_) statement_->release();
-
-            statement_ = other.statement_;
-            result_set_ = other.result_set_;
-            master_ = other.master_;
-            prepared_ = other.prepared_;
-            cursor_open_ = other.cursor_open_;
-
-            other.statement_ = nullptr;
-            other.result_set_ = nullptr;
-            other.master_ = nullptr;
-            other.prepared_ = false;
-            other.cursor_open_ = false;
-        }
-        return *this;
-    }
 
     /**
      * @brief Prepare a SQL statement

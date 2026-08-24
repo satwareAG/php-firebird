@@ -75,6 +75,11 @@ jobs:
           chmod +x scripts/check-stubs-sync.sh
           bash scripts/check-stubs-sync.sh
 
+      - name: Check pdo_fbird shared-header parity (#602)
+        run: |
+          chmod +x scripts/check-header-parity.sh
+          bash scripts/check-header-parity.sh
+
       - name: Check --CLEAN-- sections for DDL tests
         run: |
           chmod +x scripts/check-clean-sections.sh

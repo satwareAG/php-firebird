@@ -25,6 +25,12 @@ releasing the attachment-level relation locks that isc_rollback_retaining
 otherwise keeps until disconnect. Callers keeping cursors open retain true
 retaining semantics.
 
+**BLOB handles** (same hazard as #586): a hard rollback invalidates open
+BLOB handles on that transaction; `isc_rollback_retaining` preserved them.
+The legacy blob read-loop with periodic `fbird_rollback_ret()` must keep a
+SELECT cursor open on the same transaction or restructure around plain
+`fbird_rollback()` boundaries.
+
 ## v13.2.x → Unreleased (#595)
 
 ### `fbird_connect()`/`fbird_pconnect()` gain a documented `sync` parameter

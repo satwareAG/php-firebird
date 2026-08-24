@@ -28,6 +28,10 @@
 #define SQLDA_CURRENT_VERSION SQLDA_VERSION1
 #endif
 
+/* Maximum TPB (Transaction Parameter Buffer) size.
+ * Used by fbird_transaction struct for stored_tpb field (#566). */
+#define TPB_MAX_SIZE 2048
+
 /* Metadata identifier length (bytes). FB 4.0+ supports 63 chars (UTF8 = 4 bytes/char) */
 #ifndef METADATALENGTH
 #	if FB_API_VER >= 40
@@ -95,6 +99,9 @@ ZEND_BEGIN_MODULE_GLOBALS(fbird)
 	pid_t init_pid;                 /* PID at initialization for fork-safety detection */
 	int exception_mode;             /* Exception mode: 0=SILENT (default), 1=THROW */
 	bool in_mshutdown;         /* Flag: true during MSHUTDOWN to prevent EG() access */
+	bool auto_ddl_commit;      /* Issue #566: Transparent DDL commit+restart on explicit tx.
+	                            * Default false (BC). When true, fires on ALL DDL regardless
+	                            * of open cursors (v13.1.0 behavior for opt-in users). */
 ZEND_END_MODULE_GLOBALS(fbird)
 
 ZEND_EXTERN_MODULE_GLOBALS(fbird)
@@ -127,6 +134,38 @@ typedef struct {
 	unsigned long affected_rows;
 	/* OO API transaction wrapper (fb::Transaction* from fbt_start()) */
 	void *fbt_transaction;
+	/* Issue #554: True for the default (implicit) transaction created by
+	 * _php_fbird_def_trans(). Intended to replace the positional i==0
+	 * sentinel head node convention once callers migrate (#554 follow-up).
+	 * Until then, the positional convention remains load-bearing.
+	 * Only one transaction per connection has this flag. */
+	bool is_default;
+	/* Issue #566: Open cursor count for gating #540 transparent commit+restart.
+	 * Incremented when a SELECT cursor is opened on this transaction,
+	 * decremented when the cursor is closed/freed. The #540 commit+restart
+	 * only fires when open_cursor_count > 0, preserving transactional DDL
+	 * semantics when no cursors are holding metadata locks. */
+	unsigned short open_cursor_count;
+	/* Issue #566/#540: Stored TPB for transaction restart after commit.
+	 * Populated at creation time by fbird_trans_start() / _php_fbird_def_trans().
+	 * Used by #540 transparent restart and fbird_release_metadata_locks()
+	 * to restore the original isolation level, access mode, etc. */
+	unsigned short stored_tpb_len;
+	unsigned char stored_tpb[TPB_MAX_SIZE];
+	/* Issue #586: set when the last COMMIT|RETAIN actually retained state
+	 * (open cursors existed). When the last cursor closes afterwards,
+	 * _php_fbird_trans_release_if_idle() transparently hard-commits +
+	 * restarts so retained relation locks do not outlive the cursors
+	 * that justified retaining them. */
+	bool retain_committed;
+	/* Issue #594: intrusive registry of live fbird_query back-references.
+	 * Queries register at prepare (_php_fbird_prepare) and unregister at
+	 * free; every site that efrees this struct calls
+	 * _php_fbird_trans_detach_queries() first so no query dtor can read
+	 * freed memory (open_cursor_count bookkeeping at request shutdown). */
+	struct _fb_query *query_head;
+	/* Issue #599: same registry for batch resources holding this tx. */
+	struct _fb_batch *batch_head;
 	fbird_db_link *db_link[1]; /* last member */
 } fbird_transaction;
 
@@ -230,6 +269,12 @@ typedef struct _fb_query {
     struct _fb_query *parent;
     struct _fb_query *child_head;
     struct _fb_query *child_next;
+    /* Issue #594: transaction-registry membership. trans_reg is the list we
+     * are enrolled in (set at prepare, cleared only by unregister/detach -
+     * independent of the semantic fb_query->trans backref, which
+     * fbird_query_exec.c may NULL to force a default-tx restart). */
+    fbird_transaction *trans_reg;
+    struct _fb_query *trans_reg_next;
     /* OO API statement wrapper (fb::Statement* from fbs_prepare()) */
     void *fbs_statement;
     void *fbs_resultset;  /* OO API IResultSet* for cursor operations */
@@ -243,14 +288,17 @@ typedef struct _fb_query {
     unsigned in_msg_length; /* Input message buffer size */
 } fbird_query;
 
-#if FB_API_VER >= 40
 /**
  * Batch operation wrapper for Firebird 4.0+ IBatch interface.
  * Provides high-performance bulk INSERT operations.
+ * (Declared unguarded so fbird_transaction can reference the type; only
+ * batch CODE is FB 4.0+.)
  */
-typedef struct {
+typedef struct _fb_batch {
     void *fbbatch_wrapper;    /* OO API batch wrapper (from fbbatch_create()) */
-    fbird_transaction *trans; /* Associated transaction */
+    fbird_transaction *trans; /* Associated transaction (Issue #599 registry) */
+    struct _fb_batch *batch_reg_next; /* #599 intrusive registry link */
+    fbird_transaction *trans_reg_on;  /* #599 registry we are enrolled in */
     fbird_query *query;       /* Parent prepared statement */
     zend_resource *query_res; /* Strong reference to query resource (Issue #185).
                                * Prevents premature destruction of the IStatement*
@@ -260,7 +308,6 @@ typedef struct {
     void *in_msg_buffer;      /* Message buffer for row data */
     unsigned in_msg_length;   /* Message buffer size */
 } fbird_batch;
-#endif /* FB_API_VER >= 40 */
 
 enum php_fbird_option {
 	PHP_FBIRD_DEFAULT            = 0,
@@ -359,6 +406,9 @@ void _php_fbird_module_error(const char *, ...)
 		} while (0)
 
 int _php_fbird_def_trans(fbird_db_link *fb_link, fbird_transaction **trans);
+/* Issue #554: Find the default transaction in a connection's tr_list.
+ * Returns the fbird_transaction with is_default == true, or NULL if none exists. */
+fbird_transaction *_php_fbird_find_default_trans(fbird_db_link *link);
 void _php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAMETERS, zval *link_id,
 	fbird_db_link **fb_link, fbird_transaction **trans);
 
@@ -470,6 +520,56 @@ const char *_fbird_res_type_name(int type);
  * M3 Phase G: Also accepts Firebird\ResultSet objects (weak-ref to same resource). */
 /* Issue #297: Exported for OOP Statement::execute() to call directly */
 int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *args, int bind_n);
+
+/* Issue #566: Cursor counter helpers for gating #540 transparent commit+restart.
+ * These centralize is_open management to keep open_cursor_count accurate.
+ * _php_fbird_cursor_opened: Call when a SELECT cursor is opened on a transaction.
+ * _php_fbird_cursor_closed: Call when a SELECT cursor is closed/freed. */
+/* Issue #586: lazy release of retained locks (defined in fbird_transaction.c).
+ * Best-effort: hard-commits + restarts a retain_committed transaction whose
+ * last cursor just closed. Errors are absorbed (state stays as-before-fix). */
+void _php_fbird_trans_release_if_idle(fbird_transaction *trans);
+
+/* Issue #594: null out every live fbird_query back-reference to this
+ * transaction before the struct is efree'd (link close default-tx efree,
+ * le_trans dtor, execute_auto temp-trans paths). */
+void _php_fbird_trans_detach_queries(fbird_transaction *trans);
+void _php_fbird_trans_reg_query(fbird_transaction *trans, fbird_query *q);
+void _php_fbird_trans_unreg_query(fbird_query *q);
+void _php_fbird_trans_unreg_batch(struct _fb_batch *b);
+/* Issue #586: hard commit + transparent restart with stored TPB.
+ * Returns 0 on success, nonzero on failure. Clears retain_committed on
+ * success - every commit-restart site MUST go through this helper so the
+ * flag never goes stale (PR #588 review finding: hand-rolled copies in the
+ * OOP layer missed the clear and later idle-released uncommitted DML).
+ * Shared by fbird_release_metadata_locks(), _php_fbird_trans_end() and
+ * Firebird\Transaction::releaseMetadataLocks(). */
+int _php_fbird_trans_commit_restart(fbird_transaction *trans, ISC_STATUS_ARRAY status);
+int _php_fbird_trans_rollback_restart(fbird_transaction *trans, ISC_STATUS_ARRAY status);
+static inline void _php_fbird_cursor_opened(fbird_query *fb_query) {
+	/* Issue #586: idempotent - the SELECT execute path historically calls
+	 * this twice on the child result (open + "inherited state" re-mark);
+	 * an unconditional increment double-counted and open_cursor_count
+	 * never reached 0 again, breaking #566 gating and the #586 lazy
+	 * release. is_open guards exactly like _php_fbird_cursor_closed. */
+	if (!fb_query->is_open) {
+		fb_query->is_open = 1;
+		if (fb_query->trans) {
+			fb_query->trans->open_cursor_count++;
+		}
+	}
+}
+static inline void _php_fbird_cursor_closed(fbird_query *fb_query) {
+	if (fb_query->is_open && fb_query->trans && fb_query->trans->open_cursor_count > 0) {
+		fb_query->trans->open_cursor_count--;
+		/* Issue #586: last cursor gone - if a prior commit_ret retained
+		 * locks for this cursor, release them now (transparent restart) */
+		if (fb_query->trans->open_cursor_count == 0) {
+			_php_fbird_trans_release_if_idle(fb_query->trans);
+		}
+	}
+	fb_query->is_open = 0;
+}
 
 #define FBIRD_VALIDATE_QUERY_EX(zv, argnum, var) do { \
 	/* M3 object path: Firebird\ResultSet accepted alongside resources */ \

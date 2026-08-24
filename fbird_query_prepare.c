@@ -132,6 +132,8 @@ void _php_fbird_free_query(fbird_query *fb_query)
 	if (fb_query->in_msg_buffer) efree(fb_query->in_msg_buffer);
 	/* Metadata references are released when statement is freed - no efree needed here */
 
+	/* Issue #594: leave the transaction registry before the struct dies. */
+	_php_fbird_trans_unreg_query(fb_query);
 	efree(fb_query);
 }
 
@@ -293,6 +295,10 @@ int _php_fbird_prepare(fbird_query **new_query, fbird_db_link *link,
 	fb_query->link = link;
 	fb_query->trans = trans;
 	fb_query->trans_res = trans_res;
+	/* Issue #594: enroll on the transaction registry so its death (link
+	 * close / le_trans dtor / execute_auto temp efree) can NULL our
+	 * backref instead of leaving it dangling into efree'd memory. */
+	_php_fbird_trans_reg_query(trans, fb_query);
 	fb_query->dialect = link->dialect;
 	fb_query->query = estrdup(query);
 	/* This prepared query owns the statement handle and is responsible for

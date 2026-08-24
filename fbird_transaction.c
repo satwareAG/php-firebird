@@ -56,6 +56,54 @@ fbird_transaction *_php_fbird_find_default_trans(fbird_db_link *link)
 	return NULL;
 }
 
+/* Issue #594: detach all live fbird_query back-references before this
+ * struct is efree'd (default-tx efree in _php_fbird_commit_link, the
+ * le_trans dtor, execute_auto temp-trans paths). Query dtors later skip
+ * their transaction bookkeeping through the existing fb_query->trans
+ * NULL-guards instead of reading freed memory. */
+/* Issue #594: enroll a query on its transaction's back-ref registry. */
+void _php_fbird_trans_reg_query(fbird_transaction *trans, fbird_query *q)
+{
+	if (!trans) {
+		return;
+	}
+	q->trans_reg = trans;
+	q->trans_reg_next = trans->query_head;
+	trans->query_head = q;
+}
+
+/* Issue #594: remove a query from whatever registry it is enrolled in
+ * (query free, default-tx restart reassignment). */
+void _php_fbird_trans_unreg_query(fbird_query *q)
+{
+	if (!q->trans_reg) {
+		return;
+	}
+	fbird_query **curr = &q->trans_reg->query_head;
+	while (*curr) {
+		if (*curr == q) {
+			*curr = q->trans_reg_next;
+			break;
+		}
+		curr = &(*curr)->trans_reg_next;
+	}
+	q->trans_reg = NULL;
+	q->trans_reg_next = NULL;
+}
+
+void _php_fbird_trans_detach_queries(fbird_transaction *trans)
+{
+	fbird_query *q = trans->query_head;
+	while (q) {
+		fbird_query *next = q->trans_reg_next;
+		q->trans = NULL;
+		q->trans_reg = NULL;
+		q->trans_reg_next = NULL;
+		q = next;
+	}
+	trans->query_head = NULL;
+}
+
 void _php_fbird_free_trans(zend_resource *rsrc)
 {
 	ISC_STATUS status[256];
@@ -68,6 +116,7 @@ void _php_fbird_free_trans(zend_resource *rsrc)
 	/* Fork-safety check (Issue #22): Skip cleanup if we're in a forked child */
 	if (FBG(init_pid) != 0 && getpid() != FBG(init_pid)) {
 		FBDEBUG("Skipping transaction cleanup in forked child process");
+		_php_fbird_trans_detach_queries(trans);
 		efree(trans);
 		return;
 	}
@@ -109,6 +158,7 @@ void _php_fbird_free_trans(zend_resource *rsrc)
 			}
 		}
 	}
+	_php_fbird_trans_detach_queries(trans);
 	efree(trans);
 }
 
@@ -380,6 +430,7 @@ PHP_FUNCTION(fbird_trans_start)
 	fb_trans->is_default = false;  /* Issue #554 */
 	fb_trans->open_cursor_count = 0;  /* Issue #566 */
 	fb_trans->retain_committed = false;  /* Issue #586 */
+	fb_trans->query_head = NULL;  /* Issue #594 */
 	fb_trans->stored_tpb_len = tpb_len;
 	if (tpb_len > 0) {
 		memcpy(fb_trans->stored_tpb, last_tpb, tpb_len);
@@ -1052,6 +1103,7 @@ PHP_FUNCTION(fbird_trans)
 			fb_trans->is_default = false;  /* Issue #554 */
 			fb_trans->open_cursor_count = 0;  /* Issue #566 */
 			fb_trans->retain_committed = false;  /* Issue #586 */
+			fb_trans->query_head = NULL;  /* Issue #594 */
 			/* Store TPB for restart (#566 review finding #4). */
 			if (link_cnt == 1 && link0_tpb_len > 0) {
 				fb_trans->stored_tpb_len = link0_tpb_len;
@@ -1115,6 +1167,7 @@ PHP_FUNCTION(fbird_trans)
 		fb_trans->is_default = false;  /* Issue #554 */
 		fb_trans->open_cursor_count = 0;  /* Issue #566 */
 		fb_trans->retain_committed = false;  /* Issue #586 */
+		fb_trans->query_head = NULL;  /* Issue #594 */
 		/* Store TPB for restart (#566 review finding #4).
 		 * For single-db: use tpb_len + last_tpb (function scope).
 		 * For multi-db: stored_tpb_len=0 (multi-db TPB is complex). */
@@ -1162,6 +1215,7 @@ int _php_fbird_def_trans(fbird_db_link *fb_link, fbird_transaction **trans)
 			tr->affected_rows = 0;
 			tr->open_cursor_count = 0;  /* Issue #566 */
 			tr->retain_committed = false;  /* Issue #586 */
+			tr->query_head = NULL;  /* Issue #594 */
 			tr->stored_tpb_len = 0;
 			tr->fbt_transaction = NULL;
 			tr->is_default = true;  /* Issue #554 */

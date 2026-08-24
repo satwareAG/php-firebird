@@ -1512,6 +1512,7 @@ PHP_FUNCTION(fbird_reconnect_transaction)
 	fb_trans->affected_rows = 0;
 	fb_trans->is_default = false;  /* Issue #554 */
 	fb_trans->open_cursor_count = 0;  /* Issue #566 */
+	fb_trans->query_head = NULL;  /* Issue #594 */
 	fb_trans->retain_committed = false;  /* PR #588 review: garbage-true flag
 	 * would idle-release (= hard commit) an in-doubt limbo transaction */
 	fb_trans->stored_tpb_len = 0;     /* Reconnect: default TPB */

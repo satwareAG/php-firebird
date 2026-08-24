@@ -191,6 +191,7 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
 			trans->is_default = false;  /* Issue #554 */
 			trans->open_cursor_count = 0;  /* Issue #566 */
 			trans->retain_committed = false;  /* Issue #586 */
+			trans->query_head = NULL;  /* Issue #594 */
 			trans->stored_tpb_len = 0;     /* SET TRANSACTION TPB not stored here */
 			trans->fbt_transaction = new_trans;
 			trans->db_link[0] = fb_query->link;
@@ -291,10 +292,12 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
     if (fb_query->trans && fb_query->trans->fbt_transaction == NULL &&
         fb_query->trans_res == NULL &&
         fb_query->link && fb_query->link->fbc_connection) {
+        _php_fbird_trans_unreg_query(fb_query);  /* #594: leaving old registry */
         fb_query->trans = NULL;  /* force _php_fbird_def_trans to restart */
         if (SUCCESS != _php_fbird_def_trans(fb_query->link, &fb_query->trans)) {
             return FAILURE;  /* _php_fbird_def_trans already reported the error */
         }
+        _php_fbird_trans_reg_query(fb_query->trans, fb_query);  /* #594 */
     }
 
     /* Issue #540/#566: For DDL on explicit transactions, transparently commit+restart
@@ -684,6 +687,7 @@ execute_done:
             result_query->link = fb_query->link;
             result_query->trans = fb_query->trans;
             result_query->trans_res = fb_query->trans_res;
+            _php_fbird_trans_reg_query(result_query->trans, result_query);  /* #594 */
             result_query->dialect = fb_query->dialect;
             result_query->statement_type = fb_query->statement_type;
             result_query->out_fields_count = fb_query->out_fields_count;
@@ -876,6 +880,7 @@ cleanup_result_query:
 			result_query->link = fb_query->link;
 			result_query->trans = fb_query->trans;
 			result_query->trans_res = fb_query->trans_res;
+			_php_fbird_trans_reg_query(result_query->trans, result_query);  /* #594 */
 			result_query->dialect = fb_query->dialect;
 			result_query->statement_type = fb_query->statement_type;
 			result_query->out_fields_count = fb_query->out_fields_count;
@@ -2001,6 +2006,7 @@ PHP_FUNCTION(fbird_execute_auto)
     trans->is_default = false;  /* Issue #554 */
     trans->open_cursor_count = 0;  /* Issue #566 */
     trans->retain_committed = false;  /* Issue #586 */
+    trans->query_head = NULL;  /* Issue #594 */
     trans->stored_tpb_len = 0;     /* Temp trans: no stored TPB */
     trans->fbt_transaction = oo_trans;
     trans->db_link[0] = link;
@@ -2009,6 +2015,7 @@ PHP_FUNCTION(fbird_execute_auto)
     /* Prepare */
     if (FAILURE == _php_fbird_prepare(&fb_query, link, trans, NULL, sql)) {
         fbt_rollback(oo_trans, status);
+        _php_fbird_trans_detach_queries(trans);
         efree(trans);
         RETURN_FALSE;
     }
@@ -2025,6 +2032,7 @@ PHP_FUNCTION(fbird_execute_auto)
 
         zend_list_delete(fb_query->res); // Frees statement
         fbt_rollback(oo_trans, status);
+        _php_fbird_trans_detach_queries(trans);
         efree(trans);
         RETURN_FALSE;
     }
@@ -2042,6 +2050,7 @@ PHP_FUNCTION(fbird_execute_auto)
         zend_list_delete(Z_RES_P(return_value));
         zend_list_delete(fb_query->res);
         fbt_rollback(oo_trans, status);
+        _php_fbird_trans_detach_queries(trans);
         efree(trans);
         RETURN_THROWS();
     }
@@ -2056,10 +2065,12 @@ PHP_FUNCTION(fbird_execute_auto)
     /* Commit via OO API (returns 0 on success, non-zero on error) */
     if (fbt_commit(oo_trans, status)) {
         _php_fbird_error(status);
+        _php_fbird_trans_detach_queries(trans);
         efree(trans);
         RETURN_FALSE;
     }
 
+    _php_fbird_trans_detach_queries(trans);
     efree(trans);
 
     /* Restore return value (affected rows count) */

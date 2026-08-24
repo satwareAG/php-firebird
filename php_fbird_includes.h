@@ -158,6 +158,12 @@ typedef struct {
 	 * restarts so retained relation locks do not outlive the cursors
 	 * that justified retaining them. */
 	bool retain_committed;
+	/* Issue #594: intrusive registry of live fbird_query back-references.
+	 * Queries register at prepare (_php_fbird_prepare) and unregister at
+	 * free; every site that efrees this struct calls
+	 * _php_fbird_trans_detach_queries() first so no query dtor can read
+	 * freed memory (open_cursor_count bookkeeping at request shutdown). */
+	struct _fb_query *query_head;
 	fbird_db_link *db_link[1]; /* last member */
 } fbird_transaction;
 
@@ -261,6 +267,12 @@ typedef struct _fb_query {
     struct _fb_query *parent;
     struct _fb_query *child_head;
     struct _fb_query *child_next;
+    /* Issue #594: transaction-registry membership. trans_reg is the list we
+     * are enrolled in (set at prepare, cleared only by unregister/detach -
+     * independent of the semantic fb_query->trans backref, which
+     * fbird_query_exec.c may NULL to force a default-tx restart). */
+    fbird_transaction *trans_reg;
+    struct _fb_query *trans_reg_next;
     /* OO API statement wrapper (fb::Statement* from fbs_prepare()) */
     void *fbs_statement;
     void *fbs_resultset;  /* OO API IResultSet* for cursor operations */
@@ -513,6 +525,13 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
  * Best-effort: hard-commits + restarts a retain_committed transaction whose
  * last cursor just closed. Errors are absorbed (state stays as-before-fix). */
 void _php_fbird_trans_release_if_idle(fbird_transaction *trans);
+
+/* Issue #594: null out every live fbird_query back-reference to this
+ * transaction before the struct is efree'd (link close default-tx efree,
+ * le_trans dtor, execute_auto temp-trans paths). */
+void _php_fbird_trans_detach_queries(fbird_transaction *trans);
+void _php_fbird_trans_reg_query(fbird_transaction *trans, fbird_query *q);
+void _php_fbird_trans_unreg_query(fbird_query *q);
 /* Issue #586: hard commit + transparent restart with stored TPB.
  * Returns 0 on success, nonzero on failure. Clears retain_committed on
  * success - every commit-restart site MUST go through this helper so the

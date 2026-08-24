@@ -24,10 +24,11 @@ var_dump(fbird_drop_db(1));
 ?>
 --EXPECTF--
 Deprecated: fbird_query(): Passing FBIRD_CREATE to fbird_query() is deprecated, use fbird_create_database() instead in %s on line %d
-resource(%d) of type (Firebird link)
+object(Firebird\Connection)#%d (%d) {
+}
 bool(true)
 
-Fatal error: Uncaught TypeError: fbird_drop_db(): Argument #1 ($link_identifier) must be of type resource, int given in %a
+Fatal error: Uncaught TypeError: fbird_drop_db(): Argument #1 ($connection) must be of type resource, int given in %a
 
 --CLEAN--
 <?php require_once __DIR__ . '/clean.inc'; ?>

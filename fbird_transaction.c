@@ -61,7 +61,6 @@ fbird_transaction *_php_fbird_find_default_trans(fbird_db_link *link)
  * le_trans dtor, execute_auto temp-trans paths). Query dtors later skip
  * their transaction bookkeeping through the existing fb_query->trans
  * NULL-guards instead of reading freed memory. */
-/* Issue #594: enroll a query on its transaction's back-ref registry. */
 void _php_fbird_trans_reg_query(fbird_transaction *trans, fbird_query *q)
 {
 	if (!trans) {
@@ -91,6 +90,11 @@ void _php_fbird_trans_unreg_query(fbird_query *q)
 	q->trans_reg_next = NULL;
 }
 
+/* Issue #594: null out every live fbird_query back-reference to this
+ * transaction before the struct is efree'd (link close default-tx efree,
+ * le_trans dtor, execute_auto temp-trans paths). Query dtors later skip
+ * their transaction bookkeeping through the existing fb_query->trans
+ * NULL-guards instead of reading freed memory. */
 void _php_fbird_trans_detach_queries(fbird_transaction *trans)
 {
 	fbird_query *q = trans->query_head;

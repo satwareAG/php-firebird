@@ -295,6 +295,12 @@ int _php_fbird_exec(INTERNAL_FUNCTION_PARAMETERS, fbird_query *fb_query, zval *a
         _php_fbird_trans_unreg_query(fb_query);  /* #594: leaving old registry */
         fb_query->trans = NULL;  /* force _php_fbird_def_trans to restart */
         if (SUCCESS != _php_fbird_def_trans(fb_query->link, &fb_query->trans)) {
+            /* #594: def_trans may have created/found a tx struct before
+             * failing - keep the invariant "non-NULL trans => registered"
+             * or a later link-close efrees it under our live backref. */
+            if (fb_query->trans) {
+                _php_fbird_trans_reg_query(fb_query->trans, fb_query);
+            }
             return FAILURE;  /* _php_fbird_def_trans already reported the error */
         }
         _php_fbird_trans_reg_query(fb_query->trans, fb_query);  /* #594 */

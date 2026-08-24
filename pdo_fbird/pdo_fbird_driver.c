@@ -170,7 +170,7 @@ static bool pdo_fbird_handle_preparer(pdo_dbh_t *dbh, zend_string *sql,
 	void *tr  = fbt_get_handle(H->fbt_trans);
 
 	S->fbs_stmt = fbs_prepare(
-		FBG(master_instance), att, tr,
+		FBG(master_instance), att, tr, H->fbc_conn,
 		prepare_sql, prepare_len,
 		H->dialect, S->status
 	);
@@ -310,7 +310,7 @@ static zend_long pdo_fbird_handle_doer(pdo_dbh_t *dbh, const zend_string *sql)
 			had_statements = 1;
 
 			ISC_STATUS_ARRAY st = {0};
-			void *fbs = fbs_prepare(FBG(master_instance), att, tr,
+			void *fbs = fbs_prepare(FBG(master_instance), att, tr, H->fbc_conn,
 				p, (unsigned)len, H->dialect, st);
 			if (!fbs) {
 				memcpy(H->status, st, sizeof(ISC_STATUS_ARRAY));
@@ -1190,7 +1190,7 @@ static zend_string *pdo_fbird_handle_last_id(pdo_dbh_t *dbh, const zend_string *
 		return NULL;
 	}
 
-	void *stmt = fbs_prepare(FBG(master_instance), attachment, tr_handle,
+	void *stmt = fbs_prepare(FBG(master_instance), attachment, tr_handle, H->fbc_conn,
 		query, (unsigned)strlen(query), H->dialect, H->status);
 	if (!stmt) {
 		return NULL;

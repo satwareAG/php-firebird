@@ -96,9 +96,10 @@ struct ConnectionParams {
  * @endcode
  */
 /* Issue #593: per-connection statement registry lives on Connection
- * (stmt_head_ below) instead of thread_local state - ZTS-safe because the
- * list lives on the shared Connection object, so whoever closes it sweeps
- * everything registered against it regardless of preparing thread.
+ * (stmt_head_ below) instead of thread_local state. Unsynchronized by
+ * design: safe because PHP never manipulates one connection's statements
+ * from multiple threads concurrently; sequential cross-thread handoff
+ * (ZTS plink reuse) works because the list lives on the shared Connection.
  * Consumed only by firebird_utils.cpp's C bridge. */
 class StatementWrapper;
 

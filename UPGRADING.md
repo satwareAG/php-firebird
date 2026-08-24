@@ -15,6 +15,18 @@ must switch to `instanceof Firebird\Connection`. The object works everywhere
 the resource did (dual-accept: `fbird_query`, `fbird_close`, `fbird_drop_db`,
 transactions). Prefer `fbird_create_database()`, which is not deprecated.
 
+## v13.2.x → Unreleased (PR #601)
+
+### firebird.so and pdo_fbird.so must be upgraded in lockstep
+
+The internal C ABI between the two extensions changed (`fbs_prepare`
+signature, #593). An old `pdo_fbird.so` loaded against the new
+`firebird.so` crashes on the first `PDO::prepare()` (garbage arguments -
+same failure class as the in-repo incident documented in #602). When
+upgrading across this boundary, update BOTH packages in the same
+deployment; the split packages (`pdo-fbird` PIE, `php-firebird`) share the
+major version for this reason.
+
 ## v13.2.x → Unreleased (#589)
 
 ### `fbird_rollback_ret()` with no open cursors is now a hard rollback

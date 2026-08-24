@@ -1352,25 +1352,30 @@ extern "C" int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* times
 #include "src/cpp/fb_statement.hpp"
 
 /* ========================================================================
- * Issue #591: connection-death statement sweep registry.
+ * Issue #591/#593: connection-death statement sweep registry.
  *
  * StatementWrapper objects outlive their fb::Connection in PHP semantics
  * (query result resources are userland-owned). When the connection dies
  * (drop_db / disconnect), the RAII attachment releases every dependent
- * interface; calling through them later is a UAF. This per-thread intrusive
- * list lets the connection-death sites neutralize dependent wrappers so
- * their null-guarded closeCursor()/free() become no-ops.
+ * interface; calling through them later is a UAF. The sweep registry lives
+ * on each fb::Connection (Connection::stmt_head_, #593 - it was a
+ * thread_local list until #593): the connection-death sites neutralize
+ * every wrapper registered against that connection, so the null-guarded
+ * closeCursor()/free() become no-ops.
  *
- * jane: thread_local - resources are created and destroyed on the same
- * request thread; cross-thread statement use is not a PHP pattern.
- * jane: BlobWrapper/batch wrappers have the same lifetime coupling but no
- * observed crash - extend the same pattern if one appears.
- * ======================================================================== */
-/* Issue #593: the sweep registry lives on each fb::Connection
- * (Connection::stmt_head_), not in thread_local state - whoever closes the
- * connection sweeps every wrapper registered against it, on any thread.
+ * Thread model: the list is NOT synchronized - it is safe because PHP
+ * never manipulates a connection's statements from multiple threads
+ * concurrently (ZTS workers own disjoint resource sets; a concurrent
+ * close-vs-prepare on one connection would already race on the wrappers
+ * themselves). Cross-thread SEQUENTIAL use (plink handed between workers)
+ * works because the list lives on the shared Connection object, which is
+ * what #593 fixed.
+ *
  * Service-API wrappers (no Connection) are unregistered no-ops: their
- * lifetime is synchronous within one call. */
+ * lifetime is synchronous within one call. jane: BlobWrapper/batch
+ * wrappers share the lifetime coupling - batches got their own registry
+ * in #599; extend to blobs if a crash appears.
+ * ======================================================================== */
 
 /* Remove a wrapper from its connection's registry (fbs_free delete site). */
 static void fb_statement_sweep_unregister(fb::StatementWrapper* wrapper) {

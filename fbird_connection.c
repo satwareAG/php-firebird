@@ -974,13 +974,20 @@ PHP_FUNCTION(fbird_drop_db)
 	/* OO API Only: All connections use fbc_drop_database() */
 	if (fb_link->fbc_connection != NULL) {
 		FBDEBUG("Dropping database via OO API...");
-		drop_result = fbc_drop_database(fb_link->fbc_connection, status);
+		/* fbc_drop_database() deletes the fb::Connection wrapper on EVERY
+		 * exit path, success or failure (issue #591 hardening). Null the
+		 * handle BEFORE the call so a FAILED drop cannot leave a dangling
+		 * fbc_connection behind - the next pconnect()/query() through this
+		 * link (persistent links survive requests!) would dereference freed
+		 * memory. Mirrors fbird_close(), which nulls unconditionally after
+		 * disconnect(). (PR #590 review finding 3) */
+		void *dead_conn = fb_link->fbc_connection;
+		fb_link->fbc_connection = NULL;
+		drop_result = fbc_drop_database(dead_conn, status);
 		if (drop_result != 0) {
 			_php_fbird_error(status);
 			RETURN_FALSE;
 		}
-		/* fbc_drop_database() already frees the connection wrapper */
-		fb_link->fbc_connection = NULL;
 	}
 
 	/* drop_database() doesn't invalidate the transaction handles */

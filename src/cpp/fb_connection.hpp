@@ -95,8 +95,17 @@ struct ConnectionParams {
      *   }
  * @endcode
  */
+/* Issue #593: per-connection statement registry lives on Connection
+ * (stmt_head_ below) instead of thread_local state - ZTS-safe because the
+ * list lives on the shared Connection object, so whoever closes it sweeps
+ * everything registered against it regardless of preparing thread.
+ * Consumed only by firebird_utils.cpp's C bridge. */
+class StatementWrapper;
+
 class Connection {
 public:
+    StatementWrapper* stmt_head_ = nullptr;
+
     /**
      * Factory method with explicit IMaster (for testing/advanced use).
      *
@@ -421,8 +430,10 @@ inline Connection::Connection(Connection&& other) noexcept
       version_(other.version_),
       last_status_(std::move(other.last_status_)),
       statement_timeout_ms_(other.statement_timeout_ms_),
-      idle_timeout_sec_(other.idle_timeout_sec_) {
+      idle_timeout_sec_(other.idle_timeout_sec_),
+      stmt_head_(other.stmt_head_) {
     other.master_ = nullptr;
+    other.stmt_head_ = nullptr;
 }
 
 inline Connection& Connection::operator=(Connection&& other) noexcept {
@@ -434,7 +445,9 @@ inline Connection& Connection::operator=(Connection&& other) noexcept {
         last_status_ = std::move(other.last_status_);
         statement_timeout_ms_ = other.statement_timeout_ms_;
         idle_timeout_sec_ = other.idle_timeout_sec_;
+        stmt_head_ = other.stmt_head_;
         other.master_ = nullptr;
+        other.stmt_head_ = nullptr;
     }
     return *this;
 }

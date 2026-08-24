@@ -986,6 +986,18 @@ PHP_FUNCTION(fbird_drop_db)
 		 * disconnect(). (PR #590 review finding 3) */
 		void *dead_conn = fb_link->fbc_connection;
 		fb_link->fbc_connection = NULL;
+		/* Issue #597: release live transaction handles BEFORE the drop -
+		 * the attachment is still valid here, so rollbackNoThrow+delete
+		 * fully frees every fb::Transaction wrapper. The old post-drop
+		 * nulling orphaned them (LSAN 40B each, #597): freeing AFTER
+		 * attachment death would touch dead interfaces. DROP DATABASE
+		 * discards open work server-side regardless of drop outcome. */
+		for (l = fb_link->tr_list; l != NULL; l = l->next) {
+			if (l->trans != NULL && l->trans->fbt_transaction != NULL) {
+				fbt_free(l->trans->fbt_transaction);
+				l->trans->fbt_transaction = NULL;
+			}
+		}
 		drop_result = fbc_drop_database(dead_conn, status);
 		if (drop_result != 0) {
 			_php_fbird_error(status);

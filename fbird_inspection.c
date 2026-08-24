@@ -65,6 +65,7 @@ static int _fbird_exec_kill(fbird_db_link *link, fbird_transaction *trans, ISC_I
 		FBG(master_instance),
 		attachment,
 		transaction,
+		NULL,  /* #593: service attachment - no Connection registry */
 		sql,
 		0,  /* null-terminated */
 		SQL_DIALECT_V6,
@@ -166,6 +167,7 @@ static int _fbird_drop_table(fbird_db_link *link, fbird_transaction *trans, cons
 		FBG(master_instance),
 		attachment,
 		transaction,
+		NULL,  /* #593: service attachment - no Connection registry */
 		drop_sql,
 		0,  /* null-terminated */
 		SQL_DIALECT_V6,
@@ -335,6 +337,7 @@ PHP_FUNCTION(fbird_list_table_blockers)
 		FBG(master_instance),
 		attachment,
 		transaction,
+		NULL,  /* #593: service attachment - no Connection registry */
 		sql,
 		0,  /* null-terminated */
 		SQL_DIALECT_V6,

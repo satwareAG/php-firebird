@@ -558,6 +558,7 @@ static void _php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAMETERS, const char *
 
 	/* Prepare the savepoint statement */
 	stmt = fbs_prepare(FBG(master_instance), attachment, transaction_ptr,
+		link->fbc_connection,  /* #593: owning connection for sweep */
 		query, (unsigned)len, SQL_DIALECT_CURRENT, status);
 	if (!stmt) {
 		_php_fbird_error(status);
@@ -843,6 +844,45 @@ PHP_FUNCTION(fbird_connection_info)
  * single-link transaction (link_cnt == 1).
  * Returns 0 on success, nonzero on failure (status zero-initialized then
  * populated on engine errors; isc_arg_end-terminated on local failures). */
+/* Issue #589: hard ROLLBACK + restart with the stored TPB - the rollback
+ * twin of _php_fbird_trans_commit_restart(). Releases retained relation
+ * locks (isc_rollback_retaining keeps them, same #586 class) while leaving
+ * the caller a live, empty transaction. */
+int _php_fbird_trans_rollback_restart(fbird_transaction *trans, ISC_STATUS_ARRAY status)
+{
+	fbird_db_link *fb_link = trans->db_link[0];
+
+	status[0] = (ISC_STATUS) isc_arg_end;
+	status[1] = 0;
+
+	if (!fb_link || !fb_link->fbc_connection) {
+		return 1;
+	}
+
+	/* Hard rollback: releases all locks including metadata */
+	if (fbt_rollback(trans->fbt_transaction, status) != 0) {
+		return 1;
+	}
+
+	fbt_free(trans->fbt_transaction);
+	trans->fbt_transaction = NULL;
+
+	void *attachment = fbc_get_attachment(fb_link->fbc_connection);
+	if (attachment == NULL) {
+		return 1;
+	}
+
+	trans->fbt_transaction = fbt_start(
+		FBG(master_instance),
+		attachment,
+		trans->stored_tpb_len,
+		trans->stored_tpb_len > 0 ? trans->stored_tpb : NULL,
+		status
+	);
+
+	return (trans->fbt_transaction == NULL) ? 1 : 0;
+}
+
 int _php_fbird_trans_commit_restart(fbird_transaction *trans, ISC_STATUS_ARRAY status)
 {
 	fbird_db_link *fb_link = trans->db_link[0];
@@ -1402,7 +1442,21 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 			result = fbt_commit(trans->fbt_transaction, status);
 			break;
 		case (ROLLBACK | RETAIN):
-			result = fbt_rollback_retaining(trans->fbt_transaction, status);
+			/* Issue #589: isc_rollback_retaining retains attachment-level
+			 * relation locks exactly like isc_commit_retaining (#586 probe:
+			 * SERIALIZABLE NOWAIT over metadata blocked after a retaining
+			 * rollback). With no open cursor there is nothing to preserve -
+			 * hard rollback + restart releases the locks and is observably
+			 * identical for the caller. Single-link + non-MSHUTDOWN only. */
+			if (trans->open_cursor_count == 0 &&
+			    trans->link_cnt == 1 &&
+			    !FBG(in_mshutdown)) {
+				FBDEBUG("Issue #589: rollback_ret with no open cursors -> hard rollback + restart");
+				result = (_php_fbird_trans_rollback_restart(trans, status) != 0)
+					? -1 : 0;
+			} else {
+				result = fbt_rollback_retaining(trans->fbt_transaction, status);
+			}
 			break;
 		case (COMMIT | RETAIN):
 			/* Issue #586: isc_commit_retaining retains all relation locks

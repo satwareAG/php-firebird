@@ -15,6 +15,16 @@ must switch to `instanceof Firebird\Connection`. The object works everywhere
 the resource did (dual-accept: `fbird_query`, `fbird_close`, `fbird_drop_db`,
 transactions). Prefer `fbird_create_database()`, which is not deprecated.
 
+## v13.2.x → Unreleased (#589)
+
+### `fbird_rollback_ret()` with no open cursors is now a hard rollback
+
+Same shape as the #586 commit_ret change: a retaining rollback with **zero
+open cursors** performs a hard rollback + transparent restart (stored TPB),
+releasing the attachment-level relation locks that isc_rollback_retaining
+otherwise keeps until disconnect. Callers keeping cursors open retain true
+retaining semantics.
+
 ## v13.2.x → Unreleased (#595)
 
 ### `fbird_connect()`/`fbird_pconnect()` gain a documented `sync` parameter

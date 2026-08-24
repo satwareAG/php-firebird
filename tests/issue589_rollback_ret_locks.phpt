@@ -58,6 +58,8 @@ var_dump($ok);
 fbird_close($cA); fbird_close($cB);
 echo "done\n";
 ?>
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>
 --EXPECT--
 bool(true)
 bool(true)

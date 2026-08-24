@@ -56,11 +56,7 @@ fbird_transaction *_php_fbird_find_default_trans(fbird_db_link *link)
 	return NULL;
 }
 
-/* Issue #594: detach all live fbird_query back-references before this
- * struct is efree'd (default-tx efree in _php_fbird_commit_link, the
- * le_trans dtor, execute_auto temp-trans paths). Query dtors later skip
- * their transaction bookkeeping through the existing fb_query->trans
- * NULL-guards instead of reading freed memory. */
+/* Issue #594/#599: enroll a holder on its transaction's back-ref registry. */
 void _php_fbird_trans_reg_query(fbird_transaction *trans, fbird_query *q)
 {
 	if (!trans) {
@@ -69,6 +65,24 @@ void _php_fbird_trans_reg_query(fbird_transaction *trans, fbird_query *q)
 	q->trans_reg = trans;
 	q->trans_reg_next = trans->query_head;
 	trans->query_head = q;
+}
+
+/* Issue #599: remove a batch from its transaction registry. */
+void _php_fbird_trans_unreg_batch(struct _fb_batch *b)
+{
+	if (!b || !b->trans_reg_on) {
+		return;
+	}
+	fbird_batch **curr = &b->trans_reg_on->batch_head;
+	while (*curr) {
+		if (*curr == b) {
+			*curr = b->batch_reg_next;
+			break;
+		}
+		curr = &(*curr)->batch_reg_next;
+	}
+	b->trans_reg_on = NULL;
+	b->batch_reg_next = NULL;
 }
 
 /* Issue #594: remove a query from whatever registry it is enrolled in
@@ -106,6 +120,19 @@ void _php_fbird_trans_detach_queries(fbird_transaction *trans)
 		q = next;
 	}
 	trans->query_head = NULL;
+	trans->batch_head = NULL;  /* Issue #599 */
+
+	/* Issue #599: batches hold the same raw backref (dereferenced by
+	 * fbird_batch_execute). */
+	fbird_batch *b = trans->batch_head;
+	while (b) {
+		fbird_batch *bnext = b->batch_reg_next;
+		b->trans = NULL;
+		b->trans_reg_on = NULL;
+		b->batch_reg_next = NULL;
+		b = bnext;
+	}
+	trans->batch_head = NULL;
 }
 
 void _php_fbird_free_trans(zend_resource *rsrc)
@@ -435,6 +462,7 @@ PHP_FUNCTION(fbird_trans_start)
 	fb_trans->open_cursor_count = 0;  /* Issue #566 */
 	fb_trans->retain_committed = false;  /* Issue #586 */
 	fb_trans->query_head = NULL;  /* Issue #594 */
+	fb_trans->batch_head = NULL;  /* Issue #599 */
 	fb_trans->stored_tpb_len = tpb_len;
 	if (tpb_len > 0) {
 		memcpy(fb_trans->stored_tpb, last_tpb, tpb_len);
@@ -1108,6 +1136,7 @@ PHP_FUNCTION(fbird_trans)
 			fb_trans->open_cursor_count = 0;  /* Issue #566 */
 			fb_trans->retain_committed = false;  /* Issue #586 */
 			fb_trans->query_head = NULL;  /* Issue #594 */
+			fb_trans->batch_head = NULL;  /* Issue #599 */
 			/* Store TPB for restart (#566 review finding #4). */
 			if (link_cnt == 1 && link0_tpb_len > 0) {
 				fb_trans->stored_tpb_len = link0_tpb_len;
@@ -1172,6 +1201,7 @@ PHP_FUNCTION(fbird_trans)
 		fb_trans->open_cursor_count = 0;  /* Issue #566 */
 		fb_trans->retain_committed = false;  /* Issue #586 */
 		fb_trans->query_head = NULL;  /* Issue #594 */
+		fb_trans->batch_head = NULL;  /* Issue #599 */
 		/* Store TPB for restart (#566 review finding #4).
 		 * For single-db: use tpb_len + last_tpb (function scope).
 		 * For multi-db: stored_tpb_len=0 (multi-db TPB is complex). */
@@ -1220,6 +1250,7 @@ int _php_fbird_def_trans(fbird_db_link *fb_link, fbird_transaction **trans)
 			tr->open_cursor_count = 0;  /* Issue #566 */
 			tr->retain_committed = false;  /* Issue #586 */
 			tr->query_head = NULL;  /* Issue #594 */
+			tr->batch_head = NULL;  /* Issue #599 */
 			tr->stored_tpb_len = 0;
 			tr->fbt_transaction = NULL;
 			tr->is_default = true;  /* Issue #554 */

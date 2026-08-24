@@ -320,6 +320,7 @@ function fbird_connect(
     int $buffers = 0,
     int $dialect = 3,
     ?string $role = null,
+    int $sync = 0,
     int $flags = 0
 ): Firebird\Connection|false {}
 
@@ -343,7 +344,9 @@ function fbird_pconnect(
     ?string $charset = null,
     int $buffers = 0,
     int $dialect = 3,
-    ?string $role = null
+    ?string $role = null,
+    int $sync = 0,
+    int $flags = 0
 ): Firebird\Connection|false {}
 
 /**

@@ -33,6 +33,7 @@ void _php_fbird_free_batch(zend_resource *rsrc)
 		if (batch->in_msg_buffer != NULL) {
 			efree(batch->in_msg_buffer);
 		}
+		_php_fbird_trans_unreg_batch(batch);
 		efree(batch);
 		return;
 	}
@@ -66,6 +67,7 @@ void _php_fbird_free_batch(zend_resource *rsrc)
 		batch->query_res = NULL;
 	}
 
+	_php_fbird_trans_unreg_batch(batch);
 	efree(batch);
 }
 #endif /* FB_API_VER >= 40 */
@@ -176,6 +178,12 @@ PHP_FUNCTION(fbird_batch_create)
 	fb_batch = (fbird_batch *)ecalloc(1, sizeof(fbird_batch));
 	fb_batch->fbbatch_wrapper = batch_wrapper;
 	fb_batch->trans = trans;
+	/* Issue #599: enroll on the transaction registry (#594 pattern). */
+	if (trans) {
+		fb_batch->trans_reg_on = trans;
+		fb_batch->batch_reg_next = trans->batch_head;
+		trans->batch_head = fb_batch;
+	}
 	fb_batch->query = fb_query;
 	/* M3: query_arg may be a Firebird\ResultSet object or a legacy resource */
 	if (Z_TYPE_P(query_arg) == IS_OBJECT) {

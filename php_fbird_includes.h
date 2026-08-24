@@ -164,6 +164,8 @@ typedef struct {
 	 * _php_fbird_trans_detach_queries() first so no query dtor can read
 	 * freed memory (open_cursor_count bookkeeping at request shutdown). */
 	struct _fb_query *query_head;
+	/* Issue #599: same registry for batch resources holding this tx. */
+	struct _fb_batch *batch_head;
 	fbird_db_link *db_link[1]; /* last member */
 } fbird_transaction;
 
@@ -286,14 +288,17 @@ typedef struct _fb_query {
     unsigned in_msg_length; /* Input message buffer size */
 } fbird_query;
 
-#if FB_API_VER >= 40
 /**
  * Batch operation wrapper for Firebird 4.0+ IBatch interface.
  * Provides high-performance bulk INSERT operations.
+ * (Declared unguarded so fbird_transaction can reference the type; only
+ * batch CODE is FB 4.0+.)
  */
-typedef struct {
+typedef struct _fb_batch {
     void *fbbatch_wrapper;    /* OO API batch wrapper (from fbbatch_create()) */
-    fbird_transaction *trans; /* Associated transaction */
+    fbird_transaction *trans; /* Associated transaction (Issue #599 registry) */
+    struct _fb_batch *batch_reg_next; /* #599 intrusive registry link */
+    fbird_transaction *trans_reg_on;  /* #599 registry we are enrolled in */
     fbird_query *query;       /* Parent prepared statement */
     zend_resource *query_res; /* Strong reference to query resource (Issue #185).
                                * Prevents premature destruction of the IStatement*
@@ -303,7 +308,6 @@ typedef struct {
     void *in_msg_buffer;      /* Message buffer for row data */
     unsigned in_msg_length;   /* Message buffer size */
 } fbird_batch;
-#endif /* FB_API_VER >= 40 */
 
 enum php_fbird_option {
 	PHP_FBIRD_DEFAULT            = 0,
@@ -532,6 +536,7 @@ void _php_fbird_trans_release_if_idle(fbird_transaction *trans);
 void _php_fbird_trans_detach_queries(fbird_transaction *trans);
 void _php_fbird_trans_reg_query(fbird_transaction *trans, fbird_query *q);
 void _php_fbird_trans_unreg_query(fbird_query *q);
+void _php_fbird_trans_unreg_batch(struct _fb_batch *b);
 /* Issue #586: hard commit + transparent restart with stored TPB.
  * Returns 0 on success, nonzero on failure. Clears retain_committed on
  * success - every commit-restart site MUST go through this helper so the

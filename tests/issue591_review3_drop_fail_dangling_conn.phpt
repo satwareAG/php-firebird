@@ -16,7 +16,11 @@ require("firebird.inc");
 $c = fbird_connect($test_base, $user, $password);
 var_dump($c instanceof Firebird\Connection);
 
-$holder = fbird_connect($test_base, $user, $password, 'UTF8', 0, 3, '', FBIRD_CONNECT_FORCE_NEW);
+/* jane: different charset breaks DSN-cache sharing -> independent attachment.
+ * Deliberately NOT passing FBIRD_CONNECT_FORCE_NEW: flags is the 9th
+ * positional param (#595) and debug builds fatal on 9-arg calls until the
+ * arginfo arity is fixed. */
+$holder = fbird_connect($test_base, $user, $password, 'UTF8');
 var_dump($holder instanceof Firebird\Connection);
 
 /* Must fail: the database is still in use by $holder. */

@@ -609,11 +609,7 @@ extern "C" int fbc_disconnect(void* connection, ISC_STATUS* status_vector) {
     /* Issue #591: capture attachment identity BEFORE detach (Connection::get()
      * may return null afterwards) and neutralize dependent statements - the
      * RAII attachment release below invalidates their interfaces. */
-    void* dead_attachment = nullptr;
-    {
-        auto* conn = reinterpret_cast<fb::Connection*>(connection);
-        dead_attachment = conn->get();
-    }
+    void* dead_attachment = reinterpret_cast<fb::Connection*>(connection)->get();
 
     try {
         auto* conn = reinterpret_cast<fb::Connection*>(connection);
@@ -646,11 +642,7 @@ extern "C" int fbc_drop_database(void* connection, ISC_STATUS* status_vector) {
     /* Issue #591: attachment identity for the statement sweep (all exit
      * paths delete the Connection; dropDatabase() destroys the attachment
      * server-side even when it reports an error afterwards). */
-    void* dead_attachment = nullptr;
-    {
-        auto* conn = reinterpret_cast<fb::Connection*>(connection);
-        dead_attachment = conn->get();
-    }
+    void* dead_attachment = reinterpret_cast<fb::Connection*>(connection)->get();
 
     try {
         auto* conn = reinterpret_cast<fb::Connection*>(connection);
@@ -1382,10 +1374,6 @@ extern "C" int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* times
  * ======================================================================== */
 static thread_local fb::StatementWrapper* t_stmt_sweep_head = nullptr;
 
-static fb::StatementWrapper*& fb_statement_sweep_head() {
-    return t_stmt_sweep_head;
-}
-
 /* Remove a wrapper from the sweep registry (fbs_free only delete site). */
 static void fb_statement_sweep_unregister(fb::StatementWrapper* wrapper) {
     fb::StatementWrapper** curr = &t_stmt_sweep_head;
@@ -1400,21 +1388,25 @@ static void fb_statement_sweep_unregister(fb::StatementWrapper* wrapper) {
 }
 
 /* Neutralize every wrapper owned by a dying attachment (identity compare on
- * the raw pointer value - the attachment itself may already be released). */
+ * the raw pointer value - the attachment itself may already be released).
+ * jane: O(n) single-pass unlink; statement counts per request are small
+ * (tens), no list compaction needed. */
 static void fb_statement_sweep_invalidate(void* attachment) {
     if (attachment == nullptr) {
         return;
     }
-    fb::StatementWrapper* w = t_stmt_sweep_head;
-    while (w) {
-        fb::StatementWrapper* next = w->sweep_next_;
+    fb::StatementWrapper** link = &t_stmt_sweep_head;
+    while (*link) {
+        fb::StatementWrapper* w = *link;
         if (w->sweep_owner_ == attachment) {
             w->invalidate();
             /* Unlink: wrapper stays alive (freed later via fbs_free), but no
              * point sweeping it again. */
-            fb_statement_sweep_unregister(w);
+            *link = w->sweep_next_;
+            w->sweep_next_ = nullptr;
+        } else {
+            link = &w->sweep_next_;
         }
-        w = next;
     }
 }
 
@@ -1466,8 +1458,8 @@ extern "C" void* fbs_prepare(
      * resources are created and destroyed on the same request thread (ZTS
      * workers get one list each). */
     wrapper->sweep_owner_ = attachment;
-    wrapper->sweep_next_ = fb_statement_sweep_head();
-    fb_statement_sweep_head() = wrapper;
+    wrapper->sweep_next_ = t_stmt_sweep_head;
+    t_stmt_sweep_head = wrapper;
 
     return wrapper;
 }

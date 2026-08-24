@@ -15,6 +15,22 @@ must switch to `instanceof Firebird\Connection`. The object works everywhere
 the resource did (dual-accept: `fbird_query`, `fbird_close`, `fbird_drop_db`,
 transactions). Prefer `fbird_create_database()`, which is not deprecated.
 
+## v13.2.x → Unreleased (#595)
+
+### `fbird_connect()`/`fbird_pconnect()` gain a documented `sync` parameter
+
+The C layer always accepted nine positional parameters
+(`database, username, password, charset, buffers, dialect, role, sync, flags`),
+but stubs/arginfo documented only eight. Consequences of the old signature:
+
+- Passing `FBIRD_CONNECT_FORCE_NEW` as the **8th** argument silently set the
+  lock timeout (`sync`) to `2` instead of forcing a new connection.
+- Debug/ASAN PHP builds fatalled on calls reaching deep parsing.
+
+Insert your intended flags value as the **9th** argument (with `0` for
+`sync` unless you deliberately set the lock timeout). Keyword-style callers
+using at most 7 arguments are unaffected.
+
 ## v13.2.x → Unreleased (PR #588)
 
 ### `fbird_commit_ret()` with no open cursors is now a hard commit

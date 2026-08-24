@@ -1,5 +1,10 @@
 --TEST--
 fbird_drop_db(): Make sure passing an integer to the function throws an error.
+--ENV--
+; jane: detect_leaks=0 - LSAN's exit check fatally conflicts with
+; run-tests --set-timeout ptrace on leak-bearing paths (#596); ASAN UAF
+; detection stays armed.
+ASAN_OPTIONS=detect_leaks=0
 --SKIPIF--
 <?php
 include("skipif.inc");

@@ -78,6 +78,11 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_connect, 0, 0, MAY_BE_OBJE
 	ZEND_ARG_TYPE_INFO(0, buffers, IS_LONG, 0)
 	ZEND_ARG_TYPE_INFO(0, dialect, IS_LONG, 0)
 	ZEND_ARG_TYPE_INFO(0, role, IS_STRING, 0)
+	/* Issue #595: zpp has always accepted 9 positional params ("|ssssllsll");
+	 * declaring only 8 made debug builds fatal on deep parses and silently
+	 * mapped an 8th positional arg onto sync (lock timeout) instead of
+	 * flags. */
+	ZEND_ARG_TYPE_INFO(0, sync, IS_LONG, 0)
 	ZEND_ARG_TYPE_INFO(0, flags, IS_LONG, 0)
 ZEND_END_ARG_INFO()
 
@@ -89,6 +94,7 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_pconnect, 0, 0, MAY_BE_OBJ
 	ZEND_ARG_TYPE_INFO(0, buffers, IS_LONG, 0)
 	ZEND_ARG_TYPE_INFO(0, dialect, IS_LONG, 0)
 	ZEND_ARG_TYPE_INFO(0, role, IS_STRING, 0)
+	ZEND_ARG_TYPE_INFO(0, sync, IS_LONG, 0)
 	ZEND_ARG_TYPE_INFO(0, flags, IS_LONG, 0)
 ZEND_END_ARG_INFO()
 
@@ -1513,6 +1519,7 @@ PHP_FUNCTION(fbird_reconnect_transaction)
 	fb_trans->is_default = false;  /* Issue #554 */
 	fb_trans->open_cursor_count = 0;  /* Issue #566 */
 	fb_trans->query_head = NULL;  /* Issue #594 */
+	fb_trans->batch_head = NULL;  /* Issue #599 */
 	fb_trans->retain_committed = false;  /* PR #588 review: garbage-true flag
 	 * would idle-release (= hard commit) an in-doubt limbo transaction */
 	fb_trans->stored_tpb_len = 0;     /* Reconnect: default TPB */

@@ -1,0 +1,4 @@
+Tracer caught signal 11: addr=0x2708 pc=0x7ff94b0300f0 sp=0x7ff94462ad10
+==182197==LeakSanitizer has encountered a fatal error.
+==182197==HINT: For debugging, try setting environment variable LSAN_OPTIONS=verbosity=1:log_threads=1
+==182197==HINT: LeakSanitizer does not work under ptrace (strace, gdb, etc)

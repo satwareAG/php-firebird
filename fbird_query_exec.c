@@ -1294,7 +1294,15 @@ PHP_FUNCTION(fbird_query)
 		 * The create_result is a pointer that fbc_get_attachment() can use. */
 		link->fbc_connection = create_result;
 
-		RETVAL_RES(zend_register_resource(link, le_link));
+		/* Phase C parity with fbird_connect(): return a Firebird\Connection
+		 * object instead of the raw resource (#306 follow-up - the arginfo
+		 * mask declares OBJECT|LONG|BOOL, and debug/ASAN builds enforce it,
+		 * fataling on the legacy resource return). Refcounting: the resource
+		 * is registered with rc=1 owned by the regular_list entry;
+		 * setup_connection_object() adds the object's own strong ref (#576).
+		 * Unlike _php_fbird_connect there is NO extra caller ref to drop. */
+		zend_resource *create_res = zend_register_resource(link, le_link);
+		fbird_setup_connection_object(return_value, create_res);
 		efree(args);
 		return;
 	}

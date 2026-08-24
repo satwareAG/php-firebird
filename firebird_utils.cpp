@@ -276,6 +276,12 @@ namespace {
 using fb::set_status_error;
 using fb::copy_status_to_sv;
 
+/* Issue #591: connection-death statement sweep (defined with the statement
+ * section, after fb_statement.hpp include; fwd-declared for the connection
+ * death sites below). */
+namespace fb { class StatementWrapper; }
+static void fb_statement_sweep_invalidate(void* attachment);
+
 namespace fb {
 
 /**
@@ -600,6 +606,11 @@ extern "C" int fbc_disconnect(void* connection, ISC_STATUS* status_vector) {
         return 0;
     }
 
+    /* Issue #591: capture attachment identity BEFORE detach (Connection::get()
+     * may return null afterwards) and neutralize dependent statements - the
+     * RAII attachment release below invalidates their interfaces. */
+    void* dead_attachment = reinterpret_cast<fb::Connection*>(connection)->get();
+
     try {
         auto* conn = reinterpret_cast<fb::Connection*>(connection);
 
@@ -611,11 +622,13 @@ extern "C" int fbc_disconnect(void* connection, ISC_STATUS* status_vector) {
             conn->copyLastStatus(status_vector, ISC_STATUS_LENGTH);
         }
 
+        fb_statement_sweep_invalidate(dead_attachment);
         delete conn;
         return success ? 0 : 1;
 
     } catch (...) {
         // Clean up even on exception
+        fb_statement_sweep_invalidate(dead_attachment);
         delete reinterpret_cast<fb::Connection*>(connection);
         return 1;
     }
@@ -626,12 +639,18 @@ extern "C" int fbc_drop_database(void* connection, ISC_STATUS* status_vector) {
         return -1;
     }
 
+    /* Issue #591: attachment identity for the statement sweep (all exit
+     * paths delete the Connection; dropDatabase() destroys the attachment
+     * server-side even when it reports an error afterwards). */
+    void* dead_attachment = reinterpret_cast<fb::Connection*>(connection)->get();
+
     try {
         auto* conn = reinterpret_cast<fb::Connection*>(connection);
 
         // dropDatabase() throws fb::Exception on failure
         conn->dropDatabase();
 
+        fb_statement_sweep_invalidate(dead_attachment);
         delete conn;
         return 0;
 
@@ -640,9 +659,11 @@ extern "C" int fbc_drop_database(void* connection, ISC_STATUS* status_vector) {
         if (status_vector) {
             conn->copyLastStatus(status_vector, ISC_STATUS_LENGTH);
         }
+        fb_statement_sweep_invalidate(dead_attachment);
         delete conn;
         return -1;
     } catch (...) {
+        fb_statement_sweep_invalidate(dead_attachment);
         delete reinterpret_cast<fb::Connection*>(connection);
         return -1;
     }
@@ -1336,6 +1357,59 @@ extern "C" int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* times
 
 #include "src/cpp/fb_statement.hpp"
 
+/* ========================================================================
+ * Issue #591: connection-death statement sweep registry.
+ *
+ * StatementWrapper objects outlive their fb::Connection in PHP semantics
+ * (query result resources are userland-owned). When the connection dies
+ * (drop_db / disconnect), the RAII attachment releases every dependent
+ * interface; calling through them later is a UAF. This per-thread intrusive
+ * list lets the connection-death sites neutralize dependent wrappers so
+ * their null-guarded closeCursor()/free() become no-ops.
+ *
+ * jane: thread_local - resources are created and destroyed on the same
+ * request thread; cross-thread statement use is not a PHP pattern.
+ * jane: BlobWrapper/batch wrappers have the same lifetime coupling but no
+ * observed crash - extend the same pattern if one appears.
+ * ======================================================================== */
+static thread_local fb::StatementWrapper* t_stmt_sweep_head = nullptr;
+
+/* Remove a wrapper from the sweep registry (fbs_free only delete site). */
+static void fb_statement_sweep_unregister(fb::StatementWrapper* wrapper) {
+    fb::StatementWrapper** curr = &t_stmt_sweep_head;
+    while (*curr) {
+        if (*curr == wrapper) {
+            *curr = wrapper->sweep_next_;
+            wrapper->sweep_next_ = nullptr;
+            return;
+        }
+        curr = &(*curr)->sweep_next_;
+    }
+}
+
+/* Neutralize every wrapper owned by a dying attachment (identity compare on
+ * the raw pointer value - the attachment itself may already be released).
+ * jane: O(n) single-pass unlink; statement counts per request are small
+ * (tens), no list compaction needed. */
+static void fb_statement_sweep_invalidate(void* attachment) {
+    if (attachment == nullptr) {
+        return;
+    }
+    fb::StatementWrapper** link = &t_stmt_sweep_head;
+    while (*link) {
+        fb::StatementWrapper* w = *link;
+        if (w->sweep_owner_ == attachment) {
+            w->invalidate();
+            /* Unlink: wrapper stays alive (freed later via fbs_free), but no
+             * point sweeping it again. */
+            *link = w->sweep_next_;
+            w->sweep_next_ = nullptr;
+        } else {
+            link = &w->sweep_next_;
+        }
+    }
+}
+
 extern "C" void* fbs_prepare(
     void* master_ptr,
     void* attachment_ptr,
@@ -1377,6 +1451,15 @@ extern "C" void* fbs_prepare(
         delete wrapper;
         return nullptr;
     }
+
+    /* Issue #591: register with the connection-death sweep registry keyed by
+     * attachment identity, so fbc_disconnect()/fbc_drop_database() can
+     * invalidate this wrapper when the attachment dies. Per-thread: PHP
+     * resources are created and destroyed on the same request thread (ZTS
+     * workers get one list each). */
+    wrapper->sweep_owner_ = attachment;
+    wrapper->sweep_next_ = t_stmt_sweep_head;
+    t_stmt_sweep_head = wrapper;
 
     return wrapper;
 }
@@ -1510,6 +1593,7 @@ extern "C" int fbs_free(void* statement_ptr, ISC_STATUS* status_vector) {
 
     auto* wrapper = static_cast<fb::StatementWrapper*>(statement_ptr);
     bool result = wrapper->free(status_vector);
+    fb_statement_sweep_unregister(wrapper);  /* Issue #591 */
     delete wrapper;
     return result ? 1 : 0;
 }

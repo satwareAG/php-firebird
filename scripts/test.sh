@@ -75,8 +75,12 @@ if [ -d "tests" ]; then
     if [ -f pdo_fbird/modules/pdo_fbird.so ]; then
         EXT_ARGS="$EXT_ARGS -d extension=$(pwd)/pdo_fbird/modules/pdo_fbird.so"
     fi
-    # Check if pcntl is available (needed for fork tests)
-    if php -m 2>/dev/null | grep -q pcntl; then
+    # Check if pcntl is available (needed for fork tests).
+    # Only pass -d extension=pcntl when it is NOT already loaded: containers
+    # that build pcntl statically (or preload it via ini) fail every test
+    # with a "Unable to load dynamic library 'pcntl'" startup warning
+    # otherwise (see AGENTS.md "pcntl double-loading").
+    if ! php -n -r 'exit(extension_loaded("pcntl") ? 0 : 1);' 2>/dev/null; then
         EXT_ARGS="$EXT_ARGS -d extension=pcntl"
     fi
     TEST_PHP_EXECUTABLE=$(which php) TEST_PHP_ARGS="-n" php -n run-tests.php --set-timeout 15 $EXT_ARGS $TARGET

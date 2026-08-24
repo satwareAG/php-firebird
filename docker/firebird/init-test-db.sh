@@ -25,9 +25,15 @@ fi
 
 echo "Creating test database: $DB_PATH"
 
-# Create database using isql-fb
-# The firebirdsql/firebird:5 image has isql-fb available
-isql-fb -user "$DB_USER" -password "$DB_PASSWORD" <<EOF
+# Create database using isql
+# jane: image tag drift - firebirdsql/firebird:5 renamed isql-fb to isql
+# (current image: /opt/firebird/bin/isql). Feature-detect, don't hardcode.
+ISQL_BIN="$(command -v isql || command -v isql-fb || true)"
+if [ -z "$ISQL_BIN" ]; then
+    echo "✗ No isql binary found (tried: isql, isql-fb)"
+    exit 1
+fi
+"$ISQL_BIN" -user "$DB_USER" -password "$DB_PASSWORD" <<EOF
 CREATE DATABASE '$DB_PATH'
     USER '$DB_USER' PASSWORD '$DB_PASSWORD'
     PAGE_SIZE 16384

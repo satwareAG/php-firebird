@@ -97,7 +97,9 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_close, 0, 0, _IS_BOOL, 0)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_fbird_drop_db, 0, 0, _IS_BOOL, 0)
-	ZEND_ARG_INFO(0, link_identifier)
+	ZEND_ARG_TYPE_INFO(0, connection, IS_MIXED, 0)
+	ZEND_ARG_TYPE_INFO(1, username, IS_STRING, 1)
+	ZEND_ARG_TYPE_INFO(2, password, IS_STRING, 1)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_fbird_create_database, 0, 1, MAY_BE_OBJECT|MAY_BE_FALSE)

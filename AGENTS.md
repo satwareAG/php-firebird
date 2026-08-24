@@ -68,6 +68,26 @@ PHP Docker containers (`php:*-cli`) load `pcntl` via `docker-php-ext-install` (p
 Adding `-d extension=pcntl.so` when already loaded causes "Module already loaded" warning
 in every test's output, failing all tests. Fix: check `extension_loaded('pcntl')` first.
 
+### Debug/ASAN builds enforce handwritten arginfo (release builds do not)
+
+Debug PHP builds (the `php83-asan` container) fatal with
+`Arginfo / zpp mismatch` / `Return value must be of type ...` when the runtime
+violates the handwritten `arginfo_*` macros in `firebird.c` - release
+builds tolerate the same violations silently. Consequence: a green release
+suite says NOTHING about arginfo conformance; before 3c051d5 every test
+BORKed at SKIPIF under php83-asan because `init_db()` (tests/firebird.inc)
+creates its DB through `fbird_query(FBIRD_CREATE, ...)`.
+
+Rules:
+- After changing any `ZEND_BEGIN_ARG_*` block or a function's
+  `zend_parse_parameters` format, run at least one touched test under
+  `php83-asan` (`docker compose up -d php83-asan && docker compose exec
+  php83-asan /ext/scripts/test.sh <test>`).
+- Cross-container builds fight over `modules/` ownership (asan runs as
+  root, others as uid 1000): `docker compose exec -u root <svc> chown -R
+  1000:1000 /ext` before building in another container.
+- Known open arginfo/lifecycle latents visible only under asan: #593-596.
+
 ### Local testing
 
 - `docker/docker-compose.yml` has 12 PHP containers (8.2-8.5 x FB3/FB4/FB5 client).

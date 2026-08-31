@@ -130,7 +130,7 @@ jobs:
         working-directory: doctrine-firebird-driver
         run: |
           set -eu
-          composer install --no-interaction --prefer-dist
+          bash "$GITHUB_WORKSPACE/scripts/ci/composer-retry.sh" install --no-interaction --prefer-dist
 
       - name: Run doctrine-firebird-driver test suite
         working-directory: doctrine-firebird-driver

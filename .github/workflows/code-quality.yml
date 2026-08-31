@@ -50,7 +50,7 @@ jobs:
             ${{ runner.os }}-composer-
 
       - name: Install Composer dependencies
-        run: composer install --prefer-dist --no-progress
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/composer-retry.sh" install --prefer-dist --no-progress
 
       - name: Run PHPStan
         run: vendor/bin/phpstan analyse --error-format=github

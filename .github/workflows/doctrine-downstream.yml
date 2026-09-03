@@ -40,12 +40,12 @@ jobs:
         # v3.18.1: production line (ext-firebird ^12.0 || ^13.0 constraint) with
         #   the bounded lock-conflict retry backported (#578, driver #163).
         #   This is the primary downstream test — failures here block the PR.
-        # 4.4.x: default branch (DBAL 4.x) — has 546 test failures with ext-firebird
-        #   v13 due to behavioral changes. Tracked in #131. Informational only.
+        # 4.4.x: default branch (DBAL 4.x) — currently green (non-blocking via
+        #   continue-on-error; kept informational).
         doctrine-ref: ['v3.18.1', '4.4.x']
         php-version: ['8.4']
 
-    # 4.4.x has known v13 compatibility issues (546 test failures, tracked in #131).
+    # 4.4.x is informational (non-blocking).
     # v3.18.1 is the production pin and MUST pass.
     continue-on-error: ${{ matrix.doctrine-ref == '4.4.x' }}
 

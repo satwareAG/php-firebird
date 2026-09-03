@@ -37,16 +37,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # v3.18.0: production tag with ext-firebird ^12.0 || ^13.0 constraint
-        #   widening (doctrine-firebird-driver issue #131, tag published 2026-07-19).
+        # v3.18.1: production line (ext-firebird ^12.0 || ^13.0 constraint) with
+        #   the bounded lock-conflict retry backported (#578, driver #163).
         #   This is the primary downstream test — failures here block the PR.
         # 4.4.x: default branch (DBAL 4.x) — has 546 test failures with ext-firebird
         #   v13 due to behavioral changes. Tracked in #131. Informational only.
-        doctrine-ref: ['v3.18.0', '4.4.x']
+        doctrine-ref: ['v3.18.1', '4.4.x']
         php-version: ['8.4']
 
     # 4.4.x has known v13 compatibility issues (546 test failures, tracked in #131).
-    # v3.18.0 is the production pin and MUST pass.
+    # v3.18.1 is the production pin and MUST pass.
     continue-on-error: ${{ matrix.doctrine-ref == '4.4.x' }}
 
     services:

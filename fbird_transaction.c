@@ -157,15 +157,25 @@ void _php_fbird_free_trans(zend_resource *rsrc)
 
 	/* OO API Only: All transactions use fbt_rollback() */
 	if (trans->fbt_transaction != NULL) {
-		FBDEBUG("Rolling back unhandled OO API transaction...");
-		int res = fbt_rollback(trans->fbt_transaction, status);
-		fbt_free(trans->fbt_transaction);
-		trans->fbt_transaction = NULL;
-		/* Fix #78: _php_fbird_error(status) calls php_error_docref()/zend_throw_exception()
-		 * which access EG() globals that may already be destroyed during MSHUTDOWN.
-		 * Guard with in_mshutdown to prevent SIGABRT. */
-		if (res && !FBG(in_mshutdown)) {
-			_php_fbird_error(status);
+		/* Issue #583: if the attachment died out from under us (server-side
+		 * kill, network drop), the client library already released the
+		 * client-side transaction proxy - drop the handle instead of
+		 * touching it. */
+		bool link_alive = (trans->db_link[0] != NULL)
+			&& _php_fbird_link_alive(trans->db_link[0]);
+		if (link_alive) {
+			FBDEBUG("Rolling back unhandled OO API transaction...");
+			int res = fbt_rollback(trans->fbt_transaction, status);
+			fbt_free(trans->fbt_transaction);
+			trans->fbt_transaction = NULL;
+			/* Fix #78: _php_fbird_error(status) calls php_error_docref()/zend_throw_exception()
+			 * which access EG() globals that may already be destroyed during MSHUTDOWN.
+			 * Guard with in_mshutdown to prevent SIGABRT. */
+			if (res && !FBG(in_mshutdown)) {
+				_php_fbird_error(status);
+			}
+		} else {
+			trans->fbt_transaction = NULL;
 		}
 	}
 

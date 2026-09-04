@@ -337,6 +337,12 @@ for script in postinst prerm postrm; do
     fi
 done
 
+# Issue #501: declare the actual target architecture. A static Architecture
+# list (amd64 arm64) makes debhelper silently skip the build on other arches
+# ("No packages to build. Possible architecture mismatch: armhf, want: amd64 arm64").
+sed -i "s/^Architecture: .*/Architecture: ${DEB_ARCH}/" "${DEB_DIR}/control"
+log "  Architecture set to ${DEB_ARCH}"
+
 # Make rules executable
 chmod +x "${DEB_DIR}/rules"
 

@@ -109,10 +109,9 @@ case "$ARCH" in
     x86_64|amd64) ;;
     aarch64|arm64) ;;
     armv7l|armhf)
-        # Firebird does not ship official armv7l binaries; must build from source.
-        # jane: exists, add source build when FB6 ships armv7l tarballs
-        echo "ERROR: armv7l not supported by official Firebird tarballs. Build Firebird from source instead." >&2
-        exit 1 ;;
+        # FB >= 5.0.3 ships official linux-arm32 tarballs (#502) - the old
+        # "must build from source" note is outdated. Validated for FB5 only.
+        ;;
     *)
         echo "ERROR: Unsupported arch: $ARCH (expected: x86_64, aarch64, armv7l)" >&2
         exit 1 ;;
@@ -166,6 +165,7 @@ case "$FB_MAJOR" in
         case "$ARCH" in
             x86_64|amd64) ASSET_KEYWORD="linux-x64" ;;
             aarch64|arm64) ASSET_KEYWORD="linux-arm64" ;;
+            armv7l|armhf) ASSET_KEYWORD="linux-arm32" ;;
             *)
                 echo "ERROR: Unsupported arch for FB5: $ARCH" >&2
                 exit 1 ;;

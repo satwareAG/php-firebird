@@ -112,7 +112,7 @@ get_docker_image() {
 
     # Validate arch (the --platform flag handles arch mapping)
     case "$arch" in
-        x86_64|amd64|aarch64|arm64) ;;
+        x86_64|amd64|aarch64|arm64|armv7l|armhf) ;;
         *) echo ""; return 1 ;;
     esac
 
@@ -145,6 +145,7 @@ get_docker_platform() {
     case "$arch" in
         x86_64|amd64) echo "linux/amd64" ;;
         aarch64|arm64) echo "linux/arm64" ;;
+        armv7l|armhf) echo "linux/arm/v7" ;;
         *) echo ""; return 1 ;;
     esac
 }
@@ -167,7 +168,7 @@ build_package() {
         return 1
     fi
 
-    local deb_name="php${php_ver}-firebird_$(cat VERSION.txt 2>/dev/null || echo 0.0.0)-1_$(echo $arch | sed 's/x86_64/amd64/;s/aarch64/arm64/').deb"
+    local deb_name="php${php_ver}-firebird_$(cat VERSION.txt 2>/dev/null || echo 0.0.0)-1_$(echo $arch | sed 's/x86_64/amd64/;s/aarch64/arm64/;s/armv7l/armhf/').deb"
     # jane: per-distro subdirectory to avoid filename collisions across distros
     # (bookworm/trixie/jammy/noble all produce the same .deb filename)
     local deb_subdir="${OUTPUT_DIR}/${distro}"
@@ -193,6 +194,7 @@ build_package() {
     local arch_short="x64"
     case "$arch" in
         aarch64|arm64) arch_short="arm64" ;;
+        armv7l|armhf) arch_short="arm32" ;;
         x86_64|amd64) arch_short="x64" ;;
     esac
     local fb_host_dir="/tmp/fb-test-${arch_short}"
@@ -288,7 +290,7 @@ generate_apt_metadata() {
         local distro_pool="${OUTPUT_DIR}/${distro}"
 
         for arch in "${ARCH_LIST[@]}"; do
-            local deb_arch=$(echo "$arch" | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+            local deb_arch=$(echo "$arch" | sed 's/x86_64/amd64/;s/aarch64/arm64/;s/armv7l/armhf/')
             local arch_dir="${dist_dir}/binary-${deb_arch}"
             mkdir -p "$arch_dir"
 

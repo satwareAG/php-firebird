@@ -251,6 +251,17 @@ static int _fbird_drop_table(fbird_db_link *link, fbird_transaction *trans, cons
 		}
 	}
 
+	/* Issue #575: the default-tx struct is NOT a le_trans resource (no
+	 * destructor will free it) and this path just detached it from every
+	 * tr_list, so the link-close commit path can no longer reach it.
+	 * Detach query/batch back-refs (#594/#599 registries) and efree here,
+	 * mirroring what _php_fbird_commit_link() does for the default tx.
+	 * Explicit transactions keep resource ownership: their dtor frees. */
+	if (trans->is_default) {
+		_php_fbird_trans_detach_queries(trans);
+		efree(trans);
+	}
+
 	return SUCCESS;
 }
 

@@ -120,16 +120,12 @@ void _php_fbird_trans_detach_queries(fbird_transaction *trans)
 		q = next;
 	}
 	trans->query_head = NULL;
-	/* jane: batch walk below is DISABLED - see follow-up issue: the
-	 * batch_head clear must happen AFTER the walk (order bug from #600),
-	 * but activating the walk crashes fbird_batch_multitype_001 at
-	 * process exit (complex batch lifecycle). Simple case passes
-	 * (issue599 test); root-causing the exit crash is tracked in the
-	 * #599 follow-up issue. */
-	trans->batch_head = NULL;  /* Issue #599 */
-
-	/* Issue #599: batches hold the same raw backref (dereferenced by
-	 * fbird_batch_execute). */
+	/* Issue #599/#603: batches hold the same raw backref (dereferenced by
+	 * fbird_batch_execute). Neutralize them like the queries above. The
+	 * enrollment sites guarantee every listed batch is alive: both free
+	 * paths (_php_fbird_free_batch and fbird_batch_free_obj, the latter
+	 * fixed in #603) unregister via _php_fbird_trans_unreg_batch() before
+	 * their efree. */
 	fbird_batch *b = trans->batch_head;
 	while (b) {
 		fbird_batch *bnext = b->batch_reg_next;

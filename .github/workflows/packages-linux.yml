@@ -397,6 +397,13 @@ jobs:
           - distro: ubuntu:24.04
             codename: noble
             php: 8.4
+            # Issue #571: the staging APT pool serves distro-agnostic .deb
+            # assets (bundled libfbclient) but only the `bookworm` suite
+            # exists - dists/noble never materialized (pending the satis
+            # spec-008 alias-suite deploy). codename MUST still drive the
+            # Sury PHP source; only the satware staging source points at
+            # apt_suite. Drop this field when noble is served.
+            apt_suite: bookworm
 
     steps:
       - name: Install php-firebird from staging APT repo
@@ -426,7 +433,9 @@ jobs:
               | gpg --dearmor -o /etc/apt/keyrings/satware-php-firebird.gpg
 
             # Add staging APT source
-            echo "deb [signed-by=/etc/apt/keyrings/satware-php-firebird.gpg] https://packages.auc.de/apt ${{ matrix.codename }} main" \
+            # jane: apt_suite (bookworm) instead of the real codename while
+            #       the staging pool has no noble suite (#571).
+            echo "deb [signed-by=/etc/apt/keyrings/satware-php-firebird.gpg] https://packages.auc.de/apt ${{ matrix.apt_suite || matrix.codename }} main" \
               > /etc/apt/sources.list.d/satware-php-firebird.list
 
             # Install php-firebird from staging

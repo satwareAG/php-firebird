@@ -239,7 +239,7 @@ jobs:
           [ "$EXPECTED_SIGNATURE" = "$ACTUAL_SIGNATURE" ] || { echo "ERROR: Invalid Composer installer signature"; exit 1; }
           php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer
           rm -f /tmp/composer-setup.php
-          composer install --prefer-dist --no-progress
+          bash "$GITHUB_WORKSPACE/scripts/ci/composer-retry.sh" install --prefer-dist --no-progress
 
       - name: Run tests with LeakSanitizer
         env:

@@ -51,7 +51,7 @@ jobs:
 
     services:
       firebird:
-        image: firebirdsql/firebird:3
+        image: firebirdsql/firebird:3@sha256:13208a06d768e957e029f3a544c658bfb1c1031cdf322f4e5fa9bb9368ce6015
         env:
           ISC_PASSWORD: masterkey
           FIREBIRD_DATABASE: test.fdb

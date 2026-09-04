@@ -54,71 +54,85 @@ jobs:
           # FB 4.0: Batch ops, time zones, DECFLOAT, INT128 (FB_API_VER=40) — actively supported
           # FB 5.0: Latest features, scrollable cursors — actively supported
 
+          # Issue #608: service images are pinned to immutable digests so CI
+          # behavior cannot drift between runs without a repo change (the
+          # silent-drift class that made the #578 triage expensive).
+          # UPGRADE PATH (deliberate change, never silent):
+          #   1. Resolve the new digest, e.g.:
+          #      curl -s "https://hub.docker.com/v2/repositories/firebirdsql/firebird/tags/3" \
+          #        | python3 -c "import sys,json;print(json.load(sys.stdin)['digest'])"
+          #   2. Update the pins here (and in coverage.yml, sanitizers.yml,
+          #      doctrine-downstream.yml, docker/docker-compose.yml so local
+          #      CI-parity matches).
+          #   3. Push and let the FULL matrix (all PHP x FB rows) run green
+          #      before merging anything else.
+          # Pins current as of 2026-09-04 (tags rebuilt upstream 2026-08-31).
+
           # PHP 8.2 combinations
           - php-version: '8.2'
             firebird-version: '3.0'
-            firebird-image: 'firebirdsql/firebird:3'
+            firebird-image: 'firebirdsql/firebird:3@sha256:13208a06d768e957e029f3a544c658bfb1c1031cdf322f4e5fa9bb9368ce6015'
             fb-client-version: '3.0'
             db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.2'
             firebird-version: '4.0'
-            firebird-image: 'firebirdsql/firebird:4'
+            firebird-image: 'firebirdsql/firebird:4@sha256:456aeb748f6f70a4adbc910a2adc56f4d43270bcdf12808c47ca6e9603c6b17e'
             fb-client-version: '4.0'
             db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.2'
             firebird-version: '5.0'
-            firebird-image: 'firebirdsql/firebird:5'
+            firebird-image: 'firebirdsql/firebird:5@sha256:1529560400fc7847f015c57fc9d70729c44d9a9d8f9000df19c5ce1950b4c202'
             fb-client-version: '5.0'
             db-path: '/var/lib/firebird/data/test.fdb'
 
           # PHP 8.3 combinations (full row — FB 3.0, 4.0, 5.0)
           - php-version: '8.3'
             firebird-version: '3.0'
-            firebird-image: 'firebirdsql/firebird:3'
+            firebird-image: 'firebirdsql/firebird:3@sha256:13208a06d768e957e029f3a544c658bfb1c1031cdf322f4e5fa9bb9368ce6015'
             fb-client-version: '3.0'
             db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.3'
             firebird-version: '4.0'
-            firebird-image: 'firebirdsql/firebird:4'
+            firebird-image: 'firebirdsql/firebird:4@sha256:456aeb748f6f70a4adbc910a2adc56f4d43270bcdf12808c47ca6e9603c6b17e'
             fb-client-version: '4.0'
             db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.3'
             firebird-version: '5.0'
-            firebird-image: 'firebirdsql/firebird:5'
+            firebird-image: 'firebirdsql/firebird:5@sha256:1529560400fc7847f015c57fc9d70729c44d9a9d8f9000df19c5ce1950b4c202'
             fb-client-version: '5.0'
             db-path: '/var/lib/firebird/data/test.fdb'
 
           # PHP 8.4 combinations
           - php-version: '8.4'
             firebird-version: '3.0'
-            firebird-image: 'firebirdsql/firebird:3'
+            firebird-image: 'firebirdsql/firebird:3@sha256:13208a06d768e957e029f3a544c658bfb1c1031cdf322f4e5fa9bb9368ce6015'
             fb-client-version: '3.0'
             db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.4'
             firebird-version: '4.0'
-            firebird-image: 'firebirdsql/firebird:4'
+            firebird-image: 'firebirdsql/firebird:4@sha256:456aeb748f6f70a4adbc910a2adc56f4d43270bcdf12808c47ca6e9603c6b17e'
             fb-client-version: '4.0'
             db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.4'
             firebird-version: '5.0'
-            firebird-image: 'firebirdsql/firebird:5'
+            firebird-image: 'firebirdsql/firebird:5@sha256:1529560400fc7847f015c57fc9d70729c44d9a9d8f9000df19c5ce1950b4c202'
             fb-client-version: '5.0'
             db-path: '/var/lib/firebird/data/test.fdb'
 
           # PHP 8.5 combinations (stable since 2025-11-20 — issue #98)
           - php-version: '8.5'
             firebird-version: '3.0'
-            firebird-image: 'firebirdsql/firebird:3'
+            firebird-image: 'firebirdsql/firebird:3@sha256:13208a06d768e957e029f3a544c658bfb1c1031cdf322f4e5fa9bb9368ce6015'
             fb-client-version: '3.0'
             db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.5'
             firebird-version: '4.0'
-            firebird-image: 'firebirdsql/firebird:4'
+            firebird-image: 'firebirdsql/firebird:4@sha256:456aeb748f6f70a4adbc910a2adc56f4d43270bcdf12808c47ca6e9603c6b17e'
             fb-client-version: '4.0'
             db-path: '/var/lib/firebird/data/test.fdb'
           - php-version: '8.5'
             firebird-version: '5.0'
-            firebird-image: 'firebirdsql/firebird:5'
+            firebird-image: 'firebirdsql/firebird:5@sha256:1529560400fc7847f015c57fc9d70729c44d9a9d8f9000df19c5ce1950b4c202'
             fb-client-version: '5.0'
             db-path: '/var/lib/firebird/data/test.fdb'
 

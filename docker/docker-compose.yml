@@ -275,7 +275,7 @@ services:
 
   # Firebird Database Containers
   firebird30:
-    image: firebirdsql/firebird:3
+    image: firebirdsql/firebird:3@sha256:13208a06d768e957e029f3a544c658bfb1c1031cdf322f4e5fa9bb9368ce6015
     environment:
       ISC_PASSWORD: masterkey
       FIREBIRD_DATABASE: test.fdb
@@ -286,7 +286,7 @@ services:
       - fb30-data:/firebird/data
 
   firebird40:
-    image: firebirdsql/firebird:4
+    image: firebirdsql/firebird:4@sha256:456aeb748f6f70a4adbc910a2adc56f4d43270bcdf12808c47ca6e9603c6b17e
     environment:
       ISC_PASSWORD: masterkey
       FIREBIRD_DATABASE: test.fdb
@@ -297,7 +297,7 @@ services:
       - fb40-data:/firebird/data
 
   firebird50:
-    image: firebirdsql/firebird:5
+    image: firebirdsql/firebird:5@sha256:1529560400fc7847f015c57fc9d70729c44d9a9d8f9000df19c5ce1950b4c202
     environment:
       ISC_PASSWORD: masterkey
       FIREBIRD_DATABASE: test.fdb

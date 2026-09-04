@@ -39,7 +39,7 @@ jobs:
     # Run Firebird as a service container
     services:
       firebird:
-        image: firebirdsql/firebird:5
+        image: firebirdsql/firebird:5@sha256:1529560400fc7847f015c57fc9d70729c44d9a9d8f9000df19c5ce1950b4c202
         env:
           ISC_PASSWORD: masterkey
           FIREBIRD_DATABASE: test.fdb

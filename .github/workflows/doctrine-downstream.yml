@@ -33,6 +33,13 @@ jobs:
     name: doctrine-firebird-driver ${{ matrix.doctrine-ref }} / PHP ${{ matrix.php-version }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    # jane: the install-firebird-client composite action reads env.GITHUB_TOKEN
+    #       for its GitHub API calls (get-latest-firebird.sh resolves the client
+    #       version). Without this forward, shared-runner IPs exhaust the 60
+    #       req/hr unauthenticated limit and the job fails with
+    #       "FB_VERSION: unbound variable" intermittently.
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     strategy:
       fail-fast: false

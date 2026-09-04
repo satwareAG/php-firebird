@@ -32,6 +32,12 @@ $conn->close();
 | `isConnected(): bool` | Check connection state |
 | `ping(): bool` | Verify server is reachable |
 | `beginTransaction(int $flags = 0): Transaction` | Start a transaction |
+
+> **Shared-entry note (ADR-002):** non-persistent connections created for the
+> same DSN share one server link (DSN cache). `close()` on one wrapper closes
+> the shared server link for **all** wrappers of that entry - siblings report
+> `isConnected() === false` afterwards. Use `FBIRD_CONNECT_FORCE_NEW` when
+> independent physical handles are required.
 | `prepare(string $sql, ?Transaction $tx = null, int $dialect = 3): Statement` | Prepare a statement |
 
 ---

@@ -33,17 +33,13 @@ static int _fbird_exec_kill(fbird_db_link *link, fbird_transaction *trans, ISC_I
 	static const char *sql = "DELETE FROM MON$ATTACHMENTS WHERE MON$ATTACHMENT_ID = ?";
 	void *stmt = NULL;
 	void *attachment = NULL;
+	void *kill_trans = NULL;
 	void *transaction = NULL;
 	int result = FAILURE;
 
 	/* OO API Only: Require fbc_connection */
 	if (!link->fbc_connection) {
 		_php_fbird_module_error("fbird_kill_attachment requires OO API connection (fbc_connection required)");
-		return FAILURE;
-	}
-
-	if (!trans->fbt_transaction) {
-		_php_fbird_module_error("fbird_kill_attachment requires OO API transaction (fbt_transaction required)");
 		return FAILURE;
 	}
 
@@ -54,9 +50,24 @@ static int _fbird_exec_kill(fbird_db_link *link, fbird_transaction *trans, ISC_I
 		return FAILURE;
 	}
 
-	transaction = fbt_get_handle(trans->fbt_transaction);
+	/* Issue #583: run the DELETE on a dedicated transaction and COMMIT it
+	 * before returning. The engine applies the kill only when the deleting
+	 * transaction commits; committing the caller's transaction as a side
+	 * effect would be wrong, and leaving it pending made the function
+	 * report success while the kill never took effect. */
+	kill_trans = fbt_start(FBG(master_instance), attachment, 0, NULL, status);
+	if (!kill_trans) {
+		_php_fbird_error(status);
+		return FAILURE;
+	}
+
+	/* fbs_prepare()/fbs_execute() take the raw ITransaction*, not the
+	 * fb::Transaction wrapper fbt_start() returns. */
+	transaction = fbt_get_handle(kill_trans);
 	if (!transaction) {
-		_php_fbird_module_error("fbird_kill_attachment: Failed to get transaction handle from OO API transaction");
+		_php_fbird_module_error("fbird_kill_attachment: failed to get transaction handle");
+		fbt_rollback(kill_trans, status);
+		fbt_free(kill_trans);
 		return FAILURE;
 	}
 
@@ -74,6 +85,8 @@ static int _fbird_exec_kill(fbird_db_link *link, fbird_transaction *trans, ISC_I
 
 	if (!stmt) {
 		_php_fbird_error(status);
+		fbt_rollback(kill_trans, status);
+		fbt_free(kill_trans);
 		return FAILURE;
 	}
 
@@ -82,42 +95,71 @@ static int _fbird_exec_kill(fbird_db_link *link, fbird_transaction *trans, ISC_I
 	if (!in_metadata) {
 		_php_fbird_error(status);
 		fbs_free(stmt, status);
+		fbt_rollback(kill_trans, status);
+		fbt_free(kill_trans);
 		return FAILURE;
 	}
+	/* Build input message buffer - Issue #583.
+	 * The offsets are ENGINE-DEFINED (IMessageMetadata), not the legacy
+	 * XSQLDA layout: for this statement FB3 reports null_off=8, data_off=0,
+	 * msglen=10. The old code hardcoded null@0 + value@8, so the engine read
+	 * its null flag from the middle of the value (nonzero = NULL) and the
+	 * DELETE matched zero rows - reporting success while the attachment
+	 * survived. Derive everything from the metadata instead. */
+	{
+		unsigned msg_len = fbm_get_message_length(FBG(master_instance), in_metadata);
+		unsigned null_off = fbm_get_null_offset(FBG(master_instance), in_metadata, 0);
+		unsigned data_off = fbm_get_offset(FBG(master_instance), in_metadata, 0);
+		unsigned char *in_msg;
 
-	/* Build input message buffer
-	 * For a single BIGINT parameter:
-	 * - 2 bytes null indicator (short)
-	 * - 8 bytes BIGINT value (ISC_INT64)
-	 * Aligned to 8 bytes
-	 */
-	unsigned char in_msg[16];
-	memset(in_msg, 0, sizeof(in_msg));
+		if (msg_len < sizeof(short) || data_off + sizeof(ISC_INT64) > msg_len) {
+			_php_fbird_module_error("fbird_kill_attachment: unexpected input metadata layout");
+			fbs_free(stmt, status);
+			fbm_release(in_metadata);
+			fbt_rollback(kill_trans, status);
+			fbt_free(kill_trans);
+			return FAILURE;
+		}
 
-	/* Set null indicator (0 = not null) at offset 0 */
-	*(short *)&in_msg[0] = 0;
+		in_msg = ecalloc(1, msg_len);
+		*(short *)(in_msg + null_off) = 0;  /* 0 = not NULL */
+		*(ISC_INT64 *)(in_msg + data_off) = attachment_id;
 
-	/* Set value at offset 8 (aligned) */
-	*(ISC_INT64 *)&in_msg[8] = attachment_id;
+		/* Execute the statement */
+		if (!fbs_execute(
+			FBG(master_instance),
+			stmt,
+			transaction,
+			in_msg,
+			in_metadata,
+			NULL,  /* no output */
+			NULL,
+			status
+		)) {
+			_php_fbird_error(status);
+			efree(in_msg);
+			fbs_free(stmt, status);
+			fbm_release(in_metadata);
+			fbt_rollback(kill_trans, status);
+			fbt_free(kill_trans);
+			return FAILURE;
+		}
+		efree(in_msg);
+	}
 
-	/* Execute the statement */
-	if (!fbs_execute(
-		FBG(master_instance),
-		stmt,
-		transaction,
-		in_msg,
-		in_metadata,
-		NULL,  /* no output */
-		NULL,
-		status
-	)) {
+	/* Issue #583: release the input metadata - the old path leaked it. */
+	fbm_release(in_metadata);
+	fbs_free(stmt, status);
+
+	/* The engine applies the kill when the deleting transaction commits. */
+	if (fbt_commit(kill_trans, status) != 0) {
 		_php_fbird_error(status);
-		fbs_free(stmt, status);
+		fbt_free(kill_trans);
 		return FAILURE;
 	}
+	fbt_free(kill_trans);
 
 	result = SUCCESS;
-	fbs_free(stmt, status);
 	return result;
 }
 

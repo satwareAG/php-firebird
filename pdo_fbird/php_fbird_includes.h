@@ -537,6 +537,11 @@ void _php_fbird_trans_detach_queries(fbird_transaction *trans);
 void _php_fbird_trans_reg_query(fbird_transaction *trans, fbird_query *q);
 void _php_fbird_trans_unreg_query(fbird_query *q);
 void _php_fbird_trans_unreg_batch(struct _fb_batch *b);
+/* Issue #583: true when the link's attachment still responds to a ping.
+ * After a server-side kill or network drop the client library has already
+ * released the client-side transaction proxies - fbt_commit/fbt_free on
+ * them is a use-after-free. Guard every transaction cleanup with this. */
+bool _php_fbird_link_alive(fbird_db_link *link);
 /* Issue #586: hard commit + transparent restart with stored TPB.
  * Returns 0 on success, nonzero on failure. Clears retain_committed on
  * success - every commit-restart site MUST go through this helper so the

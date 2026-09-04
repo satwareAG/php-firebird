@@ -240,10 +240,17 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc)
              */
             bool is_default_tx = (fb_query->trans && fb_query->trans->is_default);
             bool is_persistent = (fb_query->link && fb_query->link->is_persistent);
-            if (is_default_tx && !is_persistent) {
+            /* Issue #583: skip when the attachment died out from under us -
+             * the client-side transaction proxy is already released and any
+             * fbt_commit/fbt_free on it is a use-after-free. */
+            bool link_alive = (fb_query->link != NULL)
+                && _php_fbird_link_alive(fb_query->link);
+            if (is_default_tx && !is_persistent && link_alive) {
                 /* jane: silent on failure — see fbird_query_exec.c for rationale */
                 fbt_commit(fb_query->trans->fbt_transaction, status);
                 fbt_free(fb_query->trans->fbt_transaction);
+                fb_query->trans->fbt_transaction = NULL;
+            } else if (is_default_tx && !link_alive) {
                 fb_query->trans->fbt_transaction = NULL;
             }
         }

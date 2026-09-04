@@ -75,6 +75,18 @@ void _php_fbird_get_link_trans(INTERNAL_FUNCTION_PARAMETERS,
 
 /* destructors ---------------------- */
 
+/* Issue #583: true when the link's attachment still responds to a ping.
+ * After a server-side kill (or network drop) the client library has
+ * already released the client-side transaction proxies - any
+ * fbt_commit/fbt_rollback/fbt_free on them is a use-after-free. */
+bool _php_fbird_link_alive(fbird_db_link *link)
+{
+	if (link == NULL || link->fbc_connection == NULL) {
+		return false;
+	}
+	return fbc_ping(FBG(master_instance), link->fbc_connection, NULL) != 0;
+}
+
 void _php_fbird_commit_link(fbird_db_link *link)
 {
 	ISC_STATUS status[256];
@@ -86,12 +98,13 @@ void _php_fbird_commit_link(fbird_db_link *link)
 	/* Flag-based cleanup (Issue #554): is_default distinguishes
 	 * default transaction (commit + efree directly, NOT a le_trans resource)
 	 * from explicit transaction (rollback + leave to le_trans destructor). */
+	bool link_alive = _php_fbird_link_alive(link);  /* Issue #583 */
 	for (l = link->tr_list; l != NULL;) {
 		fbird_tr_list *p = l;
 		if (p->trans != 0) {
 			if (p->trans->is_default) {
 				/* Default transaction: commit via OO API */
-				if (p->trans->fbt_transaction != NULL) {
+				if (p->trans->fbt_transaction != NULL && link_alive) {
 					FBDEBUG("Committing default transaction via OO API...");
 					int res = fbt_commit(p->trans->fbt_transaction, status);
 					fbt_free(p->trans->fbt_transaction);
@@ -105,6 +118,10 @@ void _php_fbird_commit_link(fbird_db_link *link)
 					if (res && !(EG(flags) & EG_FLAGS_IN_RESOURCE_SHUTDOWN)) {
 						_php_fbird_error(status);
 					}
+				} else if (p->trans->fbt_transaction != NULL) {
+					/* Issue #583: dead attachment - drop the handle without
+					 * touching the released client-side proxy. */
+					p->trans->fbt_transaction = NULL;
 				}
 				/* Issue #594: live query resources may still back-reference this
 				 * struct - detach them before the efree. */
@@ -112,7 +129,7 @@ void _php_fbird_commit_link(fbird_db_link *link)
 				efree(p->trans); /* default transaction is not a registered resource: clean up */
 			} else {
 				/* Non-default transaction: rollback via OO API */
-				if (p->trans->fbt_transaction != NULL) {
+				if (p->trans->fbt_transaction != NULL && link_alive) {
 					FBDEBUG("Rolling back other transaction via OO API...");
 					int res = fbt_rollback(p->trans->fbt_transaction, status);
 					fbt_free(p->trans->fbt_transaction);
@@ -120,6 +137,11 @@ void _php_fbird_commit_link(fbird_db_link *link)
 					if (res && !(EG(flags) & EG_FLAGS_IN_RESOURCE_SHUTDOWN)) {
 						_php_fbird_error(status);
 					}
+				} else if (p->trans->fbt_transaction != NULL) {
+					/* Issue #583: dead attachment - the client library already
+					 * released the client-side proxies; drop the handle without
+					 * touching them. */
+					p->trans->fbt_transaction = NULL;
 				}
 				/* set this link pointer to NULL in the transaction */
 				for (j = 0; j < p->trans->link_cnt; ++j) {

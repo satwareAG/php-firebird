@@ -62,6 +62,17 @@ void fbird_batch_free_obj(zend_object *obj)
 			efree(batch->in_msg_buffer);
 			batch->in_msg_buffer = NULL;
 		}
+		/* Issue #603: the OO free path must mirror _php_fbird_free_batch():
+		 * unregister from the owning transaction's batch registry BEFORE the
+		 * efree, or trans->batch_head keeps a dangling entry (SIGSEGV in
+		 * _php_fbird_trans_detach_queries at request shutdown once the #599
+		 * sweep walk is active). Release the strong query-resource reference
+		 * for parity with the resource dtor (Issue #185). */
+		if (batch->query_res != NULL) {
+			zend_list_delete(batch->query_res);
+			batch->query_res = NULL;
+		}
+		_php_fbird_trans_unreg_batch(batch);
 		efree(batch);
 		intern->batch = NULL;
 	}

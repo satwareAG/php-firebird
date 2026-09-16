@@ -1511,8 +1511,15 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 			 * SERIALIZABLE NOWAIT over metadata blocked after a retaining
 			 * rollback). With no open cursor there is nothing to preserve -
 			 * hard rollback + restart releases the locks and is observably
-			 * identical for the caller. Single-link + non-MSHUTDOWN only. */
+			 * identical for the caller. Single-link + non-MSHUTDOWN only.
+			 * Issue #624: but NOT while sibling queries are still registered
+			 * (#594 registry) - the hard rollback invalidates their execution
+			 * state (same truncation window as the release_if_idle site).
+			 * Fall back to a real retaining rollback; the deferred idle
+			 * release fires from the query dtor once the registry empties. */
 			if (trans->open_cursor_count == 0 &&
+			    trans->query_head == NULL &&
+			    trans->batch_head == NULL &&
 			    trans->link_cnt == 1 &&
 			    !FBG(in_mshutdown)) {
 				FBDEBUG("Issue #589: rollback_ret with no open cursors -> hard rollback + restart");
@@ -1528,8 +1535,15 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 			 * there is nothing to preserve: hard commit + restart releases
 			 * the locks and is observably identical for the caller.
 			 * (doctrine TM::autoCommit() flake: #578). Single-link +
-			 * non-MSHUTDOWN only - see _php_fbird_trans_commit_restart(). */
+			 * non-MSHUTDOWN only - see _php_fbird_trans_commit_restart().
+			 * Issue #624: NOT while sibling queries are still registered
+			 * (#594 registry) - the hard commit truncates their results
+			 * (doctrine 3.18.x reuse window). Fall back to a real
+			 * retaining commit; the deferred idle release fires from the
+			 * query dtor once the registry empties. */
 			if (trans->open_cursor_count == 0 &&
+			    trans->query_head == NULL &&
+			    trans->batch_head == NULL &&
 			    trans->link_cnt == 1 &&
 			    !FBG(in_mshutdown)) {
 				FBDEBUG("Issue #586: commit_ret with no open cursors -> hard commit + restart");

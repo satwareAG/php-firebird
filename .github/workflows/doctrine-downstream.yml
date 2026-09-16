@@ -173,11 +173,6 @@ jobs:
           vendor/bin/phpunit --colors=never --no-coverage --debug --filter='^(?!.*ConnectionInfoTest).*$' > /tmp/probe624.log 2>&1; RC=$?
           grep -E 'Tests: [0-9]+|OK \(|FAILURES!' /tmp/probe624.log || true
           grep -oE 'PROBE624 [A-Za-z0-9 -]+' /tmp/probe624.log | sed 's/ *$//' | sort | uniq -c | sort -rn || true
-          if [ $RC -ne 0 ]; then
-            for n in $(grep -n -E '^[0-9]+\) Satag' /tmp/probe624.log | cut -d: -f1 | head -12); do
-              start=$((n-45)); if [ $start -lt 1 ]; then start=1; fi
-              echo "=== context before failure line $n ==="
-              sed -n "${start},${n}p" /tmp/probe624.log
-            done
-          fi
+          echo "log lines: $(wc -l < /tmp/probe624.log)"
+          tail -60 /tmp/probe624.log || true
           exit $RC

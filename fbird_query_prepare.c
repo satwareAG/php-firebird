@@ -134,6 +134,14 @@ void _php_fbird_free_query(fbird_query *fb_query)
 
 	/* Issue #594: leave the transaction registry before the struct dies. */
 	_php_fbird_trans_unreg_query(fb_query);
+	/* Issue #624: the deferred #586 idle release fires here - a query dtor
+	 * is the only site that can make the transaction observably idle
+	 * (open cursors 0 AND registry empty) after the cursor-close site was
+	 * gated on the registry. release_if_idle re-validates every precondition;
+	 * fb_query->trans is NULL when the tx already detached us. */
+	if (fb_query->trans) {
+		_php_fbird_trans_release_if_idle(fb_query->trans);
+	}
 	efree(fb_query);
 }
 
@@ -222,9 +230,19 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc)
          * had_open_cursor ensures this only fires for SELECT results, not for
          * prepared statements (fbird_prepare) that were never executed.
          * FBG(in_mshutdown) guard prevents SIGSEGV during MSHUTDOWN cleanup
-         * (Issue #295 — _php_fbird_commit_link handles MSHUTDOWN separately). */
+         * (Issue #295 — _php_fbird_commit_link handles MSHUTDOWN separately).
+         * Issue #624: only when this result held the LAST open cursor
+         * (open_cursor_count == 0 post cursor_closed above). The doctrine
+         * 3.18.x line shares the default auto-commit transaction across
+         * statements; committing while a sibling cursor is still open
+         * truncates its pending rows ("size 1 vs expected 5"). When a
+         * sibling cursor is still open, the commit defers - the last
+         * cursor-holding result's own free path re-fires this block with
+         * count == 0 (the counter converges; stale inflation defers until
+         * a real cursor close, matching the #540 review doctrine). */
         if (had_open_cursor && !fb_query->trans_res &&
             fb_query->trans && fb_query->trans->fbt_transaction &&
+            fb_query->trans->open_cursor_count == 0 &&
             !FBG(in_mshutdown)) {
             /* Issue #294: Commit the default transaction so the next autocommit
              * query starts a fresh transaction with a current snapshot.

@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [13.2.8] - 2026-09-16
+
 ### Fixed
+
+- **#624: transaction restart/commit while sibling results are live truncated them** (doctrine-downstream production-pin flake #578): three guards - (1) `_php_fbird_trans_release_if_idle()` defers while the #594 query/batch registry is non-empty, the query dtor fires the deferred release when the last registered query leaves; (2) `fbird_commit_ret()`/`fbird_rollback_ret()` with zero open cursors fall back to a real retaining call while sibling queries are registered (the hard restart invalidated their execution state); (3) the #294 default-transaction autocommit fires only when the freed result held the last open cursor (the doctrine 3.18.x line shares the default auto-commit tx across statements). Fixes the #578 "lock conflict on no wait transaction" production flake - the doctrine-downstream v3.18.1 leg is green for the first time since the pin existed (run 35096698914). Residual candidate-only (driver 3.18.x backport) truncation family tracked on driver#190. Regression: `tests/issue624_idle_release_defers_sibling.phpt` (MON$TRANSACTION_ID observable), 10-test lifecycle batch, full 12-container matrix, ASAN clean.
+
+- **#622: `fbird_commit_ret()` on an ended-but-alive explicit transaction self-heals** (downstream driver#201): after an absorbed #586 idle-release restart failure or a hard commit on a second resource reference, the cached explicit transaction resource hit "invalid transaction handle" on the next commit_ret. The extension restarts transparently from the stored TPB at the guard site (ping-guarded #583, single-link + non-MSHUTDOWN only), keeping the driver's cached transaction handle usable - the same philosophy as the #586/#589 restart paths.
+
+- **#583: `fbird_kill_attachment()` silently matched zero rows**: the server-side kill matched on wrong engine metadata offsets, so the target attachment was never killed. Corrected offsets + regression test.
 
 - **PR #590 review hardening: failed `fbird_drop_db()` left a dangling `fbc_connection` (heap-use-after-free on next use)**: `fbc_drop_database()` deletes the `fb::Connection` wrapper on EVERY exit path, but `fbird_drop_db()` nulled `fb_link->fbc_connection` only on success. A failed drop (e.g. a second attachment keeps the database in use) left the link - including persistent links, which survive requests - holding a freed pointer; the next `pconnect()`/`fbird_query()` through it dereferenced freed memory (ASAN: SEGV in `IAttachment::startTransaction` via `_php_fbird_def_trans`). Fix: the handle is nulled BEFORE the call, mirroring `fbird_close()`; subsequent use of the link fails cleanly through the existing NULL-guards ("Connection has no OO API handle"). Known follow-up (filed separately): transaction handles on the failed-drop path stay stale until closed - #594-class lifecycle work.
 
@@ -28,6 +36,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Behavior change (Layer 1/2)**: `fbird_commit_ret()` on a transaction with **zero open cursors** is now a hard commit + restart. Besides releasing locks, a hard commit **invalidates open BLOB handles** on that transaction (`isc_commit_retaining` preserved them). The legacy chunked-blob-import pattern (read blob in a loop with periodic `commit_ret`) must keep a SELECT cursor open or use plain `fbird_commit()` boundaries. PDO (`pdo_fbird`) is unaffected - it calls retaining commit directly. See `UPGRADING.md`.
 
 - **#572: DDL via `fbird_prepare_ex(...,null)` + execute on the default transaction committed only at connection close**: metadata locks lingered for the connection lifetime, making the DDL invisible to other connections and blocking their no-wait transactions. The default tx now commits immediately after successful DDL execution (with #570-style cursor-close + retry + error report on commit failure). Explicit transactions keep transactional-DDL semantics. Note: a hard commit invalidates open cursors on the same default tx (same trade-off as #566) - an unfetched SELECT result left across a DDL execute will return no rows.
+
+### Added
+
+- **#501: Debian armhf (armv7l) packaging**: the .deb build now produces armv7l packages alongside amd64/arm64.
+
+### Docs
+
+- AGENTS.md/README.md: Docker-first documented as the primary local development flow, incl. the canonical `scripts/test_matrix.sh` flows and the ad-hoc in-container env contract (`FIREBIRD_HOST` + `FIREBIRD_DB_DIR`).
 
 ## [13.2.7] - 2026-08-12
 

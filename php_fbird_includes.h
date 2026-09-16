@@ -551,6 +551,12 @@ bool _php_fbird_link_alive(fbird_db_link *link);
  * Firebird\Transaction::releaseMetadataLocks(). */
 int _php_fbird_trans_commit_restart(fbird_transaction *trans, ISC_STATUS_ARRAY status);
 int _php_fbird_trans_rollback_restart(fbird_transaction *trans, ISC_STATUS_ARRAY status);
+/* driver#201: restart a transaction whose underlying handle was already
+ * ended (fbt_transaction == NULL) from its stored TPB. Ping-guards the
+ * attachment (Issue #583) - dead links return nonzero without touching
+ * client-side proxies. Shared tail of _php_fbird_trans_commit_restart()
+ * and the _php_fbird_trans_end() self-heal path. Returns 0 on success. */
+int _php_fbird_trans_restart_from_tpb(fbird_transaction *trans, ISC_STATUS_ARRAY status);
 static inline void _php_fbird_cursor_opened(fbird_query *fb_query) {
 	/* Issue #586: idempotent - the SELECT execute path historically calls
 	 * this twice on the child result (open + "inherited state" re-mark);

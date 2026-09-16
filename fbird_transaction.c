@@ -895,6 +895,54 @@ int _php_fbird_trans_rollback_restart(fbird_transaction *trans, ISC_STATUS_ARRAY
 	return (trans->fbt_transaction == NULL) ? 1 : 0;
 }
 
+/* driver#201: restart a transaction whose underlying handle was already
+ * ended from its stored TPB. Ping-guards the attachment (Issue #583):
+ * dead links return nonzero without touching already-released client-side
+ * proxies. Shared tail of _php_fbird_trans_commit_restart() and the
+ * _php_fbird_trans_end() self-heal path. Returns 0 on success. */
+int _php_fbird_trans_restart_from_tpb(fbird_transaction *trans, ISC_STATUS_ARRAY status)
+{
+	fbird_db_link *fb_link = trans->db_link[0];
+
+	/* PR #588 review: zero-init the vector so _php_fbird_error() callers
+	 * never walk an uninitialized stack buffer (isc_arg_end == 0). */
+	status[0] = (ISC_STATUS) isc_arg_end;
+	status[1] = 0;
+
+	if (!fb_link || !fb_link->fbc_connection) {
+		return 1;
+	}
+
+	/* Issue #583: if the attachment died out from under us, the client
+	 * library already released the client-side transaction proxies. */
+	if (!_php_fbird_link_alive(fb_link)) {
+		return 1;
+	}
+
+	/* Restart with stored TPB */
+	void *attachment = fbc_get_attachment(fb_link->fbc_connection);
+	if (attachment == NULL) {
+		return 1;
+	}
+
+	trans->fbt_transaction = fbt_start(
+		FBG(master_instance),
+		attachment,
+		trans->stored_tpb_len,
+		trans->stored_tpb_len > 0 ? trans->stored_tpb : NULL,
+		status
+	);
+
+	if (trans->fbt_transaction == NULL) {
+		return 1;
+	}
+
+	/* Fresh context - nothing retained anymore (Issue #586) */
+	trans->retain_committed = false;
+
+	return 0;
+}
+
 int _php_fbird_trans_commit_restart(fbird_transaction *trans, ISC_STATUS_ARRAY status)
 {
 	fbird_db_link *fb_link = trans->db_link[0];
@@ -920,28 +968,8 @@ int _php_fbird_trans_commit_restart(fbird_transaction *trans, ISC_STATUS_ARRAY s
 	fbt_free(trans->fbt_transaction);
 	trans->fbt_transaction = NULL;
 
-	/* Restart with stored TPB */
-	void *attachment = fbc_get_attachment(fb_link->fbc_connection);
-	if (attachment == NULL) {
-		return 1;
-	}
-
-	trans->fbt_transaction = fbt_start(
-		FBG(master_instance),
-		attachment,
-		trans->stored_tpb_len,
-		trans->stored_tpb_len > 0 ? trans->stored_tpb : NULL,
-		status
-	);
-
-	if (trans->fbt_transaction == NULL) {
-		return 1;
-	}
-
-	/* Fresh context - nothing retained anymore (Issue #586) */
-	trans->retain_committed = false;
-
-	return 0;
+	/* Restart with stored TPB (shared tail, driver#201) */
+	return _php_fbird_trans_restart_from_tpb(trans, status);
 }
 
 /* Issue #586: lazy release of locks retained by a cursor-holding commit_ret.
@@ -1437,13 +1465,28 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 	if (trans->fbt_transaction == NULL) {
 		/* Issue #294: True autocommit may have already committed the default
 		 * transaction. For the default (implicit) tx (res_id == 0), silently
-		 * return success — the data was already committed by autocommit.
-		 * For explicit transactions, warn about the invalid handle. */
+		 * return success — the data was already committed by autocommit. */
 		if (res_id == 0) {
 			RETURN_TRUE;
 		}
-		_php_fbird_module_error("invalid transaction handle (expecting explicit transaction start) ");
-		RETURN_FALSE;
+		/* driver#201: doctrine's TransactionManager keeps a cached explicit
+		 * transaction resource alive across statements and calls commit_ret
+		 * on it again after the extension ended the underlying handle
+		 * (absorbed #586 idle-release restart failure, or a hard commit on a
+		 * second resource reference). Restarting transparently from the
+		 * stored TPB keeps the cached resource usable - the same philosophy
+		 * as the #586/#589 restart paths. Single link + non-MSHUTDOWN only;
+		 * everything else keeps the historical module error (a real dead
+		 * attachment stays a reported error, which is what the driver's
+		 * heal logic keys on). */
+		if (trans->link_cnt == 1 &&
+		    !FBG(in_mshutdown) &&
+		    _php_fbird_trans_restart_from_tpb(trans, status) == 0) {
+			FBDEBUG("driver#201: ended explicit tx restarted transparently");
+		} else {
+			_php_fbird_module_error("invalid transaction handle (expecting explicit transaction start) ");
+			RETURN_FALSE;
+		}
 	}
 
 	switch (commit) {

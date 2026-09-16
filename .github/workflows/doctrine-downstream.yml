@@ -170,9 +170,12 @@ jobs:
           "
           # Run the test suite (skip ConnectionInfoTest - requires Firebird\DbInfo
           # class not yet implemented in php-firebird, tracked separately)
-          vendor/bin/phpunit --colors=never --no-coverage --debug --filter='^(?!.*ConnectionInfoTest).*$' > /tmp/probe624.log 2>&1; RC=$?
+          set +e
+          vendor/bin/phpunit --colors=never --no-coverage --debug --filter='^(?!.*ConnectionInfoTest).*$' > /tmp/probe624.log 2>&1
+          RC=$?
+          set -e
           grep -E 'Tests: [0-9]+|OK \(|FAILURES!' /tmp/probe624.log || true
           grep -oE 'PROBE624 [A-Za-z0-9 -]+' /tmp/probe624.log | sed 's/ *$//' | sort | uniq -c | sort -rn || true
-          echo "log lines: $(wc -l < /tmp/probe624.log)"
-          tail -60 /tmp/probe624.log || true
+          echo "RC=$RC log lines: $(wc -l < /tmp/probe624.log)"
+          tail -80 /tmp/probe624.log || true
           exit $RC

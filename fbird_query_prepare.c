@@ -263,12 +263,8 @@ void php_fbird_free_query_rsrc(zend_resource *rsrc)
              * fbt_commit/fbt_free on it is a use-after-free. */
             bool link_alive = (fb_query->link != NULL)
                 && _php_fbird_link_alive(fb_query->link);
-            if (fb_query->trans->open_cursor_count != 0) {
-                php_printf("::: PROBE624 294-DEFER (cursors open: %d)\n", (int)fb_query->trans->open_cursor_count);
-            }
             if (is_default_tx && !is_persistent && link_alive) {
                 /* jane: silent on failure — see fbird_query_exec.c for rationale */
-                php_printf("::: PROBE624 294-DTOR-AUTOCOMMIT fired\n");
                 fbt_commit(fb_query->trans->fbt_transaction, status);
                 fbt_free(fb_query->trans->fbt_transaction);
                 fb_query->trans->fbt_transaction = NULL;

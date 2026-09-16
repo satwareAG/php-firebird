@@ -902,7 +902,6 @@ int _php_fbird_trans_rollback_restart(fbird_transaction *trans, ISC_STATUS_ARRAY
  * _php_fbird_trans_end() self-heal path. Returns 0 on success. */
 int _php_fbird_trans_restart_from_tpb(fbird_transaction *trans, ISC_STATUS_ARRAY status)
 {
-	php_printf("::: PROBE624 RESTART-FROM-TPB enter\n");
 	fbird_db_link *fb_link = trans->db_link[0];
 
 	/* PR #588 review: zero-init the vector so _php_fbird_error() callers
@@ -970,7 +969,6 @@ int _php_fbird_trans_commit_restart(fbird_transaction *trans, ISC_STATUS_ARRAY s
 	trans->fbt_transaction = NULL;
 
 	/* Restart with stored TPB (shared tail, driver#201) */
-	php_printf("::: PROBE624 COMMIT-RESTART fired\n");
 	return _php_fbird_trans_restart_from_tpb(trans, status);
 }
 
@@ -1005,10 +1003,8 @@ void _php_fbird_trans_release_if_idle(fbird_transaction *trans)
 	 * window). The deferred release fires from the query dtor once the
 	 * last registered query leaves the registry (see _php_fbird_free_query). */
 	if (trans->query_head != NULL || trans->batch_head != NULL) {
-		php_printf("::: PROBE624 idle-release DEFER\n");
 		return;
 	}
-	php_printf("::: PROBE624 idle-release FIRE\n");
 
 	trans->retain_committed = false;
 
@@ -1527,11 +1523,9 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 			    trans->link_cnt == 1 &&
 			    !FBG(in_mshutdown)) {
 				FBDEBUG("Issue #589: rollback_ret with no open cursors -> hard rollback + restart");
-				php_printf("::: PROBE624 rollback_ret HARD-RESTART\n");
 				result = (_php_fbird_trans_rollback_restart(trans, status) != 0)
 					? -1 : 0;
 			} else {
-				php_printf("::: PROBE624 rollback_ret RETAIN-fallback\n");
 				result = fbt_rollback_retaining(trans->fbt_transaction, status);
 			}
 			break;
@@ -1553,10 +1547,8 @@ static void _php_fbird_trans_end(INTERNAL_FUNCTION_PARAMETERS, int commit)
 			    trans->link_cnt == 1 &&
 			    !FBG(in_mshutdown)) {
 				FBDEBUG("Issue #586: commit_ret with no open cursors -> hard commit + restart");
-				php_printf("::: PROBE624 commit_ret HARD-RESTART\n");
 				result = _php_fbird_trans_commit_restart(trans, status);
 			} else {
-				php_printf("::: PROBE624 commit_ret RETAIN-fallback\n");
 				result = fbt_commit_retaining(trans->fbt_transaction, status);
 				/* Issue #586: cursors kept the retain - release lazily when
 				 * the last cursor closes (_php_fbird_trans_release_if_idle) */

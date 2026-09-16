@@ -100,7 +100,7 @@ jobs:
         run: |
           set -eu
           phpize
-          ./configure --with-firebird=/opt/firebird-client
+          CFLAGS="-DFBIRD_DEBUG" ./configure --with-firebird=/opt/firebird-client
           make -j"$(nproc)"
 
       - name: Build pdo_fbird extension
@@ -170,4 +170,4 @@ jobs:
           "
           # Run the test suite (skip ConnectionInfoTest - requires Firebird\DbInfo
           # class not yet implemented in php-firebird, tracked separately)
-          vendor/bin/phpunit --colors=never --no-coverage --filter='^(?!.*ConnectionInfoTest).*$'
+          vendor/bin/phpunit --colors=never --no-coverage --debug --filter='^(?!.*ConnectionInfoTest).*$' 2>&1 | grep -E '^[0-9]+\\)|::: PROBE624|^- |Tests:|OK ' | head -4000

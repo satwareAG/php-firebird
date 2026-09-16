@@ -55,7 +55,7 @@ jobs:
         #   (driver#190 probe of the v3.18.2 candidate branch reverted: CI
         #   showed the candidate unfixed on the victim error + 9 new
         #   assertion failures - verdict on driver#190, 2026-09-16.)
-        doctrine-ref: ['v3.18.1', '4.4.x']
+        doctrine-ref: ['fix/190-176-cycle-cut-backport', '4.4.x'] # PROBE #624: candidate pin, revert after verdict
         php-version: ['8.4']
 
     # 4.4.x is informational (non-blocking).

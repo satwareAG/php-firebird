@@ -90,7 +90,12 @@ Download from the [Releases Page](https://github.com/satwareAG/php-firebird/rele
 
 ## Quick Start
 
-### Docker Development (Recommended)
+### Docker Development (Primary)
+
+Docker is the primary and fully-supported local development flow. It mirrors
+CI exactly (same official Firebird clients, 12-container PHP 8.2-8.5 x
+FB 3.0/4.0/5.0 test matrix), and all build/test tooling assumes it.
+
 ```bash
 # Clone and setup
 git clone https://github.com/satwareAG/php-firebird.git
@@ -98,16 +103,24 @@ cd php-firebird
 
 # Start development environment
 cd docker/
-docker-compose up -d php83-dev
+docker compose up -d php83-dev
 
 # Build extension
-docker exec php-firebird-dev-php83-dev-1 /ext/scripts/build.sh
+docker compose exec php83-dev /ext/scripts/build.sh
 
 # Run tests
-docker exec php-firebird-dev-php83-dev-1 /ext/scripts/test.sh
+docker compose exec php83-dev /ext/scripts/test.sh
 ```
 
-### Native Installation
+From the repo root, the matrix runner handles build + env contract in one
+step (single test, single container, or the full matrix):
+
+```bash
+bash scripts/test_matrix.sh php83-dev "" tests/fbird_blob_001.phpt  # one container, one test
+bash scripts/test_matrix.sh                                          # full 12-container matrix
+```
+
+### Native Installation (Alternative for local development)
 
 #### Linux (Ubuntu/Debian)
 ```bash
@@ -757,7 +770,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development guidelines inclu
 - Modern C++17 development standards
 - Static analysis tool integration
 - Cross-platform testing procedures
-- Docker development environment
+- Docker-first local development environment (primary; see Quick Start)
 
 ### Development Tools
 - **Static Analysis**: clang-tidy, Cppcheck

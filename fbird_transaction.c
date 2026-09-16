@@ -997,6 +997,15 @@ void _php_fbird_trans_release_if_idle(fbird_transaction *trans)
 		return;
 	}
 
+	/* Issue #624: defer while sibling queries/batches are still registered
+	 * (#594 registry). The hard commit+restart invalidates their execution
+	 * state - a later reuse observes truncated results (doctrine 3.18.x
+	 * window). The deferred release fires from the query dtor once the
+	 * last registered query leaves the registry (see _php_fbird_free_query). */
+	if (trans->query_head != NULL || trans->batch_head != NULL) {
+		return;
+	}
+
 	trans->retain_committed = false;
 
 	if (_php_fbird_trans_commit_restart(trans, status) != 0) {

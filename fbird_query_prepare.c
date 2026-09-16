@@ -134,6 +134,14 @@ void _php_fbird_free_query(fbird_query *fb_query)
 
 	/* Issue #594: leave the transaction registry before the struct dies. */
 	_php_fbird_trans_unreg_query(fb_query);
+	/* Issue #624: the deferred #586 idle release fires here - a query dtor
+	 * is the only site that can make the transaction observably idle
+	 * (open cursors 0 AND registry empty) after the cursor-close site was
+	 * gated on the registry. release_if_idle re-validates every precondition;
+	 * fb_query->trans is NULL when the tx already detached us. */
+	if (fb_query->trans) {
+		_php_fbird_trans_release_if_idle(fb_query->trans);
+	}
 	efree(fb_query);
 }
 

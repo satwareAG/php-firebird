@@ -59,6 +59,8 @@ echo "rows: $n\n";
 fbird_rollback($tr);
 fbird_close($db);
 ?>
+--CLEAN--
+<?php require_once __DIR__ . '/clean.inc'; ?>
 --EXPECT--
 commit_ret on ended explicit tx: OK
 insert on healed tx: OK

@@ -7,7 +7,7 @@
 - [scripts/build.sh](scripts/build.sh): Build extension (phpize + configure)
 - [scripts/qa.sh](scripts/qa.sh): QA matrix runner (PHP 8.2-8.5 x FB 3.0-5.0)
 - [tests/firebird.inc](tests/firebird.inc): Test harness with per-test DB isolation
-- [VERSION.txt](VERSION.txt): Current version (12.1.0)
+- [VERSION.txt](VERSION.txt): Current version (13.2.7)
 
 ## Architecture
 - Layer 1 (Procedural): `fbird_*` functions in `*.c` files
@@ -22,7 +22,7 @@
 
 ## Specs & Planning
 - [specs/metadata.json](specs/metadata.json): IPADP dependency graph and project metadata
-- [NEXT_STEPS.md](NEXT_STEPS.md): Roadmap and release status
+- Roadmap and release status: GitHub Milestones (github.com/satwareAG/php-firebird/milestones)
 - [docs/archive/VERSIONING_STRATEGY.md](docs/archive/VERSIONING_STRATEGY.md): Versioning policy (archived)
 
 ## Stubs (IDE/phpstan)

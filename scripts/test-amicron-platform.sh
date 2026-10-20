@@ -3,13 +3,13 @@
 # Local downstream test: verify php-firebird doesn't break amicron-platform.
 #
 # This script is the LOCAL equivalent of the doctrine-downstream.yml CI workflow,
-# for the private amicron-platform repository (~/internal/amicron-platform).
+# run against a local private checkout of the amicron-platform repository.
 # It cannot run in public CI because amicron-platform is private (IPADP L3 privacy).
 #
 # Prerequisites:
 #   - php-firebird + pdo_fbird installed (sudo make install)
-#   - ~/internal/amicron-platform checked out
-#   - amicron-firebird Docker container running (FB 3.0.13)
+#   - AMICRON_PLATFORM_DIR pointing at a local amicron-platform checkout
+#   - amicron-platform-firebird3 Docker container running (FB 3.0.14, host port 3053)
 #   - PHP 8.4+ available
 #
 # Usage:
@@ -27,9 +27,12 @@ set -euo pipefail
 trap 'echo "FAILED at line $LINENO" >&2; exit 1' ERR
 
 # --- configuration ---
-PLATFORM_DIR="${AMICRON_PLATFORM_DIR:-$HOME/internal/amicron-platform}"
-PLATFORM_BRANCH="${AMICRON_PLATFORM_BRANCH:-release/3.0.0-rc.2}"
-FIREBIRD_CONTAINER="${FIREBIRD_CONTAINER:-amicron-firebird}"
+PLATFORM_DIR="${AMICRON_PLATFORM_DIR:-}"
+PLATFORM_BRANCH="${AMICRON_PLATFORM_BRANCH:-3.x-next}"
+FIREBIRD_CONTAINER="${FIREBIRD_CONTAINER:-amicron-platform-firebird3}"
+DBHOST="${DBHOST:-127.0.0.1}"
+DBPORT="${DBPORT:-3053}"
+DBNAME="${DBNAME:-/var/lib/firebird/data/test.fdb}"
 SKIP_PHPSTAN=false
 SKIP_PHPUNIT=false
 
@@ -60,9 +63,17 @@ FAILURES=0
 # --- prerequisite checks ---
 section "Prerequisites"
 
+if [[ -z "$PLATFORM_DIR" ]]; then
+    fail "AMICRON_PLATFORM_DIR not set"
+    echo "  Point it at your local amicron-platform checkout. The path is"
+    echo "  environment-specific: this public repo never records internal"
+    echo "  filesystem paths (IPADP privacy boundary)."
+    exit 2
+fi
+
 if [[ ! -d "$PLATFORM_DIR/.git" ]]; then
     fail "amicron-platform not found at $PLATFORM_DIR"
-    echo "  Set AMICRON_PLATFORM_DIR or clone the repo first."
+    echo "  Verify AMICRON_PLATFORM_DIR points at the repository root."
     exit 2
 fi
 
@@ -87,7 +98,8 @@ pass "pdo_fbird extension loaded"
 
 if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${FIREBIRD_CONTAINER}$"; then
     fail "Docker container '$FIREBIRD_CONTAINER' not running"
-    echo "  Start it: cd ~/internal/amicron-firebird && docker compose up -d"
+    echo "  Start the Firebird service from your AMICRON_PLATFORM_DIR compose stack:"
+    echo "    docker compose up -d firebird"
     exit 2
 fi
 pass "Firebird container '$FIREBIRD_CONTAINER' running"
@@ -96,6 +108,15 @@ pass "Firebird container '$FIREBIRD_CONTAINER' running"
 section "amicron-platform ($PLATFORM_BRANCH)"
 
 cd "$PLATFORM_DIR"
+
+# Guard against clobbering in-flight work in the shared checkout (#332:
+# attribute before repair - a dirty tree means another lane may be live).
+if [[ -n "$(git status --porcelain)" ]]; then
+    fail "amicron-platform worktree is dirty - refusing to switch branches"
+    echo "  Commit, stash, or clean $PLATFORM_DIR first (attribute before repair)."
+    exit 2
+fi
+
 CURRENT_BRANCH=$(git branch --show-current)
 if [[ "$CURRENT_BRANCH" != "$PLATFORM_BRANCH" ]]; then
     info "Current branch: $CURRENT_BRANCH. Checking out $PLATFORM_BRANCH..."
@@ -129,10 +150,17 @@ info "php-firebird-stubs: $STUBS_VERSION"
 # --- doctrine schema validation ---
 section "Doctrine Schema Validation"
 
-export DBHOST=localhost
-export DBNAME="${DBNAME:-/var/lib/firebird/data/amicron-empty.fdb}"
+# Platform consumes DB* env vars via satag/amicron-entity-bundle and
+# tests/bootstrap.php: DBHOST/DBPORT/DBNAME/DBUSER/DBPASSWORD. Defaults match
+# the amicron-platform compose topology (host-mapped port 3053). php-firebird
+# convention (DBPASS) feeds the platform's DBPASSWORD.
+if [[ -z "${DBPASS:-}" && -z "${DBPASSWORD:-}" ]]; then
+    fail "DBPASS not set - set to amicron test DB password (e.g. export DBPASS=masterkey)"
+    exit 2
+fi
+export DBHOST DBPORT DBNAME
 export DBUSER="${DBUSER:-SYSDBA}"
-export DBPASS="${DBPASS:?DBPASS not set - set to amicron test DB password (e.g. export DBPASS=...)}"
+export DBPASSWORD="${DBPASSWORD:-$DBPASS}"
 
 if php bin/console doctrine:schema:validate --env=test 2>&1 | tail -5; then
     pass "doctrine:schema:validate"
@@ -143,7 +171,7 @@ fi
 # --- doctrine migrations diff ---
 section "Doctrine Migrations"
 
-if php bin/console doctrine:migrations:diff --env=test --allow-empty-schema --no-interaction 2>&1 | tail -5; then
+if php bin/console doctrine:migrations:diff --env=test --allow-empty-diff --no-interaction 2>&1 | tail -5; then
     pass "doctrine:migrations:diff"
 else
     # Migration diff may produce "No changes detected" which is a pass

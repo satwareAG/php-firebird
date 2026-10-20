@@ -189,7 +189,7 @@ correct pattern.
 1. **Verify CI green**: `bash scripts/verify-ci-green.sh` - all 5 workflows must pass (ci, code-quality, sanitizers, coverage, doctrine-downstream)
 2. **Verify CI parity**: `bash scripts/verify-ci-parity.sh` - local Docker client must match CI
 3. **Run local test matrix**: `bash scripts/test_matrix.sh` - all 12 containers must pass (PHP 8.2-8.5 x FB 3.0/4.0/5.0)
-4. **Run amicron-platform downstream**: `DBPASS=masterkey bash scripts/test-amicron-platform.sh` - verify customer stack
+4. **Run amicron-platform downstream**: `AMICRON_PLATFORM_DIR=<local private checkout> DBPASS=masterkey bash scripts/test-amicron-platform.sh` - verify customer stack (checkout paths are environment-specific; this public repo never records internal filesystem paths)
 5. **Verify version stamps**: `bash scripts/check-version-stamps.sh`
 6. **Update CHANGELOG.md** with release notes
 7. **Bump version**: Update `VERSION.txt` and `stubs/*.php` `@version` tags

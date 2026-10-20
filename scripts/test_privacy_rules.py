@@ -8,6 +8,10 @@ public-to-private linking is FORBIDDEN.
 Forbidden hostnames are constructed at runtime (not stored as literals) so
 this script does not flag itself.
 
+Also forbidden: filesystem paths of the form `<home-dir>/internal/<project>`
+(checkout locations of private repos are environment-specific and must never
+be recorded in this public repo; issue #632).
+
 Exit codes:
   0 = PASS (no private forge URLs found)
   1 = FAIL (private forge URLs found, printed to stderr)
@@ -33,6 +37,15 @@ FORBIDDEN = [
     (_GL, re.compile(re.escape(_GL))),
     (_GT, re.compile(re.escape(_GT))),
 ]
+
+# Forbidden path shapes: <home>/internal/<project>. Assembled at runtime so
+# this scanner never matches its own source (issue #632).
+_HOME_FRAGMENT = chr(126)          # '~'
+_DOLLAR_HOME = chr(36) + "HOME"    # '$HOME'
+_INTERNAL_PATH = re.compile(
+    "(" + re.escape(_HOME_FRAGMENT) + "|" + re.escape(_DOLLAR_HOME) + ")"
+    + re.escape(chr(47) + "internal" + chr(47))
+)
 
 # Directories to skip (not tracked or not relevant).
 SKIP_DIRS = {".git", "vendor", "node_modules", "__pycache__"}
@@ -73,7 +86,11 @@ def should_scan(path: Path) -> bool:
 
 
 def scan_file(content: bytes) -> list[tuple[int, str, str]]:
-    """Scan file content for forbidden hostnames. Returns list of (line_no, line, hostname)."""
+    """Scan file content for forbidden hostnames and path shapes.
+
+    Returns list of (line_no, line, what) where `what` is a hostname or the
+    path-shape label.
+    """
     findings: list[tuple[int, str, str]] = []
     text = content.decode("utf-8", errors="replace")
 
@@ -81,6 +98,8 @@ def scan_file(content: bytes) -> list[tuple[int, str, str]]:
         for hostname, pattern in FORBIDDEN:
             if pattern.search(line):
                 findings.append((lineno, line.strip(), hostname))
+        if _INTERNAL_PATH.search(line):
+            findings.append((lineno, line.strip(), "<home>/internal/ path"))
     return findings
 
 
@@ -107,12 +126,16 @@ def main() -> int:
 
     if total_findings > 0:
         hostnames = ", ".join(h for h, _ in FORBIDDEN)
-        print(f"\n[ERROR] {total_findings} private forge URL(s) found.", file=sys.stderr)
-        print(f"Private forge URLs ({hostnames}) are FORBIDDEN in public repos.", file=sys.stderr)
+        print(f"\n[ERROR] {total_findings} private reference(s) found.", file=sys.stderr)
+        print(
+            f"Forbidden here: private forge URLs ({hostnames}) and "
+            "<home>/internal/ checkout paths (see #632).",
+            file=sys.stderr,
+        )
         print("See: IPADP L2 Privacy Validation (issue #567).", file=sys.stderr)
         return 1
 
-    print("[PASS] No private forge URLs found.")
+    print("[PASS] No private forge URLs or internal checkout paths found.")
     return 0
 
 

@@ -109,16 +109,17 @@ section "amicron-platform ($PLATFORM_BRANCH)"
 
 cd "$PLATFORM_DIR"
 
-# Guard against clobbering in-flight work in the shared checkout (#332:
-# attribute before repair - a dirty tree means another lane may be live).
-if [[ -n "$(git status --porcelain)" ]]; then
-    fail "amicron-platform worktree is dirty - refusing to switch branches"
-    echo "  Commit, stash, or clean $PLATFORM_DIR first (attribute before repair)."
-    exit 2
-fi
-
 CURRENT_BRANCH=$(git branch --show-current)
 if [[ "$CURRENT_BRANCH" != "$PLATFORM_BRANCH" ]]; then
+    # Guard against clobbering in-flight work in the shared checkout (#332:
+    # attribute before repair - a dirty tree means another lane may be live).
+    # Only enforced when a switch is actually needed: on an already-current
+    # branch a dirty tree is the operator's WIP and is simply tested as-is.
+    if [[ -n "$(git status --porcelain)" ]]; then
+        fail "amicron-platform worktree is dirty - refusing to switch branches"
+        echo "  Commit, stash, or clean $PLATFORM_DIR first (attribute before repair)."
+        exit 2
+    fi
     info "Current branch: $CURRENT_BRANCH. Checking out $PLATFORM_BRANCH..."
     git checkout "$PLATFORM_BRANCH" || {
         fail "Cannot checkout $PLATFORM_BRANCH"

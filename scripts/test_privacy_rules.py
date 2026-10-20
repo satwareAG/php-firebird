@@ -38,13 +38,19 @@ FORBIDDEN = [
     (_GT, re.compile(re.escape(_GT))),
 ]
 
-# Forbidden path shapes: <home>/internal/<project>. Assembled at runtime so
-# this scanner never matches its own source (issue #632).
-_HOME_FRAGMENT = chr(126)          # '~'
-_DOLLAR_HOME = chr(36) + "HOME"    # '$HOME'
+# Forbidden path shapes: home-relative checkouts inside the internal tree.
+# Assembled at runtime so this scanner never matches its own source (issue
+# #632). Covers tilde, dollar-HOME and braced-HOME spellings, with or without
+# a trailing separator.
+_HOME_TILDE = chr(126)                       # '~'
+_HOME_DOLLAR = chr(36) + "HOME"              # '$HOME'
+_HOME_BRACED = chr(36) + chr(123) + "HOME" + chr(125)   # '${HOME}'
 _INTERNAL_PATH = re.compile(
-    "(" + re.escape(_HOME_FRAGMENT) + "|" + re.escape(_DOLLAR_HOME) + ")"
-    + re.escape(chr(47) + "internal" + chr(47))
+    "(?:" + re.escape(_HOME_TILDE)
+    + "|" + re.escape(_HOME_BRACED)
+    + "|" + re.escape(_HOME_DOLLAR) + ")"
+    + re.escape(chr(47) + "internal")
+    + "(?:" + chr(47) + "|(?![A-Za-z0-9]))"
 )
 
 # Directories to skip (not tracked or not relevant).

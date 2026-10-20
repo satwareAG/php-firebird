@@ -8,7 +8,7 @@
  *   - SYSDBA/masterkey credentials work (public demo creds from amicron-software.de)
  *
  * These tests only run locally (not in CI) since the amicron DBs are private
- * (~/internal/amicron-firebird Docker container).
+ * (locally provisioned Firebird test container).
  *
  * Usage in --SKIPIF-- section:
  *   <?php require_once __DIR__ . '/skipif.inc'; ?>

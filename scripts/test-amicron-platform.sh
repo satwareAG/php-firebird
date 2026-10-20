@@ -32,7 +32,7 @@ PLATFORM_BRANCH="${AMICRON_PLATFORM_BRANCH:-3.x-next}"
 FIREBIRD_CONTAINER="${FIREBIRD_CONTAINER:-amicron-platform-firebird3}"
 DBHOST="${DBHOST:-127.0.0.1}"
 DBPORT="${DBPORT:-3053}"
-DBNAME="${DBNAME:-/var/lib/firebird/data/test.fdb}"
+DBNAME="${DBNAME:-/var/lib/firebird/data/database.fdb}"
 SKIP_PHPSTAN=false
 SKIP_PHPUNIT=false
 

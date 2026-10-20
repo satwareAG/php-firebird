@@ -65,8 +65,9 @@ for this migration path.
 
 ### Privacy boundary
 
-amicron-platform is a private repository at `~/internal/amicron-platform` (internal
-git server). The public php-firebird CI cannot clone it directly. Per the
+amicron-platform is a private repository on the internal git server; its checkout
+location is environment-specific and intentionally not recorded in this public
+spec. The public php-firebird CI cannot clone it directly. Per the
 IPADP L3 conformance privacy rules, no private repo URLs or references may appear
 in public CI workflows.
 
@@ -97,7 +98,7 @@ Establishing permanent CI for this prevents regression.
 
 ### Goal 2: amicron-platform local validation
 
-**Given** a developer with local access to `~/internal/amicron-platform`
+**Given** a developer with a local private amicron-platform checkout (`AMICRON_PLATFORM_DIR`)
 **When** they run `scripts/test-amicron-platform.sh`
 **Then** the script boots Symfony 7.4, validates Doctrine schema, runs PHPStan, runs PHPUnit
 

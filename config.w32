@@ -112,6 +112,18 @@ if (PHP_PDO_FBIRD != 'no') {
         EXTENSION('pdo_fbird', pdo_fbird_sources, PHP_PDO_FBIRD_SHARED,
                   '/DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 /EHsc /std:c++17');
 
+        // jane #636: cross-DLL link dependency. pdo_fbird.dll imports the
+        // fbc_/fbt_/fbs_* layer from php_firebird.dll (built in the same
+        // tree, same BUILD_DIR). Mirrors ADD_EXTENSION_DEP's wiring from
+        // win32/build/confutils.js (phpize mode points BUILD_DIR_DEV, which
+        // does not hold sibling-extension libs, so wire it explicitly):
+        //   LIBS_*   -> link input
+        //   LDFLAGS_* -> /libpath
+        //   DEPS_*   -> nmake build order (firebird dll links first)
+        ADD_FLAG('LIBS_PDO_FBIRD', 'php_firebird.lib');
+        ADD_FLAG('LDFLAGS_PDO_FBIRD', '/libpath:$(BUILD_DIR)');
+        ADD_FLAG('DEPS_PDO_FBIRD', '$(BUILD_DIR)\\php_firebird.lib');
+
     } else {
         WARNING('pdo_fbird not enabled; Firebird client libraries and headers not found');
     }

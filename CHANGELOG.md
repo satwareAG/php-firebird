@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [13.2.9] - 2026-10-22
+
+### Fixed
+
+- **#636: every Windows `php_pdo_fbird` DLL ever released was an export-less stub (and v13.2.8 pdo zips were partly log-only)**. Two independent defects, both now fixed and gated: (1) all four pdo translation units evaluated `#ifdef HAVE_PDO_FBIRD` BEFORE including `php.h` - on the Windows phpize chain the define only becomes visible through php.h's config header, so every TU preprocessed empty and nmake linked a legal 11776-byte DLL with an empty export table (unusable: "Invalid library"). `php.h` now precedes the guard, mirroring `firebird.c`. With the guard actually opening for the first time, the real cross-DLL surface appeared and is wired: all 130 shared C-API decls in `firebird_utils.h` carry `FBIRD_API` (dllexport in `php_firebird.dll`, dllimport in `php_pdo_fbird.dll`), the `FBG(master_instance)` module-global read at 75 pdo sites became the exported accessor `fbird_utils_get_master_instance()` (data imports across DLLs are not viable through Zend globals macros), `config.w32` links `php_firebird.lib` into pdo (LIBS/LDFLAGS/DEPS wiring), and `strtok_r` got an `strtok_s` shim. Verified: 8/8 build legs green, DLL now 51712 bytes, exports `get_module`, imports `php8.dll`/`fbclient.dll`/`php_firebird.dll`. (2) The php-windows-builder action zips DLLs AND build logs under the same zip name and uploads both; `download-artifact merge-multiple` then overwrote by name - on v13.2.8, three of four pdo legs shipped the log-only zip. The workflow now packages both extension zips itself, the release job prunes builder uploads, and `scripts/windows/check-dll-exports.mjs` (PE export-table parser, no dumpbin) fails any build whose DLL does not export `get_module` - the exact failure signature - plus a zip-content assertion. v13.2.8 release notes carry the consumer warning; assets left in place for forensics.
+
+- **#629: `test-amicron-platform.sh` drift** - hardcoded `DBHOST:3050`, stale default branch, removed doctrine-migrations option; repaired and internal-checkout path references scrubbed from the tracked script.
+
+- **#632: privacy scanner now also rejects internal-checkout path references** in tracked files (CI guard), closing the gap that let #629's internal paths land.
+
+### Added
+
+- **#585: Windows NTS smoke lane on GitHub runners** (PR #635): loads each release zip on real Windows PHP, runs a connect/query round-trip, and probe-loads pdo where present - the missing oracle that let export-less pdo DLLs ship for years. Positive-control validated against v13.2.7 (reproduced the known shutdown crash) and v13.2.8 (green). Failed pdo probes report but do not mask the primary oracle; the lane is dispatchable per tag (`DEFAULT_TAG` pinned, bumped per release).
+
+- **#628 (ADR-003): regression tests locking engine-faithful DDL-on-explicit-transaction semantics** - same-tx DML prepare failure and commit-nothing behavior are Firebird engine semantics, now pinned as tests so future refactors cannot silently "fix" them into API changes.
+
+### Changed
+
+- **`check-version-stamps.sh` also validates `specs/metadata.json`** - its `version` field silently drifted to 13.2.7 while `VERSION.txt` said 13.2.8; IPADP consumers read that field.
+
 ## [13.2.8] - 2026-09-16
 
 ### Fixed

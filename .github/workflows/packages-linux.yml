@@ -112,10 +112,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # jane: el8/el9 temporarily excluded. EL8 ships PHP 8.0, EL9 ships
-        #       PHP 8.1 — php-firebird requires 8.2+. Need Remi repo setup
-        #       before re-enabling. fc41 ships PHP 8.3 (base repo).
-        distro: [fc41]
+        # jane #620: el8/el9 build against PHP 8.3 from the Remi repo
+        #       (module stream php:remi-8.3, enabled in the build step).
+        #       Distro defaults are too old (EL8=8.0, EL9=8.1; ext needs 8.2+).
+        #       fc41 ships PHP 8.3 (base repo).
+        distro: [fc41, el8, el9]
 
     steps:
       - name: Checkout repository
@@ -128,8 +129,8 @@ jobs:
         id: container
         run: |
           case "${{ matrix.distro }}" in
-            el8)  IMAGE="almalinux:8";  PHP_VER="8.2" ;;
-            el9)  IMAGE="almalinux:9";  PHP_VER="8.2" ;;
+            el8)  IMAGE="almalinux:8";  PHP_VER="8.3" ;;
+            el9)  IMAGE="almalinux:9";  PHP_VER="8.3" ;;
             fc41) IMAGE="fedora:41";   PHP_VER="8.3" ;;
           esac
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
@@ -138,6 +139,7 @@ jobs:
       - name: Build .rpm inside container
         env:
           PHP_VER: ${{ steps.container.outputs.php_ver }}
+          DISTRO: ${{ matrix.distro }}
         run: |
           set -eu
           IMAGE="${{ steps.container.outputs.image }}"
@@ -149,16 +151,30 @@ jobs:
             -e OUTPUT_DIR=dist/rpm/${{ matrix.distro }} \
             -e VERBOSE=1 \
             -e PHP_VER="$PHP_VER" \
+            -e DISTRO="$DISTRO" \
             "$IMAGE" \
             bash -c '
               set -eu
 
               # Install build dependencies.
-              # jane: EL8/9 ship PHP 8.0/8.1 via php-devel. We build against
-              #       the distro default PHP ABI, not a hardcoded version.
-              #       Fedora 41 ships PHP 8.3.
+              # jane: EL8/9 base repos ship PHP 8.0/8.1 (too old for 8.2+).
+              #       Enable the Remi repo (php:remi-8.3 module stream) so
+              #       php-devel resolves to PHP 8.3. Fedora 41 ships PHP 8.3.
+              #       re2c/ninja-build live outside the base repos: el8
+              #       powertools (both), el9 crb (ninja-build) - #620.
               if command -v dnf >/dev/null 2>&1; then
                 dnf install -y epel-release 2>/dev/null || true
+                if [ "$DISTRO" = "el8" ]; then
+                  dnf install -y dnf-plugins-core
+                  dnf config-manager --set-enabled powertools
+                  dnf install -y https://rpms.remirepo.net/enterprise/remi-release-8.rpm
+                  dnf module enable -y php:remi-8.3
+                elif [ "$DISTRO" = "el9" ]; then
+                  dnf install -y dnf-plugins-core
+                  dnf config-manager --set-enabled crb
+                  dnf install -y https://rpms.remirepo.net/enterprise/remi-release-9.rpm
+                  dnf module enable -y php:remi-8.3
+                fi
                 dnf install -y php-devel autoconf automake re2c gcc gcc-c++ make \
                   patchelf rpm-build cmake ninja-build git tar libtommath-devel jq
               else
@@ -167,14 +183,14 @@ jobs:
                   patchelf rpm-build cmake ninja-build git tar libtommath-devel jq
               fi
 
-              # Build the RPM using the distro-default PHP version.
+              # Build the RPM using the resolved PHP toolchain.
               # jane: --php-version resolves phpize${VER}/php-config${VER},
               #       falling back to unversioned if versioned binary is absent.
               bash packaging/rpm/build.sh \
                 --php-version "$PHP_VER" \
-                --distro ${{ matrix.distro }} \
+                --distro "$DISTRO" \
                 --arch x86_64 \
-                --output-dir dist/rpm/${{ matrix.distro }} \
+                --output-dir "dist/rpm/$DISTRO" \
                 --verbose
             '
 
@@ -340,6 +356,18 @@ jobs:
         with:
           name: rpm-packages-fc41
           path: release-assets/rpm/fc41
+
+      - name: Download .rpm artifacts (el8)
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: rpm-packages-el8
+          path: release-assets/rpm/el8
+
+      - name: Download .rpm artifacts (el9)
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: rpm-packages-el9
+          path: release-assets/rpm/el9
 
       - name: Download .apk artifacts (optional - may not exist)
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7

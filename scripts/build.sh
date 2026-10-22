@@ -69,3 +69,16 @@ if [ -d pdo_fbird ] && [ -f pdo_fbird/config.m4 ]; then
 else
     log_info "Note: pdo_fbird not built (pdo_fbird/config.m4 not found)"
 fi
+
+# #639 regression gate: built modules must not reference smart_str_* symbols
+# (smart_str_ferealloc is unexported by php8.dll on 8.5.0-8.5.11 => DLL
+# unloadable on those Windows runtimes). Runs in every build lane.
+if [ -x scripts/check-smart-str-imports.sh ]; then
+    mods=()
+    [ -f modules/firebird.so ] && mods+=(modules/firebird.so)
+    [ -f pdo_fbird/modules/pdo_fbird.so ] && mods+=(pdo_fbird/modules/pdo_fbird.so)
+    if [ ${#mods[@]} -gt 0 ]; then
+        log_info "Checking smart_str imports (#639 gate)..."
+        scripts/check-smart-str-imports.sh "${mods[@]}"
+    fi
+fi

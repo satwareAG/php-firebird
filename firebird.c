@@ -1539,4 +1539,12 @@ PHP_FUNCTION(fbird_reconnect_transaction)
 	fbird_setup_transaction_object(return_value, res);
 }
 
+/* jane #636: exported for pdo_fbird.dll (cross-DLL): reading FBG() module
+ * globals from another DLL is a data import; an accessor keeps the ABI to
+ * plain functions (see firebird_utils.h). */
+FBIRD_API void *fbird_utils_get_master_instance(void)
+{
+	return FBG(master_instance);
+}
+
 #endif /* HAVE_FIREBIRD */

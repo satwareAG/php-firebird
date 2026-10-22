@@ -7,9 +7,14 @@
 #include "config.h"
 #endif
 
+/* jane #636: php.h MUST precede the HAVE_PDO_FBIRD guard. On Windows phpize
+ * builds, AC_DEFINE('HAVE_PDO_FBIRD') only becomes visible through php.h's
+ * config header chain; evaluating the guard first compiled every pdo TU
+ * empty and linked an export-less stub dll. Mirrors firebird.c. */
+#include "php.h"
+
 #ifdef HAVE_PDO_FBIRD
 
-#include "php.h"
 #include "php_ini.h"
 #include "ext/standard/info.h"
 #include "ext/pdo/php_pdo.h"

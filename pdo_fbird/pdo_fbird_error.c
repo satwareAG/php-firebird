@@ -6,9 +6,11 @@
 #include "config.h"
 #endif
 
+/* jane #636: php.h MUST precede the HAVE_PDO_FBIRD guard (see pdo_fbird.c). */
+#include "php.h"
+
 #ifdef HAVE_PDO_FBIRD
 
-#include "php.h"
 #include "ext/pdo/php_pdo_driver.h"
 #include "php_pdo_fbird_int.h"
 #include <ibase.h>

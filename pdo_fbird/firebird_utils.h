@@ -4,6 +4,19 @@
 #ifndef FIREBIRD_UTILS_H
 #define FIREBIRD_UTILS_H
 
+/* jane #636: cross-DLL API. pdo_fbird.dll imports the fbc_/fbt_/fbs_* layer
+ * from php_firebird.dll on Windows. FIREBIRD_EXPORTS is defined by the build
+ * when compiling php_firebird.dll itself (EXTENSION 'firebird' shared);
+ * another compilation unit on Windows (pdo_fbird) is a consumer -> dllimport.
+ * Non-Windows builds keep plain linkage (ELF resolves at load time). */
+#if defined(FIREBIRD_EXPORTS)
+# define FBIRD_API __declspec(dllexport)
+#elif defined(PHP_WIN32)
+# define FBIRD_API __declspec(dllimport)
+#else
+# define FBIRD_API
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -112,7 +125,7 @@ void fbu_decode_timestamp(void *master_ptr, const ISC_TIMESTAMP* timestamp,
  * @param status_vector Output status vector for errors
  * @return Pointer to connection object, or NULL on failure
  */
-void* fbc_connect(
+FBIRD_API void* fbc_connect(
     void* master_ptr,
     const char* database, size_t db_len,
     const char* user, size_t user_len,
@@ -130,7 +143,7 @@ void* fbc_connect(
  * Same as fbc_connect() but adds parallel_workers parameter.
  * parallel_workers = 0 means server default.
  */
-void* fbc_connect_ex(
+FBIRD_API void* fbc_connect_ex(
     void* master_ptr,
     const char* database, size_t db_len,
     const char* user, size_t user_len,
@@ -151,7 +164,7 @@ void* fbc_connect_ex(
  * @param status_vector Output status vector for errors
  * @return 0 on success, non-zero on failure
  */
-int fbc_disconnect(void* connection, ISC_STATUS* status_vector);
+FBIRD_API int fbc_disconnect(void* connection, ISC_STATUS* status_vector);
 
 /**
  * Drop a database (destructive operation).
@@ -160,7 +173,7 @@ int fbc_disconnect(void* connection, ISC_STATUS* status_vector);
  * @param status_vector Output status vector for errors
  * @return 0 on success, non-zero on failure
  */
-int fbc_drop_database(void* connection, ISC_STATUS* status_vector);
+FBIRD_API int fbc_drop_database(void* connection, ISC_STATUS* status_vector);
 
 /**
  * Create a new database using CREATE DATABASE SQL statement.
@@ -172,7 +185,7 @@ int fbc_drop_database(void* connection, ISC_STATUS* status_vector);
  * @param status_vector Output status vector for errors
  * @return Pointer to fb::Connection object for the new database, or NULL on failure
  */
-void* fbc_create_database(
+FBIRD_API void* fbc_create_database(
     void* master_ptr,
     const char* create_sql,
     unsigned dialect,
@@ -185,7 +198,7 @@ void* fbc_create_database(
  * @param connection Pointer returned by fbc_connect()
  * @return 1 if connected, 0 if not
  */
-int fbc_is_connected(void* connection);
+FBIRD_API int fbc_is_connected(void* connection);
 
 /**
  * Ping the server to verify the connection is alive.
@@ -197,7 +210,7 @@ int fbc_is_connected(void* connection);
  * @param status_vector Output status vector for errors
  * @return 1 if alive, 0 if dead or error
  */
-int fbc_ping(void* master_ptr, void* connection, ISC_STATUS* status_vector);
+FBIRD_API int fbc_ping(void* master_ptr, void* connection, ISC_STATUS* status_vector);
 
 /**
  * Get the IAttachment pointer from a connection.
@@ -205,7 +218,7 @@ int fbc_ping(void* master_ptr, void* connection, ISC_STATUS* status_vector);
  * @param connection Pointer returned by fbc_connect()
  * @return Raw IAttachment pointer, or NULL
  */
-void* fbc_get_attachment(void* connection);
+FBIRD_API void* fbc_get_attachment(void* connection);
 
 /**
  * Get the server version from a connection.
@@ -213,7 +226,7 @@ void* fbc_get_attachment(void* connection);
  * @param connection Pointer returned by fbc_connect()
  * @return Version code (FB30=30, FB40=40, FB50=50), or 0 if invalid
  */
-unsigned fbc_get_server_version(void* connection);
+FBIRD_API unsigned fbc_get_server_version(void* connection);
 
 #if FB_API_VER >= 40
 /**
@@ -223,14 +236,14 @@ unsigned fbc_get_server_version(void* connection);
  * @param status_vector Output status vector
  * @return 0 on success, -1 on failure
  */
-int fbc_set_statement_timeout(void* connection, unsigned int ms, ISC_STATUS* status_vector);
+FBIRD_API int fbc_set_statement_timeout(void* connection, unsigned int ms, ISC_STATUS* status_vector);
 
 /**
  * Get statement execution timeout (FB 4.0+).
  * @param connection Pointer returned by fbc_connect()
  * @return Timeout in milliseconds (0 = no timeout)
  */
-unsigned int fbc_get_statement_timeout(void* connection);
+FBIRD_API int fbc_get_statement_timeout(void* connection);
 
 /**
  * Set connection idle timeout (FB 4.0+).
@@ -239,14 +252,14 @@ unsigned int fbc_get_statement_timeout(void* connection);
  * @param status_vector Output status vector
  * @return 0 on success, -1 on failure
  */
-int fbc_set_idle_timeout(void* connection, unsigned int sec, ISC_STATUS* status_vector);
+FBIRD_API int fbc_set_idle_timeout(void* connection, unsigned int sec, ISC_STATUS* status_vector);
 
 /**
  * Get connection idle timeout (FB 4.0+).
  * @param connection Pointer returned by fbc_connect()
  * @return Timeout in seconds (0 = no timeout)
  */
-unsigned int fbc_get_idle_timeout(void* connection);
+FBIRD_API int fbc_get_idle_timeout(void* connection);
 #endif
 
 /**
@@ -262,7 +275,7 @@ unsigned int fbc_get_idle_timeout(void* connection);
  * @param status_vector Output status vector
  * @return 1 on success, 0 on error
  */
-int fbc_get_info(
+FBIRD_API int fbc_get_info(
     void* master_ptr,
     void* attachment_ptr,
     unsigned items_length,
@@ -284,7 +297,7 @@ int fbc_get_info(
  * @param status_vector Output status vector for errors
  * @return Pointer to transaction object, or NULL on failure
  */
-void* fbt_start(
+FBIRD_API void* fbt_start(
     void* master_ptr,
     void* attachment_ptr,
     unsigned tpb_len,
@@ -299,7 +312,7 @@ void* fbt_start(
  * @param status_vector Output status vector for errors
  * @return 0 on success, non-zero on failure
  */
-int fbt_commit(void* transaction, ISC_STATUS* status_vector);
+FBIRD_API int fbt_commit(void* transaction, ISC_STATUS* status_vector);
 
 /**
  * Rollback a transaction created with fbt_start().
@@ -308,7 +321,7 @@ int fbt_commit(void* transaction, ISC_STATUS* status_vector);
  * @param status_vector Output status vector for errors
  * @return 0 on success, non-zero on failure
  */
-int fbt_rollback(void* transaction, ISC_STATUS* status_vector);
+FBIRD_API int fbt_rollback(void* transaction, ISC_STATUS* status_vector);
 
 /**
  * Commit with retaining (keeps transaction context).
@@ -317,7 +330,7 @@ int fbt_rollback(void* transaction, ISC_STATUS* status_vector);
  * @param status_vector Output status vector for errors
  * @return 0 on success, non-zero on failure
  */
-int fbt_commit_retaining(void* transaction, ISC_STATUS* status_vector);
+FBIRD_API int fbt_commit_retaining(void* transaction, ISC_STATUS* status_vector);
 
 /**
  * Rollback with retaining (keeps transaction context).
@@ -326,7 +339,7 @@ int fbt_commit_retaining(void* transaction, ISC_STATUS* status_vector);
  * @param status_vector Output status vector for errors
  * @return 0 on success, non-zero on failure
  */
-int fbt_rollback_retaining(void* transaction, ISC_STATUS* status_vector);
+FBIRD_API int fbt_rollback_retaining(void* transaction, ISC_STATUS* status_vector);
 
 /**
  * Check if a transaction is active.
@@ -334,7 +347,7 @@ int fbt_rollback_retaining(void* transaction, ISC_STATUS* status_vector);
  * @param transaction Pointer returned by fbt_start()
  * @return 1 if active, 0 if not
  */
-int fbt_is_active(void* transaction);
+FBIRD_API int fbt_is_active(void* transaction);
 
 /**
  * Get the ITransaction pointer from a transaction wrapper.
@@ -342,7 +355,7 @@ int fbt_is_active(void* transaction);
  * @param transaction Pointer returned by fbt_start()
  * @return Raw ITransaction pointer, or NULL
  */
-void* fbt_get_handle(void* transaction);
+FBIRD_API void* fbt_get_handle(void* transaction);
 
 /**
  * Free a transaction wrapper without commit/rollback.
@@ -350,7 +363,7 @@ void* fbt_get_handle(void* transaction);
  *
  * @param transaction Pointer returned by fbt_start()
  */
-void fbt_free(void* transaction);
+FBIRD_API void fbt_free(void* transaction);
 
 /**
  * Retrieve transaction information via the OO API.
@@ -365,7 +378,7 @@ void fbt_free(void* transaction);
  * @param status_vector Output status vector
  * @return 1 on success, 0 on error
  */
-int fbt_get_info(
+FBIRD_API int fbt_get_info(
     void* master_ptr,
     void* transaction_ptr,
     unsigned items_length,
@@ -389,7 +402,7 @@ int fbt_get_info(
  * @param status_vector Output ISC_STATUS array
  * @return Opaque StatementWrapper pointer or NULL on error
  */
-void* fbs_prepare(
+FBIRD_API void* fbs_prepare(
     void* master_ptr,
     void* attachment_ptr,
     void* transaction_ptr,
@@ -413,7 +426,7 @@ void* fbs_prepare(
  * @param status_vector Output ISC_STATUS array
  * @return 1 on success, 0 on error
  */
-int fbs_execute(
+FBIRD_API int fbs_execute(
     void* master_ptr,
     void* statement_ptr,
     void* transaction_ptr,
@@ -436,7 +449,7 @@ int fbs_execute(
  * @param status_vector Output ISC_STATUS array
  * @return 1 on success, 0 on error
  */
-int fbs_open_cursor(
+FBIRD_API int fbs_open_cursor(
     void* master_ptr,
     void* statement_ptr,
     void* transaction_ptr,
@@ -455,7 +468,7 @@ int fbs_open_cursor(
  * @param status_vector Output ISC_STATUS array
  * @return 1 = row fetched, 0 = end of data, -1 = error
  */
-int fbs_fetch(
+FBIRD_API int fbs_fetch(
     void* master_ptr,
     void* statement_ptr,
     void* out_msg,
@@ -466,31 +479,31 @@ int fbs_fetch(
  * Fetch previous row from scrollable cursor.
  * @return 1 = row fetched, 0 = end of data, -1 = error
  */
-int fbs_fetch_prior(void* master_ptr, void* statement_ptr, void* out_msg, ISC_STATUS* status_vector);
+FBIRD_API int fbs_fetch_prior(void* master_ptr, void* statement_ptr, void* out_msg, ISC_STATUS* status_vector);
 
 /**
  * Fetch first row from scrollable cursor.
  * @return 1 = row fetched, 0 = end of data, -1 = error
  */
-int fbs_fetch_first(void* master_ptr, void* statement_ptr, void* out_msg, ISC_STATUS* status_vector);
+FBIRD_API int fbs_fetch_first(void* master_ptr, void* statement_ptr, void* out_msg, ISC_STATUS* status_vector);
 
 /**
  * Fetch last row from scrollable cursor.
  * @return 1 = row fetched, 0 = end of data, -1 = error
  */
-int fbs_fetch_last(void* master_ptr, void* statement_ptr, void* out_msg, ISC_STATUS* status_vector);
+FBIRD_API int fbs_fetch_last(void* master_ptr, void* statement_ptr, void* out_msg, ISC_STATUS* status_vector);
 
 /**
  * Fetch row at absolute position from scrollable cursor.
  * @return 1 = row fetched, 0 = end of data, -1 = error
  */
-int fbs_fetch_absolute(void* master_ptr, void* statement_ptr, int position, void* out_msg, ISC_STATUS* status_vector);
+FBIRD_API int fbs_fetch_absolute(void* master_ptr, void* statement_ptr, int position, void* out_msg, ISC_STATUS* status_vector);
 
 /**
  * Fetch row at relative offset from scrollable cursor.
  * @return 1 = row fetched, 0 = end of data, -1 = error
  */
-int fbs_fetch_relative(void* master_ptr, void* statement_ptr, int offset, void* out_msg, ISC_STATUS* status_vector);
+FBIRD_API int fbs_fetch_relative(void* master_ptr, void* statement_ptr, int offset, void* out_msg, ISC_STATUS* status_vector);
 
 /**
  * Close cursor.
@@ -499,7 +512,7 @@ int fbs_fetch_relative(void* master_ptr, void* statement_ptr, int offset, void* 
  * @param status_vector Output ISC_STATUS array
  * @return 1 on success, 0 on error
  */
-int fbs_close_cursor(void* statement_ptr, ISC_STATUS* status_vector);
+FBIRD_API int fbs_close_cursor(void* statement_ptr, ISC_STATUS* status_vector);
 
 /**
  * Free/unprepare statement.
@@ -508,7 +521,7 @@ int fbs_close_cursor(void* statement_ptr, ISC_STATUS* status_vector);
  * @param status_vector Output ISC_STATUS array
  * @return 1 on success, 0 on error
  */
-int fbs_free(void* statement_ptr, ISC_STATUS* status_vector);
+FBIRD_API int fbs_free(void* statement_ptr, ISC_STATUS* status_vector);
 
 /**
  * Get statement type.
@@ -518,7 +531,7 @@ int fbs_free(void* statement_ptr, ISC_STATUS* status_vector);
  * @param status_vector Output ISC_STATUS array
  * @return Statement type constant
  */
-unsigned fbs_get_type(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
+FBIRD_API unsigned fbs_get_type(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
 
 /**
  * Get affected rows count.
@@ -528,7 +541,7 @@ unsigned fbs_get_type(void* master_ptr, void* statement_ptr, ISC_STATUS* status_
  * @param status_vector Output ISC_STATUS array
  * @return Affected rows count
  */
-ISC_UINT64 fbs_get_affected_records(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
+FBIRD_API ISC_UINT64 fbs_get_affected_records(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
 
 /**
  * Get input metadata.
@@ -538,7 +551,7 @@ ISC_UINT64 fbs_get_affected_records(void* master_ptr, void* statement_ptr, ISC_S
  * @param status_vector Output ISC_STATUS array
  * @return IMessageMetadata pointer or NULL
  */
-void* fbs_get_input_metadata(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
+FBIRD_API void* fbs_get_input_metadata(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
 
 /**
  * Get output metadata.
@@ -548,7 +561,7 @@ void* fbs_get_input_metadata(void* master_ptr, void* statement_ptr, ISC_STATUS* 
  * @param status_vector Output ISC_STATUS array
  * @return IMessageMetadata pointer or NULL
  */
-void* fbs_get_output_metadata(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
+FBIRD_API void* fbs_get_output_metadata(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
 
 /**
  * Get input parameter count from statement.
@@ -558,7 +571,7 @@ void* fbs_get_output_metadata(void* master_ptr, void* statement_ptr, ISC_STATUS*
  * @param status_vector Output ISC_STATUS array
  * @return Number of input parameters (0 if none or error)
  */
-unsigned fbs_get_input_count(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
+FBIRD_API unsigned fbs_get_input_count(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
 
 /**
  * Get output field count from statement.
@@ -568,7 +581,7 @@ unsigned fbs_get_input_count(void* master_ptr, void* statement_ptr, ISC_STATUS* 
  * @param status_vector Output ISC_STATUS array
  * @return Number of output fields (0 if none or error)
  */
-unsigned fbs_get_output_count(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
+FBIRD_API unsigned fbs_get_output_count(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
 
 /**
  * Get raw IStatement pointer.
@@ -576,7 +589,7 @@ unsigned fbs_get_output_count(void* master_ptr, void* statement_ptr, ISC_STATUS*
  * @param statement_ptr StatementWrapper pointer
  * @return Raw IStatement pointer or NULL
  */
-void* fbs_get_statement(void* statement_ptr);
+FBIRD_API void* fbs_get_statement(void* statement_ptr);
 
 #if FB_API_VER >= 40
 /**
@@ -587,7 +600,7 @@ void* fbs_get_statement(void* statement_ptr);
  * @param status_vector Output ISC_STATUS array
  * @return 0 on success, -1 on failure
  */
-int fbs_set_timeout(void* master_ptr, void* statement_ptr, unsigned int ms, ISC_STATUS* status_vector);
+FBIRD_API int fbs_set_timeout(void* master_ptr, void* statement_ptr, unsigned int ms, ISC_STATUS* status_vector);
 
 /**
  * Get per-statement execution timeout (FB 4.0+).
@@ -596,7 +609,7 @@ int fbs_set_timeout(void* master_ptr, void* statement_ptr, unsigned int ms, ISC_
  * @param status_vector Output ISC_STATUS array
  * @return Timeout in milliseconds (0 = no timeout or error)
  */
-unsigned int fbs_get_timeout(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
+FBIRD_API int fbs_get_timeout(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
 #endif
 
 /**
@@ -605,7 +618,7 @@ unsigned int fbs_get_timeout(void* master_ptr, void* statement_ptr, ISC_STATUS* 
  * @param statement_ptr StatementWrapper pointer
  * @return 1 if prepared, 0 otherwise
  */
-int fbs_is_prepared(void* statement_ptr);
+FBIRD_API int fbs_is_prepared(void* statement_ptr);
 
 /**
  * Check if cursor is open.
@@ -613,7 +626,7 @@ int fbs_is_prepared(void* statement_ptr);
  * @param statement_ptr StatementWrapper pointer
  * @return 1 if cursor open, 0 otherwise
  */
-int fbs_is_cursor_open(void* statement_ptr);
+FBIRD_API int fbs_is_cursor_open(void* statement_ptr);
 
 /**
  * Set cursor name for positioned updates (WHERE CURRENT OF).
@@ -624,7 +637,7 @@ int fbs_is_cursor_open(void* statement_ptr);
  * @param status_vector Output ISC_STATUS array
  * @return 1 on success, 0 on error
  */
-int fbs_set_cursor_name(void* master_ptr, void* statement_ptr, const char* cursor_name, ISC_STATUS* status_vector);
+FBIRD_API int fbs_set_cursor_name(void* master_ptr, void* statement_ptr, const char* cursor_name, ISC_STATUS* status_vector);
 
 /**
  * Execute a statement that returns a single INT64 value (e.g., GEN_ID()).
@@ -637,7 +650,7 @@ int fbs_set_cursor_name(void* master_ptr, void* statement_ptr, const char* curso
  * @param status_vector Output ISC_STATUS array
  * @return The INT64 value from the first column, or 0 on error
  */
-ISC_INT64 fbs_execute_singleton_int64(
+FBIRD_API ISC_INT64 fbs_execute_singleton_int64(
     void* master_ptr,
     void* statement_ptr,
     void* transaction_ptr,
@@ -1312,7 +1325,7 @@ void fbxpb_free_tpb(unsigned char* buffer);
  * @param status_vector Output status vector
  * @return Number of limbo transaction IDs found (0 if none), -1 on error
  */
-int fbt_get_limbo_transactions(
+FBIRD_API int fbt_get_limbo_transactions(
     void* master_ptr,
     void* attachment_ptr,
     ISC_INT64* trans_ids,
@@ -1332,7 +1345,7 @@ int fbt_get_limbo_transactions(
  * @param status_vector Output status vector
  * @return Transaction wrapper pointer that can be committed/rolled back, or NULL on error
  */
-void* fbt_reconnect(
+FBIRD_API void* fbt_reconnect(
     void* master_ptr,
     void* attachment_ptr,
     ISC_INT64 trans_id,
@@ -1660,6 +1673,10 @@ void fbbatch_free_result(fbbatch_completion_result* result);
 
 #endif /* FB_API_VER >= 40 */
 
+/* jane #636: cross-DLL accessor. pdo_fbird.dll imports the connection/
+ * transaction/statement layer from this DLL; it must not read the module
+ * global master_instance (data symbol) across the DLL boundary. */
+FBIRD_API void *fbird_utils_get_master_instance(void);
 
 #ifdef __cplusplus
 }

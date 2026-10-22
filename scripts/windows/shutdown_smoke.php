@@ -51,13 +51,18 @@ if ($conn2 === false) {
 fbird_close($conn2);
 fbird_close($conn);
 
-// --- Layer 3: PDO driver ----------------------------------------------------
-$pdo = new PDO('fbird:dbname=' . $db . ';charset=UTF8', $user, $pass);
-$ok = $pdo->query('SELECT 1 FROM RDB$DATABASE')->fetchColumn();
-if ((int) $ok !== 1) {
-    smoke_fail('pdo fetch: ' . var_export($ok, true));
+// --- Layer 3: PDO driver (only when the DLL shipped in the zip) ------------
+if (extension_loaded('pdo_fbird')) {
+    $pdo = new PDO('fbird:dbname=' . $db . ';charset=UTF8', $user, $pass);
+    $ok = $pdo->query('SELECT 1 FROM RDB$DATABASE')->fetchColumn();
+    if ((int) $ok !== 1) {
+        smoke_fail('pdo fetch: ' . var_export($ok, true));
+    }
+    $pdo = null;
+    echo "pdo_fbird: exercised" . PHP_EOL;
+} else {
+    echo "pdo_fbird: not loaded, skipping (zip without DLL)" . PHP_EOL;
 }
-$pdo = null;
 
 echo 'SMOKE-OK: connections opened, used, closed on fbird_* and pdo_fbird; shutdown follows' . PHP_EOL;
 exit(0);

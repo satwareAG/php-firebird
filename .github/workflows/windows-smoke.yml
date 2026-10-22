@@ -71,16 +71,13 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - name: Cache Firebird (Chocolatey)
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-        with:
-          path: C:\ProgramData\chocolatey\lib\firebird
-          key: ${{ runner.os }}-choco-firebird-3.0.13
-
       - name: Install Firebird 3.0.13
         shell: pwsh
         run: |
-          # Pattern proven green in the consumer repo (driver windows.yml).
+          # jane: NO actions/cache on the choco lib dir - a restored lib makes
+          #       choco report "already installed" WITHOUT running the actual
+          #       Firebird installer (Program Files stays empty -> isql health
+          #       check fails). Determinism over speed; install is ~3 min.
           choco install firebird --version=3.0.13 --yes --no-progress --timeout 600
 
           if (-not (Test-Path "C:\firebird_tests")) { New-Item -Path "C:\firebird_tests" -ItemType Directory }

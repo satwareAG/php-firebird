@@ -244,7 +244,7 @@ jobs:
           Write-Host "driver checkout: 4.4.x @ $drvSha (DLL under test: v$env:version)"
 
           Set-Location driver
-          composer install --prefer-stable --prefer-dist --no-interaction --no-progress --ignore-platform-req=ext-firebird
+          composer install --prefer-dist --no-interaction --no-progress --ignore-platform-req=ext-firebird
           if ($LASTEXITCODE -ne 0) { throw "composer install failed" }
 
           vendor/bin/phpunit --configuration phpunit.xml --testsuite Integration-ReadOnly --no-progress --no-coverage

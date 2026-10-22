@@ -6,7 +6,7 @@ inputs:
     required: true
   asset-pattern:
     description: 'Glob pattern for asset files (e.g. release-assets/*.tar.gz or artifacts/*.zip)'
-    required: true
+    required: false
   expected-count:
     description: 'Minimum expected asset count for verification'
     default: '4'
@@ -27,7 +27,12 @@ runs:
       uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
       with:
         path: artifacts
-        merge-multiple: true
+        # jane #636: keep per-artifact directory structure. merge-multiple
+        # flattened same-named files and silently overwrote them (the
+        # php-windows-builder uploads a dll zip AND a logs zip under the
+        # SAME name - last writer won per leg and 3 of 4 v13.2.8 pdo assets
+        # were the log-only zip).
+        merge-multiple: false
 
     - name: Prepare release assets
       shell: bash
@@ -35,12 +40,15 @@ runs:
         set -eu
         mkdir -p release-assets
 
+        # jane #636: prune artifacts uploaded by the php-windows-builder
+        # action itself (its artifact NAME is the zip filename, so its
+        # directory matches '*.zip'). The workflows package release assets
+        # themselves; builder uploads are inert byproducts.
         # Copy all bundle files to release-assets/
-        find artifacts -name "*.tar.gz" -exec cp {} release-assets/ \; 2>/dev/null || true
-        find artifacts -name "*.sha256" -exec cp {} release-assets/ \; 2>/dev/null || true
-        find artifacts -name "*.md5" -exec cp {} release-assets/ \; 2>/dev/null || true
-        find artifacts -name "*.sbom.cdx.json" -exec cp {} release-assets/ \; 2>/dev/null || true
-        find artifacts -name "*.zip" -exec cp {} release-assets/ \; 2>/dev/null || true
+        find artifacts -type d -name '*.zip' -prune -o -type f \
+          \( -name '*.tar.gz' -o -name '*.sha256' -o -name '*.md5' \
+             -o -name '*.sbom.cdx.json' -o -name '*.zip' \) \
+          -print -exec cp {} release-assets/ \;
 
         # Generate checksums index
         cd release-assets

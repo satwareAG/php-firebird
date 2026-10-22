@@ -58,6 +58,14 @@ jobs:
       ISC_USER: SYSDBA
       ISC_PASSWORD: masterkey
       SMOKE_DB: 'localhost:C:\firebird_tests\smoke.fdb'
+      # jane: PR-event fallback tag - PINNED, never 'latest' (anti-float rule,
+      #       driver #167 lesson). Bump when a release should become the PR-lane
+      #       default; dispatch runs take the explicit input tag instead.
+      DEFAULT_TAG: v13.2.8
+      # jane: consumer control oracle pinned to the commit whose suite produced
+      #       the 2026-10-22 #585 evidence. Bump deliberately; a floating branch
+      #       redefines the crash oracle without a trace in this repo.
+      DRIVER_SHA: 1f944b0a2ade3645532dbeca5c8901248d8d1432
 
     steps:
       - name: Checkout
@@ -117,11 +125,18 @@ jobs:
           $headers = @{}
           if ($env:GITHUB_TOKEN) { $headers["Authorization"] = "token $env:GITHUB_TOKEN" }
 
-          if ([string]::IsNullOrWhiteSpace($env:INPUT_TAG)) {
-            $release = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases/latest" -Headers $headers
-          } else {
-            $release = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/$env:INPUT_TAG" -Headers $headers
+          # jane: dispatch input is validated before it reaches an API URL path
+          #       (read-only endpoint + own repo, but cheap to gate).
+          if (-not [string]::IsNullOrWhiteSpace($env:INPUT_TAG) -and
+              $env:INPUT_TAG -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "Invalid tag format: '$env:INPUT_TAG' (expected vX.Y.Z)"
           }
+
+          # jane: empty input (PR events) falls back to the PINNED DEFAULT_TAG,
+          #       never 'latest' - floating resolution is the driver #167 bug
+          #       class this lane exists to prevent.
+          $tag = if ([string]::IsNullOrWhiteSpace($env:INPUT_TAG)) { $env:DEFAULT_TAG } else { $env:INPUT_TAG }
+          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag" -Headers $headers
           $version = $release.tag_name -replace '^v', ''
           Write-Host "Testing release $($release.tag_name) (assets: $($release.assets.Count))"
 
@@ -141,17 +156,25 @@ jobs:
             Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $asset.name -Headers $headers
           }
           "version=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "VS=$vs" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install extension DLLs
         shell: pwsh
         run: |
           $phpDir = Split-Path -Parent (Get-Command php).Source
-          $vs = if ([version]"${{ matrix.php }}" -ge [version]'8.4') { 'vs17' } else { 'vs16' }
-          # env var `version` was set from GITHUB_ENV in the resolve step
+          # `version` and `VS` were exported by the resolve step (GITHUB_ENV)
           $version = $env:version
+          $vs = $env:VS
 
           Expand-Archive -Path "php_firebird-v$version-${{ matrix.php }}-nts-$vs-x86_64.zip" -DestinationPath "ext_firebird" -Force
           Expand-Archive -Path "php_pdo_fbird-v$version-${{ matrix.php }}-nts-$vs-x86_64.zip" -DestinationPath "ext_pdo" -Force
+
+          # jane: list extracted contents BEFORE detection - the 2026-10-22 runs
+          #       reported 'pdo DLL absent' on v13.2.7 although the zip contains
+          #       it (unexplained; local replication of the exact chain finds it).
+          #       These lines make the next occurrence self-diagnosing.
+          Get-ChildItem -Path "ext_firebird" -Recurse -File | ForEach-Object { Write-Host "ext_firebird: $($_.Name)" }
+          Get-ChildItem -Path "ext_pdo" -Recurse -File | ForEach-Object { Write-Host "ext_pdo: $($_.Name)" }
 
           $mainDll = Get-ChildItem -Path "ext_firebird" -Filter "php_firebird*.dll" -Recurse | Select-Object -First 1
           $pdoDll  = Get-ChildItem -Path "ext_pdo" -Filter "php_pdo_fbird*.dll" -Recurse | Select-Object -First 1
@@ -162,6 +185,9 @@ jobs:
           # jane: pdo_fbird Windows zip is OPTIONAL - v13.2.8 shipped log-only
           #       pdo zips (no DLL; packaging regression, tracked separately).
           #       The #585 crash reproduces on the main extension alone.
+          #       $pdoInstalled stays a LOCAL variable: GITHUB_ENV writes do not
+          #       propagate within the same step (review finding 1 - reading it
+          #       back via $env: here always missed).
           $pdoInstalled = "false"
           if ($pdoDll) {
             Copy-Item $pdoDll.FullName -Destination "$phpDir\ext\php_pdo_fbird.dll" -Force
@@ -169,13 +195,12 @@ jobs:
           } else {
             Write-Host "::warning::pdo_fbird DLL absent from zip - PDO section will be skipped"
           }
-          "PDO_INSTALLED=$pdoInstalled" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
           $phpIni = php -r "echo php_ini_loaded_file();"
           if (-not $phpIni) { $phpIni = "$phpDir\php.ini" }
           if (-not (Test-Path $phpIni)) { Copy-Item "$phpDir\php.ini-development" $phpIni }
           Add-Content -Path $phpIni -Value "`nextension=firebird"
-          if ($env:PDO_INSTALLED -eq "true") {
+          if ($pdoInstalled -eq "true") {
             Add-Content -Path $phpIni -Value "extension=pdo_fbird"
           }
 
@@ -185,7 +210,7 @@ jobs:
           Copy-Item "$fbDir\fbclient.dll" -Destination "$phpDir\gds32.dll" -Force
 
           php -r "if (!extension_loaded('firebird')) { exit(1); }"
-          if ($env:PDO_INSTALLED -eq "true") {
+          if ($pdoInstalled -eq "true") {
             php -r "if (!extension_loaded('pdo_fbird')) { exit(1); }"
             Write-Host "extensions loaded: firebird, pdo_fbird"
           } else {
@@ -239,9 +264,11 @@ jobs:
               & "$fbDir\isql.exe" -q 2>&1
           }
 
-          git clone --depth 1 --branch 4.4.x https://github.com/satwareAG/doctrine-firebird-driver.git driver
+          git clone https://github.com/satwareAG/doctrine-firebird-driver.git driver
+          git -C driver checkout $env:DRIVER_SHA
           $drvSha = git -C driver rev-parse HEAD
-          Write-Host "driver checkout: 4.4.x @ $drvSha (DLL under test: v$env:version)"
+          if ($drvSha -ne $env:DRIVER_SHA) { throw "driver checkout mismatch: $drvSha" }
+          Write-Host "driver checkout: pinned $drvSha (DLL under test: v$env:version)"
 
           Set-Location driver
           composer install --prefer-dist --no-interaction --no-progress --ignore-platform-req=ext-firebird

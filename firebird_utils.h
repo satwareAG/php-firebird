@@ -243,7 +243,7 @@ FBIRD_API int fbc_set_statement_timeout(void* connection, unsigned int ms, ISC_S
  * @param connection Pointer returned by fbc_connect()
  * @return Timeout in milliseconds (0 = no timeout)
  */
-FBIRD_API int fbc_get_statement_timeout(void* connection);
+FBIRD_API unsigned int fbc_get_statement_timeout(void* connection);
 
 /**
  * Set connection idle timeout (FB 4.0+).
@@ -259,7 +259,7 @@ FBIRD_API int fbc_set_idle_timeout(void* connection, unsigned int sec, ISC_STATU
  * @param connection Pointer returned by fbc_connect()
  * @return Timeout in seconds (0 = no timeout)
  */
-FBIRD_API int fbc_get_idle_timeout(void* connection);
+FBIRD_API unsigned int fbc_get_idle_timeout(void* connection);
 #endif
 
 /**
@@ -609,7 +609,7 @@ FBIRD_API int fbs_set_timeout(void* master_ptr, void* statement_ptr, unsigned in
  * @param status_vector Output ISC_STATUS array
  * @return Timeout in milliseconds (0 = no timeout or error)
  */
-FBIRD_API int fbs_get_timeout(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
+FBIRD_API unsigned int fbs_get_timeout(void* master_ptr, void* statement_ptr, ISC_STATUS* status_vector);
 #endif
 
 /**
@@ -1677,6 +1677,7 @@ void fbbatch_free_result(fbbatch_completion_result* result);
  * transaction/statement layer from this DLL; it must not read the module
  * global master_instance (data symbol) across the DLL boundary. */
 FBIRD_API void *fbird_utils_get_master_instance(void);
+
 
 #ifdef __cplusplus
 }

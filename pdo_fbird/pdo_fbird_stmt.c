@@ -20,7 +20,6 @@
 #include <ctype.h>
 #include <time.h>
 #include <math.h>
-#include "zend_smart_str.h"
 #include "firebird_utils.h"
 #include "php_firebird.h"
 #include "php_fbird_includes.h"
@@ -742,12 +741,12 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 				ZVAL_STRING(result, buf);
 				break;
 			}
-			smart_str blob_str = {0};
+			fbird_buf blob_str = {0};
 			char seg_buf[4096];
 			unsigned actual_len = 0;
 			int rc;
 			while ((rc = fbb_get_segment(fbird_utils_get_master_instance(), blob, sizeof(seg_buf), seg_buf, &actual_len, S->H->status)) == 0 || rc == 2) {
-				smart_str_appendl(&blob_str, seg_buf, actual_len);
+				fbird_buf_appendl(&blob_str, seg_buf, actual_len);
 				if (rc == 0) continue; /* more data */
 			}
 			fbb_close(fbird_utils_get_master_instance(), blob, S->H->status);
@@ -756,13 +755,11 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 			if (type && *type == PDO_PARAM_LOB) {
 				/* Return as PHP stream for LOB binding */
 				php_stream *stream = php_stream_memory_create(TEMP_STREAM_DEFAULT);
-				if (stream && blob_str.s) {
-					php_stream_write(stream, ZSTR_VAL(blob_str.s), ZSTR_LEN(blob_str.s));
+				if (stream && blob_str.len) {
+					php_stream_write(stream, blob_str.data, blob_str.len);
 					php_stream_seek(stream, 0, SEEK_SET);
 				}
-				if (blob_str.s) {
-					smart_str_free(&blob_str);
-				}
+				fbird_buf_free(&blob_str);
 				if (stream) {
 					php_stream_to_zval(stream, result);
 				} else {
@@ -770,12 +767,12 @@ static int pdo_fbird_stmt_get_col(pdo_stmt_t *stmt, int colno,
 				}
 			} else {
 				/* Return as string */
-				if (blob_str.s) {
-					smart_str_0(&blob_str);
-					ZVAL_STR(result, blob_str.s);
+				if (blob_str.len) {
+					ZVAL_STRINGL(result, blob_str.data, blob_str.len);
 				} else {
 					ZVAL_EMPTY_STRING(result);
 				}
+				fbird_buf_free(&blob_str);
 			}
 			break;
 		}

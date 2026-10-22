@@ -26,6 +26,45 @@ extern "C" {
 #include <ibase.h>
 #include "php_fbird_includes.h"
 
+/* #639: minimal grow-buffer used by the pdo_fbird TUs. smart_str was removed
+ * there because its internals (smart_str_erealloc/ferealloc) are not exported
+ * by php8.dll on PHP 8.5.0-8.5.11, making any referencing DLL unloadable on
+ * those runtimes. This buffer uses only emalloc/erealloc/efree, which php8.dll
+ * always exports. Like the Zend memory layer it is fatal (no NULL return) on
+ * allocation failure. scripts/check-smart-str-imports.sh gates this (#639). */
+typedef struct {
+	char *data;
+	size_t len;
+	size_t cap;
+} fbird_buf;
+
+static inline void fbird_buf_appendl(fbird_buf *b, const char *s, size_t n)
+{
+	if (n == 0) {
+		return;
+	}
+	if (b->len + n > b->cap) {
+		size_t ncap = b->cap ? b->cap : 128;
+		while (ncap < b->len + n) {
+			ncap *= 2;
+		}
+		b->data = (char *)erealloc(b->data, ncap);
+		b->cap = ncap;
+	}
+	memcpy(b->data + b->len, s, n);
+	b->len += n;
+}
+
+static inline void fbird_buf_free(fbird_buf *b)
+{
+	if (b->data) {
+		efree(b->data);
+		b->data = NULL;
+	}
+	b->len = 0;
+	b->cap = 0;
+}
+
 FBIRD_API unsigned fbu_get_client_version(void *master_ptr);
 FBIRD_API ISC_TIME fbu_encode_time(void *master_ptr, unsigned hours, unsigned minutes,
   unsigned seconds, unsigned fractions);

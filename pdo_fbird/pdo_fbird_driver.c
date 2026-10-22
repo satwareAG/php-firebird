@@ -17,7 +17,6 @@
 
 #ifdef HAVE_PDO_FBIRD
 
-#include "zend_smart_str.h"
 #include "ext/pdo/php_pdo.h"
 #include "ext/pdo/php_pdo_driver.h"
 #include "php_pdo_fbird.h"
@@ -519,14 +518,14 @@ static char *_pdo_fbird_service_query_lines(pdo_dbh_t *dbh)
 	static const unsigned char spb[] = { isc_info_svc_timeout, 4, 0, 10, 0, 0, 0 };
 	char info_action = isc_info_svc_line;
 	char res_buf[4096];
-	smart_str output = {0};
+	fbird_buf output = {0};
 
 	for (;;) {
 		if (!fbsvc_query(fbird_utils_get_master_instance(), H->fbsvc_service,
 				sizeof(spb), (const unsigned char *)spb,
 				1, (const unsigned char *)&info_action,
 				sizeof(res_buf), (unsigned char *)res_buf, H->status)) {
-			smart_str_free(&output);
+			fbird_buf_free(&output);
 			return NULL;
 		}
 
@@ -549,8 +548,8 @@ static char *_pdo_fbird_service_query_lines(pdo_dbh_t *dbh)
 						break;
 					}
 					result += 2;
-					smart_str_appendl(&output, result, len);
-					smart_str_appendc(&output, '\n');
+					fbird_buf_appendl(&output, result, len);
+					fbird_buf_appendl(&output, "\n", 1);
 					result += len;
 					break;
 				}
@@ -562,10 +561,9 @@ static char *_pdo_fbird_service_query_lines(pdo_dbh_t *dbh)
 		if (done) break;
 	}
 
-	if (output.s) {
-		smart_str_0(&output);
-		char *ret = estrdup(ZSTR_VAL(output.s));
-		smart_str_free(&output);
+	if (output.len) {
+		char *ret = estrndup(output.data, output.len);
+		fbird_buf_free(&output);
 		return ret;
 	}
 	return estrdup("");

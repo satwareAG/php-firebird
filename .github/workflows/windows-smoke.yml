@@ -234,6 +234,11 @@ jobs:
             Write-Host "::warning::pdo_fbird DLL absent from zip - PDO section skipped (#636)"
           }
 
+          # jane: explicit exit - pwsh steps otherwise end with the LAST NATIVE
+          #       command's exit code, so a failed pdo probe above would fail
+          #       this step despite 'lane continues'. Fatal paths are the throws.
+          exit 0
+
       - name: Run shutdown smoke (exit code IS the test)
         shell: pwsh
         run: |

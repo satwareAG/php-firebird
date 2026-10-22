@@ -42,7 +42,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # jane: include the dispatch tag - two dispatches of DIFFERENT tags on the
+  #       same ref must coexist (a tag-less group let the v13.2.8 dispatch
+  #       cancel the v13.2.7 control run on 2026-10-22). Same-tag re-dispatch
+  #       still cancels in-progress, which is the desired behavior.
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.inputs.tag || 'default' }}
   cancel-in-progress: true
 
 jobs:
@@ -182,9 +186,10 @@ jobs:
 
           Copy-Item $mainDll.FullName -Destination "$phpDir\ext\php_firebird.dll" -Force
 
-          # jane: pdo_fbird Windows zip is OPTIONAL - v13.2.8 shipped log-only
-          #       pdo zips (no DLL; packaging regression, tracked separately).
-          #       The #585 crash reproduces on the main extension alone.
+          # jane: pdo_fbird Windows zip is OPTIONAL - v13.2.8 pdo zips are
+          #       broken in two ways (#636): 8.2/8.3/8.4 log-only, 8.5 ships an
+          #       unloadable dll. The #585 crash reproduces on the main
+          #       extension alone.
           #       $pdoInstalled stays a LOCAL variable: GITHUB_ENV writes do not
           #       propagate within the same step (review finding 1 - reading it
           #       back via $env: here always missed).
@@ -200,21 +205,33 @@ jobs:
           if (-not $phpIni) { $phpIni = "$phpDir\php.ini" }
           if (-not (Test-Path $phpIni)) { Copy-Item "$phpDir\php.ini-development" $phpIni }
           Add-Content -Path $phpIni -Value "`nextension=firebird"
-          if ($pdoInstalled -eq "true") {
-            Add-Content -Path $phpIni -Value "extension=pdo_fbird"
-          }
 
           # Firebird client from the server install (choco) + legacy alias
           $fbDir = (Get-ChildItem "C:\Program Files\Firebird\Firebird_*" | Select-Object -First 1).FullName
           Copy-Item "$fbDir\fbclient.dll" -Destination $phpDir -Force
           Copy-Item "$fbDir\fbclient.dll" -Destination "$phpDir\gds32.dll" -Force
 
+          # Main extension load: FATAL - it is the lane's subject (#585).
           php -r "if (!extension_loaded('firebird')) { exit(1); }"
+          if ($LASTEXITCODE -ne 0) { throw "php_firebird failed to load (see PHP startup warning above)" }
+
+          # jane: pdo_fbird is OPTIONAL coverage and must never mask the primary
+          #       oracle (consumer suite below). Probe-load it BEFORE committing
+          #       it to php.ini: #636 evidence shows zips can ship an unloadable
+          #       pdo dll (v13.2.8 8.5: 'Invalid library') - that costs the PDO
+          #       section + a loud annotation, not the whole leg.
+          $pdoLoaded = "false"
           if ($pdoInstalled -eq "true") {
-            php -r "if (!extension_loaded('pdo_fbird')) { exit(1); }"
-            Write-Host "extensions loaded: firebird, pdo_fbird"
+            php -d extension=pdo_fbird -r "exit(extension_loaded('pdo_fbird') ? 0 : 1);"
+            if ($LASTEXITCODE -eq 0) {
+              Add-Content -Path $phpIni -Value "extension=pdo_fbird"
+              $pdoLoaded = "true"
+              Write-Host "extensions loaded: firebird, pdo_fbird"
+            } else {
+              Write-Host "::error::pdo_fbird DLL present in zip but UNLOADABLE - broken release artifact (#636); PDO section skipped, lane continues"
+            }
           } else {
-            Write-Host "extensions loaded: firebird (pdo_fbird skipped - not in zip)"
+            Write-Host "::warning::pdo_fbird DLL absent from zip - PDO section skipped (#636)"
           }
 
       - name: Run shutdown smoke (exit code IS the test)

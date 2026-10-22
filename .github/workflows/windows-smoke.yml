@@ -158,15 +158,28 @@ jobs:
           $mainDll = Get-ChildItem -Path "ext_firebird" -Filter "php_firebird*.dll" -Recurse | Select-Object -First 1
           $pdoDll  = Get-ChildItem -Path "ext_pdo" -Filter "php_pdo_fbird*.dll" -Recurse | Select-Object -First 1
           if (-not $mainDll) { throw "php_firebird dll not found in zip" }
-          if (-not $pdoDll)  { throw "php_pdo_fbird dll not found in zip" }
 
           Copy-Item $mainDll.FullName -Destination "$phpDir\ext\php_firebird.dll" -Force
-          Copy-Item $pdoDll.FullName  -Destination "$phpDir\ext\php_pdo_fbird.dll" -Force
+
+          # jane: pdo_fbird Windows zip is OPTIONAL - v13.2.8 shipped log-only
+          #       pdo zips (no DLL; packaging regression, tracked separately).
+          #       The #585 crash reproduces on the main extension alone.
+          $pdoInstalled = "false"
+          if ($pdoDll) {
+            Copy-Item $pdoDll.FullName -Destination "$phpDir\ext\php_pdo_fbird.dll" -Force
+            $pdoInstalled = "true"
+          } else {
+            Write-Host "::warning::pdo_fbird DLL absent from zip - PDO section will be skipped"
+          }
+          "PDO_INSTALLED=$pdoInstalled" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
           $phpIni = php -r "echo php_ini_loaded_file();"
           if (-not $phpIni) { $phpIni = "$phpDir\php.ini" }
           if (-not (Test-Path $phpIni)) { Copy-Item "$phpDir\php.ini-development" $phpIni }
-          Add-Content -Path $phpIni -Value "`nextension=firebird`nextension=pdo_fbird"
+          Add-Content -Path $phpIni -Value "`nextension=firebird"
+          if ($env:PDO_INSTALLED -eq "true") {
+            Add-Content -Path $phpIni -Value "extension=pdo_fbird"
+          }
 
           # Firebird client from the server install (choco) + legacy alias
           $fbDir = (Get-ChildItem "C:\Program Files\Firebird\Firebird_*" | Select-Object -First 1).FullName
@@ -174,8 +187,12 @@ jobs:
           Copy-Item "$fbDir\fbclient.dll" -Destination "$phpDir\gds32.dll" -Force
 
           php -r "if (!extension_loaded('firebird')) { exit(1); }"
-          php -r "if (!extension_loaded('pdo_fbird')) { exit(1); }"
-          Write-Host "extensions loaded: firebird, pdo_fbird"
+          if ($env:PDO_INSTALLED -eq "true") {
+            php -r "if (!extension_loaded('pdo_fbird')) { exit(1); }"
+            Write-Host "extensions loaded: firebird, pdo_fbird"
+          } else {
+            Write-Host "extensions loaded: firebird (pdo_fbird skipped - not in zip)"
+          }
 
       - name: Run shutdown smoke (exit code IS the test)
         shell: pwsh

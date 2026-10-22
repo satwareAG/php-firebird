@@ -79,8 +79,11 @@ public:
 
     /**
      * Default constructor creates an invalid (empty) transaction.
+     * jane #620: no explicit noexcept - the defaulted exception spec must
+     * match the member initializers (StatusWrapper init can throw); el8
+     * gcc 8.5 deletes the ctor on mismatch, newer gcc only warns.
      */
-    Transaction() noexcept = default;
+    Transaction() = default;
 
     /**
      * Destructor - automatically rolls back if not committed/rolled back.

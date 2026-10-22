@@ -134,8 +134,9 @@ public:
 
     /**
      * Default constructor creates an invalid (empty) connection.
+     * jane #620: no explicit noexcept - see fb_transaction.hpp.
      */
-    Connection() noexcept = default;
+    Connection() = default;
 
     /**
      * Destructor - automatically detaches if still connected.

@@ -10,6 +10,11 @@
 /* jane #636: php.h MUST precede the HAVE_PDO_FBIRD guard (see pdo_fbird.c). */
 #include "php.h"
 
+#ifdef PHP_WIN32
+/* jane #636: MSVC has strtok_s with identical signature/semantics. */
+#define strtok_r strtok_s
+#endif
+
 #ifdef HAVE_PDO_FBIRD
 
 #include "zend_smart_str.h"

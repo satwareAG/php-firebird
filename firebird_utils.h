@@ -26,10 +26,10 @@ extern "C" {
 #include <ibase.h>
 #include "php_fbird_includes.h"
 
-unsigned fbu_get_client_version(void *master_ptr);
-ISC_TIME fbu_encode_time(void *master_ptr, unsigned hours, unsigned minutes,
+FBIRD_API unsigned fbu_get_client_version(void *master_ptr);
+FBIRD_API ISC_TIME fbu_encode_time(void *master_ptr, unsigned hours, unsigned minutes,
   unsigned seconds, unsigned fractions);
-ISC_DATE fbu_encode_date(void *master_ptr, unsigned year, unsigned month, unsigned day);
+FBIRD_API ISC_DATE fbu_encode_date(void *master_ptr, unsigned year, unsigned month, unsigned day);
 
 /**
  * Extract SQLCODE from a Firebird status vector.
@@ -38,7 +38,7 @@ ISC_DATE fbu_encode_date(void *master_ptr, unsigned year, unsigned month, unsign
  * @param status_vector ISC_STATUS array (local status[256])
  * @return SQLCODE value (negative for errors, 0 for success)
  */
-long fbu_sqlcode(const ISC_STATUS *status_vector);
+FBIRD_API long fbu_sqlcode(const ISC_STATUS *status_vector);
 
 /* Type Encoding/Decoding Functions (OO API via IUtil interface) */
 
@@ -55,7 +55,7 @@ long fbu_sqlcode(const ISC_STATUS *status_vector);
  * @param fractions Fractions of second (0-9999, tenths of milliseconds)
  * @return Encoded ISC_TIMESTAMP, or {0,0} on error
  */
-ISC_TIMESTAMP fbu_encode_timestamp(void *master_ptr, unsigned year, unsigned month, unsigned day,
+FBIRD_API ISC_TIMESTAMP fbu_encode_timestamp(void *master_ptr, unsigned year, unsigned month, unsigned day,
     unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions);
 
 /**
@@ -69,7 +69,7 @@ ISC_TIMESTAMP fbu_encode_timestamp(void *master_ptr, unsigned year, unsigned mon
  * @param seconds Output: seconds (0-59)
  * @param fractions Output: fractions of second (0-9999)
  */
-void fbu_decode_time(void *master_ptr, ISC_TIME time,
+FBIRD_API void fbu_decode_time(void *master_ptr, ISC_TIME time,
     unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions);
 
 /**
@@ -82,7 +82,7 @@ void fbu_decode_time(void *master_ptr, ISC_TIME time,
  * @param month Output: month (1-12)
  * @param day Output: day (1-31)
  */
-void fbu_decode_date(void *master_ptr, ISC_DATE date,
+FBIRD_API void fbu_decode_date(void *master_ptr, ISC_DATE date,
     unsigned* year, unsigned* month, unsigned* day);
 
 /**
@@ -99,7 +99,7 @@ void fbu_decode_date(void *master_ptr, ISC_DATE date,
  * @param seconds Output: seconds (0-59)
  * @param fractions Output: fractions of second (0-9999)
  */
-void fbu_decode_timestamp(void *master_ptr, const ISC_TIMESTAMP* timestamp,
+FBIRD_API void fbu_decode_timestamp(void *master_ptr, const ISC_TIMESTAMP* timestamp,
     unsigned* year, unsigned* month, unsigned* day,
     unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions);
 
@@ -671,7 +671,7 @@ FBIRD_API ISC_INT64 fbs_execute_singleton_int64(
  * @param status_vector Output status vector
  * @return Opaque blob wrapper pointer, or NULL on error
  */
-void* fbb_create(void* master_ptr,
+FBIRD_API void* fbb_create(void* master_ptr,
                  void* attachment_ptr,
                  void* transaction_ptr,
                  ISC_QUAD* blob_id,
@@ -691,7 +691,7 @@ void* fbb_create(void* master_ptr,
  * @param status_vector Output status vector
  * @return Opaque blob wrapper pointer, or NULL on error
  */
-void* fbb_open(void* master_ptr,
+FBIRD_API void* fbb_open(void* master_ptr,
                void* attachment_ptr,
                void* transaction_ptr,
                const ISC_QUAD* blob_id,
@@ -709,7 +709,7 @@ void* fbb_open(void* master_ptr,
  * @param status_vector Output status vector
  * @return 1 on success, 0 on error
  */
-int fbb_put_segment(void* master_ptr,
+FBIRD_API int fbb_put_segment(void* master_ptr,
                     void* blob_wrapper,
                     unsigned length,
                     const void* buffer,
@@ -726,7 +726,7 @@ int fbb_put_segment(void* master_ptr,
  * @param status_vector Output status vector
  * @return 0 on success with more data, 1 on EOF, 2 on segment, -1 on error
  */
-int fbb_get_segment(void* master_ptr,
+FBIRD_API int fbb_get_segment(void* master_ptr,
                     void* blob_wrapper,
                     unsigned buffer_length,
                     void* buffer,
@@ -741,7 +741,7 @@ int fbb_get_segment(void* master_ptr,
  * @param status_vector Output status vector
  * @return 1 on success, 0 on error
  */
-int fbb_close(void* master_ptr, void* blob_wrapper, ISC_STATUS* status_vector);
+FBIRD_API int fbb_close(void* master_ptr, void* blob_wrapper, ISC_STATUS* status_vector);
 
 /**
  * Seek within an open stream BLOB.
@@ -755,7 +755,7 @@ int fbb_close(void* master_ptr, void* blob_wrapper, ISC_STATUS* status_vector);
  *
  * @return 1 on success, 0 on failure
  */
-int fbb_seek(void* master_ptr,
+FBIRD_API int fbb_seek(void* master_ptr,
              void* blob_wrapper,
              int whence,
              int offset,
@@ -770,7 +770,7 @@ int fbb_seek(void* master_ptr,
  * @param status_vector Output status vector
  * @return 1 on success, 0 on error
  */
-int fbb_cancel(void* master_ptr, void* blob_wrapper, ISC_STATUS* status_vector);
+FBIRD_API int fbb_cancel(void* master_ptr, void* blob_wrapper, ISC_STATUS* status_vector);
 
 /**
  * Get blob info.
@@ -784,7 +784,7 @@ int fbb_cancel(void* master_ptr, void* blob_wrapper, ISC_STATUS* status_vector);
  * @param status_vector Output status vector
  * @return 1 on success, 0 on error
  */
-int fbb_get_info(void* master_ptr,
+FBIRD_API int fbb_get_info(void* master_ptr,
                  void* blob_wrapper,
                  unsigned items_length,
                  const unsigned char* items,
@@ -798,7 +798,7 @@ int fbb_get_info(void* master_ptr,
  * @param blob_wrapper Blob wrapper pointer
  * @param blob_id Output: blob ID
  */
-void fbb_get_blob_id(void* blob_wrapper, ISC_QUAD* blob_id);
+FBIRD_API void fbb_get_blob_id(void* blob_wrapper, ISC_QUAD* blob_id);
 
 /**
  * Check if blob is open.
@@ -806,7 +806,7 @@ void fbb_get_blob_id(void* blob_wrapper, ISC_QUAD* blob_id);
  * @param blob_wrapper Blob wrapper pointer
  * @return 1 if open, 0 if closed or invalid
  */
-int fbb_is_open(void* blob_wrapper);
+FBIRD_API int fbb_is_open(void* blob_wrapper);
 
 /**
  * Get the raw IBlob handle from wrapper.
@@ -814,14 +814,14 @@ int fbb_is_open(void* blob_wrapper);
  * @param blob_wrapper Blob wrapper pointer
  * @return Raw IBlob pointer, or NULL if invalid
  */
-void* fbb_get_handle(void* blob_wrapper);
+FBIRD_API void* fbb_get_handle(void* blob_wrapper);
 
 /**
  * Free blob wrapper (without closing - blob must be closed first).
  *
  * @param blob_wrapper Blob wrapper pointer
  */
-void fbb_free(void* blob_wrapper);
+FBIRD_API void fbb_free(void* blob_wrapper);
 
 /* Firebird OO API Event Functions */
 
@@ -833,7 +833,7 @@ void fbb_free(void* blob_wrapper);
  * @param status_vector Output status vector
  * @return 1 on success, 0 on error
  */
-int fbe_cancel(void* master_ptr, void* events_wrapper, ISC_STATUS* status_vector);
+FBIRD_API int fbe_cancel(void* master_ptr, void* events_wrapper, ISC_STATUS* status_vector);
 
 /**
  * Check if an event has fired (non-blocking).
@@ -841,14 +841,14 @@ int fbe_cancel(void* master_ptr, void* events_wrapper, ISC_STATUS* status_vector
  * @param events_wrapper Events wrapper pointer
  * @return 1 if event fired, 0 otherwise
  */
-int fbe_has_event_fired(void* events_wrapper);
+FBIRD_API int fbe_has_event_fired(void* events_wrapper);
 
 /**
  * Reset the event fired flag.
  *
  * @param events_wrapper Events wrapper pointer
  */
-void fbe_reset_event_fired(void* events_wrapper);
+FBIRD_API void fbe_reset_event_fired(void* events_wrapper);
 
 /**
  * Check if events are queued.
@@ -856,21 +856,21 @@ void fbe_reset_event_fired(void* events_wrapper);
  * @param events_wrapper Events wrapper pointer
  * @return 1 if queued, 0 otherwise
  */
-int fbe_is_queued(void* events_wrapper);
+FBIRD_API int fbe_is_queued(void* events_wrapper);
 
 /**
  * Free events wrapper.
  *
  * @param events_wrapper Events wrapper pointer
  */
-void fbe_free(void* events_wrapper);
+FBIRD_API void fbe_free(void* events_wrapper);
 
 /**
  * Free an event buffer allocated by fbe_event_block() / isc_event_block().
  *
  * @param buf Buffer to free (may be NULL)
  */
-void fbe_event_free(unsigned char* buf);
+FBIRD_API void fbe_event_free(unsigned char* buf);
 
 /**
  * Build event parameter block (EPB) for up to 15 events.
@@ -881,7 +881,7 @@ void fbe_event_free(unsigned char* buf);
  * @param count      Number of event names
  * @return Length of the event buffer
  */
-unsigned short fbe_event_block(unsigned char** event_buf, unsigned char** result_buf,
+FBIRD_API unsigned short fbe_event_block(unsigned char** event_buf, unsigned char** result_buf,
                                unsigned short count, ...);
 
 /**
@@ -895,7 +895,7 @@ unsigned short fbe_event_block(unsigned char** event_buf, unsigned char** result
  * @param result_buffer  Result buffer (from fbe_event_block())
  * @return 0 on success, non-zero on error
  */
-ISC_STATUS fbe_wait_for_event_oo(ISC_STATUS* status_vector, void* attachment_ptr,
+FBIRD_API ISC_STATUS fbe_wait_for_event_oo(ISC_STATUS* status_vector, void* attachment_ptr,
                                   unsigned short buffer_length,
                                   unsigned char* event_buffer,
                                   unsigned char* result_buffer);
@@ -909,7 +909,7 @@ ISC_STATUS fbe_wait_for_event_oo(ISC_STATUS* status_vector, void* attachment_ptr
  * @param event_buffer   Event buffer (from fbe_event_block())
  * @param result_buffer  Result buffer (filled by fbe_wait_for_event())
  */
-void fbe_event_counts(ISC_ULONG* result_counts, unsigned short buffer_length,
+FBIRD_API void fbe_event_counts(ISC_ULONG* result_counts, unsigned short buffer_length,
                       unsigned char* event_buffer, unsigned char* result_buffer);
 
 /* Firebird OO API Service Functions */
@@ -924,7 +924,7 @@ void fbe_event_counts(ISC_ULONG* result_counts, unsigned short buffer_length,
  * @param status_vector Output status vector
  * @return Opaque service wrapper pointer, or NULL on error
  */
-void* fbsvc_attach(void* master_ptr,
+FBIRD_API void* fbsvc_attach(void* master_ptr,
                    const char* service_name,
                    unsigned spb_length,
                    const unsigned char* spb,
@@ -938,7 +938,7 @@ void* fbsvc_attach(void* master_ptr,
  * @param status_vector Output status vector
  * @return 1 on success, 0 on error
  */
-int fbsvc_detach(void* master_ptr, void* service_wrapper, ISC_STATUS* status_vector);
+FBIRD_API int fbsvc_detach(void* master_ptr, void* service_wrapper, ISC_STATUS* status_vector);
 
 /**
  * Start a service task.
@@ -950,7 +950,7 @@ int fbsvc_detach(void* master_ptr, void* service_wrapper, ISC_STATUS* status_vec
  * @param status_vector Output status vector
  * @return 1 on success, 0 on error
  */
-int fbsvc_start(void* master_ptr,
+FBIRD_API int fbsvc_start(void* master_ptr,
                 void* service_wrapper,
                 unsigned spb_length,
                 const unsigned char* spb,
@@ -970,7 +970,7 @@ int fbsvc_start(void* master_ptr,
  * @param status_vector Output status vector
  * @return 1 on success, 0 on error
  */
-int fbsvc_query(void* master_ptr,
+FBIRD_API int fbsvc_query(void* master_ptr,
                 void* service_wrapper,
                 unsigned send_length,
                 const unsigned char* send_items,
@@ -986,14 +986,14 @@ int fbsvc_query(void* master_ptr,
  * @param service_wrapper Service wrapper pointer
  * @return 1 if attached, 0 otherwise
  */
-int fbsvc_is_attached(void* service_wrapper);
+FBIRD_API int fbsvc_is_attached(void* service_wrapper);
 
 /**
  * Free service wrapper (without detach - service must be detached first).
  *
  * @param service_wrapper Service wrapper pointer
  */
-void fbsvc_free(void* service_wrapper);
+FBIRD_API void fbsvc_free(void* service_wrapper);
 
 /* Firebird OO API Array Functions */
 
@@ -1010,7 +1010,7 @@ void fbsvc_free(void* service_wrapper);
  * @param status_vector Output status vector
  * @return 0 on success, non-zero on failure
  */
-int fba_get_slice(void* master_ptr,
+FBIRD_API int fba_get_slice(void* master_ptr,
                   void* attachment_ptr,
                   void* transaction_ptr,
                   ISC_QUAD* array_id,
@@ -1034,7 +1034,7 @@ int fba_get_slice(void* master_ptr,
  * @param status_vector Output status vector
  * @return 0 on success, non-zero on failure
  */
-int fba_lookup_bounds(void* master_ptr,
+FBIRD_API int fba_lookup_bounds(void* master_ptr,
                       void* attachment_ptr,
                       void* transaction_ptr,
                       const char* relation_name,
@@ -1055,7 +1055,7 @@ int fba_lookup_bounds(void* master_ptr,
  * @param status_vector Output status vector
  * @return 0 on success, non-zero on failure
  */
-int fba_put_slice(void* master_ptr,
+FBIRD_API int fba_put_slice(void* master_ptr,
                   void* attachment_ptr,
                   void* transaction_ptr,
                   ISC_QUAD* array_id,
@@ -1066,20 +1066,20 @@ int fba_put_slice(void* master_ptr,
 
 /* FB 4.0+ Extended Features (Timezone support, enhanced metadata) */
 #if FB_API_VER >= 40
-void fbu_decode_time_tz(void *master_ptr, const ISC_TIME_TZ* time_tz, unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions,
+FBIRD_API void fbu_decode_time_tz(void *master_ptr, const ISC_TIME_TZ* time_tz, unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions,
 	unsigned time_zone_buffer_length, char* time_zone_buffer);
-void fbu_decode_timestamp_tz(void *master_ptr, const ISC_TIMESTAMP_TZ* timestamp_tz,
+FBIRD_API void fbu_decode_timestamp_tz(void *master_ptr, const ISC_TIMESTAMP_TZ* timestamp_tz,
 	unsigned* year, unsigned* month, unsigned* day,
 	unsigned* hours, unsigned* minutes, unsigned* seconds, unsigned* fractions,
 	unsigned time_zone_buffer_length, char* time_zone_buffer);
 
 /* Encode time with timezone - pass timezone as string like "+02:00" or "Europe/Berlin" */
-int fbu_encode_time_tz(void *master_ptr, ISC_TIME_TZ* time_tz,
+FBIRD_API int fbu_encode_time_tz(void *master_ptr, ISC_TIME_TZ* time_tz,
 	unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions,
 	const char* time_zone);
 
 /* Encode timestamp with timezone - pass timezone as string like "+02:00" or "Europe/Berlin" */
-int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* timestamp_tz,
+FBIRD_API int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* timestamp_tz,
 	unsigned year, unsigned month, unsigned day,
 	unsigned hours, unsigned minutes, unsigned seconds, unsigned fractions,
 	const char* time_zone);
@@ -1093,7 +1093,7 @@ int fbu_encode_timestamp_tz(void *master_ptr, ISC_TIMESTAMP_TZ* timestamp_tz,
  * @param buffer_length Buffer size
  * @return 0 on success, -1 on error
  */
-int fbu_int128_to_string(void *master_ptr, const void *value, int scale,
+FBIRD_API int fbu_int128_to_string(void *master_ptr, const void *value, int scale,
 	char *buffer, unsigned buffer_length);
 
 /**
@@ -1104,7 +1104,7 @@ int fbu_int128_to_string(void *master_ptr, const void *value, int scale,
  * @param buffer_length Buffer size
  * @return 0 on success, -1 on error
  */
-int fbu_decfloat16_to_string(void *master_ptr, const void *value,
+FBIRD_API int fbu_decfloat16_to_string(void *master_ptr, const void *value,
 	char *buffer, unsigned buffer_length);
 
 /**
@@ -1115,7 +1115,7 @@ int fbu_decfloat16_to_string(void *master_ptr, const void *value,
  * @param buffer_length Buffer size
  * @return 0 on success, -1 on error
  */
-int fbu_decfloat34_to_string(void *master_ptr, const void *value,
+FBIRD_API int fbu_decfloat34_to_string(void *master_ptr, const void *value,
 	char *buffer, unsigned buffer_length);
 
 /**
@@ -1125,7 +1125,7 @@ int fbu_decfloat34_to_string(void *master_ptr, const void *value,
  * @param value Output: FB_DEC16 value
  * @return 0 on success, -1 on error
  */
-int fbu_string_to_decfloat16(void *master_ptr, const char *str, void *value);
+FBIRD_API int fbu_string_to_decfloat16(void *master_ptr, const char *str, void *value);
 
 /**
  * Convert string to FB_DEC34 (DECFLOAT(34)).
@@ -1134,7 +1134,7 @@ int fbu_string_to_decfloat16(void *master_ptr, const char *str, void *value);
  * @param value Output: FB_DEC34 value
  * @return 0 on success, -1 on error
  */
-int fbu_string_to_decfloat34(void *master_ptr, const char *str, void *value);
+FBIRD_API int fbu_string_to_decfloat34(void *master_ptr, const char *str, void *value);
 
 /**
  * Convert string to FB_I128 (INT128).
@@ -1144,12 +1144,12 @@ int fbu_string_to_decfloat34(void *master_ptr, const char *str, void *value);
  * @param value Output: FB_I128 value
  * @return 0 on success, -1 on error
  */
-int fbu_string_to_int128(void *master_ptr, const char *str, int scale, void *value);
+FBIRD_API int fbu_string_to_int128(void *master_ptr, const char *str, int scale, void *value);
 #endif // FB_API_VER >= 40
 
-int fbu_insert_field_info(void *master_ptr, ISC_STATUS* status, int is_outvar, int num,
+FBIRD_API int fbu_insert_field_info(void *master_ptr, ISC_STATUS* status, int is_outvar, int num,
   zval *into_array, void *statement_ptr);
-int fbu_insert_aliases(void *master_ptr, ISC_STATUS* status, fbird_query *fb_query,
+FBIRD_API int fbu_insert_aliases(void *master_ptr, ISC_STATUS* status, fbird_query *fb_query,
   void *statement_ptr);
 
 /**
@@ -1164,7 +1164,7 @@ int fbu_insert_aliases(void *master_ptr, ISC_STATUS* status, fbird_query *fb_que
  * @param metadata_ptr IMessageMetadata pointer (from fbs_get_output_metadata)
  * @return Buffer size in bytes, or 0 on error
  */
-unsigned fbm_get_message_length(void* master_ptr, void* metadata_ptr);
+FBIRD_API unsigned fbm_get_message_length(void* master_ptr, void* metadata_ptr);
 
 /**
  * Get field count from metadata.
@@ -1172,7 +1172,7 @@ unsigned fbm_get_message_length(void* master_ptr, void* metadata_ptr);
  * @param metadata_ptr IMessageMetadata pointer
  * @return Number of fields
  */
-unsigned fbm_get_count(void* master_ptr, void* metadata_ptr);
+FBIRD_API unsigned fbm_get_count(void* master_ptr, void* metadata_ptr);
 
 /**
  * Get field data offset in message buffer.
@@ -1181,7 +1181,7 @@ unsigned fbm_get_count(void* master_ptr, void* metadata_ptr);
  * @param index Field index (0-based)
  * @return Byte offset of field data in buffer
  */
-unsigned fbm_get_offset(void* master_ptr, void* metadata_ptr, unsigned index);
+FBIRD_API unsigned fbm_get_offset(void* master_ptr, void* metadata_ptr, unsigned index);
 
 /**
  * Get null indicator offset in message buffer.
@@ -1190,7 +1190,7 @@ unsigned fbm_get_offset(void* master_ptr, void* metadata_ptr, unsigned index);
  * @param index Field index (0-based)
  * @return Byte offset of null indicator in buffer
  */
-unsigned fbm_get_null_offset(void* master_ptr, void* metadata_ptr, unsigned index);
+FBIRD_API unsigned fbm_get_null_offset(void* master_ptr, void* metadata_ptr, unsigned index);
 
 /**
  * Get field SQL type.
@@ -1199,7 +1199,7 @@ unsigned fbm_get_null_offset(void* master_ptr, void* metadata_ptr, unsigned inde
  * @param index Field index (0-based)
  * @return SQL type code (SQL_TEXT, SQL_VARYING, SQL_LONG, etc.)
  */
-unsigned fbm_get_type(void* master_ptr, void* metadata_ptr, unsigned index);
+FBIRD_API unsigned fbm_get_type(void* master_ptr, void* metadata_ptr, unsigned index);
 
 /**
  * Get field subtype (for blobs, char sets).
@@ -1208,7 +1208,7 @@ unsigned fbm_get_type(void* master_ptr, void* metadata_ptr, unsigned index);
  * @param index Field index (0-based)
  * @return Subtype value
  */
-unsigned fbm_get_subtype(void* master_ptr, void* metadata_ptr, unsigned index);
+FBIRD_API unsigned fbm_get_subtype(void* master_ptr, void* metadata_ptr, unsigned index);
 
 /**
  * Get field data length.
@@ -1217,7 +1217,7 @@ unsigned fbm_get_subtype(void* master_ptr, void* metadata_ptr, unsigned index);
  * @param index Field index (0-based)
  * @return Data length in bytes
  */
-unsigned fbm_get_length(void* master_ptr, void* metadata_ptr, unsigned index);
+FBIRD_API unsigned fbm_get_length(void* master_ptr, void* metadata_ptr, unsigned index);
 
 /**
  * Get field scale (for numeric types).
@@ -1226,7 +1226,7 @@ unsigned fbm_get_length(void* master_ptr, void* metadata_ptr, unsigned index);
  * @param index Field index (0-based)
  * @return Scale value (negative for decimal places)
  */
-int fbm_get_scale(void* master_ptr, void* metadata_ptr, unsigned index);
+FBIRD_API int fbm_get_scale(void* master_ptr, void* metadata_ptr, unsigned index);
 
 /**
  * Get field charset ID.
@@ -1235,7 +1235,7 @@ int fbm_get_scale(void* master_ptr, void* metadata_ptr, unsigned index);
  * @param index Field index (0-based)
  * @return Charset ID
  */
-unsigned fbm_get_charset(void* master_ptr, void* metadata_ptr, unsigned index);
+FBIRD_API unsigned fbm_get_charset(void* master_ptr, void* metadata_ptr, unsigned index);
 
 /**
  * Get field name.
@@ -1244,7 +1244,7 @@ unsigned fbm_get_charset(void* master_ptr, void* metadata_ptr, unsigned index);
  * @param index Field index (0-based)
  * @return Field name (internal pointer - do not free)
  */
-const char* fbm_get_field(void* master_ptr, void* metadata_ptr, unsigned index);
+FBIRD_API const char* fbm_get_field(void* master_ptr, void* metadata_ptr, unsigned index);
 
 /**
  * Get field alias.
@@ -1253,7 +1253,7 @@ const char* fbm_get_field(void* master_ptr, void* metadata_ptr, unsigned index);
  * @param index Field index (0-based)
  * @return Field alias (internal pointer - do not free)
  */
-const char* fbm_get_alias(void* master_ptr, void* metadata_ptr, unsigned index);
+FBIRD_API const char* fbm_get_alias(void* master_ptr, void* metadata_ptr, unsigned index);
 
 /**
  * Get field relation (table) name.
@@ -1262,13 +1262,13 @@ const char* fbm_get_alias(void* master_ptr, void* metadata_ptr, unsigned index);
  * @param index Field index (0-based)
  * @return Relation name (internal pointer - do not free)
  */
-const char* fbm_get_relation(void* master_ptr, void* metadata_ptr, unsigned index);
+FBIRD_API const char* fbm_get_relation(void* master_ptr, void* metadata_ptr, unsigned index);
 
 /**
  * Release metadata reference.
  * @param metadata_ptr IMessageMetadata pointer
  */
-void fbm_release(void* metadata_ptr);
+FBIRD_API void fbm_release(void* metadata_ptr);
 
 /* IXpbBuilder-based Parameter Block Construction */
 
@@ -1290,7 +1290,7 @@ void fbm_release(void* metadata_ptr);
  * @param status_vector Output status vector for errors
  * @return Allocated TPB buffer (caller must free with fbxpb_free_tpb), or NULL on error
  */
-unsigned char* fbxpb_build_tpb(
+FBIRD_API unsigned char* fbxpb_build_tpb(
     void* master_ptr,
     zend_long trans_flags,
     zend_long lock_timeout,
@@ -1303,7 +1303,7 @@ unsigned char* fbxpb_build_tpb(
  *
  * @param buffer Buffer to free (NULL-safe)
  */
-void fbxpb_free_tpb(unsigned char* buffer);
+FBIRD_API void fbxpb_free_tpb(unsigned char* buffer);
 
 /* Limbo Transaction Functions (Two-Phase Commit Recovery)
  *
@@ -1370,7 +1370,7 @@ FBIRD_API void* fbt_reconnect(
  * @param status_vector Output status vector
  * @return Opaque batch wrapper pointer, or NULL on error
  */
-void* fbbatch_create(
+FBIRD_API void* fbbatch_create(
     void* master_ptr,
     void* statement_ptr,
     unsigned buffer_size,
@@ -1390,7 +1390,7 @@ void* fbbatch_create(
  * @param status_vector Output status vector
  * @return 1 on success, 0 on error
  */
-int fbbatch_add(
+FBIRD_API int fbbatch_add(
     void* master_ptr,
     void* batch_wrapper,
     unsigned count,
@@ -1409,7 +1409,7 @@ int fbbatch_add(
  * @param status_vector Output status vector
  * @return 1 on success (even with partial errors), 0 on complete failure
  */
-int fbbatch_execute(
+FBIRD_API int fbbatch_execute(
     void* master_ptr,
     void* batch_wrapper,
     void* transaction_ptr,
@@ -1426,7 +1426,7 @@ int fbbatch_execute(
  * @param status_vector Output status vector
  * @return 1 on success, 0 on error
  */
-int fbbatch_cancel(
+FBIRD_API int fbbatch_cancel(
     void* master_ptr,
     void* batch_wrapper,
     ISC_STATUS* status_vector
@@ -1440,7 +1440,7 @@ int fbbatch_cancel(
  * @param status_vector Output status vector
  * @return 1 on success, 0 on error
  */
-int fbbatch_close(
+FBIRD_API int fbbatch_close(
     void* master_ptr,
     void* batch_wrapper,
     ISC_STATUS* status_vector
@@ -1456,7 +1456,7 @@ int fbbatch_close(
  * @param status_vector Output status vector
  * @return IMessageMetadata pointer (caller should release), or NULL on error
  */
-void* fbbatch_get_metadata(
+FBIRD_API void* fbbatch_get_metadata(
     void* master_ptr,
     void* batch_wrapper,
     ISC_STATUS* status_vector
@@ -1470,7 +1470,7 @@ void* fbbatch_get_metadata(
  * @param status_vector Output status vector
  * @return Alignment in bytes, or 0 on error
  */
-unsigned fbbatch_get_blob_alignment(
+FBIRD_API unsigned fbbatch_get_blob_alignment(
     void* master_ptr,
     void* batch_wrapper,
     ISC_STATUS* status_vector
@@ -1498,7 +1498,7 @@ unsigned fbbatch_get_blob_alignment(
  * @param status_vector Output status vector
  * @return 1 on success, 0 on error
  */
-int fbbatch_add_blob(
+FBIRD_API int fbbatch_add_blob(
     void* master_ptr,
     void* batch_wrapper,
     unsigned length,
@@ -1522,7 +1522,7 @@ int fbbatch_add_blob(
  * @param status_vector Output status vector
  * @return 1 on success, 0 on error
  */
-int fbbatch_append_blob_data(
+FBIRD_API int fbbatch_append_blob_data(
     void* master_ptr,
     void* batch_wrapper,
     unsigned length,
@@ -1543,7 +1543,7 @@ int fbbatch_append_blob_data(
  * @param status_vector Output status vector
  * @return 1 on success, 0 on error
  */
-int fbbatch_add_blob_stream(
+FBIRD_API int fbbatch_add_blob_stream(
     void* master_ptr,
     void* batch_wrapper,
     unsigned length,
@@ -1564,7 +1564,7 @@ int fbbatch_add_blob_stream(
  * @param status_vector Output status vector
  * @return 1 on success, 0 on error
  */
-int fbbatch_register_blob(
+FBIRD_API int fbbatch_register_blob(
     void* master_ptr,
     void* batch_wrapper,
     const ISC_QUAD* existing_blob,
@@ -1585,7 +1585,7 @@ int fbbatch_register_blob(
  * @param status_vector Output status vector
  * @return 1 on success, 0 on error
  */
-int fbbatch_set_default_bpb(
+FBIRD_API int fbbatch_set_default_bpb(
     void* master_ptr,
     void* batch_wrapper,
     unsigned bpb_length,
@@ -1643,7 +1643,7 @@ typedef struct {
  * @param status_vector Output status vector
  * @return 1 on success (even with partial errors), 0 on complete failure
  */
-int fbbatch_execute_detailed(
+FBIRD_API int fbbatch_execute_detailed(
     void* master_ptr,
     void* batch_wrapper,
     void* transaction_ptr,
@@ -1660,7 +1660,7 @@ int fbbatch_execute_detailed(
  * @param errors Error entries array to free
  * @param count Number of entries in the array
  */
-void fbbatch_free_errors(fbbatch_error_entry* errors, unsigned count);
+FBIRD_API void fbbatch_free_errors(fbbatch_error_entry* errors, unsigned count);
 
 /**
  * Free completion result from fbbatch_execute_detailed().
@@ -1669,7 +1669,7 @@ void fbbatch_free_errors(fbbatch_error_entry* errors, unsigned count);
  *
  * @param result Completion result to free
  */
-void fbbatch_free_result(fbbatch_completion_result* result);
+FBIRD_API void fbbatch_free_result(fbbatch_completion_result* result);
 
 #endif /* FB_API_VER >= 40 */
 

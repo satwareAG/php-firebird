@@ -41,7 +41,9 @@ inline void copyStatusToVector(Firebird::IStatus* status, ISC_STATUS* dest) noex
  */
 class StatementWrapper {
 public:
-    StatementWrapper() noexcept = default;
+    /* jane #620: no explicit noexcept on the defaulted ctor - see
+     * fb_transaction.hpp; el8 gcc 8.5 deletes on exception-spec mismatch. */
+    StatementWrapper() = default;
 
     ~StatementWrapper() noexcept {
         // Use free() for proper server-side cleanup (closes cursor + drops

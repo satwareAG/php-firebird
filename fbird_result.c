@@ -25,7 +25,6 @@
  * Use direct object initialization instead for DateTimeImmutable. */
 #include "php_fbird_includes.h"
 #include "php_fbird_query_internal.h"
-#include "Zend/zend_smart_str.h"
 #include "firebird_utils.h"
 #include "fbird_classes.h"
 

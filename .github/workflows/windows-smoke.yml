@@ -1,0 +1,203 @@
+# =============================================================================
+# Windows Smoke (NTS zips) - #585 regression lane
+# =============================================================================
+#
+# Reproduces and guards against the #585 crash class: 0xC0000005 at PHP
+# shutdown after Firebird connections, on Windows NTS builds.
+#
+# Replaces the physical probe host (pf-pc-dev, retired 2026-10-22): the
+# consumer's own CI (satwareAG/doctrine-firebird-driver .github/workflows/
+# windows.yml) proved the environment reproduces deterministically on
+# windows-latest runners - no physical Windows host is needed.
+#
+# Trigger:
+#   - workflow_dispatch (input `tag`: release tag to test; empty = latest)
+#   - pull_request touching this file or the smoke script
+#
+# Success criteria: `php scripts/windows/shutdown_smoke.php` exits 0 on every
+# PHP leg. The script's EXIT CODE IS THE TEST (the crash happens after normal
+# output completes). On a crash exit (-1073741819) the step dumps the Windows
+# Application Error event (faulting module + offset) before failing.
+#
+# jane: NTS only - the crash class was never observed on TS or on Linux/macOS
+#       builds of the same tags (#585). Add a ts axis here only if evidence
+#       demands it.
+# =============================================================================
+
+name: Windows Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to test (e.g. v13.2.8); empty = latest release'
+        required: false
+        default: ''
+  pull_request:
+    paths:
+      - '.github/workflows/windows-smoke.yml'
+      - 'scripts/windows/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nts-smoke:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3', '8.4', '8.5']
+
+    env:
+      ISC_USER: SYSDBA
+      ISC_PASSWORD: masterkey
+      SMOKE_DB: 'localhost:C:\firebird_tests\smoke.fdb'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Setup PHP ${{ matrix.php }} (NTS)
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, intl
+          coverage: none
+
+      - name: Cache Firebird (Chocolatey)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: C:\ProgramData\chocolatey\lib\firebird
+          key: ${{ runner.os }}-choco-firebird-3.0.13
+
+      - name: Install Firebird 3.0.13
+        shell: pwsh
+        run: |
+          # Pattern proven green in the consumer repo (driver windows.yml).
+          choco install firebird --version=3.0.13 --yes --no-progress --timeout 600
+
+          if (-not (Test-Path "C:\firebird_tests")) { New-Item -Path "C:\firebird_tests" -ItemType Directory }
+          icacls "C:\firebird_tests" /grant "Everyone:(OI)(CI)F" /T /C
+
+          $fbDir = (Get-ChildItem "C:\Program Files\Firebird\Firebird_*" | Select-Object -First 1).FullName
+          echo "$fbDir" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+          # Allow creating databases by absolute path from PHP
+          Add-Content -Path "$fbDir\firebird.conf" -Value "DatabaseAccess = Full"
+          $service = Get-Service | Where-Object { $_.Name -like "*Firebird*" } | Select-Object -First 1
+          if ($service) {
+            Restart-Service -Name $service.name
+            Start-Sleep -Seconds 5
+          }
+
+          # Health check: server answers a query
+          "select 1 from rdb`$database;" | & "$fbDir\isql.exe" -q -user SYSDBA -password masterkey "localhost:employee" 2>&1
+          if ($LASTEXITCODE -ne 0) { throw "Firebird health check failed (isql exit $LASTEXITCODE)" }
+          Write-Host "Firebird ready: $fbDir"
+
+      - name: Create smoke database
+        shell: pwsh
+        run: |
+          $fbDir = (Get-ChildItem "C:\Program Files\Firebird\Firebird_*" | Select-Object -First 1).FullName
+          $sql = "CREATE DATABASE 'C:\\firebird_tests\\smoke.fdb' user 'SYSDBA' password 'masterkey' DEFAULT CHARACTER SET UTF8;"
+          $sql | & "$fbDir\isql.exe" -q 2>&1
+          if (-not (Test-Path "C:\firebird_tests\smoke.fdb")) { throw "smoke.fdb not created" }
+          Write-Host "smoke.fdb created"
+
+      - name: Resolve release and download NTS zips
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          $headers = @{}
+          if ($env:GITHUB_TOKEN) { $headers["Authorization"] = "token $env:GITHUB_TOKEN" }
+
+          if ([string]::IsNullOrWhiteSpace($env:INPUT_TAG)) {
+            $release = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases/latest" -Headers $headers
+          } else {
+            $release = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/$env:INPUT_TAG" -Headers $headers
+          }
+          $version = $release.tag_name -replace '^v', ''
+          Write-Host "Testing release $($release.tag_name) (assets: $($release.assets.Count))"
+
+          $phpVer = "${{ matrix.php }}"
+          $vs = if ([version]$phpVer -ge [version]'8.4') { 'vs17' } else { 'vs16' }
+
+          # Exact-name resolution; NO floating fallback patterns (driver #167
+          # lesson: floating resolution silently switched DLL builds mid-queue).
+          $names = @(
+            "php_firebird-v$version-$phpVer-nts-$vs-x86_64.zip",
+            "php_pdo_fbird-v$version-$phpVer-nts-$vs-x86_64.zip"
+          )
+          foreach ($name in $names) {
+            $asset = $release.assets | Where-Object { $_.name -eq $name } | Select-Object -First 1
+            if (-not $asset) { throw "Asset not found in $($release.tag_name): $name" }
+            Write-Host "Downloading $($asset.name)"
+            Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $asset.name -Headers $headers
+          }
+          "version=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install extension DLLs
+        shell: pwsh
+        run: |
+          $phpDir = Split-Path -Parent (Get-Command php).Source
+          $vs = if ([version]"${{ matrix.php }}" -ge [version]'8.4') { 'vs17' } else { 'vs16' }
+          # env var `version` was set from GITHUB_ENV in the resolve step
+          $version = $env:version
+
+          Expand-Archive -Path "php_firebird-v$version-${{ matrix.php }}-nts-$vs-x86_64.zip" -DestinationPath "ext_firebird" -Force
+          Expand-Archive -Path "php_pdo_fbird-v$version-${{ matrix.php }}-nts-$vs-x86_64.zip" -DestinationPath "ext_pdo" -Force
+
+          $mainDll = Get-ChildItem -Path "ext_firebird" -Filter "php_firebird*.dll" -Recurse | Select-Object -First 1
+          $pdoDll  = Get-ChildItem -Path "ext_pdo" -Filter "php_pdo_fbird*.dll" -Recurse | Select-Object -First 1
+          if (-not $mainDll) { throw "php_firebird dll not found in zip" }
+          if (-not $pdoDll)  { throw "php_pdo_fbird dll not found in zip" }
+
+          Copy-Item $mainDll.FullName -Destination "$phpDir\ext\php_firebird.dll" -Force
+          Copy-Item $pdoDll.FullName  -Destination "$phpDir\ext\php_pdo_fbird.dll" -Force
+
+          $phpIni = php -r "echo php_ini_loaded_file();"
+          if (-not $phpIni) { $phpIni = "$phpDir\php.ini" }
+          if (-not (Test-Path $phpIni)) { Copy-Item "$phpDir\php.ini-development" $phpIni }
+          Add-Content -Path $phpIni -Value "`nextension=firebird`nextension=pdo_fbird"
+
+          # Firebird client from the server install (choco) + legacy alias
+          $fbDir = (Get-ChildItem "C:\Program Files\Firebird\Firebird_*" | Select-Object -First 1).FullName
+          Copy-Item "$fbDir\fbclient.dll" -Destination $phpDir -Force
+          Copy-Item "$fbDir\fbclient.dll" -Destination "$phpDir\gds32.dll" -Force
+
+          php -r "if (!extension_loaded('firebird')) { exit(1); }"
+          php -r "if (!extension_loaded('pdo_fbird')) { exit(1); }"
+          Write-Host "extensions loaded: firebird, pdo_fbird"
+
+      - name: Run shutdown smoke (exit code IS the test)
+        shell: pwsh
+        run: |
+          Write-Host "=== smoke run: PHP $((php -r 'echo PHP_VERSION;')) ==="
+          php scripts/windows/shutdown_smoke.php
+          $code = $LASTEXITCODE
+          Write-Host "smoke-exit=$code"
+
+          if ($code -ne 0) {
+            Write-Host "=== CRASH/FAIL DIAGNOSTICS (Windows Application Error) ==="
+            try {
+              Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName='Application Error'} -MaxEvents 10 -ErrorAction Stop |
+                Where-Object { $_.message -match 'php' } |
+                Select-Object -First 3 |
+                ForEach-Object { Write-Host $_.message }
+            } catch {
+              Write-Host "no Application Error events captured: $_"
+            }
+            if ($code -eq -1073741819) {
+              Write-Host "::error::#585 crash class reproduced: 0xC0000005 at shutdown (PHP ${{ matrix.php }} NTS)"
+            }
+            exit 1
+          }
+          Write-Host "SMOKE PASS: clean shutdown on PHP ${{ matrix.php }} NTS"

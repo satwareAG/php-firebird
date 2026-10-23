@@ -44,6 +44,11 @@ docker run --rm \
     sh -c '
         set -euo pipefail
 
+        # 647: on exit (success or failure), purge *.dep fragments this Alpine
+        # phpize84 run leaves - absolute /workspace + /usr/include/php84 paths
+        # poison dev containers and other consumers of the shared tree.
+        trap "find /workspace -name \*.dep -delete 2>/dev/null || true" EXIT
+
         echo ">>> Installing build dependencies..."
         apk add --no-cache \
             build-base \
@@ -88,6 +93,13 @@ docker run --rm \
 
         echo ">>> Building php-firebird extension..."
         cd /workspace
+        # 647: purge cross-toolchain phpize state first. *.dep fragments carry
+        # absolute PHP-header paths from other distros (e.g. Debian
+        # /usr/include/php/2024...) and phpize --clean does NOT remove them;
+        # stale entries become fatal "No rule to make target" errors.
+        # Same pattern as scripts/build.sh.
+        find . -name '*.dep' -delete 2>/dev/null || true
+        rm -rf .libs pdo_fbird/.libs 2>/dev/null || true
         phpize84 --clean
         phpize84
         CFLAGS="-I/tmp/fbclient/include -I/tmp/fbclient/include/firebird" \
@@ -112,6 +124,9 @@ docker run --rm \
 
         echo ">>> Building pdo_fbird extension..."
         cd pdo_fbird
+        find ../ -maxdepth 1 -name '*.dep' -delete 2>/dev/null || true
+        find . -name '*.dep' -delete 2>/dev/null || true
+        rm -rf .libs 2>/dev/null || true
         phpize84 --clean
         phpize84
         CFLAGS="-I/tmp/fbclient/include -I/tmp/fbclient/include/firebird" \

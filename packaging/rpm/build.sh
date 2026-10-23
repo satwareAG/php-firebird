@@ -123,6 +123,11 @@ else
 fi
 cd "$REPO_ROOT"
 
+# 647: never leave *.dep fragments in the shared tree - they carry absolute
+# paths from THIS distro's PHP headers and poison the next cross-env build
+# (phpize --clean does NOT remove them; same pattern as scripts/build.sh).
+trap 'find . -name "*.dep" -delete 2>/dev/null || true' EXIT
+
 # -----------------------------------------------------------------------------
 # Step 1: Fetch FB5 client
 # -----------------------------------------------------------------------------

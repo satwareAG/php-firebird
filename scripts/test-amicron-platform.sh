@@ -200,6 +200,12 @@ fi
 if [[ "$SKIP_PHPUNIT" == "false" ]]; then
     section "PHPUnit"
 
+    # 646: the suite's mailer tests default to the compose-internal DSN
+    # (smtp://mailer:1025); 'mailer' is unresolvable from the host and 1025
+    # is not host-mapped, so SymfonyMailerTest fails on every host-run gate.
+    # Honor an explicit override, else use a null transport (no delivery).
+    export MAILER_DSN="${MAILER_DSN:-null://null}"
+
     if [[ -x "vendor/bin/phpunit" ]]; then
         if vendor/bin/phpunit --colors=always --testdox 2>&1 | tail -20; then
             pass "PHPUnit"

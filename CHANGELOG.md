@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **#639: Windows `php_pdo_fbird` DLLs required a runtime exporting `smart_str_ferealloc`** (only `php8.dll` 8.5.12+ has it; 8.5.0-8.5.11 failed to load with "The specified procedure could not be found"). smart_str usage in the pdo translation units is replaced with the runtime-agnostic `fbird_buf` grow-buffer, so the DLLs import no `smart_str_*` symbol at all and load on every PHP 8.2-8.5 runtime. New build gate `scripts/check-smart-str-imports.sh` (ELF `nm -D` / PE `objdump -p`) is wired into `scripts/build.sh` for all lanes and fails any build importing `smart_str_*` (validated RED pre-fix / GREEN post-fix; PE import-table assertion follows in #643).
+
+### Added
+
+- **#620: EL8/EL9 `.rpm` build legs in the packages workflow** (Remi `php:remi-8.3` module stream; CRB/PowerTools enabled for build deps - re2c/ninja-build are not in base+EPEL) and `upload-release-assets` now attaches the el8/el9 rpms to release assets. Carries a portability fix surfaced by el8's GCC 8.5: defaulted OO wrapper ctors (`Transaction`/`Connection`/`StatementWrapper`) dropped an explicit `noexcept` that, combined with potentially-throwing member initializers, made the constructor deleted.
+
 ## [13.2.9] - 2026-10-22
 
 ### Fixed

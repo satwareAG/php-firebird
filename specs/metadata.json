@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "name": "php-firebird",
-  "version": "13.2.9",
+  "version": "13.2.10",
   "sdd_source": "https://github.com/satwareAG/spec-kit",
   "forge": "github",
   "visibility": "public",
@@ -51,7 +51,12 @@
       "local_path": "~/external/php-src",
       "role": "Zend Engine API reference (read-only; resource lifecycle, list destructors, executor globals semantics)",
       "branch": "master",
-      "supported_branches": ["PHP-8.2", "PHP-8.3", "PHP-8.4", "PHP-8.5"]
+      "supported_branches": [
+        "PHP-8.2",
+        "PHP-8.3",
+        "PHP-8.4",
+        "PHP-8.5"
+      ]
     }
   },
   "downstream": {

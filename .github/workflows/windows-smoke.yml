@@ -65,7 +65,7 @@ jobs:
       # jane: PR-event fallback tag - PINNED, never 'latest' (anti-float rule,
       #       driver #167 lesson). Bump when a release should become the PR-lane
       #       default; dispatch runs take the explicit input tag instead.
-      DEFAULT_TAG: v13.2.9
+      DEFAULT_TAG: v13.2.10
       # jane: consumer control oracle pinned to the commit whose suite produced
       #       the 2026-10-22 #585 evidence. Bump deliberately; a floating branch
       #       redefines the crash oracle without a trace in this repo.

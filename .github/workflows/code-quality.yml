@@ -85,6 +85,9 @@ jobs:
           chmod +x scripts/check-clean-sections.sh
           bash scripts/check-clean-sections.sh
 
+      - name: Check Windows DLL gate parser fixtures (#643)
+        run: node scripts/windows/test-check-dll-exports.mjs
+
   # ==========================================================================
   # C/C++ Static Analysis (clang-tidy + cppcheck)
   # ==========================================================================

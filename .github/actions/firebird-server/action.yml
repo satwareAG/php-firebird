@@ -1,0 +1,56 @@
+# =============================================================================
+# Firebird server (Windows test runner)
+# =============================================================================
+# Installs Firebird 3.0.13 via choco, configures it for absolute-path DB
+# creation, health-checks it, and creates the smoke database used by the
+# Windows smoke lanes.
+#
+# Single source for every lane that runs the shutdown smoke on a Windows
+# runner:
+#   - .github/workflows/windows-smoke.yml (standalone dispatch + PR lane)
+#   - .github/workflows/release-windows.yml pre-publish smoke gate (#652)
+#
+# jane: NO actions/cache on the choco lib dir - a restored lib makes choco
+#       report "already installed" WITHOUT running the actual Firebird
+#       installer (Program Files stays empty -> isql health check fails).
+#       Determinism over speed; install is ~3 min.
+# =============================================================================
+
+name: 'Firebird server (test)'
+description: 'Install Firebird 3.0.13, configure for absolute-path DB creation, health-check, create smoke DB'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Firebird 3.0.13
+      shell: pwsh
+      run: |
+        choco install firebird --version=3.0.13 --yes --no-progress --timeout 600
+
+        if (-not (Test-Path "C:\firebird_tests")) { New-Item -Path "C:\firebird_tests" -ItemType Directory }
+        icacls "C:\firebird_tests" /grant "Everyone:(OI)(CI)F" /T /C
+
+        $fbDir = (Get-ChildItem "C:\Program Files\Firebird\Firebird_*" | Select-Object -First 1).FullName
+        echo "$fbDir" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+        # Allow creating databases by absolute path from PHP
+        Add-Content -Path "$fbDir\firebird.conf" -Value "DatabaseAccess = Full"
+        $service = Get-Service | Where-Object { $_.Name -like "*Firebird*" } | Select-Object -First 1
+        if ($service) {
+          Restart-Service -Name $service.name
+          Start-Sleep -Seconds 5
+        }
+
+        # Health check: server answers a query
+        "select 1 from rdb`$database;" | & "$fbDir\isql.exe" -q -user SYSDBA -password masterkey "localhost:employee" 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "Firebird health check failed (isql exit $LASTEXITCODE)" }
+        Write-Host "Firebird ready: $fbDir"
+
+    - name: Create smoke database
+      shell: pwsh
+      run: |
+        $fbDir = (Get-ChildItem "C:\Program Files\Firebird\Firebird_*" | Select-Object -First 1).FullName
+        $sql = "CREATE DATABASE 'C:\\firebird_tests\\smoke.fdb' user 'SYSDBA' password 'masterkey' DEFAULT CHARACTER SET UTF8;"
+        $sql | & "$fbDir\isql.exe" -q 2>&1
+        if (-not (Test-Path "C:\firebird_tests\smoke.fdb")) { throw "smoke.fdb not created" }
+        Write-Host "smoke.fdb created"

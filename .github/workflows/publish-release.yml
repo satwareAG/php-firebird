@@ -34,7 +34,10 @@ concurrency:
 jobs:
   wait-and-publish:
     runs-on: ubuntu-24.04
-    timeout-minutes: 70
+    # jane #652: +smoke gate on the critical path (windows build+smoke+marker
+    # ~= 55-60 min worst case). Raised from 70 to keep the fail-closed wait
+    # from timing out on a healthy-but-slow release.
+    timeout-minutes: 100
 
     steps:
       - name: Determine release tag
@@ -53,15 +56,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      - name: Wait for all platform assets on release
+      - name: Wait for all platform assets + smoke marker on release
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
-          MAX_WAIT=3600   # 60 minutes (Linux builds 32 bundles, can take 40+ min)
+          MAX_WAIT=5400   # 90 minutes (#652: windows build + smoke + marker join the critical path)
           INTERVAL=30
           ELAPSED=0
 
           # RC tags: publish with whatever assets are available (minimum: Linux >= 4 OR macOS >= 4)
-          # Stable tags: require all platforms (Linux >= 8, macOS >= 4, Windows >= 8)
+          # Stable tags: require all platforms (Linux >= 8, macOS >= 4, Windows >= 8) + smoke marker
           # jane: RC releases exist for downstream testing — a partial release
           # (e.g. Windows fails with 504) is still useful for testing Linux/macOS.
           IS_RC=$(echo "$TAG" | grep -qiE '(rc|beta|alpha|dev)\.' && echo "true" || echo "false")
@@ -72,19 +75,27 @@ jobs:
             LINUX=$(echo "$ASSETS_JSON" | jq '[.assets[].name | select(endswith(".tar.gz") and contains("linux"))] | length' 2>/dev/null || echo 0)
             MACOS=$(echo "$ASSETS_JSON" | jq '[.assets[].name | select(endswith(".tar.gz") and contains("macos"))] | length' 2>/dev/null || echo 0)
             WIN=$(echo "$ASSETS_JSON" | jq '[.assets[].name | select(endswith(".zip") and contains("x86_64"))] | length' 2>/dev/null || echo 0)
+            MARKER=$(echo "$ASSETS_JSON" | jq '[.assets[].name | select(. == "SMOKE-PASSED.json")] | length' 2>/dev/null || echo 0)
 
-            echo "Assets: Linux=$LINUX, macOS=$MACOS, Windows=$WIN (${ELAPSED}s / ${MAX_WAIT}s) RC=$IS_RC"
+            echo "Assets: Linux=$LINUX, macOS=$MACOS, Windows=$WIN, SmokeMarker=$MARKER (${ELAPSED}s / ${MAX_WAIT}s) RC=$IS_RC"
 
             if [ "$IS_RC" = "true" ]; then
-              # RC: sufficient if Linux OR macOS assets are present
-              if [ "$LINUX" -ge 4 ] || [ "$MACOS" -ge 4 ]; then
-                echo "RC: sufficient assets for pre-release (Linux=$LINUX, macOS=$MACOS, Windows=$WIN)"
+              # RC (condition 5, #652): Windows zips attached => smoke marker required
+              # (RCs reach consumers via PIE/zips). No Windows zips => old partial-RC
+              # semantics apply. Partial Windows states keep waiting (fail closed) -
+              # a late untested upload to a public RC is the race we refuse.
+              if { [ "$LINUX" -ge 4 ] || [ "$MACOS" -ge 4 ]; } && [ "$WIN" -eq 0 ] && [ "$MARKER" -eq 0 ]; then
+                echo "RC: sufficient non-Windows assets (Linux=$LINUX, macOS=$MACOS) - publishing without Windows gate"
+                exit 0
+              fi
+              if { [ "$LINUX" -ge 4 ] || [ "$MACOS" -ge 4 ]; } && [ "$WIN" -ge 8 ] && [ "$MARKER" -ge 1 ]; then
+                echo "RC: all platform assets present, Windows smoke-gated (marker=$MARKER)"
                 exit 0
               fi
             else
-              # Stable: require all platforms
-              if [ "$LINUX" -ge 8 ] && [ "$MACOS" -ge 4 ] && [ "$WIN" -ge 8 ]; then
-                echo "All platform assets present"
+              # Stable: require all platforms + smoke marker (no marker, no publish)
+              if [ "$LINUX" -ge 8 ] && [ "$MACOS" -ge 4 ] && [ "$WIN" -ge 8 ] && [ "$MARKER" -ge 1 ]; then
+                echo "All platform assets present, Windows smoke-gated (marker=$MARKER)"
                 exit 0
               fi
             fi
@@ -93,8 +104,8 @@ jobs:
             ELAPSED=$((ELAPSED + INTERVAL))
           done
 
-          echo "ERROR: Timeout waiting for platform assets"
-          echo "Final counts: Linux=$LINUX, macOS=$MACOS, Windows=$WIN"
+          echo "ERROR: Timeout waiting for platform assets / smoke marker"
+          echo "Final counts: Linux=$LINUX, macOS=$MACOS, Windows=$WIN, SmokeMarker=$MARKER"
           exit 1
         env:
           GH_TOKEN: ${{ github.token }}
@@ -130,6 +141,55 @@ jobs:
             exit 1
           fi
           echo "OK: All expected platform assets present"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Verify smoke marker + asset checksum binding (#652)
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          ASSETS_JSON=$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets,databaseId)
+          RELEASE_ID=$(echo "$ASSETS_JSON" | jq -r '.databaseId')
+          MARKER_COUNT=$(echo "$ASSETS_JSON" | jq '[.assets[].name | select(. == "SMOKE-PASSED.json")] | length')
+          WIN=$(echo "$ASSETS_JSON" | jq '[.assets[].name | select(endswith(".zip") and contains("x86_64"))] | length')
+          IS_RC=$(echo "$TAG" | grep -qiE '(rc|beta|alpha|dev)\.' && echo "true" || echo "false")
+
+          # RC published without any Windows assets: nothing to gate (condition 5)
+          if [ "$IS_RC" = "true" ] && [ "$WIN" -eq 0 ] && [ "$MARKER_COUNT" -eq 0 ]; then
+            echo "RC without Windows assets - smoke marker not required"
+            exit 0
+          fi
+
+          if [ "$MARKER_COUNT" -ne 1 ]; then
+            echo "ERROR: expected exactly 1 SMOKE-PASSED.json marker, found $MARKER_COUNT - refusing to publish (fail closed)"
+            exit 1
+          fi
+
+          MARKER_ID=$(echo "$ASSETS_JSON" | jq -r '.assets[] | select(.name == "SMOKE-PASSED.json") | .id')
+          gh api "repos/${{ github.repository }}/releases/assets/$MARKER_ID" \
+            -H "Accept: application/octet-stream" > marker.json
+          jq . marker.json
+
+          # Binding 1: the marker must reference THIS release id
+          M_RELEASE_ID=$(jq -r '.release_id' marker.json)
+          if [ "$M_RELEASE_ID" != "$RELEASE_ID" ]; then
+            echo "ERROR: marker release_id ($M_RELEASE_ID) != actual release id ($RELEASE_ID) - refusing to publish"
+            exit 1
+          fi
+
+          # Binding 2: the tested bytes must be the bytes on the release NOW
+          # (guards asset replacement between smoke and publish - audit
+          # finding 3, council run 2)
+          mkdir -p wincheck && cd wincheck
+          for ts in nts ts; do
+            gh release download "$TAG" --pattern "php_firebird-*-${ts}-x86_64.zip" --clobber --repo "${{ github.repository }}"
+            gh release download "$TAG" --pattern "php_pdo_fbird-*-${ts}-x86_64.zip" --clobber --repo "${{ github.repository }}"
+          done
+          COUNT=$(ls -- *.zip | wc -l)
+          [ "$COUNT" -eq 8 ] || { echo "ERROR: expected 8 Windows zips, found $COUNT"; exit 1; }
+          printf '%s' "$(jq -r '.assets_sha256' ../marker.json)" > expected.sum
+          sha256sum -c expected.sum
+          cd ..
+          echo "OK: smoke marker verified (release_id bound, all 8 Windows zips byte-identical to the smoke-tested set)"
         env:
           GH_TOKEN: ${{ github.token }}
 

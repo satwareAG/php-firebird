@@ -288,3 +288,227 @@ jobs:
           expected-count: '8'
           asset-name-filter: 'x86_64\\.zip$'
 
+  # ===========================================================================
+  # Pre-publish smoke gate (#652, council verdict 2026-10-25: option A with
+  # binding conditions).
+  #
+  # Runs the shutdown smoke (scripts/windows/shutdown_smoke.php, the #585
+  # crash oracle) against the EXACT draft assets of THIS release, BEFORE
+  # publish-release.yml flips draft:false. publish-release.yml requires the
+  # SMOKE-PASSED.json marker asset this pipeline uploads on success - no
+  # marker, no publish (fail closed).
+  #
+  # Binding conditions implemented here:
+  #   2. release resolved by ID + exact asset-name verification (never
+  #      tag-name matching alone; list-releases + single-match + isDraft)
+  #   3. draft asset download via API octet-stream (browser_download_url
+  #      does not serve draft assets)
+  #   4. retry = re-run this workflow (rebuilds + re-tests + re-marks);
+  #      the only publish override is a manual, audited
+  #      `gh release edit --draft=false`, never automated
+  #   5. no tag-name exemptions: RCs are gated whenever Windows zips are
+  #      attached (RCs DO reach consumers via PIE/zips)
+  #   7. strict on BOTH extensions: a broken/unloadable php_pdo_fbird.dll
+  #      fails the gate (#636: broken pdo zips shipped before)
+  #
+  # Deliberately NOT changed: windows-smoke.yml keeps its standalone
+  # contents:read dispatch path for published releases (condition 6).
+  # ===========================================================================
+  pre-publish-smoke:
+    name: pre-publish-smoke (php ${{ matrix.php }} nts)
+    needs: release
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.tag != '')
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3', '8.4', '8.5']
+    env:
+      ISC_USER: SYSDBA
+      ISC_PASSWORD: masterkey
+      SMOKE_DB: 'localhost:C:\firebird_tests\smoke.fdb'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Determine tag
+        id: reltag
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="${{ inputs.tag }}"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve release by ID + verify exact asset names (fail closed)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = '${{ steps.reltag.outputs.tag }}'
+          $version = '${{ steps.reltag.outputs.version }}'
+
+          # Condition 2: list releases (drafts visible to contents:write),
+          # match tag_name exactly, require EXACTLY ONE match.
+          $matched = @()
+          foreach ($page in 1..5) {
+            $rel = gh api "repos/${{ github.repository }}/releases?per_page=100&page=$page" | ConvertFrom-Json
+            if ($rel.Count -eq 0) { break }
+            $matched += @($rel | Where-Object { $_.tag_name -eq $tag })
+          }
+          if ($matched.Count -ne 1) {
+            throw "Condition 2 violated: expected exactly 1 release for tag $tag, found $($matched.Count) (name collision / duplicate release?)"
+          }
+          $release = $matched[0]
+          if (-not $release.draft) {
+            Write-Host "::warning::release $tag is already published (id $($release.id)) - smoke continues against it (re-run path)"
+          }
+
+          # Verify all 8 Windows asset names on THIS release id.
+          $phpVer = '${{ matrix.php }}'
+          $vs = if ([version]$phpVer -ge [version]'8.4') { 'vs17' } else { 'vs16' }
+          $expected = @()
+          foreach ($tsLbl in @('nts', 'ts')) {
+            $expected += "php_firebird-v$version-$phpVer-$tsLbl-$vs-x86_64.zip"
+            $expected += "php_pdo_fbird-v$version-$phpVer-$tsLbl-$vs-x86_64.zip"
+          }
+          foreach ($name in $expected) {
+            $a = $release.assets | Where-Object { $_.name -eq $name }
+            if (-not $a) { throw "Asset missing on release $tag (id $($release.id)): $name" }
+          }
+          "release_id=$($release.id)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Release $tag resolved: id=$($release.id), all $($expected.Count) Windows assets present"
+
+          # Condition 3: download the NTS zips under test via API
+          # octet-stream (gh release download uses the API asset URL).
+          foreach ($name in @(
+            "php_firebird-v$version-$phpVer-nts-$vs-x86_64.zip",
+            "php_pdo_fbird-v$version-$phpVer-nts-$vs-x86_64.zip"
+          )) {
+            gh release download "$tag" --pattern "$name" --clobber --repo "${{ github.repository }}"
+            if (-not (Test-Path $name)) { throw "Download failed: $name" }
+            Write-Host "Downloaded: $name ($((Get-Item $name).Length) bytes)"
+          }
+
+      - name: Install Firebird + create smoke DB
+        uses: ./.github/actions/firebird-server
+
+      - name: Install extension DLLs (strict, both must load, #636)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '${{ steps.reltag.outputs.version }}'
+          $phpVer = '${{ matrix.php }}'
+          $vs = if ($phpVer -ge '8.4') { 'vs17' } else { 'vs16' }
+
+          Expand-Archive -Path "php_firebird-v$version-$phpVer-nts-$vs-x86_64.zip" -DestinationPath "ext_firebird" -Force
+          Expand-Archive -Path "php_pdo_fbird-v$version-$phpVer-nts-$vs-x86_64.zip" -DestinationPath "ext_pdo" -Force
+
+          $mainDll = Get-ChildItem -Path "ext_firebird" -Filter "php_firebird*.dll" -Recurse | Select-Object -First 1
+          $pdoDll  = Get-ChildItem -Path "ext_pdo" -Filter "php_pdo_fbird*.dll" -Recurse | Select-Object -First 1
+          if (-not $mainDll) { throw "php_firebird dll not found in zip" }
+          if (-not $pdoDll) { throw "php_pdo_fbird dll not found in zip - the release gate is STRICT on pdo (#636)" }
+
+          $phpDir = Split-Path -Parent (Get-Command php).Source
+          Copy-Item $mainDll.FullName -Destination "$phpDir\ext\php_firebird.dll" -Force
+          Copy-Item $pdoDll.FullName -Destination "$phpDir\ext\php_pdo_fbird.dll" -Force
+
+          $phpIni = php -r "echo php_ini_loaded_file();"
+          if (-not $phpIni) { $phpIni = "$phpDir\php.ini" }
+          if (-not (Test-Path $phpIni)) { Copy-Item "$phpDir\php.ini-development" $phpIni }
+          Add-Content -Path $phpIni -Value "`nextension=firebird"
+
+          $fbDir = (Get-ChildItem "C:\Program Files\Firebird\Firebird_*" | Select-Object -First 1).FullName
+          Copy-Item "$fbDir\fbclient.dll" -Destination $phpDir -Force
+          Copy-Item "$fbDir\fbclient.dll" -Destination "$phpDir\gds32.dll" -Force
+
+          php -r "if (!extension_loaded('firebird')) { exit(1); }"
+          if ($LASTEXITCODE -ne 0) { throw "php_firebird failed to load" }
+
+          php -d extension=pdo_fbird -r "exit(extension_loaded('pdo_fbird') ? 0 : 1);"
+          if ($LASTEXITCODE -ne 0) { throw "php_pdo_fbird present but UNLOADABLE - release gate blocks (#636 crash class)" }
+          Write-Host "extensions loaded: firebird, pdo_fbird"
+
+      - name: Run shutdown smoke (exit code IS the test)
+        shell: pwsh
+        run: |
+          Write-Host "=== gate smoke run: PHP $((php -r 'echo PHP_VERSION;')) ==="
+          php scripts/windows/shutdown_smoke.php
+          $code = $LASTEXITCODE
+          Write-Host "smoke-exit=$code"
+
+          if ($code -ne 0) {
+            Write-Host "=== CRASH/FAIL DIAGNOSTICS (Windows Application Error) ==="
+            try {
+              Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName='Application Error'} -MaxEvents 10 -ErrorAction Stop |
+                Where-Object { $_.message -match 'php' } |
+                Select-Object -First 3 |
+                ForEach-Object { Write-Host $_.message }
+            } catch {
+              Write-Host "no Application Error events captured: $_"
+            }
+            if ($code -eq -1073741819) {
+              Write-Host "::error::#585 crash class reproduced on RELEASE ASSETS: 0xC0000005 at shutdown (PHP ${{ matrix.php }} NTS) - publish BLOCKED"
+            }
+            exit 1
+          }
+          Write-Host "GATE SMOKE PASS: clean shutdown on release assets (PHP ${{ matrix.php }} NTS)"
+
+  # ===========================================================================
+  # Upload the SMOKE-PASSED.json marker ONLY after every leg passed.
+  # publish-release.yml requires this marker (and cross-checks its
+  # release_id + asset checksums) before flipping draft:false. Fail closed:
+  # no marker, no publish.
+  # ===========================================================================
+  smoke-marker:
+    name: upload smoke marker
+    needs: [release, pre-publish-smoke]
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.tag != '')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Resolve release + checksum assets + upload marker
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="${{ inputs.tag }}"
+          fi
+
+          # Condition 2 again at marker time: exactly one release, capture id.
+          RELEASE_ID=$(gh api "repos/${{ github.repository }}/releases?per_page=100" \
+            --jq "[.[] | select(.tag_name == \"$TAG\")] | if length != 1 then error(\"expected exactly 1 release for $TAG\") else .[0].id end")
+
+          mkdir -p dl && cd dl
+          for ts in nts ts; do
+            gh release download "$TAG" --pattern "php_firebird-*-${ts}-x86_64.zip" --clobber --repo "${{ github.repository }}"
+            gh release download "$TAG" --pattern "php_pdo_fbird-*-${ts}-x86_64.zip" --clobber --repo "${{ github.repository }}"
+          done
+          COUNT=$(ls -- *.zip | wc -l)
+          [ "$COUNT" -eq 8 ] || { echo "ERROR: expected 8 Windows zips, found $COUNT"; exit 1; }
+          sha256sum -- *.zip > ../SHA256SUMS
+
+          jq -n \
+            --arg release_id "$RELEASE_ID" \
+            --arg tag "$TAG" \
+            --arg run_id "${{ github.run_id }}" \
+            --arg commit "${{ github.sha }}" \
+            --rawfile sums ../SHA256SUMS \
+            '{release_id: $release_id, tag: $tag, run_id: $run_id, commit: $commit, assets_sha256: $sums}' \
+            > SMOKE-PASSED.json
+
+          gh release upload "$TAG" SMOKE-PASSED.json --clobber --repo "${{ github.repository }}"
+          echo "Marker uploaded: SMOKE-PASSED.json (release_id=$RELEASE_ID, run=${{ github.run_id }})"
+

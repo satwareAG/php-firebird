@@ -3,11 +3,11 @@
 # =============================================================================
 #
 # Builds .deb, .rpm, and .apk packages on tag push (v13.1.0+) and uploads
-# them as GitHub Release assets. The satis-deploy Gitea runner (spec-008)
+# them as GitHub Release assets. An internal staging pipeline (spec-008)
 # polls GitHub Releases API and deploys to packages.auc.de (staging).
 #
 # Production deployment to packages.satware.com is deferred until the VPS
-# is provisioned (satis spec-007 Phase D). The upload-apt job is kept
+# is provisioned (spec-007 Phase D). The upload-apt job is kept
 # but disabled (if: false) for future re-enablement.
 #
 # Triggers:
@@ -399,15 +399,16 @@ jobs:
   # ===========================================================================
   # Job 5: Test APT install from staging repo (#490)
   # ===========================================================================
-  # jane: staging repo (packages.auc.de/apt/) is deployed by the satis-deploy
-  #       Gitea runner (spec-008) which polls GitHub Releases API.
+  # jane: staging repo (packages.auc.de/apt/) is deployed by the internal
+  #       staging pipeline (spec-008) which polls GitHub Releases API.
   #       This job tests that the staging APT repo is functional end-to-end:
   #       a fresh container can apt install php-firebird and the extension
   #       loads with all procedural API functions.
   #       No `needs` dependency: the staging repo is populated asynchronously
-  #       by satis-deploy, independent of the build jobs in this workflow.
-  #       On tag push: tests whatever version satis-deploy has deployed
-  #       (may be the previous release — satis-deploy runs asynchronously).
+  #       by the internal staging pipeline, independent of the build jobs in
+  #       this workflow. On tag push: tests whatever version the pipeline has
+  #       deployed (may be the previous release - the pipeline runs
+  #       asynchronously).
   #       On workflow_dispatch: tests the last released version on staging.
   test-apt-install:
     name: Test APT install (${{ matrix.distro }} PHP ${{ matrix.php }})

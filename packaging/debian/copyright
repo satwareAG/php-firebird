@@ -3,6 +3,9 @@ Upstream-Name: php-firebird
 Upstream-Contact: satware AG <info@satware.com>
 Source: https://github.com/satwareAG/php-firebird
 
+This product includes PHP software, freely available from
+http://www.php.net/software/
+
 Files: *
 Copyright: 2024-2026 satware AG <info@satware.com>
 License: PHP-3.01

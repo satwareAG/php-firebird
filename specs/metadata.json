@@ -47,7 +47,9 @@
         "relationship": "SDD methodology provider: methodology and tooling this repo conforms to",
         "url": "https://github.com/satwareAG/spec-kit",
         "channel": "gh:issues",
-        "local_path": "~/external/spec-kit"
+        "local_path": "~/external/spec-kit",
+        "last_synced_tag": null,
+        "sync_state": "unverified - no baseline recorded before 2026-10-25; latest fork release satware-v1.2.3+1 (2026-10-22) not yet validated against this repo's specs/ (council 2026-10-25: record honest baseline, never certify an unvalidated sync)"
       },
       {
         "repo": "FirebirdSQL/firebird",
@@ -72,6 +74,20 @@
         "url": "https://github.com/satwareAG/doctrine-firebird-driver",
         "channel": "gh:issues",
         "local_path": "~/external/doctrine-firebird-driver"
+      },
+      {
+        "repo": "satwareAG/php-firebird-stubs",
+        "forge": "github",
+        "relationship": "split stubs package: consumer-facing PHP signature surface, generated from stubs/ by the Split Packages job of this repo's release pipeline (tag-synced)",
+        "url": "https://github.com/satwareAG/php-firebird-stubs",
+        "channel": "gh:issues"
+      },
+      {
+        "repo": "satwareAG/pdo-fbird",
+        "forge": "github",
+        "relationship": "PIE split package: pdo_fbird/ subdirectory (fbird: DSN prefix driver) split out by this repo's release pipeline (tag-synced)",
+        "url": "https://github.com/satwareAG/pdo-fbird",
+        "channel": "gh:issues"
       },
       {
         "repo": "_private_downstream (name redacted)",

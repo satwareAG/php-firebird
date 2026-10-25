@@ -1,10 +1,12 @@
 {
   "schema_version": "1.0",
+  "project": "satwareAG/php-firebird",
   "name": "php-firebird",
   "version": "13.2.10",
   "sdd_source": "https://github.com/satwareAG/spec-kit",
   "forge": "github",
   "visibility": "public",
+  "conformance_level": "L3",
   "local_path": "~/external/php-firebird",
   "ipadp": {
     "project_number": 1,
@@ -15,7 +17,7 @@
   },
   "ipadp_role": {
     "type": "gluepoint",
-    "description": "Sits between the upstream Firebird C/C++ client library (FirebirdSQL/firebird releases) and downstream doctrine-firebird-driver. Translates the Firebird OO API (IProvider/IAttachment/ITransaction) into PHP procedural (fbird_*) and OOP (Firebird\\*) layers.",
+    "description": "Sits between the upstream Firebird C/C++ client library (FirebirdSQL/firebird releases) and downstream consumers (doctrine-firebird-driver, native package channels). Translates the Firebird OO API (IProvider/IAttachment/ITransaction) into PHP procedural (fbird_*) and OOP (Firebird\\*) layers.",
     "connects": [
       {
         "side": "upstream",
@@ -28,56 +30,67 @@
         "project": "doctrine-firebird-driver",
         "interface": "fbird_* procedural functions + Firebird\\ OOP classes",
         "spec": "specs/spec-v12.1-doctrine-downstream.md"
+      },
+      {
+        "side": "downstream",
+        "project": "(private) linux package channel",
+        "interface": "GitHub release assets (.deb/.rpm/.apk) -> signed native package repositories",
+        "spec": "packages.auc.de (staging, Tier B) and packages.satware.com (production, Tier D); staging install verification runs in .github/workflows/packages-linux.yml"
       }
     ]
   },
-  "upstream": {
-    "spec-kit": {
-      "url": "https://github.com/satwareAG/spec-kit",
-      "forge": "github",
-      "local_path": "~/external/spec-kit",
-      "role": "methodology-provider"
-    },
-    "FirebirdSQL/firebird": {
-      "url": "https://github.com/FirebirdSQL/firebird",
-      "forge": "github",
-      "local_path": "~/external/firebird",
-      "role": "client library provider (libfbclient, OO API headers)",
-      "version": "5.0.4"
-    },
-    "php/php-src": {
-      "url": "https://github.com/php/php-src",
-      "forge": "github",
-      "local_path": "~/external/php-src",
-      "role": "Zend Engine API reference (read-only; resource lifecycle, list destructors, executor globals semantics)",
-      "branch": "master",
-      "supported_branches": [
-        "PHP-8.2",
-        "PHP-8.3",
-        "PHP-8.4",
-        "PHP-8.5"
-      ]
-    }
-  },
-  "downstream": {
-    "doctrine-firebird-driver": {
-      "url": "https://github.com/satwareAG/doctrine-firebird-driver",
-      "forge": "github",
-      "local_path": "~/external/doctrine-firebird-driver",
-      "visibility": "public",
-      "role": "primary DBAL consumer"
-    },
-    "_private_downstream": {
-      "forge": "gitlab",
-      "visibility": "private",
-      "role": "Symfony entity layer (name redacted - private repo)"
-    }
+  "dependencies": {
+    "upstream": [
+      {
+        "repo": "satwareAG/spec-kit",
+        "forge": "github",
+        "relationship": "SDD methodology provider: methodology and tooling this repo conforms to",
+        "url": "https://github.com/satwareAG/spec-kit",
+        "channel": "gh:issues",
+        "local_path": "~/external/spec-kit"
+      },
+      {
+        "repo": "FirebirdSQL/firebird",
+        "forge": "github",
+        "relationship": "client library provider (libfbclient, OO API headers Interface.h/IdlFbInterfaces.h); supported 3.0/4.0/5.0+ via FB_API_VER conditionals",
+        "url": "https://github.com/FirebirdSQL/firebird",
+        "local_path": "~/external/firebird"
+      },
+      {
+        "repo": "php/php-src",
+        "forge": "github",
+        "relationship": "Zend Engine API reference (read-only: resource lifecycle, list destructors, executor globals semantics); supported branches PHP-8.2 through PHP-8.5",
+        "url": "https://github.com/php/php-src",
+        "local_path": "~/external/php-src"
+      }
+    ],
+    "downstream": [
+      {
+        "repo": "satwareAG/doctrine-firebird-driver",
+        "forge": "github",
+        "relationship": "primary DBAL consumer of the fbird_* procedural layer and Firebird\\ OOP classes",
+        "url": "https://github.com/satwareAG/doctrine-firebird-driver",
+        "channel": "gh:issues",
+        "local_path": "~/external/doctrine-firebird-driver"
+      },
+      {
+        "repo": "_private_downstream (name redacted)",
+        "forge": "gitlab",
+        "relationship": "Symfony entity layer consuming the extension (private repo; identity redacted per IPADP privacy boundary)"
+      },
+      {
+        "repo": "_private_linux_package_channel (name redacted)",
+        "forge": "gitlab",
+        "relationship": "publishes signed native .deb/.rpm/.apk packages built from php-firebird GitHub release assets to packages.auc.de (staging) and packages.satware.com (production); its staging host is the Tier B verification target exercised by .github/workflows/packages-linux.yml. Operating repos are internal and deliberately unnamed here (public-to-private link forbidden); coordination via public GitHub issues on this repo",
+        "channel": "gh:issues"
+      }
+    ]
   },
   "privacy": {
     "public_to_private_links": [],
-    "notes": "php-firebird is a public GitHub repo. The _private_downstream consumer name is redacted to avoid exposing private GitLab project identity. No public-to-private links exist."
+    "notes": "php-firebird is a public GitHub repo. Private downstream/consumer identities are redacted (forge-level disclosure only, per the _private_downstream precedent). The packages.auc.de / packages.satware.com host names are public material (referenced by .github/workflows/packages-linux.yml and issue #571); the internal repos operating them are not named in this file. 2026-10-25 audit: removed private repo-name mentions from packages-linux.yml comments."
   },
   "morning_protocol": {
-    "scripts": "scripts/"
+    "protocol": "forge daily-ops heartbeat: SOD/EOD per harness workflows (sod.protocol.md / eod.protocol.md), project-adaptive; no local morning-health-check.sh - CI parity is checked via scripts/verify-ci-parity.sh and forge run state"
   }
 }

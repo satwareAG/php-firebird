@@ -697,7 +697,7 @@ echo "✅ Quality report generated: $REPORT_DIR/summary.md"
 
 ### 7.1 Benchmarking Framework
 
-**File**: `tests/benchmarks/cpp17_performance_test.cpp`
+**File**: `tests/performance_benchmark.cpp`
 
 ```cpp
 #include <chrono>
@@ -773,7 +773,7 @@ CURRENT_DIR="benchmarks/current"
 mkdir -p "$BASELINE_DIR" "$CURRENT_DIR"
 
 # Run benchmarks
-./tests/benchmarks/cpp17_performance_test > "$CURRENT_DIR/results.txt"
+./tests/performance_benchmark > "$CURRENT_DIR/results.txt"
 
 # Compare with baseline if available
 if [ -f "$BASELINE_DIR/results.txt" ]; then

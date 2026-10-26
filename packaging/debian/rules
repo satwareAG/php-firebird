@@ -2,7 +2,7 @@
 # =============================================================================
 # Debian packaging rules for php-firebird
 # =============================================================================
-# 
+#
 # This rules file builds php-firebird for ONE PHP version at a time.
 # The build.sh script invokes dpkg-buildpackage once per PHP version.
 #

@@ -1,0 +1,20 @@
+#!/bin/sh
+# autopkgtest smoke: firebird + pdo_fbird extensions load via conf.d
+set -e
+
+PHP_BIN=""
+for cand in php8.5 php8.4 php8.3 php8.2 php; do
+    if command -v "$cand" >/dev/null 2>&1; then
+        PHP_BIN="$cand"
+        break
+    fi
+done
+
+if [ -z "$PHP_BIN" ]; then
+    echo "smoke: no PHP CLI found" >&2
+    exit 1
+fi
+
+echo "smoke: using $PHP_BIN"
+"$PHP_BIN" -r 'exit(extension_loaded("firebird") && extension_loaded("pdo_fbird") ? 0 : 1);'
+echo "smoke: OK (firebird + pdo_fbird loaded)"

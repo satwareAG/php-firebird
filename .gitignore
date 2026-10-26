@@ -186,3 +186,7 @@ packaging/arch/*.pkg.tar.*
 
 # Distribution build output
 /dist/
+
+# build/run artifacts accidentally committed (see #507 lintian triage)
+tests/benchmark
+tests/asanlog.*

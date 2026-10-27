@@ -17,6 +17,11 @@
 # run of an older commit must not green-light the commit about to be
 # tagged.
 #
+# doctrine-downstream dispatch (#667): no main-push runs exist for that
+# workflow; when gating paths changed since the last release tag, the
+# gate dispatches it on this HEAD and waits up to
+# CI_GREEN_DOCTRINE_TIMEOUT seconds (default 1500) for green.
+#
 # Usage: bash scripts/verify-ci-green.sh [branch]
 # Default branch: main
 #
@@ -143,6 +148,68 @@ for wf in "${REQUIRED_WORKFLOWS[@]}"; do
         log_pass "  ${wf}: success (${SHA}, ${CREATED})"
     fi
 done
+
+# ---------------------------------------------------------------------------
+# doctrine-downstream gate (#667): the workflow has no main-push runs
+# (PR/weekly-schedule/dispatch triggers only), so it cannot be SHA-checked
+# like the workflows above. When gating-relevant paths changed since the
+# last release tag, dispatch it on this HEAD and wait for green; otherwise
+# the existing PR/weekly coverage stands.
+DOCTRINE_TIMEOUT="${CI_GREEN_DOCTRINE_TIMEOUT:-1500}"
+BASE_REF="${DOCTRINE_BASE:-$(git describe --tags --abbrev=0 2>/dev/null || echo "")}"
+if [ -z "$BASE_REF" ]; then
+    log_warn "doctrine-downstream: no release tag found - cannot diff; check manually"
+elif ! DOCTRINE_DIFF=$(git diff --name-only "${BASE_REF}..HEAD" -- \
+        '*.c' '*.cpp' '*.h' '*.hpp' 'config.m4' 'config.w32' \
+        'pdo_fbird' 'stubs' '.github/workflows/doctrine-downstream.yml' 2>/dev/null); then
+    log_warn "doctrine-downstream: could not diff ${BASE_REF}..HEAD - check manually"
+elif [ -z "$DOCTRINE_DIFF" ]; then
+    log_pass "  doctrine-downstream: no gating paths changed since ${BASE_REF} - skipped"
+else
+    DOCTRINE_COUNT=$(echo "$DOCTRINE_DIFF" | wc -l)
+    log_info "doctrine-downstream: ${DOCTRINE_COUNT} gating path(s) changed since ${BASE_REF} - dispatching on ${BRANCH}..."
+    if ! gh workflow run doctrine-downstream.yml --ref "$BRANCH" >/dev/null 2>&1; then
+        log_fail "  doctrine-downstream: dispatch failed"
+        ALL_PASSED=false
+    else
+        d_waited=0
+        d_run_id=""
+        # wait for the dispatch run to appear (counted against the budget)
+        while [ "$d_waited" -lt "$DOCTRINE_TIMEOUT" ]; do
+            d_run_id=$(gh run list --workflow doctrine-downstream.yml --branch "$BRANCH" \
+                --event workflow_dispatch --limit 1 --json databaseId,headSha 2>/dev/null \
+                | jq -r --arg sha "$(git rev-parse HEAD)" \
+                  '.[] | select(.headSha == $sha) | .databaseId' | head -1)
+            [ -n "$d_run_id" ] && break
+            sleep 5
+            d_waited=$((d_waited + 5))
+        done
+        if [ -z "$d_run_id" ]; then
+            log_fail "  doctrine-downstream: dispatch run did not appear within ${DOCTRINE_TIMEOUT}s"
+            ALL_PASSED=false
+        else
+            while [ "$d_waited" -lt "$DOCTRINE_TIMEOUT" ]; do
+                state=$(gh run view "$d_run_id" --json status,conclusion 2>/dev/null || echo "")
+                if [ "$(echo "$state" | jq -r '.status // empty')" = "completed" ]; then
+                    d_conclusion=$(echo "$state" | jq -r '.conclusion // empty')
+                    if [ "$d_conclusion" = "success" ]; then
+                        log_pass "  doctrine-downstream: success (dispatch)"
+                    else
+                        log_fail "  doctrine-downstream: dispatch finished '${d_conclusion:-unknown}'"
+                        ALL_PASSED=false
+                    fi
+                    break
+                fi
+                sleep 15
+                d_waited=$((d_waited + 15))
+            done
+            if [ "$d_waited" -ge "$DOCTRINE_TIMEOUT" ]; then
+                log_fail "  doctrine-downstream: still running after ${DOCTRINE_TIMEOUT}s"
+                ALL_PASSED=false
+            fi
+        fi
+    fi
+fi
 
 echo ""
 if [ "$ALL_PASSED" = "true" ]; then

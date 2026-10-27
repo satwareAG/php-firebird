@@ -1,0 +1,64 @@
+# =============================================================================
+# PHP Firebird Extension - Staging APT Key Watchdog (#666)
+# =============================================================================
+#
+# Weekly assertions on the committed staging APT signing key
+# (packaging/debian/staging-gpg.pub.asc, #571 fix path 3):
+#   1. fingerprint matches the documented staging key
+#   2. expiry > 60 days away (key expires 2027-07-24)
+#   3. the key verifies the LIVE packages.auc.de apt Release signature
+#
+# Failure opens/comments an issue so rotation drift (satis-deploy owns
+# rotation, this repo's copy follows) cannot surface as a surprise
+# NO_PUBKEY/EXPKEYSIG at tag time.
+# =============================================================================
+
+name: Staging Key Watchdog
+
+on:
+  schedule:
+    - cron: '0 5 * * 1'  # Mondays 05:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: staging-key-watchdog
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: staging GPG key assertions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Assert fingerprint, expiry, live signature
+        run: |
+          bash .github/scripts/check-staging-key.sh \
+            packaging/debian/staging-gpg.pub.asc
+
+      - name: File issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -eu
+          BODY="The staging APT key watchdog failed. Logs: ${RUN_URL}
+          Assertions run: fingerprint B600F3717315AD4262AB81A95AB7B54BBBC7FED8, >60d to expiry, live-signature verify of packages.auc.de/apt/dists/bookworm/Release.
+          Rotation owner: satis-deploy (internal). This repo's copy must be updated in the same change."
+
+          existing=$(gh issue list --search "staging APT key watchdog failed" \
+            --state open --json number --jq '.[0].number' 2>/dev/null || true)
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$BODY"
+          else
+            gh issue create --title "staging APT key watchdog failed ($(date -u +%F))" \
+              --body "$BODY" --label ci --label infra
+          fi

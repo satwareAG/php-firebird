@@ -435,6 +435,14 @@ jobs:
             apt_suite: bookworm
 
     steps:
+      # jane: the job never needed a checkout before (all network), but the
+      #       key import reads packaging/debian/ from GITHUB_WORKSPACE.
+      #       Without it the runner has an empty workspace, docker
+      #       auto-creates an empty mount dir and gpg dies with ENOENT
+      #       (council S1/S2 finding, 2026-10-27).
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
       - name: Install php-firebird from staging APT repo
         # jane: the staging public key is committed at
         #       packaging/debian/staging-gpg.pub.asc (#571 fix path 3) and
@@ -445,8 +453,17 @@ jobs:
         #       keys/staging-gpg.pub.asc, fpr
         #       B600F3717315AD4262AB81A95AB7B54BBBC7FED8, verified to sign
         #       packages.auc.de/apt/dists/bookworm/Release.
+        #       EXPIRY: the key expires 2027-07-24. satis-deploy owns
+        #       rotation; this repo's copy must be updated in the same
+        #       change and is asserted by fingerprint below, so a stale
+        #       copy fails loudly here, not as a NO_PUBKEY surprise.
         run: |
           set -eu
+          # Fail here (not as a confusing apt error) if the committed key
+          # drifted from the documented staging fingerprint
+          gpg --show-keys packaging/debian/staging-gpg.pub.asc \
+            | grep -q B600F3717315AD4262AB81A95AB7B54BBBC7FED8
+
           docker run --rm \
             -v "${GITHUB_WORKSPACE}/packaging/debian:/satware-keys:ro" \
             ${{ matrix.distro }} bash -c '

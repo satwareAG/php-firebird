@@ -8,8 +8,14 @@
 # job was cancelled while queued with zero steps executed (the macOS
 # build-only job's runner-starvation signature), the script auto-reruns
 # the failed jobs ONCE (gh run rerun --failed) and waits up to
-# CI_GREEN_RERUN_TIMEOUT seconds (default 1500) for the rerun to finish.
-# The rerun needs a token with actions:write.
+# CI_GREEN_RERUN_TIMEOUT seconds (default 1500, per starved workflow,
+# start-wait included) for the rerun to finish. The rerun needs a token
+# with actions:write.
+#
+# Stale-run guard (council 2026-10-27): a run whose head SHA does not
+# match the local branch head never passes (and is never rerun) - a green
+# run of an older commit must not green-light the commit about to be
+# tagged.
 #
 # Usage: bash scripts/verify-ci-green.sh [branch]
 # Default branch: main
@@ -43,23 +49,31 @@ is_queue_starvation() {
 }
 
 # One bounded auto-retry for queue-starvation false-reds (#663).
-# Returns 0 only if the rerun completed green within RERUN_TIMEOUT seconds.
+# Arguments: workflow, run id (fetched ONCE by the caller, so the
+# classified run is the run that gets rerun - no re-fetch race).
+# Returns 0 only if the rerun completed green within RERUN_TIMEOUT seconds
+# (start-wait included in the budget).
 retry_starved_run() {
-    local wf="$1" branch="$2" run_id status state conclusion waited=0
-    run_id=$(gh run list --workflow "$wf" --branch "$branch" --limit 1 \
-        --json databaseId --jq '.[0].databaseId' 2>/dev/null) || return 1
-    [ -n "$run_id" ] || return 1
+    local wf="$1" run_id="$2" status state conclusion rerun_err waited=0
     is_queue_starvation "$run_id" || return 1
 
-    log_warn "  ${wf}: queue-starvation signature (job cancelled with zero steps) - auto-rerunning failed jobs once (#663)..."
+    log_warn "  ${wf}: queue-starvation signature (all failing jobs cancelled with zero steps) - auto-rerunning failed jobs once (#663)..."
 
-    gh run rerun --failed "$run_id" >/dev/null 2>&1 || { log_fail "  ${wf}: rerun could not be started"; return 1; }
+    rerun_err=$(gh run rerun --failed "$run_id" 2>&1) || { log_fail "  ${wf}: rerun could not be started: ${rerun_err}"; return 1; }
 
     # Wait for the rerun attempt to start: the pre-rerun state still reads
     # status=completed for a while - never treat it as the rerun result.
+    # Council S3: this wait counts against RERUN_TIMEOUT (uncounted, the
+    # worst-case gate latency multiplied by the workflow count).
+    local _
     for _ in $(seq 1 24); do
         status=$(gh run view "$run_id" --json status --jq '.status' 2>/dev/null || echo "")
         [ "$status" != "completed" ] && break
+        waited=$((waited + 5))
+        if [ "$waited" -ge "$RERUN_TIMEOUT" ]; then
+            log_fail "  ${wf}: rerun did not start within ${RERUN_TIMEOUT}s"
+            return 1
+        fi
         sleep 5
     done
 
@@ -88,7 +102,7 @@ ALL_PASSED=true
 for wf in "${REQUIRED_WORKFLOWS[@]}"; do
     # Get the latest run for this workflow on the specified branch
     RESULT=$(gh run list --workflow "$wf" --branch "$BRANCH" --limit 1 \
-        --json status,conclusion,headSha,createdAt 2>/dev/null | jq '.[0] // empty' || true)
+        --json status,conclusion,headSha,createdAt,databaseId 2>/dev/null | jq '.[0] // empty' || true)
 
     if [ -z "$RESULT" ]; then
         log_fail "  ${wf}: no run found on ${BRANCH}"
@@ -100,12 +114,26 @@ for wf in "${REQUIRED_WORKFLOWS[@]}"; do
     CONCLUSION=$(echo "$RESULT" | jq -r '.conclusion // "running"')
     SHA=$(echo "$RESULT" | jq -r '.headSha[0:8]')
     CREATED=$(echo "$RESULT" | jq -r '.createdAt[0:16]')
+    RUN_ID=$(echo "$RESULT" | jq -r '.databaseId')
+
+    # Stale-run guard (council 2026-10-27): a green (or starved-then-green)
+    # run of an OLDER commit must not green-light the commit about to be
+    # tagged. Skipped only when the branch head cannot be resolved locally.
+    if LOCAL_SHA=$(git rev-parse --verify --short=8 "refs/heads/${BRANCH}" 2>/dev/null); then
+        if [ "$SHA" != "$LOCAL_SHA" ]; then
+            log_fail "  ${wf}: run is for ${SHA} but ${BRANCH} is at ${LOCAL_SHA} - stale CI, rerun/land CI for the current commit"
+            ALL_PASSED=false
+            continue
+        fi
+    else
+        log_warn "  ${wf}: cannot verify run SHA against ${BRANCH} (not a git checkout or unknown branch)"
+    fi
 
     if [ "$STATUS" != "completed" ]; then
         log_warn "  ${wf}: ${STATUS} (started ${CREATED})"
         ALL_PASSED=false
     elif [ "$CONCLUSION" != "success" ]; then
-        if retry_starved_run "$wf" "$BRANCH"; then
+        if retry_starved_run "$wf" "$RUN_ID"; then
             log_pass "  ${wf}: success (queue-starvation rerun, ${SHA})"
         else
             log_fail "  ${wf}: ${CONCLUSION} (${SHA}, ${CREATED})"

@@ -436,9 +436,20 @@ jobs:
 
     steps:
       - name: Install php-firebird from staging APT repo
+        # jane: the staging public key is committed at
+        #       packaging/debian/staging-gpg.pub.asc (#571 fix path 3) and
+        #       imported from the checkout. The previous network fetch
+        #       (packages.auc.de/keys/...) started returning 401 when the
+        #       serving host's token gate (added 2026-09-17) exempted /apt/
+        #       but not /keys/. Key source: satware/satis (GitLab)
+        #       keys/staging-gpg.pub.asc, fpr
+        #       B600F3717315AD4262AB81A95AB7B54BBBC7FED8, verified to sign
+        #       packages.auc.de/apt/dists/bookworm/Release.
         run: |
           set -eu
-          docker run --rm ${{ matrix.distro }} bash -c '
+          docker run --rm \
+            -v "${GITHUB_WORKSPACE}/packaging/debian:/satware-keys:ro" \
+            ${{ matrix.distro }} bash -c '
             set -eu
             export DEBIAN_FRONTEND=noninteractive
 
@@ -456,10 +467,11 @@ jobs:
             apt-get update -qq
             apt-get install -y -qq php${{ matrix.php }}-cli
 
-            # Import staging GPG key
+            # Import staging GPG key from the checkout (#571 fix path 3 -
+            # the /keys/ URL is auth-gated on the serving host)
             mkdir -p /etc/apt/keyrings
-            curl -fsSL https://packages.auc.de/keys/staging-gpg.pub.asc \
-              | gpg --dearmor -o /etc/apt/keyrings/satware-php-firebird.gpg
+            gpg --dearmor -o /etc/apt/keyrings/satware-php-firebird.gpg \
+              /satware-keys/staging-gpg.pub.asc
 
             # Add staging APT source
             # jane: apt_suite (bookworm) instead of the real codename while

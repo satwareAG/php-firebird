@@ -5,6 +5,13 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.2.11] - 2026-10-28
+
+### Fixed
+
+- **#671: default `fbird_connect()`/`fbird_pconnect()`/`new Firebird\Connection` no longer sends `isc_dpb_force_write`** (regression since 13.0.0). The parsed `$sync` argument was silently discarded and a hardcoded `0` ("switch to async writes") reached the attach DPB on every connect. On Firebird 4+ this requires the `CHANGE_HEADER_SETTINGS` system privilege, so non-SYSDBA connects failed with "System privilege CHANGE_HEADER_SETTINGS is missing"; for privileged users the flip persisted into the database header. The default is now "do not send" (`$sync = -1`), matching the legacy ext/interbase and the PDO driver; explicit `$sync = 0|1` works again and is documented (FB4+ privilege required). Distinct `sync` values produce distinct link-cache entries. Regression: `tests/issue671_default_connect_no_header_flip.phpt` (MON$FORCED_WRITES oracle, all 12 matrix lanes).
+- **Durability advisory for 13.0.0-13.2.10 users**: databases connected by the affected releases as SYSDBA/owner may have been switched to async writes. Check with `gstat -h <db>` ("Force write") and restore synchronous writes with `gfix <db> -write sync`. See `UPGRADING.md`.
+
 ## [13.2.10] - 2026-10-23
 
 ### Fixed

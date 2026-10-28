@@ -74,6 +74,23 @@ else
   log_warn "specs/metadata.json not found, skipping"
 fi
 
+# pdo_fbird/VERSION.txt is the version source for the split pdo_fbird extension
+# (pdo_fbird/config.m4 reads it at configure time; IPADP split satwareAG/pdo-fbird
+# bundles it). Drifted silently at 13.2.6 (found while preparing 13.2.11: the pdo
+# build stamped 13.2.6 while VERSION.txt said 13.2.11). Same gate as metadata.json.
+PDO_VERSION_FILE="${ROOT_DIR}/pdo_fbird/VERSION.txt"
+if [ -f "${PDO_VERSION_FILE}" ]; then
+  PV_ACTUAL=$(tr -d ' \n\r\t' < "${PDO_VERSION_FILE}")
+  if [ "${PV_ACTUAL}" = "${EXPECTED}" ]; then
+    log_pass "pdo_fbird/VERSION.txt (version ${PV_ACTUAL})"
+  else
+    log_fail "pdo_fbird/VERSION.txt (version ${PV_ACTUAL:-missing} != ${EXPECTED})"
+    ERRORS=$((ERRORS + 1))
+  fi
+else
+  log_warn "pdo_fbird/VERSION.txt not found, skipping"
+fi
+
 echo ""
 
 if [ "${ERRORS}" -gt 0 ]; then

@@ -3,6 +3,42 @@
 This guide covers behavior changes between php-firebird versions that may
 affect existing applications.
 
+## v13.0.0 → Unreleased (#671): default connects no longer change forced writes
+
+### What 13.0.0 broke
+
+Since v13.0.0, every default `fbird_connect()` / `fbird_pconnect()` /
+`new Firebird\Connection` sent `isc_dpb_force_write = 0` ("switch to async
+writes") in the attach buffer - the parsed `$sync` argument was dropped and a
+hardcoded `0` reached the wire. Consequences:
+
+- **Firebird 4+**: non-SYSDBA connects failed with
+  `System privilege CHANGE_HEADER_SETTINGS is missing` (the DPB item is a
+  header change and requires that privilege).
+- **Any successful connect** (SYSDBA, owner, privileged users): the database
+  header was **silently switched to async writes** - a data-durability risk on
+  power failure. The legacy ext/interbase and the PDO driver never sent this
+  item; v11.x/v12.x did not contain the defect (shipped in 13.0.0, commit
+  7fd9090).
+
+**Repair databases connected by 13.0.0-13.2.10**: check the header with
+`gstat -h <db>` ("Force write" line); restore synchronous writes with
+`gfix <db> -write sync`.
+
+### What the fix changes
+
+- The default is now "do not send" (`$sync = -1`): attaches carry no
+  `isc_dpb_force_write` item - identical to the legacy driver and PDO.
+- The `$sync` argument of `fbird_connect()`/`fbird_pconnect()` is now actually
+  forwarded: `0` = async, `1` = sync, `-1` = not sent (default). Distinct
+  `sync` values produce distinct link-cache entries.
+- `Firebird\Connection` has no `$sync` parameter and connects with "not sent".
+- Explicitly passing `$sync = 0|1` still changes the database header and on
+  Firebird 4+ requires the `CHANGE_HEADER_SETTINGS` system privilege - that
+  part is engine behavior, not a driver bug. Applications needing forced-writes
+  control should run as a suitably privileged user and handle the privilege
+  error.
+
 ## v13.2.x → Unreleased (PR #590)
 
 ### `fbird_query(FBIRD_CREATE, ...)` returns a `Firebird\Connection` object

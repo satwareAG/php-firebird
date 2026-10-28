@@ -103,11 +103,21 @@ jobs:
             throw "Invalid tag format: '$env:INPUT_TAG' (expected vX.Y.Z)"
           }
 
-          # jane: empty input (PR events) falls back to the PINNED DEFAULT_TAG,
-          #       never 'latest' - floating resolution is the driver #167 bug
-          #       class this lane exists to prevent.
+          # jane: empty input (PR events) resolves the tag from VERSION.txt
+          #       (SSOT, #672 class). If the declared version has no published
+          #       release yet (e.g. a PR that bumps VERSION.txt before tagging),
+          #       fall back to the newest PUBLISHED release - still a concrete,
+          #       logged tag, never an unresolved 'latest' (anti-float rule,
+          #       driver #167 lesson).
           $tag = if ([string]::IsNullOrWhiteSpace($env:INPUT_TAG)) { $env:DEFAULT_TAG } else { $env:INPUT_TAG }
-          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag" -Headers $headers
+          try {
+            $release = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag" -Headers $headers
+          } catch {
+            if ($tag -ne $env:DEFAULT_TAG) { throw }
+            Write-Host "Declared tag $tag has no published release yet - falling back to newest published release"
+            $release = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases/latest" -Headers $headers
+            if (-not $release.tag_name) { throw "No published release available to smoke-test" }
+          }
           $version = $release.tag_name -replace '^v', ''
           Write-Host "Testing release $($release.tag_name) (assets: $($release.assets.Count))"
 

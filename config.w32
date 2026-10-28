@@ -5,21 +5,34 @@
 ARG_WITH('firebird', 'Firebird database support', 'no');
 
 if (PHP_FIREBIRD != 'no') {
-    // Detect php-firebird version from VERSION file
+    // js #672: version detection must work in every build layout:
+    // - php-windows-builder / standalone phpize: CWD = extension repo root,
+    //   which holds VERSION.txt (renamed from VERSION long ago - the old
+    //   .\VERSION read silently fell back to "0.0.0-unknown" in every
+    //   Windows release, see #672)
+    // - buildconf --add-modules-dir layouts: CWD = php-src root, the module
+    //   dir differs; configure_module_dirname points at the extension dir
+    //   (guarded typeof: phpize-generated configure scripts may not set it)
     var version = "0.0.0-unknown";
-    try {
-        var fso = new ActiveXObject("Scripting.FileSystemObject");
-        var versionFile = ".\\VERSION";
-        if (fso.FileExists(versionFile)) {
-            var f = fso.OpenTextFile(versionFile, 1);
-            version = f.AtEndOfStream ? "0.0.0-empty" : f.ReadLine().replace(/^\s+|\s+$/g, "");
-            f.Close();
-            STDOUT.WriteLine("Found php-firebird version: " + version);
-        } else {
-            STDOUT.WriteLine("VERSION file not found at " + fso.GetAbsolutePathName(versionFile));
+    var fso = new ActiveXObject("Scripting.FileSystemObject");
+    var modDir = (typeof configure_module_dirname != 'undefined') ? configure_module_dirname : null;
+    var versionCandidates = [".\\VERSION.txt"];
+    if (modDir) { versionCandidates.push(modDir + "\\VERSION.txt"); }
+    versionCandidates.push(".\\VERSION");
+    for (var vi = 0; vi < versionCandidates.length; vi++) {
+        try {
+            if (fso.FileExists(versionCandidates[vi])) {
+                var vf = fso.OpenTextFile(versionCandidates[vi], 1);
+                if (!vf.AtEndOfStream) {
+                    version = vf.ReadLine().replace(/^\s+|\s+$/g, "");
+                    STDOUT.WriteLine("Found php-firebird version: " + version + " (from " + versionCandidates[vi] + ")");
+                }
+                vf.Close();
+                if (version != "0.0.0-unknown" && version != "0.0.0-empty") { break; }
+            }
+        } catch (e) {
+            STDOUT.WriteLine("VERSION read failed for " + versionCandidates[vi] + ": " + e.message);
         }
-    } catch (e) {
-        STDOUT.WriteLine("Error reading VERSION file: " + e.message);
     }
     AC_DEFINE('PHP_FIREBIRD_VERSION_STRING', version, 'PHP Firebird extension version');
 
@@ -90,6 +103,28 @@ if (PHP_PDO_FBIRD != 'no') {
         CHECK_HEADER_ADD_INCLUDE('ibase.h', 'CFLAGS_PDO_FBIRD', PHP_PDO_FBIRD + '\\include')) {
 
         AC_DEFINE('HAVE_PDO_FBIRD', 1, 'pdo_fbird available');
+
+        // js #672: pdo_fbird version - php_pdo_fbird.h falls back to
+        // "0.0.0-unknown" unless the define comes from configure. The Linux
+        // lane (config.m4) reads pdo_fbird/VERSION.txt; the Windows lane
+        // never defined it at all, so every Windows pdo_fbird.dll reported
+        // its build-time fallback.
+        var pdoVersion = "0.0.0-unknown";
+        try {
+            var fsoPdo = new ActiveXObject("Scripting.FileSystemObject");
+            var pdoVersionFile = ".\\pdo_fbird\\VERSION.txt";
+            if (fsoPdo.FileExists(pdoVersionFile)) {
+                var pf = fsoPdo.OpenTextFile(pdoVersionFile, 1);
+                if (!pf.AtEndOfStream) {
+                    pdoVersion = pf.ReadLine().replace(/^\s+|\s+$/g, "");
+                    STDOUT.WriteLine("Found pdo_fbird version: " + pdoVersion);
+                }
+                pf.Close();
+            }
+        } catch (e) {
+            STDOUT.WriteLine("pdo VERSION read failed: " + e.message);
+        }
+        AC_DEFINE('PHP_PDO_FBIRD_VERSION', pdoVersion, 'pdo_fbird extension version');
 
         // Source files: use flattened names if available (Windows build
         // pre-copies them to root to avoid subdirectory output dir issues),

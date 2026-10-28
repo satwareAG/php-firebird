@@ -361,13 +361,20 @@ zend_resource *_php_fbird_connect_link(
 	char *pass,    size_t pass_len,
 	char *charset, size_t charset_len,
 	zend_long buffers, zend_long dialect,
+	zend_long sync,
 	char *role,    size_t role_len,
 	zend_long flags, int persistent)
 {
 	char *c, hash[16], *args[] = { db, user, pass, charset, role };
 	size_t i;
 	size_t len[] = { db_len, user_len, pass_len, charset_len, role_len };
-	zend_long largs[] = { buffers, dialect, 0 };
+	/* Issue #671: sync flows through (it feeds the link hash below). -1 =
+	 * "not set" - no isc_dpb_force_write in the DPB (legacy/PDO behavior).
+	 * 0/1 explicitly set forced writes (async/sync); on Firebird 4+ this
+	 * requires the CHANGE_HEADER_SETTINGS system privilege and persists the
+	 * change into the database header. The pre-13.0.0 hardcoded 0 here
+	 * flipped every default connect to async writes. */
+	zend_long largs[] = { buffers, dialect, sync };
 	PHP_MD5_CTX hash_context;
 	zend_resource new_index_ptr, *le;
 	void *connection_ptr = NULL;
@@ -554,7 +561,7 @@ void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 	char *args_db = NULL, *args_user = NULL, *args_pass = NULL;
 	char *args_cset = NULL, *args_role = NULL;
 	size_t len_db = 0, len_user = 0, len_pass = 0, len_cset = 0, len_role = 0;
-	zend_long buf = 0, dlect = 0, sync = 0, flags = 0;
+	zend_long buf = 0, dlect = 0, sync = -1, flags = 0;
 
 	RESET_ERRMSG;
 
@@ -571,6 +578,7 @@ void _php_fbird_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
 		args_pass, len_pass,
 		args_cset, len_cset,
 		buf, dlect,
+		sync,
 		args_role, len_role,
 		flags, persistent);
 	if (!res) {

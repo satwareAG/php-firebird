@@ -104,6 +104,7 @@ PHP_METHOD(FirebirdConnection, __construct)
 		pass,    pass_len,
 		charset, charset_len,
 		buffers, dialect ? dialect : 3,
+		-1 /* sync: not set - Issue #671 */,
 		role,    role_len,
 		0 /* flags */, 0 /* non-persistent */);
 	if (!res) {

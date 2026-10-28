@@ -15,6 +15,7 @@ zend_resource *_php_fbird_connect_link(
 	char *pass,    size_t pass_len,
 	char *charset, size_t charset_len,
 	zend_long buffers, zend_long dialect,
+	zend_long sync,
 	char *role,    size_t role_len,
 	zend_long flags, int persistent);
 

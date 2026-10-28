@@ -34,6 +34,26 @@ if (PHP_FIREBIRD != 'no') {
             STDOUT.WriteLine("VERSION read failed for " + versionCandidates[vi] + ": " + e.message);
         }
     }
+    // js #672 SSOT: fail loud - never build an unversioned DLL. The escape
+    // env FBIRD_ALLOW_UNKNOWN_VERSION=1 is ignored on tag refs (GITHUB_REF
+    // is set inside Actions; the builder task inherits it), where an unknown
+    // version is always a defect; publish-release rejects unknown strings
+    // regardless of this escape hatch.
+    var semverRe = /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.+-]+)?$/;
+    var versionOk = semverRe.test(version) && version.indexOf("0.0.0") !== 0;
+    if (!versionOk) {
+        var shVer = new ActiveXObject("WScript.Shell");
+        var allowUnknown = shVer.ExpandEnvironmentStrings("%FBIRD_ALLOW_UNKNOWN_VERSION%");
+        var gitRef = shVer.ExpandEnvironmentStrings("%GITHUB_REF%");
+        var onTagRef = (gitRef.indexOf("refs/tags/") === 0);
+        if (onTagRef || allowUnknown != "1") {
+            ERROR("php-firebird #672: version source missing or invalid (tried " +
+                  versionCandidates.join(", ") + "). Refusing to build an " +
+                  "unversioned binary. VERSION.txt must contain a semver string. " +
+                  "Set FBIRD_ALLOW_UNKNOWN_VERSION=1 to override non-release builds.");
+        }
+        STDOUT.WriteLine("WARNING: building with unknown version (FBIRD_ALLOW_UNKNOWN_VERSION=1)");
+    }
     AC_DEFINE('PHP_FIREBIRD_VERSION_STRING', version, 'PHP Firebird extension version');
 
     // Check for Firebird client library and header.
@@ -123,6 +143,22 @@ if (PHP_PDO_FBIRD != 'no') {
             }
         } catch (e) {
             STDOUT.WriteLine("pdo VERSION read failed: " + e.message);
+        }
+        // js #672 SSOT: same fail-loud contract as the firebird section.
+        var pdoSemverRe = /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.+-]+)?$/;
+        var pdoVersionOk = pdoSemverRe.test(pdoVersion) && pdoVersion.indexOf("0.0.0") !== 0;
+        if (!pdoVersionOk) {
+            var shPdoVer = new ActiveXObject("WScript.Shell");
+            var pdoAllowUnknown = shPdoVer.ExpandEnvironmentStrings("%FBIRD_ALLOW_UNKNOWN_VERSION%");
+            var pdoGitRef = shPdoVer.ExpandEnvironmentStrings("%GITHUB_REF%");
+            var pdoOnTagRef = (pdoGitRef.indexOf("refs/tags/") === 0);
+            if (pdoOnTagRef || pdoAllowUnknown != "1") {
+                ERROR("pdo_fbird #672: version source missing or invalid (tried " +
+                      pdoVersionFile + "). Refusing to build an unversioned " +
+                      "binary. pdo_fbird/VERSION.txt must contain a semver string. " +
+                      "Set FBIRD_ALLOW_UNKNOWN_VERSION=1 to override non-release builds.");
+            }
+            STDOUT.WriteLine("WARNING: pdo_fbird building with unknown version (FBIRD_ALLOW_UNKNOWN_VERSION=1)");
         }
         AC_DEFINE('PHP_PDO_FBIRD_VERSION', pdoVersion, 'pdo_fbird extension version');
 

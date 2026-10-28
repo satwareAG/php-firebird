@@ -7,10 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [13.2.11] - 2026-10-28
 
+### CRITICAL DURABILITY ADVISORY (v13.0.0-rc.2 through v13.2.10)
+
+Default connects made by affected releases **silently switched the database to async writes** (forced writes off) - a data-durability risk on power failure. Affected entry points: `fbird_connect()`, `fbird_pconnect()`, `new Firebird\Connection`.
+
+- **Who is affected**: connects by SYSDBA, the database **owner**, or any user granted `CHANGE_HEADER_SETTINGS`. On Firebird 4+, non-privileged users received connect errors instead - their databases were **not** modified. On **Firebird 3** (no privilege system), *every* default connect flipped, silently, for every user.
+- **The `$sync` argument did nothing**: in affected releases the argument was parsed and discarded; explicitly requesting `sync=1` (synchronous writes) still resulted in async writes.
+- **Affected versions**: v13.0.0-rc.2 through v13.2.10. The flip was **observed empirically on a v13.2.10 build** (Firebird 5, header flag flipped and persisted across reconnect); v13.0.0-v13.2.9 are implicated by code lineage (the offending commit shipped in v13.0.0; v11.x/v12.x verified clean). The legacy ext/interbase and the PDO driver never sent the item.
+- **Check and repair every database touched by an affected release** - upgrading the driver does **not** revert an already-flipped header:
+
+```
+gstat -h <database.fdb>        # check: "Force write" line
+gfix <database.fdb> -write sync
+```
+
 ### Fixed
 
-- **#671: default `fbird_connect()`/`fbird_pconnect()`/`new Firebird\Connection` no longer sends `isc_dpb_force_write`** (regression since 13.0.0). The parsed `$sync` argument was silently discarded and a hardcoded `0` ("switch to async writes") reached the attach DPB on every connect. On Firebird 4+ this requires the `CHANGE_HEADER_SETTINGS` system privilege, so non-SYSDBA connects failed with "System privilege CHANGE_HEADER_SETTINGS is missing"; for privileged users the flip persisted into the database header. The default is now "do not send" (`$sync = -1`), matching the legacy ext/interbase and the PDO driver; explicit `$sync = 0|1` works again and is documented (FB4+ privilege required). Distinct `sync` values produce distinct link-cache entries. Regression: `tests/issue671_default_connect_no_header_flip.phpt` (MON$FORCED_WRITES oracle, all 12 matrix lanes).
-- **Durability advisory for 13.0.0-13.2.10 users**: databases connected by the affected releases as SYSDBA/owner may have been switched to async writes. Check with `gstat -h <db>` ("Force write") and restore synchronous writes with `gfix <db> -write sync`. See `UPGRADING.md`.
+- **#671: default `fbird_connect()`/`fbird_pconnect()`/`new Firebird\Connection` no longer sends `isc_dpb_force_write`** (the advisory above). Root cause: the parsed `$sync` argument was silently discarded and a hardcoded `0` ("switch to async writes") reached the attach DPB on every connect; on Firebird 4+ sending it requires the `CHANGE_HEADER_SETTINGS` system privilege, so non-SYSDBA connects failed with "System privilege CHANGE_HEADER_SETTINGS is missing". The default is now "do not send" (`$sync = -1`), matching the legacy ext/interbase and the PDO driver; the `$sync` argument is actually forwarded now (`-1` = not sent, `0` = async, `1` = sync; distinct values produce distinct link-cache entries). Regression: `tests/issue671_default_connect_no_header_flip.phpt` (MON$FORCED_WRITES oracle, all 12 matrix lanes; demonstrated failing on a v13.2.10 build).
 
 ## [13.2.10] - 2026-10-23
 

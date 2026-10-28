@@ -299,7 +299,12 @@ mkdir -p "$DEB_DIR"
 cp -a packaging/debian/* "$DEB_DIR/"
 
 # Get extension version
-EXT_VERSION=$(cat VERSION.txt 2>/dev/null || echo "13.0.0-unknown")
+EXT_VERSION=$(tr -d ' \n\r\t' < VERSION.txt 2>/dev/null || true)
+# js #672: fail loud - a package must never be built with a fallback version
+if [[ ! "$EXT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.+-]+)?$ ]] || [[ "$EXT_VERSION" == 0.0.0* ]]; then
+  log_error "VERSION.txt missing or invalid ('$EXT_VERSION') - refusing to build an unversioned .deb (issue 672)"
+  exit 1
+fi
 log "Extension version: ${EXT_VERSION}"
 
 # Update changelog with the correct version

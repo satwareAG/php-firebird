@@ -16,7 +16,7 @@ if test "$PHP_FIREBIRD" != "no"; then
   PHP_FIREBIRD_VERSION=`cat "$srcdir/VERSION.txt" 2>/dev/null | tr -d ' \n\r\t'`
   PHP_FIREBIRD_VERSION_OK=no
   case "$PHP_FIREBIRD_VERSION" in
-    [0-9]*.[0-9]*.[0-9]*)
+    [[0-9]]*.[[0-9]]*.[[0-9]]*)
       case "$PHP_FIREBIRD_VERSION" in
         0.0.0*) PHP_FIREBIRD_VERSION_OK=no ;;
         *) PHP_FIREBIRD_VERSION_OK=yes ;;

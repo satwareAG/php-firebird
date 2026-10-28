@@ -23,7 +23,7 @@ if test "$PHP_PDO_FBIRD" != "no"; then
   PHP_PDO_FBIRD_VERSION=`cat "$srcdir/VERSION.txt" 2>/dev/null | tr -d ' \n\r\t'`
   PHP_PDO_FBIRD_VERSION_OK=no
   case "$PHP_PDO_FBIRD_VERSION" in
-    [0-9]*.[0-9]*.[0-9]*)
+    [[0-9]]*.[[0-9]]*.[[0-9]]*)
       case "$PHP_PDO_FBIRD_VERSION" in
         0.0.0*) PHP_PDO_FBIRD_VERSION_OK=no ;;
         *) PHP_PDO_FBIRD_VERSION_OK=yes ;;

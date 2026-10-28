@@ -33,6 +33,19 @@ if test "$PHP_FIREBIRD" != "no"; then
   else
     AC_MSG_RESULT([$PHP_FIREBIRD_VERSION])
   fi
+
+  dnl Generate version_stamp.h for template.rc (PE FileVersion stamp)
+  PHP_FIREBIRD_VMAJOR=`echo "$PHP_FIREBIRD_VERSION" | sed 's/^\([0-9]*\)\..*/\1/'`
+  PHP_FIREBIRD_VMINOR=`echo "$PHP_FIREBIRD_VERSION" | sed 's/^[0-9]*\.\([0-9]*\)\..*/\1/'`
+  PHP_FIREBIRD_VPATCH=`echo "$PHP_FIREBIRD_VERSION" | sed 's/^[0-9]*\.[0-9]*\.\([0-9]*\).*/\1/'`
+  if ! cat > "$srcdir/version_stamp.h" <<EOF
+#define EXT_FILE_VERSION ${PHP_FIREBIRD_VMAJOR},${PHP_FIREBIRD_VMINOR},${PHP_FIREBIRD_VPATCH},0
+#define EXT_PRODUCT_VERSION ${PHP_FIREBIRD_VMAJOR},${PHP_FIREBIRD_VMINOR},${PHP_FIREBIRD_VPATCH},0
+#define EXT_VERSION "${PHP_FIREBIRD_VERSION}"
+EOF
+  then
+    AC_MSG_ERROR([cannot write version_stamp.h next to template.rc - PE stamp would be wrong (issue 672)])
+  fi
   AC_DEFINE_UNQUOTED([PHP_FIREBIRD_VERSION_STRING], ["$PHP_FIREBIRD_VERSION"], [PHP Firebird extension version])
 
   dnl Check for minimum PHP version (8.2+)

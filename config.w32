@@ -54,6 +54,26 @@ if (PHP_FIREBIRD != 'no') {
         }
         STDOUT.WriteLine("WARNING: building with unknown version (FBIRD_ALLOW_UNKNOWN_VERSION=1)");
     }
+
+    // js #672: generate version_stamp.h for template.rc (PE FileVersion/
+    // ProductVersion). Written next to the template so every build layout
+    // stamps correctly; without it the PE defaults to the PHP runtime
+    // version (every Windows DLL before 13.2.12 shipped that way).
+    var stampDir = modDir ? modDir : ".";
+    var stampPath = stampDir + "\\version_stamp.h";
+    try {
+        var vDigits = version.split(".");
+        var vPatchNum = (String(vDigits[2]).match(/^\d+/) || ["0"])[0];
+        var fvs = vDigits[0] + "," + vDigits[1] + "," + vPatchNum + ",0";
+        var stampF = fso.CreateTextFile(stampPath, true);
+        stampF.WriteLine("#define EXT_FILE_VERSION " + fvs);
+        stampF.WriteLine("#define EXT_PRODUCT_VERSION " + fvs);
+        stampF.WriteLine("#define EXT_VERSION \"" + version + "\"");
+        stampF.Close();
+        STDOUT.WriteLine("Wrote " + stampPath + " (EXT_VERSION " + version + ")");
+    } catch (e) {
+        ERROR("php-firebird issue 672: failed to write " + stampPath + ": " + e.message);
+    }
     AC_DEFINE('PHP_FIREBIRD_VERSION_STRING', version, 'PHP Firebird extension version');
 
     // Check for Firebird client library and header.

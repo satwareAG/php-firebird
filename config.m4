@@ -28,7 +28,7 @@ if test "$PHP_FIREBIRD" != "no"; then
       PHP_FIREBIRD_VERSION="0.0.0-unknown"
       AC_MSG_RESULT([$PHP_FIREBIRD_VERSION (FBIRD_ALLOW_UNKNOWN_VERSION)])
     else
-      AC_MSG_ERROR([php-firebird version source missing or invalid: '$srcdir/VERSION.txt' must contain a semver string. Refusing to build an unversioned binary (#672). Set FBIRD_ALLOW_UNKNOWN_VERSION=1 to override for non-release builds.])
+      AC_MSG_ERROR([php-firebird version source missing or invalid: '$srcdir/VERSION.txt' must contain a semver string. Refusing to build an unversioned binary (issue 672). Set FBIRD_ALLOW_UNKNOWN_VERSION=1 to override for non-release builds.])
     fi
   else
     AC_MSG_RESULT([$PHP_FIREBIRD_VERSION])

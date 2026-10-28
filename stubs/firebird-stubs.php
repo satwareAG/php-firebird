@@ -308,6 +308,9 @@ const FBIRD_SVC_GET_USERS = 68;
  * @param int         $buffers  Number of database cache buffers
  * @param int         $dialect  SQL dialect (1, 2, or 3)
  * @param string|null $role     SQL role name
+ * @param int         $sync     Forced writes: -1 = do not send (default), 0 = async, 1 = sync.
+ *                              Explicitly setting 0/1 changes the database header (Firebird 4+
+ *                              requires the CHANGE_HEADER_SETTINGS system privilege).
  * @param int         $flags    Connection flags (e.g. FBIRD_CONNECT_FORCE_NEW)
  * @return \Firebird\Connection|false Connection object on success, false on failure
  * @since 7.0.0
@@ -320,7 +323,7 @@ function fbird_connect(
     int $buffers = 0,
     int $dialect = 3,
     ?string $role = null,
-    int $sync = 0,
+    int $sync = -1,
     int $flags = 0
 ): Firebird\Connection|false {}
 
@@ -334,6 +337,9 @@ function fbird_connect(
  * @param int         $buffers  Number of database cache buffers
  * @param int         $dialect  SQL dialect (1, 2, or 3)
  * @param string|null $role     SQL role name
+ * @param int         $sync     Forced writes: -1 = do not send (default), 0 = async, 1 = sync.
+ *                              Explicitly setting 0/1 changes the database header (Firebird 4+
+ *                              requires the CHANGE_HEADER_SETTINGS system privilege).
  * @return Firebird\Connection|false Connection object on success, false on failure
  * @since 7.0.0
  */
@@ -345,7 +351,7 @@ function fbird_pconnect(
     int $buffers = 0,
     int $dialect = 3,
     ?string $role = null,
-    int $sync = 0,
+    int $sync = -1,
     int $flags = 0
 ): Firebird\Connection|false {}
 

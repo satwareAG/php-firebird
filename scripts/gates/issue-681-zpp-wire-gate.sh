@@ -34,9 +34,9 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || REPO_ROOT=$(pwd)
 SELF="$REPO_ROOT/scripts/gates/issue-681-zpp-wire-gate.sh"
 
 # Connect-path files: edits here are wire-surface by definition
-CONNECT_PATH_FILES='^(fbird_connection\.c|pdo_fbird/pdo_fbird_driver\.c|src/cpp/fb_connection\.hpp|src/cpp/fb_dpb_builder\.hpp)$'
+CONNECT_PATH_FILES='^(fbird_connection\.c|firebird_utils\.cpp|pdo_fbird/pdo_fbird_driver\.c|src/cpp/fb_connection\.hpp|src/cpp/fb_dpb_builder\.hpp)$'
 # Forwarding-locus patterns (the actual #671 line shape)
-FORWARDING_PAT='largs\[\]|xdrs\[|args\[SYNC\]'
+FORWARDING_PAT='largs\[\]|xdrs\[|args\[SYNC\]|params\.(force_write|dialect|num_buffers|role|charset|parallel_workers|force_write_set)'
 
 fail() { echo "ISSUE681_GATE_FAIL: $1" >&2; exit 1; }
 ok() { echo "ISSUE681_GATE_OK"; exit 0; }
@@ -60,9 +60,12 @@ evaluate() {
         :
     else
         # layers 1+2: token grep on the changed lines of other code files
-        local diffbody
-        diffbody=$(git -C "$dir" diff HEAD -- $code_changed 2>/dev/null || git -C "$dir" diff "$@" -- $code_changed 2>/dev/null)
-        if ! printf '%s' "$diffbody" | grep -E '^[+-].*(zend_parse_parameters|ZEND_BEGIN_ARG|ZEND_ARG_INFO|isc_dpb_|isc_spb_|isc_tpb_|largs\[\]|xdrs\[|args\[SYNC\])' >/dev/null; then
+        local diffbody rc2=0
+        diffbody=$(git -C "$dir" diff "$@" -- $code_changed 2>/dev/null) || rc2=$?
+        if [ "$rc2" -ne 0 ]; then
+            fail "git diff of changed code files failed - cannot evaluate the gate (fail closed)"
+        fi
+        if ! printf '%s' "$diffbody" | grep -E '^[+-].*(zend_parse_parameters|ZEND_BEGIN_ARG|ZEND_ARG_INFO|isc_dpb_|isc_spb_|isc_tpb_|largs\[\]|xdrs\[|args\[SYNC\]|params\.(force_write|dialect|num_buffers|role|charset|parallel_workers|force_write_set))' >/dev/null; then
             ok
         fi
     fi

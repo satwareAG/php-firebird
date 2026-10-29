@@ -171,10 +171,12 @@ tests cannot see either; v13.0.0 shipped it and 11 release trains kept it.
   `zpp-wire-gate` in code-quality.yml + locally; fails the diff when the zpp
   surface changes without a `.phpt` change; `--selftest` doubles as the
   negative control). Detection layers: diff-line tokens (zpp/arginfo/DPB-
-  SPB-TPB items), the forwarding locus itself (`largs[]`/`args[SYNC]` - the
-  literal #671 line carries no DPB token), and connect-path files
-  (fbird_connection.c, PDO driver, src/cpp/fb_*.hpp) which are wire-surface
-  by definition. Fail-closed: a diff error fails the gate.
+  SPB-TPB items), the forwarding locus itself (`largs[]`/`args[SYNC]`/
+  `params.(force_write|dialect|...)` - the literal #671 line carries no DPB
+  token), and connect-path files (fbird_connection.c, firebird_utils.cpp -
+  the fbc_connect* params-assembly locus, PDO driver, src/cpp/fb_*.hpp)
+  which are wire-surface by definition. Fail-closed: a diff error fails the
+  gate; the token check diffs the requested range (PR mode), not HEAD.
 - Review checklist: for every parsed argument, confirm it is FORWARDED to the
   implementation (grep the call chain). Parsed-but-unforwarded = dead
   parameter, blocks merge (#595/#671 family).

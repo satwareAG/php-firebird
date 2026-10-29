@@ -27,6 +27,14 @@ The extension provides three distinct layers:
 2. **Test**: Write `.phpt` (native) or `phpunit` (OOP) tests first.
 3. **Pillars**: Memory safety (ASAN), type safety (C++17/PHP 8.2+).
 
+### Branch hygiene: main is squash-merge-only
+
+Content lands on `main` as single squash commits, so commit-graph ancestry does
+NOT prove a branch's content is merged. Before deleting a branch, verify via the
+merged-PR record (`gh pr list --head <branch> --state merged`) or a content grep
+against `main`; PR-review checkouts (`pr-*`) are disposable duplicates of already
+merged branches. Tags, not branches, are the immutable release record.
+
 ### IPADP Conformance
 This project targets **L3 conformance** (Discovery).
 - **Metadata**: `specs/metadata.json`
@@ -189,6 +197,46 @@ tests cannot see either; v13.0.0 shipped it and 11 release trains kept it.
   implementation (grep the call chain). Parsed-but-unforwarded = dead
   parameter, blocks merge (#595/#671 family).
 - Independent (non-author) review required for connect-path argument changes.
+### Shell gates: no `grep -q` under pipefail, no `head` in extraction pipelines (#676)
+
+`cmd | grep -q 'pattern'` under `set -o pipefail` is a false-negative generator:
+`grep -q` exits at the first match, the producer dies of SIGPIPE (exit 141) if it
+writes more data afterwards, and `if !` reads 141 as no-match. Symptom observed:
+intermittent "firebird extension not loaded" / "container not running" on healthy
+hosts. Rule: in any pipeline whose producer may outlive the match, use non-quiet
+grep redirected to /dev/null (`grep -i 'x' >/dev/null`) - it reads to EOF. File
+greps keep `-q` (no pipe producer, no hazard).
+
+Same class for report pipelines: end extractions in consuming limiters
+(`sed -n '1,80p'`), never `head` - a head-closed pipe SIGPIPEs the upstream and,
+with the ERR trap, aborts the whole report mid-flight (only manifests on outputs
+larger than the 64KB pipe buffer). Regression oracle: `scripts/gates/issue-676-oracle.sh`
+(three stub variants; v3 grows the log past the buffer size so the hazard is
+observable). Meta-rule the oracle taught us: attribute every RED before trusting
+it - the first negative-control run failed for an unrelated cause and masked the
+real defect behind it.
+
+### The 12-lane matrix shares one tree: no branch switches mid-run
+
+All matrix lanes bind-mount the same working tree (`..:/ext`). A `git checkout`
+while `scripts/test_matrix.sh` runs swaps the tree under live lanes: tests vanish
+mid-run (`Cannot open test file`) and later lanes silently test the wrong code
+(happened 2026-10-29 during v13.2.12 verification). Sequence: run the matrix to
+completion, THEN switch branches. Additionally, lanes accumulate build state in
+the shared tree - when a lane fails oddly (e.g. a segfault that origin/main does
+not reproduce), re-run that lane in isolation with a clean rebuild before
+diagnosing code: a stale in-container `.so` from a previous lane's build can
+produce wrong-cause failures (seen on php85-fb3-dev, 2026-10-29).
+
+### Issue filing: environment specs are mandatory (#673)
+
+Bug reports use `.github/ISSUE_TEMPLATE/bug_report.yml`; the five environment
+fields are required: extension version, PHP version/build/SAPI, client OS+arch,
+Firebird server version, connect API (procedural/OOP/PDO). Agents filing issues
+fill them. Note for template edits: GitHub dropdown options must be plain YAML
+strings - an unquoted scalar containing `: ` parses as a mapping and GitHub
+rejects the whole form; `scripts/gates/issue-673-oracle.py --selftest` is the
+negative control.
 
 ### IStatus lifecycle: prefer RAII, "let it leak" is safe
 

@@ -218,10 +218,20 @@ if [[ "$SKIP_PHPUNIT" == "false" ]]; then
         else
             fail "PHPUnit - failure summary below (full log: $phpunit_log)"
             if grep -q 'There w' "$phpunit_log"; then
-                sed -n '/There w/,$p' "$phpunit_log" | sed -e 's/\x1b\[[0-9;]*m//g' | head -80
+                # failure blocks: "There was/were N failure(s)/error(s)..." to
+                # EOF. All limiters consume their full input (sed -n '1,Np'),
+                # never head - an early-closing head under pipefail SIGPIPEs
+                # the upstream sed and the ERR trap aborts the summary.
+                sed -n '/There w/,$p' "$phpunit_log" \
+                    | sed -e 's/\x1b\[[0-9;]*m//g' -e 's/\r$//' \
+                    | sed -n '1,80p'
             else
-                # no failure block (crash/abort) - last 60 lines still beat a blind tail
-                tail -60 "$phpunit_log" | sed -e 's/\x1b\[[0-9;]*m//g'
+                # marker-less shapes (testdox-inline failures, crash): every
+                # failure-ish line, then the log tail for context
+                { grep -aE 'FAIL|Failed asserting|FAILURES!|ERRORS!' "$phpunit_log" || true; } \
+                    | sed -e 's/\x1b\[[0-9;]*m//g' -e 's/\r$//' \
+                    | sed -n '1,40p'
+                tail -15 "$phpunit_log" | sed -e 's/\x1b\[[0-9;]*m//g'
             fi
         fi
     else

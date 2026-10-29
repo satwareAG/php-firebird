@@ -58,11 +58,12 @@ body:
     attributes:
       label: Connect API
       description: Which layer the bug appears with. Check all that apply by re-testing with each.
+      multiple: true
       options:
-        - fbird_* procedural (fbird_connect)
-        - Firebird\Connection (OOP)
-        - PDO (fbird: DSN)
-        - Other / not sure
+        - "fbird_* procedural (fbird_connect)"
+        - "Firebird\\Connection (OOP)"
+        - "PDO (fbird: DSN)"
+        - "Other / not sure"
     validations:
       required: true
 

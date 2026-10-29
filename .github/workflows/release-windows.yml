@@ -495,6 +495,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
+      # js: the set-equality check (#689, council run 6) needs the repo's
+      # scripts/windows-asset-names.sh - this job was checkout-less by
+      # design (download-and-upload only) and failed without it.
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
       - name: Resolve release + checksum assets + upload marker
         env:
           GH_TOKEN: ${{ github.token }}

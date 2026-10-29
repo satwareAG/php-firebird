@@ -1,0 +1,5 @@
+# #680 tag-gate delta allowlist - one entry per INTENTIONAL behavior change
+# surfaced by scripts/test-delta.sh, format:
+#   <test-file-basename><TAB><reason with CHANGELOG/UPGRADING reference>
+# Anything not listed here fails the delta gate (blanket success is forbidden;
+# the delta is the product).

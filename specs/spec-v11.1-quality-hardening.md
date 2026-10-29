@@ -73,9 +73,10 @@ No breaking changes. All improvements are backward-compatible.
   <!-- 697-tranche 2026-10-29: box 2 verified - the pipe-to-php pattern is gone everywhere; ci.yml:218-221 downloads the installer to a file and verifies it against https://composer.github.io/installer.sig before executing (the secure pattern). Boxes 1/3 stay open: ci/coverage/sanitizers still use the curl+signature approach instead of setup-php, and the resolved Composer version is latest-at-runtime, not pinned. -->
 
 #### QH-1c: Windows workflow permissions scoped (I3)
-- [ ] `release-windows.yml` `contents: write` moved from workflow-level to the `release` job only
-- [ ] `build` job has no write permissions
-- [ ] Workflow-level `permissions: read-all` (or minimal set) declared
+- [x] `release-windows.yml` `contents: write` moved from workflow-level to the `release` job only
+- [x] `build` job has no write permissions
+- [x] Workflow-level `permissions: read-all` (or minimal set) declared
+  <!-- 697-tranche 2026-10-29: workflow-level is now `read-all`; write granted per-job only where needed: `release` (kept) + `pre-publish-smoke` (ADDED - deviation from the box's 'release job only' wording, which predates the #652 smoke-marker upload: that job's gh release upload IS a write). build/get-extension-matrix inherit read-all with no own contents grant. Council S4 HOLD honored: the smoke-marker path was designed in before mutating. -->
 
 ### QH-2: VERSION File Consistency (I4/I5)
 

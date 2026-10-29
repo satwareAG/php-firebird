@@ -16,6 +16,11 @@ priority: 12
 > comment, silent-RETURN error warnings (docref sites), Dockerfile digest
 > comment, EOL date fixes, archive doc status sections. qa.sh items are
 > superseded (qa.sh was removed from the repo). Tracked in #697.
+>
+> **697-tranche correction 2026-10-29**: the "qa.sh was removed" claim above is
+> WRONG - `scripts/qa.sh` is tracked and fully rewritten (QH-6c:170/171 ticked
+> on current evidence). Open-box counts are 25/2/2 = 29 (issue body lists 23 in
+> this section, omitting QH-2 line 80 and QH-3b line 94 - QH-3b now ticked).
 
 
 > **Status: COMPLETE** — v11.1.0 released 2026-07-02. All P1-P2 findings resolved.
@@ -176,6 +181,12 @@ No breaking changes. All improvements are backward-compatible.
 ### QH-7: Documentation Accuracy (P2)
 
 #### QH-7a: PHP 8.1 EOL date corrected (D6)
+<!-- 697-tranche correction 2026-10-29: BOTH dates in the instructions below are
+     WRONG. php.net lists PHP 8.1 EOL as 31 December 2025. Do NOT execute these
+     boxes literally ("November 25, 2024" would publish a false date, and the
+     README/CHANGELOG line numbers have drifted - live hits are README.md:984
+     and CHANGELOG.md:1896). Target edits deferred until PRs #702-#706 merge
+     (CHANGELOG collision); apply with the corrected 31 Dec 2025 date then. -->
 - [ ] `README.md:941` EOL date changed from "November 25, 2025" to "November 25, 2024"
 - [ ] `README.md:1004` EOL date changed from "November 25, 2025" to "November 25, 2024"
 - [ ] `CHANGELOG.md:656` EOL date changed from "November 25, 2025" to "November 25, 2024"

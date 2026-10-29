@@ -515,8 +515,14 @@ jobs:
             gh release download "$TAG" --pattern "php_firebird-*-${ts}-x86_64.zip" --clobber --repo "${{ github.repository }}"
             gh release download "$TAG" --pattern "php_pdo_fbird-*-${ts}-x86_64.zip" --clobber --repo "${{ github.repository }}"
           done
-          COUNT=$(ls -- *.zip | wc -l)
-          [ "$COUNT" -eq 8 ] || { echo "ERROR: expected 8 Windows zips, found $COUNT"; exit 1; }
+          COUNT_FB=$(ls -- php_firebird-*.zip 2>/dev/null | wc -l)
+          COUNT_PDO=$(ls -- php_pdo_fbird-*.zip 2>/dev/null | wc -l)
+          # js: per-family counts - 4 php versions x 2 ts each; the old
+          # aggregate `== 8` was a pre-#636 expectation from when pdo zips
+          # were absent, and fail-closed on the first release that ships
+          # pdo (v13.2.12, 2026-10-29).
+          [ "$COUNT_FB" -eq 8 ] || { echo "ERROR: expected 8 php_firebird zips, found $COUNT_FB"; exit 1; }
+          [ "$COUNT_PDO" -eq 8 ] || { echo "ERROR: expected 8 php_pdo_fbird zips, found $COUNT_PDO"; exit 1; }
           sha256sum -- *.zip > ../SHA256SUMS
 
           jq -n \

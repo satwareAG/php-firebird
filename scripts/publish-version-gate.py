@@ -86,7 +86,9 @@ def check_binary(name: str, data: bytes, version: str) -> None:
     for sentinel in SENTINELS:
         if sentinel in data:
             fail(f"{name}: contains fallback version string {sentinel!r} (issue 672 class)")
-    if name.endswith(".dll"):
+    member = name.rsplit("!", 1)[-1]
+    base = member.rsplit("/", 1)[-1]
+    if base.endswith(".dll"):
         numeric = pe_numeric_fileversion(data)
         if numeric is None:
             fail(f"{name}: no VS_FIXEDFILEINFO found - PE stamp missing")
@@ -99,7 +101,14 @@ def check_binary(name: str, data: bytes, version: str) -> None:
             if version not in pe_str:
                 fail(f"{name}: PE FileVersion string '{pe_str}' != tag version {version}")
         print(f"  OK {name}: PE FileVersion {numeric} / '{pe_str}'")
-    elif name.endswith(".so"):
+    elif base.endswith(".so"):
+        # Product modules only: Linux release zips bundle third-party client
+        # libs (e.g. lib/libtommath.so) that legitimately carry no version
+        # string (first live G8 run, v13.2.12, 2026-10-29). The sentinel
+        # scan above still covers every binary.
+        if not (base == "firebird.so" or "pdo_fbird" in base):
+            print(f"  SKIP {name}: third-party bundled library")
+            return
         if version.encode() not in data:
             fail(f"{name}: tag version {version} not found in binary")
         print(f"  OK {name}: version {version} present")

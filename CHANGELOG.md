@@ -5,6 +5,12 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **#696: `fbird_server_version()` now returns the clean server version string** (e.g. `LI-V3.0.14.33856 Firebird 3.0`). The parser returned the raw `isc_info_firebird_version` clump value including its `[count][length]` prefix bytes; on remote connections the client library's info-merge appends local-interface/protocol version entries after the server's own, so the old return carried binary length bytes and fragments of unrelated hosts/protocol paths. The parser now walks the clump sequence, honors `isc_info_end`/`isc_info_truncated`, and returns entry 1 - the connected server's own version. PDO's numeric `PDO::ATTR_SERVER_VERSION` path is unaffected. Regression: `tests/issue696_server_version_clean_string.phpt`.
+
 ## [13.2.12] - 2026-10-28
 
 ### CRITICAL DURABILITY ADVISORY (v13.0.0-rc.2 through v13.2.10)

@@ -1250,7 +1250,7 @@ PHP_FUNCTION(fbird_server_version)
 		RETURN_FALSE;
 	}
 
-	unsigned char info_items[] = { isc_info_firebird_version };
+	unsigned char info_items[] = { isc_info_firebird_version, isc_info_end };
 	unsigned char info_buffer[256] = {0};
 	ISC_STATUS_ARRAY status;
 
@@ -1262,22 +1262,63 @@ PHP_FUNCTION(fbird_server_version)
 		RETURN_FALSE;
 	}
 
-	/* Parse info buffer: [isc_info_firebird_version][len_lo][len_hi][string data]
-	 * Firebird returns a multi-part string like "LI-V4.0.7.3271 Firebird 4.0 (tcp:SrvName:3050)"
-	 * Doctrine DBAL needs just the version number, so we return the full string and let
-	 * consumers parse it. */
-	if (info_buffer[0] != isc_info_firebird_version) {
-		_php_fbird_module_error("Unexpected info response type %d", (int)info_buffer[0]);
+	/* Walk the clump sequence [tag][len_lo][len_hi][value]... and honor
+	 * isc_info_truncated instead of trusting a fixed offset (#696). */
+	{
+		unsigned int pos = 0;
+		int found = 0, truncated = 0;
+		unsigned short v_len = 0;
+		const unsigned char *value = NULL;
+
+		while (pos + 3 <= sizeof(info_buffer)) {
+			unsigned char tag = info_buffer[pos];
+			unsigned short clen;
+			if (tag == isc_info_end) {
+				break;
+			}
+			if (tag == isc_info_truncated) {
+				truncated = 1;
+				break;
+			}
+			clen = (unsigned short)info_buffer[pos + 1] | ((unsigned short)info_buffer[pos + 2] << 8);
+			if (pos + 3 + clen > sizeof(info_buffer)) {
+				truncated = 1;
+				break;
+			}
+			if (tag == isc_info_firebird_version) {
+				value = info_buffer + pos + 3;
+				v_len = clen;
+				found = 1;
+				break;
+			}
+			pos += 3u + clen;
+		}
+
+		if (!found) {
+			if (truncated) {
+				_php_fbird_module_error("Server info response truncated before the version item");
+			} else {
+				_php_fbird_module_error("Server version item missing from info response");
+			}
+			RETURN_FALSE;
+		}
+
+		/* Clump value layout (both paths, identical structure):
+		 *   [count][len1][str1][len2][str2]...
+		 *   - direct engine reply (inf.cpp):   count=1, str1=FB_VERSION
+		 *   - remote merged reply (merge.cpp): merge_setup() bumps the count
+		 *     and appends local-interface/protocol version entries after the
+		 *     server's own; entry 1 stays the connected server's version.
+		 * The old code returned the whole clump value including the count and
+		 * length prefixes, producing binary garbage on remote connections
+		 * (#696). */
+		if (v_len >= 2 && value[0] >= 1 && value[1] <= v_len - 2) {
+			RETURN_STRINGL((const char *)(value + 2), value[1]);
+		}
+
+		_php_fbird_module_error("Unparseable server version item (length bytes out of range)");
 		RETURN_FALSE;
 	}
-
-	unsigned short len = (unsigned short)info_buffer[1] | ((unsigned short)info_buffer[2] << 8);
-	if (len == 0 || len >= sizeof(info_buffer) - 3) {
-		_php_fbird_module_error("Invalid server version response length");
-		RETURN_FALSE;
-	}
-
-	RETURN_STRINGL((const char *)(info_buffer + 3), len);
 }
 
 /* ==========================================================================

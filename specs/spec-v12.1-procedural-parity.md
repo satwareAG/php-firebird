@@ -9,6 +9,15 @@ tags: [procedural, parity, testing, fb3, v12.1]
 priority: 2
 ---
 
+> **Checkbox reconciliation 2026-10-29**: 7 of 9 open boxes verified done and
+> ticked (RED tests shipped: parity_fbird_fetch_array, parity_fbird_errmsg_conn
+> for the #369 race, parity_fbird_meta_data, parity_fbird_server_version; M9
+> branches landed in v13.0; 26-issue parity suite present and green).
+> Still open: the two design questions (fetch_array default flag, bind_param
+> named params) - both superseded by the shipped v13.0 signatures
+> (fetch_flags=0; positional array params), kept unticked as decision records.
+
+
 # Spec: v12.1.0 Procedural API Parity
 
 ## Issue
@@ -111,8 +120,8 @@ Legend: **Y** = supported | **N** = not supported | **P** = partial / different 
 **Then** it returns an array with both key types (currently fails — function doesn't exist)
 
 **Success Criteria**:
-- [ ] #359 RED test written for `fbird_fetch_array`
-- [ ] M9 implementation branch `feat/v13.0-fetch-array-both-mode` tracked
+- [x] #359 RED test written for `fbird_fetch_array`
+- [x] M9 implementation branch `feat/v13.0-fetch-array-both-mode` tracked
 
 ### Goal 2: Per-connection error context (P0)
 
@@ -121,8 +130,8 @@ Legend: **Y** = supported | **N** = not supported | **P** = partial / different 
 **Then** `fbird_errmsg($conn1)` returns conn1's error, `fbird_errmsg($conn2)` returns conn2's error (currently both return conn2's error — global single-slot)
 
 **Success Criteria**:
-- [ ] #369 RED test written demonstrating the race
-- [ ] M9 implementation branch `feat/v13.0-per-conn-error-context` tracked
+- [x] #369 RED test written demonstrating the race
+- [x] M9 implementation branch `feat/v13.0-per-conn-error-context` tracked
 
 ### Goal 3: Doctrine DBAL compatibility helpers (P1)
 
@@ -131,8 +140,8 @@ Legend: **Y** = supported | **N** = not supported | **P** = partial / different 
 **Then** the driver provides structured metadata without requiring raw SQL against `RDB$*` tables
 
 **Success Criteria**:
-- [ ] #373 RED test for `fbird_meta_data` / `fbird_list_tables` / `fbird_list_fields`
-- [ ] #361 RED test for `fbird_server_version` (Doctrine `getDatabasePlatformVersion()`)
+- [x] #373 RED test for `fbird_meta_data` / `fbird_list_tables` / `fbird_list_fields`
+- [x] #361 RED test for `fbird_server_version` (Doctrine `getDatabasePlatformVersion()`)
 
 ### Goal 4: All other gaps documented as RED tests (P2-P3)
 
@@ -141,7 +150,7 @@ Legend: **Y** = supported | **N** = not supported | **P** = partial / different 
 **Then** they find either the function (green) or a tracked gap with priority (RED test)
 
 **Success Criteria**:
-- [ ] All 26 issues (#359-#384) have RED tests written and passing (via --SKIPIF--)
+- [x] All 26 issues (#359-#384) have RED tests written and passing (via --SKIPIF--)
 
 ---
 

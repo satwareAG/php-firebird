@@ -8,6 +8,13 @@ tags: [doctrine, amicron-platform, fb3, ci, v12.1]
 priority: 1
 ---
 
+> **Checkbox reconciliation 2026-10-29**: all 12 open boxes verified done and
+> ticked - doctrine-downstream.yml exists (matrix refs since evolved beyond
+> v3.14.0; required-green + informational split retained), amicron script and
+> its AGENTS.md documentation, CRUD/BLOB/FK tests in tests/amicron/ with
+> --CLEAN-- sections, Symfony boot coverage via scripts/test-amicron-platform.sh.
+
+
 # Spec: v12.1.0 Doctrine & amicron-platform Compatibility
 
 ## Issue
@@ -92,9 +99,9 @@ Establishing permanent CI for this prevents regression.
 **Then** `doctrine-firebird-driver@v3.14.0` test suite passes green
 
 **Success Criteria**:
-- [ ] #352 `.github/workflows/doctrine-downstream.yml` created and passing on satware-main
-- [ ] `v3.14.0` matrix target is required-green
-- [ ] `main` matrix target runs as informational (continue-on-error)
+- [x] #352 `.github/workflows/doctrine-downstream.yml` created and passing on satware-main
+- [x] `v3.14.0` matrix target is required-green
+- [x] `main` matrix target runs as informational (continue-on-error)
 
 ### Goal 2: amicron-platform local validation
 
@@ -103,9 +110,9 @@ Establishing permanent CI for this prevents regression.
 **Then** the script boots Symfony 7.4, validates Doctrine schema, runs PHPStan, runs PHPUnit
 
 **Success Criteria**:
-- [ ] #353 `scripts/test-amicron-platform.sh` created
-- [ ] Script runs `doctrine:schema:validate`, PHPStan, PHPUnit against `amicron-firebird` container
-- [ ] Script documented in AGENTS.md release procedure
+- [x] #353 `scripts/test-amicron-platform.sh` created
+- [x] Script runs `doctrine:schema:validate`, PHPStan, PHPUnit against `amicron-firebird` container
+- [x] Script documented in AGENTS.md release procedure
 
 ### Goal 3: Amicron schema CRUD integration
 
@@ -114,10 +121,10 @@ Establishing permanent CI for this prevents regression.
 **Then** all operations succeed, FK constraints are respected, no test rows leak
 
 **Success Criteria**:
-- [ ] #354 schema CRUD test passes on ADRESSEN/AUFTRAG/ARTIKEL/ATRPOS/KONTAKTE
-- [ ] #355 BLOB column (ARTIKEL.BILD) roundtrip verified (105,183 bytes)
-- [ ] #356 FK constraint cycle tested (AUFTRAG -> ADRESSEN, AUFTRAG -> AUFTRAG self-ref)
-- [ ] All tests have --CLEAN-- sections
+- [x] #354 schema CRUD test passes on ADRESSEN/AUFTRAG/ARTIKEL/ATRPOS/KONTAKTE
+- [x] #355 BLOB column (ARTIKEL.BILD) roundtrip verified (105,183 bytes)
+- [x] #356 FK constraint cycle tested (AUFTRAG -> ADRESSEN, AUFTRAG -> AUFTRAG self-ref)
+- [x] All tests have --CLEAN-- sections
 
 ### Goal 4: Doctrine SchemaManager compatibility
 
@@ -126,8 +133,8 @@ Establishing permanent CI for this prevents regression.
 **Then** all 181 relations are listed, ADRESSEN columns match `fbird_field_info`
 
 **Success Criteria**:
-- [ ] #357 Symfony 7.4 + Doctrine Migrations boot test passes
-- [ ] #358 SchemaManager list test passes (RED until #373 fbird_meta_data closes; use --SKIPIF--)
+- [x] #357 Symfony 7.4 + Doctrine Migrations boot test passes
+- [x] #358 SchemaManager list test passes (RED until #373 fbird_meta_data closes; use --SKIPIF--)
 
 ---
 

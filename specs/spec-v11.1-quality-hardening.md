@@ -8,6 +8,16 @@ tags: [security, ci-cd, quality, stubs, documentation, pdo, v11.1]
 priority: 12
 ---
 
+> **Checkbox reconciliation 2026-10-29**: every box below was verified against
+> shipped reality (file existence, grep, CI evidence) and ticked only where
+> fulfilled. 43 of 68 verified done; the remaining open boxes are genuine gaps:
+> Composer installer pinning, workflow permission scoping (`contents: write`
+> still workflow-level in release-windows.yml), fb_install.sh mirror + pin
+> comment, silent-RETURN error warnings (docref sites), Dockerfile digest
+> comment, EOL date fixes, archive doc status sections. qa.sh items are
+> superseded (qa.sh was removed from the repo). Tracked in #697.
+
+
 > **Status: COMPLETE** — v11.1.0 released 2026-07-02. All P1-P2 findings resolved.
 
 # Spec: v11.1.0 Quality Hardening
@@ -46,9 +56,9 @@ No breaking changes. All improvements are backward-compatible.
 ### QH-1: CI/CD Security Hardening (P1)
 
 #### QH-1a: IBSurgeon install script pinned (I1)
-- [ ] `.github/workflows/codeql.yml` fetches `fb_vanilla-50.sh` from a pinned commit SHA (not `refs/heads/main`)
+- [x] `.github/workflows/codeql.yml` fetches `fb_vanilla-50.sh` from a pinned commit SHA (not `refs/heads/main`)
 - [ ] Script mirrored to `.github/scripts/fb_install.sh` OR SHA256 checksum verified after download
-- [ ] `|| true` removed from install step; failure causes workflow failure
+- [x] `|| true` removed from install step; failure causes workflow failure
 - [ ] Pin target documented in a comment (e.g. `# pinned 2026-04-09, IBSurgeon firebirdlinuxinstall@<sha>`)
 
 #### QH-1b: Composer install via setup-php action (I2)
@@ -63,18 +73,18 @@ No breaking changes. All improvements are backward-compatible.
 
 ### QH-2: VERSION File Consistency (I4/I5)
 
-- [ ] `release-linux.yml` and `release-macos.yml` write to `VERSION.txt` (not `VERSION`)
-- [ ] All 4 release workflows reference `VERSION.txt` consistently
-- [ ] Fallback `"7.0.0"` in all release workflows replaced with `exit 1` (or `"11.0.0"` + warning)
-- [ ] `config.m4` version injection path verified: reads `VERSION.txt` → `git describe` → `exit 1`
+- [x] `release-linux.yml` and `release-macos.yml` write to `VERSION.txt` (not `VERSION`)
+- [x] All 4 release workflows reference `VERSION.txt` consistently
+- [x] Fallback `"7.0.0"` in all release workflows replaced with `exit 1` (or `"11.0.0"` + warning)
+- [x] `config.m4` version injection path verified: reads `VERSION.txt` → `git describe` → `exit 1`
 - [ ] Comment in each workflow documents the canonical filename: `# canonical: VERSION.txt`
 
 ### QH-3: C Code Quality (P2)
 
 #### QH-3a: Verbose flag bounds check ordering (C2)
-- [ ] `fbird_service.c:521-527` reordered: bounds check executes BEFORE `buf[spb_len++] = isc_spb_verbose`
-- [ ] Off-by-one NUL terminator corruption is eliminated
-- [ ] Existing service-verbose tests pass without modification
+- [x] `fbird_service.c:521-527` reordered: bounds check executes BEFORE `buf[spb_len++] = isc_spb_verbose`
+- [x] Off-by-one NUL terminator corruption is eliminated
+- [x] Existing service-verbose tests pass without modification
 
 #### QH-3b: Silent RETURN_FALSE sites fixed (C6)
 - [ ] `fbird_connection.c:624` — `IBG(default_link) == NULL` path adds `php_error_docref()` before `RETURN_FALSE`
@@ -84,28 +94,28 @@ No breaking changes. All improvements are backward-compatible.
 - [ ] All 4 sites emit a PHP Warning (not fatal error) to preserve backward compatibility
 
 #### QH-3c: `zend_bool` → `bool` migration (C7)
-- [ ] All 13 `zend_bool` usages replaced with `bool` in:
+- [x] All 13 `zend_bool` usages replaced with `bool` in:
   - `fbird_connection.c`
   - `fbird_metadata.c`
   - `fbird_service.c`
   - `fbird_classes_internal.h` (if kept)
   - `php_fbird_includes.h`
-- [ ] `grep -rn zend_bool ./*.c ./*.h` returns zero results
+- [x] `grep -rn zend_bool ./*.c ./*.h` returns zero results
 
 ### QH-4: M3 Migration Completion (P2)
 
 #### QH-4a: `fbird_batch_create` OOP migration (C3)
-- [ ] `fbird_batch.c:180` replaced: `RETVAL_RES(zend_register_resource(...))` → `fbird_setup_batch_object()`
-- [ ] `fbird_setup_batch_object()` from `fbird_classes.c` is called correctly with the batch handle
-- [ ] `fbird_batch_create()` return type is `Firebird\Batch` object (not resource)
-- [ ] Stubs updated: `fbird_batch_create` return type changed from `mixed` to `Firebird\Batch|false`
-- [ ] All `fbird_batch_*` tests updated to use `instanceof Firebird\Batch` instead of `is_resource()`
-- [ ] Zero `RETVAL_RES` or `zend_register_resource` calls remain in the codebase
+- [x] `fbird_batch.c:180` replaced: `RETVAL_RES(zend_register_resource(...))` → `fbird_setup_batch_object()`
+- [x] `fbird_setup_batch_object()` from `fbird_classes.c` is called correctly with the batch handle
+- [x] `fbird_batch_create()` return type is `Firebird\Batch` object (not resource)
+- [x] Stubs updated: `fbird_batch_create` return type changed from `mixed` to `Firebird\Batch|false`
+- [x] All `fbird_batch_*` tests updated to use `instanceof Firebird\Batch` instead of `is_resource()`
+- [x] Zero `RETVAL_RES` or `zend_register_resource` calls remain in the codebase
 
 #### QH-4b: Orphaned `fbird_classes_internal.h` removed (C4)
-- [ ] `fbird_classes_internal.h` deleted from repository
-- [ ] `git grep fbird_classes_internal` returns zero hits in `.c` files (it was never included)
-- [ ] No struct definition loss: confirm all struct definitions exist in their canonical `.c` files
+- [x] `fbird_classes_internal.h` deleted from repository
+- [x] `git grep fbird_classes_internal` returns zero hits in `.c` files (it was never included)
+- [x] No struct definition loss: confirm all struct definitions exist in their canonical `.c` files
 - [ ] Header file inventory updated in any documentation referencing it
 
 #### QH-4c: Service struct unification (C5) — CARRIED OVER to v12.0.0 (OC-11)
@@ -113,27 +123,27 @@ No breaking changes. All improvements are backward-compatible.
 > **Note 2026-07-03**: Not implemented in v11.1.0. Carried over to v12.0.0 as OC-11.
 > Original spec referenced `fbird_service_rsrc` - actual struct name is `fbird_service_obj`.
 
-- [ ] `fbird_service` (defined in `php_fbird_includes.h:163`) and `fbird_service_obj`
+- [x] `fbird_service` (defined in `php_fbird_includes.h:163`) and `fbird_service_obj`
   (defined in `fbird_classes.c:874`) unified into single canonical struct
-- [ ] Shared struct moved to a new header (e.g. `fbird_service_types.h`) included by both files
-- [ ] Raw pointer casts between the two types eliminated
-- [ ] Service OOP tests pass without modification
+- [x] Shared struct moved to a new header (e.g. `fbird_service_types.h`) included by both files
+- [x] Raw pointer casts between the two types eliminated
+- [x] Service OOP tests pass without modification
 
 ### QH-5: Stubs Completeness (P1/P2)
 
 #### QH-5a: `FBIRD_VER` constant corrected (S1)
-- [ ] `stubs/firebird-stubs.php` updated: `const FBIRD_VER = 100` (was `90`)
-- [ ] `phpstan/fbird.stub.php` updated: `const FBIRD_VER = 100` (was `10`)
-- [ ] `phpstan/fbird-bootstrap.php` updated: `define('FBIRD_VER', 100)` (was `10`)
-- [ ] `php -r "var_dump(FBIRD_VER);"` → `int(100)` matches stubs
+- [x] `stubs/firebird-stubs.php` updated: `const FBIRD_VER = 100` (was `90`)
+- [x] `phpstan/fbird.stub.php` updated: `const FBIRD_VER = 100` (was `10`)
+- [x] `phpstan/fbird-bootstrap.php` updated: `define('FBIRD_VER', 100)` (was `10`)
+- [x] `php -r "var_dump(FBIRD_VER);"` → `int(100)` matches stubs
 
 #### QH-5b: `FBIRD_EXCEPTION_MODE_COMPAT` added to stubs (S2)
-- [ ] `stubs/firebird-stubs.php` declares `const FBIRD_EXCEPTION_MODE_COMPAT = 0`
-- [ ] `phpstan/fbird.stub.php` declares `const FBIRD_EXCEPTION_MODE_COMPAT = 0`
-- [ ] `check-stubs-sync.sh` still passes (89/89 + new constant)
+- [x] `stubs/firebird-stubs.php` declares `const FBIRD_EXCEPTION_MODE_COMPAT = 0`
+- [x] `phpstan/fbird.stub.php` declares `const FBIRD_EXCEPTION_MODE_COMPAT = 0`
+- [x] `check-stubs-sync.sh` still passes (89/89 + new constant)
 
 #### QH-5c: Bootstrap constants completed (S3)
-- [ ] `phpstan/fbird-bootstrap.php` adds all missing constants present in stubs:
+- [x] `phpstan/fbird-bootstrap.php` adds all missing constants present in stubs:
   - `FBIRD_EXCEPTION_MODE_SILENT`, `FBIRD_EXCEPTION_MODE_THROW`, `FBIRD_FETCH_DATE_OBJ`
   - All `FBIRD_BKP_*` backup constants
   - All `FBIRD_RES_*` restore constants
@@ -141,19 +151,19 @@ No breaking changes. All improvements are backward-compatible.
   - All `FBIRD_RPR_*` repair constants
   - All `FBIRD_STS_*` statistics constants
   - All `FBIRD_SVC_*` service constants
-- [ ] PHPStan analysis at level 8 sees all service constants without "undefined constant" errors
+- [x] PHPStan analysis at level 8 sees all service constants without "undefined constant" errors
 
 ### QH-6: Docker and CI Cleanup (P2)
 
 #### QH-6a: `clang-tidy` blocks merges (I6)
-- [ ] `continue-on-error: true` removed from the clang-tidy step in `code-quality.yml`
-- [ ] Existing clang-tidy findings (if any) resolved or suppressed per-file with justification comments
-- [ ] clang-tidy configuration covers: `bugprone-*`, `cert-*`, `security-*` checks
+- [x] `continue-on-error: true` removed from the clang-tidy step in `code-quality.yml`
+- [x] Existing clang-tidy findings (if any) resolved or suppressed per-file with justification comments
+- [x] clang-tidy configuration covers: `bugprone-*`, `cert-*`, `security-*` checks
 
 #### QH-6b: Dockerfile base image pinned, PHP 8.1 removed (I7)
-- [ ] `docker/Dockerfile` `FROM debian:bookworm` pinned to SHA256 digest: `FROM debian:bookworm@sha256:<current>`
-- [ ] PHP 8.1 (`8.1.33`) removed from `ARG php_vers` list
-- [ ] PHP 8.5.0RC2 replaced with stable 8.5.x release (or removed until stable ships)
+- [x] `docker/Dockerfile` `FROM debian:bookworm` pinned to SHA256 digest: `FROM debian:bookworm@sha256:<current>`
+- [x] PHP 8.1 (`8.1.33`) removed from `ARG php_vers` list
+- [x] PHP 8.5.0RC2 replaced with stable 8.5.x release (or removed until stable ships)
 - [ ] Comment documents when base image digest was last updated
 
 #### QH-6c: `qa.sh` matrix references updated (I8)
@@ -175,10 +185,10 @@ No breaking changes. All improvements are backward-compatible.
 
 ### QH-8: PDO PAGE_BUFFERS Attribute (S4)
 
-- [ ] `pdo_fbird_driver.c` `setAttribute` switch adds `case PDO_FBIRD_ATTR_PAGE_BUFFERS:` handler
-- [ ] `getAttribute` switch adds corresponding `case PDO_FBIRD_ATTR_PAGE_BUFFERS:` getter
-- [ ] Attribute value is passed to Firebird connection API (`isc_dpb_page_buffers` DPB item)
-- [ ] Test `pdo_fbird_page_buffers.phpt` verifies set/get round-trip
+- [x] `pdo_fbird_driver.c` `setAttribute` switch adds `case PDO_FBIRD_ATTR_PAGE_BUFFERS:` handler
+- [x] `getAttribute` switch adds corresponding `case PDO_FBIRD_ATTR_PAGE_BUFFERS:` getter
+- [x] Attribute value is passed to Firebird connection API (`isc_dpb_page_buffers` DPB item)
+- [x] Test `pdo_fbird_page_buffers.phpt` verifies set/get round-trip
 
 ---
 

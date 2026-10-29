@@ -175,8 +175,8 @@ No breaking changes. All improvements are backward-compatible.
 #### QH-6c: `qa.sh` matrix references updated (I8)
 - [x] `qa.sh` `php81-fb3-dev` service reference removed or replaced with current minimum (php82)
 - [x] `docker/docker-compose.yml` service names match what `qa.sh` references
-- [ ] Running `bash qa.sh matrix` completes without "no such service" Docker error
-  <!-- 697-tranche 2026-10-29: qa.sh exists (the earlier "removed" premise was wrong - council S5) and was fully rewritten: zero `php81` matches; references php84-fb3-dev / php82-fb3-dev / php85-fb5-dev / php83-asan, all present in docker/docker-compose.yml (170, 171 ticked on that evidence). 172 awaits the live matrix run (in flight at mutation time; will be ticked in a follow-up with the run log). -->
+- [x] Running `bash qa.sh matrix` completes without "no such service" Docker error
+  <!-- 697-tranche 2026-10-29: verified LIVE - `bash scripts/qa.sh --mode matrix` ran the php82-fb3-dev + php85-fb5-dev lanes end-to-end: rc=0, "MATRIX TESTING COMPLETED SUCCESSFULLY", zero no-such-service errors (log /tmp disposable, outcome recorded on #700). 170/171 ticked earlier the same day on static evidence (0 php81 matches; referenced lanes all present in compose). -->
 
 ### QH-7: Documentation Accuracy (P2)
 

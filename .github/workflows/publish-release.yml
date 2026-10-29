@@ -145,6 +145,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
       - name: Verify smoke marker + asset checksum binding (#652)
+        env:
+          # js: the draft release is invisible to unauthenticated gh -
+          # every other step here declares this; the binding step never
+          # did (first live exercise was v13.2.12, 2026-10-29).
+          GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
           ASSETS_JSON=$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets,databaseId)

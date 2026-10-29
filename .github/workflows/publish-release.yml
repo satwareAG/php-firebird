@@ -146,30 +146,26 @@ jobs:
 
       - name: Verify smoke marker + asset checksum binding (#652)
         env:
-          # js: the draft release is invisible to unauthenticated gh -
-          # every other step here declares this; the binding step never
-          # did (first live exercise was v13.2.12, 2026-10-29).
+          # Draft releases are invisible to unauthenticated gh and to the
+          # /releases/tags/{tag} route; the list endpoint below is the
+          # draft-safe resolver (numeric REST ids only - gh release view
+          # --json emits GraphQL node ids, which 404 on REST asset routes;
+          # first live exercise was v13.2.12, 2026-10-29).
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
-          ASSETS_JSON=$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets,databaseId)
-          RELEASE_ID=$(echo "$ASSETS_JSON" | jq -r '.databaseId')
-          MARKER_COUNT=$(echo "$ASSETS_JSON" | jq '[.assets[].name | select(. == "SMOKE-PASSED.json")] | length')
-          WIN=$(echo "$ASSETS_JSON" | jq '[.assets[].name | select(endswith(".zip") and contains("x86_64"))] | length')
-          IS_RC=$(echo "$TAG" | grep -qiE '(rc|beta|alpha|dev)\.' && echo "true" || echo "false")
 
-          # RC published without any Windows assets: nothing to gate (condition 5)
-          if [ "$IS_RC" = "true" ] && [ "$WIN" -eq 0 ] && [ "$MARKER_COUNT" -eq 0 ]; then
-            echo "RC without Windows assets - smoke marker not required"
-            exit 0
-          fi
+          # Resolve exactly one release by tag via the LIST endpoint
+          # (returns drafts + numeric REST ids).
+          RELEASE_JSON=$(gh api "repos/${{ github.repository }}/releases?per_page=100" \
+            --jq 'map(select(.tag_name == "'"$TAG"'")) | if length != 1 then error("expected exactly 1 release for '"$TAG"'") else .[0] end')
+          RELEASE_ID=$(echo "$RELEASE_JSON" | jq -r '.id')
 
-          if [ "$MARKER_COUNT" -ne 1 ]; then
-            echo "ERROR: expected exactly 1 SMOKE-PASSED.json marker, found $MARKER_COUNT - refusing to publish (fail closed)"
+          MARKER_ID=$(echo "$RELEASE_JSON" | jq -r '.assets[] | select(.name == "SMOKE-PASSED.json") | .id')
+          if [ -z "$MARKER_ID" ] || [ "$MARKER_ID" = "null" ]; then
+            echo "ERROR: SMOKE-PASSED.json marker missing on release $TAG - refusing to publish (fail closed)"
             exit 1
           fi
-
-          MARKER_ID=$(echo "$ASSETS_JSON" | jq -r '.assets[] | select(.name == "SMOKE-PASSED.json") | .id')
           gh api "repos/${{ github.repository }}/releases/assets/$MARKER_ID" \
             -H "Accept: application/octet-stream" > marker.json
           jq . marker.json
@@ -183,22 +179,22 @@ jobs:
 
           # Binding 2: the tested bytes must be the bytes on the release NOW
           # (guards asset replacement between smoke and publish - audit
-          # finding 3, council run 2)
+          # finding 3, council run 2). Exact-name API downloads - no globs.
           mkdir -p wincheck && cd wincheck
-          # js: same corrected patterns + set equality as the smoke-marker
-          # job (#689, council run 6) - the old pre-vsNN patterns matched
-          # zero assets and the aggregate == 8 was pre-#636. Both call
-          # sites share scripts/windows-asset-names.sh (#688-P2 seed).
-          for ts in nts ts; do
-            gh release download "$TAG" --pattern "php_firebird-*-${ts}-*-x86_64.zip" --clobber --repo "${{ github.repository }}"
-            gh release download "$TAG" --pattern "php_pdo_fbird-*-${ts}-*-x86_64.zip" --clobber --repo "${{ github.repository }}"
+          for name in $(bash "${GITHUB_WORKSPACE}/scripts/windows-asset-names.sh" "${TAG#v}"); do
+            AID=$(echo "$RELEASE_JSON" | jq -r --arg n "$name" '.assets[] | select(.name == $n) | .id')
+            if [ -z "$AID" ] || [ "$AID" = "null" ]; then
+              echo "ERROR: asset missing on release $TAG: $name"
+              exit 1
+            fi
+            gh api "repos/${{ github.repository }}/releases/assets/$AID" \
+              -H "Accept: application/octet-stream" > "$name"
           done
           COUNT_FB=$(ls -- php_firebird-*.zip 2>/dev/null | wc -l)
           COUNT_PDO=$(ls -- php_pdo_fbird-*.zip 2>/dev/null | wc -l)
           [ "$COUNT_FB" -eq 8 ] || { echo "ERROR: expected 8 php_firebird zips, found $COUNT_FB"; exit 1; }
           [ "$COUNT_PDO" -eq 8 ] || { echo "ERROR: expected 8 php_pdo_fbird zips, found $COUNT_PDO"; exit 1; }
-          VERSION="${TAG#v}"
-          if ! diff -u <(bash "${GITHUB_WORKSPACE}/scripts/windows-asset-names.sh" "$VERSION" | sort) <(ls -1 -- *.zip | sort); then
+          if ! diff -u <(bash "${GITHUB_WORKSPACE}/scripts/windows-asset-names.sh" "${TAG#v}" | sort) <(ls -1 -- *.zip | sort); then
             echo "ERROR: downloaded asset name set mismatch vs expected matrix"
             exit 1
           fi

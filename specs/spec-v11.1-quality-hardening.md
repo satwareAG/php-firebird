@@ -87,11 +87,12 @@ No breaking changes. All improvements are backward-compatible.
 - [x] Existing service-verbose tests pass without modification
 
 #### QH-3b: Silent RETURN_FALSE sites fixed (C6)
-- [ ] `fbird_connection.c:624` — `IBG(default_link) == NULL` path adds `php_error_docref()` before `RETURN_FALSE`
-- [ ] `fbird_connection.c:630` — `_php_fbird_res_from_zval()` NULL path adds error before `RETURN_FALSE`
-- [ ] `fbird_transaction.c:323` — `!ib_link` path adds `php_error_docref()` before `RETURN_FALSE`
-- [ ] `fbird_service.c:329` — `fbird_service_detach` resolution failure adds `FBIRD_SVC_ERROR()` before `RETURN_FALSE`
-- [ ] All 4 sites emit a PHP Warning (not fatal error) to preserve backward compatibility
+- [x] `fbird_connection.c:624` — `IBG(default_link) == NULL` path adds `php_error_docref()` before `RETURN_FALSE`
+- [x] `fbird_connection.c:630` — `_php_fbird_res_from_zval()` NULL path adds error before `RETURN_FALSE`
+- [x] `fbird_transaction.c:323` — `!ib_link` path adds error before `RETURN_FALSE`
+- [x] `fbird_service.c:329` — `fbird_service_detach` resolution failure adds `FBIRD_SVC_ERROR()` before `RETURN_FALSE`
+- [x] All 4 sites emit a PHP Warning (not fatal error) to preserve backward compatibility
+  <!-- 697-tranche 2026-10-29: resolved-by-implementation; the v11.1 line refs are stale (code refactored, FBG naming). Current equivalent sites all emit _php_fbird_module_error() (E_WARNING via php_error_docref, fbird_error.c:322-331) before RETURN_FALSE/FAILURE: fbird_connection.c:620-627 (invalid link resource), fbird_connection.c:713-718 and :995+ (_php_fbird_res_from_zval NULL), fbird_transaction.c:431-453 (invalid db link / OO handle paths), fbird_service.c:325-329 (invalid service handle). Evidence verified on 9f9b8a1 by the #697 tranche (council-697-tranche). -->
 
 #### QH-3c: `zend_bool` → `bool` migration (C7)
 - [x] All 13 `zend_bool` usages replaced with `bool` in:
@@ -167,9 +168,10 @@ No breaking changes. All improvements are backward-compatible.
 - [ ] Comment documents when base image digest was last updated
 
 #### QH-6c: `qa.sh` matrix references updated (I8)
-- [ ] `qa.sh` `php81-fb3-dev` service reference removed or replaced with current minimum (php82)
-- [ ] `docker/docker-compose.yml` service names match what `qa.sh` references
+- [x] `qa.sh` `php81-fb3-dev` service reference removed or replaced with current minimum (php82)
+- [x] `docker/docker-compose.yml` service names match what `qa.sh` references
 - [ ] Running `bash qa.sh matrix` completes without "no such service" Docker error
+  <!-- 697-tranche 2026-10-29: qa.sh exists (the earlier "removed" premise was wrong - council S5) and was fully rewritten: zero `php81` matches; references php84-fb3-dev / php82-fb3-dev / php85-fb5-dev / php83-asan, all present in docker/docker-compose.yml (170, 171 ticked on that evidence). 172 awaits the live matrix run (in flight at mutation time; will be ticked in a follow-up with the run log). -->
 
 ### QH-7: Documentation Accuracy (P2)
 

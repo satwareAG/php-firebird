@@ -192,8 +192,10 @@ Legend: **Y** = supported | **N** = not supported | **P** = partial / different 
 
 ## Open Questions
 
-- [ ] Should `fbird_fetch_array` use FBIRD_BOTH as default (matching interbase) or require explicit $fetch_type? **Recommended**: default FBIRD_BOTH for BC with interbase migration code.
-- [ ] Should `fbird_bind_param` support named params (converting to ? internally) or positional only? **Recommended**: support both — Firebird SQL uses ? but Doctrine DBAL uses :name.
+- [x] ~~Should `fbird_fetch_array` use FBIRD_BOTH as default (matching interbase) or require explicit $fetch_type? **Recommended**: default FBIRD_BOTH for BC with interbase migration code.~~
+  DECIDED 2026-10-29 (#697 tranche): DECLINED - implementation diverges deliberately: `fetch_flags = 0` default (stubs/firebird-stubs.php:591), explicit `$fetch_type` required. Explicit-mode was chosen over interbase BC; the BOTH-mode gap is tracked as #359 (pdo-fbird-stubs.php:209). Closed as a decision record, not as fulfillment.
+- [x] ~~Should `fbird_bind_param` support named params (converting to ? internally) or positional only? **Recommended**: support both — Firebird SQL uses ? but Doctrine DBAL uses :name.~~
+  DECIDED 2026-10-29 (#697 tranche): DECLINED - positional-only with a single `array $params` argument (stubs/firebird-stubs.php:1525); named-parameter conversion was never implemented. Downstream named-param needs are handled by the doctrine-firebird-driver layer. Closed as a decision record, not as fulfillment.
 
 ---
 

@@ -120,6 +120,13 @@ void php_fbird_service_minit(INIT_FUNC_ARGS)
 	REGISTER_LONG_CONSTANT("FBIRD_PRP_ACCESS_MODE", isc_spb_prp_access_mode, CONST_PERSISTENT);
 	  REGISTER_LONG_CONSTANT("FBIRD_PRP_AM_READONLY", isc_spb_prp_am_readonly, CONST_PERSISTENT);
 	  REGISTER_LONG_CONSTANT("FBIRD_PRP_AM_READWRITE", isc_spb_prp_am_readwrite, CONST_PERSISTENT);
+#ifdef isc_spb_prp_replica_mode
+	/* Firebird 4+ client headers only (#682); FB3 client libs lack it */
+	REGISTER_LONG_CONSTANT("FBIRD_PRP_REPLICA_MODE", isc_spb_prp_replica_mode, CONST_PERSISTENT);
+	  REGISTER_LONG_CONSTANT("FBIRD_PRP_RM_NONE", isc_spb_prp_rm_none, CONST_PERSISTENT);
+	  REGISTER_LONG_CONSTANT("FBIRD_PRP_RM_READONLY", isc_spb_prp_rm_readonly, CONST_PERSISTENT);
+	  REGISTER_LONG_CONSTANT("FBIRD_PRP_RM_READWRITE", isc_spb_prp_rm_readwrite, CONST_PERSISTENT);
+#endif
 	REGISTER_LONG_CONSTANT("FBIRD_PRP_SET_SQL_DIALECT", isc_spb_prp_set_sql_dialect, CONST_PERSISTENT);
 	REGISTER_LONG_CONSTANT("FBIRD_PRP_ACTIVATE", isc_spb_prp_activate, CONST_PERSISTENT);
 	REGISTER_LONG_CONSTANT("FBIRD_PRP_DB_ONLINE", isc_spb_prp_db_online, CONST_PERSISTENT);
@@ -628,6 +635,9 @@ options_argument:
 
 			case isc_spb_prp_reserve_space:
 			case isc_spb_prp_write_mode:
+#ifdef isc_spb_prp_replica_mode
+			case isc_spb_prp_replica_mode:
+#endif
 			case isc_spb_prp_access_mode:
 				spb_len = slprintf(buf, sizeof(buf), "%c%c%c%c%s%c%c",
 					isc_action_svc_properties, isc_spb_dbname, (char)dblen, (char)(dblen >> 8),

@@ -232,6 +232,19 @@ const FBIRD_PRP_ACCESS_MODE = 13;
 const FBIRD_PRP_AM_READONLY = 39;
 /** @var int */
 const FBIRD_PRP_AM_READWRITE = 40;
+/**
+ * Database replica mode property. Requires a Firebird 4+ server AND client
+ * headers that define isc_spb_prp_replica_mode; on FB3 client headers the
+ * constant compiles out (consumers gate on defined('FBIRD_PRP_REPLICA_MODE')).
+ * @var int
+ */
+const FBIRD_PRP_REPLICA_MODE = 46;
+/** @var int */
+const FBIRD_PRP_RM_NONE = 0;
+/** @var int */
+const FBIRD_PRP_RM_READONLY = 1;
+/** @var int */
+const FBIRD_PRP_RM_READWRITE = 2;
 /** @var int */
 const FBIRD_PRP_SET_SQL_DIALECT = 14;
 /** @var int */

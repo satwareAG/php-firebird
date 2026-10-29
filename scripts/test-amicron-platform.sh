@@ -77,26 +77,26 @@ if [[ ! -d "$PLATFORM_DIR/.git" ]]; then
     exit 2
 fi
 
-if ! php -v 2>/dev/null | grep -qE '^PHP 8\.[45]'; then
+if ! php -v 2>/dev/null | grep -E '^PHP 8\.[45]' >/dev/null; then
     fail "PHP 8.4+ required (amicron-platform requires ^8.4)"
     exit 2
 fi
 pass "PHP version: $(php -v | head -1)"
 
-if ! php -m 2>/dev/null | grep -qi 'firebird'; then
+if ! php -m 2>/dev/null | grep -i 'firebird' >/dev/null; then
     fail "firebird extension not loaded"
     echo "  Run: sudo make install && echo extension=firebird.so | sudo tee /etc/php/conf.d/firebird.ini"
     exit 2
 fi
 pass "firebird extension loaded"
 
-if ! php -m 2>/dev/null | grep -qi 'pdo_fbird'; then
+if ! php -m 2>/dev/null | grep -i 'pdo_fbird' >/dev/null; then
     fail "pdo_fbird extension not loaded"
     exit 2
 fi
 pass "pdo_fbird extension loaded"
 
-if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${FIREBIRD_CONTAINER}$"; then
+if ! docker ps --format '{{.Names}}' 2>/dev/null | grep "^${FIREBIRD_CONTAINER}$" >/dev/null; then
     fail "Docker container '$FIREBIRD_CONTAINER' not running"
     echo "  Start the Firebird service from your AMICRON_PLATFORM_DIR compose stack:"
     echo "    docker compose up -d firebird"
@@ -207,10 +207,22 @@ if [[ "$SKIP_PHPUNIT" == "false" ]]; then
     export MAILER_DSN="${MAILER_DSN:-null://null}"
 
     if [[ -x "vendor/bin/phpunit" ]]; then
-        if vendor/bin/phpunit --colors=always --testdox 2>&1 | tail -20; then
+        # 676: tee the full run to a log. On red, print the failure blocks
+        # ("There was/were N failure(s)/error(s)/warning(s)") - with --testdox
+        # they sit ABOVE the testdox list, so the old `| tail -20` cut exactly
+        # the identity off long runs. Log file keeps everything for re-reading.
+        phpunit_log="${TMPDIR:-/tmp}/amicron-phpunit-$$.log"
+        if vendor/bin/phpunit --colors=always --testdox 2>&1 | tee "$phpunit_log"; then
             pass "PHPUnit"
+            rm -f "$phpunit_log"
         else
-            fail "PHPUnit"
+            fail "PHPUnit - failure summary below (full log: $phpunit_log)"
+            if grep -q 'There w' "$phpunit_log"; then
+                sed -n '/There w/,$p' "$phpunit_log" | sed -e 's/\x1b\[[0-9;]*m//g' | head -80
+            else
+                # no failure block (crash/abort) - last 60 lines still beat a blind tail
+                tail -60 "$phpunit_log" | sed -e 's/\x1b\[[0-9;]*m//g'
+            fi
         fi
     else
         info "PHPUnit not installed. Skipping."

@@ -40,6 +40,12 @@ jobs:
     timeout-minutes: 100
 
     steps:
+      # js #688 P2: the binding step (windows-asset-names.sh) and the version
+      # gate (publish-version-gate.py) are repo files - this job was
+      # checkout-less by design before they existed.
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
       - name: Determine release tag
         id: tag
         run: |

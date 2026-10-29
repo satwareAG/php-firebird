@@ -157,6 +157,25 @@ Both CI and local `run-tests.php` use `--set-timeout 15` to kill hanging tests
 in 15 seconds instead of the default 60. This prevents a single hanging test from
 cascading into a 30-minute CI timeout.
 
+### zpp default/forwarding changes require wire-observation tests in the same PR (#681)
+
+The #671 class: a zpp-parsed argument (`sync`) silently DISCARDED, plus a
+hardcoded literal (`0`) reaching the attach DPB. Signature and return-value
+tests cannot see either; v13.0.0 shipped it and 11 release trains kept it.
+
+- Any PR changing `zend_parse_parameters` defaults, argument forwarding, or
+  DPB/SPB/TPB buffer building MUST include a test observing the wire/engine
+  effect (MON$ column, header state via the service API, service output),
+  not only return values.
+- Enforcement: `scripts/gates/issue-681-zpp-wire-gate.sh` (CI job
+  `zpp-wire-gate` in code-quality.yml + locally; fails the diff when the zpp
+  surface changes without a `.phpt` change; `--selftest` doubles as the
+  negative control).
+- Review checklist: for every parsed argument, confirm it is FORWARDED to the
+  implementation (grep the call chain). Parsed-but-unforwarded = dead
+  parameter, blocks merge (#595/#671 family).
+- Independent (non-author) review required for connect-path argument changes.
+
 ### IStatus lifecycle: prefer RAII, "let it leak" is safe
 
 **Verification note**: Cross-referenced with Firebird source - `JProvider::attachServiceManager`

@@ -241,6 +241,23 @@ jobs:
         run: python3 scripts/test_privacy_rules.py
 
   # ==========================================================================
+  # #681: zpp default/forwarding changes require wire-observation tests
+  # ==========================================================================
+  zpp-wire-gate:
+    name: zpp Wire-Observation Gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Run zpp wire-observation gate (#681)
+        run: bash scripts/gates/issue-681-zpp-wire-gate.sh "origin/${{ github.base_ref || 'main' }}...HEAD"
+
+  # ==========================================================================
   # Secret Detection (Gitleaks CLI - no license required)
   # ==========================================================================
   secrets-scan:
@@ -283,7 +300,7 @@ jobs:
   quality-summary:
     name: Quality Gate
     runs-on: ubuntu-24.04
-    needs: [php-analysis, stubs-sync, c-analysis, version-stamps, secrets-scan, privacy-check]
+    needs: [php-analysis, stubs-sync, c-analysis, version-stamps, secrets-scan, privacy-check, zpp-wire-gate]
     if: always()
     timeout-minutes: 15
 
@@ -296,13 +313,15 @@ jobs:
           echo "Version Stamps: ${{ needs.version-stamps.result }}"
           echo "Secrets Scan: ${{ needs.secrets-scan.result }}"
           echo "Privacy Check: ${{ needs.privacy-check.result }}"
+          echo "zpp Wire Gate: ${{ needs.zpp-wire-gate.result }}"
 
           if [ "${{ needs.php-analysis.result }}" = "failure" ] || \
              [ "${{ needs.stubs-sync.result }}" = "failure" ] || \
              [ "${{ needs.c-analysis.result }}" = "failure" ] || \
              [ "${{ needs.version-stamps.result }}" = "failure" ] || \
              [ "${{ needs.secrets-scan.result }}" = "failure" ] || \
-             [ "${{ needs.privacy-check.result }}" = "failure" ]; then
+             [ "${{ needs.privacy-check.result }}" = "failure" ] || \
+             [ "${{ needs.zpp-wire-gate.result }}" = "failure" ]; then
             echo "❌ Quality gate failed"
             exit 1
           fi

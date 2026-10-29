@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **#682: FBIRD_PRP_REPLICA_MODE service property** (Firebird 4+ server AND client headers): `fbird_maintain_db()` can set the database replica mode via `FBIRD_PRP_REPLICA_MODE` with `FBIRD_PRP_RM_NONE` / `FBIRD_PRP_RM_READONLY` / `FBIRD_PRP_RM_READWRITE`. On FB3 client headers the constants compile out (`#ifdef isc_spb_prp_replica_mode`); consumers gate on `defined('FBIRD_PRP_REPLICA_MODE')`. Ship rider: the #682 wire-level DPB conformance suite (`tests/issue682_dpb_conformance_*.phpt`) proves default connects send none of the seven privilege-gated attach-DPB items, with seeded negative controls and ordinary-user coverage.
+- **#681: zpp wire-observation gate** - `scripts/gates/issue-681-zpp-wire-gate.sh` (CI job `zpp-wire-gate`) blocks PRs that change `zend_parse_parameters` defaults, argument forwarding, or DPB/SPB/TPB buffer building without a wire-observation `.phpt` in the same PR (#671 failure class: parsed-but-unforwarded arguments and hardcoded DPB literals are invisible to return-value tests). PR template carries the forwarding-review checklist; the gate's `--selftest` doubles as the negative control.
 
 ### Fixed
 

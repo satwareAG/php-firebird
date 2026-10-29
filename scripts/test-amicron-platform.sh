@@ -77,26 +77,26 @@ if [[ ! -d "$PLATFORM_DIR/.git" ]]; then
     exit 2
 fi
 
-if ! php -v 2>/dev/null | grep -qE '^PHP 8\.[45]'; then
+if ! php -v 2>/dev/null | grep -E '^PHP 8\.[45]' >/dev/null; then
     fail "PHP 8.4+ required (amicron-platform requires ^8.4)"
     exit 2
 fi
 pass "PHP version: $(php -v | head -1)"
 
-if ! php -m 2>/dev/null | grep -qi 'firebird'; then
+if ! php -m 2>/dev/null | grep -i 'firebird' >/dev/null; then
     fail "firebird extension not loaded"
     echo "  Run: sudo make install && echo extension=firebird.so | sudo tee /etc/php/conf.d/firebird.ini"
     exit 2
 fi
 pass "firebird extension loaded"
 
-if ! php -m 2>/dev/null | grep -qi 'pdo_fbird'; then
+if ! php -m 2>/dev/null | grep -i 'pdo_fbird' >/dev/null; then
     fail "pdo_fbird extension not loaded"
     exit 2
 fi
 pass "pdo_fbird extension loaded"
 
-if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${FIREBIRD_CONTAINER}$"; then
+if ! docker ps --format '{{.Names}}' 2>/dev/null | grep "^${FIREBIRD_CONTAINER}$" >/dev/null; then
     fail "Docker container '$FIREBIRD_CONTAINER' not running"
     echo "  Start the Firebird service from your AMICRON_PLATFORM_DIR compose stack:"
     echo "    docker compose up -d firebird"
@@ -207,10 +207,32 @@ if [[ "$SKIP_PHPUNIT" == "false" ]]; then
     export MAILER_DSN="${MAILER_DSN:-null://null}"
 
     if [[ -x "vendor/bin/phpunit" ]]; then
-        if vendor/bin/phpunit --colors=always --testdox 2>&1 | tail -20; then
+        # 676: tee the full run to a log. On red, print the failure blocks
+        # ("There was/were N failure(s)/error(s)/warning(s)") - with --testdox
+        # they sit ABOVE the testdox list, so the old `| tail -20` cut exactly
+        # the identity off long runs. Log file keeps everything for re-reading.
+        phpunit_log="${TMPDIR:-/tmp}/amicron-phpunit-$$.log"
+        if vendor/bin/phpunit --colors=always --testdox 2>&1 | tee "$phpunit_log"; then
             pass "PHPUnit"
+            rm -f "$phpunit_log"
         else
-            fail "PHPUnit"
+            fail "PHPUnit - failure summary below (full log: $phpunit_log)"
+            if grep -q 'There w' "$phpunit_log"; then
+                # failure blocks: "There was/were N failure(s)/error(s)..." to
+                # EOF. All limiters consume their full input (sed -n '1,Np'),
+                # never head - an early-closing head under pipefail SIGPIPEs
+                # the upstream sed and the ERR trap aborts the summary.
+                sed -n '/There w/,$p' "$phpunit_log" \
+                    | sed -e 's/\x1b\[[0-9;]*m//g' -e 's/\r$//' \
+                    | sed -n '1,80p'
+            else
+                # marker-less shapes (testdox-inline failures, crash): every
+                # failure-ish line, then the log tail for context
+                { grep -aE 'FAIL|Failed asserting|FAILURES!|ERRORS!' "$phpunit_log" || true; } \
+                    | sed -e 's/\x1b\[[0-9;]*m//g' -e 's/\r$//' \
+                    | sed -n '1,40p'
+                tail -15 "$phpunit_log" | sed -e 's/\x1b\[[0-9;]*m//g'
+            fi
         fi
     else
         info "PHPUnit not installed. Skipping."

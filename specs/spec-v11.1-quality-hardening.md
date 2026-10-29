@@ -68,8 +68,9 @@ No breaking changes. All improvements are backward-compatible.
 
 #### QH-1b: Composer install via setup-php action (I2)
 - [ ] `ci.yml`, `coverage.yml`, `sanitizers.yml` replaced curl-pipe Composer install with `shivammathur/setup-php` (already used in `code-quality.yml`)
-- [ ] No `curl -sS https://getcomposer.org/installer | php` pattern remains in any workflow
+- [x] No `curl -sS https://getcomposer.org/installer | php` pattern remains in any workflow
 - [ ] Composer version is deterministic across all workflows
+  <!-- 697-tranche 2026-10-29: box 2 verified - the pipe-to-php pattern is gone everywhere; ci.yml:218-221 downloads the installer to a file and verifies it against https://composer.github.io/installer.sig before executing (the secure pattern). Boxes 1/3 stay open: ci/coverage/sanitizers still use the curl+signature approach instead of setup-php, and the resolved Composer version is latest-at-runtime, not pinned. -->
 
 #### QH-1c: Windows workflow permissions scoped (I3)
 - [ ] `release-windows.yml` `contents: write` moved from workflow-level to the `release` job only

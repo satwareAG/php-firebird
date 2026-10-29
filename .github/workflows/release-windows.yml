@@ -511,9 +511,12 @@ jobs:
             --jq "[.[] | select(.tag_name == \"$TAG\")] | if length != 1 then error(\"expected exactly 1 release for $TAG\") else .[0].id end")
 
           mkdir -p dl && cd dl
+          # js #688 P2: patterns verified against real v13.2.12 asset names
+          # (they carry a -vsNN- segment the old pre-vs patterns never
+          # matched - latent since #652, first exercised today).
           for ts in nts ts; do
-            gh release download "$TAG" --pattern "php_firebird-*-${ts}-x86_64.zip" --clobber --repo "${{ github.repository }}"
-            gh release download "$TAG" --pattern "php_pdo_fbird-*-${ts}-x86_64.zip" --clobber --repo "${{ github.repository }}"
+            gh release download "$TAG" --pattern "php_firebird-*-${ts}-*-x86_64.zip" --clobber --repo "${{ github.repository }}"
+            gh release download "$TAG" --pattern "php_pdo_fbird-*-${ts}-*-x86_64.zip" --clobber --repo "${{ github.repository }}"
           done
           COUNT_FB=$(ls -- php_firebird-*.zip 2>/dev/null | wc -l)
           COUNT_PDO=$(ls -- php_pdo_fbird-*.zip 2>/dev/null | wc -l)

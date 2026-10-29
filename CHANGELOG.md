@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **#678: `verify-ci-green.sh` doctrine-downstream false red** - the gate now reuses an existing completed+success doctrine-downstream run on the target HEAD instead of re-dispatching and burning the full 1500s budget (the 13.2.11 failure: run 40694225729 was already green while the gate waited for a run it never found). The post-dispatch appearance lookup reads the last 10 runs (older dispatch runs on the branch masked the new one at `--limit 1`), the lookup SHA follows the gate target (`origin/<BRANCH>`, not the local checkout), and a diff error fails closed.
+
 - **#696: `fbird_server_version()` now returns the clean server version string** (e.g. `LI-V3.0.14.33856 Firebird 3.0`). The parser returned the raw `isc_info_firebird_version` clump value including its `[count][length]` prefix bytes; on remote connections the client library's info-merge appends local-interface/protocol version entries after the server's own, so the old return carried binary length bytes and fragments of unrelated hosts/protocol paths. The parser now walks the clump sequence, honors `isc_info_end`/`isc_info_truncated`, and returns entry 1 - the connected server's own version. PDO's numeric `PDO::ATTR_SERVER_VERSION` path is unaffected. Regression: `tests/issue696_server_version_clean_string.phpt`.
 
 ## [13.2.12] - 2026-10-28

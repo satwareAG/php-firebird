@@ -167,6 +167,20 @@ elif [ -z "$DOCTRINE_DIFF" ]; then
     log_pass "  doctrine-downstream: no gating paths changed since ${BASE_REF} - skipped"
 else
     DOCTRINE_COUNT=$(echo "$DOCTRINE_DIFF" | wc -l)
+
+    # #678 reuse pre-check: a completed+success doctrine run on THIS exact
+    # HEAD proves the gating paths are downstream-green - dispatching again
+    # and waiting 1500s for it (the 13.2.11 false red) is pointless. Any
+    # event counts (pull_request / schedule / workflow_dispatch): the wire
+    # surface checked is identical for a given SHA.
+    d_target_sha=$(git rev-parse "origin/$BRANCH" 2>/dev/null || git rev-parse "$BRANCH" 2>/dev/null || git rev-parse HEAD)
+    d_run_id=$(gh run list --workflow doctrine-downstream.yml \
+        --json databaseId,headSha,status,conclusion,createdAt --limit 40 2>/dev/null \
+        | jq -r --arg sha "$d_target_sha" \
+          '[.[] | select(.headSha == $sha and .conclusion == "success")] | sort_by(.createdAt) | last | .databaseId // empty')
+    if [ -n "$d_run_id" ]; then
+        log_pass "  doctrine-downstream: reusing existing success run #$d_run_id on this HEAD - dispatch skipped (#678)"
+    else
     log_info "doctrine-downstream: ${DOCTRINE_COUNT} gating path(s) changed since ${BASE_REF} - dispatching on ${BRANCH}..."
     if ! gh workflow run doctrine-downstream.yml --ref "$BRANCH" >/dev/null 2>&1; then
         log_fail "  doctrine-downstream: dispatch failed"
@@ -174,12 +188,14 @@ else
     else
         d_waited=0
         d_run_id=""
-        # wait for the dispatch run to appear (counted against the budget)
+        # wait for the dispatch run to appear (counted against the budget).
+        # #678: --limit 1 missed the dispatched run whenever older dispatch
+        # runs existed on the branch - widen to 10 and match the SHA there.
         while [ "$d_waited" -lt "$DOCTRINE_TIMEOUT" ]; do
             d_run_id=$(gh run list --workflow doctrine-downstream.yml --branch "$BRANCH" \
-                --event workflow_dispatch --limit 1 --json databaseId,headSha 2>/dev/null \
-                | jq -r --arg sha "$(git rev-parse HEAD)" \
-                  '.[] | select(.headSha == $sha) | .databaseId' | head -1)
+                --event workflow_dispatch --limit 10 --json databaseId,headSha 2>/dev/null \
+                | jq -r --arg sha "$d_target_sha" \
+                  '[.[] | select(.headSha == $sha)] | sort_by(.databaseId) | last | .databaseId // empty')
             [ -n "$d_run_id" ] && break
             sleep 5
             d_waited=$((d_waited + 5))
@@ -209,6 +225,7 @@ else
             fi
         fi
     fi
+fi
 fi
 
 echo ""

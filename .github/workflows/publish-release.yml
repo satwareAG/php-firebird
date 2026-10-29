@@ -209,6 +209,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+      - name: Version gate - every binary channel must match the tag (#672)
+        # js: fail-closed publish choke point (council run 4 invariant): no
+        # asset becomes consumer-visible unless every version channel on it
+        # matches the tag object and no unknown/fallback string survives.
+        # Runs BEFORE attestations and publish; a failure aborts the release.
+        run: |
+          set -e
+          python3 scripts/publish-version-gate.py "${{ steps.tag.outputs.tag }}" release-assets
+
       - name: Generate SLSA Provenance Attestations
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:

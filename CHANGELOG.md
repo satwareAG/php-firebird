@@ -5,7 +5,7 @@ All notable changes to the PHP Firebird Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [13.2.11] - 2026-10-28
+## [13.2.12] - 2026-10-28
 
 ### CRITICAL DURABILITY ADVISORY (v13.0.0-rc.2 through v13.2.10)
 
@@ -24,6 +24,12 @@ gfix <database.fdb> -write sync
 ### Fixed
 
 - **#671: default `fbird_connect()`/`fbird_pconnect()`/`new Firebird\Connection` no longer sends `isc_dpb_force_write`** (the advisory above). Root cause: the parsed `$sync` argument was silently discarded and a hardcoded `0` ("switch to async writes") reached the attach DPB on every connect; on Firebird 4+ sending it requires the `CHANGE_HEADER_SETTINGS` system privilege, so non-SYSDBA connects failed with "System privilege CHANGE_HEADER_SETTINGS is missing". The default is now "do not send" (`$sync = -1`), matching the legacy ext/interbase and the PDO driver; the `$sync` argument is actually forwarded now (`-1` = not sent, `0` = async, `1` = sync; distinct values produce distinct link-cache entries). Regression: `tests/issue671_default_connect_no_header_flip.phpt` (MON$FORCED_WRITES oracle, all 12 matrix lanes; demonstrated failing on a v13.2.10 build).
+- **#672: Windows builds stamp the real version** - every Windows `php_firebird.dll`/`php_pdo_fbird.dll` ever shipped reported `phpversion()` `0.0.0-unknown` (config.w32 read a file named `.\VERSION`; the repo file is `VERSION.txt`) and the PDO Windows lane never defined its version at all. Both configure lanes now read `VERSION.txt` and **refuse to build** when it is missing or not a release version (`FBIRD_ALLOW_UNKNOWN_VERSION=1` escape, ignored on tag refs). Verified on real hardware: pre-fix build reports `0.0.0-unknown`, fixed build reports `13.2.11`.
+- **#672: Windows PE FileVersion/ProductVersion carried the PHP runtime version** (e.g. `8.4.27` on 13.2.x DLLs). A repo-supplied `template.rc` plus configure-generated `version_stamp.h` now stamp the PE with the release version (verified: `13.2.11` in Explorer/PowerShell `VersionInfo`).
+
+### Added
+
+- **Version single source of truth, enforced by design (issue 672 class)**: `VERSION.txt` is the only hand-maintained version; `scripts/version-sync.php` (`sync`/`check`) manages the five derived surfaces (stubs `@version` x3, `specs/metadata.json`, `pdo_fbird/VERSION.txt`); `check-version-stamps.sh` validates the source itself (semver, sentinel rejection) and carries six canaries pinning the SSOT machinery; a fail-closed publish gate (`scripts/publish-version-gate.py`) matches every uploaded asset's version channels (PE FileVersion, ELF version string) to the tag before release publication; lane-observation tests (`tests/version_ssot_*.phpt`) assert `phpversion()` equals `VERSION.txt` in all test lanes.
 
 ## [13.2.10] - 2026-10-23
 

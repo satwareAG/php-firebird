@@ -190,3 +190,4 @@ packaging/arch/*.pkg.tar.*
 # build/run artifacts accidentally committed (see #507 lintian triage)
 tests/benchmark
 tests/asanlog.*
+version_stamp.h

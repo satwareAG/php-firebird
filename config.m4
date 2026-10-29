@@ -6,19 +6,46 @@ PHP_ARG_WITH([firebird],
 
 if test "$PHP_FIREBIRD" != "no"; then
 
-  dnl Detect php-firebird version from git or VERSION file
+  dnl Version single source of truth is VERSION.txt (#672 class). No git
+  dnl describe, no silent fallback: an unversioned build is a defect, so
+  dnl configure refuses. Escape hatch FBIRD_ALLOW_UNKNOWN_VERSION=1 exists
+  dnl for exotic manual builds and is ignored on tag refs, where an unknown
+  dnl version is always an error; publish-release rejects unknown strings
+  dnl regardless of the escape hatch.
   AC_MSG_CHECKING([for php-firebird version])
-  if test -f "$srcdir/VERSION.txt"; then
-    PHP_FIREBIRD_VERSION=`cat "$srcdir/VERSION.txt" | tr -d ' \n\r\t'`
-  elif test -d "$srcdir/.git" -a -x "`which git 2>/dev/null`"; then
-    PHP_FIREBIRD_VERSION=`cd "$srcdir" && git describe --tags --always --dirty 2>/dev/null | sed 's/^v//'`
-    if test -z "$PHP_FIREBIRD_VERSION"; then
+  PHP_FIREBIRD_VERSION=`cat "$srcdir/VERSION.txt" 2>/dev/null | tr -d ' \n\r\t'`
+  PHP_FIREBIRD_VERSION_OK=no
+  case "$PHP_FIREBIRD_VERSION" in
+    [[0-9]]*.[[0-9]]*.[[0-9]]*)
+      case "$PHP_FIREBIRD_VERSION" in
+        0.0.0*) PHP_FIREBIRD_VERSION_OK=no ;;
+        *) PHP_FIREBIRD_VERSION_OK=yes ;;
+      esac
+      ;;
+  esac
+  if test "$PHP_FIREBIRD_VERSION_OK" != "yes"; then
+    if test "$FBIRD_ALLOW_UNKNOWN_VERSION" = "1" -a "${GITHUB_REF#refs/tags/}" = "$GITHUB_REF"; then
       PHP_FIREBIRD_VERSION="0.0.0-unknown"
+      AC_MSG_RESULT([$PHP_FIREBIRD_VERSION (FBIRD_ALLOW_UNKNOWN_VERSION)])
+    else
+      AC_MSG_ERROR([php-firebird version source missing or invalid: '$srcdir/VERSION.txt' must contain a semver string. Refusing to build an unversioned binary (issue 672). Set FBIRD_ALLOW_UNKNOWN_VERSION=1 to override for non-release builds.])
     fi
   else
-    PHP_FIREBIRD_VERSION="0.0.0-unknown"
+    AC_MSG_RESULT([$PHP_FIREBIRD_VERSION])
   fi
-  AC_MSG_RESULT([$PHP_FIREBIRD_VERSION])
+
+  dnl Generate version_stamp.h for template.rc (PE FileVersion stamp)
+  PHP_FIREBIRD_VMAJOR=`echo "$PHP_FIREBIRD_VERSION" | sed 's/^\([0-9]*\)\..*/\1/'`
+  PHP_FIREBIRD_VMINOR=`echo "$PHP_FIREBIRD_VERSION" | sed 's/^[0-9]*\.\([0-9]*\)\..*/\1/'`
+  PHP_FIREBIRD_VPATCH=`echo "$PHP_FIREBIRD_VERSION" | sed 's/^[0-9]*\.[0-9]*\.\([0-9]*\).*/\1/'`
+  if ! cat > "$srcdir/version_stamp.h" <<EOF
+#define EXT_FILE_VERSION ${PHP_FIREBIRD_VMAJOR},${PHP_FIREBIRD_VMINOR},${PHP_FIREBIRD_VPATCH},0
+#define EXT_PRODUCT_VERSION ${PHP_FIREBIRD_VMAJOR},${PHP_FIREBIRD_VMINOR},${PHP_FIREBIRD_VPATCH},0
+#define EXT_VERSION "${PHP_FIREBIRD_VERSION}"
+EOF
+  then
+    AC_MSG_ERROR([cannot write version_stamp.h next to template.rc - PE stamp would be wrong (issue 672)])
+  fi
   AC_DEFINE_UNQUOTED([PHP_FIREBIRD_VERSION_STRING], ["$PHP_FIREBIRD_VERSION"], [PHP Firebird extension version])
 
   dnl Check for minimum PHP version (8.2+)

@@ -242,7 +242,12 @@ log_info "Extension built successfully"
 
 log_info "Preparing rpmbuild tree..."
 
-EXT_VERSION=$(cat VERSION.txt 2>/dev/null || echo "13.0.0-unknown")
+EXT_VERSION=$(tr -d ' \n\r\t' < VERSION.txt 2>/dev/null || true)
+# js #672: fail loud - a package must never be built with a fallback version
+if [[ ! "$EXT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.+-]+)?$ ]] || [[ "$EXT_VERSION" == 0.0.0* ]]; then
+  log_error "VERSION.txt missing or invalid ('$EXT_VERSION') - refusing to build an unversioned RPM (issue 672)"
+  exit 1
+fi
 log "Extension version: ${EXT_VERSION}"
 
 RPM_TOPDIR="${REPO_ROOT}/_rpmbuild"

@@ -29,6 +29,13 @@ if [ -z "${EXPECTED}" ]; then
   exit 1
 fi
 
+# js #672: the source itself must be a release version - sentinels and
+# malformed strings must fail the gate, never pass through.
+if ! echo "${EXPECTED}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.+-]+)?$' || [[ "${EXPECTED}" == 0.0.0* ]]; then
+  log_error "VERSION.txt is not a valid release version: '${EXPECTED}' (issue 672)"
+  exit 1
+fi
+
 log_info "Expected @version: ${EXPECTED}"
 echo ""
 
@@ -92,6 +99,45 @@ else
 fi
 
 echo ""
+
+# js #672 canaries: presence/absence assertions that keep the SSOT
+# machinery from silently rotting (each has a negative control in
+# scripts/version-gates.mjs canaries).
+CANARY_ERRORS=0
+
+canary_expect_match() { # file pattern description
+  if grep -qE "$2" "$1" 2>/dev/null; then
+    log_pass "canary: $3"
+  else
+    log_fail "canary: $3 (pattern '$2' not found in $1)"
+    CANARY_ERRORS=$((CANARY_ERRORS + 1))
+  fi
+}
+
+canary_expect_absent() { # file pattern description
+  if grep -qE "$2" "$1" 2>/dev/null; then
+    log_fail "canary: $3 (forbidden pattern '$2' found in $1)"
+    CANARY_ERRORS=$((CANARY_ERRORS + 1))
+  else
+    log_pass "canary: $3"
+  fi
+}
+
+canary_expect_match "${ROOT_DIR}/config.m4" "VERSION\.txt" "Linux configure reads VERSION.txt (SSOT)"
+canary_expect_match "${ROOT_DIR}/config.w32" "VERSION\.txt" "Windows configure reads VERSION.txt (SSOT)"
+canary_expect_match "${ROOT_DIR}/pdo_fbird/config.m4" "VERSION\.txt" "pdo Linux configure reads VERSION.txt (SSOT)"
+canary_expect_match "${ROOT_DIR}/.github/workflows/windows-smoke.yml" "VERSION\.txt" "smoke lane derives tag from VERSION.txt"
+canary_expect_absent "${ROOT_DIR}/.github/workflows/windows-smoke.yml" "DEFAULT_TAG:[[:space:]]*v[0-9]" "smoke lane has no hand-edited DEFAULT_TAG pin"
+if [ -d "${ROOT_DIR}/packaging" ]; then
+  if grep -rn "13\.0\.0-unknown" "${ROOT_DIR}/packaging" >/dev/null 2>&1; then
+    log_fail "canary: packaging has no silent version fallback (found '13.0.0-unknown')"
+    CANARY_ERRORS=$((CANARY_ERRORS + 1))
+  else
+    log_pass "canary: packaging has no silent version fallback"
+  fi
+fi
+
+ERRORS=$((ERRORS + CANARY_ERRORS))
 
 if [ "${ERRORS}" -gt 0 ]; then
   log_error "${ERRORS} stamp(s) have mismatched version tags."

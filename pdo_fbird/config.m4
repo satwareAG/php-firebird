@@ -17,14 +17,29 @@ if test "$PHP_PDO_FBIRD" != "no"; then
 
   AC_DEFINE(HAVE_PDO_FBIRD,1,[Whether pdo_fbird is available])
 
-  dnl Version: read from VERSION.txt (bundled in this package)
+  dnl Version: single source of truth is this package's VERSION.txt (#672
+  dnl class). Fail loud on missing/invalid - see parent config.m4 rationale.
   AC_MSG_CHECKING([for PDO fbird version])
-  if test -f "$srcdir/VERSION.txt"; then
-    PHP_PDO_FBIRD_VERSION=`cat "$srcdir/VERSION.txt" | tr -d ' \n\r\t'`
+  PHP_PDO_FBIRD_VERSION=`cat "$srcdir/VERSION.txt" 2>/dev/null | tr -d ' \n\r\t'`
+  PHP_PDO_FBIRD_VERSION_OK=no
+  case "$PHP_PDO_FBIRD_VERSION" in
+    [[0-9]]*.[[0-9]]*.[[0-9]]*)
+      case "$PHP_PDO_FBIRD_VERSION" in
+        0.0.0*) PHP_PDO_FBIRD_VERSION_OK=no ;;
+        *) PHP_PDO_FBIRD_VERSION_OK=yes ;;
+      esac
+      ;;
+  esac
+  if test "$PHP_PDO_FBIRD_VERSION_OK" != "yes"; then
+    if test "$FBIRD_ALLOW_UNKNOWN_VERSION" = "1" -a "${GITHUB_REF#refs/tags/}" = "$GITHUB_REF"; then
+      PHP_PDO_FBIRD_VERSION="0.0.0-unknown"
+      AC_MSG_RESULT([$PHP_PDO_FBIRD_VERSION (FBIRD_ALLOW_UNKNOWN_VERSION)])
+    else
+      AC_MSG_ERROR([pdo_fbird version source missing or invalid: '$srcdir/VERSION.txt' must contain a semver string. Refusing to build an unversioned binary (issue 672). Set FBIRD_ALLOW_UNKNOWN_VERSION=1 to override for non-release builds.])
+    fi
   else
-    PHP_PDO_FBIRD_VERSION="0.0.0-unknown"
+    AC_MSG_RESULT([$PHP_PDO_FBIRD_VERSION])
   fi
-  AC_MSG_RESULT([$PHP_PDO_FBIRD_VERSION])
   AC_DEFINE_UNQUOTED([PHP_PDO_FBIRD_VERSION], ["$PHP_PDO_FBIRD_VERSION"], [PDO fbird extension version])
 
   dnl Require PDO headers (PDO may be built-in or shared)

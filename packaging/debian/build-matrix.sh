@@ -168,7 +168,14 @@ build_package() {
         return 1
     fi
 
-    local deb_name="php${php_ver}-firebird_$(cat VERSION.txt 2>/dev/null || echo 0.0.0)-1_$(echo $arch | sed 's/x86_64/amd64/;s/aarch64/arm64/;s/armv7l/armhf/').deb"
+    # js #672: fail loud on missing version - never name a package 0.0.0
+    local ext_version
+    ext_version=$(tr -d ' \n\r\t' < VERSION.txt 2>/dev/null || true)
+    if [[ ! "$ext_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.+-]+)?$ ]] || [[ "$ext_version" == 0.0.0* ]]; then
+      echo "ERROR: VERSION.txt missing or invalid ('$ext_version') - refusing to name an unversioned .deb (issue 672)" >&2
+      return 1
+    fi
+    local deb_name="php${php_ver}-firebird_${ext_version}-1_$(echo $arch | sed 's/x86_64/amd64/;s/aarch64/arm64/;s/armv7l/armhf/').deb"
     # jane: per-distro subdirectory to avoid filename collisions across distros
     # (bookworm/trixie/jammy/noble all produce the same .deb filename)
     local deb_subdir="${OUTPUT_DIR}/${distro}"

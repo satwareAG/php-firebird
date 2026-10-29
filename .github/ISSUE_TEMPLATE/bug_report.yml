@@ -1,0 +1,86 @@
+name: Bug report (php-firebird)
+description: Report a defect in the php-firebird extension. The environment block is mandatory - without it a report is not reproducible.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. Please fill the environment
+        block completely - reports missing the environment fields cannot be
+        reproduced and will be closed after a courtesy period.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Observed behavior vs expected behavior. Include the exact error message.
+    validations:
+      required: true
+
+  - type: input
+    id: extension-version
+    attributes:
+      label: php-firebird extension version
+      description: Output of `phpversion('firebird')` (or `php -m | grep firebird` + the release zip name if phpversion fails).
+      placeholder: "e.g. 13.2.12"
+    validations:
+      required: true
+
+  - type: input
+    id: php-version
+    attributes:
+      label: PHP version, build and SAPI
+      description: First line of `php -v`, plus NTS/TS if Windows.
+      placeholder: "e.g. PHP 8.4.27 (cli) NTS x86_64"
+    validations:
+      required: true
+
+  - type: input
+    id: client-os
+    attributes:
+      label: Client OS and architecture
+      description: Where PHP runs (the machine loading the extension).
+      placeholder: "e.g. Debian 13, x86_64 / Windows Server 2022, x64"
+    validations:
+      required: true
+
+  - type: input
+    id: server-version
+    attributes:
+      label: Firebird server version
+      description: Version and architecture of the database server you connect to.
+      placeholder: "e.g. Firebird 3.0.14 x86_64 (Windows service)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: connect-api
+    attributes:
+      label: Connect API
+      description: Which layer the bug appears with. Check all that apply by re-testing with each.
+      options:
+        - fbird_* procedural (fbird_connect)
+        - Firebird\Connection (OOP)
+        - PDO (fbird: DSN)
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: The shortest PHP snippet that shows the bug (plus DSN/connect parameters, redact credentials).
+      placeholder: |
+        $c = fbird_connect('host:/path/db.fdb', 'SYSDBA', '***');
+        var_dump(fbird_server_version($c));
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / trace output
+      description: Relevant PHP warnings, Firebird error strings, or a wire-level trace (FBTtrace/Debug API) if available. Optional but doubles triage speed.
+    validations:
+      required: false

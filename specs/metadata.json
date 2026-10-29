@@ -48,8 +48,8 @@
         "url": "https://github.com/satwareAG/spec-kit",
         "channel": "gh:issues",
         "local_path": "~/external/spec-kit",
-        "last_synced_tag": null,
-        "sync_state": "unverified - no baseline recorded before 2026-10-25; latest fork release satware-v1.2.3+1 (2026-10-22) not yet validated against this repo's specs/ (council 2026-10-25: record honest baseline, never certify an unvalidated sync)"
+        "last_synced_tag": "satware-v1.2.3+1",
+        "sync_state": "baseline recorded 2026-10-29 (#670): validated checkout satwareAG/spec-kit @ 7abe12a8 (2026-10-29, ahead of satware-v1.2.3+1), ipadp metadata validator PASS (0 errors, 0 warnings); .specify/ templates (spec/plan/tasks) present and are the active sync vehicle for feature specs; milestone specs in specs/ use an evolved frontmatter format (description/tags/priority) - template-shape conformance applies to feature specs via .specify/, not retroactively to milestone specs. Full template-content conformance audit still open (council 2026-10-25 rule: never certify an unvalidated sync)."
       },
       {
         "repo": "FirebirdSQL/firebird",

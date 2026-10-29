@@ -9,6 +9,13 @@ tags: [pdo, conformance, testing, fb3, v12.1]
 priority: 1
 ---
 
+> **Checkbox reconciliation 2026-10-29**: 7 of 9 open boxes verified done and
+> ticked (mandatory DBH/TXN/STMT method tests in tests/pdo_fbird/conformance/,
+> FETCH modes, PARAM_* types, transaction isolation, getColumnMeta resolved by
+> stubs correction documenting IM001). Still open: PARAM_INPUT_OUTPUT
+> documentation decision (#342 scope) and #339 explicit resolution evidence.
+
+
 # Spec: v12.1.0 PDO Definition Conformance
 
 ## Issue
@@ -96,9 +103,9 @@ Derived from `php_pdo_driver.h` and method dispatch analysis in `pdo_dbh.c` /
 **Then** all return expected types without errors
 
 **Success Criteria**:
-- [ ] #328 mandatory DBH methods test passes
-- [ ] #329 mandatory transaction methods test passes
-- [ ] #330 mandatory stmt methods test passes
+- [x] #328 mandatory DBH methods test passes
+- [x] #329 mandatory transaction methods test passes
+- [x] #330 mandatory stmt methods test passes
 
 ### Goal 2: All 13 FETCH modes work
 
@@ -107,7 +114,7 @@ Derived from `php_pdo_driver.h` and method dispatch analysis in `pdo_dbh.c` /
 **Then** each mode returns data in the expected format
 
 **Success Criteria**:
-- [ ] #342 all 13 FETCH modes tested (RED tests use --SKIPIF-- for unsupported modes)
+- [x] #342 all 13 FETCH modes tested (RED tests use --SKIPIF-- for unsupported modes)
 
 ### Goal 3: getColumnMeta mismatch resolved
 
@@ -125,7 +132,7 @@ Derived from `php_pdo_driver.h` and method dispatch analysis in `pdo_dbh.c` /
 **Then** the isolation level is applied and queryable via `getAttribute()`
 
 **Success Criteria**:
-- [ ] #334 FBIRD_TXN_* isolation levels tested and passing
+- [x] #334 FBIRD_TXN_* isolation levels tested and passing
 
 ### Goal 5: All PARAM_* types bind correctly
 
@@ -134,7 +141,7 @@ Derived from `php_pdo_driver.h` and method dispatch analysis in `pdo_dbh.c` /
 **Then** values are correctly typed and stored
 
 **Success Criteria**:
-- [ ] #351 all standard PARAM_* types tested
+- [x] #351 all standard PARAM_* types tested
 
 ---
 
@@ -176,7 +183,7 @@ Derived from `php_pdo_driver.h` and method dispatch analysis in `pdo_dbh.c` /
 
 ## Open Questions
 
-- [ ] Should `getColumnMeta()` be implemented (matching bundled `pdo_firebird` which HAS it) or should stubs be corrected? **Recommended**: implement in feat/v12.1.1 (non-breaking patch), correct stubs immediately as stopgap.
+- [x] Should `getColumnMeta()` be implemented (matching bundled `pdo_firebird` which HAS it) or should stubs be corrected? **Recommended**: implement in feat/v12.1.1 (non-breaking patch), correct stubs immediately as stopgap.
 - [ ] Does `PARAM_INPUT_OUTPUT` have any meaning for Firebird (engine supports in/out params via EXECUTE PROCEDURE RETURNING)? **Recommended**: document as not supported, matching bundled pdo_firebird.
 
 ---

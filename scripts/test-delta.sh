@@ -93,8 +93,8 @@ echo ">>> [delta] previous-tag run: $GLOB"
 out_b=$($COMPOSE run --rm -v "$WORKTREE:/ext" "$LANE" /ext/scripts/test.sh $GLOB 2>&1)
 manifest_b=$(echo "$out_b" | grep -oE "tests/[a-zA-Z0-9_./-]+\.phpt" | sort -u)
 
-pass_a=$(echo "$out_a" | grep -E "\[1;32mPASS" | grep -oE "tests/[a-zA-Z0-9_./-]+\.phpt" | sort -u)
-pass_b=$(echo "$out_b" | grep -E "\[1;32mPASS" | grep -oE "tests/[a-zA-Z0-9_./-]+\.phpt" | sort -u)
+pass_a=$(echo "$out_a" | grep -E "PASS" | grep -oE "tests/[a-zA-Z0-9_./-]+\.phpt" | sort -u)
+pass_b=$(echo "$out_b" | grep -E "PASS" | grep -oE "tests/[a-zA-Z0-9_./-]+\.phpt" | sort -u)
 
 echo ""
 echo "=== Delta report ($PREV_TAG -> candidate, lane $LANE) ==="
@@ -102,7 +102,7 @@ status=0
 changed=""
 for t in $(echo "$pass_a $pass_b" | tr ' ' '\n' | sort -u); do
     in_a=$(echo "$pass_a" | grep -Fc "$t" || true)
-    in_b=$(echo "$pass_b" | grep -Fc "$t" || true)
+    in_b=$(echo "$pass_b" | grep -Fxc "$t" || true)
     if [ "$in_a" -ne "$in_b" ]; then
         changed="$changed $t"
     fi
@@ -111,17 +111,18 @@ done
 if [ -n "$changed" ]; then
     echo "Behavior deltas vs $PREV_TAG (each requires adjudication - the delta is the product):"
     for t in $changed; do
-        in_a=$(echo "$pass_a" | grep -Fc "$t" || true)
+        in_a=$(echo "$pass_a" | grep -Fxc "$t" || true)
         base=$(basename "$t")
-        if [ -f "$ALLOWLIST" ] && grep -E "^${base}[[:space:]]" "$ALLOWLIST" >/dev/null; then
+        if [ "$in_a" -eq 0 ]; then
+            # council S3: candidate regressions are NEVER allowlist-maskable -
+            # the direction check must come before the allowlist lookup
+            echo "  GATE FAIL $t (green on $PREV_TAG, red on candidate - CANDIDATE REGRESSION, do not ship; allowlist does not apply)"
+            status=1
+        elif [ -f "$ALLOWLIST" ] && grep -E "^${base}[[:space:]]" "$ALLOWLIST" >/dev/null; then
             reason=$(grep -E "^${base}[[:space:]]" "$ALLOWLIST" | head -1 | cut -f2-)
             echo "  ADJUDICATED $t - $reason"
         else
-            if [ "$in_a" -gt 0 ]; then
-                echo "  UNADJUDICATED $t (green on candidate, red on $PREV_TAG - intended change?)"
-            else
-                echo "  UNADJUDICATED $t (green on $PREV_TAG, red on candidate - CANDIDATE REGRESSION, do not ship)"
-            fi
+            echo "  UNADJUDICATED $t (green on candidate, red on $PREV_TAG - intended change?)"
             status=1
         fi
     done

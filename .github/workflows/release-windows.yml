@@ -526,6 +526,13 @@ jobs:
           # pdo (v13.2.12, 2026-10-29).
           [ "$COUNT_FB" -eq 8 ] || { echo "ERROR: expected 8 php_firebird zips, found $COUNT_FB"; exit 1; }
           [ "$COUNT_PDO" -eq 8 ] || { echo "ERROR: expected 8 php_pdo_fbird zips, found $COUNT_PDO"; exit 1; }
+          # Council run 6 (S1/S2/S4): set equality against the shared expected
+          # name list - patterns alone could bind a swapped/extra segment.
+          VERSION="${TAG#v}"
+          if ! diff -u <(bash "${GITHUB_WORKSPACE}/scripts/windows-asset-names.sh" "$VERSION" | sort) <(ls -1 -- *.zip | sort); then
+            echo "ERROR: downloaded asset name set mismatch vs expected matrix"
+            exit 1
+          fi
           sha256sum -- *.zip > ../SHA256SUMS
 
           jq -n \

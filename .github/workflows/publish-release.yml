@@ -180,16 +180,27 @@ jobs:
           # (guards asset replacement between smoke and publish - audit
           # finding 3, council run 2)
           mkdir -p wincheck && cd wincheck
+          # js: same corrected patterns + set equality as the smoke-marker
+          # job (#689, council run 6) - the old pre-vsNN patterns matched
+          # zero assets and the aggregate == 8 was pre-#636. Both call
+          # sites share scripts/windows-asset-names.sh (#688-P2 seed).
           for ts in nts ts; do
-            gh release download "$TAG" --pattern "php_firebird-*-${ts}-x86_64.zip" --clobber --repo "${{ github.repository }}"
-            gh release download "$TAG" --pattern "php_pdo_fbird-*-${ts}-x86_64.zip" --clobber --repo "${{ github.repository }}"
+            gh release download "$TAG" --pattern "php_firebird-*-${ts}-*-x86_64.zip" --clobber --repo "${{ github.repository }}"
+            gh release download "$TAG" --pattern "php_pdo_fbird-*-${ts}-*-x86_64.zip" --clobber --repo "${{ github.repository }}"
           done
-          COUNT=$(ls -- *.zip | wc -l)
-          [ "$COUNT" -eq 8 ] || { echo "ERROR: expected 8 Windows zips, found $COUNT"; exit 1; }
+          COUNT_FB=$(ls -- php_firebird-*.zip 2>/dev/null | wc -l)
+          COUNT_PDO=$(ls -- php_pdo_fbird-*.zip 2>/dev/null | wc -l)
+          [ "$COUNT_FB" -eq 8 ] || { echo "ERROR: expected 8 php_firebird zips, found $COUNT_FB"; exit 1; }
+          [ "$COUNT_PDO" -eq 8 ] || { echo "ERROR: expected 8 php_pdo_fbird zips, found $COUNT_PDO"; exit 1; }
+          VERSION="${TAG#v}"
+          if ! diff -u <(bash "${GITHUB_WORKSPACE}/scripts/windows-asset-names.sh" "$VERSION" | sort) <(ls -1 -- *.zip | sort); then
+            echo "ERROR: downloaded asset name set mismatch vs expected matrix"
+            exit 1
+          fi
           printf '%s' "$(jq -r '.assets_sha256' ../marker.json)" > expected.sum
           sha256sum -c expected.sum
           cd ..
-          echo "OK: smoke marker verified (release_id bound, all 8 Windows zips byte-identical to the smoke-tested set)"
+          echo "OK: smoke marker verified (release_id bound, all 16 Windows zips byte-identical to the smoke-tested set)"
         env:
           GH_TOKEN: ${{ github.token }}
 

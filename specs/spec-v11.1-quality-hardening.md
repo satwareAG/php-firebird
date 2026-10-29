@@ -84,7 +84,8 @@ No breaking changes. All improvements are backward-compatible.
 - [x] All 4 release workflows reference `VERSION.txt` consistently
 - [x] Fallback `"7.0.0"` in all release workflows replaced with `exit 1` (or `"11.0.0"` + warning)
 - [x] `config.m4` version injection path verified: reads `VERSION.txt` → `git describe` → `exit 1`
-- [ ] Comment in each workflow documents the canonical filename: `# canonical: VERSION.txt`
+- [x] Comment in each workflow documents the canonical filename: `# canonical: VERSION.txt`
+  <!-- 697-tranche 2026-10-29 (P7-prep): the canonical-filename comment added to release-linux.yml and release-macos.yml at the first Ensure VERSION.txt step of each (also citing QH-2 and the #672 SSOT); verified: 1 occurrence per workflow (grep "canonical: VERSION.txt" = 1/1), YAML validated. -->
 
 ### QH-3: C Code Quality (P2)
 

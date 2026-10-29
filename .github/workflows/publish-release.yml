@@ -202,8 +202,6 @@ jobs:
           sha256sum -c expected.sum
           cd ..
           echo "OK: smoke marker verified (release_id bound, all 16 Windows zips byte-identical to the smoke-tested set)"
-        env:
-          GH_TOKEN: ${{ github.token }}
 
       - name: Download all release assets
         run: |

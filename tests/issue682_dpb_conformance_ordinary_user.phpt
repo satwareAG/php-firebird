@@ -110,6 +110,13 @@ echo 'add_user=' . var_export($added, true) . "\n";
 $c = @fbird_connect($test_base, $new_user, $new_pass);
 echo 'user_default_connect=' . ($c === false ? 'FAIL: ' . trim(fbird_errmsg()) : 'OK') . "\n";
 if ($c !== false) {
+    /* council S1: a layer that silently fell back to SYSDBA credentials
+     * would pass every harmlessness check - pin the actual session user.
+     * CURRENT_USER is CHAR(31): trim the padding. */
+    $q = @fbird_query($c, 'SELECT CURRENT_USER FROM RDB$DATABASE');
+    $r = $q ? fbird_fetch_row($q) : false;
+    if ($q) { fbird_free_result($q); }
+    echo 'procedural_current_user=' . ($r === false ? 'QUERY-FAIL' : trim((string)$r[0])) . "\n";
     $q = @fbird_query($c, 'SELECT MON$FORCED_WRITES FROM MON$DATABASE');
     if ($q) {
         $r = fbird_fetch_row($q);
@@ -142,6 +149,12 @@ $pdo_u = null;
 $pdo_err = '';
 try { $pdo_u = new PDO('fbird:dbname=' . $test_base, $new_user, $new_pass); } catch (Throwable $e) { $pdo_err = $e->getMessage(); }
 echo 'user_pdo_connect=' . ($pdo_u === null ? 'FAIL: ' . $pdo_err : 'OK') . "\n";
+if ($pdo_u !== null) {
+    /* PDO has its own credential path (DSN parsing) - pin the session user */
+    $cu = '';
+    try { $cu = trim((string)$pdo_u->query('SELECT CURRENT_USER FROM RDB$DATABASE')->fetchColumn()); } catch (Throwable $e) { $cu = 'QUERY-FAIL'; }
+    echo 'pdo_current_user=' . $cu . "\n";
+}
 $pdo_u = null;
 usleep(200000);
 
@@ -187,10 +200,12 @@ fbird_service_detach($s);
 client_gate_consts=%s
 add_user=true
 user_default_connect=OK
+procedural_current_user=PHP_682_USR
 mon_forced_writes=1
 user_pconnect=OK
 user_oop_connect=OK
 user_pdo_connect=OK
+pdo_current_user=PHP_682_USR
 page_buffers=0
 db_dialect=3
 attributes=force write

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **#682: FBIRD_PRP_REPLICA_MODE service property** (Firebird 4+ server AND client headers): `fbird_maintain_db()` can set the database replica mode via `FBIRD_PRP_REPLICA_MODE` with `FBIRD_PRP_RM_NONE` / `FBIRD_PRP_RM_READONLY` / `FBIRD_PRP_RM_READWRITE`. On FB3 client headers the constants compile out (`#ifdef isc_spb_prp_replica_mode`); consumers gate on `defined('FBIRD_PRP_REPLICA_MODE')`. Ship rider: the #682 wire-level DPB conformance suite (`tests/issue682_dpb_conformance_*.phpt`) proves default connects send none of the seven privilege-gated attach-DPB items, with seeded negative controls and ordinary-user coverage.
+
 ### Fixed
 
 - **#696: `fbird_server_version()` now returns the clean server version string** (e.g. `LI-V3.0.14.33856 Firebird 3.0`). The parser returned the raw `isc_info_firebird_version` clump value including its `[count][length]` prefix bytes; on remote connections the client library's info-merge appends local-interface/protocol version entries after the server's own, so the old return carried binary length bytes and fragments of unrelated hosts/protocol paths. The parser now walks the clump sequence, honors `isc_info_end`/`isc_info_truncated`, and returns entry 1 - the connected server's own version. PDO's numeric `PDO::ATTR_SERVER_VERSION` path is unaffected. Regression: `tests/issue696_server_version_clean_string.phpt`.

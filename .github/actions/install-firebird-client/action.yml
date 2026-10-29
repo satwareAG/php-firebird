@@ -2,6 +2,10 @@ name: Install Firebird Client
 description: Install Firebird client library, configure auth, and wait for service readiness. Eliminates ~1087 lines of duplicated setup across ci.yml, coverage.yml, and sanitizers.yml.
 
 inputs:
+  firebird-version:
+    description: 'Exact Firebird client version to pin (e.g. 5.0.4). Empty = latest stable within the major version.'
+    required: false
+    default: ''
   firebird-major-version:
     description: Firebird major version to resolve (3, 4, or 5)
     default: '5'
@@ -92,6 +96,7 @@ runs:
       shell: bash
       env:
         FB_MAJOR: ${{ inputs.firebird-major-version }}
+        FB_PIN: ${{ inputs.firebird-version }}
         GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
       run: |
         set -eu

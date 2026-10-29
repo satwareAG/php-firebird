@@ -13,6 +13,11 @@
 set -euo pipefail
 
 MAJOR_VERSION="${1:-5}"
+# #697: per-major client version pins - the SDK must not silently drift when
+# upstream ships a new release within a supported major. Bump deliberately.
+declare -A FB_PIN_MAP=( [3]="3.0.14" [4]="4.0.7" [5]="5.0.4" )
+# FB_PIN env (optional) overrides the map with an exact version (e.g. 5.0.3).
+FB_PIN="${FB_PIN:-${FB_PIN_MAP[${MAJOR_VERSION}]:-}}"
 GITHUB_REPO="FirebirdSQL/firebird"
 GITHUB_API="https://api.github.com/repos/${GITHUB_REPO}"
 
@@ -23,16 +28,20 @@ if [ -n "${GITHUB_TOKEN:-}" ]; then
     CURL_OPTS+=(-H "Authorization: token ${GITHUB_TOKEN}")
 fi
 
-# 1. Resolve latest tag for major version
-# Filters: start with 'v', match major version, exclude Beta/RC/Release candidates
-TAG=$(curl "${CURL_OPTS[@]}" "${GITHUB_API}/releases" | \
-    jq -r '.[].tag_name' | \
-    grep -E "^v${MAJOR_VERSION}\." | \
-    grep -vE "(Beta|RC|Release)" | \
-    sort -V | tail -n 1)
+# 1. Resolve the client tag: pinned per-major version, or latest in major
+if [ -n "${FB_PIN}" ]; then
+    TAG="v${FB_PIN}"
+else
+    # Filters: start with 'v', match major version, exclude Beta/RC/Release candidates
+    TAG=$(curl "${CURL_OPTS[@]}" "${GITHUB_API}/releases" | \
+        jq -r '.[].tag_name' | \
+        grep -E "^v${MAJOR_VERSION}\." | \
+        grep -vE "(Beta|RC|Release)" | \
+        sort -V | tail -n 1)
+fi
 
 if [ -z "${TAG}" ]; then
-    echo "ERROR: Could not resolve latest tag for Firebird ${MAJOR_VERSION}" >&2
+    echo "ERROR: Could not resolve Firebird client tag (major=${MAJOR_VERSION} pin=${FB_PIN})" >&2
     exit 1
 fi
 

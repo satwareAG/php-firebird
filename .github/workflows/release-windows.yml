@@ -334,6 +334,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
+      # js: pin the interpreter per matrix leg - the windows-2025 runner
+      # images preinstall PHP 8.5, and without this step every non-8.5 leg
+      # silently loaded its extensions into PHP 8.5 (module API mismatch,
+      # v13.2.12 first pipeline, 2026-10-29). Fail loud on version drift.
+      - name: Setup PHP ${{ matrix.php }} (NTS)
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, intl
+          coverage: none
+          tools: composer:v2
+
       - name: Determine tag
         id: reltag
         shell: bash
@@ -417,6 +429,13 @@ jobs:
           if (-not $pdoDll) { throw "php_pdo_fbird dll not found in zip - the release gate is STRICT on pdo (#636)" }
 
           $phpDir = Split-Path -Parent (Get-Command php).Source
+          # js: fail loud on interpreter drift - never load release assets
+          # into a PHP other than the matrix leg's version (#683 class).
+          $phpOnPath = (php -r "echo PHP_VERSION;")
+          if (-not $phpOnPath.StartsWith("$phpVer.")) {
+            throw "interpreter drift: PATH php is $phpOnPath, expected $phpVer.x - provisioning failed, refusing to smoke wrong-version (issue 672 class: no silent fallback)"
+          }
+          Write-Host "interpreter: $phpOnPath (matches matrix $phpVer)"
           Copy-Item $mainDll.FullName -Destination "$phpDir\ext\php_firebird.dll" -Force
           Copy-Item $pdoDll.FullName -Destination "$phpDir\ext\php_pdo_fbird.dll" -Force
 

@@ -258,6 +258,25 @@ jobs:
           name: php_firebird-v${{ steps.reltag.outputs.version }}-${{ matrix.php-version }}-${{ matrix.ts }}
           path: artifacts/firebird/*.zip
 
+      - name: Emit sha256 digest manifest (FR-003 #688-P1)
+        shell: pwsh
+        run: |
+          # FR-003: record the digests of every built zip so the smoke and
+          # publish jobs can join on exact content, not names.
+          $files = Get-ChildItem -Path artifacts -Recurse -Filter *.zip
+          $lines = $files | ForEach-Object {
+            $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower()
+            "{0}  {1}" -f $hash, $_.Name
+          }
+          $lines | Set-Content -Path artifacts/SHA256SUMS -Encoding Ascii
+          Write-Host "digest manifest written ($($files.Count) entries)"
+
+      - name: Upload sha256 digest manifest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: SHA256SUMS-${{ matrix.php-version }}-${{ matrix.ts }}
+          path: artifacts/SHA256SUMS
+
   # ===========================================================================
   # Upload artifacts to GitHub Release
   # Uses official php-windows-builder/release action
@@ -287,6 +306,60 @@ jobs:
           tag: ${{ steps.release-tag.outputs.tag }}
           expected-count: '8'
           asset-name-filter: 'x86_64\\.zip$'
+
+  # ===========================================================================
+  # Identity-guard negative controls (FR-004, #688-P1): every PR touching the
+  # Windows smoke proves the guard can fail (wrong interpreter / missing
+  # identity / unparseable) using a mock php shim - no release needed.
+  # ===========================================================================
+  identity-guard-controls:
+    name: identity guard controls (FR-004 #688-P1)
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Write mock php shim (echoes MOCK_IDENTITY)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path mock | Out-Null
+          @'
+          @echo off
+          if defined MOCK_IDENTITY (echo %MOCK_IDENTITY%) else (echo php=99999 api=0 ext=0.0.0)
+          '@ | Set-Content -Path mock\php.cmd -Encoding Ascii
+          New-Item -ItemType File -Force -Path mock\fake.dll | Out-Null
+
+      - name: Case A - matching identity passes (exit 0)
+        shell: pwsh
+        run: |
+          $env:MOCK_IDENTITY = 'php=80426 api=20240924 ext=13.2.12'
+          pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924
+          if ($LASTEXITCODE -ne 0) { throw "case A: guard failed on a MATCHING identity (rc $LASTEXITCODE)" }
+
+      - name: Case B - wrong interpreter fails (exit 1)
+        shell: pwsh
+        run: |
+          $env:MOCK_IDENTITY = 'php=80399 api=20240924 ext=13.2.12'
+          $out = pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 1) { throw "case B: guard PASSED on a wrong interpreter (rc $LASTEXITCODE) - guard cannot fail" }
+          Write-Host "observed: $($out.Trim())"
+
+      - name: Case C - wrong Zend API fails (exit 1)
+        shell: pwsh
+        run: |
+          $env:MOCK_IDENTITY = 'php=80426 api=20230901 ext=13.2.12'
+          $out = pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 1) { throw "case C: guard PASSED on a wrong Zend API (rc $LASTEXITCODE)" }
+          Write-Host "observed: $($out.Trim())"
+
+      - name: Case D - fail closed on missing/unparseable identity (exit 1)
+        shell: pwsh
+        run: |
+          $env:MOCK_IDENTITY = 'lorem-ipsum-not-an-identity'
+          $out = pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 1) { throw "case D: guard PASSED on an unparseable identity (rc $LASTEXITCODE) - fail-closed broken" }
+          Write-Host "observed: $($out.Trim())"
 
   # ===========================================================================
   # Pre-publish smoke gate (#652, council verdict 2026-10-25: option A with
@@ -415,6 +488,38 @@ jobs:
             Write-Host "Downloaded: $name ($((Get-Item $name).Length) bytes)"
           }
 
+      - name: Download build digest manifest (FR-003 #688-P1)
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: SHA256SUMS-${{ matrix.php }}-nts
+
+      - name: Verify asset digests against the build manifest (FR-003 #688-P1)
+        shell: pwsh
+        run: |
+          # FR-003: the smoke legs join on exact content - each downloaded zip
+          # must match the digest recorded by the build job (name join).
+          $ErrorActionPreference = 'Stop'
+          $manifest = @{}
+          foreach ($line in Get-Content SHA256SUMS) {
+            if ($line -match '^([0-9a-f]{64})\s\s(.+)$') { $manifest[$Matches[2]] = $Matches[1] }
+          }
+          if ($manifest.Count -eq 0) { throw 'digest manifest empty/unparseable' }
+          $version = '${{ steps.reltag.outputs.version }}'
+          $phpVer = '${{ matrix.php }}'
+          $vs = if ([version]$phpVer -ge [version]'8.4') { 'vs17' } else { 'vs16' }
+          foreach ($name in @(
+            "php_firebird-v$version-$phpVer-nts-$vs-x86_64.zip",
+            "php_pdo_fbird-v$version-$phpVer-nts-$vs-x86_64.zip"
+          )) {
+            if (-not (Test-Path $name)) { throw "FR-003: asset missing on disk: $name" }
+            $hash = (Get-FileHash -Algorithm SHA256 $name).Hash.ToLower()
+            if (-not $manifest.ContainsKey($name)) { throw "FR-003: no manifest entry for $name" }
+            if ($manifest[$name] -ne $hash) {
+              throw ("FR-003: DIGEST MISMATCH for {0}: manifest={1} actual={2}" -f $name, $manifest[$name], $hash)
+            }
+            Write-Host "digest OK: $name"
+          }
+
       - name: Install Firebird + create smoke DB
         uses: ./.github/actions/firebird-server
 
@@ -444,6 +549,16 @@ jobs:
           Write-Host "interpreter: $phpOnPath (matches matrix $phpVer)"
           Copy-Item $mainDll.FullName -Destination "$phpDir\ext\php_firebird.dll" -Force
           Copy-Item $pdoDll.FullName -Destination "$phpDir\ext\php_pdo_fbird.dll" -Force
+
+          # FR-002 (#688-P1): the LOADED extension must self-report the
+          # interpreter + Zend API this leg expects (identity guard, fails
+          # closed with observed vs expected on any mismatch).
+          $apiMap = @{ '8.2' = 20220829; '8.3' = 20220829; '8.4' = 20240924; '8.5' = 20240924 }
+          pwsh -File "$((Get-Location).Path)\scripts\windows\identity_guard.ps1" `
+            -PhpExe (Get-Command php).Source `
+            -ExtensionPath "$phpDir\ext\php_firebird.dll" `
+            -ExpectedPhpVersion $phpVer `
+            -ExpectedApiNo $apiMap[$phpVer]
 
           $phpIni = php -r "echo php_ini_loaded_file();"
           if (-not $phpIni) { $phpIni = "$phpDir\php.ini" }

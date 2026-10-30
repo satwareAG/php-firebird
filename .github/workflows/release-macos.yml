@@ -418,9 +418,18 @@ jobs:
   release:
     needs: [prepare, build, test-bundles]
     runs-on: ubuntu-24.04
+    # #724 (v13.3.1 live pipeline, twice today): macOS-pool weather (#685
+    # class) cancels queued build legs; the default needs-cascade then
+    # skipped this job entirely - zero macOS assets reached the draft even
+    # when 5/8 legs built fine, and the publish gate starved. always() +
+    # the event guard: always attempt the upload of whatever bundles exist;
+    # the composite's expected-count is the real gate and fails closed on
+    # an incomplete variant set (a partial macOS set must NOT ship - 8.5
+    # zts consumers would find no binary).
     if: |
-      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
-      (github.event_name == 'workflow_dispatch' && inputs.upload_to_release)
+      always() &&
+      ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.upload_to_release))
     timeout-minutes: 10
 
     permissions:
@@ -441,7 +450,12 @@ jobs:
         uses: ./.github/actions/publish-bundle-artifacts
         with:
           tag: ${{ steps.release-tag.outputs.tag }}
-          expected-count: '4'
+          # #724: full variant matrix is 4 php x {nts,zts} = 8 tar.gz (the
+          # complete set on v13.2.12; verified 2026-10-30). The old '4' was
+          # a stale half-count - it would have shipped 4 of 8 variants
+          # silently. This is a >= gate, so an incomplete set fails LOUD
+          # here instead of surfacing as missing binaries for consumers.
+          expected-count: '8'
           asset-name-filter: 'macos.*\\.tar\\.gz$'
         env:
           GH_TOKEN: ${{ github.token }}

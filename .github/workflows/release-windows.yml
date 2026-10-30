@@ -346,7 +346,8 @@ jobs:
           $env:MOCK_IDENTITY = 'php=80399 api=20240924 ext=13.2.12'
           pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924 2> mock\caseB.err
           if ($LASTEXITCODE -ne 1) { throw "case B: guard PASSED on a wrong interpreter (rc $LASTEXITCODE) - guard cannot fail" }
-          Write-Host "case B observed: $((Get-Content mock\caseB.err -Raw).Trim())"
+          $obs = (Get-Content mock\caseB.err -Raw).Trim() -replace '##\[[a-z]+\]', '[gh-marker]'
+          Write-Host "case B observed: $obs"
           exit 0
 
       - name: Case C - wrong Zend API fails (exit 1)
@@ -355,7 +356,8 @@ jobs:
           $env:MOCK_IDENTITY = 'php=80426 api=20230901 ext=13.2.12'
           pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924 2> mock\caseC.err
           if ($LASTEXITCODE -ne 1) { throw "case C: guard PASSED on a wrong Zend API (rc $LASTEXITCODE)" }
-          Write-Host "case C observed: $((Get-Content mock\caseC.err -Raw).Trim())"
+          $obs = (Get-Content mock\caseC.err -Raw).Trim() -replace '##\[[a-z]+\]', '[gh-marker]'
+          Write-Host "case C observed: $obs"
           exit 0
 
       - name: Case D - fail closed on missing/unparseable identity (exit 1)
@@ -364,7 +366,8 @@ jobs:
           $env:MOCK_IDENTITY = 'lorem-ipsum-not-an-identity'
           pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924 2> mock\caseD.err
           if ($LASTEXITCODE -ne 1) { throw "case D: guard PASSED on an unparseable identity (rc $LASTEXITCODE) - fail-closed broken" }
-          Write-Host "case D observed: $((Get-Content mock\caseD.err -Raw).Trim())"
+          $obs = (Get-Content mock\caseD.err -Raw).Trim() -replace '##\[[a-z]+\]', '[gh-marker]'
+          Write-Host "case D observed: $obs"
           exit 0
 
   # ===========================================================================
@@ -416,7 +419,8 @@ jobs:
         run: |
           pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/missing.txt 2> fixtures/caseB.err
           if ($LASTEXITCODE -ne 1) { throw "case B: missing-name set PASSED (rc $LASTEXITCODE) - oracle cannot fail" }
-          Write-Host "case B observed: $((Get-Content fixtures/caseB.err -Raw).Trim())"
+          $obs = (Get-Content fixtures/caseB.err -Raw).Trim() -replace '##\[[a-z]+\]', '[gh-marker]'
+          Write-Host "case B observed: $obs"
 
       - name: Case C - extra windows-family asset fails
         shell: pwsh
@@ -426,7 +430,8 @@ jobs:
           $names | Set-Content fixtures/extra2.txt -Encoding Ascii
           pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/extra2.txt 2> fixtures/caseC.err
           if ($LASTEXITCODE -ne 1) { throw "case C: extra-asset set PASSED (rc $LASTEXITCODE) - oracle cannot fail" }
-          Write-Host "case C observed: $((Get-Content fixtures/caseC.err -Raw).Trim())"
+          $obs = (Get-Content fixtures/caseC.err -Raw).Trim() -replace '##\[[a-z]+\]', '[gh-marker]'
+          Write-Host "case C observed: $obs"
 
       - name: Case D - duplicate actual name fails
         shell: pwsh
@@ -435,7 +440,8 @@ jobs:
           ($names + $names[0]) | Set-Content fixtures/dup.txt -Encoding Ascii
           pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/dup.txt 2> fixtures/caseD.err
           if ($LASTEXITCODE -ne 1) { throw "case D: duplicate name PASSED (rc $LASTEXITCODE)" }
-          Write-Host "case D observed: $((Get-Content fixtures/caseD.err -Raw).Trim())"
+          $obs = (Get-Content fixtures/caseD.err -Raw).Trim() -replace '##\[[a-z]+\]', '[gh-marker]'
+          Write-Host "case D observed: $obs"
 
       - name: Case E - version mismatch fails (assets from a different version)
         shell: pwsh

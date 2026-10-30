@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [13.3.0] - 2026-10-30
+## [13.3.1] - 2026-10-30
+
+> **Release note**: identical extension content to the v13.3.0 tag, which was deleted before publication - its release pipeline never completed (first live exercise of the #688/#652 gates surfaced three workflow defects, fixed in #720/#721/#722), and the #688-P6 G8 binding correctly refused to publish a smoke marker referencing a different revision than the tag. Re-tagged as v13.3.1 so the smoke-tested revision IS the published revision. Zero extension changes; version stamps only.
 
 ### Added
 
@@ -2603,8 +2605,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v13.3.0...HEAD
-[13.3.0]: https://github.com/satwareAG/php-firebird/compare/v13.2.12...v13.3.0
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v13.3.1...HEAD
+[13.3.1]: https://github.com/satwareAG/php-firebird/compare/v13.2.12...v13.3.1
 [12.0.0]: https://github.com/satwareAG/php-firebird/compare/v11.1.0...v12.0.0
 [11.1.0]: https://github.com/satwareAG/php-firebird/compare/v11.0.0...v11.1.0
 [11.0.0]: https://github.com/satwareAG/php-firebird/compare/v10.6.2...v11.0.0

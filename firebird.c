@@ -1044,6 +1044,19 @@ PHP_MINIT_FUNCTION(fbird)
 {
 	REGISTER_INI_ENTRIES();
 
+	/* FR-001 (spec-v13.3-build-identity, #688-P1): expose the build identity
+	 * as a read-only constant so smoke/publish jobs can join on it
+	 * programmatically (interpreter guard: php=<PHP_VERSION_ID>
+	 * api=<ZEND_MODULE_API_NO>). Registered always - it is metadata, not
+	 * output (FR-005: no runtime output in any mode). */
+	{
+		char identity_buf[96];
+		snprintf(identity_buf, sizeof(identity_buf),
+			"php=%d api=%d ext=" PHP_FIREBIRD_VERSION_STRING,
+			PHP_VERSION_ID, ZEND_MODULE_API_NO);
+		REGISTER_STRING_CONSTANT("FBIRD_BUILD_IDENTITY", identity_buf, CONST_PERSISTENT);
+	}
+
 	zend_class_entry ce;
 	zend_class_entry *runtime_ce = zend_hash_str_find_ptr(CG(class_table),
 		"runtimeexception", sizeof("runtimeexception") - 1);

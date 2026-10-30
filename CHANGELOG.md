@@ -7,8 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [13.3.0] - 2026-10-30
+
 ### Added
 
+- **#688-P1: `FBIRD_BUILD_IDENTITY` constant** (spec-v13.3-build-identity): read-only string `php=<PHP_VERSION_ID> api=<ZEND_MODULE_API_NO> ext=<version>`, registered always at MINIT. Lets smoke/publish jobs and support diagnostics join interpreter + extension identity programmatically (the FR-002 interpreter guard compares it against the running PHP build). Pure metadata - no runtime output in any mode (FR-005).
+- **#688-P2/P3/P4/P5/P6: release-harness hardening** - release-asset manifest oracle (`scripts/windows/release-asset-manifest.json`, 16 required assets, `scripts/windows/assert-asset-manifest.ps1` set-equality join, controls cases A-E), shared `smoke-install-extensions` composite action for both release smoke lanes, weather-replay policy in `verify-ci-green.sh` (queue-starvation and whole-run-cancelled CI failures replay at identical SHA with a `waivers.log` audit trail; genuine reds never retry), `scripts/branch-provenance.sh` stale-base gate (every work branch must contain origin/main's tip), and the `SMOKE-PASSED.json` marker commit binding that refuses to publish a release whose smoke marker does not match the tag revision (fail closed).
 - **#697: deterministic CI dependency pins** - the Firebird client SDK in CI is pinned per-major (`scripts/get-latest-firebird.sh` map: 3.0.14 / 4.0.7 / 5.0.4, `FB_PIN` env override) and Composer installs use `--version=2.11.0` in ci/coverage/sanitizers - the SDK and Composer no longer drift when upstream ships releases (#708). Council note: setup-php was rejected for the container jobs (wrong layer - the signature-verified installer stays); Firebird publishes no SHA256 assets, so the version pin is the determinism mechanism.
 - **#682: FBIRD_PRP_REPLICA_MODE service property** (Firebird 4+ server AND client headers): `fbird_maintain_db()` can set the database replica mode via `FBIRD_PRP_REPLICA_MODE` with `FBIRD_PRP_RM_NONE` / `FBIRD_PRP_RM_READONLY` / `FBIRD_PRP_RM_READWRITE`. On FB3 client headers the constants compile out (`#ifdef isc_spb_prp_replica_mode`); consumers gate on `defined('FBIRD_PRP_REPLICA_MODE')`. Ship rider: the #682 wire-level DPB conformance suite (`tests/issue682_dpb_conformance_*.phpt`) proves default connects send none of the seven privilege-gated attach-DPB items, with seeded negative controls and ordinary-user coverage.
 - **#681: zpp wire-observation gate** - `scripts/gates/issue-681-zpp-wire-gate.sh` (CI job `zpp-wire-gate`) blocks PRs that change `zend_parse_parameters` defaults, argument forwarding, or DPB/SPB/TPB buffer building without a wire-observation `.phpt` in the same PR (#671 failure class: parsed-but-unforwarded arguments and hardcoded DPB literals are invisible to return-value tests). PR template carries the forwarding-review checklist; the gate's `--selftest` doubles as the negative control.
@@ -2599,7 +2603,8 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v12.0.0...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v13.3.0...HEAD
+[13.3.0]: https://github.com/satwareAG/php-firebird/compare/v13.2.12...v13.3.0
 [12.0.0]: https://github.com/satwareAG/php-firebird/compare/v11.1.0...v12.0.0
 [11.1.0]: https://github.com/satwareAG/php-firebird/compare/v11.0.0...v11.1.0
 [11.0.0]: https://github.com/satwareAG/php-firebird/compare/v10.6.2...v11.0.0

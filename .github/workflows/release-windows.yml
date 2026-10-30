@@ -762,6 +762,16 @@ jobs:
       (github.event_name == 'workflow_dispatch' && inputs.tag != '')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    permissions:
+      # js #719-sibling (third finding, v13.3.0's first live pipeline): this
+      # job had NO permissions block and inherited the workflow-level
+      # read-all. Draft releases are only listed to tokens with push access,
+      # so the marker job's release lookup saw ZERO drafts and failed closed
+      # as "expected exactly 1 release" on every attempt (3/3 + the original
+      # run) - while the smoke legs' Condition 2 passed: they carry
+      # contents:write (QH-1c). contents:write is required anyway for the
+      # `gh release upload` of the marker itself.
+      contents: write
     steps:
       # js: the set-equality check (#689, council run 6) needs the repo's
       # scripts/windows-asset-names.sh - this job was checkout-less by
@@ -781,8 +791,29 @@ jobs:
           fi
 
           # Condition 2 again at marker time: exactly one release, capture id.
-          RELEASE_ID=$(gh api "repos/${{ github.repository }}/releases?per_page=100" \
-            --jq "[.[] | select(.tag_name == \"$TAG\")] | if length != 1 then error(\"expected exactly 1 release for $TAG\") else .[0].id end")
+          # #719-sibling: bounded retry for API weather, and the OBSERVED
+          # count in the failure - count=0 (draft invisible/missing) and
+          # count=2+ (duplicate release) are different failure modes and
+          # must not share one message (the old single error() hid which).
+          RELEASE_ID=""
+          COUNT="never-run"
+          for attempt in 1 2 3; do
+            COUNT=$(gh api "repos/${{ github.repository }}/releases?per_page=100" \
+              --jq "[.[] | select(.tag_name == \"$TAG\")] | length" 2>/dev/null) || COUNT="api-error"
+            if [ "$COUNT" = "1" ]; then
+              RELEASE_ID=$(gh api "repos/${{ github.repository }}/releases?per_page=100" \
+                --jq "[.[] | select(.tag_name == \"$TAG\")] | .[0].id")
+              break
+            fi
+            echo "::warning::release lookup attempt $attempt/3 for $TAG: count=$COUNT (0 = draft invisible to this token or missing; 2+ = duplicate release; api-error = transient)"
+            [ "$attempt" -lt 3 ] && sleep $((attempt * 10))
+          done
+          if [ -z "$RELEASE_ID" ]; then
+            echo "ERROR: release lookup failed after 3 attempts (last count=$COUNT for $TAG)"
+            echo "  - count=0 here with contents:write present = the draft genuinely does not exist (fail closed)"
+            echo "  - count=api-error on every attempt = GitHub API outage (re-run this job)"
+            exit 1
+          fi
 
           mkdir -p dl && cd dl
           # js #688 P2: patterns verified against real v13.2.12 asset names

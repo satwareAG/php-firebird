@@ -139,82 +139,33 @@ jobs:
           "version=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "VS=$vs" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Install extension DLLs
+      - name: Extract release assets
         shell: pwsh
         run: |
-          $phpDir = Split-Path -Parent (Get-Command php).Source
-          # `version` and `VS` were exported by the resolve step (GITHUB_ENV)
+          $ErrorActionPreference = 'Stop'
           $version = $env:version
           $vs = $env:VS
-
+          # jane: list extracted contents BEFORE detection - the 2026-10-22 runs
+          #       reported 'pdo DLL absent' although the zip contained it; these
+          #       lines make the next occurrence self-diagnosing.
           Expand-Archive -Path "php_firebird-v$version-${{ matrix.php }}-nts-$vs-x86_64.zip" -DestinationPath "ext_firebird" -Force
           Expand-Archive -Path "php_pdo_fbird-v$version-${{ matrix.php }}-nts-$vs-x86_64.zip" -DestinationPath "ext_pdo" -Force
+          Get-ChildItem -Path ext_firebird -Recurse -File | ForEach-Object { Write-Host "ext_firebird: $($_.Name)" }
+          Get-ChildItem -Path ext_pdo -Recurse -File | ForEach-Object { Write-Host "ext_pdo: $($_.Name)" }
+          $mainDll = (Get-ChildItem -Path ext_firebird -Filter 'php_firebird*.dll' -Recurse | Select-Object -First 1).FullName
+          $pdoDll = (Get-ChildItem -Path ext_pdo -Filter 'php_pdo_fbird*.dll' -Recurse | Select-Object -First 1).FullName
+          if (-not $mainDll) { throw 'php_firebird dll not found in zip' }
+          'main_dll' | Out-Null
+          "main_dll=$mainDll" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          if ($pdoDll) { "pdo_dll=$($pdoDll.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
 
-          # jane: list extracted contents BEFORE detection - the 2026-10-22 runs
-          #       reported 'pdo DLL absent' on v13.2.7 although the zip contains
-          #       it (unexplained; local replication of the exact chain finds it).
-          #       These lines make the next occurrence self-diagnosing.
-          Get-ChildItem -Path "ext_firebird" -Recurse -File | ForEach-Object { Write-Host "ext_firebird: $($_.Name)" }
-          Get-ChildItem -Path "ext_pdo" -Recurse -File | ForEach-Object { Write-Host "ext_pdo: $($_.Name)" }
-
-          $mainDll = Get-ChildItem -Path "ext_firebird" -Filter "php_firebird*.dll" -Recurse | Select-Object -First 1
-          $pdoDll  = Get-ChildItem -Path "ext_pdo" -Filter "php_pdo_fbird*.dll" -Recurse | Select-Object -First 1
-          if (-not $mainDll) { throw "php_firebird dll not found in zip" }
-
-          Copy-Item $mainDll.FullName -Destination "$phpDir\ext\php_firebird.dll" -Force
-
-          # jane: pdo_fbird Windows zip is OPTIONAL - v13.2.8 pdo zips are
-          #       broken in two ways (#636): 8.2/8.3/8.4 log-only, 8.5 ships an
-          #       unloadable dll. The #585 crash reproduces on the main
-          #       extension alone.
-          #       $pdoInstalled stays a LOCAL variable: GITHUB_ENV writes do not
-          #       propagate within the same step (review finding 1 - reading it
-          #       back via $env: here always missed).
-          $pdoInstalled = "false"
-          if ($pdoDll) {
-            Copy-Item $pdoDll.FullName -Destination "$phpDir\ext\php_pdo_fbird.dll" -Force
-            $pdoInstalled = "true"
-          } else {
-            Write-Host "::warning::pdo_fbird DLL absent from zip - PDO section will be skipped"
-          }
-
-          $phpIni = php -r "echo php_ini_loaded_file();"
-          if (-not $phpIni) { $phpIni = "$phpDir\php.ini" }
-          if (-not (Test-Path $phpIni)) { Copy-Item "$phpDir\php.ini-development" $phpIni }
-          Add-Content -Path $phpIni -Value "`nextension=firebird"
-
-          # Firebird client from the server install (choco) + legacy alias
-          $fbDir = (Get-ChildItem "C:\Program Files\Firebird\Firebird_*" | Select-Object -First 1).FullName
-          Copy-Item "$fbDir\fbclient.dll" -Destination $phpDir -Force
-          Copy-Item "$fbDir\fbclient.dll" -Destination "$phpDir\gds32.dll" -Force
-
-          # Main extension load: FATAL - it is the lane's subject (#585).
-          php -r "if (!extension_loaded('firebird')) { exit(1); }"
-          if ($LASTEXITCODE -ne 0) { throw "php_firebird failed to load (see PHP startup warning above)" }
-
-          # jane: pdo_fbird is OPTIONAL coverage and must never mask the primary
-          #       oracle (consumer suite below). Probe-load it BEFORE committing
-          #       it to php.ini: #636 evidence shows zips can ship an unloadable
-          #       pdo dll (v13.2.8 8.5: 'Invalid library') - that costs the PDO
-          #       section + a loud annotation, not the whole leg.
-          $pdoLoaded = "false"
-          if ($pdoInstalled -eq "true") {
-            php -d extension=pdo_fbird -r "exit(extension_loaded('pdo_fbird') ? 0 : 1);"
-            if ($LASTEXITCODE -eq 0) {
-              Add-Content -Path $phpIni -Value "extension=pdo_fbird"
-              $pdoLoaded = "true"
-              Write-Host "extensions loaded: firebird, pdo_fbird"
-            } else {
-              Write-Host "::error::pdo_fbird DLL present in zip but UNLOADABLE - broken release artifact (#636); PDO section skipped, lane continues"
-            }
-          } else {
-            Write-Host "::warning::pdo_fbird DLL absent from zip - PDO section skipped (#636)"
-          }
-
-          # jane: explicit exit - pwsh steps otherwise end with the LAST NATIVE
-          #       command's exit code, so a failed pdo probe above would fail
-          #       this step despite 'lane continues'. Fatal paths are the throws.
-          exit 0
+      - name: Install extensions + identity guard (P3 composite, #688)
+        uses: ./.github/actions/smoke-install-extensions
+        with:
+          main-dll: ${{ env.main_dll }}
+          pdo-dll: ${{ env.pdo_dll }}
+          expected-php-version: ${{ matrix.php }}
+          pdo-mode: optional
 
       - name: Run shutdown smoke (exit code IS the test)
         shell: pwsh

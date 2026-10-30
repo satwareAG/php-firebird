@@ -183,6 +183,22 @@ jobs:
             exit 1
           fi
 
+          # Binding 3 (#688-P6 G8): the smoke marker must reference the EXACT
+          # revision the tag points at - the smoke-tested revision IS the
+          # published revision. A marker from a different commit (stale run,
+          # wrong-SHA replay) = explicit blocked state, no publish.
+          M_COMMIT=$(jq -r '.commit // empty' marker.json)
+          TAG_SHA=$(gh api "repos/${{ github.repository }}/git/ref/tags/${TAG}" --jq '.object.sha' 2>/dev/null || echo "")
+          if [ -z "$TAG_SHA" ]; then
+            echo "ERROR: cannot resolve the tag ref for $TAG - refusing to publish (G8 binding unverifiable)"
+            exit 1
+          fi
+          if [ "$M_COMMIT" != "$TAG_SHA" ] && [ "$M_COMMIT" != "$(git rev-parse "$TAG_SHA^{commit}" 2>/dev/null || echo "$TAG_SHA")" ]; then
+            echo "ERROR: marker commit ($M_COMMIT) != tag revision ($TAG_SHA) - the smoke ran on a DIFFERENT revision than the one being published - refusing (G8, #688-P6)"
+            exit 1
+          fi
+          echo "OK: G8 binding verified (marker commit == tag revision: $M_COMMIT)"
+
           # Binding 2: the tested bytes must be the bytes on the release NOW
           # (guards asset replacement between smoke and publish - audit
           # finding 3, council run 2). Exact-name API downloads - no globs.

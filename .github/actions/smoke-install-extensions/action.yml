@@ -1,0 +1,110 @@
+name: 'Smoke: install extensions + identity guard'
+description: >-
+  Shared skeleton (#688-P3): installs the smoke-tested extension DLLs into the
+  PHP install, fails loud on interpreter drift, runs the FR-002 identity guard
+  (FBIRD_BUILD_IDENTITY join), assembles php.ini, copies the Firebird client,
+  and verifies extension loads. pdo_mode selects the release-gate behavior:
+  'strict' blocks on an unloadable pdo DLL (#636 release gate); 'optional'
+  skips the PDO section with an annotation (the #585 lane keeps its primary
+  oracle). Replaces the inline copies in release-windows.yml and
+  windows-smoke.yml so the skeleton cannot drift between the two lanes (#688
+  P3 anti-drift).
+inputs:
+  main-dll:
+    description: 'Path to the extracted php_firebird DLL'
+    required: true
+  pdo-dll:
+    description: 'Path to the extracted php_pdo_fbird DLL (absent = pdo skipped where optional)'
+    required: false
+  expected-php-version:
+    description: 'Matrix PHP major.minor (e.g. 8.4) - drift-check anchor'
+    required: true
+  pdo-mode:
+    description: 'strict (release gate throws on unloadable pdo) or optional (#585 lane skips)'
+    required: false
+    default: 'strict'
+outputs:
+  php-dir:
+    description: 'Directory of the php binary used (for subsequent steps)'
+    value: ${{ steps.install.outputs.php_dir }}
+runs:
+  using: composite
+  steps:
+    - name: Install extensions + identity guard
+      id: install
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $mainDll = '${{ inputs.main-dll }}'
+        $pdoDll = '${{ inputs.pdo-dll }}'
+        $phpVer = '${{ inputs.expected-php-version }}'
+        $pdoMode = '${{ inputs.pdo-mode }}'
+
+        if (-not (Test-Path $mainDll)) { throw "main dll not found: $mainDll" }
+        if ($pdoMode -eq 'strict' -and -not (Test-Path $pdoDll)) {
+          throw "pdo dll not found: $pdoDll - the release gate is STRICT on pdo (#636)"
+        }
+
+        $phpDir = Split-Path -Parent (Get-Command php).Source
+        # js: fail loud on interpreter drift - never load release assets
+        # into a PHP other than the matrix leg's version (#683 class).
+        $phpOnPath = (php -r "echo PHP_VERSION;")
+        if (-not $phpOnPath.StartsWith("$phpVer.")) {
+          throw "interpreter drift: PATH php is $phpOnPath, expected $phpVer.x - provisioning failed, refusing to smoke wrong-version (issue 672 class: no silent fallback)"
+        }
+        Write-Host "interpreter: $phpOnPath (matches matrix $phpVer)"
+        Copy-Item $mainDll -Destination "$phpDir\ext\php_firebird.dll" -Force
+        if (Test-Path $pdoDll) {
+          Copy-Item $pdoDll -Destination "$phpDir\ext\php_pdo_fbird.dll" -Force
+        }
+
+        # FR-002 (#688-P1): the LOADED extension must self-report the
+        # interpreter + Zend API this leg expects (identity guard, fails
+        # closed with observed vs expected on any mismatch).
+        $apiMap = @{ '8.2' = 20220829; '8.3' = 20220829; '8.4' = 20240924; '8.5' = 20240924 }
+        pwsh -File "$((Get-Location).Path)\scripts\windows\identity_guard.ps1" `
+          -PhpExe (Get-Command php).Source `
+          -ExtensionPath "$phpDir\ext\php_firebird.dll" `
+          -ExpectedPhpVersion $phpVer `
+          -ExpectedApiNo $apiMap[$phpVer]
+
+        $phpIni = php -r "echo php_ini_loaded_file();"
+        if (-not $phpIni) { $phpIni = "$phpDir\php.ini" }
+        if (-not (Test-Path $phpIni)) { Copy-Item "$phpDir\php.ini-development" $phpIni }
+        Add-Content -Path $phpIni -Value "`nextension=firebird"
+
+        $fbDir = (Get-ChildItem "C:\Program Files\Firebird\Firebird_*" | Select-Object -First 1).FullName
+        Copy-Item "$fbDir\fbclient.dll" -Destination $phpDir -Force
+        Copy-Item "$fbDir\fbclient.dll" -Destination "$phpDir\gds32.dll" -Force
+
+        php -r "if (!extension_loaded('firebird')) { exit(1); }"
+        if ($LASTEXITCODE -ne 0) { throw "php_firebird failed to load" }
+
+        if ($pdoMode -eq 'strict') {
+          # #636 release gate: an unloadable pdo DLL blocks the release.
+          php -d extension=pdo_fbird -r "exit(extension_loaded('pdo_fbird') ? 0 : 1);"
+          if ($LASTEXITCODE -ne 0) { throw "php_pdo_fbird present but UNLOADABLE - release gate blocks (#636 crash class)" }
+          Write-Host "extensions loaded: firebird, pdo_fbird"
+        } else {
+          # #585 lane: pdo is OPTIONAL coverage - never masks the primary
+          # oracle (#636: zips can ship an unloadable pdo dll; that costs the
+          # PDO section + a loud annotation, not the whole leg).
+          $pdoLoaded = 'false'
+          if (Test-Path "$phpDir\ext\php_pdo_fbird.dll") {
+            php -d extension=pdo_fbird -r "exit(extension_loaded('pdo_fbird') ? 0 : 1);"
+            if ($LASTEXITCODE -eq 0) {
+              Add-Content -Path $phpIni -Value 'extension=pdo_fbird'
+              $pdoLoaded = 'true'
+              Write-Host 'extensions loaded: firebird, pdo_fbird'
+            } else {
+              Write-Host '::error::pdo_fbird DLL present in zip but UNLOADABLE - broken release artifact (#636); PDO section skipped, lane continues'
+            }
+          } else {
+            Write-Host '::warning::pdo_fbird DLL absent from zip - PDO section skipped (#636)'
+          }
+        }
+
+        # js: explicit exit - pwsh steps otherwise end with the LAST NATIVE
+        # command's exit code, so a skipped optional section cannot fail the leg.
+        "php_dir=$phpDir" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        exit 0

@@ -368,6 +368,85 @@ jobs:
           exit 0
 
   # ===========================================================================
+  # Asset-manifest controls (P2 FR-004 analog, #688): every PR touching the
+  # manifest or the join script proves the set-equality oracle can fail
+  # (missing family / extra asset / duplicate) and passes on an exact set.
+  # ===========================================================================
+  asset-manifest-controls:
+    name: asset manifest controls (P2 #688)
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Build fixtures (16-name exact set + variants)
+        shell: pwsh
+        run: |
+          # Derive the exact expected set the same way the smoke does, then
+          # write fixture variants.
+          $mf = Get-Content ./scripts/windows/release-asset-manifest.json -Raw | ConvertFrom-Json
+          $version = '13.3.0'
+          $names = @()
+          foreach ($family in $mf.families) {
+            foreach ($php in $family.php) {
+              $vs = $mf.vs_by_php.$php
+              foreach ($ts in $family.ts) {
+                $names += ($family.pattern -replace '\{version\}', $version -replace '\{php\}', $php -replace '\{ts\}', $ts -replace '\{vs\}', $vs)
+              }
+            }
+          }
+          if ($names.Count -ne 16) { throw "fixture expansion: expected 16, got $($names.Count)" }
+          New-Item -ItemType Directory -Force -Path fixtures | Out-Null
+          $names | Set-Content fixtures/exact.txt -Encoding Ascii
+          # missing: drop the last name (php_pdo_fbird 8.5 ts)
+          $names[0..($names.Count - 2)] | Set-Content fixtures/missing.txt -Encoding Ascii
+          # extra: exact + one unknown windows-family asset
+          ($names + 'php_firebird-v13.3.0-9.0-nts-vs17-x86_64.zip') | Set-Content fixtures/extra.txt -Encoding Ascii
+          Write-Host "fixtures written: exact=$($names.Count) names"
+
+      - name: Case A - exact 16-name set passes
+        shell: pwsh
+        run: |
+          pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/exact.txt
+          if ($LASTEXITCODE -ne 0) { throw "case A: exact set FAILED (rc $LASTEXITCODE)" }
+
+      - name: Case B - missing family member fails
+        shell: pwsh
+        run: |
+          $out = pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/missing.txt 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 1) { throw "case B: missing-name set PASSED (rc $LASTEXITCODE) - oracle cannot fail" }
+          Write-Host "case B observed: $($out.Trim())"
+
+      - name: Case C - extra windows-family asset fails
+        shell: pwsh
+        run: |
+          $names = Get-Content fixtures/exact.txt
+          $names += 'php_firebird-v13.3.0-9.0-nts-vs17-x86_64.zip'
+          $names | Set-Content fixtures/extra2.txt -Encoding Ascii
+          $out = pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/extra2.txt 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 1) { throw "case C: extra-asset set PASSED (rc $LASTEXITCODE) - oracle cannot fail" }
+          Write-Host "case C observed: $($out.Trim())"
+
+      - name: Case D - duplicate actual name fails
+        shell: pwsh
+        run: |
+          $names = Get-Content fixtures/exact.txt
+          ($names + $names[0]) | Set-Content fixtures/dup.txt -Encoding Ascii
+          $out = pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/dup.txt 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 1) { throw "case D: duplicate name PASSED (rc $LASTEXITCODE)" }
+          Write-Host "case D observed: $($out.Trim())"
+
+      - name: Case E - version mismatch fails (assets from a different version)
+        shell: pwsh
+        run: |
+          $names = Get-Content fixtures/exact.txt
+          ($names -replace '13\.3\.0', '13.2.12') | Set-Content fixtures/wrongver.txt -Encoding Ascii
+          $out = pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/wrongver.txt 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 1) { throw "case E: wrong-version set PASSED (rc $LASTEXITCODE)" }
+          Write-Host "case E observed: $($out.Trim())"
+
+  # ===========================================================================
   # Pre-publish smoke gate (#652, council verdict 2026-10-25: option A with
   # binding conditions).
   #
@@ -468,20 +547,22 @@ jobs:
             Write-Host "::warning::release $tag is already published (id $($release.id)) - smoke continues against it (re-run path)"
           }
 
-          # Verify all 8 Windows asset names on THIS release id.
+          # QH-1c note: matrix.php is used by the leg's own build identity.
           $phpVer = '${{ matrix.php }}'
-          $vs = if ([version]$phpVer -ge [version]'8.4') { 'vs17' } else { 'vs16' }
-          $expected = @()
-          foreach ($tsLbl in @('nts', 'ts')) {
-            $expected += "php_firebird-v$version-$phpVer-$tsLbl-$vs-x86_64.zip"
-            $expected += "php_pdo_fbird-v$version-$phpVer-$tsLbl-$vs-x86_64.zip"
-          }
-          foreach ($name in $expected) {
-            $a = $release.assets | Where-Object { $_.name -eq $name }
-            if (-not $a) { throw "Asset missing on release $tag (id $($release.id)): $name" }
-          }
+
+          # FR-003/#688-P2: dump the release's asset names for the manifest join
+          $relAssetNames = $release.assets | ForEach-Object { $_.name }
+          $relAssetNames | Set-Content -Path release-assets.txt -Encoding Ascii
+
+          # P2 manifest oracle: set-equality join vs the checked-in manifest
+          # (all 4 PHP legs x 2 families x 2 ts in ONE join, not per-leg slices).
+          pwsh -File ./scripts/windows/assert-asset-manifest.ps1 `
+            -ManifestPath ./scripts/windows/release-asset-manifest.json `
+            -Version $version `
+            -ActualNamesFile release-assets.txt
+
           "release_id=$($release.id)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          Write-Host "Release $tag resolved: id=$($release.id), all $($expected.Count) Windows assets present"
+          Write-Host "Release $tag resolved: id=$($release.id), Windows asset set verified against the manifest (#688-P2)"
 
           # Condition 3: download the NTS zips under test via API
           # octet-stream (gh release download uses the API asset URL).

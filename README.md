@@ -1003,7 +1003,7 @@ See [docs/oop-api.md](docs/oop-api.md) for the `Firebird\Event` class reference.
 - PHP 8.4 (fully supported)
 - PHP 8.5 (fully supported)
 
-> **ℹ️ PHP 8.1**: PHP 8.1 reached end-of-life on November 25, 2025 and is no longer supported as of v7.2.0. Please upgrade to PHP 8.2 or newer.
+> **ℹ️ PHP 8.1**: PHP 8.1 reached end-of-life on December 31, 2025 and is no longer supported as of v7.2.0. Please upgrade to PHP 8.2 or newer.
 
 **Firebird Client Library (for building):**
 - Firebird 3.0+ client library required (uses OO API)

@@ -69,8 +69,8 @@ No breaking changes. All improvements are backward-compatible.
 #### QH-1b: Composer install via setup-php action (I2)
 - [ ] `ci.yml`, `coverage.yml`, `sanitizers.yml` replaced curl-pipe Composer install with `shivammathur/setup-php` (already used in `code-quality.yml`)
 - [x] No `curl -sS https://getcomposer.org/installer | php` pattern remains in any workflow
-- [ ] Composer version is deterministic across all workflows
-  <!-- 697-tranche 2026-10-29: box 2 verified - the pipe-to-php pattern is gone everywhere; ci.yml:218-221 downloads the installer to a file and verifies it against https://composer.github.io/installer.sig before executing (the secure pattern). Boxes 1/3 stay open: ci/coverage/sanitizers still use the curl+signature approach instead of setup-php, and the resolved Composer version is latest-at-runtime, not pinned. -->
+- [x] Composer version is deterministic across all workflows
+  <!-- 697-tranche 2026-10-29: box 2 verified - the pipe-to-php pattern is gone everywhere; ci.yml:218-221 downloads the installer to a file and verifies it against https://composer.github.io/installer.sig before executing (the secure pattern). Boxes 1/3 stay open: ci/coverage/sanitizers still use the curl+signature approach instead of setup-php, and the resolved Composer version is latest-at-runtime, not pinned. Box 3 RESOLVED post-merge: ci/coverage/sanitizers now pass `--version=2.11.0` to the signature-verified installer (PR #708); council verdict recorded that setup-php is the wrong layer for the container jobs (box 1 remains open as a documented wrong-layer finding, not an outstanding defect). -->
 
 #### QH-1c: Windows workflow permissions scoped (I3)
 - [x] `release-windows.yml` `contents: write` moved from workflow-level to the `release` job only
@@ -190,10 +190,10 @@ No breaking changes. All improvements are backward-compatible.
      README/CHANGELOG line numbers have drifted - live hits are README.md:984
      and CHANGELOG.md:1896). Target edits deferred until PRs #702-#706 merge
      (CHANGELOG collision); apply with the corrected 31 Dec 2025 date then. -->
-- [ ] `README.md:941` EOL date changed from "November 25, 2025" to "November 25, 2024"
-- [ ] `README.md:1004` EOL date changed from "November 25, 2025" to "November 25, 2024"
-- [ ] `CHANGELOG.md:656` EOL date changed from "November 25, 2025" to "November 25, 2024"
+- [x] `README.md` EOL date corrected to the TRUE date (December 31, 2025 per php.net/supported-versions; live hit was line 1006, not 941/1004 - line numbers drifted)
+- [x] `CHANGELOG.md` EOL date corrected to December 31, 2025 (live hit line 1904; corrected with an in-entry note per the historical-entry protocol)
 - [ ] Cross-reference: `docs/MIGRATION-v10-to-v11.md:8` already says 2024 — confirm unchanged
+  <!-- 697-tranche 2026-10-30: applied the CORRECTED date (31 Dec 2025 per php.net), deliberately NOT the box's "November 25, 2024" instruction (both of the box's dates were wrong - council S1/S4 finding). Post-merge: the #702-#706 wave landed, README/CHANGELOG collision gone. Line-number drift documented; the migration-file cross-ref check remains open (file path moved, content still false per S4). -->
 
 #### QH-7b: Analysis docs updated (D8/D9)
 - [ ] `docs/archive/CRITICAL_ANALYSIS_2026.md` receives a `## Status as of v11.0.0` section at the top noting that resource-to-object migration is complete (Medium finding resolved)

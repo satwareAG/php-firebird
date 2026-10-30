@@ -392,8 +392,15 @@ fi
 
 ### Phase 2: Deprecate Manual Version Updates
 
-1. Add CI check for version consistency
-2. Update release documentation
+**IMPLEMENTED (2026-10-29, #697 tranche / #672 SSOT)**: VERSION.txt is the
+single source of truth; the release workflows write/verify it (Ensure
+VERSION.txt steps with the canonical-filename comments) and the version-stamps
+CI job enforces consistency. The manual-update deprecation is complete.
+
+1. Add CI check for version consistency - DONE (version-stamps job,
+   version_ssot_firebird.phpt / version_ssot_pdo_fbird.phpt)
+2. Update release documentation - DONE (Ensure VERSION.txt steps in
+   release-linux.yml / release-macos.yml / release-windows.yml)
 3. Remove manual version from `php_firebird.h` (keep fallbacks)
 4. Enforce via pre-commit hooks
 

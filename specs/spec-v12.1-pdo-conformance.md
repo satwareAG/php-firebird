@@ -185,7 +185,8 @@ Derived from `php_pdo_driver.h` and method dispatch analysis in `pdo_dbh.c` /
 ## Open Questions
 
 - [x] Should `getColumnMeta()` be implemented (matching bundled `pdo_firebird` which HAS it) or should stubs be corrected? **Recommended**: implement in feat/v12.1.1 (non-breaking patch), correct stubs immediately as stopgap.
-- [ ] Does `PARAM_INPUT_OUTPUT` have any meaning for Firebird (engine supports in/out params via EXECUTE PROCEDURE RETURNING)? **Recommended**: document as not supported, matching bundled pdo_firebird.
+- [x] ~~Does `PARAM_INPUT_OUTPUT` have any meaning for Firebird (engine supports in/out params via EXECUTE PROCEDURE RETURNING)? **Recommended**: document as not supported, matching bundled pdo_firebird.~~
+  RESOLVED 2026-10-30 (#697 tranche): ADOPTED the recommendation - `PDO::PARAM_INPUT_OUTPUT` documented as not supported in stubs/pdo-fbird-stubs.php (matching bundled ext/pdo_firebird; Firebird in/out params flow through EXECUTE PROCEDURE RETURNING).
 
 ---
 

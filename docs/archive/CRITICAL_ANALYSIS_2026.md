@@ -1,3 +1,12 @@
+## Status as of v11.0.0
+
+The resource-to-object migration (the Medium finding this analysis centered
+on) is COMPLETE: shipped in v11.0.0 - `fbird_connect()` returns
+`Firebird\Connection`, all consumers migrated, zero `RETVAL_RES` /
+`zend_register_resource` calls remain (verified by the #697 tranche,
+2026-10-30). This document is archived for historical reference; the
+per-recommendation checkboxes below reflect the v11.0.0-era state.
+
 > **Update 2026-07-07: v12.0.0 shipped. v12.1.0 integration conformance suite in progress. Remaining items: M8 (pointer smoking), L1 (LTO partial). All other items resolved.**
 # php-firebird Critical Analysis - March 2026
 

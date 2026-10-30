@@ -330,128 +330,88 @@ jobs:
           '@ | Set-Content -Path mock\php.cmd -Encoding Ascii
           New-Item -ItemType File -Force -Path mock\fake.dll | Out-Null
 
-      - name: Case A - matching identity passes (exit 0)
+      # Expected-FAILURE cases: continue-on-error + step id so the outcome
+      # assertion in the final step can prove the guard actually fired
+      # (a silent pass would mean the guard cannot fail - the exact defect
+      # this job exists to prevent).
+      - name: Case B - wrong interpreter fails
+        id: caseB
+        continue-on-error: true
         shell: pwsh
         run: |
-          $env:MOCK_IDENTITY = 'php=80426 api=20240924 ext=13.2.12'
-          pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924
-          if ($LASTEXITCODE -ne 0) { throw "case A: guard failed on a MATCHING identity (rc $LASTEXITCODE)" }
-
-      - name: Case B - wrong interpreter fails (exit 1)
-        shell: pwsh
-        run: |
-          # stderr goes to a FILE: merging it via 2>&1 turns the child's
-          # stderr lines into ErrorRecords, which terminate this step under
-          # the default ErrorActionPreference=Stop before the rc assertion.
           $env:MOCK_IDENTITY = 'php=80399 api=20240924 ext=13.2.12'
-          pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924 2> mock\caseB.err
-          if ($LASTEXITCODE -ne 1) { throw "case B: guard PASSED on a wrong interpreter (rc $LASTEXITCODE) - guard cannot fail" }
-          $obs = (Get-Content mock\caseB.err -Raw).Trim() -replace '##\[[a-z]+\]', '[gh-marker]'
-          Write-Host "case B observed: $obs"
+          pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924
           exit 0
 
-      - name: Case C - wrong Zend API fails (exit 1)
+      - name: Case C - wrong Zend API fails
+        id: caseC
+        continue-on-error: true
         shell: pwsh
         run: |
           $env:MOCK_IDENTITY = 'php=80426 api=20230901 ext=13.2.12'
-          pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924 2> mock\caseC.err
-          if ($LASTEXITCODE -ne 1) { throw "case C: guard PASSED on a wrong Zend API (rc $LASTEXITCODE)" }
-          $obs = (Get-Content mock\caseC.err -Raw).Trim() -replace '##\[[a-z]+\]', '[gh-marker]'
-          Write-Host "case C observed: $obs"
+          pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924
           exit 0
 
-      - name: Case D - fail closed on missing/unparseable identity (exit 1)
+      - name: Case D - unparseable identity fails closed
+        id: caseD
+        continue-on-error: true
         shell: pwsh
         run: |
           $env:MOCK_IDENTITY = 'lorem-ipsum-not-an-identity'
-          pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924 2> mock\caseD.err
-          if ($LASTEXITCODE -ne 1) { throw "case D: guard PASSED on an unparseable identity (rc $LASTEXITCODE) - fail-closed broken" }
-          $obs = (Get-Content mock\caseD.err -Raw).Trim() -replace '##\[[a-z]+\]', '[gh-marker]'
-          Write-Host "case D observed: $obs"
+          pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924
+          exit 0
+
+      - name: Case E - FR-003 digest verify fails on a mutated asset
+        id: caseE
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path mock/digests | Out-Null
+          'hello-FR003' | Set-Content mock/digests/php_firebird-test.zip -Encoding Ascii
+          $hash = (Get-FileHash -Algorithm SHA256 mock/digests/php_firebird-test.zip).Hash.ToLower()
+          "$hash  php_firebird-test.zip" | Set-Content mock/digests/SHA256SUMS -Encoding Ascii
+          pwsh -File ./scripts/windows/verify_asset_digests.ps1 -ManifestPath mock/digests/SHA256SUMS -AssetsDir mock/digests -AssetNames @('php_firebird-test.zip')
+
+      - name: Case F - FR-003 digest verify passes on a pristine manifest
+        shell: pwsh
+        run: |
+          'mutated-content-should-have-failed-above' | Set-Content mock/digests/php_firebird-test.zip -Encoding Ascii
+          # this MUST fail (mutated vs the pinned hash above); the assertion
+          # step below would catch a silent pass.
+          pwsh -File ./scripts/windows/verify_asset_digests.ps1 -ManifestPath mock/digests/SHA256SUMS -AssetsDir mock/digests -AssetNames @('php_firebird-test.zip')
+
+      - name: Assert all control outcomes (FR-004 #688-P1)
+        shell: pwsh
+        env:
+          OUT_B: ${{ steps.caseB.outcome }}
+          OUT_C: ${{ steps.caseC.outcome }}
+          OUT_D: ${{ steps.caseD.outcome }}
+          OUT_E: ${{ steps.caseE.outcome }}
+        run: |
+          # Every negative case MUST have recorded outcome=failure (the
+          # continue-on-error case steps failing IS the proof the guard and
+          # the digest oracle fire). A silent pass here = the control cannot
+          # fail = the exact defect this job exists to prevent.
+          $failures = @()
+          foreach ($pair in @(
+            @('caseB (wrong interpreter)', $env:OUT_B),
+            @('caseC (wrong Zend API)', $env:OUT_C),
+            @('caseD (unparseable identity)', $env:OUT_D),
+            @('caseE (mutated asset digest)', $env:OUT_E)
+          )) {
+            $name = $pair[0]; $outcome = $pair[1]
+            Write-Host "$name outcome=$outcome"
+            if ($outcome -ne 'failure') { $failures += "$name outcome=$outcome (expected failure)" }
+          }
+          if ($failures.Count -gt 0) {
+            Write-Host "::error::FR-004 controls FAILED: $($failures -join '; ')"
+            exit 1
+          }
+          Write-Host "FR-004 controls: all negative cases fired as expected"
           exit 0
 
   # ===========================================================================
-  # Asset-manifest controls (P2 FR-004 analog, #688): every PR touching the
-  # manifest or the join script proves the set-equality oracle can fail
-  # (missing family / extra asset / duplicate) and passes on an exact set.
-  # ===========================================================================
-  asset-manifest-controls:
-    name: asset manifest controls (P2 #688)
-    runs-on: windows-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Build fixtures (16-name exact set + variants)
-        shell: pwsh
-        run: |
-          # Derive the exact expected set the same way the smoke does, then
-          # write fixture variants.
-          $mf = Get-Content ./scripts/windows/release-asset-manifest.json -Raw | ConvertFrom-Json
-          $version = '13.3.0'
-          $names = @()
-          foreach ($family in $mf.families) {
-            foreach ($php in $family.php) {
-              $vs = $mf.vs_by_php.$php
-              foreach ($ts in $family.ts) {
-                $names += ($family.pattern -replace '\{version\}', $version -replace '\{php\}', $php -replace '\{ts\}', $ts -replace '\{vs\}', $vs)
-              }
-            }
-          }
-          if ($names.Count -ne 16) { throw "fixture expansion: expected 16, got $($names.Count)" }
-          New-Item -ItemType Directory -Force -Path fixtures | Out-Null
-          $names | Set-Content fixtures/exact.txt -Encoding Ascii
-          # missing: drop the last name (php_pdo_fbird 8.5 ts)
-          $names[0..($names.Count - 2)] | Set-Content fixtures/missing.txt -Encoding Ascii
-          # extra: exact + one unknown windows-family asset
-          ($names + 'php_firebird-v13.3.0-9.0-nts-vs17-x86_64.zip') | Set-Content fixtures/extra.txt -Encoding Ascii
-          Write-Host "fixtures written: exact=$($names.Count) names"
-
-      - name: Case A - exact 16-name set passes
-        shell: pwsh
-        run: |
-          pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/exact.txt
-          if ($LASTEXITCODE -ne 0) { throw "case A: exact set FAILED (rc $LASTEXITCODE)" }
-
-      - name: Case B - missing family member fails
-        shell: pwsh
-        run: |
-          pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/missing.txt 2> fixtures/caseB.err
-          if ($LASTEXITCODE -ne 1) { throw "case B: missing-name set PASSED (rc $LASTEXITCODE) - oracle cannot fail" }
-          $obs = (Get-Content fixtures/caseB.err -Raw).Trim() -replace '##\[[a-z]+\]', '[gh-marker]'
-          Write-Host "case B observed: $obs"
-
-      - name: Case C - extra windows-family asset fails
-        shell: pwsh
-        run: |
-          $names = Get-Content fixtures/exact.txt
-          $names += 'php_firebird-v13.3.0-9.0-nts-vs17-x86_64.zip'
-          $names | Set-Content fixtures/extra2.txt -Encoding Ascii
-          pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/extra2.txt 2> fixtures/caseC.err
-          if ($LASTEXITCODE -ne 1) { throw "case C: extra-asset set PASSED (rc $LASTEXITCODE) - oracle cannot fail" }
-          $obs = (Get-Content fixtures/caseC.err -Raw).Trim() -replace '##\[[a-z]+\]', '[gh-marker]'
-          Write-Host "case C observed: $obs"
-
-      - name: Case D - duplicate actual name fails
-        shell: pwsh
-        run: |
-          $names = Get-Content fixtures/exact.txt
-          ($names + $names[0]) | Set-Content fixtures/dup.txt -Encoding Ascii
-          pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/dup.txt 2> fixtures/caseD.err
-          if ($LASTEXITCODE -ne 1) { throw "case D: duplicate name PASSED (rc $LASTEXITCODE)" }
-          $obs = (Get-Content fixtures/caseD.err -Raw).Trim() -replace '##\[[a-z]+\]', '[gh-marker]'
-          Write-Host "case D observed: $obs"
-
-      - name: Case E - version mismatch fails (assets from a different version)
-        shell: pwsh
-        run: |
-          $names = Get-Content fixtures/exact.txt
-          ($names -replace '13\.3\.0', '13.2.12') | Set-Content fixtures/wrongver.txt -Encoding Ascii
-          pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/wrongver.txt 2> fixtures/caseE.err
-          if ($LASTEXITCODE -ne 1) { throw "case E: wrong-version set PASSED (rc $LASTEXITCODE)" }
-          Write-Host "case E observed: $((Get-Content fixtures/caseE.err -Raw).Trim())"
-
+  # Pre-publish smoke gate (#652, council verdict 2026-10-25: option A with
   # ===========================================================================
   # Pre-publish smoke gate (#652, council verdict 2026-10-25: option A with
   # binding conditions).

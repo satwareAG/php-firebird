@@ -16,6 +16,11 @@ priority: 12
 > comment, silent-RETURN error warnings (docref sites), Dockerfile digest
 > comment, EOL date fixes, archive doc status sections. qa.sh items are
 > superseded (qa.sh was removed from the repo). Tracked in #697.
+>
+> **697-tranche correction 2026-10-29**: the "qa.sh was removed" claim above is
+> WRONG - `scripts/qa.sh` is tracked and fully rewritten (QH-6c:170/171 ticked
+> on current evidence). Open-box counts are 25/2/2 = 29 (issue body lists 23 in
+> this section, omitting QH-2 line 80 and QH-3b line 94 - QH-3b now ticked).
 
 
 > **Status: COMPLETE** — v11.1.0 released 2026-07-02. All P1-P2 findings resolved.
@@ -63,13 +68,15 @@ No breaking changes. All improvements are backward-compatible.
 
 #### QH-1b: Composer install via setup-php action (I2)
 - [ ] `ci.yml`, `coverage.yml`, `sanitizers.yml` replaced curl-pipe Composer install with `shivammathur/setup-php` (already used in `code-quality.yml`)
-- [ ] No `curl -sS https://getcomposer.org/installer | php` pattern remains in any workflow
+- [x] No `curl -sS https://getcomposer.org/installer | php` pattern remains in any workflow
 - [ ] Composer version is deterministic across all workflows
+  <!-- 697-tranche 2026-10-29: box 2 verified - the pipe-to-php pattern is gone everywhere; ci.yml:218-221 downloads the installer to a file and verifies it against https://composer.github.io/installer.sig before executing (the secure pattern). Boxes 1/3 stay open: ci/coverage/sanitizers still use the curl+signature approach instead of setup-php, and the resolved Composer version is latest-at-runtime, not pinned. -->
 
 #### QH-1c: Windows workflow permissions scoped (I3)
-- [ ] `release-windows.yml` `contents: write` moved from workflow-level to the `release` job only
-- [ ] `build` job has no write permissions
-- [ ] Workflow-level `permissions: read-all` (or minimal set) declared
+- [x] `release-windows.yml` `contents: write` moved from workflow-level to the `release` job only
+- [x] `build` job has no write permissions
+- [x] Workflow-level `permissions: read-all` (or minimal set) declared
+  <!-- 697-tranche 2026-10-29: workflow-level is now `read-all`; write granted per-job only where needed: `release` (kept) + `pre-publish-smoke` (ADDED - deviation from the box's 'release job only' wording, which predates the #652 smoke-marker upload: that job's gh release upload IS a write). build/get-extension-matrix inherit read-all with no own contents grant. Council S4 HOLD honored: the smoke-marker path was designed in before mutating. -->
 
 ### QH-2: VERSION File Consistency (I4/I5)
 
@@ -77,7 +84,8 @@ No breaking changes. All improvements are backward-compatible.
 - [x] All 4 release workflows reference `VERSION.txt` consistently
 - [x] Fallback `"7.0.0"` in all release workflows replaced with `exit 1` (or `"11.0.0"` + warning)
 - [x] `config.m4` version injection path verified: reads `VERSION.txt` → `git describe` → `exit 1`
-- [ ] Comment in each workflow documents the canonical filename: `# canonical: VERSION.txt`
+- [x] Comment in each workflow documents the canonical filename: `# canonical: VERSION.txt`
+  <!-- 697-tranche 2026-10-29 (P7-prep): the canonical-filename comment added to release-linux.yml and release-macos.yml at the first Ensure VERSION.txt step of each (also citing QH-2 and the #672 SSOT); verified: 1 occurrence per workflow (grep "canonical: VERSION.txt" = 1/1), YAML validated. -->
 
 ### QH-3: C Code Quality (P2)
 
@@ -87,11 +95,12 @@ No breaking changes. All improvements are backward-compatible.
 - [x] Existing service-verbose tests pass without modification
 
 #### QH-3b: Silent RETURN_FALSE sites fixed (C6)
-- [ ] `fbird_connection.c:624` — `IBG(default_link) == NULL` path adds `php_error_docref()` before `RETURN_FALSE`
-- [ ] `fbird_connection.c:630` — `_php_fbird_res_from_zval()` NULL path adds error before `RETURN_FALSE`
-- [ ] `fbird_transaction.c:323` — `!ib_link` path adds `php_error_docref()` before `RETURN_FALSE`
-- [ ] `fbird_service.c:329` — `fbird_service_detach` resolution failure adds `FBIRD_SVC_ERROR()` before `RETURN_FALSE`
-- [ ] All 4 sites emit a PHP Warning (not fatal error) to preserve backward compatibility
+- [x] `fbird_connection.c:624` — `IBG(default_link) == NULL` path adds `php_error_docref()` before `RETURN_FALSE`
+- [x] `fbird_connection.c:630` — `_php_fbird_res_from_zval()` NULL path adds error before `RETURN_FALSE`
+- [x] `fbird_transaction.c:323` — `!ib_link` path adds error before `RETURN_FALSE`
+- [x] `fbird_service.c:329` — `fbird_service_detach` resolution failure adds `FBIRD_SVC_ERROR()` before `RETURN_FALSE`
+- [x] All 4 sites emit a PHP Warning (not fatal error) to preserve backward compatibility
+  <!-- 697-tranche 2026-10-29: resolved-by-implementation; the v11.1 line refs are stale (code refactored, FBG naming). Current equivalent sites all emit _php_fbird_module_error() (E_WARNING via php_error_docref, fbird_error.c:322-331) before RETURN_FALSE/FAILURE: fbird_connection.c:620-627 (invalid link resource), fbird_connection.c:713-718 and :995+ (_php_fbird_res_from_zval NULL), fbird_transaction.c:431-453 (invalid db link / OO handle paths), fbird_service.c:325-329 (invalid service handle). Evidence verified on 9f9b8a1 by the #697 tranche (council-697-tranche). -->
 
 #### QH-3c: `zend_bool` → `bool` migration (C7)
 - [x] All 13 `zend_bool` usages replaced with `bool` in:
@@ -167,13 +176,20 @@ No breaking changes. All improvements are backward-compatible.
 - [ ] Comment documents when base image digest was last updated
 
 #### QH-6c: `qa.sh` matrix references updated (I8)
-- [ ] `qa.sh` `php81-fb3-dev` service reference removed or replaced with current minimum (php82)
-- [ ] `docker/docker-compose.yml` service names match what `qa.sh` references
-- [ ] Running `bash qa.sh matrix` completes without "no such service" Docker error
+- [x] `qa.sh` `php81-fb3-dev` service reference removed or replaced with current minimum (php82)
+- [x] `docker/docker-compose.yml` service names match what `qa.sh` references
+- [x] Running `bash qa.sh matrix` completes without "no such service" Docker error
+  <!-- 697-tranche 2026-10-29: verified LIVE - `bash scripts/qa.sh --mode matrix` ran the php82-fb3-dev + php85-fb5-dev lanes end-to-end: rc=0, "MATRIX TESTING COMPLETED SUCCESSFULLY", zero no-such-service errors (log /tmp disposable, outcome recorded on #700). 170/171 ticked earlier the same day on static evidence (0 php81 matches; referenced lanes all present in compose). -->
 
 ### QH-7: Documentation Accuracy (P2)
 
 #### QH-7a: PHP 8.1 EOL date corrected (D6)
+<!-- 697-tranche correction 2026-10-29: BOTH dates in the instructions below are
+     WRONG. php.net lists PHP 8.1 EOL as 31 December 2025. Do NOT execute these
+     boxes literally ("November 25, 2024" would publish a false date, and the
+     README/CHANGELOG line numbers have drifted - live hits are README.md:984
+     and CHANGELOG.md:1896). Target edits deferred until PRs #702-#706 merge
+     (CHANGELOG collision); apply with the corrected 31 Dec 2025 date then. -->
 - [ ] `README.md:941` EOL date changed from "November 25, 2025" to "November 25, 2024"
 - [ ] `README.md:1004` EOL date changed from "November 25, 2025" to "November 25, 2024"
 - [ ] `CHANGELOG.md:656` EOL date changed from "November 25, 2025" to "November 25, 2024"

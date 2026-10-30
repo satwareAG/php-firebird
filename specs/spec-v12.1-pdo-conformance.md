@@ -123,7 +123,8 @@ Derived from `php_pdo_driver.h` and method dispatch analysis in `pdo_dbh.c` /
 **Then** either (a) it returns metadata array, or (b) stubs are corrected to "Not yet implemented"
 
 **Success Criteria**:
-- [ ] #339 bug resolved — either implemented or stubs corrected
+- [x] #339 bug resolved — either implemented or stubs corrected
+  <!-- 697-tranche 2026-10-29: resolved via option (b) - stubs corrected: stubs/pdo-fbird-stubs.php:204 documents "getColumnMeta() (returns IM001 - driver does not support this function)" with the #339 back-reference. Evidence verified on 9f9b8a1. -->
 
 ### Goal 4: Transaction isolation levels testable
 

@@ -68,6 +68,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
+      # canonical: VERSION.txt (single source of truth for the extension
+      # version - see specs/spec-v11.1-quality-hardening.md QH-2, #672)
       - name: Ensure VERSION.txt
         id: version
         uses: ./.github/actions/version

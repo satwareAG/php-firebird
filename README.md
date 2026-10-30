@@ -223,6 +223,28 @@ echo "extension=firebird.so" >> $(php --ini | grep "Scan for" | cut -d: -f2 | tr
 
 ## Usage Example
 
+### Connection string syntax (remote databases)
+
+Use the canonical Firebird remote forms - `host/port:path` when a non-default
+port is needed, `host:path` for port 3050:
+
+```php
+// Canonical: host/port:path (port 3051 in this example)
+$db = fbird_connect('db.example.com/3051:/data/app.fdb', 'SYSDBA', 'masterkey');
+
+// Port 3050 (default): host:path
+$db = fbird_connect('db.example.com:/data/app.fdb', 'SYSDBA', 'masterkey');
+```
+
+Do **not** use the `host:port:path` form (three colon-separated segments): it is
+not part of the Firebird connection-string grammar (`host[/port]:path` or
+`inet://host[:port]/path` per the Firebird documentation). Some client
+libraries tolerate it as a legacy extension; others (notably the Firebird 5
+macOS client) treat the whole string as a local database path and fail with
+"unavailable database". Verified 2026-10-29: the canonical `host/port:path`
+form connects from every platform this extension ships on, including macOS
+arm64 with the Firebird 5 client.
+
 ```php
 <?php
 // Connect to Firebird database

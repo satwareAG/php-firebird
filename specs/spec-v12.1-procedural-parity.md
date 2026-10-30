@@ -192,8 +192,10 @@ Legend: **Y** = supported | **N** = not supported | **P** = partial / different 
 
 ## Open Questions
 
-- [ ] Should `fbird_fetch_array` use FBIRD_BOTH as default (matching interbase) or require explicit $fetch_type? **Recommended**: default FBIRD_BOTH for BC with interbase migration code.
-- [ ] Should `fbird_bind_param` support named params (converting to ? internally) or positional only? **Recommended**: support both — Firebird SQL uses ? but Doctrine DBAL uses :name.
+- [x] ~~Should `fbird_fetch_array` use FBIRD_BOTH as default (matching interbase) or require explicit $fetch_type? **Recommended**: default FBIRD_BOTH for BC with interbase migration code.~~
+  RESOLVED 2026-10-29 (#697 tranche, corrected after council S1 verified the code): **ADOPTED - fulfilled**. `PHP_FUNCTION(fbird_fetch_array)` hard-wires `FETCH_BOTH` (fbird_result.c:1012, via `_php_fbird_fetch_hash(..., FETCH_BOTH)`), and the stub docblock (firebird-stubs.php:589) documents "both numeric and associative keys". The earlier "DECLINED - fetch_flags = 0" note in this record was wrong: `fetch_flags` is the blob-flag argument of a different function, not the fetch type. The #359 gap note in the stubs refers to the fetch_object/BOTH edge, not this box.
+- [x] ~~Should `fbird_bind_param` support named params (converting to ? internally) or positional only? **Recommended**: support both — Firebird SQL uses ? but Doctrine DBAL uses :name.~~
+  DECIDED 2026-10-29 (#697 tranche): DECLINED - positional-only with a single `array $params` argument (stubs/firebird-stubs.php:1525); named-parameter conversion was never implemented. Downstream named-param needs are handled by the doctrine-firebird-driver layer. Retained unchecked-by-decision in automated counters: this is a deliberate scope exclusion, not a fulfilled recommendation.
 
 ---
 

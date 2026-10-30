@@ -375,10 +375,12 @@ jobs:
       - name: Case F - FR-003 digest verify passes on a pristine manifest
         shell: pwsh
         run: |
-          'mutated-content-should-have-failed-above' | Set-Content mock/digests/php_firebird-test.zip -Encoding Ascii
-          # this MUST fail (mutated vs the pinned hash above); the assertion
-          # step below would catch a silent pass.
+          # positive control: the PRISTINE content verifies against the
+          # pinned hash (proves the oracle isn't failing on everything).
+          'hello-FR003' | Set-Content mock/digests/php_firebird-test.zip -Encoding Ascii
           pwsh -File ./scripts/windows/verify_asset_digests.ps1 -ManifestPath mock/digests/SHA256SUMS -AssetsDir mock/digests -AssetNames @('php_firebird-test.zip')
+          if ($LASTEXITCODE -ne 0) { throw "case F: digest verify FAILED on the pristine content (rc $LASTEXITCODE) - oracle broken" }
+          Write-Host "case F observed: rc=0, pristine verified"
 
       - name: Assert all control outcomes (FR-004 #688-P1)
         shell: pwsh
@@ -387,11 +389,13 @@ jobs:
           OUT_C: ${{ steps.caseC.outcome }}
           OUT_D: ${{ steps.caseD.outcome }}
           OUT_E: ${{ steps.caseE.outcome }}
+          OUT_F: ${{ steps.caseF.outcome }}
         run: |
-          # Every negative case MUST have recorded outcome=failure (the
-          # continue-on-error case steps failing IS the proof the guard and
-          # the digest oracle fire). A silent pass here = the control cannot
-          # fail = the exact defect this job exists to prevent.
+          # Negative cases (B-E) MUST record outcome=failure: the guard and
+          # the digest oracle firing IS the proof this job exists to collect.
+          # The positive case (F, pristine manifest) MUST record success.
+          # A silent pass in B-E, or a silent fail in F, means the control
+          # cannot fail / is broken - the exact defect this job prevents.
           $failures = @()
           foreach ($pair in @(
             @('caseB (wrong interpreter)', $env:OUT_B),
@@ -403,6 +407,8 @@ jobs:
             Write-Host "$name outcome=$outcome"
             if ($outcome -ne 'failure') { $failures += "$name outcome=$outcome (expected failure)" }
           }
+          $outF = '${{ steps.caseF.outcome }}'
+          if ($outF -ne 'success') { $failures += "caseF (pristine manifest) outcome=$outF (expected success)" }
           if ($failures.Count -gt 0) {
             Write-Host "::error::FR-004 controls FAILED: $($failures -join '; ')"
             exit 1

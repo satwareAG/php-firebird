@@ -340,26 +340,32 @@ jobs:
       - name: Case B - wrong interpreter fails (exit 1)
         shell: pwsh
         run: |
+          # stderr goes to a FILE: merging it via 2>&1 turns the child's
+          # stderr lines into ErrorRecords, which terminate this step under
+          # the default ErrorActionPreference=Stop before the rc assertion.
           $env:MOCK_IDENTITY = 'php=80399 api=20240924 ext=13.2.12'
-          $out = pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924 2>&1 | Out-String
+          pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924 2> mock\caseB.err
           if ($LASTEXITCODE -ne 1) { throw "case B: guard PASSED on a wrong interpreter (rc $LASTEXITCODE) - guard cannot fail" }
-          Write-Host "observed: $($out.Trim())"
+          Write-Host "case B observed: $((Get-Content mock\caseB.err -Raw).Trim())"
+          exit 0
 
       - name: Case C - wrong Zend API fails (exit 1)
         shell: pwsh
         run: |
           $env:MOCK_IDENTITY = 'php=80426 api=20230901 ext=13.2.12'
-          $out = pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924 2>&1 | Out-String
+          pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924 2> mock\caseC.err
           if ($LASTEXITCODE -ne 1) { throw "case C: guard PASSED on a wrong Zend API (rc $LASTEXITCODE)" }
-          Write-Host "observed: $($out.Trim())"
+          Write-Host "case C observed: $((Get-Content mock\caseC.err -Raw).Trim())"
+          exit 0
 
       - name: Case D - fail closed on missing/unparseable identity (exit 1)
         shell: pwsh
         run: |
           $env:MOCK_IDENTITY = 'lorem-ipsum-not-an-identity'
-          $out = pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924 2>&1 | Out-String
+          pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924 2> mock\caseD.err
           if ($LASTEXITCODE -ne 1) { throw "case D: guard PASSED on an unparseable identity (rc $LASTEXITCODE) - fail-closed broken" }
-          Write-Host "observed: $($out.Trim())"
+          Write-Host "case D observed: $((Get-Content mock\caseD.err -Raw).Trim())"
+          exit 0
 
   # ===========================================================================
   # Pre-publish smoke gate (#652, council verdict 2026-10-25: option A with

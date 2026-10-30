@@ -629,6 +629,11 @@ jobs:
 
           # QH-1c note: matrix.php is used by the leg's own build identity.
           $phpVer = '${{ matrix.php }}'
+          # #719: $vs was undefined in this step (the download loop below
+          # interpolated it as '' -> 'nts--x86_64' -> Test-Path throw, all 4
+          # legs RED on v13.3.0's first live run). Same expression as the
+          # FR-003 digest step and the expand step.
+          $vs = if ([version]$phpVer -ge [version]'8.4') { 'vs17' } else { 'vs16' }
 
           # FR-003/#688-P2: dump the release's asset names for the manifest join
           $relAssetNames = $release.assets | ForEach-Object { $_.name }
@@ -640,6 +645,10 @@ jobs:
             -ManifestPath ./scripts/windows/release-asset-manifest.json `
             -Version $version `
             -ActualNamesFile release-assets.txt
+          # #719: explicit rc gate - without it a manifest-join failure would
+          # be masked if the subsequent download succeeded (the step exit
+          # would come from gh, not from the oracle).
+          if ($LASTEXITCODE -ne 0) { throw "P2 manifest join FAILED (rc $LASTEXITCODE): release asset set != manifest (#688-P2)" }
 
           "release_id=$($release.id)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           Write-Host "Release $tag resolved: id=$($release.id), Windows asset set verified against the manifest (#688-P2)"

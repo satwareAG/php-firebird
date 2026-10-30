@@ -62,12 +62,14 @@ No breaking changes. All improvements are backward-compatible.
 
 #### QH-1a: IBSurgeon install script pinned (I1)
 - [x] `.github/workflows/codeql.yml` fetches `fb_vanilla-50.sh` from a pinned commit SHA (not `refs/heads/main`)
-- [ ] Script mirrored to `.github/scripts/fb_install.sh` OR SHA256 checksum verified after download
+- [x] ~~Script mirrored to `.github/scripts/fb_install.sh` OR SHA256 checksum verified after download~~
+  DECIDED 2026-10-30 (#697 tranche): superseded by the immutable-SHA pin - the download URL is pinned to a specific commit SHA (content-addressed: raw.githubusercontent at a SHA is immutable), which achieves the box's intent (non-tamperable, deterministic download) without a mirror or a self-computed checksum. Note: this box concerns codeql.yml's IBSurgeon server-install script - the client-SDK download is separately pinned per-major via get-latest-firebird.sh (#708).
 - [x] `|| true` removed from install step; failure causes workflow failure
 - [ ] Pin target documented in a comment (e.g. `# pinned 2026-04-09, IBSurgeon firebirdlinuxinstall@<sha>`)
 
 #### QH-1b: Composer install via setup-php action (I2)
-- [ ] `ci.yml`, `coverage.yml`, `sanitizers.yml` replaced curl-pipe Composer install with `shivammathur/setup-php` (already used in `code-quality.yml`)
+- [x] ~~`ci.yml`, `coverage.yml`, `sanitizers.yml` replaced curl-pipe Composer install with `shivammathur/setup-php` (already used in `code-quality.yml`)~~
+  DECIDED 2026-10-30 (#697 tranche, council-697-p2p4p5 unanimous): SUPERSEDED - setup-php is the wrong layer: the three jobs run inside `php:X-cli-bookworm` containers where setup-php would install a second PHP; the existing curl+installer.sig block is Composer's canonical supply-chain pattern. Determinism delivered instead via `--version=2.11.0` on the installer (#708). Box closed as a wrong-layer finding, not an outstanding defect.
 - [x] No `curl -sS https://getcomposer.org/installer | php` pattern remains in any workflow
 - [x] Composer version is deterministic across all workflows
   <!-- 697-tranche 2026-10-29: box 2 verified - the pipe-to-php pattern is gone everywhere; ci.yml:218-221 downloads the installer to a file and verifies it against https://composer.github.io/installer.sig before executing (the secure pattern). Boxes 1/3 stay open: ci/coverage/sanitizers still use the curl+signature approach instead of setup-php, and the resolved Composer version is latest-at-runtime, not pinned. Box 3 RESOLVED post-merge: ci/coverage/sanitizers now pass `--version=2.11.0` to the signature-verified installer (PR #708); council verdict recorded that setup-php is the wrong layer for the container jobs (box 1 remains open as a documented wrong-layer finding, not an outstanding defect). -->

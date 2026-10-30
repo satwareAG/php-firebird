@@ -462,6 +462,8 @@ jobs:
           $out = pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/missing.txt 2> fixtures/caseB.err
           if ($LASTEXITCODE -ne 1) { throw "case B: missing-name set PASSED (rc $LASTEXITCODE) - oracle cannot fail" }
           Write-Host "case B observed: rc=1 as expected (oracle fired)"
+          exit 0
+          # js: explicit exit - the oracle rc=1 propagates via $LASTEXITCODE.
 
       - name: Case C - extra windows-family asset fails
         shell: pwsh
@@ -472,6 +474,8 @@ jobs:
           $out = pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/extra2.txt 2> fixtures/caseC.err
           if ($LASTEXITCODE -ne 1) { throw "case C: extra-asset set PASSED (rc $LASTEXITCODE) - oracle cannot fail" }
           Write-Host "case C observed: rc=1 as expected (oracle fired)"
+          exit 0
+          # js: explicit exit - the oracle rc=1 propagates via $LASTEXITCODE.
 
       - name: Case D - duplicate actual name fails
         shell: pwsh
@@ -481,6 +485,8 @@ jobs:
           $out = pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/dup.txt 2> fixtures/caseD.err
           if ($LASTEXITCODE -ne 1) { throw "case D: duplicate name PASSED (rc $LASTEXITCODE)" }
           Write-Host "case D observed: rc=1 as expected (oracle fired)"
+          exit 0
+          # js: explicit exit - the oracle rc=1 propagates via $LASTEXITCODE.
 
       - name: Case E - version mismatch fails (assets from a different version)
         shell: pwsh
@@ -490,6 +496,8 @@ jobs:
           $out = pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/wrongver.txt 2> fixtures/caseE.err
           if ($LASTEXITCODE -ne 1) { throw "case E: wrong-version set PASSED (rc $LASTEXITCODE)" }
           Write-Host "case E observed: rc=1 as expected (oracle fired)"
+          exit 0
+          # js: explicit exit - the oracle rc=1 propagates via $LASTEXITCODE.
 
   # ===========================================================================
   # Pre-publish smoke gate (#652, council verdict 2026-10-25: option A with

@@ -330,41 +330,91 @@ jobs:
           '@ | Set-Content -Path mock\php.cmd -Encoding Ascii
           New-Item -ItemType File -Force -Path mock\fake.dll | Out-Null
 
-      - name: Case A - matching identity passes (exit 0)
+      # Expected-FAILURE cases: continue-on-error + step id so the outcome
+      # assertion in the final step can prove the guard actually fired
+      # (a silent pass would mean the guard cannot fail - the exact defect
+      # this job exists to prevent).
+      - name: Case B - wrong interpreter fails
+        id: caseB
+        continue-on-error: true
         shell: pwsh
         run: |
-          $env:MOCK_IDENTITY = 'php=80426 api=20240924 ext=13.2.12'
-          pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924
-          if ($LASTEXITCODE -ne 0) { throw "case A: guard failed on a MATCHING identity (rc $LASTEXITCODE)" }
-
-      - name: Case B - wrong interpreter fails (exit 1)
-        shell: pwsh
-        run: |
-          # stderr goes to a FILE: merging it via 2>&1 turns the child's
-          # stderr lines into ErrorRecords, which terminate this step under
-          # the default ErrorActionPreference=Stop before the rc assertion.
           $env:MOCK_IDENTITY = 'php=80399 api=20240924 ext=13.2.12'
-          pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924 2> mock\caseB.err
-          if ($LASTEXITCODE -ne 1) { throw "case B: guard PASSED on a wrong interpreter (rc $LASTEXITCODE) - guard cannot fail" }
-          Write-Host "case B observed: $((Get-Content mock\caseB.err -Raw).Trim())"
+          pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924
           exit 0
 
-      - name: Case C - wrong Zend API fails (exit 1)
+      - name: Case C - wrong Zend API fails
+        id: caseC
+        continue-on-error: true
         shell: pwsh
         run: |
           $env:MOCK_IDENTITY = 'php=80426 api=20230901 ext=13.2.12'
-          pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924 2> mock\caseC.err
-          if ($LASTEXITCODE -ne 1) { throw "case C: guard PASSED on a wrong Zend API (rc $LASTEXITCODE)" }
-          Write-Host "case C observed: $((Get-Content mock\caseC.err -Raw).Trim())"
+          pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924
           exit 0
 
-      - name: Case D - fail closed on missing/unparseable identity (exit 1)
+      - name: Case D - unparseable identity fails closed
+        id: caseD
+        continue-on-error: true
         shell: pwsh
         run: |
           $env:MOCK_IDENTITY = 'lorem-ipsum-not-an-identity'
-          pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924 2> mock\caseD.err
-          if ($LASTEXITCODE -ne 1) { throw "case D: guard PASSED on an unparseable identity (rc $LASTEXITCODE) - fail-closed broken" }
-          Write-Host "case D observed: $((Get-Content mock\caseD.err -Raw).Trim())"
+          pwsh -File ./scripts/windows/identity_guard.ps1 -PhpExe mock\php.cmd -ExtensionPath mock\fake.dll -ExpectedPhpVersion '8.4' -ExpectedApiNo 20240924
+          exit 0
+
+      - name: Case E - FR-003 digest verify fails on a mutated asset
+        id: caseE
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path mock/digests | Out-Null
+          'hello-FR003' | Set-Content mock/digests/php_firebird-test.zip -Encoding Ascii
+          $hash = (Get-FileHash -Algorithm SHA256 mock/digests/php_firebird-test.zip).Hash.ToLower()
+          "$hash  php_firebird-test.zip" | Set-Content mock/digests/SHA256SUMS -Encoding Ascii
+          pwsh -File ./scripts/windows/verify_asset_digests.ps1 -ManifestPath mock/digests/SHA256SUMS -AssetsDir mock/digests -AssetNames @('php_firebird-test.zip')
+
+      - name: Case F - FR-003 digest verify passes on the pristine manifest
+        id: caseF
+        shell: pwsh
+        run: |
+          # positive control: the PRISTINE content verifies against the
+          # pinned hash (proves the oracle isn't failing on everything).
+          'hello-FR003' | Set-Content mock/digests/php_firebird-test.zip -Encoding Ascii
+          pwsh -File ./scripts/windows/verify_asset_digests.ps1 -ManifestPath mock/digests/SHA256SUMS -AssetsDir mock/digests -AssetNames @('php_firebird-test.zip')
+          if ($LASTEXITCODE -ne 0) { throw "case F: digest verify FAILED on the pristine content (rc $LASTEXITCODE) - oracle broken" }
+          Write-Host "case F observed: rc=0, pristine verified"
+
+      - name: Assert all control outcomes (FR-004 #688-P1)
+        shell: pwsh
+        env:
+          OUT_B: ${{ steps.caseB.outcome }}
+          OUT_C: ${{ steps.caseC.outcome }}
+          OUT_D: ${{ steps.caseD.outcome }}
+          OUT_E: ${{ steps.caseE.outcome }}
+          OUT_F: ${{ steps.caseF.outcome }}
+        run: |
+          # All five control cases exit 0 after their assertions, so STEP
+          # outcome 'success' = the control FIRED correctly (B-E rejected the
+          # seeded defects; F verified the pristine manifest). outcome !=
+          # success = the control was skipped, crashed, or failed to detect -
+          # the exact defect this job exists to prevent.
+          $failures = @()
+          foreach ($pair in @(
+            @('caseB (wrong interpreter)', $env:OUT_B),
+            @('caseC (wrong Zend API)', $env:OUT_C),
+            @('caseD (unparseable identity)', $env:OUT_D),
+            @('caseE (mutated asset digest)', $env:OUT_E)
+          )) {
+            $name = $pair[0]; $outcome = $pair[1]
+            Write-Host "$name outcome=$outcome"
+            if ($outcome -ne 'success') { $failures += "$name outcome=$outcome (expected success - the control did not fire)" }
+          }
+          $outF = '${{ steps.caseF.outcome }}'
+          if ($outF -ne 'success') { $failures += "caseF (pristine manifest) outcome=$outF (expected success)" }
+          if ($failures.Count -gt 0) {
+            Write-Host "::error::FR-004 controls FAILED: $($failures -join '; ')"
+            exit 1
+          }
+          Write-Host "FR-004 controls: all negative cases fired as expected"
           exit 0
 
   # ===========================================================================
@@ -468,20 +518,22 @@ jobs:
             Write-Host "::warning::release $tag is already published (id $($release.id)) - smoke continues against it (re-run path)"
           }
 
-          # Verify all 8 Windows asset names on THIS release id.
+          # QH-1c note: matrix.php is used by the leg's own build identity.
           $phpVer = '${{ matrix.php }}'
-          $vs = if ([version]$phpVer -ge [version]'8.4') { 'vs17' } else { 'vs16' }
-          $expected = @()
-          foreach ($tsLbl in @('nts', 'ts')) {
-            $expected += "php_firebird-v$version-$phpVer-$tsLbl-$vs-x86_64.zip"
-            $expected += "php_pdo_fbird-v$version-$phpVer-$tsLbl-$vs-x86_64.zip"
-          }
-          foreach ($name in $expected) {
-            $a = $release.assets | Where-Object { $_.name -eq $name }
-            if (-not $a) { throw "Asset missing on release $tag (id $($release.id)): $name" }
-          }
+
+          # FR-003/#688-P2: dump the release's asset names for the manifest join
+          $relAssetNames = $release.assets | ForEach-Object { $_.name }
+          $relAssetNames | Set-Content -Path release-assets.txt -Encoding Ascii
+
+          # P2 manifest oracle: set-equality join vs the checked-in manifest
+          # (all 4 PHP legs x 2 families x 2 ts in ONE join, not per-leg slices).
+          pwsh -File ./scripts/windows/assert-asset-manifest.ps1 `
+            -ManifestPath ./scripts/windows/release-asset-manifest.json `
+            -Version $version `
+            -ActualNamesFile release-assets.txt
+
           "release_id=$($release.id)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          Write-Host "Release $tag resolved: id=$($release.id), all $($expected.Count) Windows assets present"
+          Write-Host "Release $tag resolved: id=$($release.id), Windows asset set verified against the manifest (#688-P2)"
 
           # Condition 3: download the NTS zips under test via API
           # octet-stream (gh release download uses the API asset URL).

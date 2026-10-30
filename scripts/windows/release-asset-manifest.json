@@ -1,0 +1,22 @@
+{
+  "_comment": "#688-P2 asset manifest oracle: the exact set of Windows release assets a version tag MUST carry. Expansion: each family pattern gets {version}/{vs} substituted, then the php x ts cartesian product. vs_by_php selects the toolset per PHP major.minor (8.4+ = vs17). The assert script fails on ANY missing or extra Windows-pattern asset (set equality, no aggregate counts).",
+  "version": 1,
+  "vs_by_php": {
+    "8.2": "vs16",
+    "8.3": "vs16",
+    "8.4": "vs17",
+    "8.5": "vs17"
+  },
+  "families": [
+    {
+      "pattern": "php_firebird-v{version}-{php}-{ts}-{vs}-x86_64.zip",
+      "php": ["8.2", "8.3", "8.4", "8.5"],
+      "ts": ["nts", "ts"]
+    },
+    {
+      "pattern": "php_pdo_fbird-v{version}-{php}-{ts}-{vs}-x86_64.zip",
+      "php": ["8.2", "8.3", "8.4", "8.5"],
+      "ts": ["nts", "ts"]
+    }
+  ]
+}

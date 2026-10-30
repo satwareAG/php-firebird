@@ -53,6 +53,29 @@ is_queue_starvation() {
     [ "$verdict" = "true" ]
 }
 
+# P4 weather enum, shape 2 (#688): the WHOLE run was cancelled before any
+# job executed (runner allocation failure / GitHub 5xx) - conclusion is
+# "cancelled" and every job is cancelled with zero steps executed.
+is_run_cancelled() {
+    local run_id="$1" verdict
+    verdict=$(gh run view "$run_id" --json conclusion,jobs --jq '
+        (.conclusion == "cancelled")
+        and ((.jobs | length) == 0
+             or all(.jobs[]; .conclusion == "cancelled"
+                    and ([.steps[]? | select(.conclusion != null)] | length) == 0))' 2>/dev/null)
+    [ "$verdict" = "true" ]
+}
+
+# P4 weather-waiver log (#688): every weather replay pass is appended here -
+# the per-release waiver rate is countable from this file (council run 5:
+# waiver normalization risk; RCA happens outside the enum).
+WEATHER_LOG="${WEATHER_LOG:-scripts/ci-weather-waivers.log}"
+
+log_weather_waiver() {
+    local wf="$1" run_id="$2" shape="$3"
+    printf '%s | %s | run %s | shape: %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$wf" "$run_id" "$shape" >> "$WEATHER_LOG"
+}
+
 # One bounded auto-retry for queue-starvation false-reds (#663).
 # Arguments: workflow, run id (fetched ONCE by the caller, so the
 # classified run is the run that gets rerun - no re-fetch race).
@@ -60,9 +83,16 @@ is_queue_starvation() {
 # (start-wait included in the budget).
 retry_starved_run() {
     local wf="$1" run_id="$2" status state conclusion rerun_err waited=0
-    is_queue_starvation "$run_id" || return 1
+    local shape=""
+    if is_queue_starvation "$run_id"; then
+        shape="queue-starvation (#663)"
+    elif is_run_cancelled "$run_id"; then
+        shape="whole-run-cancelled (runner/5xx, P4 enum)"
+    else
+        return 1
+    fi
 
-    log_warn "  ${wf}: queue-starvation signature (all failing jobs cancelled with zero steps) - auto-rerunning failed jobs once (#663)..."
+    log_warn "  ${wf}: weather signature - ${shape} - identical-SHA replay (rerun failed jobs once)..."
 
     rerun_err=$(gh run rerun --failed "$run_id" 2>&1) || { log_fail "  ${wf}: rerun could not be started: ${rerun_err}"; return 1; }
 
@@ -139,7 +169,8 @@ for wf in "${REQUIRED_WORKFLOWS[@]}"; do
         ALL_PASSED=false
     elif [ "$CONCLUSION" != "success" ]; then
         if retry_starved_run "$wf" "$RUN_ID"; then
-            log_pass "  ${wf}: success (queue-starvation rerun, ${SHA})"
+            log_pass "  ${wf}: success (weather replay, ${SHA})"
+            log_weather_waiver "$wf" "$RUN_ID" "$shape"
         else
             log_fail "  ${wf}: ${CONCLUSION} (${SHA}, ${CREATED})"
             ALL_PASSED=false

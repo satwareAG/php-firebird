@@ -237,7 +237,8 @@ jobs:
           curl -sS https://getcomposer.org/installer -o /tmp/composer-setup.php
           ACTUAL_SIGNATURE="$(php -r "echo hash_file('sha384', '/tmp/composer-setup.php');")"
           [ "$EXPECTED_SIGNATURE" = "$ACTUAL_SIGNATURE" ] || { echo "ERROR: Invalid Composer installer signature"; exit 1; }
-          php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer
+          # Composer version pinned for deterministic builds (#697): bump deliberately
+            php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer --version=2.11.0
           rm -f /tmp/composer-setup.php
           bash "$GITHUB_WORKSPACE/scripts/ci/composer-retry.sh" install --prefer-dist --no-progress
 

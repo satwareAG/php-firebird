@@ -372,7 +372,8 @@ jobs:
           "$hash  php_firebird-test.zip" | Set-Content mock/digests/SHA256SUMS -Encoding Ascii
           pwsh -File ./scripts/windows/verify_asset_digests.ps1 -ManifestPath mock/digests/SHA256SUMS -AssetsDir mock/digests -AssetNames @('php_firebird-test.zip')
 
-      - name: Case F - FR-003 digest verify passes on a pristine manifest
+      - name: Case F - FR-003 digest verify passes on the pristine manifest
+        id: caseF
         shell: pwsh
         run: |
           # positive control: the PRISTINE content verifies against the
@@ -416,8 +417,6 @@ jobs:
           Write-Host "FR-004 controls: all negative cases fired as expected"
           exit 0
 
-  # ===========================================================================
-  # Pre-publish smoke gate (#652, council verdict 2026-10-25: option A with
   # ===========================================================================
   # Pre-publish smoke gate (#652, council verdict 2026-10-25: option A with
   # binding conditions).

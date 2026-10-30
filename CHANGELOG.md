@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **#697: deterministic CI dependency pins** - the Firebird client SDK in CI is pinned per-major (`scripts/get-latest-firebird.sh` map: 3.0.14 / 4.0.7 / 5.0.4, `FB_PIN` env override) and Composer installs use `--version=2.11.0` in ci/coverage/sanitizers - the SDK and Composer no longer drift when upstream ships releases (#708). Council note: setup-php was rejected for the container jobs (wrong layer - the signature-verified installer stays); Firebird publishes no SHA256 assets, so the version pin is the determinism mechanism.
 - **#682: FBIRD_PRP_REPLICA_MODE service property** (Firebird 4+ server AND client headers): `fbird_maintain_db()` can set the database replica mode via `FBIRD_PRP_REPLICA_MODE` with `FBIRD_PRP_RM_NONE` / `FBIRD_PRP_RM_READONLY` / `FBIRD_PRP_RM_READWRITE`. On FB3 client headers the constants compile out (`#ifdef isc_spb_prp_replica_mode`); consumers gate on `defined('FBIRD_PRP_REPLICA_MODE')`. Ship rider: the #682 wire-level DPB conformance suite (`tests/issue682_dpb_conformance_*.phpt`) proves default connects send none of the seven privilege-gated attach-DPB items, with seeded negative controls and ordinary-user coverage.
 - **#681: zpp wire-observation gate** - `scripts/gates/issue-681-zpp-wire-gate.sh` (CI job `zpp-wire-gate`) blocks PRs that change `zend_parse_parameters` defaults, argument forwarding, or DPB/SPB/TPB buffer building without a wire-observation `.phpt` in the same PR (#671 failure class: parsed-but-unforwarded arguments and hardcoded DPB literals are invisible to return-value tests). PR template carries the forwarding-review checklist; the gate's `--selftest` doubles as the negative control.
 - **#680: tag-gate delta test** - `scripts/test-delta.sh <prev-tag> [test-glob] [lane]` builds the previous release tag in a disposable git worktree, runs the CURRENT wire-behavior oracle suite against it, and fails on any behavior delta without a `scripts/delta-allowlist.txt` entry (reason + CHANGELOG/UPGRADING reference; blanket success is forbidden - the delta is the product). Pre-tag checklist step 3.5 in AGENTS.md; negative control `scripts/gates/issue-680-delta-negative-control.sh` seeds the #671 regression into the previous tag and requires the delta run to catch it.
@@ -1901,7 +1902,7 @@ new objects in all consuming functions — no consumer-side changes required.
   from `.github/workflows/ci.yml` (matrix was already clean). Updated `README.md` to reflect
   supported server versions: 3.0, 4.0, 5.0+.
   Closes [#91](https://github.com/satwareAG/php-firebird/issues/91).
-- **PHP 8.1 support removed** — deprecated in v7.1.0, EOL November 25, 2025.
+- **PHP 8.1 support removed** — deprecated in v7.1.0, EOL December 31, 2025 (date corrected per php.net/supported-versions; the previously documented November 25, 2025 was wrong, #697).
   Removed `php81-dev` and `php81-fb3-dev` services from `docker/docker-compose.yml`.
   Deleted `docker/php/Dockerfile-8.1` and `docker/php/Dockerfile-8.1-fb3`.
   Updated CI matrix from PHP 8.1/8.4 to PHP 8.2/8.4. Updated `composer.json` and

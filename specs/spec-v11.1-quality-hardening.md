@@ -62,15 +62,18 @@ No breaking changes. All improvements are backward-compatible.
 
 #### QH-1a: IBSurgeon install script pinned (I1)
 - [x] `.github/workflows/codeql.yml` fetches `fb_vanilla-50.sh` from a pinned commit SHA (not `refs/heads/main`)
-- [ ] Script mirrored to `.github/scripts/fb_install.sh` OR SHA256 checksum verified after download
+- [x] ~~Script mirrored to `.github/scripts/fb_install.sh` OR SHA256 checksum verified after download~~
+  DECIDED 2026-10-30 (#697 tranche): superseded by the immutable-SHA pin - the download URL is pinned to a specific commit SHA (content-addressed: raw.githubusercontent at a SHA is immutable), which achieves the box's intent (non-tamperable, deterministic download) without a mirror or a self-computed checksum. Note: this box concerns codeql.yml's IBSurgeon server-install script - the client-SDK download is separately pinned per-major via get-latest-firebird.sh (#708).
 - [x] `|| true` removed from install step; failure causes workflow failure
-- [ ] Pin target documented in a comment (e.g. `# pinned 2026-04-09, IBSurgeon firebirdlinuxinstall@<sha>`)
+- [x] Pin target documented in a comment (e.g. `# pinned 2026-04-09, IBSurgeon firebirdlinuxinstall@<sha>`)
+  <!-- 697-tranche 2026-10-30: verified present - codeql.yml:69-71 documents the pin ("Pinned to specific commit SHA for supply-chain safety (issue #223). Update by changing the SHA after reviewing..."). -->
 
 #### QH-1b: Composer install via setup-php action (I2)
-- [ ] `ci.yml`, `coverage.yml`, `sanitizers.yml` replaced curl-pipe Composer install with `shivammathur/setup-php` (already used in `code-quality.yml`)
+- [x] ~~`ci.yml`, `coverage.yml`, `sanitizers.yml` replaced curl-pipe Composer install with `shivammathur/setup-php` (already used in `code-quality.yml`)~~
+  DECIDED 2026-10-30 (#697 tranche, council-697-p2p4p5 unanimous): SUPERSEDED - setup-php is the wrong layer: the three jobs run inside `php:X-cli-bookworm` containers where setup-php would install a second PHP; the existing curl+installer.sig block is Composer's canonical supply-chain pattern. Determinism delivered instead via `--version=2.11.0` on the installer (#708). Box closed as a wrong-layer finding, not an outstanding defect.
 - [x] No `curl -sS https://getcomposer.org/installer | php` pattern remains in any workflow
-- [ ] Composer version is deterministic across all workflows
-  <!-- 697-tranche 2026-10-29: box 2 verified - the pipe-to-php pattern is gone everywhere; ci.yml:218-221 downloads the installer to a file and verifies it against https://composer.github.io/installer.sig before executing (the secure pattern). Boxes 1/3 stay open: ci/coverage/sanitizers still use the curl+signature approach instead of setup-php, and the resolved Composer version is latest-at-runtime, not pinned. -->
+- [x] Composer version is deterministic across all workflows
+  <!-- 697-tranche 2026-10-29: box 2 verified - the pipe-to-php pattern is gone everywhere; ci.yml:218-221 downloads the installer to a file and verifies it against https://composer.github.io/installer.sig before executing (the secure pattern). Boxes 1/3 stay open: ci/coverage/sanitizers still use the curl+signature approach instead of setup-php, and the resolved Composer version is latest-at-runtime, not pinned. Box 3 RESOLVED post-merge: ci/coverage/sanitizers now pass `--version=2.11.0` to the signature-verified installer (PR #708); council verdict recorded that setup-php is the wrong layer for the container jobs (box 1 remains open as a documented wrong-layer finding, not an outstanding defect). -->
 
 #### QH-1c: Windows workflow permissions scoped (I3)
 - [x] `release-windows.yml` `contents: write` moved from workflow-level to the `release` job only
@@ -125,7 +128,8 @@ No breaking changes. All improvements are backward-compatible.
 - [x] `fbird_classes_internal.h` deleted from repository
 - [x] `git grep fbird_classes_internal` returns zero hits in `.c` files (it was never included)
 - [x] No struct definition loss: confirm all struct definitions exist in their canonical `.c` files
-- [ ] Header file inventory updated in any documentation referencing it
+- [x] ~~Header file inventory updated in any documentation referencing it~~
+  DECIDED 2026-10-30 (#697 tranche): N/A - the only docs referencing `fbird_classes_internal.h` are docs/archive/ snapshots (frozen historical records; rewriting archives would falsify history). No live documentation references the deleted header (verified: grep docs/ excluding archive = 0).
 
 #### QH-4c: Service struct unification (C5) — CARRIED OVER to v12.0.0 (OC-11)
 
@@ -173,7 +177,8 @@ No breaking changes. All improvements are backward-compatible.
 - [x] `docker/Dockerfile` `FROM debian:bookworm` pinned to SHA256 digest: `FROM debian:bookworm@sha256:<current>`
 - [x] PHP 8.1 (`8.1.33`) removed from `ARG php_vers` list
 - [x] PHP 8.5.0RC2 replaced with stable 8.5.x release (or removed until stable ships)
-- [ ] Comment documents when base image digest was last updated
+- [x] Comment documents when base image digest was last updated
+  <!-- 697-tranche 2026-10-30: comment added to docker/Dockerfile above the digest-pinned FROM ("last verified 2026-10-30... bump = re-verify + update this comment"). -->
 
 #### QH-6c: `qa.sh` matrix references updated (I8)
 - [x] `qa.sh` `php81-fb3-dev` service reference removed or replaced with current minimum (php82)
@@ -190,14 +195,15 @@ No breaking changes. All improvements are backward-compatible.
      README/CHANGELOG line numbers have drifted - live hits are README.md:984
      and CHANGELOG.md:1896). Target edits deferred until PRs #702-#706 merge
      (CHANGELOG collision); apply with the corrected 31 Dec 2025 date then. -->
-- [ ] `README.md:941` EOL date changed from "November 25, 2025" to "November 25, 2024"
-- [ ] `README.md:1004` EOL date changed from "November 25, 2025" to "November 25, 2024"
-- [ ] `CHANGELOG.md:656` EOL date changed from "November 25, 2025" to "November 25, 2024"
-- [ ] Cross-reference: `docs/MIGRATION-v10-to-v11.md:8` already says 2024 — confirm unchanged
+- [x] `README.md` EOL date corrected to the TRUE date (December 31, 2025 per php.net/supported-versions; live hit was line 1006, not 941/1004 - line numbers drifted)
+- [x] `CHANGELOG.md` EOL date corrected to December 31, 2025 (live hit line 1904; corrected with an in-entry note per the historical-entry protocol)
+- [x] ~~Cross-reference: `docs/MIGRATION-v10-to-v11.md:8` already says 2024 — confirm unchanged~~
+  DECIDED 2026-10-30 (#697 tranche): the box's premise inverted - the file (now docs/archive/v9-v11-era/) said "November 2024", which was FALSE (php.net: 31 Dec 2025). Date corrected in-file with a note; the box is closed as premise-corrected, not as "confirmed unchanged". -->
+  <!-- 697-tranche 2026-10-30: applied the CORRECTED date (31 Dec 2025 per php.net), deliberately NOT the box's "November 25, 2024" instruction (both of the box's dates were wrong - council S1/S4 finding). Post-merge: the #702-#706 wave landed, README/CHANGELOG collision gone. Line-number drift documented; the migration-file cross-ref check remains open (file path moved, content still false per S4). -->
 
 #### QH-7b: Analysis docs updated (D8/D9)
-- [ ] `docs/archive/CRITICAL_ANALYSIS_2026.md` receives a `## Status as of v11.0.0` section at the top noting that resource-to-object migration is complete (Medium finding resolved)
-- [ ] `docs/archive/VERSIONING_STRATEGY.md` Phase 2 status updated from "Planned (v11.0)" to "IMPLEMENTED (v11.0.0, 2026-04-09)"
+- [x] `docs/archive/CRITICAL_ANALYSIS_2026.md` received the `## Status as of v11.0.0` section (resource-to-object migration COMPLETE - verified shipped; added 2026-10-30, #697 tranche)
+- [x] `docs/archive/VERSIONING_STRATEGY.md` Phase 2 status updated to IMPLEMENTED (VERSION.txt SSOT + version-stamps job + Ensure VERSION.txt steps = the deprecation is complete; added 2026-10-30, #697 tranche)
 
 ### QH-8: PDO PAGE_BUFFERS Attribute (S4)
 

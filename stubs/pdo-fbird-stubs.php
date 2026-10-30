@@ -204,6 +204,10 @@ final class PDO_FBIRD_Constants
  *   - getColumnMeta() (returns IM001 — driver does not support this function)
  *     The bundled ext/pdo_firebird has this; pdo_fbird does not yet.
  *     See issue #339 and specs/spec-v12.1-pdo-conformance.md.
+ *   - PDO::PARAM_INPUT_OUTPUT (documented as not supported, matching the
+ *     bundled ext/pdo_firebird: Firebird in/out params flow through
+ *     EXECUTE PROCEDURE RETURNING, not input/output parameter markers.
+ *     specs/spec-v12.1-pdo-conformance.md open question, answered #697).
  *
  * Procedural gaps (tracked in M2 milestone, tests in tests/parity/):
  *   - fbird_fetch_array (BOTH mode, regression vs interbase) — #359

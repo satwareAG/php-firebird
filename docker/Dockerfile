@@ -1,5 +1,7 @@
 # For building linux-x64 release binaries
 # PHP 8.2+ minimum (no 7.x, 8.0, or 8.1 support)
+# Base image digest last verified 2026-10-30 (#697 QH-6b); bump = re-verify
+# the image builds and the smoke lane passes, then update this comment.
 FROM debian:bookworm@sha256:30482e873082e906a4908c10529180aefb6f77620aea7404b909829fadc5d168
 
 ENV DEBIAN_FRONTEND=noninteractive

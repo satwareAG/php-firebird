@@ -391,11 +391,11 @@ jobs:
           OUT_E: ${{ steps.caseE.outcome }}
           OUT_F: ${{ steps.caseF.outcome }}
         run: |
-          # Negative cases (B-E) MUST record outcome=failure: the guard and
-          # the digest oracle firing IS the proof this job exists to collect.
-          # The positive case (F, pristine manifest) MUST record success.
-          # A silent pass in B-E, or a silent fail in F, means the control
-          # cannot fail / is broken - the exact defect this job prevents.
+          # All five control cases exit 0 after their assertions, so STEP
+          # outcome 'success' = the control FIRED correctly (B-E rejected the
+          # seeded defects; F verified the pristine manifest). outcome !=
+          # success = the control was skipped, crashed, or failed to detect -
+          # the exact defect this job exists to prevent.
           $failures = @()
           foreach ($pair in @(
             @('caseB (wrong interpreter)', $env:OUT_B),
@@ -405,7 +405,7 @@ jobs:
           )) {
             $name = $pair[0]; $outcome = $pair[1]
             Write-Host "$name outcome=$outcome"
-            if ($outcome -ne 'failure') { $failures += "$name outcome=$outcome (expected failure)" }
+            if ($outcome -ne 'success') { $failures += "$name outcome=$outcome (expected success - the control did not fire)" }
           }
           $outF = '${{ steps.caseF.outcome }}'
           if ($outF -ne 'success') { $failures += "caseF (pristine manifest) outcome=$outF (expected success)" }

@@ -5,7 +5,7 @@
 
 ## PHP Version Requirement
 
-v11.0 requires **PHP 8.2+**. PHP 8.1 reached end-of-life in November 2024.
+v11.0 requires **PHP 8.2+**. PHP 8.1 reached end-of-life on December 31, 2025 (date corrected per php.net/supported-versions, #697; the previously documented November 2024 was wrong).
 
 ## What Changed
 

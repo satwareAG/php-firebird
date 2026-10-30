@@ -417,6 +417,115 @@ jobs:
           Write-Host "FR-004 controls: all negative cases fired as expected"
           exit 0
 
+  asset-manifest-controls:
+    name: asset manifest controls (P2 #688)
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Build fixtures (16-name exact set + variants)
+        shell: pwsh
+        run: |
+          # Derive the exact expected set the same way the smoke does, then
+          # write fixture variants.
+          $mf = Get-Content ./scripts/windows/release-asset-manifest.json -Raw | ConvertFrom-Json
+          $version = '13.3.0'
+          $names = @()
+          foreach ($family in $mf.families) {
+            foreach ($php in $family.php) {
+              $vs = $mf.vs_by_php.$php
+              foreach ($ts in $family.ts) {
+                $names += ($family.pattern -replace '\{version\}', $version -replace '\{php\}', $php -replace '\{ts\}', $ts -replace '\{vs\}', $vs)
+              }
+            }
+          }
+          if ($names.Count -ne 16) { throw "fixture expansion: expected 16, got $($names.Count)" }
+          New-Item -ItemType Directory -Force -Path fixtures | Out-Null
+          $names | Set-Content fixtures/exact.txt -Encoding Ascii
+          # missing: drop the last name (php_pdo_fbird 8.5 ts)
+          $names[0..($names.Count - 2)] | Set-Content fixtures/missing.txt -Encoding Ascii
+          # extra: exact + one unknown windows-family asset
+          ($names + 'php_firebird-v13.3.0-9.0-nts-vs17-x86_64.zip') | Set-Content fixtures/extra.txt -Encoding Ascii
+          Write-Host "fixtures written: exact=$($names.Count) names"
+
+      - name: Case A - exact 16-name set passes
+        shell: pwsh
+        run: |
+          pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/exact.txt
+          if ($LASTEXITCODE -ne 0) { throw "case A: exact set FAILED (rc $LASTEXITCODE)" }
+
+      - name: Case B - missing family member fails
+        shell: pwsh
+        run: |
+          $out = pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/missing.txt 2> fixtures/caseB.err
+          if ($LASTEXITCODE -ne 1) { throw "case B: missing-name set PASSED (rc $LASTEXITCODE) - oracle cannot fail" }
+          Write-Host "case B observed: rc=1 as expected (oracle fired)"
+          exit 0
+          # js: explicit exit - the oracle rc=1 propagates via $LASTEXITCODE.
+
+      - name: Case C - extra windows-family asset fails
+        shell: pwsh
+        run: |
+          $names = Get-Content fixtures/exact.txt
+          $names += 'php_firebird-v13.3.0-9.0-nts-vs17-x86_64.zip'
+          $names | Set-Content fixtures/extra2.txt -Encoding Ascii
+          $out = pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/extra2.txt 2> fixtures/caseC.err
+          if ($LASTEXITCODE -ne 1) { throw "case C: extra-asset set PASSED (rc $LASTEXITCODE) - oracle cannot fail" }
+          Write-Host "case C observed: rc=1 as expected (oracle fired)"
+          exit 0
+          # js: explicit exit - the oracle rc=1 propagates via $LASTEXITCODE.
+
+      - name: Case D - duplicate actual name fails
+        shell: pwsh
+        run: |
+          $names = Get-Content fixtures/exact.txt
+          ($names + $names[0]) | Set-Content fixtures/dup.txt -Encoding Ascii
+          $out = pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/dup.txt 2> fixtures/caseD.err
+          if ($LASTEXITCODE -ne 1) { throw "case D: duplicate name PASSED (rc $LASTEXITCODE)" }
+          Write-Host "case D observed: rc=1 as expected (oracle fired)"
+          exit 0
+          # js: explicit exit - the oracle rc=1 propagates via $LASTEXITCODE.
+
+      - name: Case E - version mismatch fails (assets from a different version)
+        shell: pwsh
+        run: |
+          $names = Get-Content fixtures/exact.txt
+          ($names -replace '13\.3\.0', '13.2.12') | Set-Content fixtures/wrongver.txt -Encoding Ascii
+          $out = pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/wrongver.txt 2> fixtures/caseE.err
+          if ($LASTEXITCODE -ne 1) { throw "case E: wrong-version set PASSED (rc $LASTEXITCODE)" }
+          Write-Host "case E observed: rc=1 as expected (oracle fired)"
+          exit 0
+          # js: explicit exit - the oracle rc=1 propagates via $LASTEXITCODE.
+
+  # ===========================================================================
+  # Pre-publish smoke gate (#652, council verdict 2026-10-25: option A with
+  # binding conditions).
+  #
+  # Runs the shutdown smoke (scripts/windows/shutdown_smoke.php, the #585
+  # crash oracle) against the EXACT draft assets of THIS release, BEFORE
+  # publish-release.yml flips draft:false. publish-release.yml requires the
+  # SMOKE-PASSED.json marker asset this pipeline uploads on success - no
+  # marker, no publish (fail closed).
+  #
+  # Binding conditions implemented here:
+  #   2. release resolved by ID + exact asset-name verification (never
+  #      tag-name matching alone; list-releases + single-match + isDraft)
+  #   3. draft asset download via API octet-stream (browser_download_url
+  #      does not serve draft assets)
+  #   4. retry = re-run this workflow (rebuilds + re-tests + re-marks);
+  #      the only publish override is a manual, audited
+  #      `gh release edit --draft=false`, never automated
+  #   5. no tag-name exemptions: RCs are gated whenever Windows zips are
+  #      attached (RCs DO reach consumers via PIE/zips)
+  #   7. strict on BOTH extensions: a broken/unloadable php_pdo_fbird.dll
+  #      fails the gate (#636: broken pdo zips shipped before)
+  #
+  # Deliberately NOT changed: windows-smoke.yml keeps its standalone
+  # contents:read dispatch path for published releases (condition 6).
+  # ===========================================================================
+
   # ===========================================================================
   # Pre-publish smoke gate (#652, council verdict 2026-10-25: option A with
   # binding conditions).

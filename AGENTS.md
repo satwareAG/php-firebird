@@ -34,6 +34,14 @@ This project targets **L3 conformance** (Discovery).
 
 ---
 
+## Branch Provenance (#688-P5)
+
+Every work branch MUST be cut from the freshly fetched origin/main tip - a branch cut from a stale local main shipped the wrong .gitignore in the 2026-10-29 near-miss (caught by accident; now enforced).
+
+- Gate: `bash scripts/branch-provenance.sh main` - exit 0 = the branch contains origin/main's tip; exit 1 = stale base (merge main into the branch or re-cut from the fetched tip).
+- Run at session start per branch and before opening a PR; optionally wire as a pre-push hook (refuses pushing a branch that lacks origin/main's tip).
+- The script distinguishes stale base (FAIL) from fast-forward-available (WARN - pull main, re-verify).
+
 ## Technical Context for Agents
 
 - **Build System**: `phpize` + `configure`.

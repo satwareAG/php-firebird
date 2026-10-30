@@ -414,9 +414,9 @@ jobs:
       - name: Case B - missing family member fails
         shell: pwsh
         run: |
-          $out = pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/missing.txt 2>&1 | Out-String
+          pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/missing.txt 2> fixtures/caseB.err
           if ($LASTEXITCODE -ne 1) { throw "case B: missing-name set PASSED (rc $LASTEXITCODE) - oracle cannot fail" }
-          Write-Host "case B observed: $($out.Trim())"
+          Write-Host "case B observed: $((Get-Content fixtures/caseB.err -Raw).Trim())"
 
       - name: Case C - extra windows-family asset fails
         shell: pwsh
@@ -424,27 +424,27 @@ jobs:
           $names = Get-Content fixtures/exact.txt
           $names += 'php_firebird-v13.3.0-9.0-nts-vs17-x86_64.zip'
           $names | Set-Content fixtures/extra2.txt -Encoding Ascii
-          $out = pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/extra2.txt 2>&1 | Out-String
+          pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/extra2.txt 2> fixtures/caseC.err
           if ($LASTEXITCODE -ne 1) { throw "case C: extra-asset set PASSED (rc $LASTEXITCODE) - oracle cannot fail" }
-          Write-Host "case C observed: $($out.Trim())"
+          Write-Host "case C observed: $((Get-Content fixtures/caseC.err -Raw).Trim())"
 
       - name: Case D - duplicate actual name fails
         shell: pwsh
         run: |
           $names = Get-Content fixtures/exact.txt
           ($names + $names[0]) | Set-Content fixtures/dup.txt -Encoding Ascii
-          $out = pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/dup.txt 2>&1 | Out-String
+          pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/dup.txt 2> fixtures/caseD.err
           if ($LASTEXITCODE -ne 1) { throw "case D: duplicate name PASSED (rc $LASTEXITCODE)" }
-          Write-Host "case D observed: $($out.Trim())"
+          Write-Host "case D observed: $((Get-Content fixtures/caseD.err -Raw).Trim())"
 
       - name: Case E - version mismatch fails (assets from a different version)
         shell: pwsh
         run: |
           $names = Get-Content fixtures/exact.txt
           ($names -replace '13\.3\.0', '13.2.12') | Set-Content fixtures/wrongver.txt -Encoding Ascii
-          $out = pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/wrongver.txt 2>&1 | Out-String
+          pwsh -File ./scripts/windows/assert-asset-manifest.ps1 -ManifestPath ./scripts/windows/release-asset-manifest.json -Version 13.3.0 -ActualNamesFile fixtures/wrongver.txt 2> fixtures/caseE.err
           if ($LASTEXITCODE -ne 1) { throw "case E: wrong-version set PASSED (rc $LASTEXITCODE)" }
-          Write-Host "case E observed: $($out.Trim())"
+          Write-Host "case E observed: $((Get-Content fixtures/caseE.err -Raw).Trim())"
 
   # ===========================================================================
   # Pre-publish smoke gate (#652, council verdict 2026-10-25: option A with

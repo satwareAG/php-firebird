@@ -3,3 +3,4 @@
 #   <test-file-basename><TAB><reason with CHANGELOG/UPGRADING reference>
 # Anything not listed here fails the delta gate (blanket success is forbidden;
 # the delta is the product).
+metadata_injection.phpt	FR-001 (#729): crafted/oversized relation names now fail with "Invalid table name" instead of being interpolated into RDB$ metadata SQL (breakout returned every relation before); see UPGRADING.md "v13.3.x -> Unreleased (#729)"

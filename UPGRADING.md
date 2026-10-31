@@ -222,3 +222,19 @@ Key changes:
 - `fbird_connect()` returns `Firebird\Connection` objects (not resources)
 - Exception mode available via `fbird_set_exception_mode()`
 - PDO driver is a separate extension (`pdo_fbird.so`)
+
+## v13.3.x → Unreleased (#729): metadata helpers reject unsafe relation names
+
+`fbird_list_fields()` and `fbird_meta_data()` no longer interpolate the
+caller-supplied table name into RDB$ metadata SQL. The name is validated with
+`is_valid_identifier()` and bound to the query as parameter data.
+
+- Names containing characters that are invalid in unquoted identifiers
+  (quotes, spaces, operators - e.g. injection-shaped strings) now fail with
+  `Invalid table name (contains invalid characters)` instead of executing the
+  crafted statement. Previously `X' OR '1'='1` made the metadata query match
+  every relation.
+- Oversized names are folded and matched at full length - the previous silent
+  255-byte truncation (which cut mid-literal on crafted names) is gone.
+- Legitimate unquoted names (upper/lowercase, folded) behave exactly as
+  before.

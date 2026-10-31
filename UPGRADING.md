@@ -238,3 +238,20 @@ caller-supplied table name into RDB$ metadata SQL. The name is validated with
   255-byte truncation (which cut mid-literal on crafted names) is gone.
 - Legitimate unquoted names (upper/lowercase, folded) behave exactly as
   before.
+
+## v13.3.x → Unreleased (#730): DROP TABLE identifiers are validated and quoted
+
+`fbird_drop_table_force()` (and the internal drop-table path) no longer
+interpolate the caller-supplied table name raw into the statement.
+
+- Names that cannot be represented as identifiers (embedded spaces, operators,
+  single quotes - e.g. trailing SQL comments like `SAFE_A -- junk`) now fail
+  with `Invalid table name` instead of being handed to the engine. Previously
+  `SAFE_A -- junk` silently dropped `SAFE_A` because the engine strips the
+  comment.
+- Unquoted names keep the existing contract: uppercase-folded, emitted
+  unquoted (doctrine-firebird-driver's unquoted lowercase `test_table` call
+  site is unaffected).
+- Quoted identifiers ( `"Name"` with paired internal quotes ) are emitted as
+  properly escaped quoted identifiers; case-sensitive relations can be
+  targeted deliberately.

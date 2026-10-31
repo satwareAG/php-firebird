@@ -19,6 +19,7 @@
 
 #include "ext/pdo/php_pdo.h"
 #include "ext/pdo/php_pdo_driver.h"
+#include "zend_exceptions.h" /* FR-005 (#734): zend_throw_exception_ex for factory-time DSN validation */
 #include "php_pdo_fbird.h"
 #include "php_pdo_fbird_int.h"
 #include <ibase.h>
@@ -651,8 +652,16 @@ static bool pdo_fbird_handle_set_attribute(pdo_dbh_t *dbh, zend_long attr, zval 
 			H->autocommit = zval_is_true(val) ? 1 : 0;
 			return true;
 		case PDO_FBIRD_ATTR_DIALECT:
-			H->dialect = (int)zval_get_long(val);
-			return true;
+			{
+				zend_long d = zval_get_long(val);
+				if (d < 1 || d > 3) {
+					pdo_raise_impl_error(dbh, NULL, "IM001",
+						"Invalid dialect (valid: 1, 2, 3)");
+					return false;
+				}
+				H->dialect = (int) d;
+				return true;
+			}
 		case PDO_FBIRD_ATTR_PAGE_BUFFERS:
 			if (H->fbc_conn) {
 				pdo_raise_impl_error(dbh, NULL, "IM001",
@@ -1271,6 +1280,17 @@ static int pdo_fbird_handle_factory(pdo_dbh_t *dbh, zval *driver_options)
 		tok = strtok_r(NULL, ";", &saveptr);
 	}
 	efree(dsn_copy);
+
+	/* FR-005 (#734): validate the DSN dialect - unvalidated atoi() let any
+	 * garbage reach the attach DPB and fail with an opaque engine error. */
+	if (dialect < 1 || dialect > 3) {
+		zend_throw_exception_ex(php_pdo_get_exception(), 0,
+			"Invalid dialect '%d' in DSN (valid: 1, 2, 3)", dialect);
+		efree(H);
+		dbh->driver_data = NULL;
+		return 0;
+	}
+	if (H->num_buffers < 0) H->num_buffers = 0; /* bound page_buffers sanely */
 
 	H->dialect = dialect;
 	if (host[0])    H->host    = estrdup(host);

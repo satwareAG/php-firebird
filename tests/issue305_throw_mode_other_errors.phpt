@@ -26,7 +26,7 @@ fbird_set_exception_mode(FBIRD_EXCEPTION_MODE_THROW);
 // Test 1: fbird_gen_id with invalid name (too long)
 echo "Test 1: fbird_gen_id invalid name (too long)\n";
 try {
-    @fbird_gen_id(str_repeat('A', 35), 1, $conn);
+    @fbird_gen_id(str_repeat('A', 70), 1, $conn); /* 70 > 63: rejected on every generation (#732 widened FB4+ caps to 63) */
     echo "FAIL: no exception\n";
 } catch (Firebird\Exception $e) {
     echo "caught: " . substr($e->getMessage(), 0, 35) . "...\n";
@@ -36,7 +36,7 @@ try {
 // Test 2: fbird_last_insert_id with invalid sequence name
 echo "\nTest 2: fbird_last_insert_id invalid sequence\n";
 try {
-    @fbird_last_insert_id($conn, str_repeat('Z', 35));
+    @fbird_last_insert_id($conn, str_repeat('Z', 70));
     echo "FAIL: no exception\n";
 } catch (Firebird\Exception $e) {
     echo "caught: " . substr($e->getMessage(), 0, 35) . "...\n";
@@ -47,7 +47,7 @@ try {
 echo "\nTest 3: fbird_savepoint invalid name\n";
 $tx = fbird_trans($conn);
 try {
-    @fbird_savepoint($tx, str_repeat('S', 35));
+    @fbird_savepoint($tx, str_repeat('S', 70));
     echo "FAIL: no exception\n";
 } catch (Firebird\Exception $e) {
     echo "caught: " . substr($e->getMessage(), 0, 35) . "...\n";
@@ -68,7 +68,7 @@ try {
 // Test 5: Verify SILENT mode still emits warnings (backward compat)
 echo "\nTest 5: SILENT mode warning\n";
 fbird_set_exception_mode(FBIRD_EXCEPTION_MODE_SILENT);
-$result = @fbird_gen_id(str_repeat('A', 35), 1, $conn);
+$result = @fbird_gen_id(str_repeat('A', 70), 1, $conn);
 echo "result: " . var_export($result, true) . "\n";
 echo "errmsg non-empty: " . (strlen(fbird_errmsg()) > 0 ? "yes" : "no") . "\n";
 echo "errcode: " . var_export(fbird_errcode(), true) . "\n";

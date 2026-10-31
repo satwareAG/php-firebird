@@ -302,3 +302,18 @@ when either credential is omitted.
   zero-argument default-link drop remains a v14 privileged-surface item.
 - doctrine-firebird-driver is unaffected (audit: its only call site passes a
   live connection resource).
+
+## v13.3.x → Unreleased (#734): PDO DSN dialect validated; named-param preprocessor respects delimited identifiers
+
+- The `fbird:` DSN `dialect` value is validated against {1, 2, 3}: other
+  values now throw `PDOException` with `Invalid dialect '<v>' in DSN (valid:
+  1, 2, 3)` at construction time, and `PDO_FBIRD_ATTR_DIALECT` rejects
+  invalid values via a driver error. Previously any `atoi()` result (including
+  garbage) reached the attach DPB / statement prepares and failed with an
+  opaque engine error. `page_buffers` negative values are clamped to the
+  server default.
+- The named-param preprocessor now tracks double-quoted identifier state:
+  `:name` inside delimited identifiers (`SELECT "my:col" FROM t`) is left
+  untouched instead of being substituted with `?`; doubled quotes inside
+  identifiers (`"we""ird:col"`) are preserved. Real named params outside
+  quoted identifiers behave exactly as before.

@@ -34,6 +34,7 @@ zend_string *php_firebird_preprocess(const char *sql, size_t sql_len,
 	int in_string = 0;
 	int in_comment = 0;
 	int in_block = 0; /* inside EXECUTE BLOCK's BEGIN...END */
+	int in_qident = 0; /* FR-005 (#734): inside a double-quoted identifier */
 
 	for (size_t i = 0; i < sql_len; i++) {
 		char c = sql[i];
@@ -51,6 +52,20 @@ zend_string *php_firebird_preprocess(const char *sql, size_t sql_len,
 			while (i < sql_len && sql[i] != '\n') i++;
 			continue;
 		}
+		/* FR-005 (#734): double-quoted identifier state - ':' inside
+		 * delimited identifiers is PSQL-free text, never a named param.
+		 * Must run BEFORE the single-quote toggle: a quoted identifier may
+		 * contain single quotes ("it's"). */
+		if (c == '"') {
+			if (in_qident && i + 1 < sql_len && sql[i + 1] == '"') {
+				i++; /* doubled quote: escaped literal quote, stay inside */
+				continue;
+			}
+			in_qident = !in_qident;
+			continue;
+		}
+		if (in_qident) continue;
+
 		if (c == '\'') { in_string = !in_string; continue; }
 		if (in_string) continue;
 
@@ -99,6 +114,7 @@ zend_string *php_firebird_preprocess(const char *sql, size_t sql_len,
 	in_string = 0;
 	in_comment = 0;
 	in_block = 0;
+	in_qident = 0;
 
 	for (size_t i = 0; i < sql_len; i++) {
 		char c = sql[i];
@@ -118,6 +134,18 @@ zend_string *php_firebird_preprocess(const char *sql, size_t sql_len,
 			if (i < sql_len) *dst++ = sql[i];
 			continue;
 		}
+		if (c == '"') {
+			if (in_qident && i + 1 < sql_len && sql[i + 1] == '"') {
+				*dst++ = c; *dst++ = sql[i + 1];
+				i++;
+				continue;
+			}
+			in_qident = !in_qident;
+			*dst++ = c;
+			continue;
+		}
+		if (in_qident) { *dst++ = c; continue; }
+
 		if (c == '\'') { in_string = !in_string; *dst++ = c; continue; }
 		if (in_string) { *dst++ = c; continue; }
 

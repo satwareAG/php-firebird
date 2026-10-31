@@ -408,6 +408,9 @@ zend_resource *_php_fbird_connect_link(
 		PHP_MD5Update(&hash_context,(char*)&largs[i],sizeof(zend_long));
 	}
 	PHP_MD5Final((unsigned char*)hash, &hash_context);
+	/* FR-004 (#736): the MD5 context still holds the accumulated credential
+	 * bytes in its internal buffer - scrub it now that the digest is final. */
+	fbird_memzero(&hash_context, sizeof(hash_context));
 
 	/* try to reuse a connection (skip if FBIRD_CONNECT_FORCE_NEW is set) */
 	if (!(flags & PHP_FBIRD_CONNECT_FORCE_NEW) &&

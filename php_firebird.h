@@ -22,6 +22,27 @@ extern zend_module_entry firebird_module_entry;
 /* Legacy compatibility macro (use PHP_FIREBIRD_VERSION_STRING in new code) */
 #define PHP_FIREBIRD_VER_STR PHP_FIREBIRD_VERSION_STRING
 
+/* FR-004 (#736): compiler-resistant credential scrubbing.
+ * php-src 8.2-8.5 exports no sanctioned wipe symbol (verified against the
+ * installed 8.4 headers 2026-10-31), so use the platform primitives:
+ *   Windows: SecureZeroMemory   glibc: explicit_bzero   else: volatile loop.
+ * The volatile loop is the fail-closed fallback (correct everywhere, just
+ * less hardened); static inline keeps one definition per TU. */
+static inline void fbird_memzero(volatile void *p, size_t n)
+{
+#if defined(ZEND_WIN32)
+	SecureZeroMemory((PVOID) p, n);
+#elif defined(__GLIBC__)
+	explicit_bzero((void *) p, n);
+#else
+	volatile unsigned char *v = (volatile unsigned char *) p;
+	while (n--) {
+		*v++ = 0;
+	}
+#endif
+}
+
+
 /* Numeric version for the FBIRD_VER constant (two-digit style like FB_API_VER).
  * This is a simplified value; for full version info use PHP_FIREBIRD_VERSION_STRING. */
 #ifndef PHP_FIREBIRD_VER

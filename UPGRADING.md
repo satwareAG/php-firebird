@@ -284,3 +284,21 @@ anything that is not the local plain-files wrapper:
   NOT gated by `allow_url_fopen`, which is why an `is_url` check alone would
   have missed this vector.
 - Local file paths behave exactly as before.
+
+## v13.3.x → Unreleased (#731): fbird_drop_db() string overload requires credentials
+
+The hardcoded `SYSDBA`/`masterkey` fallback is deleted. The string overload
+`fbird_drop_db(string $dsn, ?string $user, ?string $password)` now fails with
+`credentials are required for the string overload (no hardcoded fallback)`
+when either credential is omitted.
+
+- Previously, omitted credentials silently attached as `SYSDBA`/`masterkey` -
+  on a default-credential server that login SUCCEEDED and the database was
+  dropped (verified live during the train: the failure surfaced only as the
+  engine's file-open error).
+- Explicit credentials behave exactly as before (including engine auth
+  failures for wrong passwords).
+- The resource/object path (`fbird_drop_db($connection)`) is unchanged; the
+  zero-argument default-link drop remains a v14 privileged-surface item.
+- doctrine-firebird-driver is unaffected (audit: its only call site passes a
+  live connection resource).

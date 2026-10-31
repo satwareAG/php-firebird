@@ -947,9 +947,16 @@ PHP_FUNCTION(fbird_drop_db)
 	}
 
 	if (string_mode) {
-		/* Connect, drop, return */
-		const char *u = username ? username : "SYSDBA";
-		const char *p = password ? password : "masterkey";
+		/* FR-007 (#731): no hardcoded-credential fallback - omitted credentials
+		 * fail loudly instead of silently attaching as SYSDBA/masterkey. The
+		 * fallback normalized a default-credential habit and could only ever
+		 * authenticate against misconfigured legacy setups (council P3). */
+		if (username == NULL || password == NULL) {
+			_php_fbird_module_error("fbird_drop_db(): credentials are required for the string overload (no hardcoded fallback)");
+			RETURN_FALSE;
+		}
+		const char *u = username;
+		const char *p = password;
 		void *conn = fbc_connect(
 			FBG(master_instance),
 			database, database_len,

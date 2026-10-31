@@ -47,20 +47,21 @@ jobs:
         # v3.18.1: production line (ext-firebird ^12.0 || ^13.0 constraint) with
         #   the bounded lock-conflict retry backported (#578, driver #163).
         #   This is the primary downstream test — failures here block the PR.
-        # 4.4.x: default branch (DBAL 4.x) — currently green (non-blocking via
-        #   continue-on-error; kept informational).
+        # 4.5.x: current driver line (DBAL ^4.4 || ^4.5; the old 4.4.x branch
+        #   was retired upstream when the line moved - stale ref made this leg
+        #   fail the checkout fetch on every PR while run-level
+        #   continue-on-error masked it, found on #738, 2026-10-31).
+        #   Failures here block the PR - the driver is the primary downstream.
         # v3.18.1: production line (ext-firebird ^12.0 || ^13.0 constraint) with
         #   the bounded lock-conflict retry backported (#578, driver #163).
         #   This is the primary downstream test - failures here block the PR.
         #   (driver#190 probe of the v3.18.2 candidate branch reverted: CI
         #   showed the candidate unfixed on the victim error + 9 new
         #   assertion failures - verdict on driver#190, 2026-09-16.)
-        doctrine-ref: ['v3.18.1', '4.4.x']
+        doctrine-ref: ['v3.18.1', '4.5.x']
         php-version: ['8.4']
 
-    # 4.4.x is informational (non-blocking).
-    # v3.18.1 is the production pin and MUST pass.
-    continue-on-error: ${{ matrix.doctrine-ref == '4.4.x' }}
+    # v3.18.1 (production pin) and 4.5.x (current driver line) both MUST pass.
 
     services:
       firebird:

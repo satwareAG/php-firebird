@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [13.4.0] - 2026-10-31
+
+> **Release note**: the v13.4.0 security hardening train (epic #728, spec
+> `specs/spec-v13.4-security-hardening.md`, council-converged 2026-10-31).
+> Closes #729-#736. Two items are BREAKING (see UPGRADING.md): savepoint /
+> generator names with invalid identifier characters are now rejected (#732
+> tightening) and the `fbird_drop_db()` string overload no longer falls back
+> to hardcoded `SYSDBA`/`masterkey` credentials (#731).
+
+### Changed (security hardening)
+
+- **#729 (FR-001, BREAKING for crafted names)**: `fbird_list_fields()` /
+  `fbird_meta_data()` bind the relation name as parameter data via
+  `fbird_prepare`/`fbird_execute` and reject unrepresentable names
+  (`Invalid table name`). Previously `X' OR '1'='1` matched EVERY relation;
+  names >255 bytes were silently truncated mid-literal.
+- **#730 (FR-002)**: the DROP TABLE path quotes/validates identifiers -
+  unrepresentable names (trailing SQL comments like `SAFE_A -- junk`, which
+  silently dropped the table before) fail with `Invalid table name`; valid
+  quoted identifiers are emitted verbatim; unquoted lowercase names keep the
+  uppercase-fold contract (doctrine call site unchanged).
+- **#733 (FR-003)**: `fbird_blob_export()` accepts local file paths only -
+  resolves the stream wrapper before opening and rejects everything but the
+  plain-files wrapper. `php://output` previously wrote raw blob bytes into
+  the output stream (response smuggling); `ftp://` exfiltrated to remote
+  hosts.
+- **#731 (FR-007, BREAKING)**: `fbird_drop_db()` string overload requires
+  credentials - the hardcoded `SYSDBA`/`masterkey` fallback authenticated on
+  default-credential servers (verified live: the drop proceeded until the
+  file-open error). Omitted credentials now fail with a module error.
+- **#736 (FR-004)**: DPB/SPB credential staging buffers are wiped with a
+  compiler-resistant scrub (`fbird_memzero()`: SecureZeroMemory /
+  explicit_bzero / volatile fallback) immediately after their hand-off -
+  procedural service attach, OOP `Firebird\Service`, and the connect path's
+  link-hash MD5 context. Zero wire delta. Enforced by the fail-closed canary
+  gate `scripts/gates/issue-736-wipe-gate.sh` (--selftest negative control).
+- **#732 (FR-006, BREAKING for invalid-char names)**: savepoint and
+  generator/sequence names are validated (`is_valid_identifier()`) and the
+  length gate is version-aware: 63 bytes on Firebird 4.0+/5.0 client builds
+  (upstream `METADATA_IDENTIFIER_CHAR_LEN`), 31 on 3.0.x.
+- **#734 (FR-005)**: the PDO `fbird:` DSN `dialect` is validated against
+  {1,2,3} at construction and in `PDO_FBIRD_ATTR_DIALECT` (previously any
+  `atoi()` result reached the DPB); negative `page_buffers` clamped. The
+  named-param preprocessor tracks double-quoted identifier state - `:name`
+  inside delimited identifiers (`SELECT "my:col" FROM t`) is no longer
+  substituted with `?` (statement corruption before); `""` escapes preserved.
+
+### Docs
+
+- **#735 (FR-008)**: SECURITY.md gains the transport-posture facts
+  (SRP256/SRP default auth, server `WireCrypt` default Required - v5.0.4
+  `config.cpp:615`, trusted auth Windows-only), the privileged-API surface
+  table with least-privilege + `disable_functions` guidance, the
+  identifier-handling contract, and credential guidance
+  (`fbird.default_password` is `PHP_INI_ALL`-readable).
+- UPGRADING.md: one section per behavior change (above), written per-PR and
+  referenced by the #680 delta adjudication.
+
+### Infra
+
+- **#739**: the doctrine-downstream CI matrix pinned a retired branch
+  (`4.4.x`), so the checkout fetch failed on every PR while job-level
+  `continue-on-error` masked it - now pins the live `4.5.x` line and both
+  doctrine legs are blocking.
+
 ## [13.3.1] - 2026-10-30
 
 > **Release note**: identical extension content to the v13.3.0 tag, which was deleted before publication - its release pipeline never completed (first live exercise of the #688/#652 gates surfaced three workflow defects, fixed in #720/#721/#722), and the #688-P6 G8 binding correctly refused to publish a smoke marker referencing a different revision than the tag. Re-tagged as v13.3.1 so the smoke-tested revision IS the published revision. Zero extension changes; version stamps only.

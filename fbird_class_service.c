@@ -118,6 +118,9 @@ PHP_METHOD(FirebirdService, __construct)
 
 	intern->fbsvc = fbsvc_attach(FBG(master_instance), loc,
 		buf_len, (const unsigned char *)buf, status);
+	/* FR-004 (#736): wipe the SPB staging buffer after the hand-off,
+	 * success AND error paths. */
+	fbird_memzero(buf, sizeof(buf));
 
 	if (!intern->fbsvc) {
 		_php_fbird_error(status);

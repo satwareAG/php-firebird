@@ -302,6 +302,9 @@ PHP_FUNCTION(fbird_service_attach)
 	svm->hostname = hlen > 0 ? estrdup(host) : NULL;
 	svm->username = ulen > 0 ? estrdup(user) : NULL;
 	svm->fbsvc = fbsvc_attach(FBG(master_instance), loc, p, (const unsigned char *)buf, status);
+	/* FR-004 (#736): the SPB staging buffer holds the DBA password - wipe it
+	 * immediately after the hand-off, on success AND error paths. */
+	fbird_memzero(buf, sizeof(buf));
 	if (!svm->fbsvc) {
 		_php_fbird_error(status);
 		efree(svm->hostname);

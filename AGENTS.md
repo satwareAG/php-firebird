@@ -392,7 +392,7 @@ When the user requests a durable behavior change, record it here or in the relev
 
 ## Child DOX Index
 
-No child AGENTS.md files exist yet (scan 2026-10-31: `fd AGENTS.md`, vendor excluded, only this root file found). Nested checkouts that are standalone IPADP projects (for example `doctrine-firebird-driver/`) carry their own agent documentation and are not part of this DOX tree. Create child docs per `## Child Doc Shape` when a folder becomes a durable boundary.
+No child AGENTS.md files exist inside the tracked tree (scan 2026-10-31: `fd -I AGENTS.md` including gitignored paths, vendor excluded; exactly two hits - this root file and the nested standalone checkout below). Nested standalone checkouts that are separate IPADP projects are outside this DOX tree and govern their own subtree: `doctrine-firebird-driver/` (gitignored, own `.git`, own `AGENTS.md`). Create child docs per `## Child Doc Shape` when a folder becomes a durable boundary.
 
 ## Honesty
 

@@ -36,7 +36,7 @@ against upstream release tags and converged into P1-P4 by a 5-seat council
   accepted by generators and savepoints; malformed names are rejected loudly.
 - US4 (P3, upgrader): `fbird_drop_db()` string overload fails clearly without
   explicit credentials instead of silently trying legacy defaults.
-- US5 (P5, PDO user): DSN dialect garbage errors at connect; `:name` inside a
+- US5 (P1, PDO user): DSN dialect garbage errors at connect; `:name` inside a
   double-quoted identifier survives preprocessing unchanged.
 
 ## Requirements

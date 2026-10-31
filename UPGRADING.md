@@ -270,3 +270,17 @@ match the deployed engine generation (upstream `METADATA_IDENTIFIER_CHAR_LEN`).
   31 to 63 bytes; 32-63 byte identifiers that v13.3.x rejected are now
   accepted. On Firebird 3.0 client builds the cap stays 31.
 - The exact-cap name is accepted, cap+1 rejected, verified per generation.
+
+## v13.3.x → Unreleased (#733): fbird_blob_export() accepts local file paths only
+
+`fbird_blob_export()` resolves the destination's stream wrapper and rejects
+anything that is not the local plain-files wrapper:
+
+- URL-capable wrappers (`ftp://`, `http://`, ...) are rejected with
+  `URL stream wrappers are not allowed for blob export (local file paths only)`
+  - previously a caller could direct blob contents to a remote host.
+- `php://output` is rejected - previously it wrote raw blob bytes into the
+  current output stream (response smuggling in web SAPIs). Note `php://` is
+  NOT gated by `allow_url_fopen`, which is why an `is_url` check alone would
+  have missed this vector.
+- Local file paths behave exactly as before.

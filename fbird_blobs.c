@@ -1219,6 +1219,22 @@ PHP_FUNCTION(fbird_blob_export)
 		RETURN_THROWS();
 	}
 
+	/* FR-003 (#733): blob export writes to LOCAL file paths only. URL-capable
+	 * wrappers (ftp://, http://) would exfiltrate blob contents; the PHP
+	 * wrapper (php://output) would smuggle them into the response stream.
+	 * Note is_url alone does NOT cover php:// (its wrapper ops declare
+	 * is_url = 0), so resolve the wrapper and accept only the plain-files
+	 * wrapper (ops label "plainfile", empirically verified on PHP 8.4). */
+	const char *path_for_open = NULL;
+	php_stream_wrapper *wrapper = php_stream_locate_url_wrapper(filename, &path_for_open, REPORT_ERRORS);
+	if (!wrapper || !wrapper->wops
+		|| wrapper->wops->label == NULL
+		|| strcmp(wrapper->wops->label, "plainfile") != 0 /* empirically verified label, php-src main/streams/plainfiles.c */
+		|| wrapper->is_url) {
+		_php_fbird_module_error("URL stream wrappers are not allowed for blob export (local file paths only)");
+		RETURN_FALSE;
+	}
+
 	/* Open file for writing */
 	php_stream *stream = php_stream_open_wrapper(filename, "wb", REPORT_ERRORS, NULL);
 	if (!stream) {

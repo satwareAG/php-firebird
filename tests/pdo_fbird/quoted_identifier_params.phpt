@@ -54,3 +54,11 @@ select quoted identifier: ok
 real named param: ok
 escaped-quote identifier: ok
 === DONE ===
+--CLEAN--
+<?php
+require_once __DIR__ . '/../pdo_fbird.inc';
+$pdo = pdo_fbird_connect();
+@$pdo->exec('DROP TABLE pdo_qid_t');
+@$pdo->exec('DROP TABLE pdo_qid2_t');
+unset($pdo);
+?>

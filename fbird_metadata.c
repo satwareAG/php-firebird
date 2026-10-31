@@ -21,6 +21,7 @@
 #include "php_firebird.h"
 #include "php_fbird_includes.h"
 #include "php_fbird_query_internal.h"
+#include "php_fbird_transaction.h"
 #include "firebird_utils.h"
 #include "fbird_classes.h"
 
@@ -647,23 +648,66 @@ static void _fbird_meta_exec_and_collect(
 	zval *link_zv,
 	const char *sql,
 	const char *key_field,
-	bool use_field_as_key
+	bool use_field_as_key,
+	const char *bind_value
 ) {
 	zval fn_name, sql_zv, query_ret, row;
-	zval args[2];
+	zval exec_ret; /* hoisted: rows_zv outlives the prepare block (asan use-after-scope guard) */
+	zval *rows_zv;
 
-	/* Call fbird_query($link, $sql) */
-	ZVAL_STRING(&fn_name, "fbird_query");
-	ZVAL_STRING(&sql_zv, sql);
-	args[0] = *link_zv;
-	args[1] = sql_zv;
-	call_user_function(EG(function_table), NULL, &fn_name, &query_ret, 2, args);
-	zval_ptr_dtor(&fn_name);
-	zval_ptr_dtor(&sql_zv);
+	if (bind_value != NULL) {
+		/* FR-001 (#729): the caller-supplied relation name is bound as
+		 * parameter data (XSQLDA marker), never interpolated into the
+		 * statement - crafted names cannot alter SQL semantics. */
+		zval prep_args[2], exec_args[2];
 
-	if (Z_TYPE(query_ret) == IS_FALSE) {
-		RETVAL_FALSE;
-		return;
+		/* fbird_prepare($link, $sql) */
+		ZVAL_STRING(&fn_name, "fbird_prepare");
+		ZVAL_STRING(&sql_zv, sql);
+		prep_args[0] = *link_zv;
+		prep_args[1] = sql_zv;
+		call_user_function(EG(function_table), NULL, &fn_name, &query_ret, 2, prep_args);
+		zval_ptr_dtor(&fn_name);
+		zval_ptr_dtor(&sql_zv);
+
+		if (Z_TYPE(query_ret) == IS_FALSE || Z_TYPE(query_ret) == IS_NULL) {
+			RETVAL_FALSE;
+			return;
+		}
+
+		/* fbird_execute($query, $bind_value) */
+		ZVAL_STRING(&fn_name, "fbird_execute");
+		ZVAL_STRING(&exec_args[1], bind_value);
+		exec_args[0] = query_ret;
+		call_user_function(EG(function_table), NULL, &fn_name, &exec_ret, 2, exec_args);
+		zval_ptr_dtor(&fn_name);
+		zval_ptr_dtor(&exec_args[1]);
+
+		if (Z_TYPE(exec_ret) == IS_FALSE || Z_TYPE(exec_ret) == IS_NULL) {
+			zval_ptr_dtor(&exec_ret);
+			zval_ptr_dtor(&query_ret);
+			RETVAL_FALSE;
+			return;
+		}
+
+		rows_zv = &exec_ret;
+	} else {
+		/* Call fbird_query($link, $sql) */
+		zval args[2];
+		ZVAL_STRING(&fn_name, "fbird_query");
+		ZVAL_STRING(&sql_zv, sql);
+		args[0] = *link_zv;
+		args[1] = sql_zv;
+		call_user_function(EG(function_table), NULL, &fn_name, &query_ret, 2, args);
+		zval_ptr_dtor(&fn_name);
+		zval_ptr_dtor(&sql_zv);
+
+		if (Z_TYPE(query_ret) == IS_FALSE) {
+			RETVAL_FALSE;
+			return;
+		}
+
+		rows_zv = &query_ret;
 	}
 
 	array_init(return_value);
@@ -671,7 +715,7 @@ static void _fbird_meta_exec_and_collect(
 	/* Loop: fbird_fetch_assoc($query) */
 	ZVAL_STRING(&fn_name, "fbird_fetch_assoc");
 	while (1) {
-		call_user_function(EG(function_table), NULL, &fn_name, &row, 1, &query_ret);
+		call_user_function(EG(function_table), NULL, &fn_name, &row, 1, rows_zv);
 		if (Z_TYPE(row) == IS_FALSE || Z_TYPE(row) == IS_NULL) {
 			zval_ptr_dtor(&row);
 			break;
@@ -708,9 +752,12 @@ static void _fbird_meta_exec_and_collect(
 
 	/* Free the query resource */
 	ZVAL_STRING(&fn_name, "fbird_free_query");
-	call_user_function(EG(function_table), NULL, &fn_name, &row, 1, &query_ret);
+	call_user_function(EG(function_table), NULL, &fn_name, &row, 1, rows_zv);
 	zval_ptr_dtor(&fn_name);
-	zval_ptr_dtor(&query_ret);
+	if (bind_value != NULL) {
+		zval_ptr_dtor(&query_ret); /* release the prepared statement */
+	}
+	zval_ptr_dtor(rows_zv);
 	zval_ptr_dtor(&row);
 }
 
@@ -740,7 +787,7 @@ PHP_FUNCTION(fbird_list_tables)
 		"WHERE RDB$VIEW_BLR IS NULL "
 		"AND (RDB$SYSTEM_FLAG = 0 OR RDB$SYSTEM_FLAG IS NULL) "
 		"ORDER BY RDB$RELATION_NAME",
-		"TBL", false);
+		"TBL", false, NULL);
 }
 
 PHP_FUNCTION(fbird_list_fields)
@@ -754,21 +801,28 @@ PHP_FUNCTION(fbird_list_fields)
 		RETURN_THROWS();
 	}
 
-	/* Firebird stores unquoted identifiers in uppercase */
-	char upper_name[256] = {0};
-	for (size_t i = 0; i < table_len && i < sizeof(upper_name) - 1; i++) {
-		upper_name[i] = toupper((unsigned char)table_name[i]);
+	/* FR-001 (#729): reject names that cannot be represented safely instead of
+	 * interpolating raw caller input into RDB$ metadata SQL. */
+	if (!is_valid_identifier(table_name, table_len)) {
+		_php_fbird_module_error("Invalid table name (contains invalid characters)");
+		RETURN_FALSE;
 	}
 
-	char sql[512];
-	snprintf(sql, sizeof(sql),
+	/* Firebird stores unquoted identifiers in uppercase - fold the full
+	 * caller-supplied length; no silent truncation. */
+	char *upper_name = (char *) emalloc(table_len + 1);
+	for (size_t i = 0; i < table_len; i++) {
+		upper_name[i] = toupper((unsigned char)table_name[i]);
+	}
+	upper_name[table_len] = '\0';
+
+	_fbird_meta_exec_and_collect(return_value, link_arg,
 		"SELECT TRIM(RDB$FIELD_NAME) AS COL "
 		"FROM RDB$RELATION_FIELDS "
-		"WHERE RDB$RELATION_NAME = '%s' "
+		"WHERE RDB$RELATION_NAME = ? "
 		"ORDER BY RDB$FIELD_POSITION",
-		upper_name);
-
-	_fbird_meta_exec_and_collect(return_value, link_arg, sql, "COL", false);
+		"COL", false, upper_name);
+	efree(upper_name);
 }
 
 PHP_FUNCTION(fbird_meta_data)
@@ -782,14 +836,22 @@ PHP_FUNCTION(fbird_meta_data)
 		RETURN_THROWS();
 	}
 
-	/* Firebird stores unquoted identifiers in uppercase */
-	char upper_name[256] = {0};
-	for (size_t i = 0; i < table_len && i < sizeof(upper_name) - 1; i++) {
-		upper_name[i] = toupper((unsigned char)table_name[i]);
+	/* FR-001 (#729): reject names that cannot be represented safely instead of
+	 * interpolating raw caller input into RDB$ metadata SQL. */
+	if (!is_valid_identifier(table_name, table_len)) {
+		_php_fbird_module_error("Invalid table name (contains invalid characters)");
+		RETURN_FALSE;
 	}
 
-	char sql[1024];
-	snprintf(sql, sizeof(sql),
+	/* Firebird stores unquoted identifiers in uppercase - fold the full
+	 * caller-supplied length; no silent truncation. */
+	char *upper_name = (char *) emalloc(table_len + 1);
+	for (size_t i = 0; i < table_len; i++) {
+		upper_name[i] = toupper((unsigned char)table_name[i]);
+	}
+	upper_name[table_len] = '\0';
+
+	_fbird_meta_exec_and_collect(return_value, link_arg,
 		"SELECT "
 		"  TRIM(rf.RDB$FIELD_NAME) AS FIELD_NAME, "
 		"  TRIM(f.RDB$FIELD_TYPE) AS FIELD_TYPE, "
@@ -798,11 +860,10 @@ PHP_FUNCTION(fbird_meta_data)
 		"  rf.RDB$NULL_FLAG AS NULL_FLAG "
 		"FROM RDB$RELATION_FIELDS rf "
 		"JOIN RDB$FIELDS f ON rf.RDB$FIELD_SOURCE = f.RDB$FIELD_NAME "
-		"WHERE rf.RDB$RELATION_NAME = '%s' "
+		"WHERE rf.RDB$RELATION_NAME = ? "
 		"ORDER BY rf.RDB$FIELD_POSITION",
-		upper_name);
-
-	_fbird_meta_exec_and_collect(return_value, link_arg, sql, "FIELD_NAME", true);
+		"FIELD_NAME", true, upper_name);
+	efree(upper_name);
 }
 
 #endif /* HAVE_FIREBIRD */

@@ -193,8 +193,19 @@ jobs:
             echo "ERROR: cannot resolve the tag ref for $TAG - refusing to publish (G8 binding unverifiable)"
             exit 1
           fi
-          if [ "$M_COMMIT" != "$TAG_SHA" ] && [ "$M_COMMIT" != "$(git rev-parse "$TAG_SHA^{commit}" 2>/dev/null || echo "$TAG_SHA")" ]; then
-            echo "ERROR: marker commit ($M_COMMIT) != tag revision ($TAG_SHA) - the smoke ran on a DIFFERENT revision than the one being published - refusing (G8, #688-P6)"
+          # #726: dereference annotated tags via the API. The old local
+          # `git rev-parse "$TAG_SHA^{commit}"` fails on shallow checkouts
+          # (actions/checkout@v6 without fetch-depth does not fetch tag
+          # objects), the || fallback then echoed the TAG OBJECT's sha and
+          # the comparison false-negatived: v13.3.1's first publish attempt
+          # was refused with "marker commit (924afeb...) != tag revision
+          # (d...)" even though the marker referenced exactly the tagged
+          # commit. For a lightweight tag, git/tags/{sha} 404s and the
+          # fallback keeps TAG_SHA (already the commit sha) - both forms
+          # compare correctly.
+          TAG_COMMIT=$(gh api "repos/${{ github.repository }}/git/tags/${TAG_SHA}" --jq '.object.sha' 2>/dev/null || echo "$TAG_SHA")
+          if [ "$M_COMMIT" != "$TAG_SHA" ] && [ "$M_COMMIT" != "$TAG_COMMIT" ]; then
+            echo "ERROR: marker commit ($M_COMMIT) != tag revision ($TAG_COMMIT via object $TAG_SHA) - the smoke ran on a DIFFERENT revision than the one being published - refusing (G8, #688-P6)"
             exit 1
           fi
           echo "OK: G8 binding verified (marker commit == tag revision: $M_COMMIT)"

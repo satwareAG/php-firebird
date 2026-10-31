@@ -30,7 +30,7 @@ fbird_close($db);
 
 ?>
 --EXPECTF--
-Warning: fbird_savepoint(): Invalid savepoint name (length must be 1-31 bytes) in %s on line %d
+Warning: fbird_savepoint(): Invalid savepoint name (length must be 1-%d bytes) in %s on line %d
 
 Warning: fbird_rollback_savepoint(): %s in %s on line %d
 Rollback failed as expected

@@ -1255,8 +1255,13 @@ PHP_FUNCTION(fbird_gen_id)
 		FBIRD_VALIDATE_LINK_EX(link, 3, fb_link);
 	}
 
-	if (gen_len > 31) {
-		_php_fbird_module_error("Invalid generator name (length > 31 characters)");
+#if defined(FB_API_VER) && FB_API_VER >= 40
+	int max_gen_len = 63; /* upstream METADATA_IDENTIFIER_CHAR_LEN on v4.0+ */
+#else
+	int max_gen_len = 31; /* v3.0.x */
+#endif
+	if (gen_len > max_gen_len) {
+		_php_fbird_module_error("Invalid generator name (length > %d characters)", max_gen_len);
 		RETURN_FALSE;
 	}
 
@@ -1355,8 +1360,13 @@ PHP_FUNCTION(fbird_last_insert_id)
 		RETURN_FALSE;
 	}
 
-	if (seq_len > 31) {
-		_php_fbird_module_error("Invalid sequence name (length > 31 characters)");
+#if defined(FB_API_VER) && FB_API_VER >= 40
+	int max_seq_len = 63; /* upstream METADATA_IDENTIFIER_CHAR_LEN on v4.0+ */
+#else
+	int max_seq_len = 31; /* v3.0.x */
+#endif
+	if (seq_len > max_seq_len) {
+		_php_fbird_module_error("Invalid sequence name (length > %d characters)", max_seq_len);
 		RETURN_FALSE;
 	}
 

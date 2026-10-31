@@ -4,3 +4,4 @@
 # Anything not listed here fails the delta gate (blanket success is forbidden;
 # the delta is the product).
 metadata_injection.phpt	FR-001 (#729): crafted/oversized relation names now fail with "Invalid table name" instead of being interpolated into RDB$ metadata SQL (breakout returned every relation before); see UPGRADING.md "v13.3.x -> Unreleased (#729)"
+drop_table_quoting.phpt	FR-002 (#730): unrepresentable names (comment suffix, injection shapes) now fail with "Invalid table name" instead of reaching the engine (comment-suffix form silently dropped the table before); see UPGRADING.md "v13.3.x -> Unreleased (#730)"

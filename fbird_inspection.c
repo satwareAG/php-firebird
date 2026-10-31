@@ -10,6 +10,8 @@
 #include "php_fbird_includes.h"
 
 #include "firebird_utils.h"
+#include "php_fbird_transaction.h"
+#include <ctype.h>
 
 /* =============================================================================
  * OO API Only Helper Functions for Inspection
@@ -202,7 +204,36 @@ static int _fbird_drop_table(fbird_db_link *link, fbird_transaction *trans, cons
 	}
 
 	/* Build DROP statement */
-	spprintf(&drop_sql, 0, "DROP TABLE %s", table_name);
+	/* FR-002 (#730): validate + quote the identifier per the driver's own
+	 * doctrine - no raw interpolation of caller input into the DROP statement. */
+	if (!is_valid_identifier(table_name, strlen(table_name))) {
+		_php_fbird_module_error(
+			"Invalid table name (contains invalid characters or is not a representable identifier)");
+		return FAILURE;
+	}
+
+	const char *prefix = "DROP TABLE ";
+	size_t prefix_len = strlen(prefix);
+	if (table_name[0] == '"') {
+		/* Valid quoted identifier: the caller-supplied string is already the
+		 * escaped SQL literal form (paired internal quotes validated above) -
+		 * emit verbatim. */
+		size_t len = strlen(table_name);
+		drop_sql = emalloc(prefix_len + len + 1);
+		memcpy(drop_sql, prefix, prefix_len);
+		memcpy(drop_sql + prefix_len, table_name, len + 1);
+	} else {
+		/* Unquoted identifier: fold to uppercase (the engine stores unquoted
+		 * identifiers uppercased) and emit unquoted - preserves the
+		 * doctrine-firebird-driver unquoted-lowercase call contract. */
+		size_t len = strlen(table_name);
+		drop_sql = emalloc(prefix_len + len + 1);
+		memcpy(drop_sql, prefix, prefix_len);
+		for (size_t i = 0; i < len; i++) {
+			drop_sql[prefix_len + i] = toupper((unsigned char) table_name[i]);
+		}
+		drop_sql[prefix_len + len] = '\0';
+	}
 
 	/* Prepare statement */
 	stmt = fbs_prepare(

@@ -11,7 +11,10 @@
 5. [Safe vs Unsafe Code Examples](#safe-vs-unsafe-code-examples)
 6. [Driver Comparison](#driver-comparison)
 7. [Best Practices Checklist](#best-practices-checklist)
-8. [Reporting Security Issues](#reporting-security-issues)
+8. [Transport Posture (Authentication & Wire Encryption)](#transport-posture-authentication--wire-encryption)
+9. [Privileged API Surface](#privileged-api-surface)
+10. [Identifier Handling Contract (v13.4)](#identifier-handling-contract-v134)
+11. [Reporting Security Issues](#reporting-security-issues)
 
 ---
 
@@ -467,6 +470,80 @@ const safe = Firebird.escape("O'Brien");  // Returns: "'O''Brien'"
 - [ ] Query logging enabled for security audits
 - [ ] Error messages sanitized (no SQL in output)
 - [ ] WAF/IDS rules for SQL injection patterns
+
+---
+
+## Transport Posture (Authentication & Wire Encryption)
+
+**Upstream-verified facts** (Firebird release tags: v3.0.14, v4.0.7, v5.0.4):
+
+- **Authentication**: FB3+ default auth chain is `Srp256`/`Srp` (plus optional
+  `Win_Sspi`/`Legacy_Auth`). Legacy `Legacy_Auth` is required only for old
+  clients and is commonly disabled on hardened servers - hardcoded
+  `SYSDBA`/`masterkey` credentials do not authenticate against default-configured
+  Firebird 3+ servers (SRP with installer-managed secrets). Since v13.4.0 the
+  extension does not carry any hardcoded-credential fallback: the
+  `fbird_drop_db()` string overload fails loudly when credentials are omitted
+  (#731), and the same contract is the recommended posture for every call site.
+- **Wire encryption**: the server-side `WireCrypt` default is **Required**
+  (v5.0.4 `src/common/config/config.cpp:615`), so DPB/SPB credentials are
+  wire-encrypted against default-configured servers. The extension sets no
+  wire-crypt overrides; relaxing `WireCrypt` on the server is out of the
+  driver's control and discouraged.
+- **Trusted authentication** is `Win_Sspi` and **Windows-only**. Do not
+  document or deploy an "omit user/password" connection posture as
+  cross-platform - on Linux the engine has no trusted-auth equivalent and the
+  attach fails.
+- **Local memory hygiene**: DPB/SPB credential staging buffers are wiped with
+  a compiler-resistant scrub immediately after their hand-off (success and
+  error paths, #736). Caller-owned PHP strings (zval/INI values) cannot be
+  scrubbed by the extension and remain documented residual exposure.
+
+## Privileged API Surface
+
+These functions grant server-admin power to any PHP script with the extension
+loaded. There is no INI/build-time gate for them in the v13.x series (council
+converged: document + least-privilege now; packaging gating is a v14 item):
+
+| Function | Power |
+|---|---|
+| `fbird_service_attach()` / `new Firebird\Service` | service manager access (backup, restore, maintenance, user admin) |
+| `fbird_backup()`, `fbird_restore()`, `fbird_maintain_db()`, `fbird_db_info()` | database lifecycle and server maintenance |
+| `fbird_add_user()`, `fbird_modify_user()`, `fbird_delete_user()` | security database user administration |
+| `fbird_kill_attachment()` | terminate other connections |
+| `fbird_drop_table_force()` | force-drop tables bypassing soft-fail paths |
+| `fbird_drop_db()` (string overload) | connect with explicit credentials and delete a database file |
+
+Guidance:
+
+- Run application database work under a **least-privilege account/role**; never
+  hand SYSDBA credentials to application code. Keep service-manager
+  credentials in configuration accessible only to the administrative paths
+  that need them.
+- For **shared PHP-FPM deployments**, the packaging recommendation is to
+  disable the privileged surface via `disable_functions` (and
+  `disable_classes` for `Firebird\Service`) in the pool's `php.ini`.
+- Per-connection credentials beat the INI defaults: `fbird.default_password`
+  is `PHP_INI_ALL` and readable by any script via `ini_get()` despite being
+  masked in `phpinfo()` output. Prefer explicit per-connection credentials
+  sourced from your application's secret store.
+
+## Identifier Handling Contract (v13.4)
+
+The sanctioned defense layers, in order of preference:
+
+1. **Parameterized values** - data never enters statement text (XSQLDA bind).
+2. **`fbird_escape_string()`** - string literals when preparation is not possible.
+3. **Identifier validation/quoting** - `is_valid_identifier()` validates the
+   identifier contract (unquoted `[A-Za-z0-9_$]`, or quoted `"..."` with
+   paired embedded quotes); `fbird_escape_identifier()` produces the escaped
+   SQL literal form. The v13.4 hardening applies this contract at every
+   caller-input surface: metadata helpers bind relation names as parameter
+   data and reject unrepresentable names (#729), DROP TABLE quotes/validates
+   identifiers (#730), savepoint/generator names are validated and
+   length-gated per engine generation - 31 bytes on Firebird 3.0 clients,
+   63 on 4.0+/5.0 (#732), and the `fbird_drop_db()` string overload requires
+   explicit credentials (#731).
 
 ---
 

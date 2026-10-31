@@ -510,8 +510,19 @@ static void _php_fbird_exec_savepoint(INTERNAL_FUNCTION_PARAMETERS, const char *
 		return;
 	}
 
-	if (name_len == 0 || name_len > 31) { // Max identifier length
-		_php_fbird_module_error("Invalid savepoint name (length must be 1-31 bytes)");
+#if defined(FB_API_VER) && FB_API_VER >= 40
+	int max_id_len = 63; /* upstream METADATA_IDENTIFIER_CHAR_LEN on v4.0+ (v5.0.4 constants.h:66) */
+#else
+	int max_id_len = 31; /* v3.0.x (constants.h:62) */
+#endif
+	if (name_len == 0 || name_len > (size_t) max_id_len) {
+		_php_fbird_module_error("Invalid savepoint name (length must be 1-%d bytes)", max_id_len);
+		RETURN_FALSE;
+	}
+	/* FR-006 (#732): reject names that cannot be represented as identifiers
+	 * before the statement is built - no raw interpolation of crafted names. */
+	if (!is_valid_identifier(name, name_len)) {
+		_php_fbird_module_error("Invalid savepoint name (contains invalid characters)");
 		RETURN_FALSE;
 	}
 

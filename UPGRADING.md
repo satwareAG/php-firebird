@@ -255,3 +255,18 @@ interpolate the caller-supplied table name raw into the statement.
 - Quoted identifiers ( `"Name"` with paired internal quotes ) are emitted as
   properly escaped quoted identifiers; case-sensitive relations can be
   targeted deliberately.
+
+## v13.3.x → Unreleased (#732): savepoint/generator identifier validation + 63-byte names on Firebird 4+
+
+Savepoint and generator/sequence names are now validated and length-gated to
+match the deployed engine generation (upstream `METADATA_IDENTIFIER_CHAR_LEN`).
+
+- **Tightening (breaking)**: names with characters that are invalid in
+  identifiers (spaces, quotes except a valid quoted form, operators) are now
+  rejected with `Invalid savepoint name (contains invalid characters)` /
+  `Invalid generator name (contains invalid characters)` instead of being
+  interpolated raw into the statement.
+- **Widening**: on Firebird 4.0+/5.0 client builds the length cap rises from
+  31 to 63 bytes; 32-63 byte identifiers that v13.3.x rejected are now
+  accepted. On Firebird 3.0 client builds the cap stays 31.
+- The exact-cap name is accepted, cap+1 rejected, verified per generation.

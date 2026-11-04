@@ -48,7 +48,16 @@ clean_test_artifacts() {
 
     if [ "$mode" = "archive" ]; then
         archive_dir="$root/artifacts/test-failures/$(date +%Y%m%d-%H%M%S)-$$"
-        mkdir -p "$archive_dir" 2>/dev/null || archive_dir=""
+        if ! mkdir -p "$archive_dir" 2>/dev/null; then
+            # Never fall back to deletion: archive requested but impossible
+            # (disk full, root-owned dir) -> leave evidence in place (#718).
+            log_warn "Could not create retention dir '$archive_dir' - leaving failure artifacts in place"
+            return 0
+        fi
+        # Per-origin subdirs: tests/ and tests/pdo_fbird/ can carry the same
+        # basename; a flat dir would let the second mv silently overwrite
+        # the first (evidence loss).
+        mkdir -p "$archive_dir/tests" "$archive_dir/tests/pdo_fbird" 2>/dev/null
     fi
 
     for dir in tests tests/pdo_fbird; do
@@ -60,7 +69,14 @@ clean_test_artifacts() {
                 2>/dev/null | wc -l) ))
             if [ -n "$archive_dir" ]; then
                 while IFS= read -r f; do
-                    mv "$f" "$archive_dir/" && archived=$((archived + 1))
+                    # Guarded mv: consumers run set -e; one unreadable file
+                    # (e.g. root-owned leftover from a root-run lane) must
+                    # not abort the whole matrix (#718 review).
+                    if mv "$f" "$archive_dir/$dir/"; then
+                        archived=$((archived + 1))
+                    else
+                        log_warn "Could not archive '$f' - leaving in place"
+                    fi
                 done < <(find "$root/$dir" \
                     \( -name '*.diff' -o -name '*.out' -o -name '*.exp' \
                        -o -name '*.log' -o -name '*.mem' \) \
@@ -81,7 +97,12 @@ clean_test_artifacts() {
                 2>/dev/null | wc -l) ))
             if [ -n "$archive_dir" ]; then
                 while IFS= read -r f; do
-                    mv "$f" "$archive_dir/" && archived=$((archived + 1))
+                    # Guarded mv: see pass 1 (#718 review).
+                    if mv "$f" "$archive_dir/$dir/"; then
+                        archived=$((archived + 1))
+                    else
+                        log_warn "Could not archive '$f' - leaving in place"
+                    fi
                 done < <(find "$root/$dir" -maxdepth 1 \
                     \( -name '*.php' -o -name '*.sh' \) \
                     -not -name 'common.inc' -not -name 'config.inc' \
@@ -102,7 +123,7 @@ clean_test_artifacts() {
     if [ "$archived" -gt 0 ]; then
         log_info "Archived $archived test failure artifact(s) to $archive_dir (#718 retention)"
     fi
-    if [ "$cleaned" -gt 0 ]; then
+    if [ "$mode" = "delete" ] && [ "$cleaned" -gt 0 ]; then
         log_warn "Cleaned $cleaned test artifact(s) from previous run"
     fi
 }

@@ -170,8 +170,11 @@ for CONTAINER in "${TARGETS[@]}"; do
     echo ""
     log_info ">> Testing Target: $CONTAINER"
 
-    # Clean test artifacts between container runs to prevent cross-contamination
-    clean_test_artifacts
+    # Clean test artifacts between container runs to prevent cross-contamination.
+    # Archive mode (#718): failure evidence (*.diff/*.out/...) is retained under
+    # artifacts/test-failures/ instead of deleted - run-tests only leaves those
+    # for FAILING tests, so deletion destroyed triage material mid-run.
+    clean_test_artifacts "$(pwd)" --archive
 
     # Clean orphaned processes + leftover DB files from previous container run
     clean_test_environment "$CONTAINER"
@@ -237,7 +240,8 @@ done
 # Final cleanup after all containers have run
 echo ""
 log_info ">> Final artifact cleanup"
-clean_test_artifacts
+# Archive mode (#718): keep failure evidence readable after the matrix ends.
+clean_test_artifacts "$(pwd)" --archive
 
 echo ""
 log_info "=== Test Matrix Summary ==="

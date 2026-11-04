@@ -32,7 +32,7 @@ PLATFORM_BRANCH="${AMICRON_PLATFORM_BRANCH:-3.x-next}"
 FIREBIRD_CONTAINER="${FIREBIRD_CONTAINER:-amicron-platform-firebird3}"
 DBHOST="${DBHOST:-127.0.0.1}"
 DBPORT="${DBPORT:-3053}"
-DBNAME="${DBNAME:-/var/lib/firebird/data/database.fdb}"
+DBNAME="${DBNAME:-/var/lib/firebird/data/test.fdb}"
 SKIP_PHPSTAN=false
 SKIP_PHPUNIT=false
 
@@ -154,29 +154,57 @@ section "Doctrine Schema Validation"
 # Platform consumes DB* env vars via satag/amicron-entity-bundle and
 # tests/bootstrap.php: DBHOST/DBPORT/DBNAME/DBUSER/DBPASSWORD. Defaults match
 # the amicron-platform compose topology (host-mapped port 3053). php-firebird
-# convention (DBPASS) feeds the platform's DBPASSWORD.
+# convention (DBPASS) feeds the platform's DBPASSWORD. FIREBIRD_CONTAINER is
+# forwarded so the bootstrap's container-side gbak restore path (#749) resolves
+# the same stack this script validated; DBNAME defaults to the dedicated test
+# DB (test.fdb, matching the platform's .env.test.local), never the live dev
+# database the platform worker holds 24/7.
+#
+# DBPASS must be the dedicated test DB password - read it from the platform
+# checkout's .env.test.local (DBPASSWORD). The compose-default masterkey does
+# NOT work against the dedicated test stack.
 if [[ -z "${DBPASS:-}" && -z "${DBPASSWORD:-}" ]]; then
-    fail "DBPASS not set - set to amicron test DB password (e.g. export DBPASS=masterkey)"
+    fail "DBPASS not set - set to the dedicated test DB password"
+    echo "  Read DBPASSWORD from the amicron-platform checkout's .env.test.local:"
+    echo "    DBPASS=\$(grep '^DBPASSWORD=' \$AMICRON_PLATFORM_DIR/.env.test.local | cut -d= -f2-)"
     exit 2
 fi
-export DBHOST DBPORT DBNAME
+export DBHOST DBPORT DBNAME FIREBIRD_CONTAINER
 export DBUSER="${DBUSER:-SYSDBA}"
 export DBPASSWORD="${DBPASSWORD:-$DBPASS}"
 
-if php bin/console doctrine:schema:validate --env=test 2>&1 | tail -5; then
-    pass "doctrine:schema:validate"
-else
-    fail "doctrine:schema:validate"
-fi
+# --- dedicated test DB: bring schema current before validating (#749) ---
+# The dedicated test DB starts as a fresh demo restore (the platform bootstrap
+# restores + migrates it inside the PHPUnit step). A demo backup is behind the
+# current mapping, so schema:validate only makes sense AFTER
+# doctrine:migrations:migrate. The former doctrine:migrations:diff step is
+# deliberately NOT run here: against a pre-migration restore it GENERATES a
+# migration file into the platform checkout (observed 2026-11-04: an
+# "Auto-generated" Version<timestamp> with SATAG_LOG creates, which then broke
+# the bootstrap's migrate with "Table SATAG_LOG already exists"). The same
+# mapping/migration drift is caught by validate-after-migrate, without
+# writing into the downstream checkout.
+if php bin/console dbal:run-sql 'SELECT 1 FROM RDB$DATABASE' --env=test >/dev/null 2>&1; then
+    if php bin/console doctrine:migrations:migrate --env=test --allow-no-migration --no-interaction 2>&1 | tail -5; then
+        pass "doctrine:migrations:migrate"
+    else
+        fail "doctrine:migrations:migrate"
+    fi
 
-# --- doctrine migrations diff ---
-section "Doctrine Migrations"
-
-if php bin/console doctrine:migrations:diff --env=test --allow-empty-diff --no-interaction 2>&1 | tail -5; then
-    pass "doctrine:migrations:diff"
+    if php bin/console doctrine:schema:validate --skip-sync --env=test 2>&1 | tail -5; then
+        pass "doctrine:schema:validate (mappings)"
+    else
+        fail "doctrine:schema:validate (mappings)"
+    fi
+    # Full DB-vs-mapping sync is informational here, not a gate: the dedicated
+    # test DB is a demo-seeded ERP restore whose legacy generators/constraint
+    # names (GEN_*, <table>_<col>_FK) no entity maps, so strict sync flags
+    # permanent false-positive drift (observed 2026-11-04, #749). The compat
+    # signal on this seed is migrations:migrate + the PHPUnit suite itself.
+    info "Full schema-sync check intentionally skipped (demo-seeded test DB; see #749)"
 else
-    # Migration diff may produce "No changes detected" which is a pass
-    info "doctrine:migrations:diff (may show 'no changes' which is OK)"
+    info "Test DB not reachable yet (first run) - the PHPUnit bootstrap will"
+    info "restore and migrate it; schema checks are covered there."
 fi
 
 # --- PHPStan ---

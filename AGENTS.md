@@ -271,7 +271,7 @@ correct pattern.
 2. **Verify CI parity**: `bash scripts/verify-ci-parity.sh` - local Docker client must match CI
 3. **Run local test matrix**: `bash scripts/test_matrix.sh` - all 12 containers must pass (PHP 8.2-8.5 x FB 3.0/4.0/5.0)
    - **3.5 Run tag-gate delta (#680)**: `bash scripts/test-delta.sh <previous-release-tag> "tests/issue671* tests/issue682*" php84-fb3-dev` - build the previous release tag in a disposable worktree, run the CURRENT wire-behavior oracle suite against it, and ADJUDICATE every behavior delta with a `scripts/delta-allowlist.txt` entry (reason + CHANGELOG/UPGRADING reference). Unadjudicated deltas fail the gate; the negative control is `bash scripts/gates/issue-680-delta-negative-control.sh` (seeds the #671 regression into the previous tag and requires the delta run to catch it).
-4. **Run amicron-platform downstream**: `AMICRON_PLATFORM_DIR=<local private checkout> DBPASS=masterkey bash scripts/test-amicron-platform.sh` - verify customer stack (checkout paths are environment-specific; this public repo never records internal filesystem paths)
+4. **Run amicron-platform downstream**: `AMICRON_PLATFORM_DIR=<local private checkout> DBPASS=<dedicated test DB password> bash scripts/test-amicron-platform.sh` - verify customer stack (checkout paths are environment-specific; this public repo never records internal filesystem paths). The test DB password is the platform checkout's `.env.test.local` `DBPASSWORD` - the compose-default masterkey does not work against the dedicated test stack (#749)
 5. **Verify version stamps**: `bash scripts/check-version-stamps.sh`
 6. **Update CHANGELOG.md** with release notes
 7. **Bump version**: Update `VERSION.txt` and `stubs/*.php` `@version` tags

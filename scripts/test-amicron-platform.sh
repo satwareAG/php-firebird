@@ -181,10 +181,18 @@ export DBPASSWORD="${DBPASSWORD:-$DBPASS}"
 # deliberately NOT run here: against a pre-migration restore it GENERATES a
 # migration file into the platform checkout (observed 2026-11-04: an
 # "Auto-generated" Version<timestamp> with SATAG_LOG creates, which then broke
-# the bootstrap's migrate with "Table SATAG_LOG already exists"). The same
-# mapping/migration drift is caught by validate-after-migrate, without
-# writing into the downstream checkout.
-if php bin/console dbal:run-sql 'SELECT 1 FROM RDB$DATABASE' --env=test >/dev/null 2>&1; then
+# the bootstrap's migrate with "Table SATAG_LOG already exists").
+#
+# Drift-signal note (review 2026-11-04): dropping the diff step also dropped
+# the mapping<->schema drift signal. migrate only applies PENDING migrations
+# and validate --skip-sync checks mapping-file validity only, so an entity
+# change without a migration is invisible to both and surfaces only as
+# PHPUnit runtime failures. The read-only dump-sql count below makes the
+# drift VISIBLE again without gating on it: on the demo-seeded ERP backup
+# the raw count is permanent noise (legacy GEN_* generators and unmapped
+# FK constraint names), so a threshold would be arbitrary - it is reported
+# for eyeballing across runs.
+if PROBE_ERR=$(php bin/console dbal:run-sql 'SELECT 1 FROM RDB$DATABASE' --env=test 2>&1 >/dev/null); then
     if php bin/console doctrine:migrations:migrate --env=test --allow-no-migration --no-interaction 2>&1 | tail -5; then
         pass "doctrine:migrations:migrate"
     else
@@ -196,6 +204,9 @@ if php bin/console dbal:run-sql 'SELECT 1 FROM RDB$DATABASE' --env=test >/dev/nu
     else
         fail "doctrine:schema:validate (mappings)"
     fi
+
+    DRIFT=$(php bin/console doctrine:schema:update --dump-sql --env=test 2>/dev/null | grep -c ';' || true)
+    info "Schema drift vs mapping: ${DRIFT:-?} statement(s) (informational; demo-seeded DB noise expected - see comment above)"
     # Full DB-vs-mapping sync is informational here, not a gate: the dedicated
     # test DB is a demo-seeded ERP restore whose legacy generators/constraint
     # names (GEN_*, <table>_<col>_FK) no entity maps, so strict sync flags
@@ -203,8 +214,8 @@ if php bin/console dbal:run-sql 'SELECT 1 FROM RDB$DATABASE' --env=test >/dev/nu
     # signal on this seed is migrations:migrate + the PHPUnit suite itself.
     info "Full schema-sync check intentionally skipped (demo-seeded test DB; see #749)"
 else
-    info "Test DB not reachable yet (first run) - the PHPUnit bootstrap will"
-    info "restore and migrate it; schema checks are covered there."
+    info "Test DB not reachable yet ($(printf '%s' "$PROBE_ERR" | sed -e 's/\x1b\[[0-9;]*m//g' | sed -n '1,2p' | tr '\n' ' '))"
+    info "The PHPUnit bootstrap will restore and migrate it; schema checks are covered there."
 fi
 
 # --- PHPStan ---

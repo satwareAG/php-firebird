@@ -73,6 +73,8 @@ php_test_results_*.txt
 
 # Test artifacts (top-level and subdirectories)
 tests/*.diff
+# Test failure retention (#718): matrix archive mode moves failure evidence here
+artifacts/
 tests/*.exp
 tests/*.log
 tests/*.out

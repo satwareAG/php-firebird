@@ -228,6 +228,13 @@ not reproduce), re-run that lane in isolation with a clean rebuild before
 diagnosing code: a stale in-container `.so` from a previous lane's build can
 produce wrong-cause failures (seen on php85-fb3-dev, 2026-10-29).
 
+Failure artifacts are RETAINED, not deleted (#718): `clean_test_artifacts`
+`--archive` mode (used between lanes and at final cleanup) moves
+`*.diff/*.out/*.exp/*.log/*.mem` + generated `*.php/*.sh` to
+`artifacts/test-failures/<run-id>/` (gitignored); plain delete mode remains for
+stale-at-start cleanup in `scripts/test.sh`. Prune retention dirs manually once
+triaged.
+
 ### Issue filing: environment specs are mandatory (#673)
 
 Bug reports use `.github/ISSUE_TEMPLATE/bug_report.yml`; the five environment

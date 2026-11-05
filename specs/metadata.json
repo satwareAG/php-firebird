@@ -7,6 +7,7 @@
   "forge": "github",
   "visibility": "public",
   "conformance_level": "L3",
+  "fork_version": "satware-v1.3.0+1",
   "local_path": "~/external/php-firebird",
   "ipadp": {
     "project_number": 1,
@@ -48,8 +49,8 @@
         "url": "https://github.com/satwareAG/spec-kit",
         "channel": "gh:issues",
         "local_path": "~/external/spec-kit",
-        "last_synced_tag": "satware-v1.2.3+1",
-        "sync_state": "baseline recorded 2026-10-29 (#670): validated checkout satwareAG/spec-kit @ 7abe12a8 (2026-10-29, ahead of satware-v1.2.3+1), ipadp metadata validator PASS (0 errors, 0 warnings); .specify/ templates (spec/plan/tasks) present and are the active sync vehicle for feature specs; milestone specs in specs/ use an evolved frontmatter format (description/tags/priority) - template-shape conformance applies to feature specs via .specify/, not retroactively to milestone specs. Full template-content conformance audit still open (council 2026-10-25 rule: never certify an unvalidated sync)."
+        "last_synced_tag": "satware-v1.3.0+1",
+        "sync_state": "baseline re-validated 2026-11-05 (SOD #755; supersedes baseline #670, 2026-10-29 @ 7abe12a8): fork tip satware-v1.3.0+1 (cc36c6d1, upstream v1.3.0 synced into the fork 2026-11-04 via PR #185), ipadp metadata structural gate PASS. BEHAVIORAL DELTA FOUND: templates/spec-template.md now mandates an Abuse & Misuse Cases section (three negative-scenario categories, AMR-case format, OWASP A04:2021 cross-ref, explicit-override rule; upstream #151 family + spec-composition fix #5187) - port tracked in #757; local .specify/templates/spec-template.md keeps the evolved satware shape (Issue/Intent/Goals) until the port lands, template-shape conformance for feature specs via .specify/ unchanged; milestone specs in specs/ use an evolved frontmatter format (description/tags/priority) - not retroactively affected. Non-behavioral for this repo: taskstoissues removal (never consumed), fork-metadata privacy migration (our downstream entries already redacted-by-design). Full template-content conformance audit still open (council 2026-10-25 rule: never certify an unvalidated sync)."
       },
       {
         "repo": "FirebirdSQL/firebird",
@@ -66,41 +67,9 @@
         "local_path": "~/external/php-src"
       }
     ],
-    "downstream": [
-      {
-        "repo": "satwareAG/doctrine-firebird-driver",
-        "forge": "github",
-        "relationship": "primary DBAL consumer of the fbird_* procedural layer and Firebird\\ OOP classes",
-        "url": "https://github.com/satwareAG/doctrine-firebird-driver",
-        "channel": "gh:issues",
-        "local_path": "~/external/doctrine-firebird-driver"
-      },
-      {
-        "repo": "satwareAG/php-firebird-stubs",
-        "forge": "github",
-        "relationship": "split stubs package: consumer-facing PHP signature surface, generated from stubs/ by the Split Packages job of this repo's release pipeline (tag-synced)",
-        "url": "https://github.com/satwareAG/php-firebird-stubs",
-        "channel": "gh:issues"
-      },
-      {
-        "repo": "satwareAG/pdo-fbird",
-        "forge": "github",
-        "relationship": "PIE split package: pdo_fbird/ subdirectory (fbird: DSN prefix driver) split out by this repo's release pipeline (tag-synced)",
-        "url": "https://github.com/satwareAG/pdo-fbird",
-        "channel": "gh:issues"
-      },
-      {
-        "repo": "_private_downstream (name redacted)",
-        "forge": "gitlab",
-        "relationship": "Symfony entity layer consuming the extension (private repo; identity redacted per IPADP privacy boundary)"
-      },
-      {
-        "repo": "_private_linux_package_channel (name redacted)",
-        "forge": "gitlab",
-        "relationship": "publishes signed native .deb/.rpm/.apk packages built from php-firebird GitHub release assets to packages.auc.de (staging) and packages.satware.com (production); its staging host is the Tier B verification target exercised by .github/workflows/packages-linux.yml. Operating repos are internal and deliberately unnamed here (public-to-private link forbidden); coordination via public GitHub issues on this repo",
-        "channel": "gh:issues"
-      }
-    ]
+    "downstream": {
+      "note": "Typed fan-out withheld from this public copy per the IPADP privacy-boundary shape rule adopted with spec-kit satware-v1.3.0+1 (fork #168-class; sync 2026-11-05, #755). Public downstream consumers (public information, verifiable in this repo's own release pipeline and AGENTS.md): satwareAG/doctrine-firebird-driver (primary DBAL consumer), satwareAG/php-firebird-stubs (split stubs package), satwareAG/pdo-fbird (PIE split package) - all tag-synced by this repo's Split Packages job. Private downstream consumers (identities withheld, unchanged from the prior redacted entries): a Symfony entity layer consuming the extension, and the linux package channel publishing signed native packages to packages.auc.de (staging) / packages.satware.com (production). Coordination for both stays via public GitHub issues on this repo."
+    }
   },
   "privacy": {
     "public_to_private_links": [],

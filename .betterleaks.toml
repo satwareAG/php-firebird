@@ -1,0 +1,88 @@
+# betterleaks configuration for php-firebird
+#
+# Scanner: betterleaks 1.9.0 (harness-required secret scanner, no gitleaks
+# fallback). betterleaks 1.9.0 auto-detects this file when `dir` mode runs
+# with the repo root as source; keep the explicit `--config .betterleaks.toml`
+# form in scripted gates for determinism.
+#
+# CRITICAL: this config MUST keep [extend] useDefault = true.
+# betterleaks (like gitleaks) treats a config without rules as "scan
+# nothing" - an allowlist-only config silently disables the scan entirely
+# (blind-gate incident class, harness #1032).
+#
+# Syntax note (#1546): betterleaks 1.9.0 REJECTS the gitleaks 8.19+ nested
+# `[[rules.allowlist]]` array table (FTL: cannot decode TOML array table
+# into config.rawRule.AllowList, detect exits 1 - fail-closed, never a
+# silent blind gate). The supported shape is the singular top-level
+# `[allowlist]` table below; keep it when porting gitleaks configs.
+
+[extend]
+  useDefault = true
+
+[allowlist]
+  description = "php-firebird: public Firebird default credential (masterkey/SYSDBA) fixtures"
+
+  paths = [
+    # Every entry below was verified line-by-line on 2026-11-05: the flagged
+    # literal is the PUBLIC Firebird default credential (`masterkey`) that
+    # this project must carry by nature of its domain - test fixtures,
+    # CI service-container env, and documented default-parameter examples.
+    # A genuine secret never belongs in these exact paths; anything new in
+    # them is a finding worth a human look (file-level, so new lines in the
+    # same files stay covered by the same verified rationale).
+
+    # Test fixture default credential for the local Docker Firebird server
+    '''(?:^|/)tests/config\.inc$''',
+    # INI-default assertion tests: they must assert the literal shipped
+    # default (fbird.default_password=masterkey) to catch accidental
+    # default changes - removing the literal would weaken the test
+    '''(?:^|/)tests/fbird_ini_defaults\.phpt$''',
+    '''(?:^|/)tests/fbird_service_ini_defaults\.phpt$''',
+
+    # CI Firebird service containers need the well-known default credential
+    # to boot the server the suite runs against
+    '''(?:^|/)\.github/workflows/sanitizers\.yml$''',
+    '''(?:^|/)\.github/workflows/windows-smoke\.yml$''',
+
+    # Documented default-parameter examples in the API surface
+    # (params.password = "masterkey" docblocks)
+    '''(?:^|/)src/cpp/fb_connection\.hpp$''',
+    '''(?:^|/)stubs/firebird-classes\.php$''',
+
+    # Bundle verification test env (FB_PASSWORD="masterkey" against local
+    # Docker)
+    '''(?:^|/)scripts/verify-bundle\.sh$''',
+
+    # Gitignored local coverage build tree (.gitignore:132): gcov HTML
+    # artifacts are generated output, uncommittable by design - the commit
+    # boundary for this path is git's ignore rule, not this scan (harness
+    # var/.venv precedent). Scanned files under it read as secret-shaped
+    # (generic-password on a gcov HTML fragment, 2026-11-05).
+    '''(?:^|/)coverage/''',
+  ]
+
+  regexes = [
+    # The public Firebird default credential itself (#754): every
+    # generic-password finding on the EOD scan surface whose extracted
+    # secret is the bare word "masterkey" is the shipped default, not a
+    # leak - verified 2026-11-05 across all 27 single-batch phase-B
+    # findings (CI service containers, docker compose, docs examples,
+    # test fixtures; the same class as the nine path entries above, which
+    # the 2026-11-04 issue listed from an under-reporting multi-batch
+    # scan). Anchored: a longer real secret ("masterkey-prod-...") does
+    # NOT match and still flags. Runtime-proved by the canary pair in
+    # scripts/gates/issue754-betterleaks-canary.sh.
+    '^masterkey$',
+  ]
+
+# AWS access-key-id rule (gitleaks parity): betterleaks 1.9.0's default
+# ruleset misses pattern-valid 20-char AWS key ids entirely (probed
+# 2026-11-05: AKIA + 16 alnum exits 0 with default rules in dir and
+# detect modes). Copied from the harness config until upstream closes
+# the gap. Verified live by the planted-AKIA canary in
+# scripts/gates/issue754-betterleaks-canary.sh.
+[[rules]]
+  id = "aws-access-key-id"
+  description = "AWS access key id (gitleaks parity)"
+  regex = '''(?:A3T[A-Z0-9]|AKIA|ASIA|ABIA|ACCA)[A-Z0-9]{16}'''
+  keywords = ["AKIA", "ASIA", "ABIA", "ACCA"]

@@ -1,0 +1,62 @@
+name: Release Lane Replay (P4)
+
+# Mechanical pool-weather replay for the release lanes (#725): replaces the
+# manual `gh run rerun --failed` the v13.3.1 train paid ~3h for. The
+# classifier owns the decision (closed enum, #688): pool cancellations
+# replay once at the run's own SHA, genuine red refuses. Every pass
+# waiver-logs to scripts/ci-weather-waivers.log.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Run id to classify and (if pool weather) replay'
+        required: true
+        type: string
+      lane:
+        description: 'Lane label for the waiver log (e.g. release-macos.yml)'
+        required: false
+        default: 'release'
+        type: string
+
+permissions:
+  contents: read
+  actions: write # gh run rerun --failed on the dispatched run only
+
+concurrency:
+  group: release-replay-${{ github.event.inputs.run_id }}
+  cancel-in-progress: false
+  # NOTE (#725 review): two dispatches for the same run_id QUEUE, not cancel -
+  # if the first replay pool-cancels again, a queued duplicate can replay a
+  # second time. The waiver log keeps replays countable either way; do not
+  # double-dispatch the same run.
+
+jobs:
+  replay:
+    name: Classify + replay ${{ github.event.inputs.run_id }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40 # rerun wait bound is CI_GREEN_RERUN_TIMEOUT (1500s) by default
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Classify and replay
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_GREEN_RERUN_TIMEOUT: 1500
+          # Dispatch inputs reach the script as env vars, never as ${{ }}
+          # interpolation into run: (untrusted-input hardening, #725 review;
+          # run_id is additionally validated numeric inside the script).
+          REPLAY_RUN_ID: ${{ github.event.inputs.run_id }}
+          REPLAY_LANE: ${{ github.event.inputs.lane }}
+        run: |
+          bash scripts/release-replay.sh "$REPLAY_RUN_ID" "${REPLAY_LANE:-release}"
+
+      - name: Upload waiver log (persist across runner teardown)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ci-weather-waivers-${{ github.event.inputs.run_id }}
+          path: scripts/ci-weather-waivers.log
+          if-no-files-found: ignore

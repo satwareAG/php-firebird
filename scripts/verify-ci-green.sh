@@ -31,6 +31,7 @@
 set -euo pipefail
 
 source "$(dirname "$0")/lib/logging.sh"
+source "$(dirname "$0")/lib/weather-replay.sh"
 
 BRANCH="${1:-main}"
 REQUIRED_WORKFLOWS=("ci.yml" "code-quality.yml" "sanitizers.yml" "coverage.yml")
@@ -41,29 +42,20 @@ RERUN_TIMEOUT="${CI_GREEN_RERUN_TIMEOUT:-1500}"
 
 # True when the run's failure is the #663 queue-starvation signature:
 # every non-success job was cancelled while queued (zero steps executed).
+# Verdict logic lives in lib/weather-replay.sh (shared with the release
+# lanes, #725) - the gh fetch stays here, the enum is implemented once.
 is_queue_starvation() {
-    local run_id="$1" verdict
-    verdict=$(gh run view "$run_id" --json jobs --jq '
-        [.jobs[] |
-         select(.conclusion != "success" and .conclusion != "skipped"
-                and .conclusion != "neutral" and .conclusion != null)] as $bad
-        | ($bad | length) > 0
-        and all($bad[]; .conclusion == "cancelled"
-                and ([.steps[]? | select(.conclusion != null)] | length) == 0)' 2>/dev/null)
-    [ "$verdict" = "true" ]
+    local run_id="$1" shape
+    shape=$(gh run view "$run_id" --json conclusion,jobs 2>/dev/null | weather_classify)
+    [ "$shape" = "queue-starvation" ]
 }
 
 # P4 weather enum, shape 2 (#688): the WHOLE run was cancelled before any
-# job executed (runner allocation failure / GitHub 5xx) - conclusion is
-# "cancelled" and every job is cancelled with zero steps executed.
+# job executed (runner allocation failure / GitHub 5xx).
 is_run_cancelled() {
-    local run_id="$1" verdict
-    verdict=$(gh run view "$run_id" --json conclusion,jobs --jq '
-        (.conclusion == "cancelled")
-        and ((.jobs | length) == 0
-             or all(.jobs[]; .conclusion == "cancelled"
-                    and ([.steps[]? | select(.conclusion != null)] | length) == 0))' 2>/dev/null)
-    [ "$verdict" = "true" ]
+    local run_id="$1" shape
+    shape=$(gh run view "$run_id" --json conclusion,jobs 2>/dev/null | weather_classify)
+    [ "$shape" = "whole-run-cancelled" ]
 }
 
 # P4 weather-waiver log (#688): every weather replay pass is appended here -

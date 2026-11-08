@@ -23,41 +23,25 @@
   description = "php-firebird: public Firebird default credential (masterkey/SYSDBA) fixtures"
 
   paths = [
-    # Every entry below was verified line-by-line on 2026-11-05: the flagged
-    # literal is the PUBLIC Firebird default credential (`masterkey`) that
-    # this project must carry by nature of its domain - test fixtures,
-    # CI service-container env, and documented default-parameter examples.
-    # A genuine secret never belongs in these exact paths; anything new in
-    # them is a finding worth a human look (file-level, so new lines in the
-    # same files stay covered by the same verified rationale).
-
-    # Test fixture default credential for the local Docker Firebird server
-    '''(?:^|/)tests/config\.inc$''',
-    # INI-default assertion tests: they must assert the literal shipped
-    # default (fbird.default_password=masterkey) to catch accidental
-    # default changes - removing the literal would weaken the test
-    '''(?:^|/)tests/fbird_ini_defaults\.phpt$''',
-    '''(?:^|/)tests/fbird_service_ini_defaults\.phpt$''',
-
-    # CI Firebird service containers need the well-known default credential
-    # to boot the server the suite runs against
-    '''(?:^|/)\.github/workflows/sanitizers\.yml$''',
-    '''(?:^|/)\.github/workflows/windows-smoke\.yml$''',
-
-    # Documented default-parameter examples in the API surface
-    # (params.password = "masterkey" docblocks)
-    '''(?:^|/)src/cpp/fb_connection\.hpp$''',
-    '''(?:^|/)stubs/firebird-classes\.php$''',
-
-    # Bundle verification test env (FB_PASSWORD="masterkey" against local
-    # Docker)
-    '''(?:^|/)scripts/verify-bundle\.sh$''',
-
-    # Gitignored local coverage build tree (.gitignore:132): gcov HTML
-    # artifacts are generated output, uncommittable by design - the commit
-    # boundary for this path is git's ignore rule, not this scan (harness
-    # var/.venv precedent). Scanned files under it read as secret-shaped
-    # (generic-password on a gcov HTML fragment, 2026-11-05).
+    # Content-only suppression (#759, tightened 2026-11-08): the only path
+    # entry left is the gitignored local coverage build tree
+    # (.gitignore:132) - gcov HTML artifacts are generated output,
+    # uncommittable by design; the commit boundary for that path is git's
+    # ignore rule, not this scan (harness var/.venv precedent). Scanned
+    # files under it read as secret-shaped (generic-password on a gcov
+    # HTML fragment, 2026-11-05).
+    #
+    # The former eight per-path exemptions (tests/config.inc,
+    # tests/fbird_ini_defaults.phpt, tests/fbird_service_ini_defaults.phpt,
+    # .github/workflows/sanitizers.yml, .github/workflows/windows-smoke.yml,
+    # src/cpp/fb_connection.hpp, stubs/firebird-classes.php,
+    # scripts/verify-bundle.sh) were dropped (#759): the single-batch
+    # evidence from 2026-11-05 (27/27 findings, all literal `masterkey`)
+    # is covered by the anchored content entry below, and a genuine secret
+    # planted in any of those files now FLAGS instead of being hidden by a
+    # file-level exemption. Runtime-proved by
+    # scripts/gates/issue754-betterleaks-canary.sh (non-masterkey canaries
+    # under every formerly-exempt path must flag).
     '''(?:^|/)coverage/''',
   ]
 

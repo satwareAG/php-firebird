@@ -12,15 +12,21 @@
 #      a) planted digit-bearing AKIA-style id FLAGS via the aws-access-key-id
 #         parity rule (1.9.0 default ruleset is digit-blind on AKIA ids)
 #      b) canary secret in a NON-allowlisted path FLAGS (default rules)
-#      c) the same canary content under an allowlisted relative path does
-#         NOT flag (proves the allowlist suppresses, not the absence of
-#         secrets)
+#      c) non-masterkey canary under EVERY formerly-exempt relative path
+#         FLAGS (#759 tightened semantics: content-only suppression means a
+#         genuine secret in those files is visible again)
+#      d) masterkey canary under a formerly-exempt mirror path does NOT
+#         flag (proves the ^masterkey$ content rule suppresses what the
+#         dropped path entries used to)
 #
 # Success-only marker: prints "issue754 betterleaks canary gate: PASS" and
 # exits 0 ONLY when all checks pass; exits 1 with a FAIL line otherwise.
 #
 # RED shape (pre-config): check 3c fails (canary under allowlisted relative
 # path flags, exit 1) and check 2 fails with findings.
+# Tightened RED shape (#759): under the OLD per-path config, check 3c fails
+# (canary suppressed) and check 3d trivially passes - the flip of 3c is the
+# tightened-semantics proof.
 # Requires: betterleaks in PATH.
 # =============================================================================
 set -uo pipefail
@@ -83,13 +89,29 @@ betterleaks dir --no-banner --config "$CONFIG" --report-format json \
 RC=$?
 [ "$RC" -ne 0 ] || fail "canary secret in a non-allowlisted path did NOT flag - scan is blind"
 
-# --- check 3c: same content under an allowlisted path is SUPPRESSED ---------
-mkdir -p "$TMP/mirror/tests"
+# --- check 3c (#759 tightened): non-masterkey canary under every formerly-
+# --- exempt relative path FLAGS ----------------------------------------------
+FORMERLY_EXEMPT=(tests/config.inc tests/fbird_ini_defaults.phpt tests/fbird_service_ini_defaults.phpt .github/workflows/sanitizers.yml .github/workflows/windows-smoke.yml src/cpp/fb_connection.hpp stubs/firebird-classes.php scripts/verify-bundle.sh)
+mkdir -p "$TMP/mirror"
+for f in "${FORMERLY_EXEMPT[@]}"; do
+    mkdir -p "$TMP/mirror/$(dirname "$f")"
+    # shellcheck disable=SC2016  # $password must stay literal: canary content
+    printf '$password = "%s";\n' "${P1}${P2}" > "$TMP/mirror/$f"
+    betterleaks dir --no-banner --config "$CONFIG" --report-format json \
+        --report-path "$TMP/mirror.json" -- "$TMP/mirror/$f" >/dev/null 2>&1
+    RC=$?
+    [ "$RC" -ne 0 ] || fail "non-masterkey canary under formerly-exempt path ($f) did NOT flag - a per-path exemption is still hiding real secrets (#759 not applied?)"
+done
+
+# --- check 3d (#759): masterkey canary under a formerly-exempt mirror path ---
+# --- does NOT flag (content rule suppresses what the dropped paths used to) --
+MK1='master'
+MK2='key'
 # shellcheck disable=SC2016  # $password must stay literal: canary content
-printf '$password = "%s";\n' "${P1}${P2}" > "$TMP/mirror/tests/config.inc"
+printf '$password = "%s";\n' "${MK1}${MK2}" > "$TMP/mirror/tests/config.inc"
 betterleaks dir --no-banner --config "$CONFIG" --report-format json \
-    --report-path "$TMP/mirror.json" -- "$TMP/mirror/tests/config.inc" >/dev/null 2>&1
+    --report-path "$TMP/mk.json" -- "$TMP/mirror/tests/config.inc" >/dev/null 2>&1
 RC=$?
-[ "$RC" -eq 0 ] || fail "canary under allowlisted relative path (tests/config.inc) still flags - allowlist path patterns broken"
+[ "$RC" -eq 0 ] || fail "masterkey canary under formerly-exempt path still flags - the ^masterkey$ content rule lost the #754 suppression"
 
 echo "issue754 betterleaks canary gate: PASS"

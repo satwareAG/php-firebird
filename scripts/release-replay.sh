@@ -39,6 +39,12 @@ usage() {
 RUN_ID="$1"
 LANE="${2:-release}"
 
+# run_id comes from workflow_dispatch input (untrusted, #725 review): numeric
+# only - it goes into gh invocations and the waiver log, nothing else.
+case "$RUN_ID" in
+    ''|*[!0-9]*) usage ;;
+esac
+
 command -v gh >/dev/null 2>&1 || { echo "gh not in PATH" >&2; exit 2; }
 command -v jq >/dev/null 2>&1 || { echo "jq not in PATH" >&2; exit 2; }
 
@@ -66,9 +72,13 @@ RERUN_ERR=$(gh run rerun --failed "$RUN_ID" 2>&1) || {
 
 # Wait for the rerun attempt to start (pre-rerun state still reads
 # status=completed for a while), then for it to finish - both inside the
-# bounded budget (same discipline as verify-ci-green.sh, #663).
+# bounded budget (same discipline as verify-ci-green.sh, #663). The start
+# loop is budget-driven (WHILE, not a fixed iteration count) so the
+# RERUN_TIMEOUT branch is actually reachable - the original seq 1 24 shape
+# capped the start window at ~120s and made the timeout dead code
+# (#725 review finding).
 WAITED=0
-for _ in $(seq 1 24); do
+while true; do
     STATUS=$(gh run view "$RUN_ID" --json status --jq '.status' 2>/dev/null || echo "")
     [ "$STATUS" != "completed" ] && break
     WAITED=$((WAITED + 5))
@@ -95,6 +105,14 @@ done
 if [ "$CONCLUSION" = "success" ]; then
     log_pass "run ${RUN_ID} (${LANE}): success (weather replay, ${SHAPE})"
     weather_waiver_log "release-replay(${LANE})" "$RUN_ID" "$SHAPE"
+    # CI dispatch note (#725 review): the repo checkout on the runner is
+    # ephemeral - the waiver file above would be lost at teardown. Mirror the
+    # entry into the step summary; release-replay.yml additionally uploads
+    # scripts/ci-weather-waivers.log as an artifact.
+    if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+        printf '%s | %s | run %s | shape: %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+            "release-replay(${LANE})" "$RUN_ID" "$SHAPE" >> "${GITHUB_STEP_SUMMARY}"
+    fi
     exit 0
 fi
 

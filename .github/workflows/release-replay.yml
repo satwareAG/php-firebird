@@ -26,6 +26,10 @@ permissions:
 concurrency:
   group: release-replay-${{ github.event.inputs.run_id }}
   cancel-in-progress: false
+  # NOTE (#725 review): two dispatches for the same run_id QUEUE, not cancel -
+  # if the first replay pool-cancels again, a queued duplicate can replay a
+  # second time. The waiver log keeps replays countable either way; do not
+  # double-dispatch the same run.
 
 jobs:
   replay:
@@ -41,7 +45,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CI_GREEN_RERUN_TIMEOUT: 1500
+          # Dispatch inputs reach the script as env vars, never as ${{ }}
+          # interpolation into run: (untrusted-input hardening, #725 review;
+          # run_id is additionally validated numeric inside the script).
+          REPLAY_RUN_ID: ${{ github.event.inputs.run_id }}
+          REPLAY_LANE: ${{ github.event.inputs.lane }}
         run: |
-          bash scripts/release-replay.sh \
-            "${{ github.event.inputs.run_id }}" \
-            "${{ github.event.inputs.lane }}"
+          bash scripts/release-replay.sh "$REPLAY_RUN_ID" "${REPLAY_LANE:-release}"
+
+      - name: Upload waiver log (persist across runner teardown)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ci-weather-waivers-${{ github.event.inputs.run_id }}
+          path: scripts/ci-weather-waivers.log
+          if-no-files-found: ignore

@@ -137,13 +137,18 @@ Rules:
 - `docker/docker-compose.yml` has 12 PHP containers (8.2-8.5 x FB3/FB4/FB5 client).
 - `scripts/test_matrix.sh` runs tests across all 12 containers.
 - `scripts/verify-ci-parity.sh` checks that local Docker client matches CI client.
-- Secret scanning: `.betterleaks.toml` (betterleaks 1.9.0) allowlists the
-  public Firebird default credential (`masterkey`, exact-match only) and the
-  test/CI/docs files that carry it (#754). The canary oracle is
+- Secret scanning: `.betterleaks.toml` (betterleaks 1.9.0) suppresses the
+  public Firebird default credential content-only (`^masterkey$`, anchored,
+  exact-match - a longer real secret never matches, #754) and keeps exactly
+  one path entry: the gitignored `coverage/` tree. Per-path exemptions for
+  the eight fixture/CI/API files were dropped in #759 - a genuine secret
+  planted in any of them FLAGS. The canary oracle is
   `scripts/gates/issue754-betterleaks-canary.sh` - run it after ANY scanner
-  config change: it fails the config if the allowlist widens (allowlisted
-  canary suppressed), the AWS parity rule dies, or a non-allowlisted canary
-  goes unnoticed. Scan surface note: raw `betterleaks dir .` sweeps gitignored
+  config change: it fails the config if a per-path exemption returns or the
+  allowlist widens (non-masterkey canaries under every formerly-exempt path
+  must flag; the masterkey canary must stay suppressed via the content
+  rule), the AWS parity rule dies, or a non-allowlisted canary goes
+  unnoticed. Scan surface note: raw `betterleaks dir .` sweeps gitignored
   trees (`doctrine-firebird-driver/` nested checkout, `coverage/`) that the
   EOD phase-B form (`git ls-files | xargs betterleaks dir --`) never scans -
   judge scan results against the phase-B surface.

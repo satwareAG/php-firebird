@@ -1,0 +1,47 @@
+name: Release Lane Replay (P4)
+
+# Mechanical pool-weather replay for the release lanes (#725): replaces the
+# manual `gh run rerun --failed` the v13.3.1 train paid ~3h for. The
+# classifier owns the decision (closed enum, #688): pool cancellations
+# replay once at the run's own SHA, genuine red refuses. Every pass
+# waiver-logs to scripts/ci-weather-waivers.log.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Run id to classify and (if pool weather) replay'
+        required: true
+        type: string
+      lane:
+        description: 'Lane label for the waiver log (e.g. release-macos.yml)'
+        required: false
+        default: 'release'
+        type: string
+
+permissions:
+  contents: read
+  actions: write # gh run rerun --failed on the dispatched run only
+
+concurrency:
+  group: release-replay-${{ github.event.inputs.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  replay:
+    name: Classify + replay ${{ github.event.inputs.run_id }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40 # rerun wait bound is CI_GREEN_RERUN_TIMEOUT (1500s) by default
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Classify and replay
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_GREEN_RERUN_TIMEOUT: 1500
+        run: |
+          bash scripts/release-replay.sh \
+            "${{ github.event.inputs.run_id }}" \
+            "${{ github.event.inputs.lane }}"

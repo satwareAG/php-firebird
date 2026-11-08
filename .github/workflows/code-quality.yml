@@ -297,10 +297,57 @@ jobs:
   # ==========================================================================
   # Quality Summary
   # ==========================================================================
+  # ==========================================================================
+  # spec-kit Metadata Schema Gate (#760): the fork's check-metadata-schema.sh,
+  # fetched at the tag recorded in specs/metadata.json
+  # (dependencies.upstream[spec-kit].last_synced_tag) - single source of
+  # truth, never vendored (a vendored copy rots away from the synced tag it
+  # validates). Gate version == synced tag by construction. Fails the PR on
+  # any [FAIL] shape violation (missing fork_version, typed downstream[] on a
+  # public repo, bad last_synced_tag format, #168 privacy shape class).
+  # ==========================================================================
+  spec-kit-metadata:
+    name: spec-kit Metadata Schema Gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Resolve gate tag from metadata (single source of truth)
+        id: gatetag
+        run: |
+          TAG="$(jq -r '.dependencies.upstream[] | select(.repo=="satwareAG/spec-kit") | .last_synced_tag' specs/metadata.json)"
+          if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
+            echo "::error::specs/metadata.json has no satwareAG/spec-kit last_synced_tag - gate version linkage broken"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Gate tag (from metadata): $TAG"
+
+      - name: Fetch the gate script at the synced tag
+        run: |
+          TAG="${{ steps.gatetag.outputs.tag }}"
+          mkdir -p "$RUNNER_TEMP/schema-gate/scripts/bash"
+          # Fail loudly and separately on fetch errors (F3): a fetch failure
+          # must never read as a schema verdict.
+          if ! curl -fsSL "https://raw.githubusercontent.com/satwareAG/spec-kit/${TAG}/scripts/bash/check-metadata-schema.sh" \
+               -o "$RUNNER_TEMP/schema-gate/scripts/bash/check-metadata-schema.sh"; then
+            echo "::error::fetch of check-metadata-schema.sh at tag ${TAG} failed - sync the metadata first"
+            exit 1
+          fi
+          chmod +x "$RUNNER_TEMP/schema-gate/scripts/bash/check-metadata-schema.sh"
+
+      - name: Run the gate against specs/metadata.json (symlink REPO_ROOT layout)
+        run: |
+          ln -s "$GITHUB_WORKSPACE/specs" "$RUNNER_TEMP/schema-gate/specs"
+          bash "$RUNNER_TEMP/schema-gate/scripts/bash/check-metadata-schema.sh"
+
   quality-summary:
     name: Quality Gate
     runs-on: ubuntu-24.04
-    needs: [php-analysis, stubs-sync, c-analysis, version-stamps, secrets-scan, privacy-check, zpp-wire-gate]
+    needs: [php-analysis, stubs-sync, c-analysis, version-stamps, secrets-scan, privacy-check, zpp-wire-gate, spec-kit-metadata]
     if: always()
     timeout-minutes: 15
 
@@ -314,6 +361,7 @@ jobs:
           echo "Secrets Scan: ${{ needs.secrets-scan.result }}"
           echo "Privacy Check: ${{ needs.privacy-check.result }}"
           echo "zpp Wire Gate: ${{ needs.zpp-wire-gate.result }}"
+          echo "spec-kit Metadata Schema: ${{ needs.spec-kit-metadata.result }}"
 
           if [ "${{ needs.php-analysis.result }}" = "failure" ] || \
              [ "${{ needs.stubs-sync.result }}" = "failure" ] || \
@@ -321,7 +369,8 @@ jobs:
              [ "${{ needs.version-stamps.result }}" = "failure" ] || \
              [ "${{ needs.secrets-scan.result }}" = "failure" ] || \
              [ "${{ needs.privacy-check.result }}" = "failure" ] || \
-             [ "${{ needs.zpp-wire-gate.result }}" = "failure" ]; then
+             [ "${{ needs.zpp-wire-gate.result }}" = "failure" ] || \
+             [ "${{ needs.spec-kit-metadata.result }}" = "failure" ]; then
             echo "❌ Quality gate failed"
             exit 1
           fi

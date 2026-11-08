@@ -282,6 +282,12 @@ correct pattern.
 
 ## Release Procedure
 
+> Release-lane pool cancellations: dispatch `release-replay.yml` (run id + lane)
+> instead of a manual `gh run rerun --failed` - the P4 weather classifier
+> (`scripts/lib/weather-replay.sh`) replays pool cancellations once and waiver-logs
+> to `scripts/ci-weather-waivers.log`; genuine red refuses (#725). Manual reruns
+> bypass the waiver ledger and are no longer the supported path.
+
 ### Pre-Tag Checklist
 
 1. **Verify CI green**: `bash scripts/verify-ci-green.sh` - the 4 gated workflows must pass (ci, code-quality, sanitizers, coverage). doctrine-downstream is dispatched automatically when gating paths (C/C++, pdo_fbird, stubs) changed since the last release tag and waited out to green; otherwise the run is skipped (PR/weekly coverage stands). Rejects runs whose head SHA does not match the local branch head. Auto-retries queue-starvation false-reds once (ALL failing jobs cancelled with zero executed steps, #663); waits up to `CI_GREEN_RERUN_TIMEOUT` s (default 1500) per starved workflow, so worst case adds ~25 min per affected workflow.

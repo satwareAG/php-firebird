@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [13.4.1] - 2026-11-12
+
+> **Release note**: CI/tooling hardening train. Zero runtime-surface changes:
+> `git diff v13.4.0..v13.4.1 -- '*.c' '*.h' '*.cpp' stubs pdo_fbird src` is
+> empty (verified 2026-11-12), so the shipped `firebird.so` /
+> `pdo_fbird.so` binaries are functionally identical to v13.4.0.
+
+### Changed (CI / tooling)
+
+- **#766**: the local `php83-asan` lane is now an enforced CI gate: the
+  `asan-runtime` job in `sanitizers.yml` runs 9 arginfo/zpp sentinel tests
+  under the debug-asan PHP (`--enable-debug`, `USE_ZEND_ALLOC=0`,
+  `detect_stack_use_after_return=1`), where arginfo/zpp drift fatals at
+  runtime instead of passing silently (release lanes cannot see this class;
+  v13.0.0 shipped #595 for 11 release trains). Negative control verified
+  2026-11-12: reverting the #595 arginfo fix fails
+  `tests/fbird_connect_force_new.phpt` with
+  `Fatal error: Arginfo / zpp mismatch during call of fbird_connect()`.
+- **#725**: mechanical P4 weather replay for the release lanes
+  (`release-replay.yml` + `scripts/lib/weather-replay.sh`): pool
+  cancellations replay once with waiver logging; genuine red refuses.
+  Manual `gh run rerun --failed` for release lanes is no longer the
+  supported path.
+- **#760**: spec-kit metadata schema gate wired into `code-quality.yml`
+  (fetch at `last_synced_tag`, validated before use).
+- **#767**: gitleaks install in CI weather-hardened (curl -f + fallback on
+  any failure).
+- **#718**: the matrix runner now RETAINS failure artifacts (archive mode,
+  `artifacts/test-failures/<run-id>/`) instead of deleting them mid-run
+  (triage blocker).
+- **#759**: the `.betterleaks.toml` suppresses the public Firebird default
+  credential content-only (`^masterkey$`, anchored); per-path exemptions
+  dropped - a genuine secret planted in any fixture/CI/API file FLAGS
+  (canary oracle: `scripts/gates/issue754-betterleaks-canary.sh`).
+- **#757**: spec template ports the Abuse & Misuse Cases section from
+  spec-kit `satware-v1.3.0+1` (3 categories, AMR format, OWASP A04:2021).
+- **#769** (finding): LSan's stop-the-world tracer SIGSEGVs on
+  7.2.9-class host kernels; the asan runtime gate scopes `detect_leaks=0`
+  (UAF/arginfo enforcement stays armed, leak counting remains the `lsan`
+  job's). `scripts/test_matrix.sh` forwards `ASAN_OPTIONS`/`LSAN_OPTIONS`
+  to container execs.
+
 ## [13.4.0] - 2026-10-31
 
 > **Release note**: the v13.4.0 security hardening train (epic #728, spec
@@ -2670,7 +2712,9 @@ grep -r "ibase\." config/
 - [Upstream Issues Analysis](docs/UPSTREAM_ISSUE_ANALYSIS.md)
 - [Development History](docs/DEVELOPMENT_HISTORY.md)
 
-[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v13.3.1...HEAD
+[Unreleased]: https://github.com/satwareAG/php-firebird/compare/v13.4.1...HEAD
+[13.4.1]: https://github.com/satwareAG/php-firebird/compare/v13.4.0...v13.4.1
+[13.4.0]: https://github.com/satwareAG/php-firebird/compare/v13.3.1...v13.4.0
 [13.3.1]: https://github.com/satwareAG/php-firebird/compare/v13.2.12...v13.3.1
 [12.0.0]: https://github.com/satwareAG/php-firebird/compare/v11.1.0...v12.0.0
 [11.1.0]: https://github.com/satwareAG/php-firebird/compare/v11.0.0...v11.1.0

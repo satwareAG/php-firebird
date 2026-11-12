@@ -130,7 +130,13 @@ Rules:
 - Cross-container builds fight over `modules/` ownership (asan runs as
   root, others as uid 1000): `docker compose exec -u root <svc> chown -R
   1000:1000 /ext` before building in another container.
-- Known open arginfo/lifecycle latents visible only under asan: #593-596.
+- #593-#596 are closed (fixed via #600/#601). The runtime enforcement lane is
+  now the `asan-runtime` job in sanitizers.yml (#766): 9 arginfo/zpp sentinels
+  via `scripts/test_matrix.sh php83-asan`. It scopes `detect_leaks=0` -
+  LSan's stop-the-world tracer SIGSEGVs on 7.2.9-class host kernels and kills
+  the whole lane; UAF/arginfo enforcement stays armed and leak counting lives
+  in the sanitizers.yml `lsan` job. Locally, forward ASAN_OPTIONS/LSAN_OPTIONS
+  through test_matrix.sh (pass-through added in #766) to reproduce the gate.
 
 ### Local testing
 

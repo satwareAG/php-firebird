@@ -216,6 +216,19 @@ for CONTAINER in "${TARGETS[@]}"; do
         log_info "Using Firebird server: $TARGET_SERVER (FIREBIRD_DB_DIR=/tmp)"
     fi
 
+    # Sanitizer option pass-through (#766): forward host ASAN_OPTIONS/LSAN_OPTIONS
+    # to the container exec. Unset on the host = unchanged behavior (the
+    # Dockerfile-asan defaults apply). The CI asan-runtime gate scopes
+    # detect_leaks=0: LSan's stop-the-world tracer SIGSEGVs on some host
+    # kernels (7.2.9-class) breaking the whole lane; UAF/arginfo enforcement
+    # stays armed and leak counting lives in the dedicated lsan CI job.
+    if [ -n "${ASAN_OPTIONS:-}" ]; then
+        ENV_OPTS="$ENV_OPTS -e ASAN_OPTIONS=$ASAN_OPTIONS"
+    fi
+    if [ -n "${LSAN_OPTIONS:-}" ]; then
+        ENV_OPTS="$ENV_OPTS -e LSAN_OPTIONS=$LSAN_OPTIONS"
+    fi
+
     # Run Build & Test in single session
     # CRITICAL: build.sh must clean .dep files between PHP versions
     # These dependency files contain absolute paths to PHP headers (e.g., /usr/local/include/php/main/php_stdint.h)

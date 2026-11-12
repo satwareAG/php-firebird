@@ -519,12 +519,73 @@ jobs:
           echo "✅ ThreadSanitizer check complete"
 
   # ==========================================================================
+  # ASan runtime gate (#766): arginfo/zpp sentinels under the php83-asan
+  # debug PHP (--enable-debug, USE_ZEND_ALLOC=0, detect_stack_use_after_return=1).
+  #
+  # Release lanes tolerate arginfo/zpp drift and shutdown-ordering bugs
+  # silently (#593-#596 family; v13.0.0 shipped #595 for 11 release trains).
+  # Under the debug build those violations fatal at runtime, e.g.
+  #   Fatal error: Arginfo / zpp mismatch during call of fbird_connect()
+  #
+  # Negative control (verified 2026-11-12): reverting the #595 arginfo fix
+  # (dropping sync+flags from arginfo_fbird_connect) makes
+  # tests/fbird_connect_force_new.phpt fail with exactly that fatal under
+  # this gate; clean main passes 9/9.
+  #
+  # detect_leaks=0 is scoped ON PURPOSE (#596/#600 precedent): LSan's
+  # stop-the-world tracer SIGSEGVs on some host kernels and kills the lane;
+  # UAF/arginfo enforcement stays armed (any detected error aborts the test
+  # process, exitcode=139), leak counting belongs to the `lsan` job above.
+  #
+  # Runs via scripts/test_matrix.sh php83-asan (the documented sanitizer
+  # target): compose up php83-asan+firebird40, build INSIDE the container,
+  # env contract FIREBIRD_HOST=firebird40 / FIREBIRD_DB_DIR=/tmp.
+  # PATH-SELECTED subset only (council run 5): the 12-lane matrix must not
+  # become 24 lanes. Extend the list when #594-#596-class latents close.
+  # ==========================================================================
+  asan-runtime:
+    name: ASan runtime gate (arginfo/zpp sentinels, PHP 8.3 debug)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      ASAN_OPTIONS: "exitcode=139:abort_on_error=0:detect_leaks=0:check_initialization_order=1:strict_init_order=1:detect_stack_use_after_return=1:halt_on_error=0"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Ensure VERSION.txt
+        uses: ./.github/actions/version
+
+      - name: Run asan runtime sentinel subset
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/test_matrix.sh php83-asan "" \
+            tests/fbird_connect_force_new.phpt \
+            tests/fbird_connect_dpb_001.phpt \
+            tests/fbird_connect_typed_001.phpt \
+            tests/fbird_connection_info_001.phpt \
+            tests/fbird_drop_db_003.phpt \
+            tests/fbird_pconnect_001.phpt \
+            tests/fbird_pconnect_shutdown_001.phpt \
+            tests/issue580_force_new_shutdown.phpt \
+            tests/issue591_stmt_survives_conn_death.phpt
+
+      - name: Gate summary
+        if: success()
+        run: |
+          echo "✅ asan runtime gate passed: 9/9 arginfo/zpp sentinels green under php83-asan (debug build)"
+          echo "   - arginfo/zpp drift fatals are caught by this lane (negative control: #595 revert-test)"
+          echo "   - leak counting runs in the lsan job; this lane enforces UAF/arginfo only"
+
+  # ==========================================================================
   # Summary Job
   # ==========================================================================
   sanitizer-summary:
     name: Sanitizer Summary
     runs-on: ubuntu-24.04
-    needs: [asan-ubsan, lsan, tsan-zts]
+    needs: [asan-ubsan, asan-runtime, lsan, tsan-zts]
     if: always()
     timeout-minutes: 5
 
@@ -532,11 +593,17 @@ jobs:
       - name: Check sanitizer results
         run: |
           echo "ASan + UBSan: ${{ needs.asan-ubsan.result }}"
+          echo "ASan runtime gate: ${{ needs.asan-runtime.result }}"
           echo "LSan: ${{ needs.lsan.result }}"
           echo "TSan + ZTS: ${{ needs.tsan-zts.result }}"
 
           if [ "${{ needs.asan-ubsan.result }}" = "failure" ]; then
             echo "❌ AddressSanitizer/UBSan detected critical issues"
+            exit 1
+          fi
+
+          if [ "${{ needs.asan-runtime.result }}" = "failure" ]; then
+            echo "❌ ASan runtime gate detected arginfo/zpp or memory-safety violation"
             exit 1
           fi
 
